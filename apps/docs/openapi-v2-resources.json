@@ -1810,7 +1810,7 @@
       "get": {
         "operationId": "listCredentialProviders",
         "summary": "List Credential Providers",
-        "description": "List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. Optionally search provider names with a case-insensitive substring match. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -1823,6 +1823,18 @@
               "minLength": 1,
               "maxLength": 128,
               "description": "Workspace used to evaluate credential-provider availability and integration policy."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the credential provider name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the credential provider name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             }
           }
         ],

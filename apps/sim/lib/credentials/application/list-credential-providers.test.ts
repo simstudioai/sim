@@ -63,4 +63,46 @@ describe('listCredentialProviders', () => {
 
     expect(mocks.listCatalog).toHaveBeenCalledWith(principal, workspaceContext)
   })
+
+  it('searches provider names case-insensitively without matching ids or descriptions', async () => {
+    const salesforce = {
+      name: 'Salesforce',
+      serviceId: 'salesforce',
+      description: 'Connect a CRM.',
+    }
+    const google = {
+      name: 'Google',
+      serviceId: 'salesforce-migration',
+      description: 'Migrate Salesforce records.',
+    }
+    mocks.listCatalog.mockResolvedValue([salesforce, google])
+    const principal: SessionPrincipal = {
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'session-1',
+    }
+
+    const result = await listCredentialProviders.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', search: 'SaLeS' },
+    })
+
+    expect(result.providers).toEqual([salesforce])
+  })
+
+  it('fails fast on a blank search from a non-HTTP caller', async () => {
+    const principal: SessionPrincipal = {
+      kind: 'session',
+      userId: 'user-1',
+      sessionId: 'session-1',
+    }
+
+    await expect(
+      listCredentialProviders.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', search: '   ' },
+      })
+    ).rejects.toThrow('search cannot be empty')
+    expect(mocks.listCatalog).not.toHaveBeenCalled()
+  })
 })

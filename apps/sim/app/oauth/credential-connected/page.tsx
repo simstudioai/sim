@@ -1,5 +1,4 @@
 import { ChipLink } from '@sim/emcn'
-import { CircleAlert, CircleCheck } from '@sim/emcn/icons'
 import type { Metadata } from 'next'
 import { LogoShell } from '@/app/(landing)/components'
 
@@ -23,16 +22,6 @@ export default async function CredentialConnectedPage({
   return (
     <LogoShell center>
       <div className='flex w-full max-w-[410px] flex-col items-center gap-3 text-center'>
-        <div
-          className='mb-2 flex size-12 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] shadow-card'
-          aria-hidden
-        >
-          {connected ? (
-            <CircleCheck className='size-[20px] text-[var(--text-success)]' />
-          ) : (
-            <CircleAlert className='size-[20px] text-[var(--text-error)]' />
-          )}
-        </div>
         <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
           {connected ? 'Credential connected' : 'Connection failed'}
         </h1>

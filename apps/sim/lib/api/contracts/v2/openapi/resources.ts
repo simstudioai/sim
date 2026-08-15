@@ -872,7 +872,7 @@ const declaredRoutes = [
     resourceOperation('Credentials', {
       operationId: 'listCredentialProviders',
       summary: 'List Credential Providers',
-      description: `List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. ${FULL_SET_LIST}`,
+      description: `List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. Optionally search provider names with a case-insensitive substring match. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Credential provider catalog with caller-specific availability.' },
     }),
@@ -881,7 +881,7 @@ const declaredRoutes = [
         v2ListCredentialProvidersContract.query,
         'ListCredentialProvidersQuery',
         'List credential providers query',
-        'Workspace used to evaluate provider availability.'
+        'Workspace and optional provider-name search used to filter caller-specific availability.'
       ),
       response: documentedSchema(
         v2ListCredentialProvidersContract.response.schema,

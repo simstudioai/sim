@@ -78,6 +78,8 @@ const PAGED_LISTS = [
  *   server reports. The MCP *server* list is not bounded that way — nothing caps
  *   how many servers a workspace registers — which is why it is paged and does
  *   not appear here.
+ * - The credential-provider catalog is bounded by the code-defined OAuth and
+ *   service-account registries.
  * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
  *   cannot grow past them.
  * - A table's saved views and its dispatchable groups are capped per table.
