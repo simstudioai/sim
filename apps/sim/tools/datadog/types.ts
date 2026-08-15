@@ -469,82 +469,158 @@ interface CancelDowntimeOutput {
 export interface CancelDowntimeResponse extends ToolResponse {
   output: CancelDowntimeOutput
 }
-
 // SLO TYPES
 
 export type SloType = 'metric' | 'monitor' | 'time_slice'
 
+export type SloTimeframe = '7d' | '30d' | '90d' | 'custom'
+
 interface SloThreshold {
-  timeframe: '7d' | '30d' | '90d' | 'custom'
-  target: number // Target percentage (e.g., 99.9)
+  timeframe: SloTimeframe
+  target: number
   target_display?: string
   warning?: number
   warning_display?: string
-}
-
-interface CreateSloParams extends DatadogBaseParams {
-  name: string
-  type: SloType
-  description?: string
-  tags?: string // Comma-separated tags
-  thresholds: string // JSON string of SloThreshold[]
-  // For metric-based SLO
-  query?: string // JSON string of { numerator: string, denominator: string }
-  // For monitor-based SLO
-  monitorIds?: string // Comma-separated monitor IDs
-  groups?: string // Comma-separated group names
 }
 
 interface SloData {
   id: string
   name: string
   type: string
-  description?: string
+  description?: string | null
   tags?: string[]
-  thresholds: SloThreshold[]
-  creator?: { email: string; handle: string; name: string }
+  thresholds?: SloThreshold[]
+  target_threshold?: number
+  warning_threshold?: number
+  timeframe?: string
+  monitor_ids?: number[]
+  monitor_tags?: string[]
+  groups?: string[]
+  query?: { numerator: string; denominator: string } | null
+  creator?: { email?: string; handle?: string; name?: string | null } | null
   created_at?: number
   modified_at?: number
+  configured_alert_ids?: number[]
+}
+
+export interface ListSlosParams extends DatadogBaseParams {
+  ids?: string
+  query?: string
+  tagsQuery?: string
+  metricsQuery?: string
+  limit?: number
+  offset?: number
+  isDeleted?: boolean
+}
+
+interface ListSlosOutput {
+  slos: SloData[]
+}
+
+export interface ListSlosResponse extends ToolResponse {
+  output: ListSlosOutput
+}
+
+export interface GetSloParams extends DatadogBaseParams {
+  sloId: string
+  withConfiguredAlertIds?: boolean
+}
+
+interface GetSloOutput {
+  slo: SloData
+}
+
+export interface GetSloResponse extends ToolResponse {
+  output: GetSloOutput
+}
+
+export interface CreateSloParams extends DatadogBaseParams {
+  name: string
+  type: SloType
+  description?: string
+  tags?: string
+  thresholds: string
+  query?: string
+  monitorIds?: string
+  groups?: string
+  targetThreshold?: number
+  warningThreshold?: number
+  timeframe?: SloTimeframe
 }
 
 interface CreateSloOutput {
   slo: SloData
 }
 
-interface CreateSloResponse extends ToolResponse {
+export interface CreateSloResponse extends ToolResponse {
   output: CreateSloOutput
 }
 
-interface GetSloHistoryParams extends DatadogBaseParams {
+export interface UpdateSloParams extends CreateSloParams {
   sloId: string
-  fromTs: number // Unix timestamp
-  toTs: number // Unix timestamp
-  target?: number // Target SLO percentage
+}
+
+interface UpdateSloOutput {
+  slo: SloData
+}
+
+export interface UpdateSloResponse extends ToolResponse {
+  output: UpdateSloOutput
+}
+
+export interface DeleteSloParams extends DatadogBaseParams {
+  sloId: string
+  force?: boolean
+}
+
+interface DeleteSloOutput {
+  success: boolean
+  deletedIds: string[]
+}
+
+export interface DeleteSloResponse extends ToolResponse {
+  output: DeleteSloOutput
+}
+
+export interface GetSloHistoryParams extends DatadogBaseParams {
+  sloId: string
+  fromTs: number
+  toTs: number
+  target?: number
+  applyCorrection?: boolean
+}
+
+interface SloHistorySliData {
+  name?: string
+  group?: string
+  sli_value?: number | null
+  span_precision?: number
+  precision?: Record<string, number>
+  error_budget_remaining?: Record<string, number>
+  monitor_type?: string
+  monitor_modified?: number
+  preview?: boolean
+  history?: number[][]
 }
 
 interface SloHistoryData {
-  from_ts: number
-  to_ts: number
-  type: string
-  type_id: number
-  sli_value?: number
-  overall: {
-    name: string
-    sli_value: number
-    span_precision: number
-    precision: { [key: string]: number }
-  }
-  series?: {
-    times: number[]
-    values: number[]
-  }
+  from_ts?: number
+  to_ts?: number
+  type?: string
+  type_id?: number
+  group_by?: string[]
+  overall?: SloHistorySliData
+  groups?: SloHistorySliData[]
+  monitors?: SloHistorySliData[]
+  thresholds?: Record<string, SloThreshold>
 }
 
 interface GetSloHistoryOutput {
   history: SloHistoryData
+  sliValue?: number | null
 }
 
-interface GetSloHistoryResponse extends ToolResponse {
+export interface GetSloHistoryResponse extends ToolResponse {
   output: GetSloHistoryOutput
 }
 
@@ -552,39 +628,53 @@ interface GetSloHistoryResponse extends ToolResponse {
 
 export type DashboardLayoutType = 'ordered' | 'free'
 
-interface CreateDashboardParams extends DatadogBaseParams {
-  title: string
-  layoutType: DashboardLayoutType
-  description?: string
-  widgets?: string // JSON string of widget definitions
-  isReadOnly?: boolean
-  notifyList?: string // Comma-separated user handles to notify
-  templateVariables?: string // JSON string of template variable definitions
-  tags?: string // Comma-separated tags
+interface DashboardData {
+  id?: string
+  title?: string
+  layout_type?: string
+  description?: string | null
+  url?: string
+  author_handle?: string
+  author_name?: string | null
+  created_at?: string
+  modified_at?: string
+  is_read_only?: boolean
+  reflow_type?: string
+  tags?: string[] | null
+  notify_list?: string[] | null
+  restricted_roles?: string[]
+  template_variables?: unknown[] | null
+  widgets?: unknown[]
 }
 
-interface DashboardData {
-  id: string
-  title: string
-  layout_type: string
-  description?: string
+interface DashboardSummaryData {
+  id?: string
+  title?: string
+  description?: string | null
+  layout_type?: string
   url?: string
   author_handle?: string
   created_at?: string
   modified_at?: string
   is_read_only?: boolean
-  tags?: string[]
 }
 
-interface CreateDashboardOutput {
-  dashboard: DashboardData
+export interface ListDashboardsParams extends DatadogBaseParams {
+  filterShared?: boolean
+  filterDeleted?: boolean
+  count?: number
+  start?: number
 }
 
-interface CreateDashboardResponse extends ToolResponse {
-  output: CreateDashboardOutput
+interface ListDashboardsOutput {
+  dashboards: DashboardSummaryData[]
 }
 
-interface GetDashboardParams extends DatadogBaseParams {
+export interface ListDashboardsResponse extends ToolResponse {
+  output: ListDashboardsOutput
+}
+
+export interface GetDashboardParams extends DatadogBaseParams {
   dashboardId: string
 }
 
@@ -592,48 +682,339 @@ interface GetDashboardOutput {
   dashboard: DashboardData
 }
 
-interface GetDashboardResponse extends ToolResponse {
+export interface GetDashboardResponse extends ToolResponse {
   output: GetDashboardOutput
 }
 
-interface ListDashboardsParams extends DatadogBaseParams {
-  filterShared?: boolean
-  filterDeleted?: boolean
-  count?: number
-  start?: number
-}
-
-interface DashboardSummary {
-  id: string
+export interface CreateDashboardParams extends DatadogBaseParams {
   title: string
+  layoutType: DashboardLayoutType
+  widgets: string
   description?: string
-  layout_type: string
-  url?: string
-  author_handle?: string
-  created_at?: string
-  modified_at?: string
-  is_read_only?: boolean
-  popularity?: number
+  notifyList?: string
+  templateVariables?: string
+  tags?: string
+  reflowType?: 'auto' | 'fixed'
 }
 
-interface ListDashboardsOutput {
-  dashboards: DashboardSummary[]
-  total?: number
+interface CreateDashboardOutput {
+  dashboard: DashboardData
 }
 
-interface ListDashboardsResponse extends ToolResponse {
-  output: ListDashboardsOutput
+export interface CreateDashboardResponse extends ToolResponse {
+  output: CreateDashboardOutput
+}
+
+export interface DeleteDashboardParams extends DatadogBaseParams {
+  dashboardId: string
+}
+
+interface DeleteDashboardOutput {
+  success: boolean
+  deletedDashboardId?: string
+}
+
+export interface DeleteDashboardResponse extends ToolResponse {
+  output: DeleteDashboardOutput
+}
+
+// SYNTHETICS TYPES
+
+export type SyntheticsTestPauseStatus = 'live' | 'paused'
+
+interface SyntheticsTestData {
+  public_id?: string
+  name?: string
+  status?: string
+  type?: string
+  subtype?: string
+  message?: string
+  monitor_id?: number
+  tags?: string[]
+  locations?: string[]
+  config?: unknown
+  options?: unknown
+  creator?: { email?: string; handle?: string; name?: string | null } | null
+}
+
+export interface ListSyntheticsTestsParams extends DatadogBaseParams {
+  pageSize?: number
+  pageNumber?: number
+}
+
+interface ListSyntheticsTestsOutput {
+  tests: SyntheticsTestData[]
+}
+
+export interface ListSyntheticsTestsResponse extends ToolResponse {
+  output: ListSyntheticsTestsOutput
+}
+
+export interface GetSyntheticsTestParams extends DatadogBaseParams {
+  publicId: string
+}
+
+interface GetSyntheticsTestOutput {
+  test: SyntheticsTestData
+}
+
+export interface GetSyntheticsTestResponse extends ToolResponse {
+  output: GetSyntheticsTestOutput
+}
+
+export interface GetSyntheticsResultsParams extends DatadogBaseParams {
+  publicId: string
+  fromTs?: number
+  toTs?: number
+  probeDc?: string
+}
+
+interface SyntheticsResultData {
+  result_id?: string
+  check_time?: number
+  probe_dc?: string
+  status?: number
+  result?: { passed?: boolean; timings?: Record<string, number> }
+}
+
+interface GetSyntheticsResultsOutput {
+  results: SyntheticsResultData[]
+  lastTimestampFetched?: number
+}
+
+export interface GetSyntheticsResultsResponse extends ToolResponse {
+  output: GetSyntheticsResultsOutput
+}
+
+export interface TriggerSyntheticsTestsParams extends DatadogBaseParams {
+  publicIds: string
+}
+
+interface TriggerSyntheticsTestsOutput {
+  batchId?: string | null
+  triggeredCheckIds: string[]
+  results: {
+    public_id?: string
+    result_id?: string
+    location?: number
+    device?: string
+  }[]
+  locations: { id?: number; name?: string }[]
+}
+
+export interface TriggerSyntheticsTestsResponse extends ToolResponse {
+  output: TriggerSyntheticsTestsOutput
+}
+
+export interface UpdateSyntheticsStatusParams extends DatadogBaseParams {
+  publicId: string
+  newStatus: SyntheticsTestPauseStatus
+}
+
+interface UpdateSyntheticsStatusOutput {
+  success: boolean
+  status: SyntheticsTestPauseStatus
+}
+
+export interface UpdateSyntheticsStatusResponse extends ToolResponse {
+  output: UpdateSyntheticsStatusOutput
+}
+
+// SECURITY MONITORING TYPES
+
+export type SecuritySignalState = 'open' | 'archived' | 'under_review'
+
+export type SecuritySignalArchiveReason =
+  | 'none'
+  | 'false_positive'
+  | 'testing_or_maintenance'
+  | 'remediated'
+  | 'investigated_case_opened'
+  | 'true_positive_benign'
+  | 'true_positive_malicious'
+  | 'other'
+
+interface SecuritySignalData {
+  id?: string
+  type?: string
+  attributes: {
+    message?: string
+    timestamp?: string
+    tags?: string[]
+    custom?: Record<string, unknown>
+  }
+}
+
+export interface ListSecuritySignalsParams extends DatadogBaseParams {
+  query?: string
+  from?: string
+  to?: string
+  sort?: 'timestamp' | '-timestamp'
+  cursor?: string
+  limit?: number
+}
+
+interface ListSecuritySignalsOutput {
+  signals: SecuritySignalData[]
+  nextCursor?: string
+}
+
+export interface ListSecuritySignalsResponse extends ToolResponse {
+  output: ListSecuritySignalsOutput
+}
+
+export interface GetSecuritySignalParams extends DatadogBaseParams {
+  signalId: string
+}
+
+interface GetSecuritySignalOutput {
+  signal: SecuritySignalData
+}
+
+export interface GetSecuritySignalResponse extends ToolResponse {
+  output: GetSecuritySignalOutput
+}
+
+export interface SecuritySignalTriageData {
+  id?: string
+  type?: string
+  state?: string
+  assignee?: { uuid?: string; handle?: string; name?: string | null; id?: number }
+  incidentIds?: number[]
+  archiveReason?: string
+  archiveComment?: string
+  stateUpdateTimestamp?: number
+}
+
+export interface UpdateSecuritySignalStateParams extends DatadogBaseParams {
+  signalId: string
+  state: SecuritySignalState
+  archiveReason?: SecuritySignalArchiveReason
+  archiveComment?: string
+}
+
+interface UpdateSecuritySignalStateOutput {
+  signal: SecuritySignalTriageData
+}
+
+export interface UpdateSecuritySignalStateResponse extends ToolResponse {
+  output: UpdateSecuritySignalStateOutput
+}
+
+export interface UpdateSecuritySignalAssigneeParams extends DatadogBaseParams {
+  signalId: string
+  assigneeUuid: string
+}
+
+interface UpdateSecuritySignalAssigneeOutput {
+  signal: SecuritySignalTriageData
+}
+
+export interface UpdateSecuritySignalAssigneeResponse extends ToolResponse {
+  output: UpdateSecuritySignalAssigneeOutput
+}
+
+export interface ListSecurityRulesParams extends DatadogBaseParams {
+  query?: string
+  sort?: string
+  pageSize?: number
+  pageNumber?: number
+}
+
+interface SecurityRuleData {
+  id?: string
+  name?: string
+  type?: string
+  message?: string
+  tags?: string[]
+  isEnabled?: boolean
+  isDefault?: boolean
+  createdAt?: number
+  version?: number
+}
+
+interface ListSecurityRulesOutput {
+  rules: SecurityRuleData[]
+}
+
+export interface ListSecurityRulesResponse extends ToolResponse {
+  output: ListSecurityRulesOutput
+}
+
+// APM / SPANS TYPES
+
+export interface SearchSpansParams extends DatadogBaseParams {
+  query?: string
+  from?: string
+  to?: string
+  sort?: 'timestamp' | '-timestamp'
+  cursor?: string
+  limit?: number
+}
+
+interface SpanData {
+  id?: string
+  type?: string
+  attributes: {
+    service?: string
+    resource_name?: string
+    env?: string
+    host?: string
+    type?: string
+    trace_id?: string
+    span_id?: string
+    parent_id?: string
+    start_timestamp?: string
+    end_timestamp?: string
+    ingestion_reason?: string
+    retained_by?: string
+    single_span?: boolean
+    tags?: string[]
+    custom?: Record<string, unknown>
+    attributes?: Record<string, unknown>
+  }
+}
+
+interface SearchSpansOutput {
+  spans: SpanData[]
+  nextCursor?: string
+  elapsed?: number
+}
+
+export interface SearchSpansResponse extends ToolResponse {
+  output: SearchSpansOutput
+}
+
+export interface ListServicesParams extends DatadogBaseParams {
+  pageSize?: number
+  pageNumber?: number
+  schemaVersion?: string
+}
+
+interface ServiceDefinitionData {
+  id?: string
+  type?: string
+  schema?: Record<string, unknown>
+  meta?: Record<string, unknown>
+}
+
+interface ListServicesOutput {
+  services: ServiceDefinitionData[]
+}
+
+export interface ListServicesResponse extends ToolResponse {
+  output: ListServicesOutput
 }
 
 // HOSTS TYPES
 
 interface ListHostsParams extends DatadogBaseParams {
-  filter?: string // Filter hosts by name, alias, or tag
-  sortField?: string // Field to sort by
+  filter?: string
+  sortField?: string
   sortDir?: 'asc' | 'desc'
-  start?: number // Starting offset
-  count?: number // Max hosts to return
-  from?: number // Unix timestamp - hosts seen in last N seconds
+  start?: number
+  count?: number
+  from?: number
   includeMutedHostsData?: boolean
   includeHostsMetadata?: boolean
 }
@@ -677,32 +1058,36 @@ interface ListHostsResponse extends ToolResponse {
 
 // INCIDENTS TYPES
 
-export type IncidentSeverity = 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5' | 'UNKNOWN'
-export type IncidentState = 'active' | 'stable' | 'resolved'
+export type IncidentSeverity = 'UNKNOWN' | 'SEV-0' | 'SEV-1' | 'SEV-2' | 'SEV-3' | 'SEV-4' | 'SEV-5'
 
-interface CreateIncidentParams extends DatadogBaseParams {
-  title: string
-  customerImpacted: boolean
-  severity?: IncidentSeverity
-  fields?: string // JSON string of additional fields
+interface IncidentFieldValue {
+  type?: string
+  value?: string | string[] | null
 }
 
 interface IncidentData {
   id: string
-  type: string
+  type?: string
   attributes: {
-    title: string
-    customer_impacted: boolean
-    severity?: IncidentSeverity
-    state?: IncidentState
+    title?: string
+    state?: string | null
+    severity?: string
+    visibility?: string | null
+    customer_impacted?: boolean
+    customer_impact_scope?: string | null
+    customer_impact_start?: string | null
+    customer_impact_end?: string | null
+    customer_impact_duration?: number
+    fields?: Record<string, IncidentFieldValue>
+    incident_type_uuid?: string
+    is_test?: boolean
+    public_id?: number
     created?: string
     modified?: string
-    resolved?: string
-    detected?: string
-    customer_impact_scope?: string
-    customer_impact_start?: string
-    customer_impact_end?: string
-    public_id?: number
+    declared?: string
+    detected?: string | null
+    resolved?: string | null
+    archived?: string | null
     time_to_detect?: number
     time_to_internal_response?: number
     time_to_repair?: number
@@ -710,27 +1095,101 @@ interface IncidentData {
   }
 }
 
-interface CreateIncidentOutput {
-  incident: IncidentData
-}
-
-interface CreateIncidentResponse extends ToolResponse {
-  output: CreateIncidentOutput
-}
-
-interface ListIncidentsParams extends DatadogBaseParams {
-  query?: string
+export interface ListIncidentsParams extends DatadogBaseParams {
+  include?: string
   pageSize?: number
   pageOffset?: number
-  include?: string // Comma-separated: users, attachments
 }
 
 interface ListIncidentsOutput {
   incidents: IncidentData[]
+  nextOffset?: number
 }
 
-interface ListIncidentsResponse extends ToolResponse {
+export interface ListIncidentsResponse extends ToolResponse {
   output: ListIncidentsOutput
+}
+
+export interface GetIncidentParams extends DatadogBaseParams {
+  incidentId: string
+  include?: string
+}
+
+interface GetIncidentOutput {
+  incident: IncidentData
+}
+
+export interface GetIncidentResponse extends ToolResponse {
+  output: GetIncidentOutput
+}
+
+export interface CreateIncidentParams extends DatadogBaseParams {
+  title: string
+  customerImpacted: boolean
+  severity?: IncidentSeverity
+  customerImpactScope?: string
+  incidentTypeUuid?: string
+  isTest?: boolean
+  fields?: string
+  notificationHandles?: string
+}
+
+interface CreateIncidentOutput {
+  incident: IncidentData
+}
+
+export interface CreateIncidentResponse extends ToolResponse {
+  output: CreateIncidentOutput
+}
+
+export interface UpdateIncidentParams extends DatadogBaseParams {
+  incidentId: string
+  title?: string
+  severity?: IncidentSeverity
+  customerImpacted?: boolean
+  customerImpactScope?: string
+  customerImpactStart?: string
+  customerImpactEnd?: string
+  detected?: string
+  fields?: string
+  notificationHandles?: string
+}
+
+interface UpdateIncidentOutput {
+  incident: IncidentData
+}
+
+export interface UpdateIncidentResponse extends ToolResponse {
+  output: UpdateIncidentOutput
+}
+
+export interface AddIncidentTodoParams extends DatadogBaseParams {
+  incidentId: string
+  content: string
+  assignees: string
+  dueDate?: string
+}
+
+interface IncidentTodoData {
+  id?: string
+  type?: string
+  attributes: {
+    content?: string
+    assignees?: string[]
+    completed?: string | null
+    due_date?: string | null
+    incident_id?: string
+    created?: string
+    modified?: string
+  }
+}
+
+interface AddIncidentTodoOutput {
+  todo: IncidentTodoData
+}
+
+export interface AddIncidentTodoResponse extends ToolResponse {
+  output: AddIncidentTodoOutput
 }
 
 // Union type for all Datadog responses
@@ -754,11 +1213,31 @@ export type DatadogResponse =
   | CreateDowntimeResponse
   | ListDowntimesResponse
   | CancelDowntimeResponse
+  | ListSlosResponse
+  | GetSloResponse
   | CreateSloResponse
+  | UpdateSloResponse
+  | DeleteSloResponse
   | GetSloHistoryResponse
-  | CreateDashboardResponse
-  | GetDashboardResponse
   | ListDashboardsResponse
+  | GetDashboardResponse
+  | CreateDashboardResponse
+  | DeleteDashboardResponse
+  | ListSyntheticsTestsResponse
+  | GetSyntheticsTestResponse
+  | GetSyntheticsResultsResponse
+  | TriggerSyntheticsTestsResponse
+  | UpdateSyntheticsStatusResponse
+  | ListSecuritySignalsResponse
+  | GetSecuritySignalResponse
+  | UpdateSecuritySignalStateResponse
+  | UpdateSecuritySignalAssigneeResponse
+  | ListSecurityRulesResponse
+  | SearchSpansResponse
+  | ListServicesResponse
   | ListHostsResponse
-  | CreateIncidentResponse
   | ListIncidentsResponse
+  | GetIncidentResponse
+  | CreateIncidentResponse
+  | UpdateIncidentResponse
+  | AddIncidentTodoResponse
