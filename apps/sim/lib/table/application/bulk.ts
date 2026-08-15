@@ -222,6 +222,26 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
       planFolderSelection(context.workspaceId, TABLE_FOLDER_RESOURCE_TYPE, context.folderIds),
     ])
 
+    /**
+     * The target must not be inside the subtree that is moving. `plan.covered` is exactly the
+     * selected folders plus their descendants, so this rejects both "into itself" and "into its
+     * own child" before anything is written. Without it the tables move, the folders then fail
+     * their cycle check, and the caller is left with a half-applied selection.
+     */
+    if (input.targetFolderId !== null && plan.covered.has(input.targetFolderId)) {
+      throw new OrchestrationError(
+        'validation',
+        'Cannot move a folder into itself or one of its own subfolders'
+      )
+    }
+
+    /**
+     * The target must not be inside the subtree that is moving. `plan.covered` is exactly the
+     * selected folders plus their descendants, so this rejects both "into itself" and "into its
+     * own child" before anything is written. Without it the tables move, the folders then fail
+     * their cycle check, and the caller is left with a half-applied selection.
+     */
+
     const moved: BulkTableItem[] = []
     const outcome: BulkTablesOutcome = { skipped: [], notFound: [], failed: [] }
     foldFolderPlan(plan, outcome)

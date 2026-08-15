@@ -18,7 +18,7 @@ import { useEffect, useRef } from 'react'
  * abort drags that are still in progress — a bug this exact hook already shipped once.
  */
 export function useDragTeardown(teardown: () => void): void {
-  const teardownRef = useRef(teardown)
+  const teardownRef = useRef<() => void>(teardown)
   teardownRef.current = teardown
 
   useEffect(() => {

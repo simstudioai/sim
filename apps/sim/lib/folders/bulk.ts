@@ -92,14 +92,24 @@ export async function planFolderSelection(
     }
   }
 
+  const reported = new Set<string>()
   for (const folderId of folderIds) {
     const row = rowsById.get(folderId)
-    if (!row || covered.has(folderId)) continue
+    if (!row || reported.has(folderId)) continue
+    reported.add(folderId)
     const entry = { id: row.id, name: row.name }
+    /**
+     * Containment is tested before `covered`, and that order matters: an explicitly requested
+     * folder that sits inside another selected folder must always be reported. Testing
+     * `covered` first made the outcome order-dependent — an ancestor processed earlier marked
+     * the descendant covered, so the descendant fell out of every outcome category and the
+     * same id set produced different results depending on the order it arrived in.
+     */
     if (insideAnotherSelection.has(folderId)) {
       contained.push(entry)
       continue
     }
+    if (covered.has(folderId)) continue
     selected.push(entry)
     covered.add(folderId)
     for (const descendantId of descendantsOf.get(folderId) ?? []) covered.add(descendantId)

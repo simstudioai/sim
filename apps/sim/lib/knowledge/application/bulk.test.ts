@@ -246,6 +246,35 @@ describe('knowledge bulk application use cases', () => {
     expect(mocks.updateRecord).not.toHaveBeenCalled()
   })
 
+  it('fails the whole move when the destination sits inside the moving subtree', async () => {
+    // `covered` is the selected folders plus their descendants. Without an up-front check the
+    // knowledge bases move, the folders then fail their own cycle check, and the caller is left
+    // with a half-applied selection.
+    mocks.planFolderSelection.mockResolvedValue({
+      selected: [{ id: 'folder-2', name: 'Archive' }],
+      notFound: [],
+      contained: [],
+      covered: new Set(['folder-2', 'folder-2-child']),
+    })
+
+    for (const targetFolderId of ['folder-2', 'folder-2-child']) {
+      await expect(
+        bulkMoveKnowledgeItems.execute({
+          principal,
+          input: {
+            assertedWorkspaceId: 'workspace-1',
+            knowledgeBaseIds: ['knowledge-1'],
+            folderIds: ['folder-2'],
+            targetFolderId,
+          },
+        })
+      ).rejects.toMatchObject({ code: 'validation' })
+    }
+
+    expect(mocks.updateRecord).not.toHaveBeenCalled()
+    expect(mocks.bulkMoveFolders).not.toHaveBeenCalled()
+  })
+
   it('moves knowledge bases and folders in one operation', async () => {
     mocks.planFolderSelection.mockResolvedValue({
       selected: [{ id: 'folder-2', name: 'Archive' }],
