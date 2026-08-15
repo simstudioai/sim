@@ -8,11 +8,17 @@ import { Ffmpeg } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
+  resolveServerToolAbortSignal,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
-import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
+import {
+  type FfmpegOperation,
+  MAX_FFMPEG_INPUTS,
+  type MediaFile,
+  runFfmpegOperation,
+} from '@/lib/media/ffmpeg'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   getBoundWorkspaceFileSecretProvenance,
@@ -90,6 +96,14 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
     if (inputPaths.length === 0) {
       return { success: false, message: 'At least one input file is required in inputs.files' }
     }
+    // Bounded before any download: the byte budget alone still permits hundreds
+    // of small clips, and concat re-encodes every one of them serially.
+    if (inputPaths.length > MAX_FFMPEG_INPUTS) {
+      return {
+        success: false,
+        message: `At most ${MAX_FFMPEG_INPUTS} input files are allowed per ffmpeg operation (got ${inputPaths.length}).`,
+      }
+    }
 
     let inputRequiresOpaqueError = false
     try {
@@ -138,19 +152,26 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       inputRequiresOpaqueError ||=
         inputProvenance.status === 'unknown' || inputProvenance.entries.length > 0
       assertServerToolNotAborted(context)
-      const result = await runFfmpegOperation(params.operation, mediaFiles, {
-        text: params.text,
-        position: params.position,
-        start: params.start,
-        end: params.end,
-        width: params.width,
-        height: params.height,
-        aspectRatio: params.aspectRatio,
-        volume: params.volume,
-        musicVolume: params.musicVolume,
-        loopToVideo: params.loopToVideo,
-        format: params.format,
-      })
+      const result = await runFfmpegOperation(
+        params.operation,
+        mediaFiles,
+        {
+          text: params.text,
+          position: params.position,
+          start: params.start,
+          end: params.end,
+          width: params.width,
+          height: params.height,
+          aspectRatio: params.aspectRatio,
+          volume: params.volume,
+          musicVolume: params.musicVolume,
+          loopToVideo: params.loopToVideo,
+          format: params.format,
+        },
+        // A transcode outlives its request unless the child is killed, so the
+        // cancellation signal must reach FFmpeg itself, not just the steps around it.
+        { signal: resolveServerToolAbortSignal(context) }
+      )
 
       // probe reports metadata only — no file written.
       if (params.operation === 'probe') {

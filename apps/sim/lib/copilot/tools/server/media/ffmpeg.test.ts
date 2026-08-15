@@ -42,6 +42,7 @@ vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
 }))
 
 vi.mock('@/lib/media/ffmpeg', () => ({
+  MAX_FFMPEG_INPUTS: 10,
   runFfmpegOperation: runFfmpegOperationMock,
 }))
 
@@ -58,6 +59,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
 }))
 
 import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
+import { MAX_FFMPEG_INPUTS } from '@/lib/media/ffmpeg'
 
 const EXACT_EMPTY = { status: 'exact' as const, entries: [] }
 const TRACKED = {
@@ -307,5 +309,38 @@ describe('ffmpeg server tool secret provenance', () => {
       success: false,
       message: 'ffmpeg convert failed: The media operation failed safely',
     })
+  })
+
+  it('rejects more inputs than the cap before downloading any of them', async () => {
+    const result = await ffmpegServerTool.execute(
+      {
+        operation: 'concat',
+        inputs: {
+          files: Array.from({ length: MAX_FFMPEG_INPUTS + 1 }, () => ({ path: 'files/input.mp4' })),
+        },
+      },
+      context
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain(`At most ${MAX_FFMPEG_INPUTS} input files`)
+    expect(resolveWorkspaceFileReferenceMock).not.toHaveBeenCalled()
+    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards the abort signal so a cancelled turn can kill the transcode', async () => {
+    const abortSignal = new AbortController().signal
+
+    await ffmpegServerTool.execute(
+      { operation: 'convert', inputs: { files: [{ path: 'files/input.mp4' }] } },
+      { ...context, abortSignal }
+    )
+
+    expect(runFfmpegOperationMock).toHaveBeenCalledWith(
+      'convert',
+      expect.anything(),
+      expect.anything(),
+      { signal: abortSignal }
+    )
   })
 })

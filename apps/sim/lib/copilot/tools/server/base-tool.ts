@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface ServerToolContext {
@@ -26,6 +27,18 @@ export interface ServerToolContext {
   userStopSignal?: AbortSignal
   /** Private in-process provenance channel; never copied into tool arguments or results. */
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+}
+
+/**
+ * One signal covering every way a tool call can be cancelled, for tools that
+ * hold a killable resource (a child process, a long stream) rather than merely
+ * checking between steps as {@link assertServerToolNotAborted} does.
+ */
+export function resolveServerToolAbortSignal(context?: ServerToolContext): AbortSignal | undefined {
+  const signals = [context?.abortSignal, context?.userStopSignal].filter(
+    (signal): signal is AbortSignal => Boolean(signal)
+  )
+  return signals.length > 0 ? combineExecutionAbortSignals(signals) : undefined
 }
 
 export function assertServerToolNotAborted(
