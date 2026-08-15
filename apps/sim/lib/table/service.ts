@@ -945,7 +945,15 @@ export async function moveTableToFolder(
   tableId: string,
   workspaceId: string,
   folderId: string | null,
-  requestId: string
+  requestId: string,
+  /**
+   * `notify: false` for a caller moving several tables in one gesture that
+   * sends a single batch notification of its own. Each notify is an internal
+   * HTTP round trip with an identical body and triggers an identical
+   * workspace-wide invalidation, so a per-item fan-out makes every connected
+   * client refetch the same list once per moved table.
+   */
+  options?: { notify?: boolean }
 ): Promise<{ name: string }> {
   const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
     folderId,
@@ -981,7 +989,7 @@ export async function moveTableToFolder(
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
   // Live tables list: a move changes each table's folder placement in the list result.
-  await notifyWorkspaceTablesChanged(workspaceId)
+  if (options?.notify ?? true) await notifyWorkspaceTablesChanged(workspaceId)
 
   return { name }
 }

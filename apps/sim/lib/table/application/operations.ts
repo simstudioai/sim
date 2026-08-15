@@ -80,6 +80,8 @@ export const tableOperations = {
   create: writeOperation('tables.create'),
   update: writeOperation('tables.update'),
   delete: writeOperation('tables.delete'),
+  bulkMove: writeOperation('tables.bulk_move'),
+  bulkDelete: writeOperation('tables.bulk_delete'),
   renameByVfsPath: defineWorkspaceOperation({
     id: 'tables.vfs.rename',
     minimumRole: 'write',

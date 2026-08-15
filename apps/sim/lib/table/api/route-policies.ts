@@ -72,6 +72,14 @@ const internalTableGroupErrorPolicy = extendInternalErrorPolicy(
  * authorization failures behind the same not-found wording.
  */
 export const internalTableErrorPolicies = {
+  /**
+   * Workspace-scoped bulk routes. They name a workspace, not one table, so
+   * there is no table whose existence a 403 could betray — per-item
+   * authorization failures are already folded into the response's `notFound`
+   * list by the use case. A lock that escapes the per-item classifier still
+   * renders as 423.
+   */
+  bulk: internalTableGroupErrorPolicy,
   concealTableAuthorization: createInternalResourceConcealmentPolicy({
     base: internalOrchestrationErrorPolicy,
     notFoundMessage: 'Table not found',

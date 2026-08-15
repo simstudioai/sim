@@ -43,7 +43,11 @@ RUN bun install -g turbo@2.9.6
 
 COPY . .
 
-RUN turbo prune sim --docker
+# Read the package name from the app manifest. The published CLI also owns the
+# `sim` package name, so a hard-coded historical name can silently prune the CLI
+# instead of the application after either package is renamed.
+RUN APP_PACKAGE_NAME="$(bun -e "console.log(require('./apps/sim/package.json').name)")" && \
+    turbo prune "$APP_PACKAGE_NAME" --docker
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -65,7 +69,7 @@ COPY --from=pruner /app/bun.lock ./bun.lock
 # JOBS=4 caps node-gyp parallelism — higher values OOM isolated-vm (laverdet/isolated-vm#428).
 #
 # node-gyp comes from the lockfile, not `npx`. It is a devDependency of apps/sim
-# purely so `turbo prune sim` keeps it: the only other copy is transitive through
+# purely so `turbo prune` keeps it: the only other copy is transitive through
 # `@electron/rebuild`, which belongs to apps/desktop and is pruned away. `npx`
 # resolved it from the registry at build time, which pulled a different major
 # (13.x vs the pinned 12.4.0) and bypassed the `minimumReleaseAge` supply-chain

@@ -25,6 +25,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { type FieldErrors, useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH } from '@/lib/knowledge/constants'
 import {
@@ -56,6 +57,14 @@ const STRATEGY_OPTIONS = [
   { value: 'token', label: 'Token (fixed-size)' },
   { value: 'regex', label: 'Regex (custom pattern)' },
 ] as const
+
+/** Splits the comma-separated separator field into the list the API receives. */
+function parseSeparators(value: string | undefined): string[] {
+  if (!value?.trim()) return []
+  return value
+    .split(',')
+    .map((separator) => separator.trim().replace(/\\n/g, '\n').replace(/\\t/g, '\t'))
+}
 
 const STRATEGY_COMBOBOX_OPTIONS: ComboboxOption[] = STRATEGY_OPTIONS.map((o) => ({
   label: o.label,
@@ -122,6 +131,31 @@ const FormSchema = z
     {
       message: 'Regex pattern is required when using the regex strategy',
       path: ['regexPattern'],
+    }
+  )
+  /**
+   * Gated on the strategy for the same reason the regex pattern is: the field only
+   * renders for `recursive` and only that strategy submits it, so an out-of-bound
+   * value left behind by a strategy switch must not block a submit that drops it.
+   */
+  .refine(
+    (data) =>
+      data.strategy !== 'recursive' ||
+      parseSeparators(data.customSeparators).length <= MAX_CHUNKING_SEPARATORS,
+    {
+      message: `At most ${MAX_CHUNKING_SEPARATORS} separators are allowed`,
+      path: ['customSeparators'],
+    }
+  )
+  .refine(
+    (data) =>
+      data.strategy !== 'recursive' ||
+      parseSeparators(data.customSeparators).every(
+        (separator) => separator.length <= MAX_CHUNKING_SEPARATOR_LENGTH
+      ),
+    {
+      message: `Each separator must be ${MAX_CHUNKING_SEPARATOR_LENGTH} characters or less`,
+      path: ['customSeparators'],
     }
   )
 
@@ -265,11 +299,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               ...(data.regexStrictBoundaries && { strictBoundaries: true }),
             }
           : data.strategy === 'recursive' && data.customSeparators?.trim()
-            ? {
-                separators: data.customSeparators
-                  .split(',')
-                  .map((s) => s.trim().replace(/\\n/g, '\n').replace(/\\t/g, '\t')),
-              }
+            ? { separators: parseSeparators(data.customSeparators) }
             : undefined
 
       const newKnowledgeBase = await createKnowledgeBaseMutation.mutateAsync({
@@ -465,11 +495,13 @@ export const CreateBaseModal = memo(function CreateBaseModal({
             <ChipModalField
               type='custom'
               title='Custom Separators (optional)'
-              hint='Comma-separated list of delimiters in priority order. Leave empty for default separators.'
+              hint={`Comma-separated list of delimiters in priority order, up to ${MAX_CHUNKING_SEPARATORS}. Leave empty for default separators.`}
+              error={errors.customSeparators?.message}
             >
               <ChipInput
                 placeholder='e.g. \n\n, \n, . ,  '
                 {...register('customSeparators')}
+                error={Boolean(errors.customSeparators)}
                 autoComplete='off'
                 data-form-type='other'
               />

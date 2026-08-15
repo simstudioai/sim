@@ -21,7 +21,6 @@ import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
-import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/application/batch-policy'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import {
   createKnowledgeConnector,
@@ -48,7 +47,11 @@ import {
   readKnowledgeTagUsage,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
-import { ALL_TAG_SLOTS, KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
+  MAX_KNOWLEDGE_BATCH_ITEMS,
+} from '@/lib/knowledge/constants'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 

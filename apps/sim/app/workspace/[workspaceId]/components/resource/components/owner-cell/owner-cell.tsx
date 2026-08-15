@@ -2,12 +2,17 @@ import { memo } from 'react'
 import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
 
-interface OwnerAvatarProps {
+export interface OwnerAvatarProps {
   name: string
   image: string | null
 }
 
-const OwnerAvatar = memo(function OwnerAvatar({ name, image }: OwnerAvatarProps) {
+/**
+ * The canonical 14px workspace-member avatar — a photo, or the member's initial on a neutral
+ * disc. Shared so a member reads identically in a resource row's owner cell and in the
+ * owner/uploaded-by filter options on every list.
+ */
+export const OwnerAvatar = memo(function OwnerAvatar({ name, image }: OwnerAvatarProps) {
   if (image) {
     return (
       <img

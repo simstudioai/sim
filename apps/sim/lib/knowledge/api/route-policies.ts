@@ -77,6 +77,13 @@ export const internalKnowledgeErrorPolicies = {
   update: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to update knowledge base')),
   delete: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to delete knowledge base')),
   restore: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  /**
+   * Workspace-scoped bulk routes. Deliberately not concealed: the request names
+   * a workspace, not one knowledge base, and per-item authorization failures
+   * are already folded into the response's `notFound` list by the use case.
+   */
+  bulkMove: internalKnowledgeErrorPolicy('Failed to move knowledge bases'),
+  bulkDelete: internalKnowledgeErrorPolicy('Failed to delete knowledge bases'),
   default: internalKnowledgeErrorPolicy('Internal server error'),
   documents: concealKnowledgeBase(
     internalKnowledgeErrorPolicy('Failed to process knowledge document request')
