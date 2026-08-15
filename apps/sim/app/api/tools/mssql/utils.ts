@@ -1,6 +1,10 @@
 import net from 'node:net'
 import sql from 'mssql'
-import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import {
+  maskSqlStringLiterals,
+  validateDatabaseHost,
+  validateSqlWhereClause,
+} from '@/lib/core/security/input-validation.server'
 
 export interface MSSQLConnectionConfig {
   host: string
@@ -129,19 +133,6 @@ export async function executeQuery(
 }
 
 /**
- * Strips single-quoted string literals so keyword screening reads only code.
- *
- * T-SQL escapes a quote by doubling it, so `'it''s'` is one literal rather than
- * two — matching that form is what keeps the scanner from resynchronizing on
- * the wrong quote and exposing the rest of the statement as if it were a
- * literal.
- * @see https://learn.microsoft.com/en-us/sql/t-sql/data-types/constants-transact-sql
- */
-function stripStringLiterals(query: string): string {
-  return query.replace(/'(?:[^']|'')*'/g, "''")
-}
-
-/**
  * Restricts the Query operation to statements that only read.
  *
  * The block label, the tool description, and the docs all present this
@@ -152,8 +143,9 @@ function stripStringLiterals(query: string): string {
  * A leading `WITH` is admitted because a CTE is the normal way to write a
  * non-trivial SELECT, but T-SQL also allows `WITH x AS (...) DELETE FROM x`, so
  * the body is screened for mutating keywords rather than trusting the leading
- * token alone. Screening runs over the statement with string literals removed,
- * which keeps ordinary prose in a WHERE clause from tripping it.
+ * token alone. Screening runs over the statement with string literals masked by
+ * the shared {@link maskSqlStringLiterals}, which keeps ordinary prose in a
+ * WHERE clause from tripping it.
  *
  * The screen is lexical, not a parser, so it can still reject a legitimate
  * query that uses a keyword as a bare identifier. It fails closed on purpose,
@@ -172,7 +164,7 @@ export function validateReadOnlyQuery(query: string): { isValid: boolean; error?
 
   const mutating =
     /\b(insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|exec|execute|into)\b/i.exec(
-      stripStringLiterals(trimmedQuery)
+      maskSqlStringLiterals(trimmedQuery)
     )
   if (mutating) {
     return {
@@ -235,52 +227,63 @@ export function buildDeleteQuery(table: string, where: string) {
 }
 
 /**
- * Validates a WHERE clause to prevent SQL injection attacks
- * @param where - The WHERE clause string to validate
- * @throws {Error} If the WHERE clause contains potentially dangerous patterns
+ * T-SQL-specific WHERE screening layered on top of the shared guard.
+ *
+ * The first pattern is the one that does not generalize: **T-SQL does not
+ * require a statement terminator**, so `id = 1 DROP TABLE dbo.users` is a valid
+ * two-statement batch and every semicolon-anchored stacked-query check — the
+ * shared guard's included — reads straight past it. Screening for a bare
+ * statement-introducing keyword is what closes that. Word boundaries keep
+ * ordinary column names (`updated_at`, `deleted_at`, `created_by`) matching
+ * nothing; a column whose name *is* a bare keyword must be reached through the
+ * Execute Raw SQL operation instead.
+ *
+ * The rest are SQL Server surfaces the shared guard has no reason to know
+ * about: the `OPEN*` rowset functions, `BULK INSERT`, `WAITFOR` timing probes,
+ * catalog and legacy compatibility views (`master..sysobjects`), and the
+ * extended/OLE-automation procedures.
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/language-elements/transact-sql-syntax-conventions-transact-sql
+ * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/catalog-views-transact-sql
+ */
+const MSSQL_WHERE_PATTERNS: readonly RegExp[] = [
+  /\b(?:drop|create|alter|truncate|grant|revoke|insert|update|delete|merge|exec|execute|backup|restore|shutdown|reconfigure)\b/i,
+  /\bopenrowset\s*\(/i,
+  /\bopendatasource\s*\(/i,
+  /\bopenquery\s*\(/i,
+  /\bopenxml\s*\(/i,
+  /\bbulk\s+insert\b/i,
+  /\bwaitfor\s+(?:delay|time)\b/i,
+  /information_schema/i,
+  /\bsys\./i,
+  /\.\.\s*sys\w*/i,
+  /\bsys(?:objects|columns|databases|users|indexes|comments)\b/i,
+  /\bxp_\w+/i,
+  /\bsp_(?:executesql|oacreate|oamethod|oagetproperty|configure|addextendedproc)\b/i,
+]
+
+/**
+ * Rejects WHERE clauses containing injection or always-true tautology patterns
+ * so a user-supplied condition cannot broaden an update or delete to every row.
+ *
+ * Delegates the shared checks to {@link validateSqlWhereClause} — which masks
+ * string literals before scanning, so prose inside a quoted value cannot trip a
+ * structural pattern — then applies the T-SQL-specific screening above.
+ *
+ * As the shared guard's own documentation states, this is defense-in-depth
+ * rather than a security boundary: the caller supplies their own database
+ * credentials and can run equivalent SQL through the Execute Raw SQL operation.
+ * It stops the easy ways an injected condition escalates, nothing more.
+ * @throws {Error} If the WHERE clause matches any screened pattern
  */
 function validateWhereClause(where: string): void {
-  const dangerousPatterns = [
-    // DDL and DML injection via stacked queries
-    /;\s*(drop|delete|insert|update|create|alter|grant|revoke|truncate)/i,
-    // Union-based injection
-    /union\s+(all\s+)?select/i,
-    // File and external data operations
-    /\bopenrowset\s*\(/i,
-    /\bopendatasource\s*\(/i,
-    /\bopenquery\s*\(/i,
-    /\bopenxml\s*\(/i,
-    /\bbulk\s+insert\b/i,
-    // Comment-based injection (can truncate query)
-    /--/,
-    /\/\*/,
-    /\*\//,
-    // Tautologies - always true/false conditions using backreferences
-    /\bor\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
-    /\bor\s+true\b/i,
-    /\bor\s+false\b/i,
-    /\band\s+(['"]?)(\w+)\1\s*=\s*\1\2\1/i,
-    /\band\s+true\b/i,
-    /\band\s+false\b/i,
-    // Time-based blind injection
-    /\bwaitfor\s+(delay|time)\b/i,
-    // Stacked queries (any statement after semicolon)
-    /;\s*\w+/,
-    // Information schema / system catalog queries, including the legacy
-    // compatibility views reachable as `master..sysobjects`
-    /information_schema/i,
-    /\bsys\./i,
-    /\.\.\s*sys\w*/i,
-    /\bsys(objects|columns|databases|users|indexes|comments)\b/i,
-    // Extended and OLE-automation stored procedures
-    /\bxp_\w+/i,
-    /\bsp_(executesql|oacreate|oamethod|oagetproperty|configure|addextendedproc)\b/i,
-  ]
+  const shared = validateSqlWhereClause(where, 'WHERE clause')
+  if (!shared.isValid) {
+    throw new Error(shared.error)
+  }
 
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(where)) {
-      throw new Error('WHERE clause contains potentially dangerous operation')
-    }
+  const masked = maskSqlStringLiterals(where)
+  if (MSSQL_WHERE_PATTERNS.some((pattern) => pattern.test(masked))) {
+    throw new Error('WHERE clause contains potentially dangerous operation')
   }
 }
 
