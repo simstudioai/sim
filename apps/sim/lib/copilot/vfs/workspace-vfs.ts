@@ -16,12 +16,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { getAccountBillingSnapshot } from '@/lib/billing/core/account-billing-snapshot'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
   buildWorkspaceContextMd,
   buildWorkspaceMd,
   type WorkspaceMdData,
 } from '@/lib/copilot/chat/workspace-context'
+import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import {
@@ -67,6 +69,11 @@ import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import type { DeploymentData, VfsServiceAccountAuth } from '@/lib/copilot/vfs/serializers'
 import {
   describeServiceAccountForOAuthProvider,
+  serializeAccessControl,
+  serializeAccountBilling,
+  serializeAccountMembers,
+  serializeAccountWorkspace,
+  serializeAccountWorkspaces,
   serializeApiKeyIntegrations,
   serializeApiKeys,
   serializeBlockSchema,
@@ -83,6 +90,8 @@ import {
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeMcpServer,
+  serializeOrganization,
+  serializeOrganizationCustomBlocks,
   serializeRecentExecutions,
   serializeSandbox,
   serializeSandboxCatalog,
@@ -93,6 +102,7 @@ import {
   serializeTriggerSchema,
   serializeVersions,
   serializeWorkflowMeta,
+  serializeWorkspaceForks,
 } from '@/lib/copilot/vfs/serializers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import {
@@ -126,6 +136,7 @@ import {
 } from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { listTables } from '@/lib/table/service'
 import {
@@ -152,18 +163,27 @@ import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-wo
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
+import {
+  getUserPermissionConfig,
+  resolveVerifiedUserAccessControlContext,
+} from '@/ee/access-control/utils/permission-check'
+import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
+import { getForkChildren, getForkParent } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { loadForkBlockMap } from '@/ee/workspace-forking/lib/mapping/block-map-store'
+import { getEdgeMappingRows } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { ToolConfig } from '@/tools/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
@@ -590,6 +610,14 @@ function getStaticComponentFiles(): Map<string, string> {
  *   custom-tools/{name}.json
  *   agent/sandboxes/README.md
  *   agent/sandboxes/{name}.json
+ *   account/workspace.json                           (this workspace + your role; always present)
+ *   account/workspaces.json                          (every workspace you can reach)
+ *   account/members.json                             (workspace members; emails admin-only)
+ *   account/billing.json                             (plan/usage/credits; lazy, read fresh)
+ *   organization/organization.json                   (org standing; only when org-hosted)
+ *   organization/access-control.json                 (your governing group + restrictions)
+ *   organization/custom-blocks.json                  (org-published block provenance)
+ *   organization/forks.json                          (fork topology; workspace admins only)
  *   environment/credentials.json
  *   environment/api-keys.json
  *   environment/variables.json
@@ -827,6 +855,13 @@ export class WorkspaceVFS {
               'sandbox_entitlement',
               hasWorkspaceSandboxAccess(workspaceId)
             )
+            // Shared with the account/ and organization/ namespaces so the
+            // roster and host context are each read once per materialization.
+            const membersPromise = timed('members', getUsersWithPermissions(workspaceId))
+            const hostContextPromise = timed(
+              'host_context',
+              getWorkspaceHostContextForViewer(workspaceId, userId).catch(() => null)
+            )
             const [
               wfSummary,
               kbSummary,
@@ -868,9 +903,18 @@ export class WorkspaceVFS {
                 )
               ),
               timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
-              timed('members', getUsersWithPermissions(workspaceId)),
+              membersPromise,
               permissionConfigPromise,
               sandboxEntitlementPromise,
+            ])
+
+            // account/ and organization/ describe the viewer's standing rather
+            // than workspace resources, so they are materialized after the
+            // resource pass and contribute nothing to WORKSPACE.md.
+            const hostContext = await hostContextPromise
+            await Promise.all([
+              timed('account', this.materializeAccount(workspaceId, userId, hostContext, members)),
+              timed('organization', this.materializeOrganization(workspaceId, userId, hostContext)),
             ])
             const workspaceMdData: WorkspaceMdData = {
               workspace: wsRow,
@@ -2329,6 +2373,218 @@ export class WorkspaceVFS {
         error: toError(err).message,
       })
       return []
+    }
+  }
+
+  /**
+   * Materialize `account/` — the acting user's vantage: this workspace and
+   * their role in it, the workspaces they can reach, who else is here, and
+   * their live plan.
+   *
+   * Read-only and always mounted. `billing.json` is registered lazily because
+   * usage ticks between requests: materializing it would freeze the numbers at
+   * snapshot time and pay for a billing read on every turn that never asks.
+   * Membership reuses the roster already loaded for WORKSPACE.md rather than
+   * issuing a second query.
+   */
+  private async materializeAccount(
+    workspaceId: string,
+    userId: string,
+    hostContext: Awaited<ReturnType<typeof getWorkspaceHostContextForViewer>>,
+    members: Awaited<ReturnType<typeof getUsersWithPermissions>>
+  ): Promise<void> {
+    try {
+      const [rows, entitlements] = await Promise.all([
+        listAccessibleWorkspaceRowsForUser(userId).catch(() => []),
+        computeWorkspaceEntitlements(workspaceId, userId).catch(() => [] as string[]),
+      ])
+
+      const current = rows.find((row) => row.workspace.id === workspaceId)
+      const parentId = current?.workspace.forkedFromWorkspaceId ?? null
+      // Name the parent only when the viewer can reach it; otherwise the id
+      // stands alone rather than leaking a workspace name they cannot open.
+      const parentRow = parentId ? rows.find((row) => row.workspace.id === parentId) : undefined
+      const isAdmin = hostContext?.viewer.permission === 'admin'
+
+      this.files.set(
+        'account/workspace.json',
+        serializeAccountWorkspace({
+          workspace: {
+            id: workspaceId,
+            name: hostContext?.workspace.name ?? current?.workspace.name ?? '',
+            workspaceMode: hostContext?.workspace.workspaceMode ?? null,
+          },
+          viewer: {
+            permission: hostContext?.viewer.permission ?? current?.permissionType ?? null,
+            organizationRole: hostContext?.viewer.organizationRole ?? null,
+          },
+          organization: hostContext?.hostOrganizationId
+            ? { id: hostContext.hostOrganizationId }
+            : null,
+          forkedFrom: parentId
+            ? { id: parentId, name: parentRow?.workspace.name ?? parentId }
+            : null,
+          entitlements,
+        })
+      )
+
+      this.files.set(
+        'account/workspaces.json',
+        serializeAccountWorkspaces(
+          rows.map((row) => ({
+            id: row.workspace.id,
+            name: row.workspace.name,
+            role: row.permissionType,
+            organizationId: row.workspace.organizationId,
+            forkedFromWorkspaceId: row.workspace.forkedFromWorkspaceId,
+            isCurrent: row.workspace.id === workspaceId,
+          }))
+        )
+      )
+
+      this.files.set(
+        'account/members.json',
+        serializeAccountMembers(members, { includeContactDetails: isAdmin })
+      )
+
+      this.registerLazy('account/billing.json', async () => {
+        try {
+          return serializeAccountBilling(await getAccountBillingSnapshot(userId))
+        } catch (err) {
+          logger.warn('Failed to load account billing', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+    } catch (err) {
+      logger.warn('Failed to materialize account namespace', {
+        workspaceId,
+        error: toError(err).message,
+      })
+    }
+  }
+
+  /**
+   * Materialize `organization/` — org standing, the access-control rules that
+   * actually bind this viewer, org-published block provenance, and fork
+   * topology.
+   *
+   * The namespace exists only when the workspace belongs to an organization, so
+   * its absence is itself the answer for a personal workspace. Fork detail is
+   * mounted only for a workspace admin of a forking-enabled org, matching the
+   * gate the fork routes apply.
+   */
+  private async materializeOrganization(
+    workspaceId: string,
+    userId: string,
+    hostContext: Awaited<ReturnType<typeof getWorkspaceHostContextForViewer>>
+  ): Promise<void> {
+    const organizationId = hostContext?.hostOrganizationId
+    if (!hostContext || !organizationId) return
+
+    try {
+      this.files.set(
+        'organization/organization.json',
+        serializeOrganization({
+          organization: {
+            id: organizationId,
+            relationship: hostContext.viewer.isHostOrganizationMember ? 'internal' : 'external',
+            role: hostContext.viewer.organizationRole ?? null,
+          },
+          capabilities: {
+            canManageOrganization: hostContext.viewer.isHostOrganizationAdmin,
+            canManageBilling: hostContext.viewer.isHostOrganizationAdmin,
+          },
+          plan: hostContext.ownerBilling.plan,
+          isEnterprise: hostContext.ownerBilling.isEnterprise,
+        })
+      )
+
+      this.registerLazy('organization/access-control.json', async () => {
+        try {
+          const accessControl = await resolveVerifiedUserAccessControlContext(
+            userId,
+            workspaceId,
+            organizationId
+          )
+          return serializeAccessControl({
+            entitled: accessControl.entitled,
+            permissionGroup: accessControl.permissionGroup,
+            restrictions: getActivePermissionGroupRestrictions(accessControl.config),
+          })
+        } catch (err) {
+          logger.warn('Failed to load access control context', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+
+      this.registerLazy('organization/custom-blocks.json', async () => {
+        try {
+          const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
+          if (blocks.length === 0) return null
+          return serializeOrganizationCustomBlocks(blocks)
+        } catch (err) {
+          logger.warn('Failed to load org custom blocks', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+
+      if (hostContext.viewer.permission !== 'admin') return
+      if (!(await isForkingAvailableForWorkspace(organizationId, userId).catch(() => false))) return
+
+      this.registerLazy('organization/forks.json', async () => {
+        try {
+          const [parent, children] = await Promise.all([
+            getForkParent(workspaceId),
+            getForkChildren(workspaceId),
+          ])
+          if (!parent && children.length === 0) return null
+
+          const resourceMappingCounts: Record<string, number> = {}
+          let blockMappingCount = 0
+          if (parent) {
+            const [resourceRows, blockMap] = await Promise.all([
+              getEdgeMappingRows(db, workspaceId),
+              loadForkBlockMap(db, workspaceId),
+            ])
+            for (const row of resourceRows) {
+              resourceMappingCounts[row.resourceType] =
+                (resourceMappingCounts[row.resourceType] ?? 0) + 1
+            }
+            blockMappingCount = blockMap.parentToChild.size
+          }
+
+          return serializeWorkspaceForks({
+            parent: parent ? { id: parent.id, name: parent.name } : null,
+            children: children.map((child) => ({
+              id: child.id,
+              name: child.name,
+              createdAt: child.createdAt,
+            })),
+            resourceMappingCounts,
+            blockMappingCount,
+          })
+        } catch (err) {
+          logger.warn('Failed to load fork topology', {
+            workspaceId,
+            error: toError(err).message,
+          })
+          return null
+        }
+      })
+    } catch (err) {
+      logger.warn('Failed to materialize organization namespace', {
+        workspaceId,
+        error: toError(err).message,
+      })
     }
   }
 

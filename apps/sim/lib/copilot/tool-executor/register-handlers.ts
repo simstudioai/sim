@@ -10,19 +10,16 @@ import {
   DeployAsMcp,
   DiffWorkflows,
   GenerateApiKey,
-  GetAccountBilling,
   GetBlockOutputs,
   GetBlockUpstreamReferences,
   GetDeployedWorkflowState,
   GetDeploymentStatus,
-  GetEnterpriseContext,
   GetWorkflowData,
   GetWorkflowRunOptions,
   Glob as GlobTool,
   Grep as GrepTool,
   ListDeploymentVersions,
   ListIntegrationTools,
-  ListUserWorkspaces,
   ListWorkspaceMcpServers,
   LoadDeployment,
   ManageCredential,
@@ -53,8 +50,6 @@ import {
   UpdateDeploymentVersion,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import { executeGetAccountBilling } from '@/lib/copilot/tools/handlers/account'
-import { executeGetEnterpriseContext } from '@/lib/copilot/tools/handlers/enterprise-context'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
 import { executeDeployCustomBlock } from '../tools/handlers/deployment/custom-block'
@@ -114,7 +109,6 @@ import {
   executeGetDeployedWorkflowState,
   executeGetWorkflowData,
   executeGetWorkflowRunOptions,
-  executeListUserWorkspaces,
 } from '../tools/handlers/workflow/queries'
 import { registerHandlers } from './executor'
 import type { ToolHandler } from './types'
@@ -139,9 +133,6 @@ function h(fn: (params: any, context: any) => Promise<any>): ToolHandler {
 
 function buildHandlerMap(): Record<string, ToolHandler> {
   return {
-    [ListUserWorkspaces.id]: h((_p, c) => executeListUserWorkspaces(c)),
-    [GetAccountBilling.id]: h((_p, c) => executeGetAccountBilling(c)),
-    [GetEnterpriseContext.id]: h((_p, c) => executeGetEnterpriseContext(c)),
     [GetWorkflowData.id]: h(executeGetWorkflowData),
     [GetWorkflowRunOptions.id]: h(executeGetWorkflowRunOptions),
     [GetBlockOutputs.id]: h(executeGetBlockOutputs),

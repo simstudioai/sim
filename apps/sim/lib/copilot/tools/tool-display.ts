@@ -513,6 +513,8 @@ const TOOL_TITLES: Record<string, string> = {
   download_file: 'Downloading file',
   run_function: 'Running code',
   generate_api_key: 'Generating API key',
+  // Retired in favor of the account/ and organization/ VFS namespaces. Kept so
+  // a replayed transcript from before the switch still renders its rows.
   get_account_billing: 'Checking plan and usage',
   get_block_outputs: 'Reading block outputs',
   get_block_upstream_references: 'Tracing block inputs',

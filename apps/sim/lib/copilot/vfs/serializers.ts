@@ -1326,3 +1326,307 @@ export function serializeTableViews(
     2
   )
 }
+
+/**
+ * `account/workspace.json` — the current workspace as this viewer sees it:
+ * identity, the viewer's effective permission, org linkage, and fork parentage.
+ *
+ * Owns the current-workspace record. Org detail lives in
+ * `organization/organization.json` and fork topology in
+ * `organization/forks.json`; both are referenced here by id-and-name stub only,
+ * so a fact can never disagree with the file that owns it.
+ */
+export function serializeAccountWorkspace(input: {
+  workspace: { id: string; name: string; workspaceMode?: string | null }
+  viewer: { permission: string | null; organizationRole?: string | null }
+  organization: { id: string; name?: string | null } | null
+  forkedFrom: { id: string; name: string } | null
+  entitlements: string[]
+}): string {
+  return JSON.stringify(
+    {
+      id: input.workspace.id,
+      name: input.workspace.name,
+      ...(input.workspace.workspaceMode ? { mode: input.workspace.workspaceMode } : {}),
+      yourPermission: input.viewer.permission,
+      organization: input.organization
+        ? {
+            id: input.organization.id,
+            ...(input.organization.name ? { name: input.organization.name } : {}),
+            ...(input.viewer.organizationRole ? { yourRole: input.viewer.organizationRole } : {}),
+            detail: 'organization/organization.json',
+          }
+        : null,
+      forkedFrom: input.forkedFrom
+        ? {
+            id: input.forkedFrom.id,
+            name: input.forkedFrom.name,
+            detail: 'organization/forks.json',
+          }
+        : null,
+      entitlements: input.entitlements,
+      note: 'Read-only. Your accessible workspaces are in account/workspaces.json; members in account/members.json; plan and usage in account/billing.json.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `account/workspaces.json` — every workspace the viewer can reach, as stubs.
+ *
+ * Deliberately a roster, not a set of records: id, name, the viewer's role, and
+ * org/fork parentage by id. Anything richer about the *current* workspace is in
+ * `account/workspace.json`; other workspaces are not readable from here at all.
+ */
+export function serializeAccountWorkspaces(
+  workspaces: Array<{
+    id: string
+    name: string
+    role: string
+    organizationId?: string | null
+    forkedFromWorkspaceId?: string | null
+    isCurrent: boolean
+  }>
+): string {
+  return JSON.stringify(
+    {
+      workspaces: workspaces.map((workspace) => ({
+        id: workspace.id,
+        name: workspace.name,
+        yourRole: workspace.role,
+        ...(workspace.organizationId ? { organizationId: workspace.organizationId } : {}),
+        ...(workspace.forkedFromWorkspaceId
+          ? { forkedFromWorkspaceId: workspace.forkedFromWorkspaceId }
+          : {}),
+        ...(workspace.isCurrent ? { isCurrent: true } : {}),
+      })),
+      note: 'Only the current workspace (isCurrent) is mounted in this VFS — the others are listed so you can name them, not read them. Switching workspaces is the user’s action, not yours.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `account/members.json` — who is in the current workspace, with roles.
+ *
+ * `includeContactDetails` is the viewer's own admin bit: emails and pending
+ * invitations are the same privilege as the members settings page, so a
+ * non-admin viewer gets names and roles without contact details.
+ */
+export function serializeAccountMembers(
+  members: Array<{
+    userId: string
+    name: string | null
+    email: string | null
+    permissionType: string
+    isExternal?: boolean
+    roleSource?: string
+  }>,
+  options: { includeContactDetails: boolean }
+): string {
+  return JSON.stringify(
+    {
+      members: members.map((member) => ({
+        userId: member.userId,
+        name: member.name ?? null,
+        ...(options.includeContactDetails && member.email ? { email: member.email } : {}),
+        role: member.permissionType,
+        ...(member.isExternal ? { isExternal: true } : {}),
+        ...(member.roleSource && member.roleSource !== 'explicit'
+          ? { roleSource: member.roleSource }
+          : {}),
+      })),
+      total: members.length,
+      ...(options.includeContactDetails
+        ? {}
+        : { note: 'Email addresses are shown to workspace admins only.' }),
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `account/billing.json` — the acting user's live plan, usage, and credits.
+ *
+ * The only file that carries money and usage numbers; `organization.json` links
+ * here rather than repeating them. Read at request time, so the numbers are
+ * current rather than as-of-materialization.
+ */
+export function serializeAccountBilling(snapshot: {
+  plan: string
+  billingScope: 'user' | 'organization'
+  organizationId: string | null
+  usage: {
+    currentPeriodCost: number
+    limit: number
+    remaining: number
+    percentUsed: number
+    isExceeded: boolean
+    billingPeriodEnd: Date | string | null
+  }
+  credits: { balance: number; scope: 'user' | 'organization' }
+}): string {
+  const periodEnd = snapshot.usage.billingPeriodEnd
+  return JSON.stringify(
+    {
+      plan: snapshot.plan,
+      billedTo: snapshot.billingScope,
+      ...(snapshot.organizationId ? { organizationId: snapshot.organizationId } : {}),
+      usage: {
+        currentPeriodCost: snapshot.usage.currentPeriodCost,
+        limit: snapshot.usage.limit,
+        remaining: snapshot.usage.remaining,
+        percentUsed: snapshot.usage.percentUsed,
+        isExceeded: snapshot.usage.isExceeded,
+        billingPeriodEnd: periodEnd instanceof Date ? periodEnd.toISOString() : periodEnd,
+      },
+      credits: { balance: snapshot.credits.balance, scope: snapshot.credits.scope },
+      note: 'Live values for the acting user, read at access time. What the plan tiers and credits mean is a documentation question, not a value in this file.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/organization.json` — the org that hosts this workspace and the
+ * viewer's standing in it. Owns the organization record; plan economics stay in
+ * `account/billing.json`.
+ */
+export function serializeOrganization(input: {
+  organization: { id: string; relationship: string; role: string | null }
+  capabilities: { canManageOrganization: boolean; canManageBilling: boolean }
+  plan: string | null
+  isEnterprise: boolean
+}): string {
+  return JSON.stringify(
+    {
+      id: input.organization.id,
+      yourRelationship: input.organization.relationship,
+      yourRole: input.organization.role,
+      canManageOrganization: input.capabilities.canManageOrganization,
+      canManageBilling: input.capabilities.canManageBilling,
+      ...(input.plan ? { plan: input.plan } : {}),
+      isEnterprise: input.isEnterprise,
+      note: 'Plan usage and credits are in account/billing.json. Your effective restrictions are in organization/access-control.json.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/access-control.json` — who can see and do what, from the
+ * viewer's vantage: the permission group governing them and the restrictions it
+ * actually imposes.
+ *
+ * Scoped to the viewer on purpose. The full group roster is an org-admin
+ * settings surface, not workspace context.
+ */
+export function serializeAccessControl(input: {
+  entitled: boolean
+  permissionGroup: { id: string; name: string; resolution: string } | null
+  restrictions: Array<{ key: string; description: string }>
+}): string {
+  return JSON.stringify(
+    {
+      entitled: input.entitled,
+      governingPermissionGroup: input.permissionGroup
+        ? {
+            id: input.permissionGroup.id,
+            name: input.permissionGroup.name,
+            appliedBecause: input.permissionGroup.resolution,
+          }
+        : null,
+      activeRestrictions: input.restrictions.map((restriction) => ({
+        key: restriction.key,
+        description: restriction.description,
+      })),
+      note: 'These restrictions are enforced server-side on every action, so a blocked request fails no matter how it is phrased. They describe THIS user; other members may be governed by different groups.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/custom-blocks.json` — provenance for org-published blocks: who
+ * published each one and from which workflow.
+ *
+ * The block's callable schema stays at `components/blocks/{type}.json`; this
+ * file points at it rather than restating fields.
+ */
+export function serializeOrganizationCustomBlocks(
+  blocks: Array<{
+    type: string
+    name: string
+    description?: string | null
+    enabled: boolean
+    workflowId: string
+    workflowName?: string | null
+    workspaceId: string | null
+    workspaceName?: string | null
+  }>
+): string {
+  return JSON.stringify(
+    {
+      customBlocks: blocks.map((block) => ({
+        type: block.type,
+        name: block.name,
+        ...(block.description ? { description: block.description } : {}),
+        enabled: block.enabled,
+        publishedFrom: {
+          workflowId: block.workflowId,
+          ...(block.workflowName ? { workflowName: block.workflowName } : {}),
+          ...(block.workspaceId ? { workspaceId: block.workspaceId } : {}),
+          ...(block.workspaceName ? { workspaceName: block.workspaceName } : {}),
+        },
+        ...(block.enabled ? { schema: `components/blocks/${block.type}.json` } : {}),
+      })),
+      note: 'Org-wide blocks published from a deployed workflow. Configure one from its schema under components/blocks/; a disabled block cannot be added to a workflow.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/forks.json` — this workspace's place in the fork tree plus the
+ * parent/child resource and block mappings.
+ *
+ * Owns fork topology; rosters elsewhere carry only `forkedFromWorkspaceId`.
+ * Mapping counts are summarized per resource type — the raw id pairs are an
+ * implementation detail of promote/rollback, not workspace context.
+ */
+export function serializeWorkspaceForks(input: {
+  parent: { id: string; name: string } | null
+  children: Array<{ id: string; name: string; createdAt: Date | string }>
+  resourceMappingCounts: Record<string, number>
+  blockMappingCount: number
+}): string {
+  return JSON.stringify(
+    {
+      parent: input.parent,
+      children: input.children.map((child) => ({
+        id: child.id,
+        name: child.name,
+        createdAt:
+          child.createdAt instanceof Date ? child.createdAt.toISOString() : child.createdAt,
+      })),
+      ...(input.parent
+        ? {
+            mappedFromParent: {
+              resources: input.resourceMappingCounts,
+              blocks: input.blockMappingCount,
+            },
+          }
+        : {}),
+      note: 'A forked workspace keeps a mapping back to the resources it was copied from, which is what promote and rollback follow. Forking, promoting, and rolling back are workspace-admin actions in the UI — you cannot perform them.',
+    },
+    null,
+    2
+  )
+}

@@ -55,12 +55,10 @@ export interface ToolCatalogEntry {
     | 'generate_audio'
     | 'generate_image'
     | 'generate_video'
-    | 'get_account_billing'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_status'
-    | 'get_enterprise_context'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -69,7 +67,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'list_deployment_versions'
     | 'list_integration_tools'
-    | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
@@ -186,12 +183,10 @@ export interface ToolCatalogEntry {
     | 'generate_audio'
     | 'generate_image'
     | 'generate_video'
-    | 'get_account_billing'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_status'
-    | 'get_enterprise_context'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
     | 'glob'
@@ -200,7 +195,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'list_deployment_versions'
     | 'list_integration_tools'
-    | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
     | 'load_deployment'
     | 'load_integration_tool'
@@ -3004,14 +2998,6 @@ export const GenerateVideo: ToolCatalogEntry = {
   capabilities: ['file_input', 'file_output', 'generated_media'],
 }
 
-export const GetAccountBilling: ToolCatalogEntry = {
-  id: 'get_account_billing',
-  name: 'get_account_billing',
-  route: 'sim',
-  mode: 'async',
-  parameters: { type: 'object', properties: {} },
-}
-
 export const GetBlockOutputs: ToolCatalogEntry = {
   id: 'get_block_outputs',
   name: 'get_block_outputs',
@@ -3087,14 +3073,6 @@ export const GetDeploymentStatus: ToolCatalogEntry = {
       },
     },
   },
-}
-
-export const GetEnterpriseContext: ToolCatalogEntry = {
-  id: 'get_enterprise_context',
-  name: 'get_enterprise_context',
-  route: 'sim',
-  mode: 'async',
-  parameters: { type: 'object', properties: {} },
 }
 
 export const GetWorkflowData: ToolCatalogEntry = {
@@ -3285,14 +3263,6 @@ export const ListIntegrationTools: ToolCatalogEntry = {
     required: ['integration'],
     type: 'object',
   },
-}
-
-export const ListUserWorkspaces: ToolCatalogEntry = {
-  id: 'list_user_workspaces',
-  name: 'list_user_workspaces',
-  route: 'sim',
-  mode: 'async',
-  parameters: { type: 'object', properties: {} },
 }
 
 export const ListWorkspaceMcpServers: ToolCatalogEntry = {
@@ -7245,12 +7215,10 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GenerateAudio.id]: GenerateAudio,
   [GenerateImage.id]: GenerateImage,
   [GenerateVideo.id]: GenerateVideo,
-  [GetAccountBilling.id]: GetAccountBilling,
   [GetBlockOutputs.id]: GetBlockOutputs,
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
   [GetDeploymentStatus.id]: GetDeploymentStatus,
-  [GetEnterpriseContext.id]: GetEnterpriseContext,
   [GetWorkflowData.id]: GetWorkflowData,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
@@ -7259,7 +7227,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Knowledge.id]: Knowledge,
   [ListDeploymentVersions.id]: ListDeploymentVersions,
   [ListIntegrationTools.id]: ListIntegrationTools,
-  [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
   [LoadDeployment.id]: LoadDeployment,
   [LoadIntegrationTool.id]: LoadIntegrationTool,

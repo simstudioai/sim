@@ -2959,13 +2959,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_account_billing: {
-    parameters: {
-      type: 'object',
-      properties: {},
-    },
-    resultSchema: undefined,
-  },
   get_block_outputs: {
     parameters: {
       type: 'object',
@@ -3031,13 +3024,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description: 'Workflow ID to check (defaults to current workflow)',
         },
       },
-    },
-    resultSchema: undefined,
-  },
-  get_enterprise_context: {
-    parameters: {
-      type: 'object',
-      properties: {},
     },
     resultSchema: undefined,
   },
@@ -3206,13 +3192,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['integration'],
       type: 'object',
-    },
-    resultSchema: undefined,
-  },
-  list_user_workspaces: {
-    parameters: {
-      type: 'object',
-      properties: {},
     },
     resultSchema: undefined,
   },

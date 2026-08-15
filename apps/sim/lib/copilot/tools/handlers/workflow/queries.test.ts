@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
-const { executeWorkflowUseCaseMock, listUserWorkspacesMock } = vi.hoisted(() => ({
+const { executeWorkflowUseCaseMock } = vi.hoisted(() => ({
   executeWorkflowUseCaseMock: vi.fn(),
-  listUserWorkspacesMock: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
@@ -13,54 +12,7 @@ vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
     getErrorMessage(error, 'Workflow operation failed'),
 }))
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  listUserWorkspaces: listUserWorkspacesMock,
-}))
-
-import {
-  executeGetBlockOutputs,
-  executeListUserWorkspaces,
-} from '@/lib/copilot/tools/handlers/workflow/queries'
-
-describe('executeListUserWorkspaces', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('marks the current workspace in the accessible workspace list', async () => {
-    listUserWorkspacesMock.mockResolvedValue([
-      { workspaceId: 'workspace-1', workspaceName: 'One', role: 'owner' },
-      { workspaceId: 'workspace-2', workspaceName: 'Two', role: 'read' },
-    ])
-
-    const result = await executeListUserWorkspaces({
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-2',
-    })
-
-    expect(listUserWorkspacesMock).toHaveBeenCalledWith('user-1')
-    expect(result).toEqual({
-      success: true,
-      output: {
-        workspaces: [
-          {
-            workspaceId: 'workspace-1',
-            workspaceName: 'One',
-            role: 'owner',
-            isCurrent: false,
-          },
-          {
-            workspaceId: 'workspace-2',
-            workspaceName: 'Two',
-            role: 'read',
-            isCurrent: true,
-          },
-        ],
-      },
-    })
-  })
-})
+import { executeGetBlockOutputs } from '@/lib/copilot/tools/handlers/workflow/queries'
 
 describe('executeGetBlockOutputs', () => {
   beforeEach(() => {
