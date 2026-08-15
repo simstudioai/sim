@@ -6,6 +6,40 @@ export function dependentKey(dependent: ForkDependentReconfig): string {
 }
 
 /**
+ * Store a dependent re-pick and clear every selector transitively scoped by it. Empty-string
+ * overrides are intentional: an absent override means "fall back to the stored value", while a
+ * changed provider makes every stored descendant stale for both mapped and copied parents.
+ */
+export function applyDependentRepick(
+  reconfig: Record<string, string>,
+  changedField: ForkDependentReconfig,
+  blockFields: ForkDependentReconfig[],
+  value: string
+): Record<string, string> {
+  const changedKey = dependentKey(changedField)
+  const nextState = { ...reconfig, [changedKey]: value }
+  if (!changedField.providesContextKey) return nextState
+
+  const pendingContextKeys = [changedField.providesContextKey]
+  const visitedFields = new Set([changedKey])
+  for (let index = 0; index < pendingContextKeys.length; index += 1) {
+    const contextKey = pendingContextKeys[index]
+    if (!contextKey) continue
+
+    for (const field of blockFields) {
+      const fieldKey = dependentKey(field)
+      if (visitedFields.has(fieldKey) || !field.consumesContextKeys.includes(contextKey)) continue
+
+      visitedFields.add(fieldKey)
+      nextState[fieldKey] = ''
+      if (field.providesContextKey) pendingContextKeys.push(field.providesContextKey)
+    }
+  }
+
+  return nextState
+}
+
+/**
  * The value sent + displayed for a dependent: the user's in-session re-pick if present, else the
  * stored value (`currentValue`). Blank when the parent target changed in-session, since the old
  * stored value was for the previous parent and won't resolve against the new one. Shared by the

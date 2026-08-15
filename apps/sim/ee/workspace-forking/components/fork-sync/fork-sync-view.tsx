@@ -34,6 +34,7 @@ import {
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
+  applyDependentRepick,
   type DependentConfigurationState,
   dependentKey,
   effectiveCopyDependentValue,
@@ -162,28 +163,6 @@ function blockChainState(
   return { providedValues, providedContextKeys }
 }
 
-/** Store a re-pick and invalidate in-block children chained off the changed field. */
-function applyDependentRepick(
-  setReconfig: Dispatch<SetStateAction<Record<string, string>>>,
-  field: ForkDependentReconfig,
-  blockFields: ForkDependentReconfig[],
-  value: string
-) {
-  setReconfig((prev) => {
-    const nextState = { ...prev, [dependentKey(field)]: value }
-    // A changed parent invalidates its children's stale re-picks.
-    const providedKey = field.providesContextKey
-    if (providedKey) {
-      for (const sibling of blockFields) {
-        if (sibling.consumesContextKeys.includes(providedKey)) {
-          delete nextState[dependentKey(sibling)]
-        }
-      }
-    }
-    return nextState
-  })
-}
-
 interface DependentSelectorProps {
   field: ForkDependentReconfig
   block: DependentBlock
@@ -241,7 +220,9 @@ function DependentSelector({
       }}
       enabled={parentValue !== '' && ready}
       value={effectiveValue(field)}
-      onChange={(value) => applyDependentRepick(setReconfig, field, block.fields, value)}
+      onChange={(value) =>
+        setReconfig((current) => applyDependentRepick(current, field, block.fields, value))
+      }
       title={field.title}
     />
   )

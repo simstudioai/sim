@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
 import {
+  applyDependentRepick,
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
@@ -97,6 +98,74 @@ describe('effectiveCopyDependentValue', () => {
   it('is blank when the source never referenced anything and nothing was stored', () => {
     const f = copyField({ currentValue: '', sourceValue: '' })
     expect(effectiveCopyDependentValue(f, {})).toBe('')
+  })
+})
+
+describe('applyDependentRepick', () => {
+  it('clears direct and transitive descendants without touching unrelated fields', () => {
+    const site = field({
+      subBlockKey: 'siteId',
+      currentValue: 'site-old',
+      providesContextKey: 'siteId',
+    })
+    const drive = field({
+      subBlockKey: 'driveId',
+      currentValue: 'drive-old',
+      providesContextKey: 'driveId',
+      consumesContextKeys: ['siteId'],
+    })
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      currentValue: 'spreadsheet-old',
+      providesContextKey: 'spreadsheetId',
+      consumesContextKeys: ['driveId'],
+    })
+    const sheet = field({
+      subBlockKey: 'sheetName',
+      currentValue: 'Sheet1',
+      consumesContextKeys: ['spreadsheetId'],
+    })
+    const unrelated = field({ subBlockKey: 'label', currentValue: 'keep-me' })
+    const previous = {
+      [dependentKey(drive)]: 'drive-repicked',
+      [dependentKey(spreadsheet)]: 'spreadsheet-repicked',
+      [dependentKey(sheet)]: 'Sheet2',
+      [dependentKey(unrelated)]: 'still-keep-me',
+    }
+
+    const next = applyDependentRepick(
+      previous,
+      site,
+      [site, drive, spreadsheet, sheet, unrelated],
+      'site-new'
+    )
+
+    expect(next).toEqual({
+      [dependentKey(site)]: 'site-new',
+      [dependentKey(drive)]: '',
+      [dependentKey(spreadsheet)]: '',
+      [dependentKey(sheet)]: '',
+      [dependentKey(unrelated)]: 'still-keep-me',
+    })
+    expect(effectiveDependentValue(drive, next, false)).toBe('')
+    expect(effectiveCopyDependentValue(sheet, next)).toBe('')
+  })
+
+  it('only changes the selected field when it provides no selector context', () => {
+    const leaf = field({ subBlockKey: 'issueKey', currentValue: 'ISSUE-1' })
+    const unrelated = field({ subBlockKey: 'label', currentValue: 'keep-me' })
+
+    expect(
+      applyDependentRepick(
+        { [dependentKey(unrelated)]: 'still-keep-me' },
+        leaf,
+        [leaf, unrelated],
+        'ISSUE-2'
+      )
+    ).toEqual({
+      [dependentKey(leaf)]: 'ISSUE-2',
+      [dependentKey(unrelated)]: 'still-keep-me',
+    })
   })
 })
 
