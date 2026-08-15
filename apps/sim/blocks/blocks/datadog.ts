@@ -729,6 +729,38 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'datadog_create_downtime' },
       mode: 'advanced',
     },
+    {
+      id: 'downtimeMonitorTags',
+      title: 'Monitor Tags',
+      type: 'short-input',
+      placeholder: 'team:backend,priority:high',
+      condition: { field: 'operation', value: 'datadog_create_downtime' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Datadog monitor tags based on the user's description.
+Each tag uses the "key:value" form.
+Examples: "team:backend,priority:high", "env:production", "service:checkout"
+
+Return ONLY the comma-separated tag list - no explanations, no extra text.`,
+        placeholder: 'Describe which monitors to target...',
+      },
+    },
+    {
+      id: 'downtimeTimezone',
+      title: 'Timezone',
+      type: 'short-input',
+      placeholder: 'UTC or America/New_York',
+      condition: { field: 'operation', value: 'datadog_create_downtime' },
+      mode: 'advanced',
+    },
+    {
+      id: 'downtimeMuteFirstRecovery',
+      title: 'Mute First Recovery Notification',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_create_downtime' },
+      mode: 'advanced',
+    },
 
     // List Downtimes inputs
     {
@@ -1953,10 +1985,13 @@ Return ONLY the search query string - no explanations.`,
               start: params.downtimeStart ? Number(params.downtimeStart) : undefined,
               end: params.downtimeEnd ? Number(params.downtimeEnd) : undefined,
               monitorId: params.downtimeMonitorId,
+              monitorTags: params.downtimeMonitorTags || undefined,
+              timezone: params.downtimeTimezone || undefined,
+              muteFirstRecoveryNotification: toSwitchBoolean(params.downtimeMuteFirstRecovery),
             }
 
           case 'datadog_list_downtimes':
-            return { ...baseParams, currentOnly: params.currentOnly }
+            return { ...baseParams, currentOnly: toSwitchBoolean(params.currentOnly) }
 
           case 'datadog_cancel_downtime':
             return { ...baseParams, downtimeId: params.downtimeId }
@@ -2253,6 +2288,15 @@ Return ONLY the search query string - no explanations.`,
     downtimeStart: { type: 'number', description: 'Downtime start time' },
     downtimeEnd: { type: 'number', description: 'Downtime end time' },
     downtimeMonitorId: { type: 'string', description: 'Monitor ID for downtime' },
+    downtimeMonitorTags: {
+      type: 'string',
+      description: 'Comma-separated monitor tags to target',
+    },
+    downtimeTimezone: { type: 'string', description: 'Display timezone for the downtime' },
+    downtimeMuteFirstRecovery: {
+      type: 'boolean',
+      description: 'Mute the first recovery notification',
+    },
     currentOnly: { type: 'boolean', description: 'Filter to current downtimes' },
     downtimeId: { type: 'string', description: 'Downtime ID to cancel' },
     listMonitorName: { type: 'string', description: 'Filter monitors by name' },
