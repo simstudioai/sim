@@ -50,7 +50,7 @@ export const GET = withRouteHandler(
 
     try {
       const access = await getCredentialActorContext(id, session.user.id)
-      if (!access.credential) {
+      if (!access.credential || access.credential.type === 'managed_oauth') {
         return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
       }
       if (!canUseCredential(access)) {
@@ -81,6 +81,11 @@ export const PUT = withRouteHandler(
 
       const { id } = parsed.data.params
       const body = parsed.data.body
+
+      const currentAccess = await getCredentialActorContext(id, session.user.id)
+      if (!currentAccess.credential) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
 
       const result = await performUpdateCredential({
         credentialId: id,
@@ -149,6 +154,10 @@ export const DELETE = withRouteHandler(
     const { id } = await params
 
     try {
+      const currentAccess = await getCredentialActorContext(id, session.user.id)
+      if (!currentAccess.credential) {
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
       const result = await performDeleteCredential({
         credentialId: id,
         userId: session.user.id,
@@ -162,9 +171,11 @@ export const DELETE = withRouteHandler(
             ? 404
             : result.errorCode === 'forbidden'
               ? 403
-              : result.errorCode === 'validation'
-                ? 400
-                : 500
+              : result.errorCode === 'conflict'
+                ? 409
+                : result.errorCode === 'validation'
+                  ? 400
+                  : 500
         return NextResponse.json({ error: result.error }, { status })
       }
 

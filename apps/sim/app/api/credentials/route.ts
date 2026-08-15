@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createWorkspaceCredentialContract,
@@ -167,7 +167,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           providerId: credential.providerId,
         })
         .from(credential)
-        .where(and(eq(credential.id, lookupCredentialId), eq(credential.workspaceId, workspaceId)))
+        .where(
+          and(
+            eq(credential.id, lookupCredentialId),
+            eq(credential.workspaceId, workspaceId),
+            ne(credential.type, 'managed_oauth')
+          )
+        )
         .limit(1)
 
       if (!row) {
@@ -182,7 +188,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           .where(
             and(
               eq(credential.accountId, lookupCredentialId),
-              eq(credential.workspaceId, workspaceId)
+              eq(credential.workspaceId, workspaceId),
+              ne(credential.type, 'managed_oauth')
             )
           )
           .limit(1)

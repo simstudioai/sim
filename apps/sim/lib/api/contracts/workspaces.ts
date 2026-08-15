@@ -256,6 +256,11 @@ export const workspaceHostContextSchema = z.object({
     isHostOrganizationMember: z.boolean(),
     isHostOrganizationAdmin: z.boolean(),
   }),
+  features: z
+    .object({
+      credentialGroups: z.boolean(),
+    })
+    .optional(),
 })
 
 export type WorkspaceHostContext = z.output<typeof workspaceHostContextSchema>

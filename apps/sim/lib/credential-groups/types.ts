@@ -1,0 +1,95 @@
+import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
+
+interface CredentialGroupOptionInputBase {
+  label: string
+  required: boolean
+}
+
+export type CredentialGroupOptionInput =
+  | (CredentialGroupOptionInputBase & {
+      provider: Exclude<CredentialGroupProvider, 'slack'>
+    })
+  | (CredentialGroupOptionInputBase & {
+      provider: 'slack'
+      slackBotCredentialId: string
+    })
+
+export type CredentialGroupOptionUpdateInput = CredentialGroupOptionInput & { id?: string }
+
+export interface CreateCredentialGroupInput {
+  name: string
+  description?: string
+  options: CredentialGroupOptionInput[]
+}
+
+export interface UpdateCredentialGroupInput {
+  name?: string
+  description?: string | null
+  options?: CredentialGroupOptionUpdateInput[]
+  status?: 'active' | 'disabled'
+}
+
+interface CredentialGroupOptionBase {
+  id: string
+  label: string
+  required: boolean
+  status: 'active' | 'disabled'
+}
+
+export type CredentialGroupOption =
+  | (CredentialGroupOptionBase & {
+      provider: Exclude<CredentialGroupProvider, 'slack'>
+      configurationStatus: 'ready'
+    })
+  | (CredentialGroupOptionBase & {
+      provider: 'slack'
+      slackBotCredentialId: string
+      configurationStatus: 'not_configured' | 'ready' | 'needs_update'
+    })
+
+export interface CredentialGroupRecord {
+  id: string
+  workspaceId: string
+  name: string
+  description: string | null
+  options: CredentialGroupOption[]
+  status: 'active' | 'disabled'
+  createdAt: string
+  updatedAt: string
+}
+
+export type CredentialGroupEnrollmentStatus =
+  | 'invited'
+  | 'delivery_failed'
+  | 'in_progress'
+  | 'completed'
+  | 'revoked'
+
+export interface CredentialGroupEnrollmentRecord {
+  id: string
+  credentialGroupId: string
+  email: string
+  status: CredentialGroupEnrollmentStatus
+  expiresAt: string
+  invitedAt: string
+  sentAt: string | null
+  completedAt: string | null
+  revokedAt: string | null
+  expired: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CredentialGroupEnrollmentConnection {
+  provider: CredentialGroupProvider
+  status: 'active' | 'needs_reauth' | 'revoked'
+  count: number
+}
+
+export interface CredentialGroupEnrollmentDetail extends CredentialGroupEnrollmentRecord {
+  connections: CredentialGroupEnrollmentConnection[]
+}
+
+export interface InviteCredentialGroupEnrollmentsInput {
+  emails: string[]
+}

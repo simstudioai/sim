@@ -334,25 +334,45 @@ export interface PostHogEventMap {
   }
 
   credential_connected: {
-    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    credential_type:
+      | 'oauth'
+      | 'managed_oauth'
+      | 'env_workspace'
+      | 'env_personal'
+      | 'service_account'
     provider_id: string
     workspace_id: string
   }
 
   credential_deleted: {
-    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    credential_type:
+      | 'oauth'
+      | 'managed_oauth'
+      | 'env_workspace'
+      | 'env_personal'
+      | 'service_account'
     provider_id: string
     workspace_id: string
   }
 
   credential_shared: {
-    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    credential_type:
+      | 'oauth'
+      | 'managed_oauth'
+      | 'env_workspace'
+      | 'env_personal'
+      | 'service_account'
     role: 'admin' | 'member'
     workspace_id: string
   }
 
   credential_unshared: {
-    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    credential_type:
+      | 'oauth'
+      | 'managed_oauth'
+      | 'env_workspace'
+      | 'env_personal'
+      | 'service_account'
     workspace_id: string
   }
 
@@ -733,7 +753,12 @@ export interface PostHogEventMap {
 
   /** A stored credential's plaintext secret was deliberately retrieved via the token API. */
   credential_used: {
-    credential_type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    credential_type:
+      | 'oauth'
+      | 'managed_oauth'
+      | 'env_workspace'
+      | 'env_personal'
+      | 'service_account'
     provider_id: string
     workspace_id?: string
   }

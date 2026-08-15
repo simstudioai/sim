@@ -46,6 +46,7 @@ import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/block
 import { ContextDevBlock, ContextDevBlockMeta } from '@/blocks/blocks/context_dev'
 import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
+import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
 import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
@@ -404,6 +405,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   context_dev: ContextDevBlock,
   convex: ConvexBlock,
   credential: CredentialBlock,
+  credential_group: CredentialGroupBlock,
   crowdstrike: CrowdStrikeBlock,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
