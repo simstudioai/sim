@@ -2,6 +2,7 @@ import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
+import type { SeedValueGate } from '@/lib/permission-groups/operation-access'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -101,6 +102,23 @@ export interface PrepareBlockStateOptions {
   parentId?: string
   extent?: 'parent'
   triggerMode?: boolean
+  /**
+   * Vetoes a declared default that the creator's permission group denies —
+   * today the `operation` and `model` fields, both of which blocks pre-fill.
+   *
+   * A vetoed field is seeded with nothing rather than a substitute. The editor's
+   * own permission-aware pickers already resolve the right replacement (first
+   * allowed operation; preferred-then-first allowed model) and they only fill a
+   * field that is empty, so leaving it empty hands the choice to the one place
+   * that knows how to make it. Substituting here instead would also drift from
+   * `getDefaultBlockName`, which names the block after its *declared* default.
+   *
+   * Omit it entirely only where permission gating does not apply, in which case
+   * declared defaults are seeded unchanged. A caller that cannot yet answer —
+   * config still loading — vetoes rather than omitting, since a value written
+   * here is never revisited.
+   */
+  isSeededValueAllowed?: SeedValueGate
 }
 
 /**
@@ -108,7 +126,17 @@ export interface PrepareBlockStateOptions {
  * Generates subBlocks and outputs from the block registry.
  */
 export function prepareBlockState(options: PrepareBlockStateOptions): BlockState {
-  const { id, type, name, position, data, parentId, extent, triggerMode = false } = options
+  const {
+    id,
+    type,
+    name,
+    position,
+    data,
+    parentId,
+    extent,
+    triggerMode = false,
+    isSeededValueAllowed,
+  } = options
 
   const blockConfig = getBlock(type)
 
@@ -151,6 +179,15 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
         initialValue = [createDefaultInputFormatField()]
       } else if (subBlock.type === 'table') {
         initialValue = []
+      }
+
+      if (
+        isSeededValueAllowed &&
+        typeof initialValue === 'string' &&
+        initialValue !== '' &&
+        !isSeededValueAllowed(subBlock.id, initialValue)
+      ) {
+        initialValue = null
       }
 
       subBlocks[subBlock.id] = {
