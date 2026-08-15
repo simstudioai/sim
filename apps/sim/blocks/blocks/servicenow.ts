@@ -219,6 +219,9 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
           { text: 'List tasks on change request', field: 'changeSysId', core: true },
           { text: ', matching', field: 'query' },
         ],
+        servicenow_get_change_next_states: [
+          { text: 'Get the next available states for change request', field: 'changeSysId', core: true },
+        ],
         servicenow_list_catalog_items: [
           'List catalog items',
           { text: 'matching', field: 'searchText', core: true },
@@ -302,6 +305,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         { label: 'Update Change Request', id: 'servicenow_update_change_request' },
         { label: 'Move Change State', id: 'servicenow_update_change_state' },
         { label: 'List Change Tasks', id: 'servicenow_list_change_tasks' },
+        { label: 'Get Change Next States', id: 'servicenow_get_change_next_states' },
         { label: 'List Catalog Items', id: 'servicenow_list_catalog_items' },
         { label: 'Order Catalog Item', id: 'servicenow_order_catalog_item' },
         { label: 'List Requested Items', id: 'servicenow_list_requested_items' },
@@ -1188,7 +1192,10 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       title: 'Change Request sys_id',
       type: 'short-input',
       placeholder: 'sys_id of the change request',
-      condition: { field: 'operation', value: 'servicenow_list_change_tasks' },
+      condition: {
+        field: 'operation',
+        value: ['servicenow_list_change_tasks', 'servicenow_get_change_next_states'],
+      },
       required: true,
     },
     {
@@ -1474,7 +1481,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       value: () => 'false',
       condition: { field: 'operation', value: [...SEMANTIC_WRITE_OPS] },
       description:
-        'Sets sysparm_input_display_value, letting you write "Beth Anglin" into assigned_to instead of a sys_id.',
+        'Sets sysparm_input_display_value, letting you write "Beth Anglin" into assigned_to instead of a sys_id. Also reinterprets date and time values in your timezone rather than GMT.',
       mode: 'advanced',
     },
     ...getTrigger('servicenow_incident_created').subBlocks,
@@ -1506,6 +1513,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       'servicenow_update_change_request',
       'servicenow_update_change_state',
       'servicenow_list_change_tasks',
+      'servicenow_get_change_next_states',
       'servicenow_list_catalog_items',
       'servicenow_order_catalog_item',
       'servicenow_list_requested_items',
@@ -1718,6 +1726,23 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     table: { type: 'string', description: 'Table the catalog request was created on' },
     parentId: { type: 'string', description: 'sys_id of the parent record of a catalog request' },
     parentTable: { type: 'string', description: 'Parent table of a catalog request' },
+    availableStates: {
+      type: 'json',
+      description: 'State coded values a change request can reach, including its current state',
+    },
+    allowedStates: {
+      type: 'json',
+      description: 'State coded values whose transition conditions the change request already meets',
+    },
+    stateLabels: {
+      type: 'json',
+      description: "This instance's own map of state coded value to label, e.g. {'0': 'Review'}",
+    },
+    stateTransitions: {
+      type: 'json',
+      description:
+        '[{sys_id, display_value, from_state, to_state, transition_available, automatic_transition, conditions}]',
+    },
     title: { type: 'string', description: 'Knowledge article title' },
     fields: { type: 'json', description: 'Requested knowledge article field values' },
   },

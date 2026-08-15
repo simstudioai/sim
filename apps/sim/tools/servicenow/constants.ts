@@ -9,7 +9,15 @@
 
 /**
  * Incident `state` values.
- * Source: https://www.servicenow.com/docs/bundle/australia-it-service-management/page/product/incident-management/concept/c_IncidentManagementStateModel.html
+ *
+ * The state labels and their order come from the incident life cycle:
+ * https://www.servicenow.com/docs/bundle/australia-it-service-management/page/product/incident-management/concept/c_IncidentManagementStateModel.html
+ *
+ * That page names the states but not their coded values. `6` (Resolved) is the
+ * only code ServiceNow spells out, in the scripting examples at
+ * https://www.servicenow.com/docs/bundle/australia-api-reference/page/script/useful-scripts/reference/r_UsefulClientSideScripts.html
+ * The rest are the long-standing base-system codes and are not published as a
+ * table, so treat them as defaults rather than guarantees.
  */
 export const INCIDENT_STATE = {
   NEW: '1',
@@ -78,7 +86,11 @@ export const CHANGE_TYPE_OPTIONS = [
   { label: 'Emergency', id: 'emergency' },
 ] as const
 
-/** Change request `close_code` values. */
+/**
+ * Change request `close_code` values, as assigned by the state-model upgrade
+ * script in the change state model documentation.
+ * Source: https://www.servicenow.com/docs/bundle/australia-it-service-management/page/product/change-management/task/state-model-activate-tasks.html
+ */
 export const CHANGE_CLOSE_CODE_OPTIONS = [
   { label: 'Successful', id: 'successful' },
   { label: 'Successful with issues', id: 'successful_issues' },

@@ -14,6 +14,7 @@ import { createIncidentTool } from '@/tools/servicenow/create_incident'
 import { createRecordTool } from '@/tools/servicenow/create_record'
 import { deleteRecordTool } from '@/tools/servicenow/delete_record'
 import { downloadAttachmentTool } from '@/tools/servicenow/download_attachment'
+import { getChangeNextStatesTool } from '@/tools/servicenow/get_change_next_states'
 import { getIncidentTool } from '@/tools/servicenow/get_incident'
 import { listAttachmentsTool } from '@/tools/servicenow/list_attachments'
 import { listIncidentsTool } from '@/tools/servicenow/list_incidents'
@@ -247,5 +248,103 @@ describe('write tools require a sys_id rather than a record number', () => {
   it('tells the caller to resolve the number first', () => {
     expect(updateIncidentTool.params.sysId?.required).toBe(true)
     expect(updateIncidentTool.params.sysId?.description).toMatch(/record number/i)
+  })
+})
+
+describe('get_change_next_states', () => {
+  /** The sample response published with the nextstates endpoint. */
+  const documentedResult = {
+    result: {
+      available_states: ['0', '4', '-1'],
+      state_transitions: [
+        [
+          {
+            sys_id: '7a0d2ccdc343101035ae3f52c1d3ae2e',
+            display_value: 'Implement to Review',
+            from_state: '-1',
+            to_state: '0',
+            transition_available: false,
+            automatic_transition: true,
+            conditions: [
+              {
+                passed: false,
+                condition: {
+                  name: 'No active Change Tasks',
+                  description: null,
+                  sys_id: '3c1d2ccdc343101035ae3f52c1d3aea4',
+                },
+              },
+            ],
+          },
+          {
+            sys_id: 'db401481c343101035ae3f52c1d3aedd',
+            display_value: 'Implement to Review',
+            from_state: '-1',
+            to_state: '0',
+            transition_available: true,
+            automatic_transition: false,
+            conditions: [
+              {
+                passed: true,
+                condition: {
+                  name: 'Not On hold',
+                  description: null,
+                  sys_id: '2132deb6c303101035ae3f52c1d3ae8c',
+                },
+              },
+            ],
+          },
+        ],
+        [
+          {
+            sys_id: '5327c551c343101035ae3f52c1d3aeec',
+            display_value: 'Implement to Canceled',
+            from_state: '-1',
+            to_state: '4',
+            transition_available: true,
+            automatic_transition: false,
+            conditions: [],
+          },
+        ],
+      ],
+      state_label: { '0': 'Review', '4': 'Canceled', '-1': 'Implement' },
+    },
+  }
+
+  it('targets the documented nextstates endpoint', () => {
+    const url = urlOf(getChangeNextStatesTool, { ...auth, changeSysId: ' chg1 ' })
+    expect(url.pathname).toBe('/api/sn_chg_rest/change/chg1/nextstates')
+  })
+
+  it('flattens the per-target-state grouping and derives the reachable states', async () => {
+    const output = (await getChangeNextStatesTool.transformResponse?.(
+      new Response(JSON.stringify(documentedResult), { status: 200 }) as never,
+      undefined as never
+    )) as { output: Record<string, unknown> }
+
+    expect(output.output.availableStates).toEqual(['0', '4', '-1'])
+    expect(output.output.stateTransitions).toHaveLength(3)
+    expect(output.output.stateLabels).toEqual({ '0': 'Review', '4': 'Canceled', '-1': 'Implement' })
+    expect(output.output.metadata).toEqual({ transitionCount: 3 })
+  })
+
+  it('reports only states whose transition is currently available, without duplicates', async () => {
+    const output = (await getChangeNextStatesTool.transformResponse?.(
+      new Response(JSON.stringify(documentedResult), { status: 200 }) as never,
+      undefined as never
+    )) as { output: { allowedStates: string[] } }
+
+    expect(output.output.allowedStates).toEqual(['0', '4'])
+  })
+
+  it('surfaces the instance error message', async () => {
+    await expect(
+      getChangeNextStatesTool.transformResponse?.(
+        new Response(JSON.stringify({ error: { message: 'No Record found' } }), {
+          status: 404,
+        }) as never,
+        undefined as never
+      )
+    ).rejects.toThrow('No Record found')
   })
 })

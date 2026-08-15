@@ -18019,6 +18019,10 @@
           "description": "List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as {value, display_value}, so a reference field carries both its sys_id and its label."
         },
         {
+          "name": "Get Change Next States",
+          "description": "Read the states a ServiceNow change request can actually move to next, with the instance's own state-to-label map and the conditions each transition still has to meet. Use this instead of assuming the base-system state codes, which a customized change model can change."
+        },
+        {
           "name": "List Catalog Items",
           "description": "Browse or search the ServiceNow service catalog. Returns each item with its sys_id, name, description, type, category, and catalogs, which is what Order ServiceNow Catalog Item needs."
         },
@@ -18103,7 +18107,7 @@
           "description": "Attach a file to a ServiceNow record"
         }
       ],
-      "operationCount": 34,
+      "operationCount": 35,
       "triggers": [
         {
           "id": "servicenow_incident_created",

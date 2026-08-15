@@ -220,6 +220,37 @@ export interface ServiceNowChangeTaskListResponse extends ToolResponse {
   }
 }
 
+export interface ServiceNowGetChangeNextStatesParams extends ServiceNowAuthParams {
+  changeSysId: string
+}
+
+export interface ServiceNowChangeTransitionCondition {
+  passed?: boolean
+  condition?: { name?: string; description?: string | null; sys_id?: string }
+}
+
+export interface ServiceNowChangeStateTransition {
+  sys_id?: string
+  display_value?: string
+  from_state?: string
+  to_state?: string
+  transition_available?: boolean
+  automatic_transition?: boolean
+  conditions?: ServiceNowChangeTransitionCondition[]
+}
+
+export interface ServiceNowGetChangeNextStatesResponse extends ToolResponse {
+  output: {
+    availableStates: string[]
+    allowedStates: string[]
+    stateLabels: Record<string, string>
+    stateTransitions: ServiceNowChangeStateTransition[]
+    metadata: {
+      transitionCount: number
+    }
+  }
+}
+
 export interface ServiceNowListCatalogItemsParams extends ServiceNowAuthParams {
   searchText?: string
   catalogSysId?: string
@@ -563,6 +594,7 @@ export type ServiceNowResponse =
   | ServiceNowRecordListResponse
   | ServiceNowSingleRecordResponse
   | ServiceNowChangeTaskListResponse
+  | ServiceNowGetChangeNextStatesResponse
   | ServiceNowListCatalogItemsResponse
   | ServiceNowOrderCatalogItemResponse
   | ServiceNowGetCiResponse
