@@ -133,6 +133,30 @@ export async function executeQuery(
 }
 
 /**
+ * Every T-SQL keyword that introduces a statement with an effect — DML, DDL,
+ * permissions, and the administrative commands (`DBCC`, `BACKUP`, `RESTORE`,
+ * `SHUTDOWN`, `KILL`, …) that are easy to forget precisely because they are not
+ * DML. One list serves both the read-only query screen and the WHERE screen so
+ * the two cannot drift apart; a gap in either is a gap in both, which is how
+ * `DBCC` slipped past a per-site list.
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/statements
+ */
+const MSSQL_STATEMENT_KEYWORDS =
+  /\b(?:insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into)\b/i
+
+/** Extended, OLE-automation, and system stored procedures, called with or without `EXEC`. */
+const MSSQL_PROCEDURE_PATTERN = /\b(?:xp_|sp_)\w+/i
+
+/**
+ * Rejects a second statement in a batch.
+ *
+ * T-SQL treats the semicolon as optional, so this catches only the explicit
+ * form; the keyword screen above is what catches the semicolon-less one. Run on
+ * literal-masked text so a semicolon inside a quoted value is not a statement.
+ */
+const MSSQL_STACKED_STATEMENT = /;\s*\S/
+
+/**
  * Restricts the Query operation to statements that only read.
  *
  * The block label, the tool description, and the docs all present this
@@ -140,21 +164,24 @@ export async function executeQuery(
  * `mssql_execute` is the operation that accepts mutations. Without this an
  * agent choosing `mssql_query` because "it is only a SELECT" could delete rows.
  *
- * A leading `WITH` is admitted because a CTE is the normal way to write a
- * non-trivial SELECT, but T-SQL also allows `WITH x AS (...) DELETE FROM x`, so
- * the body is screened for mutating keywords rather than trusting the leading
- * token alone. Screening runs over the statement with string literals masked by
- * the shared {@link maskSqlStringLiterals}, which keeps ordinary prose in a
- * WHERE clause from tripping it.
+ * Three screens, deliberately layered so no single one has to be exhaustive:
+ * the statement must open with `SELECT` (or a leading `WITH`, since a CTE is the
+ * normal way to write a non-trivial SELECT); it may not contain a second
+ * statement after a semicolon, which rejects `SELECT 1; <anything>` structurally
+ * rather than by naming the anything; and it may not mention a
+ * statement-introducing keyword or a stored procedure, which covers both the
+ * semicolon-less batch and the `WITH x AS (...) DELETE FROM x` form that a
+ * leading-token check alone would miss.
  *
- * The screen is lexical, not a parser, so it can still reject a legitimate
- * query that uses a keyword as a bare identifier. It fails closed on purpose,
- * and the Execute Raw SQL operation is the escape hatch for anything rejected.
+ * All screening runs over literal-masked text, so ordinary prose in a WHERE
+ * clause does not trip it. The screens are lexical rather than a parser, so a
+ * query using a keyword as a bare identifier is rejected too — it fails closed,
+ * and the Execute Raw SQL operation is the escape hatch.
  */
 export function validateReadOnlyQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim()
 
-  if (!/^(select|with)\s/i.test(trimmedQuery)) {
+  if (!/^(?:select|with)\s/i.test(trimmedQuery)) {
     return {
       isValid: false,
       error:
@@ -162,14 +189,21 @@ export function validateReadOnlyQuery(query: string): { isValid: boolean; error?
     }
   }
 
-  const mutating =
-    /\b(insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|exec|execute|into)\b/i.exec(
-      maskSqlStringLiterals(trimmedQuery)
-    )
-  if (mutating) {
+  const masked = maskSqlStringLiterals(trimmedQuery)
+
+  if (MSSQL_STACKED_STATEMENT.test(masked)) {
     return {
       isValid: false,
-      error: `The Query operation cannot run ${mutating[0].toUpperCase()}. Use the Execute Raw SQL operation for statements that modify data or schema.`,
+      error:
+        'The Query operation runs a single SELECT statement. Use the Execute Raw SQL operation to run a batch.',
+    }
+  }
+
+  const disallowed = MSSQL_STATEMENT_KEYWORDS.exec(masked) ?? MSSQL_PROCEDURE_PATTERN.exec(masked)
+  if (disallowed) {
+    return {
+      isValid: false,
+      error: `The Query operation cannot run ${disallowed[0].toUpperCase()}. Use the Execute Raw SQL operation for statements that modify data, schema, or server state.`,
     }
   }
 
@@ -227,38 +261,16 @@ export function buildDeleteQuery(table: string, where: string) {
 }
 
 /**
- * T-SQL-specific WHERE screening layered on top of the shared guard.
- *
- * The first pattern is the one that does not generalize: **T-SQL does not
- * require a statement terminator**, so `id = 1 DROP TABLE dbo.users` is a valid
- * two-statement batch and every semicolon-anchored stacked-query check — the
- * shared guard's included — reads straight past it. Screening for a bare
- * statement-introducing keyword is what closes that. Word boundaries keep
- * ordinary column names (`updated_at`, `deleted_at`, `created_by`) matching
- * nothing; a column whose name *is* a bare keyword must be reached through the
- * Execute Raw SQL operation instead.
- *
- * The rest are SQL Server surfaces the shared guard has no reason to know
- * about: the `OPEN*` rowset functions, `BULK INSERT`, `WAITFOR` timing probes,
- * catalog and legacy compatibility views (`master..sysobjects`), and the
- * extended/OLE-automation procedures.
- * @see https://learn.microsoft.com/en-us/sql/t-sql/language-elements/transact-sql-syntax-conventions-transact-sql
+ * SQL Server catalog surfaces a WHERE clause has no business reading: the
+ * information schema, the `sys.*` catalog views, and the legacy compatibility
+ * views still reachable as `master..sysobjects`.
  * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/catalog-views-transact-sql
  */
-const MSSQL_WHERE_PATTERNS: readonly RegExp[] = [
-  /\b(?:drop|create|alter|truncate|grant|revoke|insert|update|delete|merge|exec|execute|backup|restore|shutdown|reconfigure)\b/i,
-  /\bopenrowset\s*\(/i,
-  /\bopendatasource\s*\(/i,
-  /\bopenquery\s*\(/i,
-  /\bopenxml\s*\(/i,
-  /\bbulk\s+insert\b/i,
-  /\bwaitfor\s+(?:delay|time)\b/i,
+const MSSQL_CATALOG_PATTERNS: readonly RegExp[] = [
   /information_schema/i,
   /\bsys\./i,
   /\.\.\s*sys\w*/i,
   /\bsys(?:objects|columns|databases|users|indexes|comments)\b/i,
-  /\bxp_\w+/i,
-  /\bsp_(?:executesql|oacreate|oamethod|oagetproperty|configure|addextendedproc)\b/i,
 ]
 
 /**
@@ -267,7 +279,18 @@ const MSSQL_WHERE_PATTERNS: readonly RegExp[] = [
  *
  * Delegates the shared checks to {@link validateSqlWhereClause} — which masks
  * string literals before scanning, so prose inside a quoted value cannot trip a
- * structural pattern — then applies the T-SQL-specific screening above.
+ * structural pattern — then adds the two things it cannot know about.
+ *
+ * The first is the one that does not generalize: **T-SQL does not require a
+ * statement terminator**, so `id = 1 DBCC SHRINKDATABASE('db')` is a valid
+ * two-statement batch and every semicolon-anchored stacked-query check, the
+ * shared guard's included, reads straight past it. That is why the screen is
+ * {@link MSSQL_STATEMENT_KEYWORDS} — the same list the read-only query screen
+ * uses, so a keyword can never be covered in one place and missed in the other.
+ * Word boundaries keep ordinary column names (`updated_at`, `deleted_at`,
+ * `created_by`) matching nothing; a column whose name *is* a bare keyword has
+ * to be reached through the Execute Raw SQL operation. The second is the
+ * catalog surface above, plus the `xp_`/`sp_` procedures.
  *
  * As the shared guard's own documentation states, this is defense-in-depth
  * rather than a security boundary: the caller supplies their own database
@@ -282,7 +305,11 @@ function validateWhereClause(where: string): void {
   }
 
   const masked = maskSqlStringLiterals(where)
-  if (MSSQL_WHERE_PATTERNS.some((pattern) => pattern.test(masked))) {
+  if (
+    MSSQL_STATEMENT_KEYWORDS.test(masked) ||
+    MSSQL_PROCEDURE_PATTERN.test(masked) ||
+    MSSQL_CATALOG_PATTERNS.some((pattern) => pattern.test(masked))
+  ) {
     throw new Error('WHERE clause contains potentially dangerous operation')
   }
 }
