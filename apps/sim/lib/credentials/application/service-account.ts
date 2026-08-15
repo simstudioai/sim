@@ -15,7 +15,6 @@ import {
 import {
   type CreateServiceAccountCredentialParams,
   createServiceAccountCredential,
-  deleteConnectionCredential,
   deleteCredentialRecord,
 } from '@/lib/credentials/orchestration'
 import type { CredentialRow } from '@/lib/credentials/queries'
@@ -159,14 +158,7 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
       )
     }
     const reason = principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'
-    const deleted =
-      context.credential.type === 'oauth' || context.credential.type === 'service_account'
-        ? await deleteConnectionCredential({
-            credentialId: context.credential.id,
-            workspaceId: context.workspaceId,
-            reason,
-          })
-        : await deleteCredentialRecord({ credential: context.credential, reason })
+    const deleted = await deleteCredentialRecord({ credential: context.credential, reason })
     return { credential: context.credential, deleted }
   },
   projectAudit: ({ principal, result }) => {

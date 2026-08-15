@@ -18,6 +18,7 @@ const {
   mockIsClientCredentialAccountProviderId,
   mockGetClientCredentialAccountDescriptor,
   mockDeleteConnectionCredential,
+  mockDeleteOrphanedOAuthAccount,
 } = vi.hoisted(() => ({
   mockRecordAudit: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
@@ -28,6 +29,7 @@ const {
   // providers must not trigger the stored-blob read for authMethod/username.
   mockGetClientCredentialAccountDescriptor: vi.fn(() => undefined),
   mockDeleteConnectionCredential: vi.fn(),
+  mockDeleteOrphanedOAuthAccount: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -51,6 +53,7 @@ vi.mock('@/lib/credentials/client-credential-accounts/descriptors', () => ({
 }))
 vi.mock('@/lib/credentials/deletion', () => ({
   deleteConnectionCredential: mockDeleteConnectionCredential,
+  deleteOrphanedOAuthAccount: mockDeleteOrphanedOAuthAccount,
 }))
 vi.mock('@/lib/credentials/environment', () => ({
   deleteWorkspaceEnvCredentials: vi.fn(),
@@ -549,5 +552,58 @@ describe('deleteCredentialRecord', () => {
       message: 'Remove this custom Slack bot from its Credential Groups before deleting it.',
     })
     expect(mockDeleteConnectionCredential).not.toHaveBeenCalled()
+  })
+
+  it('revokes the backing OAuth grant of a deleted oauth credential', async () => {
+    mockDeleteConnectionCredential.mockResolvedValueOnce(true)
+
+    const deleted = await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'oauth',
+        providerId: 'google-email',
+        accountId: 'acct-1',
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(deleted).toBe(true)
+    expect(mockDeleteOrphanedOAuthAccount).toHaveBeenCalledWith('acct-1')
+  })
+
+  it('leaves the OAuth grant alone when the credential row was already gone', async () => {
+    mockDeleteConnectionCredential.mockResolvedValueOnce(false)
+
+    const deleted = await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'oauth',
+        providerId: 'google-email',
+        accountId: 'acct-1',
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(deleted).toBe(false)
+    expect(mockDeleteOrphanedOAuthAccount).not.toHaveBeenCalled()
+  })
+
+  it('does not touch OAuth grants for a service-account credential', async () => {
+    mockDeleteConnectionCredential.mockResolvedValueOnce(true)
+
+    await deleteCredentialRecord({
+      credential: {
+        id: 'cred-1',
+        workspaceId: 'ws-1',
+        type: 'service_account',
+        providerId: 'google-service-account',
+        accountId: 'acct-1',
+      } as never,
+      reason: 'user_delete',
+    })
+
+    expect(mockDeleteOrphanedOAuthAccount).not.toHaveBeenCalled()
   })
 })

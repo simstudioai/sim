@@ -20,6 +20,7 @@ import {
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
 import { environmentKeys } from '@/hooks/queries/environment'
+import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import {
   fetchWorkspaceCredentialList,
@@ -211,6 +212,7 @@ export function useDeleteWorkspaceCredential() {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
       queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY })
       queryClient.invalidateQueries({ queryKey: environmentKeys.all })
+      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
   })
 }

@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, notExists, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
@@ -99,6 +99,39 @@ export async function deleteConnectionCredential(
     })
   }
   return deleted.length === 1
+}
+
+/**
+ * Deletes the stored OAuth grant behind a credential once nothing references
+ * it. The `account` row is an OAuth credential's secret source, so leaving it
+ * behind keeps a usable grant; nothing is revoked provider-side.
+ *
+ * Scoped by `accountId`, not by owner — the caller is already authorized
+ * against the credential, which may belong to another user.
+ *
+ * The reference check is a predicate on the delete: `credential.accountId` is
+ * `ON DELETE CASCADE`, so a credential racing a separate check would be reaped
+ * by Postgres without {@link clearCredentialRefs} ever running.
+ */
+export async function deleteOrphanedOAuthAccount(accountId: string): Promise<void> {
+  const deleted = await db
+    .delete(schema.account)
+    .where(
+      and(
+        eq(schema.account.id, accountId),
+        notExists(
+          db
+            .select({ referenced: sql`1` })
+            .from(schema.credential)
+            .where(eq(schema.credential.accountId, accountId))
+        )
+      )
+    )
+    .returning({ id: schema.account.id })
+
+  if (deleted.length > 0) {
+    logger.info('Deleted orphaned OAuth account', { accountId })
+  }
 }
 
 /**

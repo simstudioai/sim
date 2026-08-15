@@ -54,6 +54,9 @@ interface RoleLockTooltipProps {
 /**
  * Wraps a disabled role control in a tooltip explaining why the role is fixed.
  * Renders children unchanged when there is no lock reason.
+ *
+ * The trigger is a `grid` so the wrapper stays layout-transparent; a
+ * shrink-to-content wrapper would size locked and unlocked rows differently.
  */
 export function RoleLockTooltip({ reason, children }: RoleLockTooltipProps) {
   if (!reason) return <>{children}</>
@@ -61,7 +64,7 @@ export function RoleLockTooltip({ reason, children }: RoleLockTooltipProps) {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <div className='inline-flex'>{children}</div>
+        <div className='grid'>{children}</div>
       </Tooltip.Trigger>
       <Tooltip.Content>{reason}</Tooltip.Content>
     </Tooltip.Root>
