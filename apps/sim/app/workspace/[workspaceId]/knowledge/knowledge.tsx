@@ -1047,6 +1047,7 @@ export function Knowledge() {
       moveRowsTo({ folderIds, knowledgeBaseIds: resourceIds }, targetFolderId),
     selection: { selectedRowIds, visibleRowIds, replaceSelection },
     onSpringOpenFolder: setCurrentFolderId,
+    currentFolderId,
   })
 
   const headerActions: ResourceAction[] = useMemo(

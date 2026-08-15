@@ -43,11 +43,12 @@ export interface UseFolderRowDragDropOptions {
   /** Label shown in the drag ghost. */
   getRowLabel: (rowId: string) => string
   /**
-   * Moves every row of the drag into `targetFolderId` in one call. Rows already sitting
-   * directly in the target are filtered out before this fires, and it is never called with
-   * both lists empty — so the consumer maps it straight onto its bulk-move operations.
+   * Moves every row of the drag into `targetFolderId` in one call (`null` is the workspace
+   * root). Rows already sitting directly in the target are filtered out before this fires, and
+   * it is never called with both lists empty — so the consumer maps it straight onto its
+   * bulk-move operations.
    */
-  onMoveRows: (rows: FolderedRowMove, targetFolderId: string) => void
+  onMoveRows: (rows: FolderedRowMove, targetFolderId: string | null) => void
   /**
    * Checkbox selection, when the list has one. Dragging a selected row carries the whole
    * selection; dragging an unselected row collapses the selection onto it first, matching
@@ -66,6 +67,12 @@ export interface UseFolderRowDragDropOptions {
    * back-stack entry. Omit to disable spring-loading. See {@link useSpringLoadedFolder}.
    */
   onSpringOpenFolder?: (folderId: string, options: SpringOpenOptions) => void
+  /**
+   * The folder the list is currently showing (`null` at the workspace root). Enables dropping
+   * onto the list body to file into it — the only way to land a drag that spring-opened into an
+   * empty folder, which has no row to drop on.
+   */
+  currentFolderId?: string | null
 }
 
 /**
@@ -87,8 +94,10 @@ export function useFolderRowDragDrop({
   onMoveRows,
   selection,
   onSpringOpenFolder,
+  currentFolderId = null,
 }: UseFolderRowDragDropOptions): RowDragDropConfig {
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
+  const [isBodyDropActive, setIsBodyDropActive] = useState(false)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_ROW_IDS)
   /**
    * The in-flight drag source, mirrored outside React state because `onDragOver` fires far
@@ -125,21 +134,23 @@ export function useFolderRowDragDrop({
     springLoad.reset()
     setDraggedRowIds(EMPTY_ROW_IDS)
     setActiveDropTargetId(null)
+    setIsBodyDropActive(false)
   }, [dragGhost, springLoad])
 
   useDragTeardown(endDrag)
 
   /**
-   * Splits the drag into the rows that would actually move, dropping any row already sitting
-   * directly in the target. Returns `null` when the drop is illegal outright — the target is
-   * not a folder, or it is one of the dragged folders or inside one, which would orphan a
-   * subtree into itself.
+   * Splits the drag into the rows that would actually move into `targetFolderId`, dropping any
+   * row already sitting directly there. `null` when the drop is illegal outright — the target is
+   * one of the dragged folders or inside one, which would orphan a subtree into itself — or when
+   * nothing would actually change.
+   *
+   * Takes a folder id rather than a row id because the destination is not always a row: the
+   * list body files into the folder currently open, which has no row of its own, and `null`
+   * addresses the workspace root.
    */
-  const resolveMove = useCallback(
-    (targetRowId: string, sourceRowIds: string[]): FolderedRowMove | null => {
-      const target = parseFolderedRowId(targetRowId)
-      if (target.kind !== 'folder') return null
-
+  const resolveMoveToFolder = useCallback(
+    (targetFolderId: string | null, sourceRowIds: string[]): FolderedRowMove | null => {
       const { descendantsByFolderId, getFolderParentId, getResourceFolderId } = optionsRef.current
       const folderIds: string[] = []
       const resourceIds: string[] = []
@@ -147,13 +158,14 @@ export function useFolderRowDragDrop({
       for (const sourceRowId of sourceRowIds) {
         const source = parseFolderedRowId(sourceRowId)
         if (source.kind === 'folder') {
-          if (source.id === target.id) return null
-          if (descendantsByFolderId.get(source.id)?.has(target.id)) return null
-          if ((getFolderParentId(source.id) ?? null) === target.id) continue
+          if (source.id === targetFolderId) return null
+          if (targetFolderId !== null && descendantsByFolderId.get(source.id)?.has(targetFolderId))
+            return null
+          if ((getFolderParentId(source.id) ?? null) === targetFolderId) continue
           folderIds.push(source.id)
           continue
         }
-        if ((getResourceFolderId(source.id) ?? null) === target.id) continue
+        if ((getResourceFolderId(source.id) ?? null) === targetFolderId) continue
         resourceIds.push(source.id)
       }
 
@@ -161,6 +173,16 @@ export function useFolderRowDragDrop({
       return { folderIds, resourceIds }
     },
     []
+  )
+
+  /** Row-targeted drop: only a folder row can receive one. */
+  const resolveMove = useCallback(
+    (targetRowId: string, sourceRowIds: string[]): FolderedRowMove | null => {
+      const target = parseFolderedRowId(targetRowId)
+      if (target.kind !== 'folder') return null
+      return resolveMoveToFolder(target.id, sourceRowIds)
+    },
+    [resolveMoveToFolder]
   )
 
   return useMemo<RowDragDropConfig>(
@@ -260,6 +282,37 @@ export function useFolderRowDragDrop({
         if (move) optionsRef.current.onMoveRows(move, target.id)
       },
       onDragEnd: endDrag,
+      body: {
+        isActive: isBodyDropActive,
+        canDrop: canEdit && draggedRowIds.size > 0,
+        onDragOver: (e: DragEvent<HTMLDivElement>) => {
+          const sourceRowIds = draggedRowIdsRef.current
+          if (sourceRowIds.length === 0) return
+          /**
+           * Only light up when the drop would actually move something. A drag whose rows all
+           * already live here is a no-op, and showing a target for it would promise a change
+           * that never happens.
+           */
+          if (!resolveMoveToFolder(currentFolderId, sourceRowIds)) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          setIsBodyDropActive(true)
+        },
+        onDragLeave: (e: DragEvent<HTMLDivElement>) => {
+          const relatedTarget = e.relatedTarget
+          if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
+          setIsBodyDropActive(false)
+        },
+        onDrop: (e: DragEvent<HTMLDivElement>) => {
+          e.preventDefault()
+          const sourceRowIds =
+            readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
+          const move =
+            sourceRowIds.length > 0 ? resolveMoveToFolder(currentFolderId, sourceRowIds) : null
+          endDrag()
+          if (move) optionsRef.current.onMoveRows(move, currentFolderId)
+        },
+      },
     }),
     [
       activeDropTargetId,

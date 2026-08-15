@@ -963,6 +963,7 @@ export function Tables() {
       moveRowsTo({ folderIds, tableIds: resourceIds }, targetFolderId),
     selection: { selectedRowIds, visibleRowIds, replaceSelection },
     onSpringOpenFolder: setCurrentFolderId,
+    currentFolderId,
   })
 
   const handleDelete = async () => {

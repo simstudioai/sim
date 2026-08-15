@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 /**
  * How long a drag must rest on a folder before it opens.
  *
- * Matched to macOS Finder's spring-loaded folders, which the feature is modelled on. Shorter
- * turns every pass over a folder into an accidental navigation; longer reads as unresponsive
- * and the user gives up and drops at the wrong level.
+ * Deliberately slower than the workflow sidebar's 400ms hover-to-expand: that one opens a tree
+ * node in place and is trivially reversible, while this one navigates the whole list view out
+ * from under the drag. At 700ms a drag merely crossing a folder on its way elsewhere kept
+ * triggering it; the cost of waiting is far lower than the cost of an unwanted navigation.
  */
-export const SPRING_LOAD_DELAY_MS = 700
+export const SPRING_LOAD_DELAY_MS = 1000
 
 /** How a spring-open writes the newly opened folder to the browser history. */
 export interface SpringOpenOptions {

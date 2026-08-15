@@ -85,6 +85,22 @@ export interface SelectableConfig {
   disabled?: boolean
 }
 
+/**
+ * Drop onto the list body, which files into the folder currently open.
+ *
+ * Rows alone are not enough: a drag that spring-opens into an empty folder has nothing to land
+ * on, so without this the gesture dead-ends and the item cannot be moved there at all.
+ */
+export interface BodyDropConfig {
+  /** The drag is over the body and releasing would move something. */
+  isActive: boolean
+  /** A drag is in flight that this body could receive — drives the resting affordance. */
+  canDrop: boolean
+  onDragOver: (e: DragEvent<HTMLDivElement>) => void
+  onDragLeave: (e: DragEvent<HTMLDivElement>) => void
+  onDrop: (e: DragEvent<HTMLDivElement>) => void
+}
+
 export interface RowDragDropConfig {
   activeDropTargetId?: string | null
   draggedRowIds?: Set<string>
@@ -96,6 +112,7 @@ export interface RowDragDropConfig {
   onDragLeave?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
   onDrop?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
   onDragEnd?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
+  body?: BodyDropConfig
 }
 
 export interface PaginationConfig {
@@ -293,6 +310,7 @@ const ResourceTable = memo(function ResourceTable({
   }, [onLoadMore, hasMore])
 
   const hasCheckbox = selectable != null
+  const bodyDrop = rowDragDrop?.body
 
   const handleSelectAll = useCallback(
     (checked: boolean | 'indeterminate') => {
@@ -336,7 +354,17 @@ const ResourceTable = memo(function ResourceTable({
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-      <div ref={scrollRef} className='min-h-0 flex-1 overflow-auto overscroll-none'>
+      <div
+        ref={scrollRef}
+        className={cn(
+          'min-h-0 flex-1 overflow-auto overscroll-none',
+          bodyDrop?.isActive &&
+            'outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]'
+        )}
+        onDragOver={bodyDrop?.onDragOver}
+        onDragLeave={bodyDrop?.onDragLeave}
+        onDrop={bodyDrop?.onDrop}
+      >
         <div role='table' className='grid w-full text-small'>
           <div
             role='rowgroup'
@@ -368,6 +396,24 @@ const ResourceTable = memo(function ResourceTable({
               ))}
             </div>
           </div>
+          {bodyDrop?.canDrop && rows.length === 0 && (
+            /**
+             * An empty folder has no row to drop on, so the drag would otherwise dead-end here
+             * with no way to tell that releasing still files into this folder. Shown only while
+             * a droppable drag is in flight, so it never intrudes on the resting empty state.
+             */
+            <div
+              className={cn(
+                'm-4 flex flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed py-10 transition-colors',
+                bodyDrop.isActive
+                  ? 'border-[var(--text-subtle)] bg-[var(--surface-4)]'
+                  : 'border-[var(--border)]'
+              )}
+            >
+              <p className='text-[var(--text-body)] text-small'>Drop to move here</p>
+              <p className='text-[var(--text-muted)] text-caption'>This folder is empty</p>
+            </div>
+          )}
           <div
             role='rowgroup'
             className={cn('grid', virtualized && 'relative')}
@@ -673,12 +719,14 @@ const DataRow = memo(function DataRow({
         isDraggable && 'cursor-grab active:cursor-grabbing',
         isRowActive && chipActiveSurfaceClass,
         /**
-         * Drawn inside the row's own box (`outline-offset-[-1px]`) so the ring never overlaps
-         * the rows above and below, and in the same brand colour as the Files drop-to-upload
-         * overlay so every "release here" affordance reads as one thing.
+         * Neutral, matching the workflow sidebar's own drop-inside affordance
+         * (`bg-[var(--text-subtle)] opacity-10` there, and `--text-subtle` for its reorder
+         * line). A brand colour here would be the only place in the app that signals "release
+         * here" with hue rather than weight. Drawn inside the row's own box
+         * (`outline-offset-[-1px]`) so the ring never overlaps the rows above and below.
          */
         isActiveDropTarget &&
-          'bg-[var(--surface-4)] outline outline-1 outline-[var(--brand-secondary)] outline-offset-[-1px]',
+          'bg-[var(--surface-4)] outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]',
         (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}
       style={rowStyle}
