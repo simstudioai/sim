@@ -7,6 +7,7 @@ import {
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
+  isDependentConfigurationActionable,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 
 const field = (overrides: Partial<ForkDependentReconfig> = {}): ForkDependentReconfig => ({
@@ -95,5 +96,91 @@ describe('effectiveCopyDependentValue', () => {
   it('is blank when the source never referenced anything and nothing was stored', () => {
     const f = copyField({ currentValue: '', sourceValue: '' })
     expect(effectiveCopyDependentValue(f, {})).toBe('')
+  })
+})
+
+describe('isDependentConfigurationActionable', () => {
+  it('hides stored values when the mapped parent is unchanged', () => {
+    expect(
+      isDependentConfigurationActionable(
+        field({ required: true, currentValue: 'INBOX' }),
+        {},
+        {
+          parentResolved: true,
+          parentChanged: false,
+          copying: false,
+        }
+      )
+    ).toBe(false)
+  })
+
+  it('shows a required value that is missing under an unchanged mapped parent', () => {
+    expect(
+      isDependentConfigurationActionable(
+        field({ required: true, currentValue: '' }),
+        {},
+        {
+          parentResolved: true,
+          parentChanged: false,
+          copying: false,
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('hides a missing optional value under an unchanged mapped parent', () => {
+    expect(
+      isDependentConfigurationActionable(
+        field({ required: false, currentValue: '' }),
+        {},
+        {
+          parentResolved: true,
+          parentChanged: false,
+          copying: false,
+        }
+      )
+    ).toBe(false)
+  })
+
+  it('shows every dependent when the mapped parent changed', () => {
+    expect(
+      isDependentConfigurationActionable(
+        field({ required: false, currentValue: 'INBOX' }),
+        {},
+        {
+          parentResolved: true,
+          parentChanged: true,
+          copying: false,
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('shows every dependent when the parent will be copied', () => {
+    expect(
+      isDependentConfigurationActionable(
+        field({ required: false, currentValue: 'INBOX' }),
+        {},
+        {
+          parentResolved: true,
+          parentChanged: false,
+          copying: true,
+        }
+      )
+    ).toBe(true)
+  })
+
+  it('hides dependents until their parent is resolved', () => {
+    expect(
+      isDependentConfigurationActionable(
+        field({ required: true, currentValue: '' }),
+        {},
+        {
+          parentResolved: false,
+          parentChanged: false,
+          copying: false,
+        }
+      )
+    ).toBe(false)
   })
 })

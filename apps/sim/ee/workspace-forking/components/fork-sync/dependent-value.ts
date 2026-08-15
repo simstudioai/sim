@@ -37,3 +37,24 @@ export function effectiveCopyDependentValue(
   if (repicked !== undefined) return repicked
   return field.currentValue || field.sourceValue
 }
+
+interface DependentConfigurationState {
+  parentResolved: boolean
+  parentChanged: boolean
+  copying: boolean
+}
+
+/**
+ * Whether a dependent selector needs to be shown. A changed or copied parent requires review
+ * because its children resolve in a different scope. An unchanged mapping only needs a selector
+ * when a required value is missing; its stored values are already valid and sync-ready.
+ */
+export function isDependentConfigurationActionable(
+  field: ForkDependentReconfig,
+  reconfig: Record<string, string>,
+  state: DependentConfigurationState
+): boolean {
+  if (!state.parentResolved) return false
+  if (state.parentChanged || state.copying) return true
+  return field.required && effectiveDependentValue(field, reconfig, false) === ''
+}
