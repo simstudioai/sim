@@ -4666,7 +4666,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity", "monitoring"]
+      "tags": ["identity", "monitoring", "incident-management", "automation"]
     },
     {
       "type": "cursor_v2",

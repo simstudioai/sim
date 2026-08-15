@@ -126,7 +126,7 @@ const aggregateQuerySchema: z.ZodType<CrowdStrikeAggregateQuery> = z.lazy(() =>
 
 const querySensorsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_query_sensors'),
-  filter: z.string().optional(),
+  filter: z.string().trim().min(1, 'Filter must not be empty').optional(),
   limit: z
     .number()
     .int()
@@ -134,7 +134,7 @@ const querySensorsSchema = baseRequestSchema.extend({
     .max(200, 'Limit must be at most 200')
     .optional(),
   offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
-  sort: z.string().optional(),
+  sort: z.string().trim().min(1, 'Sort must not be empty').optional(),
 })
 
 const getSensorDetailsSchema = baseRequestSchema.extend({

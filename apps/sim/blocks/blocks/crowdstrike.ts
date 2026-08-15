@@ -942,7 +942,26 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         'Spotlight vulnerability records (id, aid, status, cve, app, hostInfo, remediations, suppressionInfo, timestamps)',
     },
     sessionId: { type: 'string', description: 'RTR session ID' },
+    deviceId: { type: 'string', description: 'Host ID (AID) the RTR session was opened against' },
+    platform: { type: 'string', description: 'Platform of the host in the RTR session' },
+    pwd: { type: 'string', description: 'Working directory the RTR session started in' },
+    offlineQueued: {
+      type: 'boolean',
+      description: 'Whether the RTR session was queued for an offline host',
+    },
+    existingAidSessions: {
+      type: 'number',
+      description: 'Number of RTR sessions already open against the host',
+    },
+    createdAt: { type: 'string', description: 'When the RTR session was created' },
     cloudRequestId: { type: 'string', description: 'RTR cloud request ID to poll for output' },
+    queuedCommandOffline: {
+      type: 'boolean',
+      description: 'Whether the RTR command was queued because the host is offline',
+    },
+    baseCommand: { type: 'string', description: 'Base RTR command the status refers to' },
+    taskId: { type: 'string', description: 'RTR task ID for the executed command' },
+    sequenceId: { type: 'number', description: 'Sequence number of the RTR command output chunk' },
     complete: { type: 'boolean', description: 'Whether an RTR command has finished' },
     stdout: { type: 'string', description: 'Standard output from an RTR command' },
     stderr: { type: 'string', description: 'Standard error from an RTR command' },
@@ -959,16 +978,65 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
     },
     errors: {
       type: 'json',
-      description: 'Per-item errors CrowdStrike returned alongside a partially successful response',
+      description:
+        'Per-item errors CrowdStrike returned alongside a partially successful response (code, id, message)',
     },
     count: { type: 'number', description: 'Number of records returned by the selected operation' },
   },
 }
 
 export const CrowdStrikeBlockMeta = {
-  tags: ['identity', 'monitoring'],
+  tags: ['identity', 'monitoring', 'incident-management', 'automation'],
   url: 'https://www.crowdstrike.com',
   templates: [
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike alert triage',
+      prompt:
+        'Create a workflow that queries new high-severity CrowdStrike alerts, pulls their details, summarizes the tactic, technique, and affected host for each, posts the triage summary to Slack, and marks the reviewed alerts in progress.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['security', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike host containment',
+      prompt:
+        'Create a workflow that takes a host ID, contains the host in CrowdStrike, opens a Real Time Response session to capture running processes and network connections, and posts the collected evidence to Slack for the on-call responder.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['security', 'incident-response'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike IOC sync',
+      prompt:
+        'Create a workflow that reads indicators of compromise from a table, creates them as custom CrowdStrike indicators with a blocking action and an expiration, and records the returned indicator IDs back to the table.',
+      modules: ['agent', 'tables', 'workflows'],
+      category: 'operations',
+      tags: ['security', 'automation'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike vulnerability report',
+      prompt:
+        'Create a scheduled workflow that queries CrowdStrike Spotlight for open critical vulnerabilities, pulls the CVE and remediation details, groups them by host, and writes a prioritized remediation report for the platform team.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'operations',
+      tags: ['security', 'reporting'],
+    },
+    {
+      icon: CrowdStrikeIcon,
+      title: 'CrowdStrike case digest',
+      prompt:
+        'Create a scheduled workflow that queries open CrowdStrike Case Management cases, pulls each case status, severity, and assignee, and posts a daily standup digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['security', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
     {
       icon: CrowdStrikeIcon,
       title: 'CrowdStrike sensor coverage gaps',
@@ -1037,6 +1105,34 @@ export const CrowdStrikeBlockMeta = {
     },
   ],
   skills: [
+    {
+      name: 'triage-falcon-alerts',
+      description:
+        'Query CrowdStrike alerts, pull their details, and summarize severity, tactic, and affected host for SOC triage.',
+      content:
+        '# Triage CrowdStrike Alerts\n\nWork a queue of Falcon alerts down to a reviewed state.\n\n## Steps\n1. Query alerts with an FQL filter for the status and severity you care about.\n2. Pull alert details for the returned composite IDs.\n3. Summarize each alert by severity, tactic, technique, and affected host.\n4. Update the reviewed alerts with a new status and an audit comment.\n\n## Output\nA triage summary per alert plus the list of alert IDs whose status was updated.',
+    },
+    {
+      name: 'contain-compromised-host',
+      description:
+        'Contain a CrowdStrike host and collect live evidence through a Real Time Response session.',
+      content:
+        '# Contain a Compromised Host\n\nIsolate a host and gather evidence before responders arrive.\n\n## Steps\n1. Run the contain action against the target host ID.\n2. Open a Real Time Response session on that host.\n3. Run read-tier commands (ps, netstat, ls, filehash) and poll each cloud request ID for output.\n4. Close the session when collection is done.\n\n## Output\nConfirmation the host was contained, plus the captured command output for the incident record.',
+    },
+    {
+      name: 'manage-custom-indicators',
+      description:
+        'Create, update, search, and delete custom CrowdStrike indicators of compromise.',
+      content:
+        '# Manage Custom CrowdStrike Indicators\n\nKeep the custom IOC list current.\n\n## Steps\n1. Query existing indicators with an FQL filter to see what is already covered.\n2. Create new indicators with the intended action, platforms, and expiration.\n3. Update severity, action, or expiration on indicators that need changing.\n4. Delete indicators that are stale, scoping deletes by explicit IDs rather than a broad filter.\n\n## Output\nThe indicator IDs created, updated, or deleted, plus any per-item errors CrowdStrike returned.',
+    },
+    {
+      name: 'prioritize-spotlight-vulnerabilities',
+      description:
+        'Query CrowdStrike Spotlight vulnerabilities and rank them by severity, exploit status, and affected host.',
+      content:
+        '# Prioritize Spotlight Vulnerabilities\n\nTurn the Spotlight backlog into a ranked remediation list.\n\n## Steps\n1. Query vulnerabilities with an FQL filter (Spotlight requires one) for open findings.\n2. Pull details for the returned IDs to get CVE data, host info, and remediations.\n3. Rank by CVE severity and exploit status, then group by host or application.\n\n## Output\nA prioritized remediation list naming each CVE, its affected hosts, and the recommended fix.',
+    },
     {
       name: 'audit-identity-sensors',
       description:

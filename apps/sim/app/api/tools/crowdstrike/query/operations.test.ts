@@ -527,4 +527,39 @@ describe('CrowdStrike extended operations', () => {
     expect(response.status).toBe(403)
     expect(data).toEqual({ success: false, error: 'access denied' })
   })
+
+  it('rejects a blank sensor filter instead of sending an empty FQL expression', async () => {
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_query_sensors', filter: '   ' })
+    )
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('rejects a blank sensor sort instead of sending an empty sort expression', async () => {
+    const response = await POST(requestFor({ operation: 'crowdstrike_query_sensors', sort: '' }))
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('forwards trimmed sensor filter and sort values', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ resources: [] }))
+
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_query_sensors',
+        filter: '  hostname:"dc-01"  ',
+        sort: '  hostname.asc  ',
+      })
+    )
+
+    expect(response.status).toBe(200)
+
+    const queryUrl = new URL(fetchMock.mock.calls[1][0])
+    expect(queryUrl.pathname).toBe('/identity-protection/queries/devices/v1')
+    expect(queryUrl.searchParams.get('filter')).toBe('hostname:"dc-01"')
+    expect(queryUrl.searchParams.get('sort')).toBe('hostname.asc')
+  })
 })
