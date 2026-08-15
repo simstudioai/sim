@@ -4,6 +4,7 @@ import { createAccessServiceTokenTool } from '@/tools/cloudflare/create_access_s
 import { createDnsRecordTool } from '@/tools/cloudflare/create_dns_record'
 import { createR2BucketTool } from '@/tools/cloudflare/create_r2_bucket'
 import { createRateLimitRuleTool } from '@/tools/cloudflare/create_rate_limit_rule'
+import { createRulesetTool } from '@/tools/cloudflare/create_ruleset'
 import { createRulesetRuleTool } from '@/tools/cloudflare/create_ruleset_rule'
 import { createZoneTool } from '@/tools/cloudflare/create_zone'
 import { deleteAccessApplicationTool } from '@/tools/cloudflare/delete_access_application'
@@ -52,6 +53,7 @@ export const cloudflareCreateAccessServiceTokenTool = createAccessServiceTokenTo
 export const cloudflareCreateDnsRecordTool = createDnsRecordTool
 export const cloudflareCreateR2BucketTool = createR2BucketTool
 export const cloudflareCreateRateLimitRuleTool = createRateLimitRuleTool
+export const cloudflareCreateRulesetTool = createRulesetTool
 export const cloudflareCreateRulesetRuleTool = createRulesetRuleTool
 export const cloudflareCreateZoneTool = createZoneTool
 export const cloudflareDeleteAccessApplicationTool = deleteAccessApplicationTool

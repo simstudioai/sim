@@ -3882,6 +3882,10 @@
           "description": "Reads the entry point ruleset for a phase on a zone, including all of its rules. This is how you find the ruleset ID you need before adding, updating, or deleting a rule — for example http_request_firewall_custom for WAF custom rules, http_request_firewall_managed for managed-ruleset deployments and overrides, or http_ratelimit for rate limiting rules. Requires an API token with Zone WAF Read (or another matching ruleset Read permission)."
         },
         {
+          "name": "Create Ruleset",
+          "description": ""
+        },
+        {
           "name": "Create Ruleset Rule",
           "description": "Adds a rule to a zone ruleset. Use \"Get Phase Entry Point Ruleset\" first to find the ruleset ID for the phase you want (for example http_request_firewall_custom for a WAF custom rule, or http_request_firewall_managed with action \"execute\" to deploy a managed ruleset). The rule is appended to the end of the ruleset unless a position is given. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission)."
         },
@@ -4006,7 +4010,7 @@
           "description": "Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress rules, origin request settings, and WARP routing. Only tunnels whose configuration source is \"cloudflare\" have a remote configuration; locally-managed tunnels keep it in their own config file. Requires an API token with Account Cloudflare Tunnel Read."
         }
       ],
-      "operationCount": 47,
+      "operationCount": 48,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

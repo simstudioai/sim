@@ -846,6 +846,15 @@ export interface CloudflareGetRulesetEntrypointParams extends CloudflareBasePara
   phase: string
 }
 
+export interface CloudflareCreateRulesetParams extends CloudflareBaseParams {
+  zoneId: string
+  name: string
+  phase: string
+  kind?: string
+  description?: string
+  rules?: unknown
+}
+
 export interface CloudflareListRateLimitRulesParams extends CloudflareBaseParams {
   zoneId: string
 }

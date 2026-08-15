@@ -667,6 +667,47 @@ Reads the entry point ruleset for a phase on a zone, including all of its rules.
 |   ↳ `logging` | json | Logging configuration |
 |   ↳ `ratelimit` | json | Rate limiting configuration for rules in the http_ratelimit phase |
 
+### Cloudflare Create Ruleset
+
+Creates a zone ruleset for a phase, optionally seeded with its first rules. Use this when a phase has no entry point ruleset yet — reading the entry point returns 404 on a zone that has never had a rule in that phase, and rules can only be appended to a ruleset that already exists. Create the entry point with kind "zone" and the target phase (for example http_ratelimit for rate limiting rules or http_request_firewall_custom for WAF custom rules), then use the returned ruleset ID for later rule operations. Requires an API token with Zone WAF Edit (or another matching ruleset Edit permission).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `zoneId` | string | Yes | The zone ID to create the ruleset in |
+| `name` | string | Yes | Human-readable name for the ruleset |
+| `phase` | string | Yes | The ruleset phase, e.g. http_ratelimit, http_request_firewall_custom, http_request_firewall_managed, http_request_transform, http_request_dynamic_redirect |
+| `kind` | string | No | Ruleset kind: zone, custom, managed, or root. Use zone to create a phase entry point ruleset. Defaults to zone |
+| `description` | string | No | Description of the ruleset |
+| `rules` | json | No | JSON array of rules to seed the ruleset with, in evaluation order. Each rule takes action, expression, and optionally description, enabled, action_parameters, and ratelimit |
+| `apiKey` | string | Yes | Cloudflare API Token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Ruleset identifier |
+| `name` | string | Ruleset name |
+| `description` | string | Ruleset description |
+| `kind` | string | Ruleset kind \(managed, custom, root, or zone\) |
+| `phase` | string | Phase the ruleset runs in |
+| `version` | string | Ruleset version |
+| `last_updated` | string | RFC 3339 timestamp of the last change |
+| `rules` | array | Rules contained in the ruleset, in evaluation order |
+|   ↳ `id` | string | Rule identifier |
+|   ↳ `version` | string | Rule version |
+|   ↳ `action` | string | Action the rule performs \(e.g., block, challenge, log, skip, execute\) |
+|   ↳ `action_parameters` | json | Action-specific parameters, including managed-ruleset overrides on execute rules |
+|   ↳ `expression` | string | Filter expression selecting matching requests. Empty on managed-ruleset rules |
+|   ↳ `description` | string | Rule description |
+|   ↳ `enabled` | boolean | Whether the rule is enabled |
+|   ↳ `ref` | string | Rule reference tag that survives rule updates |
+|   ↳ `last_updated` | string | RFC 3339 timestamp of the last change |
+|   ↳ `categories` | array | Managed-rule categories |
+|   ↳ `logging` | json | Logging configuration |
+|   ↳ `ratelimit` | json | Rate limiting configuration for rules in the http_ratelimit phase |
+
 ### Cloudflare Create Ruleset Rule
 
 Adds a rule to a zone ruleset. Use "Get Phase Entry Point Ruleset" first to find the ruleset ID for the phase you want (for example http_request_firewall_custom for a WAF custom rule, or http_request_firewall_managed with action "execute" to deploy a managed ruleset). The rule is appended to the end of the ruleset unless a position is given. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission).

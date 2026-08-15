@@ -115,9 +115,34 @@ describe('subBlock ids that share a tool param keep their own default', () => {
       'certificateStatus',
       'appType',
       'rateLimitAction',
+      'rulesetName',
     ]) {
       expect(mapped).not.toHaveProperty(alias)
     }
+  })
+
+  it('sends the ruleset name as the name param when creating a ruleset', () => {
+    const mapped = mapFor('create_ruleset', {
+      zoneId: 'zone1',
+      phase: 'http_ratelimit',
+      rulesetName: 'Zone rate limiting ruleset',
+    })
+
+    expect(mapped.name).toBe('Zone rate limiting ruleset')
+    expect(mapped).not.toHaveProperty('rulesetName')
+  })
+})
+
+describe('array-valued wand fields generate arrays', () => {
+  it('never asks the wand for an object where the tool parses a JSON array', () => {
+    const arrayParsedIds = new Set(['include', 'exclude', 'require', 'policies', 'rules'])
+
+    const wrong = CloudflareBlock.subBlocks.filter(
+      (subBlock) =>
+        arrayParsedIds.has(subBlock.id) && subBlock.wandConfig?.generationType === 'json-object'
+    )
+
+    expect(wrong.map((subBlock) => subBlock.id)).toEqual([])
   })
 })
 

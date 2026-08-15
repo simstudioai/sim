@@ -76,6 +76,10 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
           { text: 'Read the entry point ruleset for phase', field: 'phase', core: true },
           { text: 'in zone', field: 'zoneId' },
         ],
+        create_ruleset: [
+          { text: 'Create a ruleset for phase', field: 'phase', core: true },
+          { text: 'in zone', field: 'zoneId' },
+        ],
         create_ruleset_rule: [
           { text: 'Add a rule that runs', field: 'action', core: true },
           { text: 'when', field: 'expression', core: true },
@@ -205,6 +209,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         { label: 'List Rulesets', id: 'list_rulesets' },
         { label: 'Get Ruleset', id: 'get_ruleset' },
         { label: 'Get Phase Entry Point Ruleset', id: 'get_ruleset_entrypoint' },
+        { label: 'Create Ruleset', id: 'create_ruleset' },
         { label: 'Create Ruleset Rule', id: 'create_ruleset_rule' },
         { label: 'Update Ruleset Rule', id: 'update_ruleset_rule' },
         { label: 'Delete Ruleset Rule', id: 'delete_ruleset_rule' },
@@ -1110,6 +1115,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
           'list_rulesets',
           'get_ruleset',
           'get_ruleset_entrypoint',
+          'create_ruleset',
           'create_ruleset_rule',
           'update_ruleset_rule',
           'delete_ruleset_rule',
@@ -1181,7 +1187,57 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       ],
       value: () => 'http_request_firewall_custom',
       required: true,
-      condition: { field: 'operation', value: 'get_ruleset_entrypoint' },
+      condition: { field: 'operation', value: ['get_ruleset_entrypoint', 'create_ruleset'] },
+    },
+    {
+      id: 'rulesetName',
+      title: 'Ruleset Name',
+      type: 'short-input',
+      required: true,
+      placeholder: 'e.g. Zone rate limiting ruleset',
+      condition: { field: 'operation', value: 'create_ruleset' },
+    },
+    {
+      id: 'kind',
+      title: 'Ruleset Kind',
+      type: 'dropdown',
+      options: [
+        { label: 'Zone (phase entry point)', id: 'zone' },
+        { label: 'Custom', id: 'custom' },
+        { label: 'Root', id: 'root' },
+      ],
+      value: () => 'zone',
+      condition: { field: 'operation', value: 'create_ruleset' },
+      mode: 'advanced',
+    },
+    {
+      id: 'rules',
+      title: 'Initial Rules',
+      type: 'long-input',
+      placeholder: 'JSON array of rules to seed the ruleset with',
+      condition: { field: 'operation', value: 'create_ruleset' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        maintainHistory: true,
+        prompt: `Generate a Cloudflare ruleset rules array from the user's description.
+
+Each rule is an object with:
+- "action": the action to take, e.g. "block", "challenge", "managed_challenge", "js_challenge", "log", "skip", "execute"
+- "expression": a Cloudflare filter expression selecting matching requests
+- "description": optional human-readable description
+- "enabled": optional boolean, defaults to true
+
+A rate limiting rule (http_ratelimit phase) also takes "ratelimit" with "characteristics", "period", and "requests_per_period".
+
+Examples:
+- "block traffic from Russia" -> [{"action":"block","expression":"(ip.geoip.country eq \\"RU\\")","description":"Block RU"}]
+- "rate limit the login endpoint to 10 requests a minute per IP" -> [{"action":"block","expression":"(http.request.uri.path eq \\"/login\\")","description":"Login rate limit","ratelimit":{"characteristics":["ip.src","cf.colo.id"],"period":60,"requests_per_period":10}}]
+
+Return ONLY the JSON array - no explanations, no markdown fences.`,
+        placeholder: 'Describe the rules to seed this ruleset with...',
+        generationType: 'json-array',
+      },
     },
     {
       id: 'rulesetId',
@@ -1295,6 +1351,7 @@ Return ONLY the expression - no explanations, no quotes around the whole express
       condition: {
         field: 'operation',
         value: [
+          'create_ruleset',
           'create_ruleset_rule',
           'update_ruleset_rule',
           'create_rate_limit_rule',
@@ -1818,7 +1875,7 @@ Examples:
 
 Return ONLY the JSON array - no explanations, no markdown fences.`,
         placeholder: 'Describe who should match (e.g., "anyone with an @example.com email")...',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -2206,6 +2263,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       'cloudflare_list_rulesets',
       'cloudflare_get_ruleset',
       'cloudflare_get_ruleset_entrypoint',
+      'cloudflare_create_ruleset',
       'cloudflare_create_ruleset_rule',
       'cloudflare_update_ruleset_rule',
       'cloudflare_delete_ruleset_rule',
@@ -2241,8 +2299,15 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     config: {
       tool: (params) => `cloudflare_${params.operation}`,
       params: (params) => {
-        const { recordType, recordProxied, certificateStatus, appType, rateLimitAction, ...rest } =
-          params
+        const {
+          recordType,
+          recordProxied,
+          certificateStatus,
+          appType,
+          rateLimitAction,
+          rulesetName,
+          ...rest
+        } = params
         const result: Record<string, unknown> = rest
 
         /**
@@ -2270,6 +2335,9 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
           result.operation === 'update_rate_limit_rule'
         ) {
           result.action = rateLimitAction
+        }
+        if (result.operation === 'create_ruleset') {
+          result.name = rulesetName
         }
 
         if (result.ttl) result.ttl = Number(result.ttl)
@@ -2410,6 +2478,9 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     rulesetId: { type: 'string', description: 'Ruleset ID' },
     ruleId: { type: 'string', description: 'Rule ID within a ruleset' },
     phase: { type: 'string', description: 'Ruleset phase' },
+    rulesetName: { type: 'string', description: 'Name for a newly created ruleset' },
+    kind: { type: 'string', description: 'Ruleset kind for ruleset creation' },
+    rules: { type: 'string', description: 'JSON array of rules to seed a new ruleset with' },
     action: { type: 'string', description: 'Action a rule performs' },
     expression: { type: 'string', description: 'Cloudflare filter expression' },
     description: { type: 'string', description: 'Rule description' },
