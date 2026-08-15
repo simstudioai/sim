@@ -21,8 +21,10 @@ export const mssqlToggleSchema = z.enum(['enabled', 'disabled'])
 
 /**
  * Connection fields shared by every Microsoft SQL Server tool route.
- * Field placement mirrors the driver: `connectionTimeout` is top-level, while
- * `encrypt`, `trustServerCertificate`, and `instanceName` live under `options`.
+ * Field placement mirrors the driver: `connectionTimeout` and `requestTimeout`
+ * are top-level, while `encrypt` and `trustServerCertificate` live under
+ * `options`. Named instances are unsupported because the driver resolves them
+ * with an unpinnable SQL Server Browser lookup; use a static TCP port instead.
  * @see https://github.com/tediousjs/node-mssql#general-same-for-all-drivers
  */
 export const mssqlConnectionBodySchema = z.object({
@@ -38,7 +40,6 @@ export const mssqlConnectionBodySchema = z.object({
   password: z.string().min(1, 'Password is required'),
   encrypt: mssqlToggleSchema.default('enabled'),
   trustServerCertificate: mssqlToggleSchema.default('disabled'),
-  instanceName: z.string().min(1, 'instanceName cannot be empty').optional(),
   connectionTimeout: z.coerce
     .number()
     .int()

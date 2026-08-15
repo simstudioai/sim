@@ -5,7 +5,7 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
   id: 'mssql_introspect',
   name: 'Microsoft SQL Server Introspect',
   description:
-    'Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes',
+    'Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes. Results only cover objects the login can see, so a low-privilege account returns a partial schema rather than an error',
   version: '1.0',
 
   params: {
@@ -19,7 +19,8 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Server port (default: 1433). Ignored when a named instance is used',
+      description:
+        'Server port (default: 1433). A named instance must be reached through its static TCP port',
     },
     database: {
       type: 'string',
@@ -52,17 +53,11 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
       description:
         'Trust a self-signed server certificate (enabled, disabled). Defaults to disabled',
     },
-    instanceName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Named instance to connect to. Requires the SQL Server Browser service',
-    },
     connectionTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Connection timeout in milliseconds (default: 15000)',
+      description: 'Connection and request timeout in milliseconds (default: 15000)',
     },
     schema: {
       type: 'string',
@@ -86,7 +81,6 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
       password: params.password,
       encrypt: params.encrypt || 'enabled',
       trustServerCertificate: params.trustServerCertificate || 'disabled',
-      ...(params.instanceName ? { instanceName: params.instanceName } : {}),
       ...(params.connectionTimeout ? { connectionTimeout: Number(params.connectionTimeout) } : {}),
       schema: params.schema || 'dbo',
     }),

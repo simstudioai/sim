@@ -18,7 +18,8 @@ export const insertTool: ToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Server port (default: 1433). Ignored when a named instance is used',
+      description:
+        'Server port (default: 1433). A named instance must be reached through its static TCP port',
     },
     database: {
       type: 'string',
@@ -51,17 +52,11 @@ export const insertTool: ToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
       description:
         'Trust a self-signed server certificate (enabled, disabled). Defaults to disabled',
     },
-    instanceName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'Named instance to connect to. Requires the SQL Server Browser service',
-    },
     connectionTimeout: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Connection timeout in milliseconds (default: 15000)',
+      description: 'Connection and request timeout in milliseconds (default: 15000)',
     },
     table: {
       type: 'string',
@@ -91,7 +86,6 @@ export const insertTool: ToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
       password: params.password,
       encrypt: params.encrypt || 'enabled',
       trustServerCertificate: params.trustServerCertificate || 'disabled',
-      ...(params.instanceName ? { instanceName: params.instanceName } : {}),
       ...(params.connectionTimeout ? { connectionTimeout: Number(params.connectionTimeout) } : {}),
       table: params.table,
       data: params.data,

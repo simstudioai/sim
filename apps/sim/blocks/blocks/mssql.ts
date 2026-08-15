@@ -183,15 +183,8 @@ export const MSSQLBlock: BlockConfig<MSSQLResponse> = {
       value: () => 'disabled',
     },
     {
-      id: 'instanceName',
-      title: 'Instance Name',
-      type: 'short-input',
-      mode: 'advanced',
-      placeholder: 'SQLEXPRESS',
-    },
-    {
       id: 'connectionTimeout',
-      title: 'Connection Timeout (ms)',
+      title: 'Timeout (ms)',
       type: 'short-input',
       mode: 'advanced',
       placeholder: '15000',
@@ -345,7 +338,6 @@ export const MSSQLBlock: BlockConfig<MSSQLResponse> = {
           trustServerCertificate: rest.trustServerCertificate || 'disabled',
         }
 
-        if (rest.instanceName) result.instanceName = rest.instanceName
         if (rest.connectionTimeout) {
           result.connectionTimeout =
             typeof rest.connectionTimeout === 'string'
@@ -374,8 +366,10 @@ export const MSSQLBlock: BlockConfig<MSSQLResponse> = {
       type: 'string',
       description: 'Trust a self-signed server certificate',
     },
-    instanceName: { type: 'string', description: 'Named instance to connect to' },
-    connectionTimeout: { type: 'string', description: 'Connection timeout in milliseconds' },
+    connectionTimeout: {
+      type: 'string',
+      description: 'Connection and request timeout in milliseconds',
+    },
     table: { type: 'string', description: 'Table name' },
     query: { type: 'string', description: 'T-SQL query to execute' },
     data: { type: 'json', description: 'Data for insert/update operations' },

@@ -13265,7 +13265,7 @@
       "name": "Microsoft SQL Server",
       "description": "Connect to Microsoft SQL Server database",
       "longDescription": "Integrate Microsoft SQL Server into the workflow. Can query, insert, update, delete, execute raw T-SQL, and introspect schemas.",
-      "bgColor": "#A4373A",
+      "bgColor": "#FFFFFF",
       "iconName": "MicrosoftSqlIcon",
       "docsUrl": "https://docs.sim.ai/integrations/mssql",
       "operations": [
@@ -13291,7 +13291,7 @@
         },
         {
           "name": "Introspect Schema",
-          "description": "Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes"
+          "description": "Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes. Results only cover objects the login can see, so a low-privilege account returns a partial schema rather than an error"
         }
       ],
       "operationCount": 6,

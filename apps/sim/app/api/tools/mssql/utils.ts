@@ -1,3 +1,4 @@
+import net from 'node:net'
 import sql from 'mssql'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
@@ -9,21 +10,53 @@ export interface MSSQLConnectionConfig {
   password: string
   encrypt: 'enabled' | 'disabled'
   trustServerCertificate: 'enabled' | 'disabled'
-  instanceName?: string
   connectionTimeout: number
 }
 
 /**
- * Opens a single-connection `mssql` pool after SSRF-validating the host.
+ * Opens a TCP socket to an already-validated IP address.
  *
- * The hostname (not the resolved IP) is passed as `server` so TLS certificate
- * validation and SQL Server Browser instance lookup keep working; the resolved
- * addresses are still checked against the private-IP blocklist first.
+ * Tedious calls the `connector` instead of resolving and connecting itself, so
+ * this is what keeps the connection pinned to the address the SSRF guard
+ * approved rather than to whatever DNS answers a second time.
+ * @see https://tediousjs.github.io/tedious/api-connection.html
+ */
+function connectToPinnedAddress(address: string, port: number, timeoutMs: number) {
+  return new Promise<net.Socket>((resolve, reject) => {
+    const socket = net.connect({ host: address, port })
+    socket.setNoDelay(true)
+    socket.setTimeout(timeoutMs)
+
+    const fail = (error: Error) => {
+      socket.destroy()
+      reject(error)
+    }
+
+    socket.once('connect', () => {
+      socket.setTimeout(0)
+      resolve(socket)
+    })
+    socket.once('timeout', () => fail(new Error(`Connection to ${address}:${port} timed out`)))
+    socket.once('error', fail)
+  })
+}
+
+/**
+ * Opens a single-connection `mssql` pool against the SSRF-validated address.
  *
- * `port` is deliberately omitted when `instanceName` is set — the driver docs
- * state the port must not be supplied for a named instance.
+ * `options.connector` supplies a socket already connected to the resolved IP,
+ * which closes the DNS-rebinding window the way the PostgreSQL and MySQL tools
+ * do. `server` stays the original hostname because tedious derives the TLS
+ * `servername` from it independently of the connector, so SNI and certificate
+ * validation are unaffected by the pin.
+ *
+ * Named instances are deliberately unsupported: tedious resolves them with a
+ * UDP SQL Server Browser lookup issued against the hostname *outside* the
+ * connector, and node-mssql deletes `port` whenever `instanceName` is set, so
+ * there is no configuration in which a named instance stays pinned. Connect to
+ * a named instance by giving it a static TCP port instead.
+ * @see https://tediousjs.github.io/tedious/api-connection.html
  * @see https://github.com/tediousjs/node-mssql#general-same-for-all-drivers
- * @see https://github.com/tediousjs/node-mssql#tedious
  */
 export async function createMSSQLConnection(
   config: MSSQLConnectionConfig
@@ -33,8 +66,11 @@ export async function createMSSQLConnection(
     throw new Error(hostValidation.error)
   }
 
-  const poolConfig: sql.config = {
+  const pinnedAddress = hostValidation.resolvedIP ?? config.host
+
+  const pool = new sql.ConnectionPool({
     server: config.host,
+    port: config.port,
     database: config.database,
     user: config.username,
     password: config.password,
@@ -48,15 +84,9 @@ export async function createMSSQLConnection(
     options: {
       encrypt: config.encrypt === 'enabled',
       trustServerCertificate: config.trustServerCertificate === 'enabled',
-      ...(config.instanceName ? { instanceName: config.instanceName } : {}),
+      connector: () => connectToPinnedAddress(pinnedAddress, config.port, config.connectionTimeout),
     },
-  }
-
-  if (!config.instanceName) {
-    poolConfig.port = config.port
-  }
-
-  const pool = new sql.ConnectionPool(poolConfig)
+  })
   await pool.connect()
 
   return pool
@@ -162,6 +192,8 @@ function validateWhereClause(where: string): void {
     // File and external data operations
     /\bopenrowset\s*\(/i,
     /\bopendatasource\s*\(/i,
+    /\bopenquery\s*\(/i,
+    /\bopenxml\s*\(/i,
     /\bbulk\s+insert\b/i,
     // Comment-based injection (can truncate query)
     /--/,
@@ -175,15 +207,18 @@ function validateWhereClause(where: string): void {
     /\band\s+true\b/i,
     /\band\s+false\b/i,
     // Time-based blind injection
-    /\bwaitfor\s+delay/i,
+    /\bwaitfor\s+(delay|time)\b/i,
     // Stacked queries (any statement after semicolon)
     /;\s*\w+/,
-    // Information schema / system catalog queries
+    // Information schema / system catalog queries, including the legacy
+    // compatibility views reachable as `master..sysobjects`
     /information_schema/i,
     /\bsys\./i,
-    // Extended stored procedures
-    /\bxp_cmdshell/i,
-    /\bsp_executesql/i,
+    /\.\.\s*sys\w*/i,
+    /\bsys(objects|columns|databases|users|indexes|comments)\b/i,
+    // Extended and OLE-automation stored procedures
+    /\bxp_\w+/i,
+    /\bsp_(executesql|oacreate|oamethod|oagetproperty|configure|addextendedproc)\b/i,
   ]
 
   for (const pattern of dangerousPatterns) {
@@ -274,26 +309,35 @@ interface ForeignKeyRow {
 interface IndexRow {
   INDEX_NAME: string
   COLUMN_NAME: string
-  IS_UNIQUE: boolean
+  IS_UNIQUE: boolean | number
 }
 
 /**
- * Reads table, column, key, and index metadata for a schema from the
- * INFORMATION_SCHEMA views and the `sys.indexes` catalog views.
+ * Reads table, column, key, and index metadata for a schema.
+ *
+ * Every view read here except `sys.schemas` is metadata-visibility filtered —
+ * "limited to securables that a user either owns, or on which the user was
+ * granted some permission" — so a low-privilege login gets a silently partial
+ * result rather than an error.
  * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-information-schema-views/system-information-schema-views-transact-sql
- * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-indexes-transact-sql
+ * @see https://learn.microsoft.com/en-us/sql/relational-databases/security/metadata-visibility-configuration
  */
 export async function executeIntrospect(
   pool: sql.ConnectionPool,
   schemaName: string
 ): Promise<MSSQLIntrospectionResult> {
+  /**
+   * `sys.schemas` rather than `INFORMATION_SCHEMA.SCHEMATA` because it needs
+   * only membership in `public` and carries no metadata-visibility caveat.
+   * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/schemas-catalog-views-sys-schemas
+   */
   const schemasResult = await pool.request().query<SchemaRow>(
-    `SELECT SCHEMA_NAME
-     FROM INFORMATION_SCHEMA.SCHEMATA
-     WHERE SCHEMA_NAME NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest',
+    `SELECT s.name AS SCHEMA_NAME
+     FROM sys.schemas s
+     WHERE s.name NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest',
        'db_accessadmin', 'db_backupoperator', 'db_datareader', 'db_datawriter',
        'db_ddladmin', 'db_denydatareader', 'db_denydatawriter', 'db_owner', 'db_securityadmin')
-     ORDER BY SCHEMA_NAME`
+     ORDER BY s.name`
   )
   const schemas = schemasResult.recordset.map((row: SchemaRow) => row.SCHEMA_NAME)
 
@@ -346,22 +390,31 @@ export async function executeIntrospect(
       .input('schema', tableSchema)
       .input('table', tableName)
       .query<ForeignKeyRow>(
+        /**
+         * Resolved through the catalog views rather than
+         * `INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS`, which reaches the
+         * referenced side by joining `TABLE_CONSTRAINTS` — a view that returns
+         * "one row for each table constraint" and so has no row at all when a
+         * foreign key references a unique *index*, silently dropping the key.
+         * The catalog views resolve the referenced table and column by ID.
+         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-foreign-key-columns-transact-sql
+         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-information-schema-views/table-constraints-transact-sql
+         */
         `SELECT
-           fkcu.COLUMN_NAME AS COLUMN_NAME,
-           pk.TABLE_NAME AS REFERENCED_TABLE_NAME,
-           pkcu.COLUMN_NAME AS REFERENCED_COLUMN_NAME
-         FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
-         JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE fkcu
-           ON rc.CONSTRAINT_NAME = fkcu.CONSTRAINT_NAME
-           AND rc.CONSTRAINT_SCHEMA = fkcu.CONSTRAINT_SCHEMA
-         JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk
-           ON rc.UNIQUE_CONSTRAINT_NAME = pk.CONSTRAINT_NAME
-           AND rc.UNIQUE_CONSTRAINT_SCHEMA = pk.CONSTRAINT_SCHEMA
-         JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE pkcu
-           ON pk.CONSTRAINT_NAME = pkcu.CONSTRAINT_NAME
-           AND pk.CONSTRAINT_SCHEMA = pkcu.CONSTRAINT_SCHEMA
-           AND pkcu.ORDINAL_POSITION = fkcu.ORDINAL_POSITION
-         WHERE fkcu.TABLE_SCHEMA = @schema AND fkcu.TABLE_NAME = @table`
+           pc.name AS COLUMN_NAME,
+           rt.name AS REFERENCED_TABLE_NAME,
+           rc.name AS REFERENCED_COLUMN_NAME
+         FROM sys.foreign_keys fk
+         JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+         JOIN sys.tables pt ON pt.object_id = fk.parent_object_id
+         JOIN sys.schemas ps ON ps.schema_id = pt.schema_id
+         JOIN sys.columns pc
+           ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+         JOIN sys.tables rt ON rt.object_id = fkc.referenced_object_id
+         JOIN sys.columns rc
+           ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+         WHERE ps.name = @schema AND pt.name = @table
+         ORDER BY fk.name, fkc.constraint_column_id`
       )
 
     const foreignKeys = fkResult.recordset.map((row: ForeignKeyRow) => ({
@@ -380,6 +433,14 @@ export async function executeIntrospect(
       .input('schema', tableSchema)
       .input('table', tableName)
       .query<IndexRow>(
+        /**
+         * `key_ordinal > 0` is what restricts the result to key columns: it is
+         * the "ordinal (1-based) within set of key-columns", and `0` marks both
+         * INCLUDEd non-key columns and partitioning columns — the latter of
+         * which also report `is_included_column = 0`, so that flag alone would
+         * let them through.
+         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-index-columns-transact-sql
+         */
         `SELECT i.name AS INDEX_NAME, c.name AS COLUMN_NAME, i.is_unique AS IS_UNIQUE
          FROM sys.indexes i
          JOIN sys.index_columns ic
@@ -392,6 +453,7 @@ export async function executeIntrospect(
            AND t.name = @table
            AND i.is_primary_key = 0
            AND i.name IS NOT NULL
+           AND ic.key_ordinal > 0
          ORDER BY i.name, ic.key_ordinal`
       )
 
@@ -399,7 +461,7 @@ export async function executeIntrospect(
     for (const row of indexResult.recordset as IndexRow[]) {
       const indexName = row.INDEX_NAME
       if (!indexMap.has(indexName)) {
-        indexMap.set(indexName, { name: indexName, columns: [], unique: row.IS_UNIQUE })
+        indexMap.set(indexName, { name: indexName, columns: [], unique: Boolean(row.IS_UNIQUE) })
       }
       indexMap.get(indexName)!.columns.push(row.COLUMN_NAME)
     }

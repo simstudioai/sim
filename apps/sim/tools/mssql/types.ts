@@ -3,8 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Connection fields accepted by every Microsoft SQL Server tool.
  * `encrypt` and `trustServerCertificate` map onto the Tedious driver's
- * `options.encrypt` / `options.trustServerCertificate` booleans, and
- * `instanceName` onto `options.instanceName`.
+ * `options.encrypt` / `options.trustServerCertificate` booleans.
  * @see https://github.com/tediousjs/node-mssql#tedious
  */
 export interface MSSQLConnectionConfig {
@@ -15,7 +14,6 @@ export interface MSSQLConnectionConfig {
   password: string
   encrypt: 'enabled' | 'disabled'
   trustServerCertificate: 'enabled' | 'disabled'
-  instanceName?: string
   connectionTimeout?: number
 }
 

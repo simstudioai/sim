@@ -7,7 +7,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="mssql"
-  color="#A4373A"
+  color="#FFFFFF"
 />
 
 ## Usage Instructions
@@ -27,14 +27,13 @@ Execute a SELECT query on a Microsoft SQL Server database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
 | `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
 | `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
-| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
-| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `query` | string | Yes | T-SQL SELECT query to execute |
 
 #### Output
@@ -54,14 +53,13 @@ Insert data into a Microsoft SQL Server table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
 | `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
 | `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
-| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
-| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to insert data into |
 | `data` | object | Yes | Data object to insert \(key-value pairs\) |
 
@@ -82,14 +80,13 @@ Update rows in a Microsoft SQL Server table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
 | `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
 | `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
-| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
-| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to update |
 | `data` | object | Yes | Data object with the columns to set \(key-value pairs\) |
 | `where` | string | Yes | WHERE condition identifying the rows to update |
@@ -111,14 +108,13 @@ Delete rows from a Microsoft SQL Server table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
 | `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
 | `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
-| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
-| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to delete rows from |
 | `where` | string | Yes | WHERE condition identifying the rows to delete |
 
@@ -139,14 +135,13 @@ Execute a raw T-SQL statement on a Microsoft SQL Server database
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
 | `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
 | `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
-| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
-| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `query` | string | Yes | T-SQL statement to execute |
 
 #### Output
@@ -159,21 +154,20 @@ Execute a raw T-SQL statement on a Microsoft SQL Server database
 
 ### Microsoft SQL Server Introspect
 
-Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes
+Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes. Results only cover objects the login can see, so a low-privilege account returns a partial schema rather than an error
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Microsoft SQL Server hostname or IP address |
-| `port` | number | No | Server port \(default: 1433\). Ignored when a named instance is used |
+| `port` | number | No | Server port \(default: 1433\). A named instance must be reached through its static TCP port |
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
 | `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
 | `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
-| `instanceName` | string | No | Named instance to connect to. Requires the SQL Server Browser service |
-| `connectionTimeout` | number | No | Connection timeout in milliseconds \(default: 15000\) |
+| `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `schema` | string | No | Schema to introspect \(default: dbo\) |
 
 #### Output
