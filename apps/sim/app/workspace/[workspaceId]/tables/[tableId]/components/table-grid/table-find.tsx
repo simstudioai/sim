@@ -1,33 +1,34 @@
 'use client'
 
 import type React from 'react'
+import { memo } from 'react'
 import { Button, ChipInput } from '@sim/emcn'
-import { ChevronDown, ChevronUp, Loader, X } from '@sim/emcn/icons'
+import { ChevronDown, ChevronUp, Loader, Search, X } from '@sim/emcn/icons'
 
 export interface TableFindProps {
   query: string
   onQueryChange: (query: string) => void
-  /** Run the search (dirty Enter / search button). */
-  onSubmit: () => void
   onNext: () => void
   onPrev: () => void
   onClose: () => void
   /** Number of matches after dropping columns not in the current view. */
   count: number
-  /** 0-based index of the active match, or -1 when there are none. */
+  /** 0-based index of the active match. Ignored when `count` is 0. */
   currentIndex: number
   /** Whether the server capped the match set. */
   truncated: boolean
   isLoading: boolean
-  /** Whether the input differs from the last submitted term. */
-  isDirty: boolean
   inputRef: React.RefObject<HTMLInputElement | null>
 }
 
-export function TableFind({
+/**
+ * Memoized: while the bar is open it is a child of the grid, which re-renders
+ * on scroll, hover and selection. Every prop is a primitive or a stable
+ * identity, so this collapses to renders where a find value actually changed.
+ */
+export const TableFind = memo(function TableFind({
   query,
   onQueryChange,
-  onSubmit,
   onNext,
   onPrev,
   onClose,
@@ -35,19 +36,13 @@ export function TableFind({
   currentIndex,
   truncated,
   isLoading,
-  isDirty,
   inputRef,
 }: TableFindProps) {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (e.shiftKey) {
-        onPrev()
-      } else if (isDirty) {
-        onSubmit()
-      } else {
-        onNext()
-      }
+      if (e.shiftKey) onPrev()
+      else onNext()
       return
     }
     if (e.key === 'Escape') {
@@ -56,9 +51,16 @@ export function TableFind({
     }
   }
 
+  const hasQuery = query.trim().length > 0
   const hasMatches = count > 0
-  const label =
-    count === 0 ? 'No results' : `${currentIndex + 1} of ${count}${truncated ? '+' : ''}`
+
+  /** The tally holds its last value while the next result set loads — blanking
+   *  it on every keystroke reads as the feature breaking rather than working. */
+  function counterContent() {
+    if (!hasQuery) return null
+    if (hasMatches) return `${currentIndex + 1} of ${count}${truncated ? '+' : ''}`
+    return isLoading ? <Loader aria-hidden className='size-[13px] animate-spin' /> : 'No results'
+  }
 
   return (
     <div className='absolute top-2 right-2 z-[20] flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1 shadow-medium'>
@@ -66,42 +68,77 @@ export function TableFind({
         ref={inputRef}
         value={query}
         placeholder='Search'
+        aria-label='Find in table'
+        spellCheck={false}
+        autoComplete='off'
+        icon={Search}
         className='w-[200px]'
         onChange={(e) => onQueryChange(e.target.value)}
         onKeyDown={handleKeyDown}
+        // Untrimmed on purpose: whitespace searches nothing, but it is still
+        // text the user may want cleared.
+        endAdornment={
+          query.length > 0 ? (
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='-mr-1 shrink-0'
+              aria-label='Clear search'
+              onClick={() => {
+                onQueryChange('')
+                inputRef.current?.focus()
+              }}
+            >
+              <X className='size-[13px]' />
+            </Button>
+          ) : undefined
+        }
       />
-      <span className='flex min-w-[64px] shrink-0 items-center justify-end whitespace-nowrap px-1 text-[var(--text-muted)] text-xs tabular-nums'>
-        {isLoading ? <Loader className='size-[12px] animate-spin' /> : label}
+      {/* Always mounted, reserving its width: rendering it only once there is a
+          query would resize the bar on the first keystroke, and a live region
+          inserted together with its text is announced unreliably. */}
+      <span
+        aria-live='polite'
+        className='flex min-w-[64px] shrink-0 items-center justify-end whitespace-nowrap px-1 text-[var(--text-muted)] text-caption tabular-nums'
+      >
+        {counterContent()}
       </span>
       <Button
+        type='button'
         variant='ghost'
-        className='size-8 shrink-0 p-0'
+        size='icon'
+        className='size-6 shrink-0'
         aria-label='Previous match'
         title='Previous match (Shift+Enter)'
         disabled={!hasMatches}
         onClick={onPrev}
       >
-        <ChevronUp className='size-[14px] text-[var(--text-icon)]' />
+        <ChevronUp className='size-[13px]' />
       </Button>
       <Button
+        type='button'
         variant='ghost'
-        className='size-8 shrink-0 p-0'
+        size='icon'
+        className='size-6 shrink-0'
         aria-label='Next match'
         title='Next match (Enter)'
         disabled={!hasMatches}
         onClick={onNext}
       >
-        <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+        <ChevronDown className='size-[13px]' />
       </Button>
       <Button
+        type='button'
         variant='ghost'
-        className='size-8 shrink-0 p-0'
+        size='icon'
+        className='size-6 shrink-0'
         aria-label='Close find'
         title='Close (Esc)'
         onClick={onClose}
       >
-        <X className='size-[14px] text-[var(--text-icon)]' />
+        <X className='size-[13px]' />
       </Button>
     </div>
   )
-}
+})
