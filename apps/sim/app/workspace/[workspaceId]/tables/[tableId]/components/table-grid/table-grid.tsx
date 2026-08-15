@@ -1197,8 +1197,25 @@ export function TableGrid({
     return byRow
   }, [findMatches])
 
+  /**
+   * Whether the matches on screen actually belong to the submitted term.
+   *
+   * False while a term's own results are still in flight — `keepPreviousData`
+   * keeps serving the PREVIOUS term's matches until they land, and the first
+   * search of a session has no data at all. Navigation is gated on this:
+   * committing with Enter makes the typed and submitted terms agree instantly,
+   * so without it a second Enter would step through the old term's matches.
+   *
+   * A background refetch of the SAME term keeps this true — its data is still
+   * for this key — so an SSE row update doesn't disable the arrows mid-search.
+   */
+  const findResultsAreCurrent =
+    submittedQuery.length > 0 && findData !== undefined && !isFindPlaceholder
+
   const findMatchesRef = useRef(findMatches)
   findMatchesRef.current = findMatches
+  const findResultsAreCurrentRef = useRef(findResultsAreCurrent)
+  findResultsAreCurrentRef.current = findResultsAreCurrent
   const currentMatchIndexRef = useRef(currentMatchIndex)
   currentMatchIndexRef.current = currentMatchIndex
   const findOpenRef = useRef(findOpen)
@@ -1324,11 +1341,13 @@ export function TableGrid({
    * would only come back around after wrapping the whole list.
    */
   const handleFindNext = useCallback(() => {
+    if (!findResultsAreCurrentRef.current) return
     const index = currentMatchIndexRef.current
     goToMatch(cursorIsOnMatchRef.current ? index + 1 : index)
   }, [goToMatch])
 
   const handleFindPrev = useCallback(() => {
+    if (!findResultsAreCurrentRef.current) return
     const index = currentMatchIndexRef.current
     goToMatch(cursorIsOnMatchRef.current ? index - 1 : index)
   }, [goToMatch])
@@ -4401,6 +4420,7 @@ export function TableGrid({
             onSubmit={handleFindSubmit}
             onClose={handleFindClose}
             isStale={trimmedFindQuery !== submittedQuery}
+            canNavigate={findResultsAreCurrent}
             count={findMatches.length}
             // Clamped, not stored: a background refetch of the same term can
             // shrink the match set under a cursor the user already paged, and
