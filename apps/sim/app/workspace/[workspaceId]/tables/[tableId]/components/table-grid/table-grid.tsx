@@ -47,7 +47,6 @@ import {
   useUpdateWorkflowGroup,
 } from '@/hooks/queries/tables'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
-import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { ChatContext } from '@/stores/panel'
@@ -504,6 +503,10 @@ export function TableGrid({
   /** Term the auto-reveal has already run for, so a background refetch of the
    *  same term doesn't re-jump the viewport. */
   const autoRevealedTermRef = useRef('')
+  /** Whether the selection currently sits on the match at `currentMatchIndex`.
+   *  False when the auto-reveal was skipped, so next/prev knows to land on that
+   *  index rather than step past it. */
+  const cursorIsOnMatchRef = useRef(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
@@ -1108,19 +1111,26 @@ export function TableGrid({
    * The term the search actually runs on: the live input, debounced so results
    * follow typing without a request per keystroke.
    *
-   * Both guards are load-bearing, not optimizations. `!findOpen` suppresses the
-   * search whenever the bar is shut, including the render before a blanked
-   * input has propagated. The empty check applies a cleared input IMMEDIATELY
-   * rather than through the debounce: `useDebounce` is trailing-edge with no
-   * reset, so closing the bar leaves it serving the old term for up to
-   * `SEARCH_DEBOUNCE_MS`, and reopening inside that window — Cmd+F, Esc, Cmd+F
-   * is a normal correction — would replay the previous search from cache:
-   * highlights across the grid and a jump to its first match, under an input
-   * that reads empty.
+   * Owned here rather than via `useDebounce` because closing or clearing has to
+   * take effect IMMEDIATELY and cancel anything pending. `useDebounce` is
+   * trailing-edge and keeps serving its last value until the next timer fires,
+   * so after Esc it still holds the old term — and a guard on the *input* can't
+   * mask that, because the first keystroke of the next search makes the input
+   * non-empty again while the debounce is still holding the previous term. The
+   * result would be the old search replayed from cache (highlights, count and a
+   * viewport jump) under a box showing one fresh character. Cmd+F, Esc, Cmd+F
+   * is an ordinary correction, so that window gets hit.
    */
   const trimmedFindQuery = findQuery.trim()
-  const debouncedFindQuery = useDebounce(trimmedFindQuery, SEARCH_DEBOUNCE_MS)
-  const submittedQuery = !findOpen || trimmedFindQuery.length === 0 ? '' : debouncedFindQuery
+  const [submittedQuery, setSubmittedQuery] = useState('')
+  useEffect(() => {
+    if (!findOpen || trimmedFindQuery.length === 0) {
+      setSubmittedQuery('')
+      return
+    }
+    const timer = setTimeout(() => setSubmittedQuery(trimmedFindQuery), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [findOpen, trimmedFindQuery])
 
   const {
     data: findData,
@@ -1227,6 +1237,7 @@ export function TableGrid({
     setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setSelectionFocus(null)
     lastRevealedAnchorRef.current = { rowIndex, colIndex }
+    cursorIsOnMatchRef.current = true
     setSelectionAnchor({ rowIndex, colIndex })
   }, [rows, displayColumns, pendingMatchTick])
 
@@ -1252,8 +1263,14 @@ export function TableGrid({
     if (submittedQuery.length === 0) {
       // Clearing the box has to un-latch, or retyping the same term — the
       // ordinary "did I typo that?" correction — would match the stale latch
-      // and neither reset the cursor nor reveal anything.
+      // and neither reset the cursor nor reveal anything. It also cancels an
+      // in-flight jump, exactly as closing does: otherwise a Next still paging
+      // when the term is cleared lands on a match whose highlight is gone.
       autoRevealedTermRef.current = ''
+      goToMatchSeqRef.current++
+      pendingMatchRef.current = null
+      cursorIsOnMatchRef.current = false
+      setIsJumping(false)
       return
     }
     // Wait for THIS term's own result set. `keepPreviousData` leaves
@@ -1265,18 +1282,28 @@ export function TableGrid({
     if (autoRevealedTermRef.current === submittedQuery) return
     autoRevealedTermRef.current = submittedQuery
     setCurrentMatchIndex(0)
+    cursorIsOnMatchRef.current = false
     const first = findMatches[0]
     if (!first) return
     if (!rowsRef.current.some((r) => r.id === first.rowId)) return
     goToMatch(0)
   }, [submittedQuery, findMatches, isFindPlaceholder, isFindFetching, goToMatch])
 
+  /**
+   * Step to the next/previous match — or, when the cursor is not on a match
+   * yet, to the current index itself. That second case is the term whose first
+   * hit the auto-reveal skipped because its row wasn't loaded: `+1` there would
+   * silently step over the very match the user pressed Enter to reach, and it
+   * would only come back around after wrapping the whole list.
+   */
   const handleFindNext = useCallback(() => {
-    goToMatch(currentMatchIndexRef.current + 1)
+    const index = currentMatchIndexRef.current
+    goToMatch(cursorIsOnMatchRef.current ? index + 1 : index)
   }, [goToMatch])
 
   const handleFindPrev = useCallback(() => {
-    goToMatch(currentMatchIndexRef.current - 1)
+    const index = currentMatchIndexRef.current
+    goToMatch(cursorIsOnMatchRef.current ? index - 1 : index)
   }, [goToMatch])
 
   /**
@@ -1298,15 +1325,21 @@ export function TableGrid({
     // after the bar is gone.
     goToMatchSeqRef.current++
     autoRevealedTermRef.current = ''
+    cursorIsOnMatchRef.current = false
     setIsJumping(false)
     const origin = preFindAnchorRef.current
     const lastRevealed = lastRevealedAnchorRef.current
     preFindAnchorRef.current = null
     lastRevealedAnchorRef.current = null
     const anchor = selectionAnchorRef.current
+    // A revealed match is a single cell: find sets the anchor and clears the
+    // focus. A non-null focus means the user extended a range from it
+    // (Shift+Arrow, Shift+click, drag), which makes the selection theirs even
+    // though the anchor still sits on the match — restoring would delete it.
     const stillOnMatch =
       lastRevealed !== null &&
       anchor !== null &&
+      selectionFocusRef.current === null &&
       anchor.rowIndex === lastRevealed.rowIndex &&
       anchor.colIndex === lastRevealed.colIndex
     if (stillOnMatch) {
