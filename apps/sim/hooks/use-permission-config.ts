@@ -24,7 +24,7 @@ import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/p
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
-import { getProviderFromModel } from '@/providers/utils'
+import { findProviderFromModel } from '@/providers/utils'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
@@ -138,13 +138,13 @@ export function usePermissionConfig(): PermissionConfigResult {
   const isModelUsable = useMemo(() => {
     return (model: string) => {
       if (!isModelAllowed(model)) return false
-      try {
-        return isProviderAllowed(getProviderFromModel(model))
-      } catch {
-        /* A model whose provider cannot be derived is left to the server gate
-           rather than hidden on a parse failure. */
-        return true
-      }
+      const providerId = findProviderFromModel(model)
+      /* Only chat models resolve to a provider. A `model` field holding an
+         embedding, speech, image or video id is not a provider choice, so the
+         provider allowlist has nothing to say about it — judging it anyway
+         would read every such id as Ollama and reject it. */
+      if (!providerId) return true
+      return isProviderAllowed(providerId)
     }
   }, [isModelAllowed, isProviderAllowed])
 

@@ -286,26 +286,34 @@ export function getAllModelProviders(): Record<string, ProviderId> {
   )
 }
 
+/**
+ * The provider that declares `model`, or `null` when none does.
+ *
+ * The non-guessing half of {@link getProviderFromModel}. A caller that *gates*
+ * on the answer needs "unknown" to stay distinct from "ollama": this registry
+ * holds chat models only, so every embedding, speech, image and video model id
+ * would otherwise read as an Ollama model and be judged against an allowlist
+ * that was never about it.
+ */
+export function findProviderFromModel(model: string): ProviderId | null {
+  const normalizedModel = model.toLowerCase()
+
+  const declared = getAllModelProviders()[normalizedModel]
+  if (declared) return declared
+
+  for (const [id, config] of Object.entries(providers)) {
+    for (const pattern of config.modelPatterns ?? []) {
+      if (pattern.test(normalizedModel)) return id as ProviderId
+    }
+  }
+
+  return null
+}
+
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
-  let providerId: ProviderId | null = null
-
-  if (normalizedModel in getAllModelProviders()) {
-    providerId = getAllModelProviders()[normalizedModel]
-  } else {
-    for (const [id, config] of Object.entries(providers)) {
-      if (config.modelPatterns) {
-        for (const pattern of config.modelPatterns) {
-          if (pattern.test(normalizedModel)) {
-            providerId = id as ProviderId
-            break
-          }
-        }
-      }
-      if (providerId) break
-    }
-  }
+  let providerId = findProviderFromModel(model)
 
   if (!providerId) {
     logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
