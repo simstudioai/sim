@@ -1242,19 +1242,24 @@ export function TableGrid({
   }, [rows, displayColumns, pendingMatchTick])
 
   /**
-   * Any change of term strands a jump still paging toward the previous term's
+   * Editing the query strands a jump still paging toward the previous term's
    * match. Declared above the auto-reveal so it runs first: without it that
    * jump can finish, pass its own sequence check, and reveal a cell that no
    * longer matches — most visibly when the new term's first hit isn't loaded,
-   * so nothing else moves the selection afterwards. Clearing and closing land
-   * here too, since both drive `submittedQuery` to `''`.
+   * so nothing else moves the selection afterwards.
+   *
+   * Keyed on the LIVE input, not the debounced term: during the debounce window
+   * the submitted term still names the old search, so keying on it would leave
+   * that jump valid for another `SEARCH_DEBOUNCE_MS` after the box already
+   * shows something else. Clearing and closing land here too — both blank the
+   * input.
    */
   useEffect(() => {
     goToMatchSeqRef.current++
     pendingMatchRef.current = null
     cursorIsOnMatchRef.current = false
     setIsJumping(false)
-  }, [submittedQuery])
+  }, [trimmedFindQuery, findOpen])
 
   /**
    * A new TERM resets to its first match and reveals it.
