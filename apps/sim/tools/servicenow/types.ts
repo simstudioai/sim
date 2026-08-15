@@ -299,8 +299,6 @@ export interface ServiceNowOrderCatalogItemResponse extends ToolResponse {
     requestNumber: string | null
     requestId: string | null
     table: string | null
-    parentId: string | null
-    parentTable: string | null
   }
 }
 

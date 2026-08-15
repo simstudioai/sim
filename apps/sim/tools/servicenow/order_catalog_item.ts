@@ -95,8 +95,6 @@ export const orderCatalogItemTool: ToolConfig<
         requestNumber: result.request_number ?? null,
         requestId: result.request_id ?? null,
         table: result.table ?? null,
-        parentId: result.parent_id ?? null,
-        parentTable: result.parent_table ?? null,
       },
     }
   },
@@ -107,15 +105,5 @@ export const orderCatalogItemTool: ToolConfig<
     requestNumber: { type: 'string', description: 'Request number', nullable: true },
     requestId: { type: 'string', description: 'Sys_id of the order request', nullable: true },
     table: { type: 'string', description: 'Table name of the request', nullable: true },
-    parentId: {
-      type: 'string',
-      description: 'Sys_id of the parent record the request was created from, when available',
-      nullable: true,
-    },
-    parentTable: {
-      type: 'string',
-      description: 'Name of the parent table the request was created from, when available',
-      nullable: true,
-    },
   },
 }

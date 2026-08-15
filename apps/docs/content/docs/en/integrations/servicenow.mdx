@@ -273,8 +273,6 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -316,8 +314,6 @@ Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Re
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -366,8 +362,6 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -422,8 +416,6 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -468,8 +460,6 @@ Move a ServiceNow incident to Resolved (state $\{INCIDENT_STATE.RESOLVED\}) with
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -514,8 +504,6 @@ Move a ServiceNow incident to Closed (state $\{INCIDENT_STATE.CLOSED\}) with a r
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -559,8 +547,6 @@ Append an internal work note or a customer-visible additional comment to a Servi
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -619,8 +605,6 @@ Create a change request in ServiceNow. Reference fields (assignment group, assig
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -662,8 +646,6 @@ Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -712,8 +694,6 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -768,8 +748,6 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -815,8 +793,6 @@ Move a ServiceNow change request to another state. Base-system change model stat
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -931,8 +907,6 @@ Submit a service catalog request for a catalog item using the Service Catalog AP
 | `requestNumber` | string | Request number |
 | `requestId` | string | Sys_id of the order request |
 | `table` | string | Table name of the request |
-| `parentId` | string | Sys_id of the parent record the request was created from, when available |
-| `parentTable` | string | Name of the parent table the request was created from, when available |
 
 ### List ServiceNow Requested Items
 
@@ -971,8 +945,6 @@ List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] ta
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -1014,8 +986,6 @@ Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001)
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -1060,8 +1030,6 @@ List approval records from the ServiceNow Approval [sysapproval_approver] table.
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -1106,8 +1074,6 @@ Approve or reject a ServiceNow approval record by setting its state on the Appro
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -1152,8 +1118,6 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -1225,8 +1189,6 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -1333,8 +1295,6 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |
@@ -1378,8 +1338,6 @@ List the members of a ServiceNow group from the Group Member [sys_user_grmember]
 | `requestNumber` | string | Catalog request number |
 | `requestId` | string | sys_id of the catalog request |
 | `table` | string | Table the catalog request was created on |
-| `parentId` | string | sys_id of the parent record of a catalog request |
-| `parentTable` | string | Parent table of a catalog request |
 | `availableStates` | json | State coded values a change request can reach, including its current state |
 | `allowedStates` | json | State coded values whose transition conditions the change request already meets |
 | `stateLabels` | json | This instance's own map of state coded value to label, e.g. \{'0': 'Review'\} |

@@ -1724,8 +1724,6 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     requestNumber: { type: 'string', description: 'Catalog request number' },
     requestId: { type: 'string', description: 'sys_id of the catalog request' },
     table: { type: 'string', description: 'Table the catalog request was created on' },
-    parentId: { type: 'string', description: 'sys_id of the parent record of a catalog request' },
-    parentTable: { type: 'string', description: 'Parent table of a catalog request' },
     availableStates: {
       type: 'json',
       description: 'State coded values a change request can reach, including its current state',
