@@ -13,7 +13,7 @@ export const SplunkBlock: BlockConfig<SplunkResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/splunk',
   category: 'tools',
   integrationType: IntegrationType.Observability,
-  bgColor: '#000000',
+  bgColor: '#FFFFFF',
   icon: SplunkIcon,
   canvasPresentation: {
     defaultTitle: 'Splunk',
