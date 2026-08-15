@@ -503,7 +503,7 @@ const TOOL_TITLES: Record<string, string> = {
   create_workspace_mcp_server: 'Creating MCP server',
   delete_workspace_mcp_server: 'Deleting MCP server',
   deploy_as_api: 'Deploying as API',
-  deploy_as_chat: 'Deploying as chat app',
+  deploy_as_chat: 'Deploying as chat',
   publish_custom_block: 'Publishing custom block',
   deploy_as_mcp: 'Deploying as MCP tool',
   diff_workflows: 'Comparing workflows',
@@ -735,7 +735,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'deploy_as_api':
       return deploymentTitle(args, 'API')
     case 'deploy_as_chat':
-      return deploymentTitle(args, 'chat app')
+      return deploymentTitle(args, 'chat')
     case 'publish_custom_block':
       return `${stringArg(args, 'action') === 'undeploy' ? 'Unpublishing' : 'Publishing'} custom block`
     case 'ffmpeg':
