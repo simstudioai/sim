@@ -1,5 +1,7 @@
 import { once } from 'node:events'
 import { createWriteStream, type WriteStream } from 'node:fs'
+import { Readable, type Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
@@ -9,33 +11,11 @@ import { printProtocolResult } from './result'
 /** Streams a fetch body to disk while honoring write-stream backpressure. */
 export async function streamToFile(
   body: ReadableStream<Uint8Array>,
-  file: WriteStream
+  file: Writable & Pick<WriteStream, 'path'>
 ): Promise<void> {
-  const failed = new Promise<never>((_resolve, reject) => {
-    file.once('error', reject)
-  })
-
-  const pump = (async () => {
-    const reader = body.getReader()
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (!file.write(value)) await once(file, 'drain')
-      }
-    } finally {
-      reader.releaseLock()
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      file.end((error?: Error | null) => (error ? reject(error) : resolve()))
-    })
-  })()
-
   try {
-    await Promise.race([pump, failed])
+    await pipeline(Readable.fromWeb(body as Parameters<typeof Readable.fromWeb>[0]), file)
   } catch (error) {
-    file.destroy()
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'EEXIST') {
       throw new SimApiError(

@@ -1,6 +1,7 @@
 import { createWriteStream, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Writable } from 'node:stream'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from '../../runtime/build'
@@ -85,6 +86,31 @@ describe('streamToFile', () => {
       ).rejects.toThrow(/Could not write/)
     }
   )
+
+  it('cancels the response body and waits for the pump when writing fails', async () => {
+    const cancelled = vi.fn()
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('first chunk'))
+      },
+      cancel: cancelled,
+    })
+    const target = join(dir, 'out.txt')
+    const destination = Object.assign(
+      new Writable({
+        write(_chunk, _encoding, callback) {
+          const error = Object.assign(new Error('disk full'), { code: 'ENOSPC' })
+          callback(error)
+        },
+      }),
+      { path: target }
+    )
+
+    await expect(streamToFile(body, destination)).rejects.toThrow(
+      `Could not write ${target}: disk full`
+    )
+    expect(cancelled).toHaveBeenCalledOnce()
+  })
 })
 
 describe('isTerminalSafeContentType', () => {
