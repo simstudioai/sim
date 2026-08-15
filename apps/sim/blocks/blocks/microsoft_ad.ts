@@ -52,6 +52,10 @@ const SHARED_FILTER_OPERATIONS = ['list_users', 'list_groups']
  * ownership rather than by letting later assignments overwrite earlier ones. Otherwise a clause
  * written for `/users` would still be sent when the block is switched to `/auditLogs/signIns` or
  * `/devices`, where it is invalid.
+ *
+ * The mapper must write `filter` and `search` on every operation, including as `undefined`. The
+ * executor merges `{ ...inputs, ...transformedParams }`, so a key that is merely omitted here
+ * leaves the stale serialized value in place rather than clearing it.
  */
 const FILTER_FIELD_BY_OPERATION: Record<string, string> = {
   list_users: 'filter',
@@ -789,10 +793,8 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.top) result.top = Number(params.top)
         if (params.nextLink) result.nextLink = params.nextLink
         const values = params as Record<string, unknown>
-        const filter = values[FILTER_FIELD_BY_OPERATION[params.operation]]
-        if (filter) result.filter = filter
-        const search = values[SEARCH_FIELD_BY_OPERATION[params.operation]]
-        if (search) result.search = search
+        result.filter = values[FILTER_FIELD_BY_OPERATION[params.operation]] || undefined
+        result.search = values[SEARCH_FIELD_BY_OPERATION[params.operation]] || undefined
         if (params.operation === 'set_password') {
           result.forceChangePasswordNextSignIn = params.forceChangePasswordNextSignIn !== 'false'
           if (params.forceChangePasswordNextSignInWithMfa)
