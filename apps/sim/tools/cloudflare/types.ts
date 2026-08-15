@@ -438,7 +438,576 @@ export interface CloudflareUpdateZoneSettingResponse extends ToolResponse {
   }
 }
 
+export interface CloudflareListRulesetsParams extends CloudflareBaseParams {
+  zoneId: string
+}
+
+interface CloudflareRulesetSummary {
+  id: string
+  name: string
+  description: string
+  kind: string
+  phase: string
+  version: string | null
+  last_updated: string | null
+}
+
+export interface CloudflareListRulesetsResponse extends ToolResponse {
+  output: {
+    rulesets: CloudflareRulesetSummary[]
+    total_count: number
+  }
+}
+
+interface CloudflareRule {
+  id: string
+  version: string | null
+  action: string
+  action_parameters: Record<string, unknown> | null
+  expression: string
+  description: string
+  enabled: boolean
+  ref: string | null
+  last_updated: string | null
+  categories: string[]
+  logging: Record<string, unknown> | null
+  ratelimit: Record<string, unknown> | null
+}
+
+interface CloudflareRuleset extends CloudflareRulesetSummary {
+  rules: CloudflareRule[]
+}
+
+export interface CloudflareGetRulesetParams extends CloudflareBaseParams {
+  zoneId: string
+  rulesetId: string
+}
+
+export interface CloudflareRulesetResponse extends ToolResponse {
+  output: CloudflareRuleset
+}
+
+export interface CloudflareCreateRulesetRuleParams extends CloudflareBaseParams {
+  zoneId: string
+  rulesetId: string
+  action: string
+  expression: string
+  description?: string
+  enabled?: boolean
+  ref?: string
+  position?: string
+  actionParameters?: string
+}
+
+export interface CloudflareUpdateRulesetRuleParams extends CloudflareBaseParams {
+  zoneId: string
+  rulesetId: string
+  ruleId: string
+  action?: string
+  expression?: string
+  description?: string
+  enabled?: boolean
+  ref?: string
+  actionParameters?: string
+}
+
+export interface CloudflareDeleteRulesetRuleParams extends CloudflareBaseParams {
+  zoneId: string
+  rulesetId: string
+  ruleId: string
+}
+
+export interface CloudflareGetRulesetEntrypointParams extends CloudflareBaseParams {
+  zoneId: string
+  phase: string
+}
+
+export interface CloudflareListRateLimitRulesParams extends CloudflareBaseParams {
+  zoneId: string
+}
+
+export interface CloudflareListManagedRulesetOverridesParams extends CloudflareBaseParams {
+  zoneId: string
+}
+
+export interface CloudflareListManagedRulesetOverridesResponse extends ToolResponse {
+  output: {
+    ruleset_id: string
+    deployments: Array<{
+      rule_id: string
+      managed_ruleset_id: string | null
+      description: string
+      expression: string
+      enabled: boolean
+      overrides: Record<string, unknown> | null
+    }>
+    total_count: number
+  }
+}
+
+export interface CloudflareCreateRateLimitRuleParams extends CloudflareBaseParams {
+  zoneId: string
+  rulesetId: string
+  expression: string
+  characteristics: string
+  period: number
+  requestsPerPeriod: number
+  action?: string
+  mitigationTimeout?: number
+  counting_expression?: string
+  requestsToOrigin?: boolean
+  description?: string
+  enabled?: boolean
+}
+
+export interface CloudflareUpdateRateLimitRuleParams extends CloudflareBaseParams {
+  zoneId: string
+  rulesetId: string
+  ruleId: string
+  expression: string
+  characteristics: string
+  period: number
+  requestsPerPeriod: number
+  action?: string
+  mitigationTimeout?: number
+  counting_expression?: string
+  requestsToOrigin?: boolean
+  description?: string
+  enabled?: boolean
+}
+
+interface CloudflareAccessApplication {
+  id: string
+  name: string | null
+  domain: string | null
+  type: string | null
+  aud: string | null
+  session_duration: string | null
+  allowed_idps: string[] | null
+  app_launcher_visible: boolean | null
+  auto_redirect_to_identity: boolean | null
+  custom_deny_message: string | null
+  custom_deny_url: string | null
+  logo_url: string | null
+  self_hosted_domains: string[] | null
+  destinations: unknown[] | null
+  tags: string[] | null
+  policies: unknown[] | null
+}
+
+export interface CloudflareListAccessApplicationsParams extends CloudflareBaseParams {
+  accountId: string
+  name?: string
+  domain?: string
+  aud?: string
+  search?: string
+  exact?: boolean
+  page?: number
+  per_page?: number
+}
+
+export interface CloudflareListAccessApplicationsResponse extends ToolResponse {
+  output: {
+    applications: CloudflareAccessApplication[]
+    total_count: number
+  }
+}
+
+export interface CloudflareGetAccessApplicationParams extends CloudflareBaseParams {
+  accountId: string
+  appId: string
+}
+
+export interface CloudflareAccessApplicationResponse extends ToolResponse {
+  output: CloudflareAccessApplication
+}
+
+export interface CloudflareCreateAccessApplicationParams extends CloudflareBaseParams {
+  accountId: string
+  type: string
+  domain: string
+  name?: string
+  sessionDuration?: string
+  allowedIdps?: string
+  appLauncherVisible?: boolean
+  autoRedirectToIdentity?: boolean
+  customDenyMessage?: string
+  customDenyUrl?: string
+  logoUrl?: string
+  tags?: string
+  policies?: string
+}
+
+export interface CloudflareUpdateAccessApplicationParams
+  extends CloudflareCreateAccessApplicationParams {
+  appId: string
+}
+
+export interface CloudflareDeleteAccessApplicationParams extends CloudflareBaseParams {
+  accountId: string
+  appId: string
+}
+
+export interface CloudflareDeletedIdResponse extends ToolResponse {
+  output: {
+    id: string
+  }
+}
+
+interface CloudflareAccessPolicy {
+  id: string
+  name: string | null
+  decision: string | null
+  precedence: number | null
+  include: unknown[] | null
+  exclude: unknown[] | null
+  require: unknown[] | null
+  session_duration: string | null
+  approval_required: boolean | null
+  isolation_required: boolean | null
+  purpose_justification_required: boolean | null
+  purpose_justification_prompt: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface CloudflareListAccessPoliciesParams extends CloudflareBaseParams {
+  accountId: string
+  appId: string
+  page?: number
+  per_page?: number
+}
+
+export interface CloudflareListAccessPoliciesResponse extends ToolResponse {
+  output: {
+    policies: CloudflareAccessPolicy[]
+    total_count: number
+  }
+}
+
+export interface CloudflareCreateAccessPolicyParams extends CloudflareBaseParams {
+  accountId: string
+  appId: string
+  name: string
+  decision: string
+  include: string
+  exclude?: string
+  require?: string
+  precedence?: number
+  sessionDuration?: string
+  approvalRequired?: boolean
+  isolationRequired?: boolean
+  purposeJustificationRequired?: boolean
+  purposeJustificationPrompt?: string
+}
+
+export interface CloudflareUpdateAccessPolicyParams extends CloudflareCreateAccessPolicyParams {
+  policyId: string
+}
+
+export interface CloudflareAccessPolicyResponse extends ToolResponse {
+  output: CloudflareAccessPolicy
+}
+
+export interface CloudflareDeleteAccessPolicyParams extends CloudflareBaseParams {
+  accountId: string
+  appId: string
+  policyId: string
+}
+
+export interface CloudflareListAccessGroupsParams extends CloudflareBaseParams {
+  accountId: string
+  name?: string
+  search?: string
+  page?: number
+  per_page?: number
+}
+
+export interface CloudflareListAccessGroupsResponse extends ToolResponse {
+  output: {
+    groups: Array<{
+      id: string
+      name: string | null
+      is_default: boolean | null
+      include: unknown[] | null
+      exclude: unknown[] | null
+      require: unknown[] | null
+      created_at: string | null
+      updated_at: string | null
+    }>
+    total_count: number
+  }
+}
+
+export interface CloudflareListAccessIdentityProvidersParams extends CloudflareBaseParams {
+  accountId: string
+}
+
+export interface CloudflareListAccessIdentityProvidersResponse extends ToolResponse {
+  output: {
+    identity_providers: Array<{
+      id: string
+      name: string | null
+      type: string | null
+      read_only: boolean | null
+      config: Record<string, unknown> | null
+      scim_config: Record<string, unknown> | null
+    }>
+    total_count: number
+  }
+}
+
+export interface CloudflareListAccessServiceTokensParams extends CloudflareBaseParams {
+  accountId: string
+  name?: string
+  search?: string
+  page?: number
+  per_page?: number
+}
+
+interface CloudflareAccessServiceToken {
+  id: string
+  name: string | null
+  client_id: string | null
+  duration: string | null
+  enabled: boolean | null
+  expires_at: string | null
+  last_seen_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface CloudflareListAccessServiceTokensResponse extends ToolResponse {
+  output: {
+    service_tokens: CloudflareAccessServiceToken[]
+    total_count: number
+  }
+}
+
+export interface CloudflareCreateAccessServiceTokenParams extends CloudflareBaseParams {
+  accountId: string
+  name: string
+  duration?: string
+}
+
+export interface CloudflareCreateAccessServiceTokenResponse extends ToolResponse {
+  output: CloudflareAccessServiceToken & {
+    client_secret: string | null
+  }
+}
+
+export interface CloudflareRevokeAccessServiceTokenParams extends CloudflareBaseParams {
+  accountId: string
+  serviceTokenId: string
+}
+
+export interface CloudflareAccessServiceTokenResponse extends ToolResponse {
+  output: CloudflareAccessServiceToken
+}
+
+interface CloudflareR2Bucket {
+  name: string
+  creation_date: string | null
+  location: string | null
+  storage_class: string | null
+  jurisdiction: string | null
+}
+
+export interface CloudflareListR2BucketsParams extends CloudflareBaseParams {
+  accountId: string
+  name_contains?: string
+  start_after?: string
+  cursor?: string
+  direction?: string
+  per_page?: number
+  jurisdiction?: string
+}
+
+export interface CloudflareListR2BucketsResponse extends ToolResponse {
+  output: {
+    buckets: CloudflareR2Bucket[]
+    cursor: string | null
+  }
+}
+
+export interface CloudflareGetR2BucketParams extends CloudflareBaseParams {
+  accountId: string
+  bucketName: string
+  jurisdiction?: string
+}
+
+export interface CloudflareCreateR2BucketParams extends CloudflareBaseParams {
+  accountId: string
+  bucketName: string
+  locationHint?: string
+  storageClass?: string
+  jurisdiction?: string
+}
+
+export interface CloudflareR2BucketResponse extends ToolResponse {
+  output: CloudflareR2Bucket
+}
+
+export interface CloudflareDeleteR2BucketParams extends CloudflareBaseParams {
+  accountId: string
+  bucketName: string
+  jurisdiction?: string
+}
+
+export interface CloudflareDeleteR2BucketResponse extends ToolResponse {
+  output: {
+    name: string
+  }
+}
+
+export interface CloudflareListWorkerScriptsParams extends CloudflareBaseParams {
+  accountId: string
+  tags?: string
+}
+
+export interface CloudflareListWorkerScriptsResponse extends ToolResponse {
+  output: {
+    scripts: Array<{
+      id: string
+      tag: string | null
+      etag: string | null
+      created_on: string | null
+      modified_on: string | null
+      usage_model: string | null
+      placement_mode: string | null
+      logpush: boolean | null
+      has_assets: boolean | null
+      has_modules: boolean | null
+      compatibility_date: string | null
+      compatibility_flags: string[] | null
+      routes: unknown[] | null
+      tail_consumers: unknown[] | null
+    }>
+    total_count: number
+  }
+}
+
+export interface CloudflareGetWorkerScriptSettingsParams extends CloudflareBaseParams {
+  accountId: string
+  scriptName: string
+}
+
+export interface CloudflareGetWorkerScriptSettingsResponse extends ToolResponse {
+  output: {
+    bindings: unknown[] | null
+    compatibility_date: string | null
+    compatibility_flags: string[] | null
+    limits: Record<string, unknown> | null
+    logpush: boolean | null
+    migrations: Record<string, unknown> | null
+    observability: Record<string, unknown> | null
+    placement: Record<string, unknown> | null
+    tags: string[] | null
+    tail_consumers: unknown[] | null
+    usage_model: string | null
+  }
+}
+
+export interface CloudflareListWorkerRoutesParams extends CloudflareBaseParams {
+  zoneId: string
+}
+
+export interface CloudflareListWorkerRoutesResponse extends ToolResponse {
+  output: {
+    routes: Array<{
+      id: string
+      pattern: string
+      script: string | null
+    }>
+    total_count: number
+  }
+}
+
+interface CloudflareTunnel {
+  id: string
+  name: string | null
+  account_tag: string | null
+  config_src: string | null
+  status: string | null
+  tun_type: string | null
+  remote_config: boolean | null
+  created_at: string | null
+  deleted_at: string | null
+  conns_active_at: string | null
+  conns_inactive_at: string | null
+  connections: unknown[] | null
+}
+
+export interface CloudflareListTunnelsParams extends CloudflareBaseParams {
+  accountId: string
+  name?: string
+  status?: string
+  uuid?: string
+  is_deleted?: boolean
+  include_prefix?: string
+  exclude_prefix?: string
+  existed_at?: string
+  was_active_at?: string
+  was_inactive_at?: string
+  page?: number
+  per_page?: number
+}
+
+export interface CloudflareListTunnelsResponse extends ToolResponse {
+  output: {
+    tunnels: CloudflareTunnel[]
+    total_count: number
+  }
+}
+
+export interface CloudflareGetTunnelParams extends CloudflareBaseParams {
+  accountId: string
+  tunnelId: string
+}
+
+export interface CloudflareTunnelResponse extends ToolResponse {
+  output: CloudflareTunnel
+}
+
+export interface CloudflareGetTunnelConfigurationParams extends CloudflareBaseParams {
+  accountId: string
+  tunnelId: string
+}
+
+export interface CloudflareGetTunnelConfigurationResponse extends ToolResponse {
+  output: {
+    tunnel_id: string
+    account_id: string
+    version: number | null
+    source: string | null
+    created_at: string | null
+    config: Record<string, unknown> | null
+  }
+}
+
 export type CloudflareResponse =
+  | CloudflareListRulesetsResponse
+  | CloudflareRulesetResponse
+  | CloudflareListManagedRulesetOverridesResponse
+  | CloudflareListAccessApplicationsResponse
+  | CloudflareAccessApplicationResponse
+  | CloudflareListAccessPoliciesResponse
+  | CloudflareAccessPolicyResponse
+  | CloudflareListAccessGroupsResponse
+  | CloudflareListAccessIdentityProvidersResponse
+  | CloudflareListAccessServiceTokensResponse
+  | CloudflareCreateAccessServiceTokenResponse
+  | CloudflareAccessServiceTokenResponse
+  | CloudflareDeletedIdResponse
+  | CloudflareListR2BucketsResponse
+  | CloudflareR2BucketResponse
+  | CloudflareDeleteR2BucketResponse
+  | CloudflareListWorkerScriptsResponse
+  | CloudflareGetWorkerScriptSettingsResponse
+  | CloudflareListWorkerRoutesResponse
+  | CloudflareListTunnelsResponse
+  | CloudflareTunnelResponse
+  | CloudflareGetTunnelConfigurationResponse
   | CloudflareListZonesResponse
   | CloudflareGetZoneResponse
   | CloudflareCreateZoneResponse

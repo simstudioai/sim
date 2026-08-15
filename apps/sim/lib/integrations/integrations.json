@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-16",
+  "updatedAt": "2026-08-15",
   "integrations": [
     {
       "type": "onepassword",
@@ -3811,8 +3811,8 @@
       "type": "cloudflare",
       "slug": "cloudflare",
       "name": "Cloudflare",
-      "description": "Manage DNS, domains, certificates, and cache",
-      "longDescription": "Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.",
+      "description": "Manage DNS, WAF, Zero Trust access, and edge infrastructure",
+      "longDescription": "Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging. Configure WAF rulesets, managed rule overrides, and rate limiting rules through the current Rulesets engine. Administer Cloudflare Access (Zero Trust) applications, policies, groups, identity providers, and service tokens, and inspect R2 buckets, Workers scripts and routes, and Cloudflare Tunnels.",
       "bgColor": "#F5F6FA",
       "iconName": "CloudflareIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudflare",
@@ -3868,9 +3868,145 @@
         {
           "name": "Purge Cache",
           "description": "Purges cached content for a zone. Can purge everything or specific files/tags/hosts/prefixes."
+        },
+        {
+          "name": "List Rulesets",
+          "description": "Lists every ruleset defined on a zone across all phases (WAF custom rules, managed rules, rate limiting, transform rules, and more). The list response deliberately omits the rules inside each ruleset — use \"Get Ruleset\" to read them. Requires an API token with Zone WAF Read (or another matching ruleset Read permission)."
+        },
+        {
+          "name": "Get Ruleset",
+          "description": "Reads a single zone ruleset including every rule it contains, in evaluation order. Requires an API token with Zone WAF Read (or another matching ruleset Read permission)."
+        },
+        {
+          "name": "Get Phase Entry Point Ruleset",
+          "description": "Reads the entry point ruleset for a phase on a zone, including all of its rules. This is how you find the ruleset ID you need before adding, updating, or deleting a rule — for example http_request_firewall_custom for WAF custom rules, http_request_firewall_managed for managed-ruleset deployments and overrides, or http_ratelimit for rate limiting rules. Requires an API token with Zone WAF Read (or another matching ruleset Read permission)."
+        },
+        {
+          "name": "Create Ruleset Rule",
+          "description": "Adds a rule to a zone ruleset. Use \"Get Phase Entry Point Ruleset\" first to find the ruleset ID for the phase you want (for example http_request_firewall_custom for a WAF custom rule, or http_request_firewall_managed with action \"execute\" to deploy a managed ruleset). The rule is appended to the end of the ruleset unless a position is given. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission)."
+        },
+        {
+          "name": "Update Ruleset Rule",
+          "description": "Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather than merging it, so you must send every field you want the rule to keep — any field you omit is reset to its default. Read the current rule with \"Get Ruleset\" first. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission)."
+        },
+        {
+          "name": "Delete Ruleset Rule",
+          "description": "Permanently deletes a rule from a zone ruleset. This takes effect immediately on live traffic and cannot be undone — deleting a WAF custom rule, a managed-ruleset deployment, or a rate limiting rule removes that protection from the zone. Also use this to delete rate limiting rules, which live in the http_ratelimit phase ruleset. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission)."
+        },
+        {
+          "name": "List Managed Ruleset Overrides",
+          "description": "Lists the WAF managed rulesets deployed on a zone together with the overrides applied to each one. Cloudflare has no dedicated overrides endpoint — overrides live on the \"execute\" rules of the http_request_firewall_managed phase entry point ruleset, which this reads. Requires an API token with Zone WAF Read."
+        },
+        {
+          "name": "List Rate Limiting Rules",
+          "description": "Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API, not the deprecated legacy rate_limits endpoint. The returned ruleset ID is what \"Create Rate Limiting Rule\", \"Update Rate Limiting Rule\", and \"Delete Ruleset Rule\" need. Requires an API token with Zone WAF Read."
+        },
+        {
+          "name": "Create Rate Limiting Rule",
+          "description": "Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (not the deprecated legacy rate_limits endpoint). Run \"List Rate Limiting Rules\" first to get the ruleset ID. Requires an API token with Zone WAF Edit."
+        },
+        {
+          "name": "Update Rate Limiting Rule",
+          "description": "Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API. Cloudflare replaces the rule definition rather than merging it, so send the complete rule — every field you omit is reset. Run \"List Rate Limiting Rules\" first to read the current definition and get the ruleset ID. Requires an API token with Zone WAF Edit."
+        },
+        {
+          "name": "List Access Applications",
+          "description": "Lists the Cloudflare Access (Zero Trust) applications protecting an account. Requires an API token with Account Access: Apps and Policies Read."
+        },
+        {
+          "name": "Get Access Application",
+          "description": "Reads a single Cloudflare Access (Zero Trust) application, including its attached policies. Requires an API token with Account Access: Apps and Policies Read."
+        },
+        {
+          "name": "Create Access Application",
+          "description": "Creates a Cloudflare Access (Zero Trust) application that puts an identity check in front of a hostname. Until at least one policy is attached the application denies everyone, so pair this with \"Create Access Policy\". Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Update Access Application",
+          "description": "Updates a Cloudflare Access (Zero Trust) application. This replaces the application definition rather than merging it, so send every field the application should keep — anything you omit reverts to its default, which can widen or break access. Read the current configuration with \"Get Access Application\" first. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Delete Access Application",
+          "description": "Permanently deletes a Cloudflare Access (Zero Trust) application and every policy attached to it. The hostname it protected is immediately left without an Access identity check, so anyone who can reach it can reach the origin. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "List Access Policies",
+          "description": "Lists the Cloudflare Access (Zero Trust) policies attached to an application, in precedence order. Requires an API token with Account Access: Apps and Policies Read."
+        },
+        {
+          "name": "Create Access Policy",
+          "description": "Creates a Cloudflare Access (Zero Trust) policy on an application, deciding who may reach it. A policy takes effect on live traffic as soon as it is created — an allow policy with a broad include rule grants access immediately. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Update Access Policy",
+          "description": "Updates a Cloudflare Access (Zero Trust) policy on an application. This replaces the policy definition rather than merging it, so send every rule the policy should keep — omitted exclude or require rules are dropped, which can widen who gets in. The change applies to live traffic immediately. Read the current policy with \"List Access Policies\" first. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Delete Access Policy",
+          "description": "Permanently deletes a Cloudflare Access (Zero Trust) policy from an application. This changes who can reach the application the moment it runs: removing an allow policy locks out everyone it covered, and removing a deny or require policy drops that restriction. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "List Access Groups",
+          "description": "Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups bundle identity rules that policies can reference by ID. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read."
+        },
+        {
+          "name": "List Access Identity Providers",
+          "description": "Lists the identity providers configured for Cloudflare Access (Zero Trust) in an account, such as Okta, Entra ID, Google Workspace, or a one-time PIN. Use the returned IDs to restrict an application with allowed_idps. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read."
+        },
+        {
+          "name": "List Access Service Tokens",
+          "description": "Lists the Cloudflare Access (Zero Trust) service tokens in an account, which let machines authenticate to Access-protected applications. Client secrets are never returned by this endpoint — only on creation. Requires an API token with Account Access: Service Tokens Read."
+        },
+        {
+          "name": "Create Access Service Token",
+          "description": "Creates a Cloudflare Access (Zero Trust) service token so a machine can authenticate to Access-protected applications. This is the only response that ever contains the client secret — Cloudflare will not return it again, so capture it in the same run. Requires an API token with Account Access: Service Tokens Edit."
+        },
+        {
+          "name": "Revoke Access Service Token",
+          "description": "Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it. Every machine or integration still presenting that client ID and secret is locked out of the Access-protected applications immediately, and the secret cannot be recovered. This cannot be undone. Requires an API token with Account Access: Service Tokens Edit."
+        },
+        {
+          "name": "List R2 Buckets",
+          "description": "Lists the R2 object storage buckets in an account. Requires an API token with Account Workers R2 Storage Read."
+        },
+        {
+          "name": "Get R2 Bucket",
+          "description": "Reads the metadata of a single R2 object storage bucket. Requires an API token with Account Workers R2 Storage Read."
+        },
+        {
+          "name": "Create R2 Bucket",
+          "description": "Creates an R2 object storage bucket in an account. The location hint and jurisdiction are fixed at creation and cannot be changed later. Requires an API token with Account Workers R2 Storage Edit."
+        },
+        {
+          "name": "Delete R2 Bucket",
+          "description": "Permanently deletes an R2 object storage bucket. Cloudflare only deletes an empty bucket, and the deletion cannot be undone. Requires an API token with Account Workers R2 Storage Edit."
+        },
+        {
+          "name": "List Worker Scripts",
+          "description": "Lists the Workers scripts deployed in an account. Requires an API token with Account Workers Scripts Read."
+        },
+        {
+          "name": "Get Worker Script Settings",
+          "description": "Reads the deployment settings of a single Workers script — bindings, compatibility date and flags, limits, observability, placement, and tail consumers. The plain \"get script\" endpoint in the Cloudflare API returns raw JavaScript source rather than JSON, so this settings endpoint is the structured way to inspect one script. Requires an API token with Account Workers Scripts Read."
+        },
+        {
+          "name": "List Worker Routes",
+          "description": "Lists the Workers routes on a zone, showing which URL patterns are handled by which Worker script. Unlike the Workers script endpoints, routes are zone-scoped. Requires an API token with Zone Workers Routes Read."
+        },
+        {
+          "name": "List Tunnels",
+          "description": "Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status and active connections. Requires an API token with Account Cloudflare Tunnel Read."
+        },
+        {
+          "name": "Get Tunnel",
+          "description": "Reads a single Cloudflare Tunnel (cloudflared), including its health status and active connector connections. Requires an API token with Account Cloudflare Tunnel Read."
+        },
+        {
+          "name": "Get Tunnel Configuration",
+          "description": "Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress rules, origin request settings, and WARP routing. Only tunnels whose configuration source is \"cloudflare\" have a remote configuration; locally-managed tunnels keep it in their own config file. Requires an API token with Account Cloudflare Tunnel Read."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 47,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
