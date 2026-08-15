@@ -14,7 +14,10 @@ import {
   decryptCredentialGroupProviderConfiguration,
   encryptCredentialGroupProviderConfiguration,
 } from '@/lib/credential-groups/provider-configuration'
-import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
+import {
+  SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
+  SLACK_MANAGED_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
 import type { DbOrTx } from '@/lib/db/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
 
@@ -410,7 +413,7 @@ export async function exchangeSlackUserAuthorization(params: {
 }
 
 export function getSlackManagedUsersRedirectUri(): string {
-  return `${getBaseUrl()}/api/credential-groups/slack-managed-users/callback`
+  return `${getBaseUrl()}${SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH}`
 }
 
 export async function createSlackManagedUsersAttempt(params: {
