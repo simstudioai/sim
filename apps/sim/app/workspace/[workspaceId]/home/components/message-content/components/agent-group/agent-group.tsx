@@ -135,7 +135,7 @@ export function AgentGroup({
         runningCount += 1
       }
     }
-    if (running) return runningCount > 1 ? `${running} + ${runningCount - 1} more` : running
+    if (running) return runningCount > 1 ? `${running} + ${runningCount - 1}` : running
     return lastAny
   })()
   const headerText = status ? `${agentLabel} — ${status}` : agentLabel

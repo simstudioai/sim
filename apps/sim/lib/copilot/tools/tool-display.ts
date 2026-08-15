@@ -659,7 +659,7 @@ function waitAgentsTitle(args: ToolArgs): string {
   const anyMode = stringArg(args, 'mode') === 'any'
   if (names.length === 1) return `Waiting for ${names[0]}`
   if (names.length > 1) {
-    const listed = `${names[0]} + ${names.length - 1} more`
+    const listed = `${names[0]} + ${names.length - 1}`
     return anyMode ? `Waiting for the first of ${listed}` : `Waiting for ${listed}`
   }
   return 'Waiting for agents'
