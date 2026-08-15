@@ -121,7 +121,7 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
       return {
         success: false,
         output: {
-          monitor: {} as any,
+          monitor: {},
         },
         error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
       }

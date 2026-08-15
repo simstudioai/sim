@@ -1,4 +1,8 @@
-import type { ListSyntheticsTestsParams, ListSyntheticsTestsResponse } from '@/tools/datadog/types'
+import type {
+  ListSyntheticsTestsParams,
+  ListSyntheticsTestsResponse,
+  SyntheticsTestData,
+} from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -73,7 +77,7 @@ export const listSyntheticsTestsTool: ToolConfig<
     return {
       success: true,
       output: {
-        tests: (data.tests ?? []).map((test: any) => ({
+        tests: (data.tests ?? []).map((test: SyntheticsTestData) => ({
           public_id: test.public_id,
           name: test.name,
           status: test.status,

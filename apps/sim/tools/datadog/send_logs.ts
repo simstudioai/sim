@@ -1,4 +1,4 @@
-import type { SendLogsParams, SendLogsResponse } from '@/tools/datadog/types'
+import type { LogEntry, SendLogsParams, SendLogsResponse } from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
@@ -47,15 +47,17 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
       'DD-API-KEY': params.apiKey,
     }),
     body: (params) => {
-      let logs: any[]
+      let logs: LogEntry[]
       try {
-        logs = typeof params.logs === 'string' ? JSON.parse(params.logs) : params.logs
+        logs = (
+          typeof params.logs === 'string' ? JSON.parse(params.logs) : params.logs
+        ) as LogEntry[]
       } catch {
         throw new Error('Invalid JSON in logs parameter')
       }
 
       // Ensure each log entry has the required format
-      return logs.map((log: any) => ({
+      return logs.map((log) => ({
         ddsource: log.ddsource || 'custom',
         ddtags: log.ddtags || '',
         hostname: log.hostname || '',

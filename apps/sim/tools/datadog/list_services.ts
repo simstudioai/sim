@@ -1,4 +1,9 @@
-import type { ListServicesParams, ListServicesResponse } from '@/tools/datadog/types'
+import type {
+  DatadogV2Resource,
+  ListServicesParams,
+  ListServicesResponse,
+  ServiceDefinitionAttributes,
+} from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -79,12 +84,14 @@ export const listServicesTool: ToolConfig<ListServicesParams, ListServicesRespon
     return {
       success: true,
       output: {
-        services: (data.data ?? []).map((service: any) => ({
-          id: service.id,
-          type: service.type,
-          schema: service.attributes?.schema ?? {},
-          meta: service.attributes?.meta ?? {},
-        })),
+        services: (data.data ?? []).map(
+          (service: DatadogV2Resource<ServiceDefinitionAttributes>) => ({
+            id: service.id,
+            type: service.type,
+            schema: service.attributes?.schema ?? {},
+            meta: service.attributes?.meta ?? {},
+          })
+        ),
       },
     }
   },

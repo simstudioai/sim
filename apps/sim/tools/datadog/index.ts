@@ -8,6 +8,7 @@ import { createMonitorTool } from '@/tools/datadog/create_monitor'
 import { createSloTool } from '@/tools/datadog/create_slo'
 import { deleteDashboardTool } from '@/tools/datadog/delete_dashboard'
 import { deleteSloTool } from '@/tools/datadog/delete_slo'
+import { getBrowserSyntheticsResultsTool } from '@/tools/datadog/get_browser_synthetics_results'
 import { getDashboardTool } from '@/tools/datadog/get_dashboard'
 import { getIncidentTool } from '@/tools/datadog/get_incident'
 import { getMonitorTool } from '@/tools/datadog/get_monitor'
@@ -68,6 +69,7 @@ export const datadogDeleteDashboardTool = deleteDashboardTool
 export const datadogListSyntheticsTestsTool = listSyntheticsTestsTool
 export const datadogGetSyntheticsTestTool = getSyntheticsTestTool
 export const datadogGetSyntheticsResultsTool = getSyntheticsResultsTool
+export const datadogGetBrowserSyntheticsResultsTool = getBrowserSyntheticsResultsTool
 export const datadogTriggerSyntheticsTestsTool = triggerSyntheticsTestsTool
 export const datadogUpdateSyntheticsStatusTool = updateSyntheticsStatusTool
 export const datadogListSecuritySignalsTool = listSecuritySignalsTool

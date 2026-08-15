@@ -110,6 +110,13 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
         datadog_get_synthetics_results: [
           { text: 'Read results for Synthetic test', field: 'syntheticsPublicId', core: true },
         ],
+        datadog_get_browser_synthetics_results: [
+          {
+            text: 'Read results for browser Synthetic test',
+            field: 'syntheticsPublicId',
+            core: true,
+          },
+        ],
         datadog_trigger_synthetics_tests: [
           { text: 'Trigger Synthetic tests', field: 'syntheticsPublicIds', core: true },
         ],
@@ -181,6 +188,10 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
         { label: 'List Synthetic Tests', id: 'datadog_list_synthetics_tests' },
         { label: 'Get Synthetic Test', id: 'datadog_get_synthetics_test' },
         { label: 'Get Synthetic Test Results', id: 'datadog_get_synthetics_results' },
+        {
+          label: 'Get Browser Synthetic Test Results',
+          id: 'datadog_get_browser_synthetics_results',
+        },
         { label: 'Trigger Synthetic Tests', id: 'datadog_trigger_synthetics_tests' },
         { label: 'Pause Or Start Synthetic Test', id: 'datadog_update_synthetics_status' },
         { label: 'List Security Signals', id: 'datadog_list_security_signals' },
@@ -1357,6 +1368,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         value: [
           'datadog_get_synthetics_test',
           'datadog_get_synthetics_results',
+          'datadog_get_browser_synthetics_results',
           'datadog_update_synthetics_status',
         ],
       },
@@ -1365,6 +1377,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         value: [
           'datadog_get_synthetics_test',
           'datadog_get_synthetics_results',
+          'datadog_get_browser_synthetics_results',
           'datadog_update_synthetics_status',
         ],
       },
@@ -1394,7 +1407,10 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'From (Unix Milliseconds)',
       type: 'short-input',
       placeholder: 'e.g., 1701360000000',
-      condition: { field: 'operation', value: 'datadog_get_synthetics_results' },
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_synthetics_results', 'datadog_get_browser_synthetics_results'],
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1409,7 +1425,10 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'To (Unix Milliseconds)',
       type: 'short-input',
       placeholder: 'e.g., 1701446400000',
-      condition: { field: 'operation', value: 'datadog_get_synthetics_results' },
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_synthetics_results', 'datadog_get_browser_synthetics_results'],
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1424,7 +1443,10 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'Locations',
       type: 'short-input',
       placeholder: 'aws:eu-west-3, aws:us-east-1',
-      condition: { field: 'operation', value: 'datadog_get_synthetics_results' },
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_synthetics_results', 'datadog_get_browser_synthetics_results'],
+      },
       mode: 'advanced',
     },
     {
@@ -1777,6 +1799,7 @@ Return ONLY the search query string - no explanations.`,
           'datadog_list_synthetics_tests',
           'datadog_get_synthetics_test',
           'datadog_get_synthetics_results',
+          'datadog_get_browser_synthetics_results',
           'datadog_trigger_synthetics_tests',
           'datadog_update_synthetics_status',
           'datadog_list_security_signals',
@@ -1838,6 +1861,7 @@ Return ONLY the search query string - no explanations.`,
       'datadog_list_synthetics_tests',
       'datadog_get_synthetics_test',
       'datadog_get_synthetics_results',
+      'datadog_get_browser_synthetics_results',
       'datadog_trigger_synthetics_tests',
       'datadog_update_synthetics_status',
       'datadog_list_security_signals',
@@ -2108,6 +2132,7 @@ Return ONLY the search query string - no explanations.`,
             return { ...baseParams, publicId: params.syntheticsPublicId }
 
           case 'datadog_get_synthetics_results':
+          case 'datadog_get_browser_synthetics_results':
             return {
               ...baseParams,
               publicId: params.syntheticsPublicId,

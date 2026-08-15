@@ -4,7 +4,8 @@ import type { ToolConfig } from '@/tools/types'
 export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse> = {
   id: 'datadog_mute_monitor',
   name: 'Datadog Mute Monitor',
-  description: 'Mute a monitor to temporarily suppress notifications.',
+  description:
+    'Mute a monitor to temporarily suppress notifications. This endpoint is legacy and is no longer published in the Datadog v1 API specification — schedule a downtime instead for supported muting.',
   version: '1.0.0',
 
   params: {

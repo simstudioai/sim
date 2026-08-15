@@ -4853,7 +4853,7 @@
         },
         {
           "name": "Mute Monitor",
-          "description": "Mute a monitor to temporarily suppress notifications."
+          "description": "Mute a monitor to temporarily suppress notifications. This endpoint is legacy and is no longer published in the Datadog v1 API specification — schedule a downtime instead for supported muting."
         },
         {
           "name": "Query Logs",
@@ -4948,6 +4948,10 @@
           "description": "Get the latest result summaries (up to the last 150 runs) for a Synthetic API test."
         },
         {
+          "name": "Get Browser Synthetic Test Results",
+          "description": "Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors."
+        },
+        {
           "name": "Trigger Synthetic Tests",
           "description": "Trigger an immediate run of one or more Synthetic tests by public ID."
         },
@@ -4977,14 +4981,14 @@
         },
         {
           "name": "Search Spans",
-          "description": "Search APM spans using the span query syntax. Datadog rate limits this endpoint to 300 requests per hour."
+          "description": "Search indexed APM spans using the span query syntax, with cursor pagination."
         },
         {
           "name": "List Services",
           "description": "List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission."
         }
       ],
-      "operationCount": 39,
+      "operationCount": 40,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

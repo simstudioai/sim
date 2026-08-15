@@ -1,4 +1,8 @@
-import type { CreateDowntimeParams, CreateDowntimeResponse } from '@/tools/datadog/types'
+import type {
+  CreateDowntimeParams,
+  CreateDowntimeResponse,
+  DowntimeAttributes,
+} from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntimeResponse> = {
@@ -90,40 +94,35 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       'DD-APPLICATION-KEY': params.applicationKey,
     }),
     body: (params) => {
-      const schedule: Record<string, any> = {}
+      // A one-time schedule accepts only `start` and `end` (`additionalProperties: false`);
+      // the timezone is a display-only attribute on the downtime itself.
+      const schedule: { start?: string; end?: string } = {}
       if (params.start) schedule.start = new Date(params.start * 1000).toISOString()
       if (params.end) schedule.end = new Date(params.end * 1000).toISOString()
-      if (params.timezone) schedule.timezone = params.timezone
 
-      const body: Record<string, any> = {
-        data: {
-          type: 'downtime',
-          attributes: {
-            scope: params.scope,
-            schedule: Object.keys(schedule).length > 0 ? schedule : undefined,
-          },
-        },
+      const monitorTags = params.monitorTags
+        ?.split(',')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0)
+
+      // `monitor_identifier` is required. Datadog expresses "every monitor in scope"
+      // as the `*` monitor tag, which is the fallback when no monitor is named.
+      const monitorIdentifier = params.monitorId
+        ? { monitor_id: Number.parseInt(params.monitorId, 10) }
+        : { monitor_tags: monitorTags?.length ? monitorTags : ['*'] }
+
+      const attributes: Record<string, unknown> = {
+        scope: params.scope,
+        monitor_identifier: monitorIdentifier,
       }
-
-      if (params.message) body.data.attributes.message = params.message
+      if (Object.keys(schedule).length > 0) attributes.schedule = schedule
+      if (params.timezone) attributes.display_timezone = params.timezone
+      if (params.message) attributes.message = params.message
       if (params.muteFirstRecoveryNotification !== undefined) {
-        body.data.attributes.mute_first_recovery_notification = params.muteFirstRecoveryNotification
+        attributes.mute_first_recovery_notification = params.muteFirstRecoveryNotification
       }
 
-      if (params.monitorId) {
-        body.data.attributes.monitor_identifier = {
-          monitor_id: Number.parseInt(params.monitorId, 10),
-        }
-      } else if (params.monitorTags) {
-        body.data.attributes.monitor_identifier = {
-          monitor_tags: params.monitorTags
-            .split(',')
-            .map((t: string) => t.trim())
-            .filter((t: string) => t.length > 0),
-        }
-      }
-
-      return body
+      return { data: { type: 'downtime', attributes } }
     },
   },
 
@@ -133,14 +132,14 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       return {
         success: false,
         output: {
-          downtime: {} as any,
+          downtime: { scope: [] },
         },
         error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
       }
     }
 
     const data = await response.json()
-    const attrs = data.data?.attributes || {}
+    const attrs: DowntimeAttributes = data.data?.attributes || {}
     return {
       success: true,
       output: {
@@ -152,8 +151,7 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
             ? new Date(attrs.schedule.start).getTime() / 1000
             : undefined,
           end: attrs.schedule?.end ? new Date(attrs.schedule.end).getTime() / 1000 : undefined,
-          timezone: attrs.schedule?.timezone,
-          disabled: attrs.disabled,
+          timezone: attrs.display_timezone ?? undefined,
           active: attrs.status === 'active',
           created: attrs.created ? new Date(attrs.created).getTime() / 1000 : undefined,
           modified: attrs.modified ? new Date(attrs.modified).getTime() / 1000 : undefined,
@@ -167,7 +165,7 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       type: 'object',
       description: 'The created downtime details',
       properties: {
-        id: { type: 'number', description: 'Downtime ID' },
+        id: { type: 'string', description: 'Downtime UUID' },
         scope: { type: 'array', description: 'Downtime scope' },
         message: { type: 'string', description: 'Downtime message' },
         start: { type: 'number', description: 'Start time (Unix timestamp)' },

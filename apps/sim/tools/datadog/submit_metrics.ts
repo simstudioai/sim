@@ -1,4 +1,8 @@
-import type { SubmitMetricsParams, SubmitMetricsResponse } from '@/tools/datadog/types'
+import type {
+  MetricSeries,
+  SubmitMetricsParams,
+  SubmitMetricsResponse,
+} from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const submitMetricsTool: ToolConfig<SubmitMetricsParams, SubmitMetricsResponse> = {
@@ -41,18 +45,20 @@ export const submitMetricsTool: ToolConfig<SubmitMetricsParams, SubmitMetricsRes
       'DD-API-KEY': params.apiKey,
     }),
     body: (params) => {
-      let series: any[]
+      let series: MetricSeries[]
       try {
-        series = typeof params.series === 'string' ? JSON.parse(params.series) : params.series
+        series = (
+          typeof params.series === 'string' ? JSON.parse(params.series) : params.series
+        ) as MetricSeries[]
       } catch {
         throw new Error('Invalid JSON in series parameter')
       }
 
       // Transform to Datadog API v2 format
-      const formattedSeries = series.map((s: any) => ({
+      const formattedSeries = series.map((s) => ({
         metric: s.metric,
         type: s.type === 'gauge' ? 0 : s.type === 'rate' ? 1 : s.type === 'count' ? 2 : 3,
-        points: s.points.map((p: any) => ({
+        points: s.points.map((p) => ({
           timestamp: p.timestamp,
           value: p.value,
         })),

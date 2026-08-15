@@ -1,12 +1,16 @@
-import type { SearchSpansParams, SearchSpansResponse } from '@/tools/datadog/types'
+import type {
+  DatadogV2Resource,
+  SearchSpansParams,
+  SearchSpansResponse,
+  SpanAttributes,
+} from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchSpansTool: ToolConfig<SearchSpansParams, SearchSpansResponse> = {
   id: 'datadog_search_spans',
   name: 'Datadog Search Spans',
-  description:
-    'Search APM spans using the span query syntax. Datadog rate limits this endpoint to 300 requests per hour.',
+  description: 'Search indexed APM spans using the span query syntax, with cursor pagination.',
   version: '1.0.0',
 
   params: {
@@ -104,7 +108,7 @@ export const searchSpansTool: ToolConfig<SearchSpansParams, SearchSpansResponse>
     return {
       success: true,
       output: {
-        spans: (data.data ?? []).map((span: any) => ({
+        spans: (data.data ?? []).map((span: DatadogV2Resource<SpanAttributes>) => ({
           id: span.id,
           type: span.type,
           attributes: span.attributes ?? {},

@@ -1,4 +1,9 @@
-import type { ListDowntimesParams, ListDowntimesResponse } from '@/tools/datadog/types'
+import type {
+  DatadogV2Resource,
+  DowntimeAttributes,
+  ListDowntimesParams,
+  ListDowntimesResponse,
+} from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesResponse> = {
@@ -13,12 +18,6 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       required: false,
       visibility: 'user-or-llm',
       description: 'Only return currently active downtimes',
-    },
-    monitorId: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter by monitor ID (e.g., "12345678")',
     },
     apiKey: {
       type: 'string',
@@ -46,7 +45,6 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       const queryParams = new URLSearchParams()
 
       if (params.currentOnly) queryParams.set('current_only', 'true')
-      if (params.monitorId) queryParams.set('monitor_id', params.monitorId)
 
       const queryString = queryParams.toString()
       return `https://api.${site}/api/v2/downtime${queryString ? `?${queryString}` : ''}`
@@ -72,16 +70,15 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
     }
 
     const data = await response.json()
-    const downtimes = (data.data || []).map((d: any) => {
-      const attrs = d.attributes || {}
+    const downtimes = (data.data || []).map((d: DatadogV2Resource<DowntimeAttributes>) => {
+      const attrs: DowntimeAttributes = d.attributes || {}
       return {
         id: d.id,
         scope: attrs.scope ? [attrs.scope] : [],
         message: attrs.message,
         start: attrs.schedule?.start ? new Date(attrs.schedule.start).getTime() / 1000 : undefined,
         end: attrs.schedule?.end ? new Date(attrs.schedule.end).getTime() / 1000 : undefined,
-        timezone: attrs.schedule?.timezone,
-        disabled: attrs.disabled,
+        timezone: attrs.display_timezone ?? undefined,
         active: attrs.status === 'active',
         created: attrs.created ? new Date(attrs.created).getTime() / 1000 : undefined,
         modified: attrs.modified ? new Date(attrs.modified).getTime() / 1000 : undefined,
@@ -103,7 +100,7 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       items: {
         type: 'object',
         properties: {
-          id: { type: 'number', description: 'Downtime ID' },
+          id: { type: 'string', description: 'Downtime UUID' },
           scope: { type: 'array', description: 'Downtime scope' },
           message: { type: 'string', description: 'Downtime message' },
           start: { type: 'number', description: 'Start time (Unix timestamp)' },

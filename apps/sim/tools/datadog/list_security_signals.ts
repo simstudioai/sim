@@ -1,4 +1,9 @@
-import type { ListSecuritySignalsParams, ListSecuritySignalsResponse } from '@/tools/datadog/types'
+import type {
+  DatadogV2Resource,
+  ListSecuritySignalsParams,
+  ListSecuritySignalsResponse,
+  SecuritySignalAttributes,
+} from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -107,7 +112,7 @@ export const listSecuritySignalsTool: ToolConfig<
     return {
       success: true,
       output: {
-        signals: (data.data ?? []).map((signal: any) => ({
+        signals: (data.data ?? []).map((signal: DatadogV2Resource<SecuritySignalAttributes>) => ({
           id: signal.id,
           type: signal.type,
           attributes: signal.attributes ?? {},

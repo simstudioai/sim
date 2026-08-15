@@ -120,7 +120,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       return {
         success: false,
         output: {
-          event: {} as any,
+          event: {},
         },
         error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
       }

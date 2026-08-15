@@ -1,4 +1,8 @@
-import type { QueryTimeseriesParams, QueryTimeseriesResponse } from '@/tools/datadog/types'
+import type {
+  MetricsQuerySeries,
+  QueryTimeseriesParams,
+  QueryTimeseriesResponse,
+} from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeseriesResponse> = {
@@ -80,7 +84,7 @@ export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeser
     }
 
     const data = await response.json()
-    const series = (data.series || []).map((s: any) => ({
+    const series = (data.series || []).map((s: MetricsQuerySeries) => ({
       metric: s.metric || s.expression,
       tags: s.tag_set || [],
       points: (s.pointlist || []).map((p: [number, number]) => ({

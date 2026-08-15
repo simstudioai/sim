@@ -1,4 +1,9 @@
-import type { ListIncidentsParams, ListIncidentsResponse } from '@/tools/datadog/types'
+import type {
+  DatadogV2Resource,
+  IncidentAttributes,
+  ListIncidentsParams,
+  ListIncidentsResponse,
+} from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -77,7 +82,7 @@ export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsRes
     return {
       success: true,
       output: {
-        incidents: (data.data ?? []).map((incident: any) => ({
+        incidents: (data.data ?? []).map((incident: DatadogV2Resource<IncidentAttributes>) => ({
           id: incident.id,
           type: incident.type,
           attributes: incident.attributes ?? {},

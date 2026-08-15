@@ -1,4 +1,9 @@
-import type { QueryLogsParams, QueryLogsResponse } from '@/tools/datadog/types'
+import type {
+  DatadogV2Resource,
+  LogAttributes,
+  QueryLogsParams,
+  QueryLogsResponse,
+} from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
@@ -119,7 +124,7 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
     }
 
     const data = await response.json()
-    const logs = (data.data || []).map((log: any) => ({
+    const logs = (data.data || []).map((log: DatadogV2Resource<LogAttributes>) => ({
       id: log.id,
       content: {
         timestamp: log.attributes?.timestamp,

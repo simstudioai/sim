@@ -1,4 +1,8 @@
-import type { ListSecurityRulesParams, ListSecurityRulesResponse } from '@/tools/datadog/types'
+import type {
+  ListSecurityRulesParams,
+  ListSecurityRulesResponse,
+  SecurityRuleData,
+} from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -89,7 +93,7 @@ export const listSecurityRulesTool: ToolConfig<ListSecurityRulesParams, ListSecu
       return {
         success: true,
         output: {
-          rules: (data.data ?? []).map((rule: any) => ({
+          rules: (data.data ?? []).map((rule: SecurityRuleData) => ({
             id: rule.id,
             name: rule.name,
             type: rule.type,

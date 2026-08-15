@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { ListMonitorsParams, ListMonitorsResponse } from '@/tools/datadog/types'
+import type { ListMonitorsParams, ListMonitorsResponse, MonitorData } from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('DatadogListMonitors')
@@ -123,7 +123,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
     }
 
     const text = await response.text()
-    let data: any
+    let data: unknown
     try {
       data = JSON.parse(text)
     } catch (e) {
@@ -142,7 +142,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       }
     }
 
-    const monitors = data.map((m: any) => ({
+    const monitors = (data as MonitorData[]).map((m) => ({
       id: m.id,
       name: m.name,
       type: m.type,
