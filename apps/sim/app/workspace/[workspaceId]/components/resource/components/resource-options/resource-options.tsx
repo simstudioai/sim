@@ -299,7 +299,12 @@ export const SortDropdown = memo(function SortDropdown({
       >
         {active && onClear && (
           <>
-            <DropdownMenuItem onSelect={onClear}>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                onClear()
+              }}
+            >
               <X />
               Clear sort
             </DropdownMenuItem>
@@ -314,7 +319,8 @@ export const SortDropdown = memo(function SortDropdown({
           return (
             <DropdownMenuItem
               key={option.id}
-              onSelect={() => {
+              onSelect={(event) => {
+                event.preventDefault()
                 if (isActive) {
                   onSort(option.id, active.direction === 'asc' ? 'desc' : 'asc')
                 } else {

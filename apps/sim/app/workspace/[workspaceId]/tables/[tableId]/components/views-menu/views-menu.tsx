@@ -23,11 +23,6 @@ export const ALL_ROWS_VIEW_LABEL = 'All'
 /** Matches the breadcrumb location popover's hover-intent grace period. */
 const POPOVER_CLOSE_DELAY_MS = 120
 
-/** Rendered width of one action button (`p-1` + `size-3` glyph) plus its `gap-0.5`.
- *  The row reserves `actions.length` of these, so keep it in step with the button
- *  classes below — the overlay is absolutely positioned and can't size the spacer. */
-const VIEW_ACTION_SLOT_PX = 22
-
 interface ViewsMenuProps {
   views: TableViewWire[]
   /** `null` selects the legacy "All" state while a table awaits backfill. */
@@ -131,6 +126,7 @@ export const ViewsMenu = memo(function ViewsMenu({
         )}
         onMouseEnter={openPopover}
         onMouseLeave={scheduleClose}
+        onFocusCapture={cancelScheduledClose}
       >
         <PopoverSection className='px-1.5 py-0.5 text-[var(--text-muted)] text-xs'>
           Views
@@ -148,20 +144,20 @@ export const ViewsMenu = memo(function ViewsMenu({
               key={view.id}
               label={view.name}
               isActive={view.id === activeViewId}
-              isDefault={view.isDefault}
               onSelect={() => runAndClose(() => onSelect(view.id))}
+              defaultState={{
+                isDefault: view.isDefault,
+                onSetDefault:
+                  canEdit && !view.isDefault
+                    ? () => {
+                        cancelScheduledClose()
+                        onSetDefault(view.id)
+                      }
+                    : undefined,
+              }}
               actions={
                 canEdit
                   ? [
-                      ...(view.isDefault
-                        ? []
-                        : [
-                            {
-                              icon: Pin,
-                              label: 'Set as default',
-                              onClick: () => runAndClose(() => onSetDefault(view.id)),
-                            },
-                          ]),
                       {
                         icon: Pencil,
                         label: 'Rename',
@@ -207,11 +203,16 @@ interface ViewRowAction {
   onClick: () => void
 }
 
+interface ViewRowDefaultState {
+  isDefault: boolean
+  onSetDefault?: () => void
+}
+
 interface ViewRowProps {
   label: string
   isActive: boolean
-  isDefault?: boolean
   onSelect: () => void
+  defaultState?: ViewRowDefaultState
   actions?: ViewRowAction[]
 }
 
@@ -221,7 +222,9 @@ interface ViewRowProps {
  * on hover via opacity, not `display`) so the name never reflows or sits
  * underneath them.
  */
-function ViewRow({ label, isActive, isDefault, onSelect, actions }: ViewRowProps) {
+function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowProps) {
+  const actionCount = (actions?.length ?? 0) + (defaultState ? 1 : 0)
+
   return (
     <div className='group/view relative flex items-center'>
       <PopoverItem
@@ -233,39 +236,47 @@ function ViewRow({ label, isActive, isDefault, onSelect, actions }: ViewRowProps
           {isActive && <Check className='size-3 text-[var(--text-icon)]' />}
         </span>
         <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
-        {isDefault && (
-          <span className='shrink-0 text-[var(--text-muted)] text-micro group-hover/view:hidden'>
-            Default
-          </span>
-        )}
-        {actions && (
+        {actionCount > 0 && (
           <span
             aria-hidden
-            className='shrink-0'
-            style={{ width: actions.length * VIEW_ACTION_SLOT_PX }}
+            className={cn('shrink-0', actionCount === 1 ? 'w-[22px]' : 'w-[66px]')}
           />
         )}
       </PopoverItem>
-      {actions && (
-        <div className='pointer-events-none absolute right-1.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/view:pointer-events-auto group-hover/view:opacity-100'>
-          {actions.map((action) => (
+      {actionCount > 0 && (
+        <div className='absolute right-1.5 flex items-center gap-0.5'>
+          {actions?.map((action) => (
             <button
               key={action.label}
               type='button'
               aria-label={action.label}
               title={action.label}
-              // The row behind is a select-the-view target; without stopping
-              // propagation every action would also switch to that view.
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
                 action.onClick()
               }}
-              className='rounded-md p-1 text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-body)]'
+              className='pointer-events-none rounded-md p-1 text-[var(--text-icon)] opacity-0 transition-[background-color,color,opacity] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-body)] group-focus-within/view:pointer-events-auto group-focus-within/view:opacity-100 group-hover/view:pointer-events-auto group-hover/view:opacity-100'
             >
               <action.icon className='size-3' />
             </button>
           ))}
+          {defaultState && (
+            <button
+              type='button'
+              aria-label={defaultState.isDefault ? 'Current default view' : 'Set as default'}
+              title={defaultState.isDefault ? 'Current default view' : 'Set as default'}
+              disabled={!defaultState.onSetDefault}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                defaultState.onSetDefault?.()
+              }}
+              className='rounded-md p-1 text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-body)]'
+            >
+              <Pin className={cn('size-3', defaultState.isDefault && 'fill-current')} />
+            </button>
+          )}
         </div>
       )}
     </div>

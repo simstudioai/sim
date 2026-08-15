@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 import { ViewsMenu } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/views-menu/views-menu'
 
@@ -25,6 +25,15 @@ const SECOND_VIEW: TableViewWire = {
   name: 'Second view',
   isDefault: false,
 }
+
+const PRIMARY_VIEW: TableViewWire = {
+  ...DEFAULT_VIEW,
+  name: 'Primary view',
+}
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 function renderMenu(views: TableViewWire[], activeViewId: string | null): string {
   return renderToStaticMarkup(
@@ -56,7 +65,7 @@ describe('ViewsMenu', () => {
     expect(markup).not.toContain('>View<')
   })
 
-  it('only offers set-default and delete actions for non-default views', () => {
+  it('shows filled and outline pins without a Default badge and keeps the menu open', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -65,8 +74,8 @@ describe('ViewsMenu', () => {
     act(() => {
       root.render(
         <ViewsMenu
-          views={[DEFAULT_VIEW, SECOND_VIEW]}
-          activeViewId={DEFAULT_VIEW.id}
+          views={[PRIMARY_VIEW, SECOND_VIEW]}
+          activeViewId={PRIMARY_VIEW.id}
           onSelect={vi.fn()}
           onRename={vi.fn()}
           onSetDefault={onSetDefault}
@@ -79,12 +88,103 @@ describe('ViewsMenu', () => {
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
 
     expect(document.body.querySelectorAll('button[aria-label="Delete"]')).toHaveLength(1)
-    const actions = document.body.querySelectorAll<HTMLButtonElement>(
+    const defaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Current default view"]'
+    )
+    const setDefaultPin = document.body.querySelector<HTMLButtonElement>(
       'button[aria-label="Set as default"]'
     )
-    expect(actions).toHaveLength(1)
-    act(() => actions[0]?.click())
+
+    expect(defaultPin?.querySelector('svg')).toHaveClass('fill-current')
+    expect(setDefaultPin?.querySelector('svg')).not.toHaveClass('fill-current')
+    expect(document.body).not.toHaveTextContent('Default')
+
+    act(() => setDefaultPin?.click())
     expect(onSetDefault).toHaveBeenCalledWith(SECOND_VIEW.id)
+    expect(document.body).toHaveTextContent('New view')
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('keeps the menu open when keyboard focus moves from the trigger to the default pin', () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    act(() => {
+      root.render(
+        <ViewsMenu
+          views={[PRIMARY_VIEW, SECOND_VIEW]}
+          activeViewId={PRIMARY_VIEW.id}
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onSetDefault={vi.fn()}
+          onDelete={vi.fn()}
+          onNewView={vi.fn()}
+          canEdit
+        />
+      )
+    })
+
+    const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')
+    act(() => trigger?.focus())
+
+    const setDefaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Set as default"]'
+    )
+    expect(setDefaultPin).not.toBeNull()
+    act(() => {
+      setDefaultPin?.focus()
+      vi.advanceTimersByTime(121)
+    })
+
+    expect(document.activeElement).toBe(setDefaultPin)
+    expect(document.body).toHaveTextContent('New view')
+    expect(document.body.querySelector('[data-native-surface-overlay]')).not.toBeNull()
+
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it('shows disabled pins without closing the menu for read-only members', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const onSetDefault = vi.fn()
+
+    act(() => {
+      root.render(
+        <ViewsMenu
+          views={[PRIMARY_VIEW, SECOND_VIEW]}
+          activeViewId={PRIMARY_VIEW.id}
+          onSelect={vi.fn()}
+          onRename={vi.fn()}
+          onSetDefault={onSetDefault}
+          onDelete={vi.fn()}
+          onNewView={vi.fn()}
+          canEdit={false}
+        />
+      )
+    })
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
+
+    const defaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Current default view"]'
+    )
+    const setDefaultPin = document.body.querySelector<HTMLButtonElement>(
+      'button[aria-label="Set as default"]'
+    )
+
+    expect(defaultPin?.querySelector('svg')).toHaveClass('fill-current')
+    expect(setDefaultPin?.querySelector('svg')).not.toHaveClass('fill-current')
+    expect(setDefaultPin).toBeDisabled()
+
+    act(() => setDefaultPin?.click())
+
+    expect(onSetDefault).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[data-native-surface-overlay]')).not.toBeNull()
 
     act(() => root.unmount())
     container.remove()
