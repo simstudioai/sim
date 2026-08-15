@@ -50,7 +50,7 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
       'http://localhost:3000/api/auth/get-session'
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req)
     const json = await res.json()
 
     expect(handlerMocks.ensureAnonymousUserExists).toHaveBeenCalledTimes(1)
@@ -68,7 +68,7 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
     handlerMocks.betterAuthGET.mockResolvedValueOnce(
       new NextResponse(JSON.stringify({ data: { ok: true } }), {
         headers: { 'content-type': 'application/json' },
-      }) as any
+      })
     )
 
     const req = createMockRequest(
@@ -78,7 +78,7 @@ describe('auth catch-all route (DISABLE_AUTH get-session)', () => {
       'http://localhost:3000/api/auth/get-session'
     )
 
-    const res = await GET(req as any)
+    const res = await GET(req)
     const json = await res.json()
 
     expect(handlerMocks.ensureAnonymousUserExists).not.toHaveBeenCalled()
@@ -100,7 +100,7 @@ describe('auth catch-all route organization mutations', () => {
       'http://localhost:3000/api/auth/organization/create'
     )
 
-    const res = await POST(req as any)
+    const res = await POST(req)
     const json = await res.json()
 
     expect(res.status).toBe(404)
@@ -115,7 +115,7 @@ describe('auth catch-all route organization mutations', () => {
     handlerMocks.betterAuthPOST.mockResolvedValueOnce(
       new NextResponse(JSON.stringify({ data: { ok: true } }), {
         headers: { 'content-type': 'application/json' },
-      }) as any
+      })
     )
 
     const req = createMockRequest(
@@ -125,7 +125,7 @@ describe('auth catch-all route organization mutations', () => {
       'http://localhost:3000/api/auth/organization/set-active'
     )
 
-    const res = await POST(req as any)
+    const res = await POST(req)
     const json = await res.json()
 
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
@@ -146,7 +146,7 @@ describe('auth catch-all route SSO provider mutations', () => {
   ])('blocks the plugin-served %s endpoint', async (path) => {
     const req = createMockRequest('POST', undefined, {}, `http://localhost:3000/api/auth/${path}`)
 
-    const res = await POST(req as any)
+    const res = await POST(req)
     const json = await res.json()
 
     expect(res.status).toBe(404)
@@ -166,12 +166,12 @@ describe('auth catch-all route SSO provider mutations', () => {
     handlerMocks.betterAuthPOST.mockResolvedValueOnce(
       new NextResponse(JSON.stringify({ data: { ok: true } }), {
         headers: { 'content-type': 'application/json' },
-      }) as any
+      })
     )
 
     const req = createMockRequest('POST', undefined, {}, `http://localhost:3000/api/auth/${path}`)
 
-    const res = await POST(req as any)
+    const res = await POST(req)
     const json = await res.json()
 
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
@@ -183,7 +183,7 @@ describe('auth catch-all route SSO provider mutations', () => {
     handlerMocks.betterAuthPOST.mockResolvedValueOnce(
       new NextResponse(JSON.stringify({ data: { url: 'https://idp.example.com' } }), {
         headers: { 'content-type': 'application/json' },
-      }) as any
+      })
     )
 
     const req = createMockRequest(
@@ -193,7 +193,7 @@ describe('auth catch-all route SSO provider mutations', () => {
       'http://localhost:3000/api/auth/sign-in/sso'
     )
 
-    const res = await POST(req as any)
+    const res = await POST(req)
 
     expect(handlerMocks.betterAuthPOST).toHaveBeenCalledTimes(1)
     expect(await res.json()).toEqual({ data: { url: 'https://idp.example.com' } })
