@@ -126,10 +126,49 @@ async function lockCredentialGroupInvitationTarget(
 export class CredentialGroupEnrollmentError extends Error {
   constructor(
     message: string,
-    readonly status: 404 | 409 | 502
+    readonly status: 400 | 404 | 409 | 502
   ) {
     super(message)
     this.name = 'CredentialGroupEnrollmentError'
+  }
+}
+
+interface CredentialGroupEnrollmentCursor {
+  id: string
+  invitedAt: Date
+}
+
+function encodeCredentialGroupEnrollmentCursor(
+  enrollment: Pick<EnrollmentRow, 'id' | 'invitedAt'>
+): string {
+  return Buffer.from(
+    JSON.stringify({ id: enrollment.id, invitedAt: enrollment.invitedAt.toISOString() })
+  ).toString('base64url')
+}
+
+function decodeCredentialGroupEnrollmentCursor(cursor: string): CredentialGroupEnrollmentCursor {
+  try {
+    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
+    if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
+      throw new Error('Cursor payload must be an object')
+    }
+    const { id, invitedAt: invitedAtValue } = decoded as Record<string, unknown>
+    if (
+      typeof id !== 'string' ||
+      !id.trim() ||
+      id !== id.trim() ||
+      id.length > 128 ||
+      typeof invitedAtValue !== 'string'
+    ) {
+      throw new Error('Cursor payload is malformed')
+    }
+    const invitedAt = new Date(invitedAtValue)
+    if (Number.isNaN(invitedAt.getTime()) || invitedAt.toISOString() !== invitedAtValue) {
+      throw new Error('Cursor timestamp is invalid')
+    }
+    return { id, invitedAt }
+  } catch {
+    throw new CredentialGroupEnrollmentError('Enrollment cursor is invalid', 400)
   }
 }
 
@@ -443,27 +482,7 @@ export async function listCredentialGroupEnrollments(
     .filter((option) => option.status === 'active')
     .map((option) => option.id)
 
-  let cursorPosition: { id: string; invitedAt: Date } | undefined
-  if (cursor) {
-    const [cursorRow] = await db
-      .select({ id: credentialGroupEnrollment.id, invitedAt: credentialGroupEnrollment.invitedAt })
-      .from(credentialGroupEnrollment)
-      .innerJoin(
-        credentialGroup,
-        eq(credentialGroup.id, credentialGroupEnrollment.credentialGroupId)
-      )
-      .where(
-        and(
-          eq(credentialGroupEnrollment.id, cursor),
-          eq(credentialGroup.id, groupId),
-          eq(credentialGroup.workspaceId, workspaceId),
-          filters.email ? eq(credentialGroupEnrollment.email, filters.email) : undefined
-        )
-      )
-      .limit(1)
-    if (!cursorRow) throw new CredentialGroupEnrollmentError('Enrollment cursor not found', 404)
-    cursorPosition = cursorRow
-  }
+  const cursorPosition = cursor ? decodeCredentialGroupEnrollmentCursor(cursor) : undefined
 
   const rows = await db
     .select({ enrollment: credentialGroupEnrollment })
@@ -535,12 +554,18 @@ export async function listCredentialGroupEnrollments(
     if (current) current.push(summary)
     else connectionsByEnrollment.set(connection.enrollmentId, [summary])
   }
+  const nextCursorEnrollment = hasNextPage ? pageRows.at(-1)?.enrollment : undefined
+  if (hasNextPage && !nextCursorEnrollment) {
+    throw new Error('Credential group enrollment page is missing its cursor boundary')
+  }
   return {
     enrollments: pageRows.map(({ enrollment }) => ({
       ...toCredentialGroupEnrollment(enrollment),
       connections: connectionsByEnrollment.get(enrollment.id) ?? [],
     })),
-    nextCursor: hasNextPage ? (pageRows.at(-1)?.enrollment.id ?? null) : null,
+    nextCursor: nextCursorEnrollment
+      ? encodeCredentialGroupEnrollmentCursor(nextCursorEnrollment)
+      : null,
   }
 }
 
@@ -634,7 +659,7 @@ export async function resendCredentialGroupEnrollment(
   })
 }
 
-export async function revokeCredentialGroupEnrollment(
+export async function deleteCredentialGroupEnrollment(
   workspaceId: string,
   groupId: string,
   enrollmentId: string
@@ -656,10 +681,8 @@ export async function revokeCredentialGroupEnrollment(
   return db.transaction(async (tx) => {
     await lockCredentialGroupInvitationTarget(tx, groupId, existing.email)
     await lockCredentialGroupEnrollmentLifecycle(tx, enrollmentId)
-    const now = new Date()
-    const [revoked] = await tx
-      .update(credentialGroupEnrollment)
-      .set({ status: 'revoked', revokedAt: now, updatedAt: now })
+    const [deleted] = await tx
+      .delete(credentialGroupEnrollment)
       .where(
         and(
           eq(credentialGroupEnrollment.id, enrollmentId),
@@ -667,17 +690,8 @@ export async function revokeCredentialGroupEnrollment(
         )
       )
       .returning()
-    if (!revoked) throw new Error('Credential group enrollment update returned no row')
-
-    await tx
-      .delete(credential)
-      .where(
-        and(
-          eq(credential.type, 'managed_oauth'),
-          eq(credential.credentialGroupEnrollmentId, enrollmentId)
-        )
-      )
-    return toCredentialGroupEnrollment(revoked)
+    if (!deleted) throw new CredentialGroupEnrollmentError('Enrollment not found', 404)
+    return toCredentialGroupEnrollment(deleted)
   })
 }
 

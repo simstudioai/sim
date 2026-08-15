@@ -33,8 +33,8 @@ import { CredentialGroupInviteModal } from '@/ee/credential-groups/components/cr
 import {
   useCredentialGroupDetail,
   useDeleteCredentialGroup,
+  useDeleteCredentialGroupEnrollment,
   useResendCredentialGroupEnrollment,
-  useRevokeCredentialGroupEnrollment,
   useUpdateCredentialGroup,
 } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
@@ -94,7 +94,7 @@ export function CredentialGroupDetail({
     providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
   })
   const resend = useResendCredentialGroupEnrollment()
-  const deleteEnrollment = useRevokeCredentialGroupEnrollment()
+  const deleteEnrollment = useDeleteCredentialGroupEnrollment()
   const updateGroup = useUpdateCredentialGroup()
   const deleteGroup = useDeleteCredentialGroup()
   const [activeTab, setActiveTab] = useQueryState(credentialGroupTabParam.key, {

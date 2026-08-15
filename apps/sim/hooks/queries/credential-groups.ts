@@ -6,10 +6,10 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createCredentialGroupContract,
   deleteCredentialGroupContract,
+  deleteCredentialGroupEnrollmentContract,
   getCredentialGroupContract,
   inviteCredentialGroupEnrollmentsContract,
   resendCredentialGroupEnrollmentContract,
-  revokeCredentialGroupEnrollmentContract,
   startSlackCredentialGroupConfigurationContract,
   updateCredentialGroupContract,
 } from '@/lib/api/contracts/credential-groups'
@@ -184,7 +184,7 @@ export function useResendCredentialGroupEnrollment() {
   })
 }
 
-export function useRevokeCredentialGroupEnrollment() {
+export function useDeleteCredentialGroupEnrollment() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
@@ -196,7 +196,7 @@ export function useRevokeCredentialGroupEnrollment() {
       groupId: string
       enrollmentId: string
     }) =>
-      requestJson(revokeCredentialGroupEnrollmentContract, {
+      requestJson(deleteCredentialGroupEnrollmentContract, {
         params: { id: workspaceId, groupId, enrollmentId },
       }),
     onSettled: (_data, _error, variables) => {

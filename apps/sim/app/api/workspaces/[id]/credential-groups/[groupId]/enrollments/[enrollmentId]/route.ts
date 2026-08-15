@@ -1,19 +1,19 @@
-import { revokeCredentialGroupEnrollmentContract } from '@/lib/api/contracts/credential-groups'
+import { deleteCredentialGroupEnrollmentContract } from '@/lib/api/contracts/credential-groups'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { revokeCredentialGroupEnrollmentSettings } from '@/lib/credential-groups/application/manage-enrollments'
+import { deleteCredentialGroupEnrollmentSettings } from '@/lib/credential-groups/application/manage-enrollments'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
 import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
 export const DELETE = defineInternalJsonRoute({
-  contract: revokeCredentialGroupEnrollmentContract,
+  contract: deleteCredentialGroupEnrollmentContract,
   auth: internalSessionAuth,
-  operation: credentialGroupOperations.revokeEnrollment,
+  operation: credentialGroupOperations.deleteEnrollment,
   rateLimit: internalRateLimits.none({
-    reason: 'Preserve existing internal Credential Group revocation behavior',
+    reason: 'Preserve existing internal Credential Group deletion behavior',
   }),
   errorPolicy: createCredentialGroupInternalErrorPolicy(
     'Failed to delete person from credential group'
@@ -23,5 +23,5 @@ export const DELETE = defineInternalJsonRoute({
     credentialGroupId: params.groupId,
     enrollmentId: params.enrollmentId,
   }),
-  useCase: revokeCredentialGroupEnrollmentSettings,
+  useCase: deleteCredentialGroupEnrollmentSettings,
 })

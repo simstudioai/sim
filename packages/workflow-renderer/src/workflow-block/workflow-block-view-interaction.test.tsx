@@ -226,6 +226,7 @@ describe('WorkflowTypeTag colors', () => {
     expect(getWorkflowTypeRole('api')).toBe('interface')
     expect(getWorkflowTypeRole('condition')).toBe('logic')
     expect(getWorkflowTypeRole('credential')).toBe('state')
+    expect(getWorkflowTypeRole('credential_group')).toBe('identity')
     expect(getWorkflowTypeRole('router_v2')).toBe('flow')
     expect(getWorkflowTypeRole('table')).toBe('records')
     expect(getWorkflowTypeRole('a2a')).toBe('neutral')
@@ -244,6 +245,10 @@ describe('WorkflowTypeTag colors', () => {
     expect(getWorkflowTypeAccent('parallel')).toEqual({ variant: 'workflow', tone: 'ash' })
     expect(getWorkflowTypeAccent('router')).toEqual({ variant: 'workflow', tone: 'ash' })
     expect(getWorkflowTypeAccent('condition')).toEqual({ variant: 'workflow', tone: 'orange' })
+    expect(getWorkflowTypeAccent('credential_group')).toEqual({
+      variant: 'workflow',
+      tone: 'purple',
+    })
     expect(getWorkflowTypeAccent('image_generator_v2')).toEqual({
       variant: 'workflow',
       tone: 'purple',

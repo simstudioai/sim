@@ -32,9 +32,9 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
 
 import {
   completeCredentialGroupEnrollment,
+  deleteCredentialGroupEnrollment,
   listCredentialGroupEnrollments,
   resendCredentialGroupEnrollment,
-  revokeCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
 import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -143,28 +143,42 @@ describe('listCredentialGroupEnrollments', () => {
     }
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ options: [] }])
-      .mockResolvedValueOnce([
-        { id: ENROLLMENT.id, invitedAt: new Date('2026-08-11T12:00:00.000Z') },
-      ])
+      .mockResolvedValueOnce([{ enrollment: ENROLLMENT }, { enrollment: remainingEnrollment }])
+      .mockResolvedValueOnce([{ options: [] }])
       .mockResolvedValueOnce([{ enrollment: remainingEnrollment }])
 
+    const firstPage = await listCredentialGroupEnrollments('workspace-1', 'group-1', 1, undefined, {
+      statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'],
+    })
+    if (!firstPage.nextCursor) throw new Error('Expected a next enrollment cursor')
     const result = await listCredentialGroupEnrollments(
       'workspace-1',
       'group-1',
       50,
-      ENROLLMENT.id,
+      firstPage.nextCursor,
       { statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'] }
     )
 
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
     expect(result.enrollments).toHaveLength(1)
     expect(result.enrollments[0]?.id).toBe(remainingEnrollment.id)
-    expect(inArray).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(4)
     expect(inArray).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.status, [
       'invited',
       'in_progress',
       'completed',
       'delivery_failed',
     ])
+  })
+
+  it('rejects a malformed enrollment cursor', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ options: [] }])
+
+    await expect(
+      listCredentialGroupEnrollments('workspace-1', 'group-1', 50, 'not-a-cursor')
+    ).rejects.toMatchObject({ message: 'Enrollment cursor is invalid', status: 400 })
+
+    expect(dbChainMockFns.limit).toHaveBeenCalledOnce()
   })
 })
 
@@ -236,25 +250,22 @@ describe('resendCredentialGroupEnrollment', () => {
   })
 })
 
-describe('revokeCredentialGroupEnrollment', () => {
+describe('deleteCredentialGroupEnrollment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  it('deletes every managed credential collected under the revoked enrollment', async () => {
+  it('deletes the enrollment and lets its foreign-key cascade remove managed credentials', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ email: ENROLLMENT.email }])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...ENROLLMENT, status: 'revoked', revokedAt: new Date() },
-    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([ENROLLMENT])
 
-    const result = await revokeCredentialGroupEnrollment('workspace-1', 'group-1', ENROLLMENT.id)
+    const result = await deleteCredentialGroupEnrollment('workspace-1', 'group-1', ENROLLMENT.id)
 
-    expect(result.status).toBe('revoked')
-    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
+    expect(result.id).toBe(ENROLLMENT.id)
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credential)
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
   })
 })
 
