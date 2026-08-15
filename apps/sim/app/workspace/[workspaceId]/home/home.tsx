@@ -218,8 +218,9 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   activeResourceParamRef.current = activeResourceParam
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
-    // Agent work makes the resource surface available without replacing an
-    // existing selection. Explicit user navigation can request activation.
+    // Agent work surfaces the resource and switches to it as it is created or
+    // edited; only the browser session stays in the background behind an
+    // existing selection (see shouldActivateResourceEvent).
     if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
 
     const activeResourceId = activeResourceParamRef.current

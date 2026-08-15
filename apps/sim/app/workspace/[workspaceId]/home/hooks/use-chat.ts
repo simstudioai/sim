@@ -1195,12 +1195,20 @@ export interface ResourceEventOptions {
 
 export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
 
+/**
+ * Whether a streamed resource event should activate its tab. Resources switch
+ * into view as the agent creates or edits them; only the background browser
+ * session declines to replace an existing selection (it gets an attention
+ * marker instead), unless the event explicitly requests activation.
+ */
 export function shouldActivateResourceEvent(
   activeResourceId: string | null,
   resourceId: string,
   options?: ResourceEventOptions
 ): boolean {
-  return options?.activate === true || !activeResourceId || activeResourceId === resourceId
+  if (options?.activate === true) return true
+  if (resourceId !== BROWSER_SESSION_RESOURCE_ID) return true
+  return !activeResourceId || activeResourceId === resourceId
 }
 
 /**
