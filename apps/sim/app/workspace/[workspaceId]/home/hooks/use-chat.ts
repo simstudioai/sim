@@ -1197,9 +1197,12 @@ export type ResourceEventHandler = (resourceId: string, options?: ResourceEventO
 
 /**
  * Whether a streamed resource event should activate its tab. Resources switch
- * into view as the agent creates or edits them; only the background browser
+ * into view as the agent creates or edits them; only an already-open browser
  * session declines to replace an existing selection (it gets an attention
- * marker instead), unless the event explicitly requests activation.
+ * marker instead), unless the event explicitly requests activation — which
+ * `openBrowserResource` does when it newly opens the browser tab, so agent
+ * browser work surfaces on first open and stays put once the user has
+ * deliberately switched away.
  */
 export function shouldActivateResourceEvent(
   activeResourceId: string | null,
@@ -1971,14 +1974,18 @@ export function useChat(
 
   const openBrowserResource = useCallback(
     (activate = false) => {
-      addResource({
+      // A newly opened browser tab surfaces like any other agent-created
+      // resource. Only an ALREADY-open browser tab stays in the background
+      // behind another selection — the user saw it and switched away, so
+      // ongoing agent activity earns an attention marker, not a tab switch.
+      const newlyOpened = addResource({
         type: 'browser',
         id: BROWSER_SESSION_RESOURCE_ID,
         title: 'Browser',
       })
       onResourceEventRef.current?.(
         BROWSER_SESSION_RESOURCE_ID,
-        activate ? { activate: true } : undefined
+        activate || newlyOpened ? { activate: true } : undefined
       )
     },
     [addResource]

@@ -379,9 +379,17 @@ export function layout(): void {
   }
 
   if (attachedView !== active.view) {
+    // addChildView hands keyboard focus to the newly attached WebContentsView.
+    // Agent-driven attaches happen while the user may be typing in the chat
+    // composer, so if the renderer held focus before the attach, give it back —
+    // automation drives the page over CDP and never needs OS focus.
+    const rendererHadFocus = !win.webContents.isDestroyed() && win.webContents.isFocused()
     win.contentView.addChildView(active.view)
     hostedWindow = win
     attachedView = active.view
+    if (rendererHadFocus) {
+      win.webContents.focus()
+    }
   }
   bindHostResize(win)
   const zoom = win.webContents.getZoomFactor()
