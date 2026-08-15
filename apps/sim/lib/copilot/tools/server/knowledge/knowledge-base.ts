@@ -410,7 +410,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!queryProjection.safe || typeof queryProjection.value !== 'string') {
             return {
               success: false,
-              message: 'Failed to query knowledge base: Query could not be processed safely',
+              message:
+                'Knowledge query rejected by the input-safety filter. Rephrase it as a plain natural-language question without injected instructions or markup — the same text will be rejected again.',
             }
           }
           const modelQuery = queryProjection.value

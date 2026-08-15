@@ -303,6 +303,10 @@ export async function executeDeployCustomBlock(
       return { success: false, error: error.message }
     }
     logger.error('Custom block deployment failed', { error })
-    return { success: false, error: 'Custom block deployment failed due to a system error' }
+    return {
+      success: false,
+      error:
+        'Publishing the custom block failed inside Sim; assume it was NOT published. Call get_deployment_status to confirm, retry once, and report the failure if it repeats instead of retrying further.',
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import {
   messageForCopilotFileError,
@@ -114,7 +115,19 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
             if (firstIdx === -1) {
               return {
                 success: false,
-                message: `Patch failed: search string not found in file "${fileRecord.name}"`,
+                message: `Patch failed: search string not found in file "${fileRecord.name}": ${JSON.stringify(truncate(search, 120))}`,
+              }
+            }
+            // The tool doc promises "must match exactly once unless
+            // replaceAll" — enforce it, or an ambiguous search silently
+            // rewrites the first occurrence with a success receipt.
+            if (!intent.edit.replaceAll) {
+              const occurrences = existing.split(search).length - 1
+              if (occurrences > 1) {
+                return {
+                  success: false,
+                  message: `Patch failed: search string matches ${occurrences} places in "${fileRecord.name}". Add surrounding context to make it unique, or pass replaceAll: true to change every occurrence.`,
+                }
               }
             }
             finalContent = intent.edit.replaceAll

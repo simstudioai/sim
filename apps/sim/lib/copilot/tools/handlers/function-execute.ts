@@ -636,6 +636,16 @@ export async function executeFunctionExecute(
     'internalSandboxProfile',
     PRIVATE_SECRET_PROVENANCE_FIELD,
   ])
+  // The copilot tool doc promises `timeout` in SECONDS ("Sim converts to
+  // milliseconds", default 10, cap 300); the underlying function tool takes
+  // MILLISECONDS. Nothing converted, so `timeout: 120` armed a 120ms abort.
+  // Values ≤ 600 are read as seconds; larger values are assumed to already be
+  // milliseconds (a model habit worth tolerating). Both clamp to the 300s cap.
+  if (typeof enrichedParams.timeout === 'number' && Number.isFinite(enrichedParams.timeout)) {
+    const raw = enrichedParams.timeout
+    const ms = raw <= 600 ? raw * 1000 : raw
+    enrichedParams.timeout = Math.min(Math.max(ms, 1000), 300_000)
+  }
   if (params.sandboxId !== undefined) {
     if (typeof params.sandboxId !== 'string' || !params.sandboxId.trim()) {
       throw new Error('sandboxId must be a non-empty Sim sandbox id')

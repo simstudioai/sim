@@ -47,7 +47,10 @@ describe('table application context', () => {
   it('conceals an asserted cross-workspace table before workspace resolution', async () => {
     await expect(
       resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-2' })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Table not found' })
+    ).rejects.toMatchObject({
+      code: 'not_found',
+      message: expect.stringContaining('not found in this workspace'),
+    })
     expect(loadWorkspace).not.toHaveBeenCalled()
   })
 

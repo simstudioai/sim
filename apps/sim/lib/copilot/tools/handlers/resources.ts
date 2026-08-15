@@ -66,7 +66,9 @@ async function resolveResource(
     const wf = await getWorkflowById(item.id)
     if (!wf) return { error: `No workflow with id "${item.id}".` }
     if (context.workspaceId && wf.workspaceId !== context.workspaceId)
-      return { error: `Workflow not found in the current workspace.` }
+      return {
+        error: `Workflow "${item.id}" is not in the current workspace — run glob("workflows/*/meta.json") for workflows you can reference.`,
+      }
     resourceId = wf.id
     title = wf.name
   }
@@ -75,7 +77,9 @@ async function resolveResource(
     const tbl = await getTableById(item.id)
     if (!tbl) return { error: `No table with id "${item.id}".` }
     if (context.workspaceId && tbl.workspaceId !== context.workspaceId)
-      return { error: `Table not found in the current workspace.` }
+      return {
+        error: `Table "${item.id}" is not in the current workspace — run glob("tables/*") for tables you can reference.`,
+      }
     resourceId = tbl.id
     title = tbl.name
     if (item.view) {
@@ -113,7 +117,9 @@ async function resolveResource(
         classified?.code === 'forbidden' ||
         classified?.code === 'unauthorized'
       ) {
-        return { error: 'Knowledge base not found in the current workspace.' }
+        return {
+          error: `Knowledge base "${item.id}" is not readable in the current workspace — it does not exist here or you lack access. Run glob("knowledgebases/*") for ids you can open.`,
+        }
       }
       throw error
     }
@@ -125,7 +131,9 @@ async function resolveResource(
     const logRecord = await getLogById(item.id)
     if (!logRecord) return { error: `No log with id "${item.id}".` }
     if (context.workspaceId && logRecord.workspaceId !== context.workspaceId)
-      return { error: `Log not found in the current workspace.` }
+      return {
+        error: `Log "${item.id}" is not in the current workspace — use query_logs to find valid execution ids.`,
+      }
     resourceId = logRecord.id
     const workflowName = logRecord.workflowName ?? 'Unknown Workflow'
     const timestamp = logRecord.startedAt.toLocaleString('en-US', {

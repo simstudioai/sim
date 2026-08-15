@@ -1124,7 +1124,7 @@ export async function validateWorkflowSelectorIds(
         blockType: selector.blockType,
         field: selector.fieldName,
         value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} - ID(s) do not exist or user doesn't have access${warningInfo}`,
+        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} — they do not exist in this workspace or you lack access. Discover valid ids first (glob/read the matching workspace resource, e.g. environment/credentials.json, knowledgebases/*/meta.json, tables/*/meta.json) instead of guessing${warningInfo}`,
       })
     } else if (result.warning) {
       // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
@@ -1733,7 +1733,7 @@ export async function preValidateCredentialInputs(
           blockType: credInput.blockType,
           field: credInput.fieldName,
           value: credInput.value,
-          error: `Invalid credential ID "${credInput.value}" - credential does not exist or user doesn't have access${warningInfo}`,
+          error: `Invalid credential ID "${credInput.value}" for ${credInput.blockType}.${credInput.fieldName} — the field was removed from the block. Read environment/credentials.json for connected credential ids, or use oauth_get_auth_link (via the auth agent) to connect the provider first; never invent credential ids${warningInfo}`,
         })
       }
 

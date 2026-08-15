@@ -272,10 +272,17 @@ export const discordConnector: ConnectorConfig = {
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to validate configuration')
       if (message.includes('401') || message.includes('403')) {
-        return { valid: false, error: 'Invalid bot token or missing permissions for this channel' }
+        return {
+          valid: false,
+          error:
+            'Discord rejected the request (401/403) — the bot token is invalid, or the bot lacks access to this channel (invite the bot to the server/channel and grant Read Message History).',
+        }
       }
       if (message.includes('404')) {
-        return { valid: false, error: `Channel not found: ${channelId}` }
+        return {
+          valid: false,
+          error: `Channel not found: ${channelId}. The bot cannot see it — invite the bot to that server/channel, or check the channel id.`,
+        }
       }
       return { valid: false, error: message }
     }

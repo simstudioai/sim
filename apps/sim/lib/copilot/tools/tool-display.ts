@@ -1137,10 +1137,35 @@ export function getToolCompletedTitle(title: string): string | undefined {
 }
 
 /**
+ * Rewrite a resolved display title for a FAILED tool call. A gerund title
+ * becomes "Failed <gerund>…" ("Searching for X" → "Failed searching for X");
+ * anything else gets a "Failed: " prefix. Without this, an errored row kept
+ * its present-tense activity title verbatim and read as still running.
+ */
+export function getToolFailedTitle(title: string): string {
+  const spaceIndex = title.indexOf(' ')
+  const firstWord = spaceIndex === -1 ? title : title.slice(0, spaceIndex)
+  if (COMPLETED_VERB_REWRITES[firstWord]) {
+    return `Failed ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
+  }
+  return `Failed: ${title}`
+}
+
+/** Rewrite a resolved display title for a CANCELLED tool call ("Stopped <gerund>…"). */
+export function getToolStoppedTitle(title: string): string {
+  const spaceIndex = title.indexOf(' ')
+  const firstWord = spaceIndex === -1 ? title : title.slice(0, spaceIndex)
+  if (COMPLETED_VERB_REWRITES[firstWord]) {
+    return `Stopped ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
+  }
+  return `Stopped: ${title}`
+}
+
+/**
  * Resolve the final title for a tool status at a rendering boundary. Persisted
  * and live snapshots intentionally keep the present-tense activity title so a
- * running/error row remains truthful; every successful renderer calls this to
- * project the corresponding completed title from the canonical verb map.
+ * RUNNING row remains truthful; terminal states project a tense that says the
+ * work is over — completed (past tense), failed, or stopped.
  */
 export function getToolStatusDisplayTitle(
   title: string,
@@ -1150,5 +1175,8 @@ export function getToolStatusDisplayTitle(
   if (status === 'success' && toolName === 'browser_request_takeover') {
     return 'Resumed browser control'
   }
-  return status === 'success' ? (getToolCompletedTitle(title) ?? title) : title
+  if (status === 'success') return getToolCompletedTitle(title) ?? title
+  if (status === 'error' || status === 'rejected') return getToolFailedTitle(title)
+  if (status === 'cancelled' || status === 'aborted') return getToolStoppedTitle(title)
+  return title
 }

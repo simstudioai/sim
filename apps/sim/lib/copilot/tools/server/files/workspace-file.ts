@@ -381,7 +381,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             if (classified?.code !== 'not_found') throw error
           }
           if (existingFile) {
-            return { success: false, message: `File "${target.fileName}" already exists` }
+            return {
+              success: false,
+              message: `File "${target.fileName}" already exists in this workspace (file names are workspace-scoped; folders do not namespace them). Use operation "update"/"append"/"patch" to change it, rename the existing file, or pick a different fileName.`,
+            }
           }
 
           const compiled = await compileDocForWrite({
