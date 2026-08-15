@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkspaceOperation } from '@/lib/core/application'
+import { authorizeWorkspaceOperation, createWorkspacePermissionCache } from '@/lib/core/application'
 import { classifyBulkItemError } from '@/lib/core/application/bulk-items'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -12,7 +12,10 @@ import {
   planFolderSelection,
 } from '@/lib/folders/bulk'
 import { findActiveFolder } from '@/lib/folders/queries'
-import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
+import {
+  type KnowledgeAuthorizationOptions,
+  knowledgeDelegationPolicy,
+} from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   type BoundedKnowledgeSelection,
@@ -26,7 +29,7 @@ import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/bi
 import {
   type ActiveKnowledgeBaseContext,
   type KnowledgeWorkspaceContext,
-  resolveActiveKnowledgeBaseContext,
+  resolveActiveKnowledgeBaseInWorkspace,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -119,20 +122,27 @@ async function resolveBulkKnowledgeContext(
  */
 async function runKnowledgeItems(
   knowledgeBaseIds: readonly string[],
-  workspaceId: string,
+  workspace: KnowledgeWorkspaceContext,
   covered: ReadonlySet<string>,
-  authorize: (canonical: ActiveKnowledgeBaseContext) => Promise<void>,
+  authorize: (
+    canonical: ActiveKnowledgeBaseContext,
+    options: KnowledgeAuthorizationOptions
+  ) => Promise<void>,
   apply: (canonical: ActiveKnowledgeBaseContext) => Promise<string>,
   succeeded: BulkKnowledgeItem[],
   outcome: BulkKnowledgeOutcome
 ): Promise<unknown | undefined> {
+  /**
+   * Built here rather than by each caller so a bulk loop cannot forget it: every item authorizes
+   * against the same `(user, workspace, organization)` triple, and without the memo that is two
+   * identical queries per item.
+   */
+  const permissionCache = createWorkspacePermissionCache()
+
   for (const knowledgeBaseId of knowledgeBaseIds) {
     let knowledgeBaseName = knowledgeBaseId
     try {
-      const canonical = await resolveActiveKnowledgeBaseContext({
-        knowledgeBaseId,
-        assertedWorkspaceId: workspaceId,
-      })
+      const canonical = await resolveActiveKnowledgeBaseInWorkspace(knowledgeBaseId, workspace)
       knowledgeBaseName = canonical.knowledgeBase.name
       const folderId = canonical.knowledgeBase.folderId
       if (folderId && covered.has(folderId)) {
@@ -143,7 +153,7 @@ async function runKnowledgeItems(
         })
         continue
       }
-      await authorize(canonical)
+      await authorize(canonical, { permissionCache })
       succeeded.push({
         kind: 'knowledgeBase',
         id: canonical.knowledgeBaseId,
@@ -221,10 +231,11 @@ export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
 
     const terminalError = await runKnowledgeItems(
       context.knowledgeBaseIds,
-      context.workspaceId,
+      context,
       plan.covered,
-      (canonical) =>
+      (canonical, options) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkMoveItems, canonical, {
+          ...options,
           delegation: knowledgeDelegationPolicy,
         }),
       async (canonical) =>
@@ -323,10 +334,11 @@ export const bulkDeleteKnowledgeItems = defineAuthorizedKnowledgeUseCase({
 
     const terminalError = await runKnowledgeItems(
       context.knowledgeBaseIds,
-      context.workspaceId,
+      context,
       plan.covered,
-      (canonical) =>
+      (canonical, options) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkDeleteItems, canonical, {
+          ...options,
           delegation: knowledgeDelegationPolicy,
         }),
       async (canonical) => {

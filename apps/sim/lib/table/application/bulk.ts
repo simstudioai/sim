@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { createWorkspacePermissionCache } from '@/lib/core/application'
 import { type BulkItemDisposition, classifyBulkItemError } from '@/lib/core/application/bulk-items'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -13,7 +14,10 @@ import {
 import { findActiveFolder } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { deleteTable, moveTableToFolder } from '@/lib/table'
-import { authorizeTableOperation } from '@/lib/table/application/authorization'
+import {
+  authorizeTableOperation,
+  type TableAuthorizationOptions,
+} from '@/lib/table/application/authorization'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import {
   type BoundedTableSelection,
@@ -25,7 +29,7 @@ import {
 } from '@/lib/table/application/batch-policy'
 import {
   type ActiveTableContext,
-  resolveActiveTableContext,
+  resolveActiveTableInWorkspace,
   resolveTableWorkspaceContext,
   type TableWorkspaceContext,
 } from '@/lib/table/application/context'
@@ -159,27 +163,31 @@ async function notifyBatchedTableChanges(
  */
 async function runTableItems(
   tableIds: readonly string[],
-  workspaceId: string,
+  workspace: TableWorkspaceContext,
   covered: ReadonlySet<string>,
-  authorize: (canonical: ActiveTableContext) => Promise<void>,
+  authorize: (canonical: ActiveTableContext, options: TableAuthorizationOptions) => Promise<void>,
   /** Runs against an already-authorized canonical table. Returns its authoritative name. */
   apply: (canonical: ActiveTableContext) => Promise<string>,
   succeeded: BulkTableItem[],
   outcome: BulkTablesOutcome
 ): Promise<unknown | undefined> {
+  /**
+   * Built here rather than by each caller so a bulk loop cannot forget it: every item authorizes
+   * against the same `(user, workspace, organization)` triple, and without the memo that is two
+   * identical queries per item.
+   */
+  const permissionCache = createWorkspacePermissionCache()
+
   for (const tableId of tableIds) {
     let tableName = tableId
     try {
-      const canonical = await resolveActiveTableContext({
-        tableId,
-        assertedWorkspaceId: workspaceId,
-      })
+      const canonical = await resolveActiveTableInWorkspace(tableId, workspace)
       tableName = canonical.table.name
       if (canonical.table.folderId && covered.has(canonical.table.folderId)) {
         outcome.skipped.push({ kind: 'table', id: canonical.table.id, name: tableName })
         continue
       }
-      await authorize(canonical)
+      await authorize(canonical, { permissionCache })
       succeeded.push({
         kind: 'table',
         id: canonical.table.id,
@@ -249,9 +257,10 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
     try {
       const terminalError = await runTableItems(
         context.tableIds,
-        context.workspaceId,
+        context,
         plan.covered,
-        (canonical) => authorizeTableOperation(principal, tableOperations.bulkMove, canonical),
+        (canonical, options) =>
+          authorizeTableOperation(principal, tableOperations.bulkMove, canonical, options),
         async (canonical) =>
           (
             await moveTableToFolder(
@@ -355,9 +364,10 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
     try {
       const terminalError = await runTableItems(
         context.tableIds,
-        context.workspaceId,
+        context,
         plan.covered,
-        (canonical) => authorizeTableOperation(principal, tableOperations.bulkDelete, canonical),
+        (canonical, options) =>
+          authorizeTableOperation(principal, tableOperations.bulkDelete, canonical, options),
         async (canonical) => {
           const { archived } = await deleteTable(canonical.table.id, generateRequestId(), {
             expectedWorkspaceId: context.workspaceId,

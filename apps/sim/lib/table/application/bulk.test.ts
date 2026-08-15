@@ -64,7 +64,7 @@ vi.mock('@/lib/table', () => ({
   moveTableToFolder: mocks.moveTableToFolder,
 }))
 vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveTableContext,
+  resolveActiveTableInWorkspace: mocks.resolveTableContext,
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
@@ -99,9 +99,7 @@ describe('table bulk application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
-    mocks.resolveTableContext.mockImplementation(async ({ tableId }: { tableId: string }) =>
-      tableContext(tableId)
-    )
+    mocks.resolveTableContext.mockImplementation(async (tableId: string) => tableContext(tableId))
     mocks.moveTableToFolder.mockResolvedValue({ name: 'Moved' })
     mocks.deleteTable.mockResolvedValue({
       archived: { name: 'Archived', workspaceId: 'workspace-1' },
@@ -191,7 +189,7 @@ describe('table bulk application use cases', () => {
       contained: [],
       covered: new Set(['folder-1', 'folder-child']),
     })
-    mocks.resolveTableContext.mockImplementation(async ({ tableId }: { tableId: string }) =>
+    mocks.resolveTableContext.mockImplementation(async (tableId: string) =>
       tableContext(tableId, 'folder-child')
     )
 
@@ -291,6 +289,39 @@ describe('table bulk application use cases', () => {
 
     expect(mocks.moveTableToFolder).not.toHaveBeenCalled()
     expect(mocks.bulkMoveFolders).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The batch authorizes every table separately — delegation scope is per-resource — but the
+   * human-permission half of that check reads the same row every time. Without the shared memo a
+   * hundred-table request is a hundred identical lookups, two queries deep.
+   *
+   * Two calls, not one: the use case authorizes the operation itself before the loop starts, and
+   * that check is outside the batch memo. What matters is that the count does not grow with the
+   * selection.
+   */
+  it('resolves the caller permission once for the whole batch, however many items it carries', async () => {
+    const move = (tableIds: string[]) =>
+      bulkMoveTables.execute({
+        principal,
+        input: {
+          assertedWorkspaceId: 'workspace-1',
+          tableIds,
+          folderIds: [],
+          targetFolderId: 'folder-1',
+        },
+      })
+
+    const small = await move(['table-1', 'table-2', 'table-3'])
+    expect(small.moved).toHaveLength(3)
+    const afterSmall = mocks.resolvePermission.mock.calls.length
+
+    mocks.resolvePermission.mockClear()
+    const large = await move(Array.from({ length: 25 }, (_, index) => `table-${index}`))
+    expect(large.moved).toHaveLength(25)
+
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(afterSmall)
+    expect(afterSmall).toBe(2)
   })
 
   it('moves tables and folders in one operation', async () => {
