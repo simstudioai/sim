@@ -1850,7 +1850,7 @@ export function TableGrid({
       return
     }
 
-    const columnName = header.dataset.columnDragTarget
+    let columnName = header.dataset.columnDragTarget
     if (!columnName) {
       handleColumnDragLeave()
       return
@@ -1859,6 +1859,15 @@ export function TableGrid({
     const targetGroupId = header.dataset.columnDragGroup
     let { left, right } = header.getBoundingClientRect()
     if (targetGroupId) {
+      const targetColumn = columnsRef.current.find((column) => column.key === columnName)
+      const groupStart = targetColumn
+        ? columnsRef.current[targetColumn.groupStartColIndex]
+        : undefined
+      if (!groupStart || groupStart.workflowGroupId !== targetGroupId) {
+        throw new Error(`Missing rendered start column for workflow group ${targetGroupId}`)
+      }
+      columnName = groupStart.key
+
       const groupHeaders = thead.querySelectorAll<HTMLElement>('th[data-column-drag-group]')
       for (const groupHeader of groupHeaders) {
         if (groupHeader.dataset.columnDragGroup !== targetGroupId) continue
