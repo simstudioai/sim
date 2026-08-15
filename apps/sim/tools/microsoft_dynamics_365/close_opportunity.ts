@@ -9,7 +9,6 @@ import {
   getDynamics365BaseUrl,
   normalizeDataverseGuid,
   parseDataverseInt32,
-  parseDataverseRequiredString,
 } from '@/tools/microsoft_dynamics_365/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -67,15 +66,16 @@ export const microsoftDynamics365CloseOpportunityTool: ToolConfig<
     },
     subject: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Subject for the opportunity-close activity (maximum 200 characters)',
+      description: 'Optional subject for the opportunity-close activity (maximum 200 characters)',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional description for the opportunity-close activity',
+      description:
+        'Optional description for the opportunity-close activity (maximum 2,000 characters)',
     },
     statusReason: {
       type: 'number',
@@ -103,7 +103,6 @@ export const microsoftDynamics365CloseOpportunityTool: ToolConfig<
     body: (params) => {
       const opportunityId = normalizeDataverseGuid(params.opportunityId, 'opportunityId')
       const outcome = parseOpportunityOutcome(params.outcome)
-      const subject = parseDataverseRequiredString(params.subject, 'subject', 200)
       const status =
         params.statusReason === undefined
           ? outcome === 'won'
@@ -112,11 +111,23 @@ export const microsoftDynamics365CloseOpportunityTool: ToolConfig<
           : parseDataverseInt32(params.statusReason, 'statusReason')
       const opportunityClose: Record<string, unknown> = {
         'opportunityid@odata.bind': `/opportunities(${opportunityId})`,
-        subject,
+      }
+      if (params.subject !== undefined) {
+        if (typeof params.subject !== 'string') {
+          throw new Error('subject must be a string')
+        }
+        const subject = params.subject.trim()
+        if (subject.length > 200) {
+          throw new Error('subject must be at most 200 characters')
+        }
+        if (subject.length > 0) opportunityClose.subject = subject
       }
       if (params.description !== undefined) {
         if (typeof params.description !== 'string') {
           throw new Error('description must be a string')
+        }
+        if (params.description.length > 2_000) {
+          throw new Error('description must be at most 2000 characters')
         }
         opportunityClose.description = params.description
       }

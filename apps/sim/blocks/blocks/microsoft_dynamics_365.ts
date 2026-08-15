@@ -71,6 +71,55 @@ function optionalString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
+function optionalOpaqueString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function optionalBoundedString(
+  value: unknown,
+  label: string,
+  maxLength: number
+): string | undefined {
+  const normalized = optionalString(value)
+  if (normalized !== undefined && normalized.length > maxLength) {
+    throw new Error(`${label} must be at most ${maxLength} characters.`)
+  }
+  return normalized
+}
+
+function getListPaginationParams(params: Record<string, unknown>) {
+  const pageSize = parseOptionalNumberInput(params.maxResults, 'Max results', {
+    integer: true,
+    min: 1,
+    max: 100,
+  })
+  const nextLink = optionalOpaqueString(params.nextLink)
+  const nextPageSize = parseOptionalNumberInput(params.nextPageSize, 'Next page size', {
+    integer: true,
+    min: 1,
+    max: 100,
+  })
+
+  if (nextLink !== undefined) {
+    if (nextPageSize === undefined) {
+      throw new Error('Next page size is required when Next Page URL is provided.')
+    }
+    if (pageSize !== undefined && pageSize !== nextPageSize) {
+      throw new Error('Max results must match Next page size.')
+    }
+    return {
+      nextLink,
+      nextPageSize,
+      ...(pageSize !== undefined && { pageSize }),
+    }
+  }
+
+  if (nextPageSize !== undefined) {
+    throw new Error('Next page size may only be provided with Next Page URL.')
+  }
+  return { pageSize: pageSize ?? 100 }
+}
+
 function parseRequiredRecord(value: unknown): Record<string, unknown> {
   const parsed = parseOptionalJsonInput<unknown>(value, 'Record data')
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -345,6 +394,16 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'nextPageSize',
+      title: 'Next Page Size',
+      type: 'short-input',
+      placeholder: 'Use the nextPageSize output from the previous page',
+      description:
+        'Exact continuation page size returned with the previous List Records or List Owners result.',
+      condition: { field: 'operation', value: ['list_records', 'list_owners'] },
+      mode: 'advanced',
+    },
+    {
       id: 'searchTerm',
       title: 'Search Term',
       type: 'short-input',
@@ -544,14 +603,15 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       title: 'Close Subject',
       type: 'short-input',
       placeholder: 'Reason or summary for closing the opportunity',
+      description: 'Optional subject for the opportunity-close activity (maximum 200 characters).',
       condition: { field: 'operation', value: 'close_opportunity' },
-      required: { field: 'operation', value: 'close_opportunity' },
     },
     {
       id: 'opportunityDescription',
       title: 'Close Notes',
       type: 'long-input',
       placeholder: 'Optional details about the outcome',
+      description: 'Optional opportunity-close description (maximum 2,000 characters).',
       condition: { field: 'operation', value: 'close_opportunity' },
       mode: 'advanced',
     },
@@ -584,6 +644,7 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       title: 'Resolution Notes',
       type: 'long-input',
       placeholder: 'Optional resolution details',
+      description: 'Optional case-resolution description (maximum 100,000 characters).',
       condition: { field: 'operation', value: 'close_case' },
       mode: 'advanced',
     },
@@ -646,12 +707,6 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
         switch (params.operation) {
           case 'list_records': {
             const recordType = getRecordType(params.recordType)
-            const top =
-              parseOptionalNumberInput(params.maxResults, 'Max results', {
-                integer: true,
-                min: 1,
-                max: 100,
-              }) ?? 100
             const includeCount = parseBooleanWithDefault(
               params.includeCount,
               'Include total count',
@@ -672,9 +727,8 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
               ...(optionalString(params.recordExpand) && {
                 expand: optionalString(params.recordExpand),
               }),
-              pageSize: top,
+              ...getListPaginationParams(params),
               count: includeCount ? 'true' : 'false',
-              ...(optionalString(params.nextLink) && { nextLink: optionalString(params.nextLink) }),
             }
           }
 
@@ -744,19 +798,12 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
 
           case 'list_owners': {
             const ownerType = getOwnerType(params.ownerType)
-            const top =
-              parseOptionalNumberInput(params.maxResults, 'Max results', {
-                integer: true,
-                min: 1,
-                max: 100,
-              }) ?? 100
             return {
               ...common,
               entitySetName: ownerType.entitySetName,
               select: ownerType.select,
               filter: ownerType.filter,
-              pageSize: top,
-              ...(optionalString(params.nextLink) && { nextLink: optionalString(params.nextLink) }),
+              ...getListPaginationParams(params),
             }
           }
 
@@ -840,14 +887,18 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
               'Opportunity status reason',
               { integer: true, min: -2_147_483_648, max: 2_147_483_647 }
             )
+            const subject = optionalBoundedString(params.opportunitySubject, 'Close subject', 200)
+            const description = optionalBoundedString(
+              params.opportunityDescription,
+              'Close notes',
+              2_000
+            )
             return {
               ...common,
               opportunityId: requiredString(params.closeOpportunityId, 'Opportunity ID'),
               outcome: requiredString(params.opportunityOutcome ?? 'won', 'Outcome'),
-              subject: requiredString(params.opportunitySubject, 'Close subject', 200),
-              ...(optionalString(params.opportunityDescription) && {
-                description: optionalString(params.opportunityDescription),
-              }),
+              ...(subject && { subject }),
+              ...(description && { description }),
               ...(statusReason !== undefined && { statusReason }),
             }
           }
@@ -863,13 +914,16 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
               'Case status reason',
               { integer: true, min: -2_147_483_648, max: 2_147_483_647 }
             )
+            const description = optionalBoundedString(
+              params.caseDescription,
+              'Resolution notes',
+              100_000
+            )
             return {
               ...common,
               caseId: requiredString(params.caseId, 'Case ID'),
               subject: requiredString(params.caseSubject, 'Resolution subject', 200),
-              ...(optionalString(params.caseDescription) && {
-                description: optionalString(params.caseDescription),
-              }),
+              ...(description && { description }),
               ...(timeSpent !== undefined && { timeSpent }),
               ...(statusReason !== undefined && { statusReason }),
             }
@@ -898,6 +952,10 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
     maxResults: { type: 'string', description: 'Maximum results for a single page (1-100)' },
     includeCount: { type: 'boolean', description: 'Whether to request the total matching count' },
     nextLink: { type: 'string', description: 'Opaque next-page URL from a previous list result' },
+    nextPageSize: {
+      type: 'string',
+      description: 'Page size paired with the previous list result nextLink',
+    },
     searchTerm: { type: 'string', description: 'Dataverse Search query text' },
     searchSkip: { type: 'string', description: 'Number of earlier search results to skip' },
     searchMode: { type: 'string', description: 'Search mode: any or all' },
@@ -973,6 +1031,10 @@ export const MicrosoftDynamics365Block: BlockConfig<DataverseResponse> = {
       description: 'Whether Dataverse capped the provider-reported matching count',
     },
     nextLink: { type: 'string', description: 'Opaque provider URL for the next records page' },
+    nextPageSize: {
+      type: 'number',
+      description: 'Page size that must accompany the next records page URL',
+    },
     results: {
       type: 'json',
       description: 'Current page of Dataverse Search results with table-specific attributes',
@@ -1117,7 +1179,7 @@ export const MicrosoftDynamics365BlockMeta = {
       description:
         'Close an approved Dynamics 365 opportunity as won or lost with an explicit outcome summary.',
       content:
-        '# Close Sales Opportunity\n\nUse this skill only after the user or an authorized workflow step has approved the final outcome.\n\n## Steps\n1. Retrieve the opportunity and confirm its record ID and intended outcome.\n2. Ask for a close subject and optional notes.\n3. Use Close Opportunity with won or lost; supply a custom status-reason integer only when the environment defines it.\n4. Do not retry the close action automatically.\n5. Report the supplied opportunity ID and outcome without claiming a response status Dynamics 365 did not return.\n\n## Output\nThe closed opportunity ID, chosen outcome, and action success.',
+        '# Close Sales Opportunity\n\nUse this skill only after the user or an authorized workflow step has approved the final outcome.\n\n## Steps\n1. Retrieve the opportunity and confirm its record ID and intended outcome.\n2. Optionally gather a close subject and notes.\n3. Use Close Opportunity with won or lost; supply a custom status-reason integer only when the environment defines it.\n4. Do not retry the close action automatically.\n5. Report the supplied opportunity ID and outcome without claiming a response status Dynamics 365 did not return.\n\n## Output\nThe closed opportunity ID, chosen outcome, and action success.',
     },
     {
       name: 'resolve-customer-case',

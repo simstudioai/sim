@@ -47,6 +47,7 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `expand` | string | No | Navigation properties to expand \(OData $expand\) |
 | `count` | string | No | Set to "true" to include total record count in response \(OData $count\) |
 | `nextLink` | string | No | Exact nextLink returned by a previous page of this operation |
+| `nextPageSize` | number | No | Exact nextPageSize returned alongside nextLink by the previous page |
 
 #### Output
 
@@ -57,6 +58,7 @@ Query and list records from a Microsoft Dataverse table. Supports OData query op
 | `totalCount` | number | Provider-reported matching-record count, which Dataverse may cap \(requires $count=true\) |
 | `totalCountLimitExceeded` | boolean | Whether Dataverse capped the provider-reported matching-record count |
 | `nextLink` | string | URL for the next page of results |
+| `nextPageSize` | number | Page size that must accompany nextLink on the continuation request |
 | `success` | boolean | Operation success status |
 
 ### Get Microsoft Dynamics 365 CRM Record
@@ -201,8 +203,8 @@ Close a Dynamics 365 Sales opportunity as won or lost.
 | `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `opportunityId` | string | Yes | GUID of the opportunity to close |
 | `outcome` | string | Yes | Opportunity outcome: won or lost |
-| `subject` | string | Yes | Subject for the opportunity-close activity \(maximum 200 characters\) |
-| `description` | string | No | Optional description for the opportunity-close activity |
+| `subject` | string | No | Optional subject for the opportunity-close activity \(maximum 200 characters\) |
+| `description` | string | No | Optional description for the opportunity-close activity \(maximum 2,000 characters\) |
 | `statusReason` | number | No | Opportunity status-reason value \(defaults to 3 for won or 4 for lost\) |
 
 #### Output
@@ -225,7 +227,7 @@ Resolve and close a Dynamics 365 Customer Service case.
 | `environmentUrl` | string | Yes | Dynamics 365 environment URL \(e.g., https://myorg.crm.dynamics.com\) |
 | `caseId` | string | Yes | GUID of the case to close |
 | `subject` | string | Yes | Subject for the case-resolution activity \(maximum 200 characters\) |
-| `description` | string | No | Optional description for the case-resolution activity |
+| `description` | string | No | Optional description for the case-resolution activity \(maximum 100,000 characters\) |
 | `timeSpent` | number | No | Optional nonnegative number of minutes spent resolving the case |
 | `statusReason` | number | No | Resolved case status-reason value \(default: 5\) |
 
