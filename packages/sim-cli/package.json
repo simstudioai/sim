@@ -55,6 +55,6 @@
     "commander": "^11.1.0",
     "js-yaml": "4.3.0",
     "typescript": "^7.0.2",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.0"
   }
 }
