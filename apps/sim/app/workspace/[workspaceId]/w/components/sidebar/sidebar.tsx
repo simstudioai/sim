@@ -457,6 +457,7 @@ export const Sidebar = memo(function Sidebar({
     config: permissionConfig,
     filterBlocks,
     isBlockAllowed,
+    isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
   const { navigateToSettings } = useSettingsNavigation()
@@ -472,8 +473,14 @@ export const Sidebar = memo(function Sidebar({
   )
 
   useEffect(() => {
-    initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks, providerModelSignature, customBlockOverlayVersion])
+    initializeSearchData(filterBlocks, isToolAllowed)
+  }, [
+    initializeSearchData,
+    filterBlocks,
+    isToolAllowed,
+    providerModelSignature,
+    customBlockOverlayVersion,
+  ])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
