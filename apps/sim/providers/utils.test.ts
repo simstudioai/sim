@@ -16,6 +16,7 @@ import {
   describeModelLevel,
   extractAndParseJSON,
   filterBlacklistedModels,
+  findProviderFromModel,
   formatCost,
   generateStructuredOutputInstructions,
   getAllModelProviders,
@@ -2043,5 +2044,29 @@ describe('describeModelLevel', () => {
   it('reports an absent level without throwing', () => {
     expect(describeModelLevel(undefined)).toBe('(unset)')
     expect(describeModelLevel('')).toBe('(unset)')
+  })
+})
+
+describe('findProviderFromModel', () => {
+  it('resolves a chat model to its declaring provider', () => {
+    expect(findProviderFromModel('claude-sonnet-5')).toBe('anthropic')
+    expect(findProviderFromModel('gpt-5.2')).toBe('openai')
+  })
+
+  it('is case-insensitive, like getProviderFromModel', () => {
+    expect(findProviderFromModel('Claude-Sonnet-5')).toBe('anthropic')
+  })
+
+  it('returns null for ids the registry does not declare, instead of guessing ollama', () => {
+    /* The registry holds chat models only. Speech, image, video and embedding
+       ids reach `model` subblocks too, and a permission gate must not read them
+       as Ollama models — see isModelUsable. */
+    for (const id of ['whisper-1', 'dall-e-3', 'veo-3.1', 'embed-v4.0', 'tts-1']) {
+      expect(findProviderFromModel(id)).toBeNull()
+    }
+  })
+
+  it('still lets getProviderFromModel fall back to ollama for those ids', () => {
+    expect(getProviderFromModel('whisper-1')).toBe('ollama')
   })
 })
