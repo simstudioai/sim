@@ -772,7 +772,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         ],
       },
       description:
-        'Base-system incident states. Instances with a customized state model can use different coded values.',
+        'Base-system incident states. Instances with a customized state model can use different coded values. Moving to On Hold also needs an On hold reason (Awaiting Caller, Awaiting Change, Awaiting Problem, or Awaiting Vendor), which you set through Additional Fields; Awaiting Caller additionally requires Additional Comments.',
     },
     {
       id: 'state',
@@ -1458,7 +1458,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       title: 'Additional Fields (JSON)',
       type: 'code',
       language: 'json',
-      placeholder: '{\n  "hold_reason": "1"\n}',
+      placeholder: '{\n  "correlation_id": "abc-123"\n}',
       condition: { field: 'operation', value: [...SEMANTIC_WRITE_OPS] },
       description:
         'Raw ServiceNow column names for anything not covered above. Merged last, so it overrides the fields set here.',

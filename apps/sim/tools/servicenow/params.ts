@@ -132,7 +132,7 @@ export const additionalFieldsParam: ServiceNowParams = {
     required: false,
     visibility: 'user-or-llm',
     description:
-      'Any other ServiceNow fields to set, as a JSON object of raw column names (e.g., {"hold_reason": "1", "u_custom": "x"}). Merged last, so it overrides the named parameters.',
+      'Any other ServiceNow fields to set, as a JSON object of raw column names (e.g., {"correlation_id": "abc-123", "u_custom": "x"}). Merged last, so it overrides the named parameters.',
   },
 }
 
