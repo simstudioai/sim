@@ -81,7 +81,7 @@ jobs:
               ;;
             staging)
               VERSION="${BASE_VERSION}-preview.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
-              TAG="preview"
+              TAG="staging"
               ;;
             main)
               VERSION="$BASE_VERSION"

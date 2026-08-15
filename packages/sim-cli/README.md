@@ -11,7 +11,7 @@ sim workflows list
 Prerelease channels track the corresponding Sim environments:
 
 ```bash
-npm install --global sim@preview # staging
+npm install --global sim@staging # staging
 npm install --global sim@dev     # dev
 ```
 
