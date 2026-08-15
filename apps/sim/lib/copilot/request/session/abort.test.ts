@@ -22,37 +22,11 @@ vi.mock('@/lib/copilot/request/otel', () => ({
 }))
 
 import {
-  abortActiveStream,
   acquirePendingChatStream,
   getChatStreamLockOwners,
-  registerActiveStream,
   releasePendingChatStream,
   startAbortPoller,
 } from '@/lib/copilot/request/session/abort'
-
-describe('active stream cancellation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('fires both the transport and explicit-stop controllers', async () => {
-    const transportController = new AbortController()
-    const userStopController = new AbortController()
-
-    registerActiveStream('stream-stop', transportController, userStopController)
-
-    await expect(abortActiveStream('stream-stop')).resolves.toBe(true)
-    expect(mockWriteAbortMarker).toHaveBeenCalledWith('stream-stop')
-    expect(transportController.signal).toMatchObject({
-      aborted: true,
-      reason: 'user_stop:abortActiveStream',
-    })
-    expect(userStopController.signal).toMatchObject({
-      aborted: true,
-      reason: 'user_stop:abortActiveStream',
-    })
-  })
-})
 
 describe('startAbortPoller heartbeat', () => {
   beforeEach(() => {
@@ -130,7 +104,6 @@ describe('startAbortPoller heartbeat', () => {
 
   it('aborts the controller before clearing the marker so the marker is never observable as cleared while the signal is still unaborted', async () => {
     const controller = new AbortController()
-    const userStopController = new AbortController()
     const streamId = 'stream-order-1'
 
     let signalAbortedWhenMarkerCleared: boolean | null = null
@@ -139,7 +112,7 @@ describe('startAbortPoller heartbeat', () => {
     })
     mockHasAbortMarker.mockResolvedValueOnce(true)
 
-    const interval = startAbortPoller(streamId, controller, { userStopController })
+    const interval = startAbortPoller(streamId, controller, {})
 
     try {
       await vi.advanceTimersByTimeAsync(300)
@@ -147,10 +120,6 @@ describe('startAbortPoller heartbeat', () => {
       expect(mockClearAbortMarker).toHaveBeenCalledWith(streamId)
       expect(signalAbortedWhenMarkerCleared).toBe(true)
       expect(controller.signal.aborted).toBe(true)
-      expect(userStopController.signal).toMatchObject({
-        aborted: true,
-        reason: 'redis_abort_marker:poller',
-      })
     } finally {
       clearInterval(interval)
     }
@@ -174,49 +143,21 @@ describe('startAbortPoller heartbeat', () => {
     }
   })
 
-  it('aborts the stale lifecycle and stops heartbeating after ownership is lost', async () => {
+  it('stops heartbeating after ownership is lost', async () => {
     const controller = new AbortController()
-    const userStopController = new AbortController()
     const streamId = 'stream-lost'
     const chatId = 'chat-lost'
 
     redisConfigMockFns.mockExtendLock.mockResolvedValueOnce(false)
 
-    const interval = startAbortPoller(streamId, controller, { chatId, userStopController })
+    const interval = startAbortPoller(streamId, controller, { chatId })
 
     try {
       await vi.advanceTimersByTimeAsync(21_000)
       expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(1)
-      expect(controller.signal.aborted).toBe(true)
-      expect(controller.signal.reason).toBe('chat_stream_lock:ownership_lost')
-      expect(userStopController.signal.reason).toBe('chat_stream_lock:ownership_lost')
 
       await vi.advanceTimersByTimeAsync(60_000)
       expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(1)
-    } finally {
-      clearInterval(interval)
-    }
-  })
-
-  it('does not overlap heartbeat extensions when Redis is slow', async () => {
-    const controller = new AbortController()
-    let resolveExtend!: (owned: boolean) => void
-    redisConfigMockFns.mockExtendLock.mockReturnValueOnce(
-      new Promise<boolean>((resolve) => {
-        resolveExtend = resolve
-      })
-    )
-
-    const interval = startAbortPoller('stream-slow', controller, { chatId: 'chat-slow' })
-    try {
-      await vi.advanceTimersByTimeAsync(21_000)
-      expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(1)
-
-      await vi.advanceTimersByTimeAsync(5_000)
-      expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(1)
-
-      resolveExtend(true)
-      await vi.advanceTimersByTimeAsync(1)
     } finally {
       clearInterval(interval)
     }

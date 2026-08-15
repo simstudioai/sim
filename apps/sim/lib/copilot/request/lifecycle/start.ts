@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
@@ -58,7 +58,7 @@ export { SSE_RESPONSE_HEADERS }
 
 const logger = createLogger('CopilotChatStreaming')
 
-export type CurrentChatSummary = {
+type CurrentChatSummary = {
   title?: string | null
 } | null
 
@@ -118,8 +118,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     })
 
   const abortController = new AbortController()
-  const userStopController = new AbortController()
-  registerActiveStream(streamId, abortController, userStopController)
+  registerActiveStream(streamId, abortController)
 
   const publisher = new StreamWriter({ streamId, chatId, requestId })
 
@@ -224,7 +223,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           const abortPoller = startAbortPoller(streamId, abortController, {
             requestId,
             chatId,
-            userStopController,
           })
           publisher.startKeepalive()
 
@@ -262,14 +260,10 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               simRequestId: requestId,
               otelContext,
               abortSignal: abortController.signal,
-              userStopSignal: userStopController.signal,
               onEvent: async (event) => {
                 await publisher.publish(event)
               },
               onAbortObserved: (reason) => {
-                if (isExplicitStopReason(reason) && !userStopController.signal.aborted) {
-                  userStopController.abort(reason)
-                }
                 if (!abortController.signal.aborted) {
                   abortController.abort(reason)
                 }
@@ -428,8 +422,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
 // Title generation (fire-and-forget side effect)
 
-/** Starts the shared chat-title side effect without delaying the response stream. */
-export function fireTitleGeneration(params: {
+function fireTitleGeneration(params: {
   chatId?: string
   currentChat: CurrentChatSummary
   isNewChat: boolean
@@ -440,7 +433,7 @@ export function fireTitleGeneration(params: {
   workspaceId?: string
   billingAttribution?: BillingAttributionSnapshot
   requestId: string
-  publisher: Pick<StreamWriter, 'publish'>
+  publisher: StreamWriter
   otelContext?: Context
 }): void {
   const {
@@ -470,12 +463,7 @@ export function fireTitleGeneration(params: {
   })
     .then(async (title) => {
       if (!title) return
-      const [updated] = await db
-        .update(copilotChats)
-        .set({ title })
-        .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.title)))
-        .returning({ id: copilotChats.id })
-      if (!updated) return
+      await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
       await publisher.publish({
         type: MothershipStreamV1EventType.session,
         payload: { kind: MothershipStreamV1SessionKind.title, title },

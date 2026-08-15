@@ -69,7 +69,7 @@ const queryLogsArgsSchema = z.discriminatedUnion('view', [
 type QueryLogsArgs = z.infer<typeof queryLogsArgsSchema>
 
 function resolveWorkspaceId(args: QueryLogsArgs, context?: ServerToolContext): string {
-  const workspaceId = context?.workspaceId ?? args.workspaceId
+  const workspaceId = args.workspaceId ?? context?.workspaceId
   if (!workspaceId) {
     throw new Error('workspaceId is required')
   }

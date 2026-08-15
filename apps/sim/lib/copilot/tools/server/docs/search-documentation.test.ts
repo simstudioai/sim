@@ -15,24 +15,8 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
   generateSearchEmbedding: mockGenerateSearchEmbedding,
 }))
 
-import {
-  normalizeDocsTopK,
-  searchDocumentationServerTool,
-} from '@/lib/copilot/tools/server/docs/search-documentation'
+import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-
-describe('documentation search result limit', () => {
-  it.each([
-    { input: undefined, expected: 10 },
-    { input: 0, expected: 10 },
-    { input: -1, expected: 10 },
-    { input: 1.5, expected: 10 },
-    { input: 12, expected: 12 },
-    { input: 10_000, expected: 50 },
-  ])('normalizes $input to $expected', ({ input, expected }) => {
-    expect(normalizeDocsTopK(input)).toBe(expected)
-  })
-})
 
 describe('documentation search model boundary', () => {
   beforeEach(() => {

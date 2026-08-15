@@ -55,15 +55,14 @@ export async function runHeadlessCopilotLifecycle(
         })
         outcome = result.success
           ? RequestTraceV1Outcome.success
-          : options.userStopSignal?.aborted || options.abortSignal?.aborted || result.cancelled
+          : options.abortSignal?.aborted || result.cancelled
             ? RequestTraceV1Outcome.cancelled
             : RequestTraceV1Outcome.error
         return result
       } catch (error) {
-        outcome =
-          options.userStopSignal?.aborted || options.abortSignal?.aborted
-            ? RequestTraceV1Outcome.cancelled
-            : RequestTraceV1Outcome.error
+        outcome = options.abortSignal?.aborted
+          ? RequestTraceV1Outcome.cancelled
+          : RequestTraceV1Outcome.error
         throw error
       } finally {
         trace.endSpan(

@@ -13,10 +13,7 @@ export const DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS = 3000
 
 export async function requestExplicitStreamAbort(params: {
   streamId: string
-  /** Authenticated execution/billing owner stamped into the Go request body. */
   userId: string
-  /** Sim principal whose environment override selects the Mothership URL. */
-  routingUserId?: string
   chatId?: string
   workspaceId?: string
   timeoutMs?: number
@@ -25,7 +22,6 @@ export async function requestExplicitStreamAbort(params: {
   const {
     streamId,
     userId,
-    routingUserId,
     chatId,
     workspaceId,
     timeoutMs = DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS,
@@ -48,7 +44,7 @@ export async function requestExplicitStreamAbort(params: {
   )
 
   try {
-    const mothershipBaseURL = await getMothershipBaseURL({ userId: routingUserId ?? userId })
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
     const response = await fetchGo(`${mothershipBaseURL}/api/streams/explicit-abort`, {
       method: 'POST',
       headers,

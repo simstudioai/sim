@@ -12,8 +12,6 @@ export interface ServerToolContext {
   copilotToolExecution?: boolean
   billingAttribution?: BillingAttributionSnapshot
   userPermission?: string
-  /** Undefined uses the execution actor; null explicitly disables raw secret access. */
-  secretActorUserId?: string | null
   chatId?: string
   messageId?: string
   /**

@@ -17,8 +17,6 @@ export interface ToolExecutionContext {
   copilotToolExecution?: boolean
   /** Server-owned base image selected from the fixed Go route for this turn. */
   sandboxProfile?: 'mothership'
-  /** Trusted server policy: workspace inspection only, with every write sink disabled. */
-  queryOnly?: boolean
   requestMode?: string
   currentAgentId?: string
   /**
@@ -29,8 +27,6 @@ export interface ToolExecutionContext {
    */
   parentToolCallId?: string
   abortSignal?: AbortSignal
-  /** Fires only on explicit user stop, never on passive transport disconnect. */
-  userStopSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string
   secretMountPolicy?: SecretMountPolicy

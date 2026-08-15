@@ -10,9 +10,8 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
-const { mockFetchGo, mockGetMothershipBaseURL } = vi.hoisted(() => ({
+const { mockFetchGo } = vi.hoisted(() => ({
   mockFetchGo: vi.fn(),
-  mockGetMothershipBaseURL: vi.fn().mockResolvedValue('https://copilot.test'),
 }))
 
 vi.mock('@/lib/copilot/request/go/fetch', () => ({
@@ -20,7 +19,7 @@ vi.mock('@/lib/copilot/request/go/fetch', () => ({
 }))
 
 vi.mock('@/lib/copilot/server/agent-url', () => ({
-  getMothershipBaseURL: mockGetMothershipBaseURL,
+  getMothershipBaseURL: vi.fn().mockResolvedValue('https://copilot.test'),
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({ 'X-Sim-Source-Env': 'test' }),
 }))
 
@@ -48,24 +47,5 @@ describe('requestExplicitStreamAbort', () => {
         }),
       })
     )
-  })
-
-  it('routes separately from the execution owner stamped into the abort body', async () => {
-    await requestExplicitStreamAbort({
-      streamId: 'stream-1',
-      userId: 'workspace-billing-actor',
-      routingUserId: 'workspace-key-owner',
-      workspaceId: 'workspace-1',
-    })
-
-    expect(mockGetMothershipBaseURL).toHaveBeenCalledWith({
-      userId: 'workspace-key-owner',
-    })
-    const request = mockFetchGo.mock.calls[0]?.[1] as RequestInit
-    expect(JSON.parse(String(request.body))).toEqual({
-      messageId: 'stream-1',
-      userId: 'workspace-billing-actor',
-      workspaceId: 'workspace-1',
-    })
   })
 })

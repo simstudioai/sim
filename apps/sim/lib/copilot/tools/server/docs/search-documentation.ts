@@ -13,23 +13,13 @@ interface DocsSearchParams {
 }
 
 const DEFAULT_DOCS_SIMILARITY_THRESHOLD = 0.3
-const DEFAULT_DOCS_TOP_K = 10
-const MAX_DOCS_TOP_K = 50
-
-export function normalizeDocsTopK(value: unknown): number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1
-    ? Math.min(value, MAX_DOCS_TOP_K)
-    : DEFAULT_DOCS_TOP_K
-}
 
 export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any> = {
   name: SearchDocumentation.id,
   async execute(params: DocsSearchParams): Promise<any> {
     const logger = createLogger('SearchDocumentationServerTool')
-    const { query, threshold } = params
+    const { query, topK = 10, threshold } = params
     if (!query || typeof query !== 'string') throw new Error('query is required')
-
-    const topK = normalizeDocsTopK(params.topK)
 
     logger.info('Executing docs search', { queryLength: query.length, topK })
 

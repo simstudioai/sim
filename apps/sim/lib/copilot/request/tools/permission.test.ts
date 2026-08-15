@@ -375,44 +375,6 @@ describe('runGatedToolExecution', () => {
     expect(signal.status).toBe('error')
   })
 
-  it('lets an explicit user stop cancel a permission wait independently of transport', async () => {
-    const context = makeContext()
-    const toolCall = makeToolCall()
-    const transportController = new AbortController()
-    const userStopController = new AbortController()
-    let permissionSignal: AbortSignal | undefined
-    waitForToolPermissionDecision.mockImplementationOnce(
-      (_toolCallId: string, _timeoutMs: number, signal?: AbortSignal) => {
-        permissionSignal = signal
-        return new Promise((resolve) => {
-          signal?.addEventListener('abort', () => resolve(null), { once: true })
-        })
-      }
-    )
-
-    const pending = runGatedToolExecution(
-      toolCall,
-      toolCall.id,
-      toolCall.name,
-      toolCall.params,
-      MothershipStreamV1ToolExecutor.client,
-      context,
-      {
-        abortSignal: transportController.signal,
-        userStopSignal: userStopController.signal,
-      },
-      vi.fn() as () => Promise<never>
-    )
-
-    await vi.waitFor(() => expect(permissionSignal).toBeDefined())
-    userStopController.abort('stop')
-    await pending
-
-    expect(permissionSignal?.aborted).toBe(true)
-    expect(transportController.signal.aborted).toBe(false)
-    expect(toolCall.status).toBe('cancelled')
-  })
-
   it('refuses to run a gated tool whose row is hidden, rather than hanging the turn', async () => {
     const context = makeContext()
     const toolCall = makeToolCall()

@@ -60,7 +60,7 @@ export async function executeManageMcpTool(
           servers: servers.map((s) => ({
             id: s.id,
             name: s.name,
-            ...(context.secretActorUserId === null ? {} : { url: s.url }),
+            url: s.url,
             transport: s.transport,
             enabled: s.enabled,
             connectionStatus: s.connectionStatus,

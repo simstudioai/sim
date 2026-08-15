@@ -5,14 +5,9 @@ import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 type WorkflowRecord = NonNullable<Awaited<ReturnType<typeof getWorkflowById>>>
 
-export interface CopilotAccessContext {
-  userId: string
-  workspaceId?: string
-}
-
 export async function ensureWorkflowAccess(
   workflowId: string,
-  context: CopilotAccessContext,
+  userId: string,
   action: 'read' | 'write' | 'admin' = 'read'
 ): Promise<{
   workflow: WorkflowRecord
@@ -20,7 +15,7 @@ export async function ensureWorkflowAccess(
 }> {
   const result = await authorizeWorkflowByWorkspacePermission({
     workflowId,
-    userId: context.userId,
+    userId,
     action,
   })
 
@@ -30,10 +25,6 @@ export async function ensureWorkflowAccess(
 
   if (!result.allowed) {
     throw new Error(result.message || 'Unauthorized workflow access')
-  }
-
-  if (context.workspaceId && result.workflow.workspaceId !== context.workspaceId) {
-    throw new Error(`Workflow ${workflowId} not found`)
   }
 
   return { workflow: result.workflow, workspaceId: result.workflow.workspaceId }
@@ -54,14 +45,10 @@ export async function getDefaultWorkspaceId(userId: string): Promise<string> {
 
 export async function ensureWorkspaceAccess(
   workspaceId: string,
-  context: CopilotAccessContext,
+  userId: string,
   level: 'read' | 'write' | 'admin' = 'read'
 ): Promise<WorkspaceAccess> {
-  if (context.workspaceId && workspaceId !== context.workspaceId) {
-    throw new Error(`Workspace ${workspaceId} not found`)
-  }
-
-  const access = await checkWorkspaceAccess(workspaceId, context.userId)
+  const access = await checkWorkspaceAccess(workspaceId, userId)
   if (!access.exists || !access.hasAccess) {
     throw new Error(`Workspace ${workspaceId} not found`)
   }

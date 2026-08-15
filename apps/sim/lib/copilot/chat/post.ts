@@ -16,7 +16,6 @@ import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
-  collectChatMcpServerIds,
   withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -415,6 +414,44 @@ function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
     if (ctx.blockId) return { ...ctx, blockIds: [ctx.blockId] }
     return ctx
   })
+}
+
+/**
+ * An MCP server tagged with `/name` stays enabled for the rest of the chat, not
+ * just the turn it was tagged on. Persisted user messages already carry their
+ * `mcp` contexts, so the transcript is the source of truth — enablement survives
+ * reloads and reopened chats with no extra state to keep in sync. There is
+ * deliberately no off switch: history is append-only.
+ *
+ * Only the ids travel forward, not the contexts themselves. The tools ride the
+ * tool array on every turn, so the model always sees their names and schemas;
+ * re-expanding the prompt listing each turn would just duplicate that. Keeping
+ * inherited servers out of the persisted contexts also keeps the `/name` chips
+ * on a sent message showing only what the user actually typed that turn.
+ */
+function collectChatMcpServerIds(
+  conversationHistory: unknown[],
+  currentContexts: UnifiedChatRequest['contexts']
+): string[] {
+  const serverIds = new Set<string>()
+
+  const collect = (contexts: unknown) => {
+    if (!Array.isArray(contexts)) return
+    for (const ctx of contexts) {
+      if (!ctx || typeof ctx !== 'object') continue
+      const { kind, serverId } = ctx as { kind?: unknown; serverId?: unknown }
+      if (kind === 'mcp' && typeof serverId === 'string' && serverId) {
+        serverIds.add(serverId)
+      }
+    }
+  }
+
+  for (const message of conversationHistory) {
+    collect((message as { contexts?: unknown } | null)?.contexts)
+  }
+  collect(currentContexts)
+
+  return Array.from(serverIds)
 }
 
 async function resolveAgentContexts(params: {

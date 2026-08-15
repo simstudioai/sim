@@ -575,7 +575,7 @@ export async function executeMaterializeFile(
 
   try {
     if (operation === 'import') {
-      await ensureWorkspaceAccess(context.workspaceId, context, 'write')
+      await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
     } else {
       await admitCreateWorkspaceFile(principal, context.workspaceId)
     }

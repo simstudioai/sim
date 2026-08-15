@@ -21,7 +21,6 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 import {
   getAccessibleCopilotChat,
-  getAccessibleCopilotChatContinuationMetadata,
   getAccessibleCopilotChatWithMessages,
   resolveOrCreateChat,
 } from '@/lib/copilot/chat/lifecycle'
@@ -105,59 +104,6 @@ describe('lifecycle copilot chat reads (cutover to copilot_messages)', () => {
     const result = await getAccessibleCopilotChatWithMessages(CHAT_ID, USER_ID)
 
     expect(result?.messages).toEqual([])
-  })
-
-  it('loads continuation metadata with a one-row probe and contexts-only MCP projection', async () => {
-    const continuationRow = {
-      id: chatRow.id,
-      userId: chatRow.userId,
-      workflowId: chatRow.workflowId,
-      workspaceId: chatRow.workspaceId,
-      type: chatRow.type,
-      title: chatRow.title,
-    }
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([continuationRow])
-      .mockResolvedValueOnce([{ id: 'message-1' }])
-    dbChainMockFns.orderBy.mockResolvedValueOnce([
-      {
-        contexts: [
-          { kind: 'mcp', serverId: 'mcp-docs', label: 'Docs' },
-          { kind: 'skill', skillId: 'skill-review', label: 'Review' },
-        ],
-      },
-      { contexts: [{ kind: 'mcp', serverId: 'mcp-docs', label: 'Docs again' }] },
-      { contexts: [{ kind: 'mcp', serverId: 'mcp-issues', label: 'Issues' }] },
-    ])
-
-    const result = await getAccessibleCopilotChatContinuationMetadata(CHAT_ID, USER_ID)
-
-    expect(result).toEqual({
-      ...continuationRow,
-      hasMessages: true,
-      mcpServerIds: ['mcp-docs', 'mcp-issues'],
-    })
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.orderBy).toHaveBeenCalledTimes(1)
-    const contextsProjection = dbChainMockFns.select.mock.calls[2]?.[0] as Record<string, unknown>
-    expect(Object.keys(contextsProjection)).toEqual(['contexts'])
-  })
-
-  it('skips the MCP projection for an empty persisted chat', async () => {
-    const continuationRow = {
-      id: chatRow.id,
-      userId: chatRow.userId,
-      workflowId: chatRow.workflowId,
-      workspaceId: chatRow.workspaceId,
-      type: chatRow.type,
-      title: chatRow.title,
-    }
-    dbChainMockFns.limit.mockResolvedValueOnce([continuationRow]).mockResolvedValueOnce([])
-
-    const result = await getAccessibleCopilotChatContinuationMetadata(CHAT_ID, USER_ID)
-
-    expect(result).toEqual({ ...continuationRow, hasMessages: false, mcpServerIds: [] })
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
   it('returns null and does NOT query messages when the chat is not found', async () => {

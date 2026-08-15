@@ -133,8 +133,6 @@ export interface StreamLoopOptions extends OrchestratorOptions {
    * Called when the Go backend's trace ID (go_trace_id) is first received via SSE.
    */
   onGoTraceId?: (goTraceId: string) => void
-  /** Called once the upstream accepted this leg and exposed an SSE body. */
-  onAccepted?: () => void
   otelContext?: Context
 }
 
@@ -209,8 +207,6 @@ export async function runStreamLoop(
     context.trace.endSpan(fetchSpan, 'error')
     throw new CopilotBackendError('Copilot backend response missing body')
   }
-
-  options.onAccepted?.()
 
   context.trace.endSpan(fetchSpan)
 

@@ -5,12 +5,9 @@ import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/typ
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deleteAvailableCustomToolUseCase,
-  deleteWorkspaceCustomToolUseCase,
   listAvailableCustomToolsUseCase,
-  listWorkspaceCustomToolsUseCase,
   saveWorkspaceCustomToolUseCase,
   updateAvailableCustomToolUseCase,
-  updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -51,7 +48,6 @@ export async function executeManageCustomTool(
    * caught it. Matches manage_mcp_tool and manage_skill.
    */
   const workspaceId = context.workspaceId
-  const secretless = context.secretActorUserId === null
 
   if (!operation) {
     return { success: false, error: "Missing required 'operation' argument" }
@@ -60,14 +56,11 @@ export async function executeManageCustomTool(
   try {
     if (operation === 'list') {
       if (!workspaceId) return { success: false, error: 'workspaceId is required' }
-      const { tools: toolsForUser } = secretless
-        ? await executeCopilotCustomToolUseCase(context, listWorkspaceCustomToolsUseCase, {
-            workspaceId,
-            limit: 100,
-          })
-        : await executeCopilotCustomToolUseCase(context, listAvailableCustomToolsUseCase, {
-            workspaceId,
-          })
+      const { tools: toolsForUser } = await executeCopilotCustomToolUseCase(
+        context,
+        listAvailableCustomToolsUseCase,
+        { workspaceId }
+      )
 
       return {
         success: true,
@@ -151,17 +144,18 @@ export async function executeManageCustomTool(
         }
       }
 
-      const input = {
-        workspaceId,
-        toolId: params.toolId,
-        title: params.title || params.schema?.function?.name,
-        schema: params.schema,
-        code: params.code,
-        source: 'tool_input' as const,
-      }
-      const { tool } = secretless
-        ? await executeCopilotCustomToolUseCase(context, updateWorkspaceCustomToolUseCase, input)
-        : await executeCopilotCustomToolUseCase(context, updateAvailableCustomToolUseCase, input)
+      const { tool } = await executeCopilotCustomToolUseCase(
+        context,
+        updateAvailableCustomToolUseCase,
+        {
+          workspaceId,
+          toolId: params.toolId,
+          title: params.title || params.schema?.function?.name,
+          schema: params.schema,
+          code: params.code,
+          source: 'tool_input',
+        }
+      )
       captureServerEvent(
         context.userId,
         'custom_tool_saved',
@@ -197,16 +191,11 @@ export async function executeManageCustomTool(
 
       for (const toolId of toolIds) {
         try {
-          const input = {
+          await executeCopilotCustomToolUseCase(context, deleteAvailableCustomToolUseCase, {
             toolId,
             workspaceId,
-            source: 'tool_input' as const,
-          }
-          if (secretless) {
-            await executeCopilotCustomToolUseCase(context, deleteWorkspaceCustomToolUseCase, input)
-          } else {
-            await executeCopilotCustomToolUseCase(context, deleteAvailableCustomToolUseCase, input)
-          }
+            source: 'tool_input',
+          })
           deleted.push(toolId)
         } catch (error) {
           const classified = asOrchestrationError(error)

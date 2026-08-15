@@ -16,11 +16,6 @@ const {
   mockBatchInsertRows,
   mockReplaceTableRows,
   mockAddWorkflowGroup,
-  mockUpdateWorkflowGroup,
-  mockRunWorkflowColumn,
-  mockCancelWorkflowGroupRuns,
-  mockLoadWorkflowFromNormalizedTables,
-  mockFlattenWorkflowOutputs,
   mockCreateTable,
   mockDeleteTable,
   mockGetWorkspaceTableLimits,
@@ -49,11 +44,6 @@ const {
   mockBatchInsertRows: vi.fn(),
   mockReplaceTableRows: vi.fn(),
   mockAddWorkflowGroup: vi.fn(),
-  mockUpdateWorkflowGroup: vi.fn(),
-  mockRunWorkflowColumn: vi.fn(),
-  mockCancelWorkflowGroupRuns: vi.fn(),
-  mockLoadWorkflowFromNormalizedTables: vi.fn(),
-  mockFlattenWorkflowOutputs: vi.fn(),
   mockCreateTable: vi.fn(),
   mockDeleteTable: vi.fn(),
   mockGetWorkspaceTableLimits: vi.fn(),
@@ -198,20 +188,7 @@ vi.mock('@/lib/table/workflow-groups/service', () => ({
   addWorkflowGroupOutput: vi.fn(),
   deleteWorkflowGroup: vi.fn(),
   deleteWorkflowGroupOutput: vi.fn(),
-  updateWorkflowGroup: mockUpdateWorkflowGroup,
-}))
-
-vi.mock('@/lib/table/workflow-columns', () => ({
-  cancelWorkflowGroupRuns: mockCancelWorkflowGroupRuns,
-  runWorkflowColumn: mockRunWorkflowColumn,
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mockLoadWorkflowFromNormalizedTables,
-}))
-
-vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
-  flattenWorkflowOutputs: mockFlattenWorkflowOutputs,
+  updateWorkflowGroup: vi.fn(),
 }))
 
 vi.mock('@/lib/table/columns/service', () => ({

@@ -16,7 +16,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { projectWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
@@ -405,16 +404,11 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
 
-    const outputWorkflowState = projectWorkflowStateForCopilot(
-      { ...finalWorkflowState, blocks: layoutedBlocks },
-      { secretless: context.secretActorUserId === null }
-    )
-
     return {
       success: true,
       workflowId,
       workflowName: workflowName ?? 'Workflow',
-      workflowState: outputWorkflowState,
+      workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
       workflowLint,
       ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {

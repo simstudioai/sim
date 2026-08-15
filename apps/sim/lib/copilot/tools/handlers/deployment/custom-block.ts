@@ -136,7 +136,7 @@ export async function executeDeployCustomBlock(
 
     let workflowRecord: Awaited<ReturnType<typeof ensureWorkflowAccess>>['workflow']
     try {
-      workflowRecord = (await ensureWorkflowAccess(workflowId, context, 'admin')).workflow
+      workflowRecord = (await ensureWorkflowAccess(workflowId, context.userId, 'admin')).workflow
     } catch (error) {
       const message = toError(error).message
       if (message.includes('not found')) {

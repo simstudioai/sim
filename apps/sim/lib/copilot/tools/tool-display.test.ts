@@ -71,21 +71,6 @@ describe('humanizeToolName', () => {
 })
 
 describe('getToolDisplayTitle natural-language coverage', () => {
-  it('uses the same glanceable target names as the web read row', () => {
-    expect(getToolDisplayTitle('read', { path: 'workflows/Folder/forceful-arm/state.json' })).toBe(
-      'Reading forceful-arm'
-    )
-    expect(getToolDisplayTitle('read', { path: 'files/Reports/Q4%20Report.pdf/content' })).toBe(
-      'Reading Q4 Report.pdf'
-    )
-    expect(getToolDisplayTitle('read', { path: 'components/blocks/gmail_v2.json' }, 'Gmail')).toBe(
-      'Reading Gmail'
-    )
-    expect(
-      getToolDisplayTitle('read', { path: 'components/integrations/gmail/send.json' }, 'Gmail')
-    ).toBe('Reading Gmail')
-  })
-
   it('gives gerund titles to tools that previously fell through to humanize', () => {
     expect(getToolDisplayTitle('deploy_api')).toBe('Deploying API')
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')

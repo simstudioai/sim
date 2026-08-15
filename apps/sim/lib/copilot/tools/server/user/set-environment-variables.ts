@@ -57,23 +57,24 @@ function normalizeVariables(
 
 async function resolveWorkspaceId(
   params: SetEnvironmentVariablesParams,
-  context: ServerToolContext
+  context: ServerToolContext | undefined,
+  userId: string
 ): Promise<string> {
   if (params.workflowId) {
-    const { workflow } = await ensureWorkflowAccess(params.workflowId, context, 'write')
+    const { workflow } = await ensureWorkflowAccess(params.workflowId, userId, 'write')
     if (!workflow.workspaceId) {
       throw new Error(`Workflow ${params.workflowId} is not associated with a workspace`)
     }
     return workflow.workspaceId
   }
 
-  const workspaceId = context.workspaceId ?? params.workspaceId
+  const workspaceId = params.workspaceId ?? context?.workspaceId
   if (workspaceId) {
-    await ensureWorkspaceAccess(workspaceId, context, 'write')
+    await ensureWorkspaceAccess(workspaceId, userId, 'write')
     return workspaceId
   }
 
-  return getDefaultWorkspaceId(context.userId)
+  return getDefaultWorkspaceId(userId)
 }
 
 export const setEnvironmentVariablesServerTool: BaseServerTool<
@@ -107,7 +108,7 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
 
     let resolvedWorkspaceId: string | undefined
     if (scope === 'workspace') {
-      resolvedWorkspaceId = await resolveWorkspaceId(params, context)
+      resolvedWorkspaceId = await resolveWorkspaceId(params, context, authenticatedUserId)
       workspaceUpdated = await upsertWorkspaceEnvVars(
         resolvedWorkspaceId,
         validatedVariables,

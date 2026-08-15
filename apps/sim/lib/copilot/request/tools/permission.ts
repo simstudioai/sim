@@ -240,14 +240,10 @@ export function runGatedToolExecution(
         return { status: MothershipStreamV1ToolOutcome.success, message: output.message }
       }
 
-      const stopSignal =
-        options.abortSignal && options.userStopSignal
-          ? AbortSignal.any([options.abortSignal, options.userStopSignal])
-          : (options.userStopSignal ?? options.abortSignal)
       const decision = await waitForToolPermissionDecision(
         toolCallId,
         PERMISSION_WAIT_TIMEOUT_MS,
-        stopSignal
+        options.abortSignal
       )
 
       if (!decision) {

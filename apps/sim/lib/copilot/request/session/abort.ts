@@ -11,12 +11,7 @@ import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
 
 const logger = createLogger('SessionAbort')
 
-interface ActiveStreamEntry {
-  abortController: AbortController
-  userStopController: AbortController
-}
-
-const activeStreams = new Map<string, ActiveStreamEntry>()
+const activeStreams = new Map<string, AbortController>()
 const pendingChatStreams = new Map<
   string,
   { promise: Promise<void>; resolve: () => void; streamId: string }
@@ -65,12 +60,8 @@ function getChatStreamLockKey(chatId: string): string {
   return `copilot:chat-stream-lock:${chatId}`
 }
 
-export function registerActiveStream(
-  streamId: string,
-  abortController: AbortController,
-  userStopController: AbortController
-): void {
-  activeStreams.set(streamId, { abortController, userStopController })
+export function registerActiveStream(streamId: string, controller: AbortController): void {
+  activeStreams.set(streamId, controller)
 }
 
 export function unregisterActiveStream(streamId: string): void {
@@ -294,13 +285,12 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
     async (span) => {
       await writeAbortMarker(streamId)
       span.setAttribute(TraceAttr.CopilotAbortMarkerWritten, true)
-      const entry = activeStreams.get(streamId)
-      if (!entry) {
+      const controller = activeStreams.get(streamId)
+      if (!controller) {
         span.setAttribute(TraceAttr.CopilotAbortControllerFired, false)
         return false
       }
-      entry.userStopController.abort(AbortReason.UserStop)
-      entry.abortController.abort(AbortReason.UserStop)
+      controller.abort(AbortReason.UserStop)
       activeStreams.delete(streamId)
       span.setAttribute(TraceAttr.CopilotAbortControllerFired, true)
       return true
@@ -336,17 +326,11 @@ const pollingStreams = new Set<string>()
 export function startAbortPoller(
   streamId: string,
   abortController: AbortController,
-  options?: {
-    pollMs?: number
-    requestId?: string
-    chatId?: string
-    userStopController?: AbortController
-  }
+  options?: { pollMs?: number; requestId?: string; chatId?: string }
 ): ReturnType<typeof setInterval> {
   const pollMs = options?.pollMs ?? DEFAULT_ABORT_POLL_MS
   const requestId = options?.requestId
   const chatId = options?.chatId
-  const userStopController = options?.userStopController
 
   let lastHeartbeatAt = Date.now()
   let heartbeatOwnershipLost = false
@@ -357,60 +341,46 @@ export function startAbortPoller(
 
     void (async () => {
       try {
-        try {
-          const shouldAbort = await hasAbortMarker(streamId)
-          if (shouldAbort && !abortController.signal.aborted) {
-            userStopController?.abort(AbortReason.RedisPoller)
-            abortController.abort(AbortReason.RedisPoller)
-            await clearAbortMarker(streamId)
-          }
-        } catch (error) {
-          logger.warn('Failed to poll stream abort marker', {
+        const shouldAbort = await hasAbortMarker(streamId)
+        if (shouldAbort && !abortController.signal.aborted) {
+          abortController.abort(AbortReason.RedisPoller)
+          await clearAbortMarker(streamId)
+        }
+      } catch (error) {
+        logger.warn('Failed to poll stream abort marker', {
+          streamId,
+          ...(requestId ? { requestId } : {}),
+          error: toError(error).message,
+        })
+      } finally {
+        pollingStreams.delete(streamId)
+      }
+
+      if (!chatId || heartbeatOwnershipLost) return
+      if (Date.now() - lastHeartbeatAt < CHAT_STREAM_LOCK_HEARTBEAT_INTERVAL_MS) return
+
+      try {
+        const owned = await extendLock(
+          getChatStreamLockKey(chatId),
+          streamId,
+          CHAT_STREAM_LOCK_TTL_SECONDS
+        )
+        lastHeartbeatAt = Date.now()
+        if (!owned) {
+          heartbeatOwnershipLost = true
+          logger.warn('Lost ownership of chat stream lock — stopping heartbeat', {
+            chatId,
             streamId,
             ...(requestId ? { requestId } : {}),
-            error: toError(error).message,
           })
         }
-
-        if (
-          chatId &&
-          !heartbeatOwnershipLost &&
-          Date.now() - lastHeartbeatAt >= CHAT_STREAM_LOCK_HEARTBEAT_INTERVAL_MS
-        ) {
-          try {
-            const owned = await extendLock(
-              getChatStreamLockKey(chatId),
-              streamId,
-              CHAT_STREAM_LOCK_TTL_SECONDS
-            )
-            lastHeartbeatAt = Date.now()
-            if (!owned) {
-              heartbeatOwnershipLost = true
-              if (!userStopController?.signal.aborted) {
-                userStopController?.abort(AbortReason.LockOwnershipLost)
-              }
-              if (!abortController.signal.aborted) {
-                abortController.abort(AbortReason.LockOwnershipLost)
-              }
-              logger.warn('Lost ownership of chat stream lock — aborting stale stream', {
-                chatId,
-                streamId,
-                ...(requestId ? { requestId } : {}),
-              })
-            }
-          } catch (error) {
-            logger.warn('Failed to extend chat stream lock TTL', {
-              chatId,
-              streamId,
-              ...(requestId ? { requestId } : {}),
-              error: toError(error).message,
-            })
-          }
-        }
-      } finally {
-        // Cover both marker polling and the (potentially slower) lock EVAL so
-        // the 250ms timer cannot overlap heartbeats for one stream.
-        pollingStreams.delete(streamId)
+      } catch (error) {
+        logger.warn('Failed to extend chat stream lock TTL', {
+          chatId,
+          streamId,
+          ...(requestId ? { requestId } : {}),
+          error: toError(error).message,
+        })
       }
     })()
   }, pollMs)

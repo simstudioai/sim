@@ -24,13 +24,11 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         copilotToolExecution: context.copilotToolExecution,
         billingAttribution: context.billingAttribution,
         userPermission: context.userPermission ?? undefined,
-        secretActorUserId: context.secretActorUserId,
         chatId: context.chatId,
         messageId: context.messageId,
         parentToolCallId: context.parentToolCallId,
         abortSignal: context.abortSignal,
         resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
-        userStopSignal: context.userStopSignal,
       })
 
       const rec = isRecordLike(result) ? (result as Record<string, unknown>) : null

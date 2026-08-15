@@ -24,7 +24,6 @@ import { LRUCache } from 'lru-cache'
 import type { Edge } from 'reactflow'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
-import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/credentials/constants'
 import { isDynamicHandleSubblock } from '@/lib/workflows/dynamic-handle-topology'
 import {
   backfillCanonicalModes,
@@ -397,7 +396,13 @@ export function migrateAgentBlocksToMessagesFormat(
   )
 }
 
-export { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/credentials/constants'
+export const CREDENTIAL_SUBBLOCK_IDS = new Set([
+  'credential',
+  'manualCredential',
+  'triggerCredentials',
+  'customBotCredential',
+  'manualBotCredential',
+])
 
 async function migrateCredentialIds(
   blocks: Record<string, BlockState>,
