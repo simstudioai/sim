@@ -75,9 +75,17 @@ export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettin
     },
   ]
 
+  /**
+   * Hold the first paint while a deep-linked id could still resolve, so a valid
+   * link never flashes the list before jumping to it. A dead id still falls back
+   * to the list.
+   */
+  if (selectedGroupId !== null && isPending) return null
+
   if (selectedGroup) {
     return (
       <CredentialGroupDetail
+        key={selectedGroup.id}
         workspaceId={workspaceId}
         groupId={selectedGroup.id}
         onBack={closeGroup}
