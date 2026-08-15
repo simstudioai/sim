@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipModalTabs, ChipTag, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { ArrowLeft, Plus, User } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
@@ -9,7 +9,6 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type {
   CredentialGroupEnrollment,
   CredentialGroupEnrollmentConnection,
-  CredentialGroupEnrollmentDetail,
 } from '@/lib/api/contracts/credential-groups'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
@@ -53,35 +52,6 @@ const CREDENTIAL_GROUP_TABS = [
   { value: 'people', label: 'People' },
 ] as const
 
-export function getEnrollmentStatus(
-  enrollment: CredentialGroupEnrollmentDetail,
-  activeProviders: CredentialGroupProvider[]
-) {
-  if (enrollment.status === 'revoked') return { label: 'Revoked', invalid: false }
-  if (enrollment.status === 'delivery_failed') return { label: 'Delivery failed', invalid: true }
-  if (enrollment.status !== 'completed' && enrollment.expired) {
-    return { label: 'Expired', invalid: true }
-  }
-  const needsReauthorization = enrollment.connections.some(
-    (connection) => connection.status === 'needs_reauth'
-  )
-  if (needsReauthorization) return { label: 'Reconnect needed', invalid: false }
-  const connectedProviders = new Set(
-    enrollment.connections
-      .filter((connection) => connection.status === 'active')
-      .map((connection) => connection.provider)
-  )
-  const allProvidersConnected =
-    activeProviders.length > 0 &&
-    activeProviders.every((provider) => connectedProviders.has(provider))
-  if (enrollment.status === 'completed' && allProvidersConnected) {
-    return { label: 'Connected', invalid: false }
-  }
-  if (enrollment.status === 'completed') return { label: 'In progress', invalid: false }
-  if (enrollment.status === 'in_progress') return { label: 'In progress', invalid: false }
-  return { label: 'Invited', invalid: false }
-}
-
 interface EnrollmentConnectionsProps {
   connections: CredentialGroupEnrollmentConnection[]
 }
@@ -124,7 +94,7 @@ export function CredentialGroupDetail({
     providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
   })
   const resend = useResendCredentialGroupEnrollment()
-  const revoke = useRevokeCredentialGroupEnrollment()
+  const deleteEnrollment = useRevokeCredentialGroupEnrollment()
   const updateGroup = useUpdateCredentialGroup()
   const deleteGroup = useDeleteCredentialGroup()
   const [activeTab, setActiveTab] = useQueryState(credentialGroupTabParam.key, {
@@ -133,18 +103,14 @@ export function CredentialGroupDetail({
   })
   const [showInvite, setShowInvite] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
-  const [revokingEnrollmentId, setRevokingEnrollmentId] = useState<string | null>(null)
+  const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState<string | null>(null)
   const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const credentialGroup = detail.data?.pages[0]?.credentialGroup
   const enrollments = detail.data?.pages.flatMap((page) => page.enrollments) ?? []
-  const revokingEnrollment = revokingEnrollmentId
-    ? (enrollments.find((enrollment) => enrollment.id === revokingEnrollmentId) ?? null)
+  const deletingEnrollment = deletingEnrollmentId
+    ? (enrollments.find((enrollment) => enrollment.id === deletingEnrollmentId) ?? null)
     : null
-  const activeProviders =
-    credentialGroup?.options
-      .filter((option) => option.status === 'active')
-      .map((option) => option.provider) ?? []
   const configurationReady =
     Boolean(credentialGroup?.options.length) &&
     credentialGroup?.options.every(
@@ -226,18 +192,18 @@ export function CredentialGroupDetail({
     }
   }
 
-  const handleRevoke = async () => {
-    if (!revokingEnrollment) return
+  const handleDeleteEnrollment = async () => {
+    if (!deletingEnrollment) return
     try {
-      await revoke.mutateAsync({
+      await deleteEnrollment.mutateAsync({
         workspaceId,
         groupId,
-        enrollmentId: revokingEnrollment.id,
+        enrollmentId: deletingEnrollment.id,
       })
-      toast.success(`Access revoked for ${revokingEnrollment.email}`)
-      setRevokingEnrollmentId(null)
+      toast.success(`${deletingEnrollment.email} deleted`)
+      setDeletingEnrollmentId(null)
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to revoke access'))
+      toast.error(getErrorMessage(error, 'Failed to delete person'))
     }
   }
 
@@ -307,7 +273,6 @@ export function CredentialGroupDetail({
                 ) : (
                   <div className={RESOURCE_LIST_STACK}>
                     {enrollments.map((enrollment) => {
-                      const status = getEnrollmentStatus(enrollment, activeProviders)
                       return (
                         <SettingsResourceRow
                           key={enrollment.id}
@@ -317,32 +282,22 @@ export function CredentialGroupDetail({
                           description={
                             <EnrollmentConnections connections={enrollment.connections} />
                           }
-                          badge={
-                            <ChipTag
-                              variant={status.invalid ? 'invite' : 'gray'}
-                              invalid={status.invalid}
-                            >
-                              {status.label}
-                            </ChipTag>
-                          }
                           trailing={
-                            enrollment.status === 'revoked' ? undefined : (
-                              <RowActionsMenu
-                                label={`${enrollment.email} actions`}
-                                actions={[
-                                  {
-                                    label: 'Resend',
-                                    onSelect: () => void handleResend(enrollment),
-                                    disabled: resend.isPending,
-                                  },
-                                  {
-                                    label: 'Revoke',
-                                    destructive: true,
-                                    onSelect: () => setRevokingEnrollmentId(enrollment.id),
-                                  },
-                                ]}
-                              />
-                            )
+                            <RowActionsMenu
+                              label={`${enrollment.email} actions`}
+                              actions={[
+                                {
+                                  label: 'Resend',
+                                  onSelect: () => void handleResend(enrollment),
+                                  disabled: resend.isPending,
+                                },
+                                {
+                                  label: 'Delete',
+                                  destructive: true,
+                                  onSelect: () => setDeletingEnrollmentId(enrollment.id),
+                                },
+                              ]}
+                            />
                           }
                         />
                       )
@@ -363,16 +318,24 @@ export function CredentialGroupDetail({
         />
       )}
       <ChipConfirmModal
-        open={Boolean(revokingEnrollment)}
-        onOpenChange={(open) => !open && !revoke.isPending && setRevokingEnrollmentId(null)}
-        srTitle='Revoke access'
-        title='Revoke access?'
-        text={`Revoke access for ${revokingEnrollment?.email ?? 'this user'}? Their private link will stop working and all accounts they connected to this Credential Group will be removed.`}
+        open={Boolean(deletingEnrollment)}
+        onOpenChange={(open) =>
+          !open && !deleteEnrollment.isPending && setDeletingEnrollmentId(null)
+        }
+        srTitle='Delete person'
+        title='Delete person'
+        text={[
+          `Delete ${deletingEnrollment?.email ?? 'this person'}?`,
+          {
+            text: ' Their private link will stop working and all accounts they connected to this Credential Group will be removed.',
+            error: true,
+          },
+        ]}
         dismissLabel='Cancel'
         confirm={{
-          label: revoke.isPending ? 'Revoking...' : 'Revoke',
-          onClick: handleRevoke,
-          disabled: revoke.isPending,
+          label: deleteEnrollment.isPending ? 'Deleting...' : 'Delete',
+          onClick: handleDeleteEnrollment,
+          disabled: deleteEnrollment.isPending,
         }}
       />
       <ChipConfirmModal

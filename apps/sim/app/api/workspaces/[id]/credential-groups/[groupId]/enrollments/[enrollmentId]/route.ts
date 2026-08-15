@@ -16,7 +16,7 @@ export const DELETE = defineInternalJsonRoute({
     reason: 'Preserve existing internal Credential Group revocation behavior',
   }),
   errorPolicy: createCredentialGroupInternalErrorPolicy(
-    'Failed to revoke credential group enrollment'
+    'Failed to delete person from credential group'
   ),
   mapInput: ({ params }) => ({
     assertedWorkspaceId: params.id,

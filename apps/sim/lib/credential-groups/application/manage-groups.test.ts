@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
+  get: vi.fn(),
   list: vi.fn(),
+  listEnrollments: vi.fn(),
   requireAvailable: vi.fn(),
   resolveGroup: vi.fn(),
   resolvePermission: vi.fn(),
@@ -22,9 +24,21 @@ vi.mock('@/lib/credential-groups/application/context', () => ({
 vi.mock('@/lib/credential-groups/service', () => ({
   createCredentialGroup: mocks.create,
   deleteCredentialGroup: vi.fn(),
-  getCredentialGroup: vi.fn(),
+  getCredentialGroup: mocks.get,
   listCredentialGroups: mocks.list,
   updateCredentialGroup: vi.fn(),
+}))
+
+vi.mock('@/lib/credential-groups/enrollments', () => ({
+  CredentialGroupEnrollmentError: class CredentialGroupEnrollmentError extends Error {
+    constructor(
+      message: string,
+      readonly status: number
+    ) {
+      super(message)
+    }
+  },
+  listCredentialGroupEnrollments: mocks.listEnrollments,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -35,6 +49,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 
 import {
   createCredentialGroupSettings,
+  getCredentialGroupSettings,
   listCredentialGroupSettings,
 } from '@/lib/credential-groups/application/manage-groups'
 
@@ -62,10 +77,17 @@ describe('Credential Group Settings application operations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
+    mocks.resolveGroup.mockResolvedValue({
+      ...workspaceContext,
+      credentialGroupId: 'group-1',
+      name: 'Support',
+    })
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailable.mockResolvedValue(undefined)
     mocks.list.mockResolvedValue([])
     mocks.create.mockResolvedValue({ id: 'group-1', name: 'Support' })
+    mocks.get.mockResolvedValue({ id: 'group-1', name: 'Support' })
+    mocks.listEnrollments.mockResolvedValue({ enrollments: [], nextCursor: null })
   })
 
   it('rejects an enrollment bearer before loading workspace settings', async () => {
@@ -113,6 +135,21 @@ describe('Credential Group Settings application operations', () => {
     expect(mocks.create).toHaveBeenCalledWith('workspace-1', 'admin-1', {
       name: 'Support',
       options: [],
+    })
+  })
+
+  it('excludes deleted people from Credential Group settings', async () => {
+    await getCredentialGroupSettings.execute({
+      principal: sessionPrincipal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        credentialGroupId: 'group-1',
+        limit: 50,
+      },
+    })
+
+    expect(mocks.listEnrollments).toHaveBeenCalledWith('workspace-1', 'group-1', 50, undefined, {
+      statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'],
     })
   })
 })
