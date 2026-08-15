@@ -94,8 +94,6 @@ export interface SelectableConfig {
 export interface BodyDropConfig {
   /** The drag is over the body and releasing would move something. */
   isActive: boolean
-  /** A drag is in flight that this body could receive — drives the resting affordance. */
-  canDrop: boolean
   onDragOver: (e: DragEvent<HTMLDivElement>) => void
   onDragLeave: (e: DragEvent<HTMLDivElement>) => void
   onDrop: (e: DragEvent<HTMLDivElement>) => void
@@ -396,24 +394,6 @@ const ResourceTable = memo(function ResourceTable({
               ))}
             </div>
           </div>
-          {bodyDrop?.canDrop && rows.length === 0 && (
-            /**
-             * An empty folder has no row to drop on, so the drag would otherwise dead-end here
-             * with no way to tell that releasing still files into this folder. Shown only while
-             * a droppable drag is in flight, so it never intrudes on the resting empty state.
-             */
-            <div
-              className={cn(
-                'm-4 flex flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed py-10 transition-colors',
-                bodyDrop.isActive
-                  ? 'border-[var(--text-subtle)] bg-[var(--surface-4)]'
-                  : 'border-[var(--border)]'
-              )}
-            >
-              <p className='text-[var(--text-body)] text-small'>Drop to move here</p>
-              <p className='text-[var(--text-muted)] text-caption'>This folder is empty</p>
-            </div>
-          )}
           <div
             role='rowgroup'
             className={cn('grid', virtualized && 'relative')}

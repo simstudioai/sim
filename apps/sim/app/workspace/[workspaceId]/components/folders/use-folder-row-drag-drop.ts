@@ -284,6 +284,12 @@ export function useFolderRowDragDrop({
         if (sourceRowIds.length > 0) {
           setActiveDropTargetId(rowId)
           /**
+           * The row is inside the scroll container, so moving onto it fires `dragleave` there
+           * with a contained `relatedTarget` — which that handler deliberately ignores. Without
+           * clearing here the row and the body would both render as the target at once.
+           */
+          setIsBodyDropActive(false)
+          /**
            * Armed on the same condition as the highlight, so a folder only springs open where a
            * drop was already possible. A folder the drag cannot legally enter never opens.
            */
@@ -323,19 +329,20 @@ export function useFolderRowDragDrop({
       onDragEnd: endDrag,
       body: {
         isActive: isBodyDropActive,
-        canDrop: canEdit && draggedRowIds.size > 0,
         onDragOver: (e: DragEvent<HTMLDivElement>) => {
           const sourceRowIds = draggedRowIdsRef.current
-          if (sourceRowIds.length === 0) return
           /**
-           * Only light up when the drop would actually move something. A drag whose rows all
-           * already live here is a no-op, and showing a target for it would promise a change
-           * that never happens.
+           * Recomputed on every event rather than latched, because a spring-open changes the
+           * destination mid-drag: the folder just entered may not accept this drag, and an
+           * early return would leave the outline showing from the previous folder. Setting the
+           * same value repeatedly is free — React bails on an unchanged state write.
            */
-          if (!resolveMoveToFolder(currentFolderId, sourceRowIds)) return
+          const canDrop =
+            sourceRowIds.length > 0 && resolveMoveToFolder(currentFolderId, sourceRowIds) !== null
+          setIsBodyDropActive(canDrop)
+          if (!canDrop) return
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
-          setIsBodyDropActive(true)
         },
         onDragLeave: (e: DragEvent<HTMLDivElement>) => {
           const relatedTarget = e.relatedTarget
@@ -346,6 +353,7 @@ export function useFolderRowDragDrop({
           e.preventDefault()
           const sourceRowIds =
             readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
+          e.stopPropagation()
           const move =
             sourceRowIds.length > 0 ? resolveMoveToFolder(currentFolderId, sourceRowIds) : null
           if (move) dropHandledRef.current = true

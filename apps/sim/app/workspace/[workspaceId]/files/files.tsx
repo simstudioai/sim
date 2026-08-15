@@ -915,6 +915,9 @@ export function Files() {
         e.stopPropagation()
         e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
         setActiveDropTargetId(rowId)
+        // The row sits inside the scroll container, whose `dragleave` ignores contained
+        // targets — clear it here so the row and the body never both read as the target.
+        setIsBodyDropActive(false)
         /**
          * Armed for OS file drags too: dropping an upload into a nested folder is the same
          * gesture, and `onDragOver` only fires on folder rows.
@@ -981,17 +984,22 @@ export function Files() {
       onDragEnd: endDrag,
       body: {
         isActive: isBodyDropActive,
-        canDrop: canEdit && draggedRowIds.size > 0,
         onDragOver: (e: DragEvent<HTMLDivElement>) => {
+          /**
+           * Internal row drags only. An OS file drag is already owned by the page-level
+           * handler, which paints the full "Drop to upload" overlay and uploads into this same
+           * folder — claiming it here would double the affordance and, without stopping
+           * propagation, upload every dropped file twice.
+           */
+          if (hasExternalFiles(e.dataTransfer)) return
           const sourceRowIds = draggedRowIdsRef.current
-          const isExternalFileDrag = hasExternalFiles(e.dataTransfer)
-          if (!isExternalFileDrag) {
-            if (sourceRowIds.length === 0) return
-            if (isInvalidFolderTarget(currentFolderId, sourceRowIds)) return
-          }
+          // Recomputed every event: a spring-open changes the destination mid-drag.
+          const canDrop =
+            sourceRowIds.length > 0 && !isInvalidFolderTarget(currentFolderId, sourceRowIds)
+          setIsBodyDropActive(canDrop)
+          if (!canDrop) return
           e.preventDefault()
-          e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
-          setIsBodyDropActive(true)
+          e.dataTransfer.dropEffect = 'move'
         },
         onDragLeave: (e: DragEvent<HTMLDivElement>) => {
           const relatedTarget = e.relatedTarget
@@ -999,21 +1007,16 @@ export function Files() {
           setIsBodyDropActive(false)
         },
         onDrop: (e: DragEvent<HTMLDivElement>) => {
+          // Left to the page-level handler, which uploads into this folder already.
+          if (hasExternalFiles(e.dataTransfer)) return
           e.preventDefault()
-          const droppedFiles = Array.from(e.dataTransfer.files ?? [])
+          e.stopPropagation()
           const sourceRowIds =
             readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
           const canMove =
-            droppedFiles.length === 0 &&
-            sourceRowIds.length > 0 &&
-            !isInvalidFolderTarget(currentFolderId, sourceRowIds)
+            sourceRowIds.length > 0 && !isInvalidFolderTarget(currentFolderId, sourceRowIds)
 
           endDrag()
-
-          if (droppedFiles.length > 0) {
-            void uploadFiles(droppedFiles, currentFolderId)
-            return
-          }
           if (!canMove) return
 
           const fileIds: string[] = []
