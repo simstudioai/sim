@@ -81,7 +81,7 @@ import {
   sortResources,
   useDragTeardown,
   useRowDragGhost,
-  useSpringLoadedFolder,
+  useSpringNavigation,
   writeRowDragPayload,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
@@ -854,24 +854,25 @@ export function Files() {
 
   const dragGhost = useRowDragGhost()
 
-  const springLoad = useSpringLoadedFolder({
-    onSpringOpen: (folderId, options) => {
+  const springNav = useSpringNavigation({
+    currentFolderId,
+    onNavigate: (folderId, options) => {
       void setFilesParams({ folderId, new: null }, options)
     },
   })
 
   /** Returns the list to its resting state once a drag is over, however it ended. */
   const endDrag = useCallback(() => {
+    springNav.end()
     dragGhost.remove()
     dragCounterRef.current = 0
     draggedRowIdsRef.current = []
-    springLoad.reset()
     setDraggedRowIds(EMPTY_DRAGGED_ROW_IDS)
     setIsDraggingOver(false)
     setActiveDropTargetId(null)
     setIsBodyDropActive(false)
     setActiveBreadcrumbIndex(null)
-  }, [dragGhost, springLoad])
+  }, [dragGhost, springNav])
 
   useDragTeardown(endDrag)
 
@@ -888,6 +889,7 @@ export function Files() {
           return
         }
 
+        springNav.rememberOrigin()
         const sourceRowIds = selectedRowIds.has(rowId)
           ? visibleRowIds.filter((visibleRowId) => selectedRowIds.has(visibleRowId))
           : [rowId]
@@ -925,12 +927,12 @@ export function Files() {
          * Armed for OS file drags too: dropping an upload into a nested folder is the same
          * gesture, and `onDragOver` only fires on folder rows.
          */
-        springLoad.arm(parseRowId(rowId).id)
+        springNav.arm(parseRowId(rowId).id)
       },
       onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
         const relatedTarget = e.relatedTarget
         if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
-        springLoad.disarm()
+        springNav.disarm()
         setActiveDropTargetId((current) => (current === rowId ? null : current))
       },
       onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
@@ -958,6 +960,7 @@ export function Files() {
         }
 
         if (isInvalidDropTarget(rowId, sourceRowIds)) return
+        springNav.markDropHandled()
 
         const fileIds = sourceRowIds
           .map(parseRowId)
@@ -997,7 +1000,7 @@ export function Files() {
           const sourceRowIds = draggedRowIdsRef.current
           if (sourceRowIds.length === 0) return
           /** Armed even for a no-op drop: walking back to where the drag started is the point. */
-          if (folderId !== currentFolderId) springLoad.arm(folderId)
+          if (folderId !== currentFolderId) springNav.arm(folderId)
           const canDrop = !isInvalidFolderTarget(folderId, sourceRowIds)
           setActiveBreadcrumbIndex(canDrop ? index : null)
           setIsBodyDropActive(false)
@@ -1007,7 +1010,7 @@ export function Files() {
           e.dataTransfer.dropEffect = 'move'
         },
         onDragLeave: (_e: DragEvent<HTMLElement>, index: number) => {
-          springLoad.disarm()
+          springNav.disarm()
           setActiveBreadcrumbIndex((current) => (current === index ? null : current))
         },
         onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
@@ -1017,6 +1020,7 @@ export function Files() {
           const sourceRowIds =
             readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
           const canMove = sourceRowIds.length > 0 && !isInvalidFolderTarget(folderId, sourceRowIds)
+          if (canMove) springNav.markDropHandled()
           endDrag()
           if (!canMove) return
 
@@ -1067,6 +1071,7 @@ export function Files() {
           const canMove =
             sourceRowIds.length > 0 && !isInvalidFolderTarget(currentFolderId, sourceRowIds)
 
+          if (canMove) springNav.markDropHandled()
           endDrag()
           if (!canMove) return
 

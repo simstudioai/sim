@@ -40,3 +40,5 @@ export type {
   UseSpringLoadedFolderOptions,
 } from './use-spring-loaded-folder'
 export { SPRING_LOAD_DELAY_MS, useSpringLoadedFolder } from './use-spring-loaded-folder'
+export type { SpringNavigation, UseSpringNavigationOptions } from './use-spring-navigation'
+export { useSpringNavigation } from './use-spring-navigation'

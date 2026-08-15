@@ -8,10 +8,8 @@ import {
 import { parseFolderedRowId } from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
 import { useDragTeardown } from '@/app/workspace/[workspaceId]/components/folders/use-drag-teardown'
 import { useRowDragGhost } from '@/app/workspace/[workspaceId]/components/folders/use-row-drag-ghost'
-import {
-  type SpringOpenOptions,
-  useSpringLoadedFolder,
-} from '@/app/workspace/[workspaceId]/components/folders/use-spring-loaded-folder'
+import type { SpringOpenOptions } from '@/app/workspace/[workspaceId]/components/folders/use-spring-loaded-folder'
+import { useSpringNavigation } from '@/app/workspace/[workspaceId]/components/folders/use-spring-navigation'
 import type { RowDragDropConfig } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
 /** The foldered-list drag MIME — see {@link writeRowDragPayload} for why each surface owns one. */
@@ -124,57 +122,23 @@ export function useFolderRowDragDrop({
     selection,
   }
 
-  /**
-   * Where the drag started, and whether it ever navigated. A drag that spring-opens its way into
-   * a folder and is then cancelled — or dropped somewhere else entirely — would otherwise strand
-   * the user several levels deep in a folder they never chose to open, with the list showing
-   * somewhere they did not ask to be. The workflow sidebar collapses its own spring-opened
-   * folders for exactly this reason.
-   */
-  const dragOriginFolderIdRef = useRef<string | null>(null)
-  const didSpringOpenRef = useRef(false)
-  /** Set by whichever drop handler ran, so a completed drop keeps the destination on screen. */
-  const dropHandledRef = useRef(false)
+  const springNav = useSpringNavigation({ currentFolderId, onNavigate: onSpringOpenFolder })
 
   const currentFolderIdRef = useRef(currentFolderId)
   currentFolderIdRef.current = currentFolderId
-
-  const springLoad = useSpringLoadedFolder({
-    onSpringOpen: (folderId, options) => {
-      didSpringOpenRef.current = true
-      ;(onSpringOpenFolder ?? noop)(folderId, options)
-    },
-  })
-
-  const onSpringOpenFolderRef = useRef(onSpringOpenFolder)
-  onSpringOpenFolderRef.current = onSpringOpenFolder
 
   const dragGhost = useRowDragGhost()
 
   /** Returns the list to its resting state once a drag is over, however it ended. */
   const endDrag = useCallback(() => {
-    /**
-     * Navigate back to where the drag started when it spring-opened folders but never landed.
-     * `replace`, not `push`: the spring-opens are being undone, so they should leave no trace in
-     * the back stack rather than a trail the user has to walk out of.
-     */
-    if (
-      didSpringOpenRef.current &&
-      !dropHandledRef.current &&
-      dragOriginFolderIdRef.current !== currentFolderIdRef.current
-    ) {
-      onSpringOpenFolderRef.current?.(dragOriginFolderIdRef.current, { history: 'replace' })
-    }
-    didSpringOpenRef.current = false
-    dropHandledRef.current = false
+    springNav.end()
     dragGhost.remove()
     draggedRowIdsRef.current = []
-    springLoad.reset()
     setDraggedRowIds(EMPTY_ROW_IDS)
     setActiveDropTargetId(null)
     setIsBodyDropActive(false)
     setActiveBreadcrumbIndex(null)
-  }, [dragGhost, springLoad])
+  }, [dragGhost, springNav])
 
   useDragTeardown(endDrag)
 
@@ -237,7 +201,7 @@ export function useFolderRowDragDrop({
           return
         }
 
-        dragOriginFolderIdRef.current = currentFolderIdRef.current
+        springNav.rememberOrigin()
         const { selection } = optionsRef.current
         /**
          * Read the selection in display order rather than insertion order, so a shift-range
@@ -296,13 +260,13 @@ export function useFolderRowDragDrop({
            * Armed on the same condition as the highlight, so a folder only springs open where a
            * drop was already possible. A folder the drag cannot legally enter never opens.
            */
-          springLoad.arm(parseFolderedRowId(rowId).id)
+          springNav.arm(parseFolderedRowId(rowId).id)
         }
       },
       onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
         const relatedTarget = e.relatedTarget
         if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
-        springLoad.disarm()
+        springNav.disarm()
         setActiveDropTargetId((current) => (current === rowId ? null : current))
       },
       onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
@@ -318,7 +282,7 @@ export function useFolderRowDragDrop({
           target.kind === 'folder' && sourceRowIds.length > 0
             ? resolveMove(rowId, sourceRowIds)
             : null
-        if (move) dropHandledRef.current = true
+        if (move) springNav.markDropHandled()
 
         /**
          * Ends the drag here rather than leaving it to `dragend`. This handler stops
@@ -348,7 +312,7 @@ export function useFolderRowDragDrop({
            * refusing to navigate there would strand them.
            */
           if (sourceRowIds.length > 0 && folderId !== currentFolderIdRef.current) {
-            springLoad.arm(folderId)
+            springNav.arm(folderId)
           }
           setActiveBreadcrumbIndex(canDrop ? index : null)
           setIsBodyDropActive(false)
@@ -358,7 +322,7 @@ export function useFolderRowDragDrop({
           e.dataTransfer.dropEffect = 'move'
         },
         onDragLeave: (_e: DragEvent<HTMLElement>, index: number) => {
-          springLoad.disarm()
+          springNav.disarm()
           setActiveBreadcrumbIndex((current) => (current === index ? null : current))
         },
         onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
@@ -367,7 +331,7 @@ export function useFolderRowDragDrop({
           const sourceRowIds =
             readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
           const move = sourceRowIds.length > 0 ? resolveMoveToFolder(folderId, sourceRowIds) : null
-          if (move) dropHandledRef.current = true
+          if (move) springNav.markDropHandled()
           endDrag()
           if (move) optionsRef.current.onMoveRows(move, folderId)
         },
@@ -401,7 +365,7 @@ export function useFolderRowDragDrop({
           e.stopPropagation()
           const move =
             sourceRowIds.length > 0 ? resolveMoveToFolder(currentFolderId, sourceRowIds) : null
-          if (move) dropHandledRef.current = true
+          if (move) springNav.markDropHandled()
           endDrag()
           if (move) optionsRef.current.onMoveRows(move, currentFolderId)
         },
@@ -413,7 +377,7 @@ export function useFolderRowDragDrop({
       canEdit,
       editingRowId,
       resolveMove,
-      springLoad,
+      springNav,
       endDrag,
       dragGhost,
     ]
