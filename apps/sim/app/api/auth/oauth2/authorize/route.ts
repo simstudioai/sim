@@ -65,6 +65,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       throw new Error('Validated OAuth authorization request is missing its target')
     }
 
+    requireConfiguredOAuthClient(providerId)
+
     const connectionCompleteUrl = new URL('/oauth/credential-connected', baseUrl)
     connectionCompleteUrl.searchParams.set('result', 'connected')
     const callbackURL = fromConnectionDraft
@@ -108,8 +110,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         throw error
       }
     }
-
-    requireConfiguredOAuthClient(providerId)
 
     if (!connectionDraftId) {
       throw new Error('OAuth authorization is missing its credential draft id')

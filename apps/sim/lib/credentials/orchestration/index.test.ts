@@ -64,7 +64,11 @@ vi.mock('@/lib/credentials/token-service-accounts/errors', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { deleteCredentialRecord, performUpdateCredential } from '@/lib/credentials/orchestration'
+import {
+  createServiceAccountCredential,
+  deleteCredentialRecord,
+  performUpdateCredential,
+} from '@/lib/credentials/orchestration'
 
 const OLD_EMAIL = 'old-sa@old-project.iam.gserviceaccount.com'
 const NEW_EMAIL = 'new-sa@new-project.iam.gserviceaccount.com'
@@ -431,6 +435,93 @@ describe('performUpdateCredential — service-account secret rotation', () => {
 
     expect(result).toMatchObject({ success: false, errorCode: 'not_found' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('createServiceAccountCredential', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('rejects an existing service-account source instead of discarding the submitted secret', async () => {
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'zoom-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Production Zoom',
+      auditMetadata: {},
+      principal: { kind: 'tenant', id: 'account-1' },
+    })
+    queueTableRows(schemaMock.credential, [
+      {
+        id: 'credential-1',
+        workspaceId: 'workspace-1',
+        type: 'service_account',
+        providerId: 'zoom-service-account',
+        displayName: 'Production Zoom',
+        encryptedServiceAccountKey: 'old-cipher',
+      },
+    ])
+    mockDecryptSecret
+      .mockResolvedValueOnce({ decrypted: 'stored-secret' })
+      .mockResolvedValueOnce({ decrypted: 'rotated-secret' })
+    mockGetCredentialActorContext.mockResolvedValue({ member: { role: 'admin' }, isAdmin: true })
+
+    const result = await createServiceAccountCredential({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      providerId: 'zoom-service-account',
+      displayName: 'Production Zoom',
+      clientId: 'client-id',
+      clientSecret: 'rotated-client-secret',
+      orgId: 'account-1',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      errorCode: 'conflict',
+      providerErrorCode: 'duplicate_display_name',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockGetCredentialActorContext).toHaveBeenCalledWith('credential-1', 'user-1', {})
+  })
+
+  it('returns an accessible credential for an exact non-token secret replay', async () => {
+    const existingCredential = {
+      id: 'credential-1',
+      workspaceId: 'workspace-1',
+      type: 'service_account',
+      providerId: 'zoom-service-account',
+      displayName: 'Production Zoom',
+      encryptedServiceAccountKey: 'stored-cipher',
+    }
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'zoom-service-account',
+      encryptedServiceAccountKey: 'replay-cipher',
+      displayName: 'Production Zoom',
+      auditMetadata: {},
+      principal: { kind: 'tenant', id: 'account-1' },
+    })
+    queueTableRows(schemaMock.credential, [existingCredential])
+    mockDecryptSecret.mockResolvedValue({ decrypted: 'same-secret' })
+    mockGetCredentialActorContext.mockResolvedValue({ member: { role: 'admin' }, isAdmin: true })
+
+    const result = await createServiceAccountCredential({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      providerId: 'zoom-service-account',
+      displayName: 'Production Zoom',
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      orgId: 'account-1',
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      credential: existingCredential,
+      created: false,
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
 
