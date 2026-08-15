@@ -105,7 +105,7 @@ const WORKFLOW_ROLE_ACCENTS = {
   state: { variant: 'workflow', tone: 'yellow' },
   flow: { variant: 'workflow', tone: 'ash' },
   records: { variant: 'workflow', tone: 'green' },
-  identity: { variant: 'workflow', tone: 'purple' },
+  identity: { variant: 'workflow', tone: 'identity' },
   neutral: { variant: 'workflow', tone: 'neutral' },
   generative: { variant: 'workflow', tone: 'purple' },
   knowledge: { variant: 'workflow', tone: 'content' },

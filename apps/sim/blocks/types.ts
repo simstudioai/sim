@@ -489,7 +489,8 @@ export interface SubBlockConfig {
   // Called when component mounts with a stored value to display the correct label before options load
   fetchOptionById?: (
     blockId: string,
-    optionId: string
+    optionId: string,
+    signal?: AbortSignal
   ) => Promise<{ label: string; id: string } | null>
   /**
    * tool-input only: tool categories the consuming block cannot execute. They
