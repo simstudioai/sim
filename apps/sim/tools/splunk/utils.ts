@@ -77,11 +77,11 @@ function namespacePrefix(params: SplunkBaseParams): string {
 export function buildSplunkUrl(
   params: SplunkBaseParams,
   path: string,
-  query?: Record<string, string | number | boolean | undefined>
+  query?: Record<string, string | number | boolean | null | undefined>
 ): string {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(query ?? {})) {
-    if (key === 'output_mode' || value === undefined || value === '') continue
+    if (key === 'output_mode' || value == null || value === '') continue
     search.set(key, String(value))
   }
   search.set('output_mode', SPLUNK_JSON_OUTPUT_MODE)
@@ -124,13 +124,18 @@ export function buildSplunkFormHeaders(params: SplunkBaseParams): Record<string,
   return buildSplunkHeaders(params, { 'Content-Type': 'application/x-www-form-urlencoded' })
 }
 
-/** Serialize a form body, skipping empty values. Splunk expects booleans as 1/0. */
+/**
+ * Serialize a form body, skipping empty values. Splunk expects booleans as 1/0.
+ * An untouched subBlock serializes as `null`, so `null` must be dropped exactly
+ * like `undefined` — otherwise the field is sent as the literal string `null`
+ * and overrides the default Splunk would otherwise apply.
+ */
 export function buildSplunkFormBody(
-  fields: Record<string, string | number | boolean | undefined>
+  fields: Record<string, string | number | boolean | null | undefined>
 ): string {
   const body = new URLSearchParams()
   for (const [key, value] of Object.entries(fields)) {
-    if (value === undefined || value === '') continue
+    if (value == null || value === '') continue
     body.set(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value))
   }
   return body.toString()

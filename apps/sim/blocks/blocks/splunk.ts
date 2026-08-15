@@ -450,10 +450,8 @@ Examples:
       params: (params) => {
         const result: Record<string, unknown> = {}
 
-        if (params.count !== undefined && params.count !== '') result.count = Number(params.count)
-        if (params.offset !== undefined && params.offset !== '') {
-          result.offset = Number(params.offset)
-        }
+        if (params.count != null && params.count !== '') result.count = Number(params.count)
+        if (params.offset != null && params.offset !== '') result.offset = Number(params.offset)
 
         switch (params.operation) {
           case 'splunk_run_search':

@@ -12,7 +12,15 @@ import {
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
-/** Lists the unexpired triggered instances of one alert, by saved search name. */
+/**
+ * Lists the unexpired triggered instances of one alert, by saved search name.
+ *
+ * The entity reference for `alerts/fired_alerts/{name}` states "Request parameters:
+ * None", while the sibling collection endpoint `alerts/fired_alerts` documents
+ * `count`/`offset`. Both are exposed here on the assumption that the shared Atom
+ * collection pagination applies; an instance that ignores them simply returns the
+ * full set, and the caller can still page client-side.
+ */
 export const getFiredAlertsTool: ToolConfig<
   SplunkGetFiredAlertsParams,
   SplunkGetFiredAlertsResponse
