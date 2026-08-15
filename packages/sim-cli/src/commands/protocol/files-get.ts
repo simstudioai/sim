@@ -1,5 +1,7 @@
 import { once } from 'node:events'
 import { createWriteStream, type WriteStream } from 'node:fs'
+import { link, mkdtemp, rename, rm } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
@@ -8,22 +10,50 @@ import { V2_OPERATIONS } from '../../generated/v2-api'
 import { resolvePath, SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
 
+function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
+  const code = (error as NodeJS.ErrnoException).code
+  if (code === 'EEXIST') {
+    return new SimApiError(
+      `${path} already exists. Pass --force to overwrite it, or choose another output path.`,
+      0
+    )
+  }
+  return new SimApiError(`Could not write ${path}: ${(error as Error).message}`, 0)
+}
+
 /** Streams a fetch body to disk while honoring write-stream backpressure. */
 export async function streamToFile(
   body: ReadableStream<Uint8Array>,
-  file: Writable & Pick<WriteStream, 'path'>
+  file: Writable & Pick<WriteStream, 'path'>,
+  reportedPath: WriteStream['path'] = file.path
 ): Promise<void> {
   try {
     await pipeline(Readable.fromWeb(body as Parameters<typeof Readable.fromWeb>[0]), file)
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === 'EEXIST') {
-      throw new SimApiError(
-        `${file.path} already exists. Pass --force to overwrite it, or choose another output path.`,
-        0
-      )
-    }
-    throw new SimApiError(`Could not write ${file.path}: ${(error as Error).message}`, 0)
+    throw writeFailure(reportedPath, error)
+  }
+}
+
+/** Stages a complete download beside its destination before publishing it. */
+export async function saveToFile(
+  body: ReadableStream<Uint8Array>,
+  target: string,
+  force: boolean
+): Promise<void> {
+  let temporaryDirectory: string | null = null
+
+  try {
+    temporaryDirectory = await mkdtemp(join(dirname(target), '.sim-download-'))
+    const temporaryPath = join(temporaryDirectory, 'payload')
+    await streamToFile(body, createWriteStream(temporaryPath, { flags: 'wx' }), target)
+
+    if (force) await rename(temporaryPath, target)
+    else await link(temporaryPath, target)
+  } catch (error) {
+    if (error instanceof SimApiError) throw error
+    throw writeFailure(target, error)
+  } finally {
+    if (temporaryDirectory) await rm(temporaryDirectory, { recursive: true, force: true })
   }
 }
 
@@ -111,10 +141,7 @@ export function attachFileGet(files: Command): void {
 
         const target = options.outputFile
 
-        await streamToFile(
-          response.body,
-          createWriteStream(target, { flags: options.force ? 'w' : 'wx' })
-        )
+        await saveToFile(response.body, target, Boolean(options.force))
         printProtocolResult(profile.output, {
           id: fileId,
           path: target,

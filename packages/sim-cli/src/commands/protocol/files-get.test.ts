@@ -1,11 +1,18 @@
-import { createWriteStream, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  createWriteStream,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from '../../runtime/build'
-import { isTerminalSafeContentType, streamToFile } from './files-get'
+import { isTerminalSafeContentType, saveToFile, streamToFile } from './files-get'
 import { attachProtocolCommands } from './index'
 
 const { output, requestRaw } = vi.hoisted(() => ({
@@ -45,6 +52,15 @@ function bodyOf(chunks: string[]): ReadableStream<Uint8Array> {
     start(controller) {
       for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk))
       controller.close()
+    },
+  })
+}
+
+function failingBody(): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('partial'))
+      controller.error(new Error('connection lost'))
     },
   })
 }
@@ -110,6 +126,34 @@ describe('streamToFile', () => {
       `Could not write ${target}: disk full`
     )
     expect(cancelled).toHaveBeenCalledOnce()
+  })
+})
+
+describe('saveToFile', () => {
+  it('preserves the original destination when a forced download fails', async () => {
+    const target = join(dir, 'out.txt')
+    writeFileSync(target, 'precious')
+
+    await expect(saveToFile(failingBody(), target, true)).rejects.toThrow(/connection lost/)
+
+    expect(readFileSync(target, 'utf8')).toBe('precious')
+  })
+
+  it('leaves no partial destination when a new download fails', async () => {
+    const target = join(dir, 'out.txt')
+
+    await expect(saveToFile(failingBody(), target, false)).rejects.toThrow(/connection lost/)
+
+    expect(existsSync(target)).toBe(false)
+  })
+
+  it('publishes a completed forced download over the original', async () => {
+    const target = join(dir, 'out.txt')
+    writeFileSync(target, 'old')
+
+    await saveToFile(bodyOf(['new']), target, true)
+
+    expect(readFileSync(target, 'utf8')).toBe('new')
   })
 })
 
