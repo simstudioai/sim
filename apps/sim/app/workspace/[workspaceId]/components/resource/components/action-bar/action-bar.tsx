@@ -60,6 +60,12 @@ export interface ResourceActionBarProps {
   onDelete?: () => void
   /** Disables every action while a bulk mutation is in flight. */
   isLoading?: boolean
+  /**
+   * Largest selection the bulk endpoints accept. Past it the server rejects the whole request,
+   * so the bar says so and disables the actions rather than letting the user confirm something
+   * that cannot succeed.
+   */
+  maxSelectable?: number
   className?: string
 }
 
@@ -83,9 +89,13 @@ export function ResourceActionBar({
   moveOptions,
   onDelete,
   isLoading = false,
+  maxSelectable,
   className,
 }: ResourceActionBarProps) {
   if (selectedCount === 0) return null
+
+  const exceedsLimit = maxSelectable !== undefined && selectedCount > maxSelectable
+  const actionsDisabled = isLoading || exceedsLimit
 
   return (
     <div
@@ -96,8 +106,15 @@ export function ResourceActionBar({
       )}
     >
       <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
-        <span className='px-1 text-[var(--text-secondary)] text-small'>
-          {selectedCount} selected
+        <span
+          className={cn(
+            'px-1 text-small',
+            exceedsLimit ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
+          )}
+        >
+          {exceedsLimit
+            ? `${selectedCount} selected · select ${maxSelectable} or fewer`
+            : `${selectedCount} selected`}
         </span>
         <div className='flex items-center gap-[5px]'>
           {onDownload && (
@@ -105,7 +122,7 @@ export function ResourceActionBar({
               icon={Download}
               label='Download'
               onClick={onDownload}
-              disabled={isLoading}
+              disabled={actionsDisabled}
             />
           )}
           {onMove && moveOptions && (
@@ -113,7 +130,11 @@ export function ResourceActionBar({
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <DropdownMenuTrigger asChild>
-                    <Button variant='ghost' disabled={isLoading} className={ACTION_BUTTON_CLASS}>
+                    <Button
+                      variant='ghost'
+                      disabled={actionsDisabled}
+                      className={ACTION_BUTTON_CLASS}
+                    >
                       <Folder className='size-[12px]' />
                     </Button>
                   </DropdownMenuTrigger>
@@ -137,7 +158,12 @@ export function ResourceActionBar({
             </DropdownMenu>
           )}
           {onDelete && (
-            <ActionButton icon={Trash} label='Delete' onClick={onDelete} disabled={isLoading} />
+            <ActionButton
+              icon={Trash}
+              label='Delete'
+              onClick={onDelete}
+              disabled={actionsDisabled}
+            />
           )}
         </div>
       </div>

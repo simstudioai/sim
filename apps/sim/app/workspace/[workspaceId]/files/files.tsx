@@ -368,6 +368,7 @@ export function Files() {
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
+  const [isBodyDropActive, setIsBodyDropActive] = useState(false)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_DRAGGED_ROW_IDS)
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
@@ -717,6 +718,42 @@ export function Files() {
 
   const descendantFolderIdsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
 
+  /**
+   * Whether dropping `sourceRowIds` into `targetFolderId` would move anything.
+   *
+   * Takes a folder id rather than a row id because the destination is not always a row: the
+   * list body files into the folder currently open, which has no row of its own, and a drag
+   * that spring-opened into an empty folder has nothing else to land on.
+   */
+  const isInvalidFolderTarget = useCallback(
+    (targetFolderId: string | null, sourceRowIds: string[]) => {
+      for (const sourceRowId of sourceRowIds) {
+        const source = parseRowId(sourceRowId)
+        if (source.kind !== 'folder') continue
+        if (source.id === targetFolderId) return true
+        if (
+          targetFolderId !== null &&
+          descendantFolderIdsByFolderId.get(source.id)?.has(targetFolderId)
+        )
+          return true
+      }
+
+      const allAlreadyInTarget = sourceRowIds.every((sourceRowId) => {
+        const source = parseRowId(sourceRowId)
+        if (source.kind === 'file') {
+          return (
+            (filesRef.current.find((f) => f.id === source.id)?.folderId ?? null) === targetFolderId
+          )
+        }
+        return (
+          (foldersRef.current.find((f) => f.id === source.id)?.parentId ?? null) === targetFolderId
+        )
+      })
+      return allAlreadyInTarget
+    },
+    [descendantFolderIdsByFolderId]
+  )
+
   const isInvalidDropTarget = useCallback(
     (targetRowId: string, sourceRowIds: string[]) => {
       const target = parseRowId(targetRowId)
@@ -831,6 +868,7 @@ export function Files() {
     setDraggedRowIds(EMPTY_DRAGGED_ROW_IDS)
     setIsDraggingOver(false)
     setActiveDropTargetId(null)
+    setIsBodyDropActive(false)
   }, [dragGhost, springLoad])
 
   useDragTeardown(endDrag)
@@ -941,6 +979,56 @@ export function Files() {
           })
       },
       onDragEnd: endDrag,
+      body: {
+        isActive: isBodyDropActive,
+        canDrop: canEdit && draggedRowIds.size > 0,
+        onDragOver: (e: DragEvent<HTMLDivElement>) => {
+          const sourceRowIds = draggedRowIdsRef.current
+          const isExternalFileDrag = hasExternalFiles(e.dataTransfer)
+          if (!isExternalFileDrag) {
+            if (sourceRowIds.length === 0) return
+            if (isInvalidFolderTarget(currentFolderId, sourceRowIds)) return
+          }
+          e.preventDefault()
+          e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
+          setIsBodyDropActive(true)
+        },
+        onDragLeave: (e: DragEvent<HTMLDivElement>) => {
+          const relatedTarget = e.relatedTarget
+          if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
+          setIsBodyDropActive(false)
+        },
+        onDrop: (e: DragEvent<HTMLDivElement>) => {
+          e.preventDefault()
+          const droppedFiles = Array.from(e.dataTransfer.files ?? [])
+          const sourceRowIds =
+            readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
+          const canMove =
+            droppedFiles.length === 0 &&
+            sourceRowIds.length > 0 &&
+            !isInvalidFolderTarget(currentFolderId, sourceRowIds)
+
+          endDrag()
+
+          if (droppedFiles.length > 0) {
+            void uploadFiles(droppedFiles, currentFolderId)
+            return
+          }
+          if (!canMove) return
+
+          const fileIds: string[] = []
+          const folderIds: string[] = []
+          for (const sourceRowId of sourceRowIds) {
+            const source = parseRowId(sourceRowId)
+            if (source.kind === 'file') fileIds.push(source.id)
+            else folderIds.push(source.id)
+          }
+          void moveItems
+            .mutateAsync({ workspaceId, fileIds, folderIds, targetFolderId: currentFolderId })
+            .then(() => clearSelection())
+            .catch((error) => logger.error('Failed to move items into the open folder:', error))
+        },
+      },
     }),
     [
       activeDropTargetId,
@@ -950,6 +1038,10 @@ export function Files() {
       selectedRowIds,
       visibleRowIds,
       isInvalidDropTarget,
+      isInvalidFolderTarget,
+      isBodyDropActive,
+      currentFolderId,
+      clearSelection,
       uploadFiles,
       workspaceId,
     ]

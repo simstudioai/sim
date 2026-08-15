@@ -9,7 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { TableDefinition } from '@/lib/table'
-import { generateUniqueTableName } from '@/lib/table/constants'
+import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   DropdownOption,
@@ -473,6 +473,14 @@ export function Tables() {
     [listRename.startRename]
   )
 
+  /**
+   * A dialog owns the keyboard while it is open. Without this, Escape closes the dialog AND
+   * clears the selection behind it, so a bulk-delete confirm submits against a selection the
+   * user just emptied; Delete and Cmd/Ctrl+A leak through the same way.
+   */
+  const isAnyDialogOpen = () =>
+    isDeleteDialogOpen || isDeleteFolderDialogOpen || isBulkDeleteDialogOpen || isImportDialogOpen
+
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
   const {
@@ -482,7 +490,7 @@ export function Tables() {
     clearSelection,
   } = useResourceRowSelection({
     visibleRowIds,
-    isKeyboardBlocked: () => !canEdit || listRename.editingId !== null,
+    isKeyboardBlocked: () => !canEdit || listRename.editingId !== null || isAnyDialogOpen(),
     onDeleteSelected: () => handleBulkDelete(),
   })
 
@@ -858,6 +866,10 @@ export function Tables() {
   const moveRowsTo = useCallback(
     (rows: { tableIds: string[]; folderIds: string[] }, targetFolderId: string | null) => {
       if (rows.tableIds.length === 0 && rows.folderIds.length === 0) return
+      if (rows.tableIds.length + rows.folderIds.length > MAX_TABLE_BATCH_ITEMS) {
+        toast.error(`Select ${MAX_TABLE_BATCH_ITEMS} or fewer items to move at once`)
+        return
+      }
       bulkMoveTables.mutate(
         { ...rows, targetFolderId },
         {
@@ -882,10 +894,21 @@ export function Tables() {
     [moveRowsTo, selectedTableIds, selectedFolderIds]
   )
 
+  /**
+   * Enforced here rather than only on the action bar: the row context menu and the Delete key
+   * reach the same operation, and the server rejects an over-cap request outright — so without
+   * this the user confirms a delete that cannot succeed.
+   */
+  const exceedsBatchCap = selectedTableIds.length + selectedFolderIds.length > MAX_TABLE_BATCH_ITEMS
+
   const handleBulkDelete = useCallback(() => {
     if (selectedTableIds.length === 0 && selectedFolderIds.length === 0) return
+    if (exceedsBatchCap) {
+      toast.error(`Select ${MAX_TABLE_BATCH_ITEMS} or fewer items to delete at once`)
+      return
+    }
     setIsBulkDeleteDialogOpen(true)
-  }, [selectedTableIds, selectedFolderIds])
+  }, [selectedTableIds, selectedFolderIds, exceedsBatchCap])
 
   const confirmBulkDelete = useCallback(async () => {
     try {
@@ -1193,6 +1216,7 @@ export function Tables() {
         moveOptions={canEdit ? bulkMoveOptions : undefined}
         onDelete={canEdit ? handleBulkDelete : undefined}
         isLoading={bulkMoveTables.isPending || bulkDeleteTables.isPending}
+        maxSelectable={MAX_TABLE_BATCH_ITEMS}
       />
     ),
     [

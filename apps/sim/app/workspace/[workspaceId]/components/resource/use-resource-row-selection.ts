@@ -102,7 +102,17 @@ export function useResourceRowSelection({
   const prevVisibleRowIdsRef = useRef(visibleRowIds)
   useEffect(() => {
     if (prevVisibleRowIdsRef.current === visibleRowIds) return
+    /**
+     * Identity is only a cheap first test — it changes for reasons that are not list changes.
+     * Both foldered pages rebuild every row on each inline-rename keystroke (the edit value
+     * lives in the row memo), so a rename would otherwise clear the shift anchor mid-edit and
+     * the next shift-click would start a fresh range instead of extending the user's.
+     */
+    const unchanged =
+      prevVisibleRowIdsRef.current.length === visibleRowIds.length &&
+      prevVisibleRowIdsRef.current.every((rowId, index) => rowId === visibleRowIds[index])
     prevVisibleRowIdsRef.current = visibleRowIds
+    if (unchanged) return
     anchorIndexRef.current = NO_ANCHOR
     const visible = new Set(visibleRowIds)
     setSelectedRowIds((prev) => {

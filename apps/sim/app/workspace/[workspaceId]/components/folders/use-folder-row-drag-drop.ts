@@ -66,7 +66,7 @@ export interface UseFolderRowDragDropOptions {
    * dropping first. Forward `options` to the folder-navigation setter so one drag leaves one
    * back-stack entry. Omit to disable spring-loading. See {@link useSpringLoadedFolder}.
    */
-  onSpringOpenFolder?: (folderId: string, options: SpringOpenOptions) => void
+  onSpringOpenFolder?: (folderId: string | null, options: SpringOpenOptions) => void
   /**
    * The folder the list is currently showing (`null` at the workspace root). Enables dropping
    * onto the list body to file into it — the only way to land a drag that spring-opened into an
@@ -123,12 +123,49 @@ export function useFolderRowDragDrop({
     selection,
   }
 
-  const springLoad = useSpringLoadedFolder({ onSpringOpen: onSpringOpenFolder ?? noop })
+  /**
+   * Where the drag started, and whether it ever navigated. A drag that spring-opens its way into
+   * a folder and is then cancelled — or dropped somewhere else entirely — would otherwise strand
+   * the user several levels deep in a folder they never chose to open, with the list showing
+   * somewhere they did not ask to be. The workflow sidebar collapses its own spring-opened
+   * folders for exactly this reason.
+   */
+  const dragOriginFolderIdRef = useRef<string | null>(null)
+  const didSpringOpenRef = useRef(false)
+  /** Set by whichever drop handler ran, so a completed drop keeps the destination on screen. */
+  const dropHandledRef = useRef(false)
+
+  const currentFolderIdRef = useRef(currentFolderId)
+  currentFolderIdRef.current = currentFolderId
+
+  const springLoad = useSpringLoadedFolder({
+    onSpringOpen: (folderId, options) => {
+      didSpringOpenRef.current = true
+      ;(onSpringOpenFolder ?? noop)(folderId, options)
+    },
+  })
+
+  const onSpringOpenFolderRef = useRef(onSpringOpenFolder)
+  onSpringOpenFolderRef.current = onSpringOpenFolder
 
   const dragGhost = useRowDragGhost()
 
   /** Returns the list to its resting state once a drag is over, however it ended. */
   const endDrag = useCallback(() => {
+    /**
+     * Navigate back to where the drag started when it spring-opened folders but never landed.
+     * `replace`, not `push`: the spring-opens are being undone, so they should leave no trace in
+     * the back stack rather than a trail the user has to walk out of.
+     */
+    if (
+      didSpringOpenRef.current &&
+      !dropHandledRef.current &&
+      dragOriginFolderIdRef.current !== currentFolderIdRef.current
+    ) {
+      onSpringOpenFolderRef.current?.(dragOriginFolderIdRef.current, { history: 'replace' })
+    }
+    didSpringOpenRef.current = false
+    dropHandledRef.current = false
     dragGhost.remove()
     draggedRowIdsRef.current = []
     springLoad.reset()
@@ -198,6 +235,7 @@ export function useFolderRowDragDrop({
           return
         }
 
+        dragOriginFolderIdRef.current = currentFolderIdRef.current
         const { selection } = optionsRef.current
         /**
          * Read the selection in display order rather than insertion order, so a shift-range
@@ -271,6 +309,7 @@ export function useFolderRowDragDrop({
           target.kind === 'folder' && sourceRowIds.length > 0
             ? resolveMove(rowId, sourceRowIds)
             : null
+        if (move) dropHandledRef.current = true
 
         /**
          * Ends the drag here rather than leaving it to `dragend`. This handler stops
@@ -309,6 +348,7 @@ export function useFolderRowDragDrop({
             readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
           const move =
             sourceRowIds.length > 0 ? resolveMoveToFolder(currentFolderId, sourceRowIds) : null
+          if (move) dropHandledRef.current = true
           endDrag()
           if (move) optionsRef.current.onMoveRows(move, currentFolderId)
         },

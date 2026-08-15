@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
@@ -630,6 +631,19 @@ export function Knowledge() {
     listRename.cancelRename,
   ])
 
+  /**
+   * A dialog owns the keyboard while it is open. Without this, Escape closes the dialog AND
+   * clears the selection behind it, so a bulk-delete confirm submits against a selection the
+   * user just emptied; Delete and Cmd/Ctrl+A leak through the same way.
+   */
+  const isAnyDialogOpen = () =>
+    isCreateModalOpen ||
+    isEditModalOpen ||
+    isDeleteModalOpen ||
+    isBulkDeleteModalOpen ||
+    isTagsModalOpen ||
+    folderPendingDelete !== null
+
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
   const {
@@ -639,7 +653,8 @@ export function Knowledge() {
     clearSelection,
   } = useResourceRowSelection({
     visibleRowIds,
-    isKeyboardBlocked: () => !canEdit || listRenameRef.current.editingId !== null,
+    isKeyboardBlocked: () =>
+      !canEdit || listRenameRef.current.editingId !== null || isAnyDialogOpen(),
     onDeleteSelected: () => handleBulkDelete(),
   })
 
@@ -941,6 +956,10 @@ export function Knowledge() {
   const moveRowsTo = useCallback(
     (rows: { knowledgeBaseIds: string[]; folderIds: string[] }, targetFolderId: string | null) => {
       if (rows.knowledgeBaseIds.length === 0 && rows.folderIds.length === 0) return
+      if (rows.knowledgeBaseIds.length + rows.folderIds.length > MAX_KNOWLEDGE_BATCH_ITEMS) {
+        toast.error(`Select ${MAX_KNOWLEDGE_BATCH_ITEMS} or fewer items to move at once`)
+        return
+      }
       bulkMoveKnowledgeBases.mutate(
         { ...rows, targetFolderId },
         {
@@ -965,10 +984,22 @@ export function Knowledge() {
     [moveRowsTo, selectedKnowledgeBaseIds, selectedFolderIds]
   )
 
+  /**
+   * Enforced here rather than only on the action bar: the row context menu and the Delete key
+   * reach the same operation, and the server rejects an over-cap request outright — so without
+   * this the user confirms a delete that cannot succeed.
+   */
+  const exceedsBatchCap =
+    selectedKnowledgeBaseIds.length + selectedFolderIds.length > MAX_KNOWLEDGE_BATCH_ITEMS
+
   const handleBulkDelete = useCallback(() => {
     if (selectedKnowledgeBaseIds.length === 0 && selectedFolderIds.length === 0) return
+    if (exceedsBatchCap) {
+      toast.error(`Select ${MAX_KNOWLEDGE_BATCH_ITEMS} or fewer items to delete at once`)
+      return
+    }
     setIsBulkDeleteModalOpen(true)
-  }, [selectedKnowledgeBaseIds, selectedFolderIds])
+  }, [selectedKnowledgeBaseIds, selectedFolderIds, exceedsBatchCap])
 
   const confirmBulkDelete = useCallback(async () => {
     try {
@@ -1248,6 +1279,7 @@ export function Knowledge() {
         moveOptions={canEdit ? bulkMoveOptions : undefined}
         onDelete={canEdit ? handleBulkDelete : undefined}
         isLoading={bulkMoveKnowledgeBases.isPending || bulkDeleteKnowledgeBases.isPending}
+        maxSelectable={MAX_KNOWLEDGE_BATCH_ITEMS}
       />
     ),
     [
