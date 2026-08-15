@@ -1,7 +1,14 @@
 import type { Command } from 'commander'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
-import { type CreateCredentialConnectionResponse, V2_OPERATIONS } from '../generated/v2-api'
+import {
+  type CreateCredentialConnectionResponse,
+  type CreateServiceAccountCredentialResponse,
+  type ListCredentialProvidersResponse,
+  V2_OPERATIONS,
+} from '../generated/v2-api'
+import { SimApiError } from '../http/client'
+import { coerce } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 
 const CONNECTION_RESULT: CommandSpec = {
@@ -11,7 +18,129 @@ const CONNECTION_RESULT: CommandSpec = {
   ],
 }
 
+const SERVICE_ACCOUNT_RESULT: CommandSpec = {
+  fields: [
+    { header: 'id' },
+    { header: 'name', path: 'displayName' },
+    { header: 'provider', path: 'providerId' },
+    { header: 'role' },
+    { header: 'created', path: 'createdAt', format: 'timestamp' },
+  ],
+}
+
 type ConnectionBody = { providerId: string; displayName: string } | { credentialId: string }
+type CredentialProvider = ListCredentialProvidersResponse['data'][number]
+type ServiceAccountProvider = Extract<CredentialProvider, { type: 'service_account' }>
+
+interface CreateServiceAccountOptions {
+  credentials: string
+  description?: string
+  id?: string
+  name: string
+}
+
+function serviceAccountProvider(
+  providers: CredentialProvider[],
+  providerId: string
+): ServiceAccountProvider {
+  const provider = providers.find(
+    (candidate): candidate is ServiceAccountProvider =>
+      candidate.type === 'service_account' && candidate.providerId === providerId
+  )
+  if (!provider) {
+    throw new SimApiError(`Unknown service-account provider "${providerId}".`, 0)
+  }
+  if (!provider.available) {
+    throw new SimApiError(`Service-account provider "${providerId}" is not available.`, 0)
+  }
+  return provider
+}
+
+function credentialValues(provider: ServiceAccountProvider, raw: string): Record<string, string> {
+  const parsed = coerce(raw, { kind: 'object' }, { json: true }, 'credentials')
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new SimApiError('--credentials must be a JSON object', 0)
+  }
+
+  const values = parsed as Record<string, unknown>
+  const fields = new Map(provider.fields.map((field) => [field.id, field]))
+  for (const [id, value] of Object.entries(values)) {
+    const field = fields.get(id)
+    if (!field) {
+      throw new SimApiError(
+        `--credentials contains unsupported field "${id}" for ${provider.providerId}.`,
+        0
+      )
+    }
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      throw new SimApiError(`--credentials.${id} must be a non-empty string.`, 0)
+    }
+    if (field.options && !field.options.some((option) => option.value === value)) {
+      throw new SimApiError(
+        `--credentials.${id} must be one of: ${field.options.map((option) => option.value).join(', ')}.`,
+        0
+      )
+    }
+  }
+
+  const authMethod = typeof values.authMethod === 'string' ? values.authMethod : undefined
+  const missing = provider.fields
+    .filter(
+      (field) =>
+        field.required ||
+        (authMethod !== undefined && field.requiredForAuthMethods?.includes(authMethod))
+    )
+    .filter((field) => values[field.id] === undefined)
+    .map((field) => field.id)
+  if (missing.length > 0) {
+    throw new SimApiError(
+      `--credentials is missing required fields for ${provider.providerId}: ${missing.join(', ')}.`,
+      0
+    )
+  }
+
+  return values as Record<string, string>
+}
+
+async function createServiceAccount(
+  command: Command,
+  providerId: string,
+  options: CreateServiceAccountOptions
+): Promise<void> {
+  const { client, profile } = clientFrom(command)
+  const workspaceId = client.requireWorkspace()
+  const discovery = V2_OPERATIONS.listCredentialProviders
+  const catalog = await client.request<ListCredentialProvidersResponse>(discovery.path, {
+    method: discovery.method,
+    query: { workspaceId },
+  })
+  const provider = serviceAccountProvider(catalog.data, providerId)
+  if (provider.requiresClientGeneratedCredentialId && !options.id) {
+    throw new SimApiError(`--id is required for ${providerId}.`, 0)
+  }
+
+  const credentials = credentialValues(provider, options.credentials)
+  const operation = V2_OPERATIONS.createServiceAccountCredential
+  const response = await client.request<CreateServiceAccountCredentialResponse>(operation.path, {
+    method: operation.method,
+    body: {
+      workspaceId,
+      type: 'service_account',
+      providerId,
+      displayName: options.name,
+      ...(options.description ? { description: options.description } : {}),
+      ...(options.id ? { id: options.id } : {}),
+      ...credentials,
+    },
+  })
+
+  renderResult(
+    'createServiceAccountCredential',
+    profile.output,
+    response.data,
+    SERVICE_ACCOUNT_RESULT
+  )
+}
 
 async function createConnectionLink(command: Command, body: ConnectionBody): Promise<void> {
   const { client, profile } = clientFrom(command)
@@ -31,6 +160,23 @@ async function createConnectionLink(command: Command, body: ConnectionBody): Pro
 export function attachCredentialCommands(program: Command): void {
   const credentials = program.commands.find((command) => command.name() === 'credentials')
   if (!credentials) throw new Error('The generated credentials command group is missing')
+
+  credentials
+    .command('create <providerId>')
+    .description('Create a service-account credential using its discovered provider schema')
+    .requiredOption('--name <displayName>', 'Name shown for the credential in Sim')
+    .requiredOption(
+      '--credentials <json|@file>',
+      'Provider credentials as JSON (or @path / @- to read a file or stdin)'
+    )
+    .option('--description <description>', 'Optional credential description')
+    .option(
+      '--id <credentialId>',
+      'Client-generated credential ID when provider discovery requires it'
+    )
+    .action((providerId: string, options: CreateServiceAccountOptions, command: Command) =>
+      createServiceAccount(command, providerId, options)
+    )
 
   credentials
     .command('connect <providerId>')

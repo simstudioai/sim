@@ -56,6 +56,7 @@ function moveResource(command: string, resource: string): CommandVariantSpec {
  */
 export const CLI_CONTRACT: CliContract = {
   createCredentialConnection: { hidden: true },
+  createServiceAccountCredential: { hidden: true },
   getBillingStatus: {
     command: 'billing status',
     allWorkspaces: true,
