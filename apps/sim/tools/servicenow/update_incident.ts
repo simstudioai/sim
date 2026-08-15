@@ -1,4 +1,4 @@
-import { INCIDENT_STATE, SERVICENOW_TABLES } from '@/tools/servicenow/constants'
+import { SERVICENOW_TABLES } from '@/tools/servicenow/constants'
 import {
   additionalFieldsParam,
   authParams,
@@ -47,7 +47,8 @@ export const updateIncidentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `Incident state coded value. Base system: ${INCIDENT_STATE.NEW}=New, ${INCIDENT_STATE.IN_PROGRESS}=In Progress, ${INCIDENT_STATE.ON_HOLD}=On Hold, ${INCIDENT_STATE.RESOLVED}=Resolved, ${INCIDENT_STATE.CLOSED}=Closed, ${INCIDENT_STATE.CANCELED}=Canceled. Use Resolve or Close ServiceNow Incident for those transitions so the resolution fields are populated.`,
+      description:
+        'Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. Use Resolve or Close ServiceNow Incident for those transitions so the resolution fields are populated.',
     },
     impact: {
       type: 'string',

@@ -1,8 +1,4 @@
-import {
-  CHANGE_STATE,
-  DEFAULT_DISPLAY_VALUE,
-  SERVICENOW_TABLES,
-} from '@/tools/servicenow/constants'
+import { DEFAULT_DISPLAY_VALUE, SERVICENOW_TABLES } from '@/tools/servicenow/constants'
 import { authParams, listParams, recordListOutputs } from '@/tools/servicenow/params'
 import type {
   ServiceNowListChangesParams,
@@ -34,13 +30,15 @@ export const listChangeRequestsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Text to match against the change short description using the ServiceNow LIKE operator, which matches anywhere in the field.',
+      description:
+        'Text to match against the change short description using the ServiceNow LIKE operator, which matches anywhere in the field.',
     },
     state: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `Change state coded value. Base system: ${CHANGE_STATE.NEW}=New, ${CHANGE_STATE.ASSESS}=Assess, ${CHANGE_STATE.AUTHORIZE}=Authorize, ${CHANGE_STATE.SCHEDULED}=Scheduled, ${CHANGE_STATE.IMPLEMENT}=Implement, ${CHANGE_STATE.REVIEW}=Review, ${CHANGE_STATE.CLOSED}=Closed, ${CHANGE_STATE.CANCELED}=Canceled.`,
+      description:
+        'Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled.',
     },
     type: {
       type: 'string',

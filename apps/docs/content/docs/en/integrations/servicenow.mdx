@@ -239,7 +239,7 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 | `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
 | `urgency` | string | No | Urgency: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
 | `priority` | string | No | Priority 1-5 \(1 Critical … 5 Planning\). Normally derived from impact and urgency, so prefer setting those. |
-| `state` | string | No | Incident state coded value. Base system: $\{INCIDENT_STATE.NEW\}=New, $\{INCIDENT_STATE.IN_PROGRESS\}=In Progress, $\{INCIDENT_STATE.ON_HOLD\}=On Hold, $\{INCIDENT_STATE.RESOLVED\}=Resolved, $\{INCIDENT_STATE.CLOSED\}=Closed, $\{INCIDENT_STATE.CANCELED\}=Canceled. Defaults to New. |
+| `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. Defaults to New. |
 | `assignmentGroup` | string | No | Assignment group \(assignment_group\) — sys_id of the sys_user_group. |
 | `assignedTo` | string | No | Assigned to \(assigned_to\) — sys_id of the sys_user. |
 | `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the affected CI. |
@@ -330,7 +330,7 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `searchText` | string | No | Text to match against the incident short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
-| `state` | string | No | Incident state coded value. Base system: $\{INCIDENT_STATE.NEW\}=New, $\{INCIDENT_STATE.IN_PROGRESS\}=In Progress, $\{INCIDENT_STATE.ON_HOLD\}=On Hold, $\{INCIDENT_STATE.RESOLVED\}=Resolved, $\{INCIDENT_STATE.CLOSED\}=Closed, $\{INCIDENT_STATE.CANCELED\}=Canceled. |
+| `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. |
 | `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
 | `assignmentGroup` | string | No | sys_id of the assignment group. |
 | `assignedTo` | string | No | sys_id of the assigned user. |
@@ -379,7 +379,7 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 | --------- | ---- | -------- | ----------- |
 | `shortDescription` | string | No | New short description. |
 | `description` | string | No | New detailed description. |
-| `state` | string | No | Incident state coded value. Base system: $\{INCIDENT_STATE.NEW\}=New, $\{INCIDENT_STATE.IN_PROGRESS\}=In Progress, $\{INCIDENT_STATE.ON_HOLD\}=On Hold, $\{INCIDENT_STATE.RESOLVED\}=Resolved, $\{INCIDENT_STATE.CLOSED\}=Closed, $\{INCIDENT_STATE.CANCELED\}=Canceled. Use Resolve or Close ServiceNow Incident for those transitions so the resolution fields are populated. |
+| `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. Use Resolve or Close ServiceNow Incident for those transitions so the resolution fields are populated. |
 | `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
 | `urgency` | string | No | Urgency: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
 | `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
@@ -425,7 +425,7 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 
 ### Resolve ServiceNow Incident
 
-Move a ServiceNow incident to Resolved (state $\{INCIDENT_STATE.RESOLVED\}) with a resolution code and resolution notes.
+Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes.
 
 #### Input
 
@@ -469,7 +469,7 @@ Move a ServiceNow incident to Resolved (state $\{INCIDENT_STATE.RESOLVED\}) with
 
 ### Close ServiceNow Incident
 
-Move a ServiceNow incident to Closed (state $\{INCIDENT_STATE.CLOSED\}) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role.
+Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role.
 
 #### Input
 
@@ -662,7 +662,7 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `searchText` | string | No | Text to match against the change short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
-| `state` | string | No | Change state coded value. Base system: $\{CHANGE_STATE.NEW\}=New, $\{CHANGE_STATE.ASSESS\}=Assess, $\{CHANGE_STATE.AUTHORIZE\}=Authorize, $\{CHANGE_STATE.SCHEDULED\}=Scheduled, $\{CHANGE_STATE.IMPLEMENT\}=Implement, $\{CHANGE_STATE.REVIEW\}=Review, $\{CHANGE_STATE.CLOSED\}=Closed, $\{CHANGE_STATE.CANCELED\}=Canceled. |
+| `state` | string | No | Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. |
 | `type` | string | No | Change type: "normal", "standard", or "emergency". |
 | `risk` | string | No | Risk coded value. The choice list is configured per instance. |
 | `assignmentGroup` | string | No | sys_id of the assignment group. |
@@ -711,7 +711,7 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 | --------- | ---- | -------- | ----------- |
 | `shortDescription` | string | No | New short description. |
 | `description` | string | No | New detailed description. |
-| `state` | string | No | Change state coded value. Base system: $\{CHANGE_STATE.NEW\}=New, $\{CHANGE_STATE.ASSESS\}=Assess, $\{CHANGE_STATE.AUTHORIZE\}=Authorize, $\{CHANGE_STATE.SCHEDULED\}=Scheduled, $\{CHANGE_STATE.IMPLEMENT\}=Implement, $\{CHANGE_STATE.REVIEW\}=Review, $\{CHANGE_STATE.CLOSED\}=Closed, $\{CHANGE_STATE.CANCELED\}=Canceled. |
+| `state` | string | No | Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. |
 | `risk` | string | No | Risk coded value. The choice list is configured per instance. |
 | `impact` | string | No | Impact: 1 \(High\), 2 \(Medium\), or 3 \(Low\). |
 | `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
@@ -757,14 +757,14 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 
 ### Move ServiceNow Change State
 
-Move a ServiceNow change request to another state. Base-system change model states are $\{CHANGE_STATE.NEW\}=New, $\{CHANGE_STATE.ASSESS\}=Assess, $\{CHANGE_STATE.AUTHORIZE\}=Authorize, $\{CHANGE_STATE.SCHEDULED\}=Scheduled, $\{CHANGE_STATE.IMPLEMENT\}=Implement, $\{CHANGE_STATE.REVIEW\}=Review, $\{CHANGE_STATE.CLOSED\}=Closed, $\{CHANGE_STATE.CANCELED\}=Canceled. The state machine rejects transitions whose conditions are not met.
+Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `state` | string | Yes | Target state coded value: $\{CHANGE_STATE.NEW\} \(New\), $\{CHANGE_STATE.ASSESS\} \(Assess\), $\{CHANGE_STATE.AUTHORIZE\} \(Authorize\), $\{CHANGE_STATE.SCHEDULED\} \(Scheduled\), $\{CHANGE_STATE.IMPLEMENT\} \(Implement\), $\{CHANGE_STATE.REVIEW\} \(Review\), $\{CHANGE_STATE.CLOSED\} \(Closed\), or $\{CHANGE_STATE.CANCELED\} \(Canceled\). |
-| `closeCode` | string | No | Close code, required when moving to Closed \($\{CHANGE_STATE.CLOSED\}\): "successful", "successful_issues", or "unsuccessful". |
+| `state` | string | Yes | Target state coded value: -5 \(New\), -4 \(Assess\), -3 \(Authorize\), -2 \(Scheduled\), -1 \(Implement\), 0 \(Review\), 3 \(Closed\), or 4 \(Canceled\). |
+| `closeCode` | string | No | Close code, required when moving to Closed \(3\): "successful", "successful_issues", or "unsuccessful". |
 | `closeNotes` | string | No | Close notes describing the outcome of the change. |
 | `workNotes` | string | No | Internal work note explaining the transition. |
 
@@ -995,14 +995,14 @@ Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001)
 
 ### List ServiceNow Approvals
 
-List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "$\{APPROVAL_STATE.REQUESTED\}" state, which is what a user's pending approvals look like.
+List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "requested" state, which is what a user's pending approvals look like.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `approverSysId` | string | No | sys_id of the approver \(sys_user\) whose approvals should be listed. Use Find ServiceNow User to resolve an email address to a sys_id. |
-| `state` | string | No | Approval state: "$\{APPROVAL_STATE.REQUESTED\}" \(pending, the default\), "$\{APPROVAL_STATE.APPROVED\}", or "$\{APPROVAL_STATE.REJECTED\}". Pass an empty string with a custom query to list every state. |
+| `state` | string | No | Approval state: "requested" \(pending, the default\), "approved", or "rejected". Pass an empty string with a custom query to list every state. |
 | `approvalFor` | string | No | sys_id of the record being approved, matched against the sysapproval reference field. |
 
 #### Output
@@ -1046,7 +1046,7 @@ Approve or reject a ServiceNow approval record by setting its state on the Appro
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `approvalSysId` | string | Yes | sys_id of the approval record on the sysapproval_approver table. Use List ServiceNow Approvals to find it. |
-| `decision` | string | Yes | Decision to record: "$\{APPROVAL_STATE.APPROVED\}" or "$\{APPROVAL_STATE.REJECTED\}". |
+| `decision` | string | Yes | Decision to record: "approved" or "rejected". |
 | `comments` | string | No | Comment to record alongside the decision. This is a journal field. |
 
 #### Output

@@ -83,8 +83,7 @@ export const inputDisplayValueParam: ServiceNowParams = {
     type: 'boolean',
     required: false,
     visibility: 'user-or-llm',
-    description:
-      'Set to true to write display names into reference fields (e.g., assigned_to: "Beth Anglin") and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user\'s timezone rather than GMT.',
+    description: `Set to true to write display names into reference fields (e.g., assigned_to: "Beth Anglin") and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT.`,
   },
 }
 

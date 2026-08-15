@@ -220,7 +220,11 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
           { text: ', matching', field: 'query' },
         ],
         servicenow_get_change_next_states: [
-          { text: 'Get the next available states for change request', field: 'changeSysId', core: true },
+          {
+            text: 'Get the next available states for change request',
+            field: 'changeSysId',
+            core: true,
+          },
         ],
         servicenow_list_catalog_items: [
           'List catalog items',
@@ -1730,7 +1734,8 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     },
     allowedStates: {
       type: 'json',
-      description: 'State coded values whose transition conditions the change request already meets',
+      description:
+        'State coded values whose transition conditions the change request already meets',
     },
     stateLabels: {
       type: 'json',

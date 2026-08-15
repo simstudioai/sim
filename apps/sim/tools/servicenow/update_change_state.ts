@@ -1,4 +1,4 @@
-import { CHANGE_STATE, SERVICENOW_TABLES } from '@/tools/servicenow/constants'
+import { SERVICENOW_TABLES } from '@/tools/servicenow/constants'
 import {
   authParams,
   recordOutputs,
@@ -23,7 +23,8 @@ export const updateChangeStateTool: ToolConfig<
 > = {
   id: 'servicenow_update_change_state',
   name: 'Move ServiceNow Change State',
-  description: `Move a ServiceNow change request to another state. Base-system change model states are ${CHANGE_STATE.NEW}=New, ${CHANGE_STATE.ASSESS}=Assess, ${CHANGE_STATE.AUTHORIZE}=Authorize, ${CHANGE_STATE.SCHEDULED}=Scheduled, ${CHANGE_STATE.IMPLEMENT}=Implement, ${CHANGE_STATE.REVIEW}=Review, ${CHANGE_STATE.CLOSED}=Closed, ${CHANGE_STATE.CANCELED}=Canceled. The state machine rejects transitions whose conditions are not met.`,
+  description:
+    'Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met.',
   version: '1.0.0',
 
   params: {
@@ -33,13 +34,15 @@ export const updateChangeStateTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: `Target state coded value: ${CHANGE_STATE.NEW} (New), ${CHANGE_STATE.ASSESS} (Assess), ${CHANGE_STATE.AUTHORIZE} (Authorize), ${CHANGE_STATE.SCHEDULED} (Scheduled), ${CHANGE_STATE.IMPLEMENT} (Implement), ${CHANGE_STATE.REVIEW} (Review), ${CHANGE_STATE.CLOSED} (Closed), or ${CHANGE_STATE.CANCELED} (Canceled).`,
+      description:
+        'Target state coded value: -5 (New), -4 (Assess), -3 (Authorize), -2 (Scheduled), -1 (Implement), 0 (Review), 3 (Closed), or 4 (Canceled).',
     },
     closeCode: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `Close code, required when moving to Closed (${CHANGE_STATE.CLOSED}): "successful", "successful_issues", or "unsuccessful".`,
+      description:
+        'Close code, required when moving to Closed (3): "successful", "successful_issues", or "unsuccessful".',
     },
     closeNotes: {
       type: 'string',

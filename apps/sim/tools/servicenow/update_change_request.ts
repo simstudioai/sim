@@ -1,4 +1,4 @@
-import { CHANGE_STATE, SERVICENOW_TABLES } from '@/tools/servicenow/constants'
+import { SERVICENOW_TABLES } from '@/tools/servicenow/constants'
 import {
   additionalFieldsParam,
   authParams,
@@ -47,7 +47,8 @@ export const updateChangeRequestTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `Change state coded value. Base system: ${CHANGE_STATE.NEW}=New, ${CHANGE_STATE.ASSESS}=Assess, ${CHANGE_STATE.AUTHORIZE}=Authorize, ${CHANGE_STATE.SCHEDULED}=Scheduled, ${CHANGE_STATE.IMPLEMENT}=Implement, ${CHANGE_STATE.REVIEW}=Review, ${CHANGE_STATE.CLOSED}=Closed, ${CHANGE_STATE.CANCELED}=Canceled.`,
+      description:
+        'Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled.',
     },
     risk: {
       type: 'string',

@@ -33,7 +33,8 @@ export const searchCisTool: ToolConfig<ServiceNowSearchCisParams, ServiceNowReco
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Text to match against the CI name using the ServiceNow LIKE operator, which matches anywhere in the field.',
+      description:
+        'Text to match against the CI name using the ServiceNow LIKE operator, which matches anywhere in the field.',
     },
     operationalStatus: {
       type: 'string',

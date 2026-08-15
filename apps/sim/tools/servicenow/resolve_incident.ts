@@ -24,7 +24,8 @@ export const resolveIncidentTool: ToolConfig<
 > = {
   id: 'servicenow_resolve_incident',
   name: 'Resolve ServiceNow Incident',
-  description: `Move a ServiceNow incident to Resolved (state ${INCIDENT_STATE.RESOLVED}) with a resolution code and resolution notes.`,
+  description:
+    'Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes.',
   version: '1.0.0',
 
   params: {

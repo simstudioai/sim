@@ -37,7 +37,10 @@ function urlOf(tool: { request: { url: (p: never) => string } }, params: unknown
   return new URL(tool.request.url(params as never))
 }
 
-function headersOf(tool: { request: { headers?: (p: never) => Record<string, string> } }, params: unknown) {
+function headersOf(
+  tool: { request: { headers?: (p: never) => Record<string, string> } },
+  params: unknown
+) {
   return tool.request.headers?.(params as never) ?? {}
 }
 
@@ -53,15 +56,15 @@ describe('ServiceNow shared request helpers', () => {
   })
 
   it('throws the original message when the instance URL is blank', () => {
-    expect(() => urlOf(readRecordTool, { ...auth, instanceUrl: '   ', tableName: 'incident' })).toThrow(
-      'ServiceNow instance URL is required'
-    )
+    expect(() =>
+      urlOf(readRecordTool, { ...auth, instanceUrl: '   ', tableName: 'incident' })
+    ).toThrow('ServiceNow instance URL is required')
   })
 
   it('throws the original message when credentials are missing', () => {
-    expect(() => headersOf(readRecordTool, { ...auth, password: '', tableName: 'incident' })).toThrow(
-      'ServiceNow username and password are required'
-    )
+    expect(() =>
+      headersOf(readRecordTool, { ...auth, password: '', tableName: 'incident' })
+    ).toThrow('ServiceNow username and password are required')
   })
 })
 
@@ -178,6 +181,32 @@ describe('block params mapping keeps per-operation defaults from colliding', () 
     }
     return seeded
   }
+
+  /**
+   * Standing guard for the whole bug class: a subBlock id may legitimately be
+   * reused across operations that feed the same tool param, but the definitions
+   * must agree on the seeded value, since only the last one survives. An absent
+   * default and an empty default both mean "unset" and are treated as equal.
+   */
+  it('never lets one subBlock id carry two different seeded defaults', () => {
+    const seededById = new Map<string, Set<string>>()
+    for (const subBlock of ServiceNowBlock.subBlocks) {
+      const seeded =
+        typeof subBlock.value === 'function'
+          ? (subBlock.value as (p: Record<string, never>) => unknown)({})
+          : undefined
+      const normalized = seeded === undefined || seeded === '' ? '' : JSON.stringify(seeded)
+      const values = seededById.get(subBlock.id) ?? new Set<string>()
+      values.add(normalized)
+      seededById.set(subBlock.id, values)
+    }
+
+    const conflicts = [...seededById.entries()]
+      .filter(([, values]) => values.size > 1)
+      .map(([id, values]) => `${id}: ${[...values].join(' vs ')}`)
+
+    expect(conflicts).toEqual([])
+  })
 
   it('does not leak the semantic "all" default onto the generic Table API tools', () => {
     const mapped = mapParams?.({

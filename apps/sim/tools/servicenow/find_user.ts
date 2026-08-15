@@ -39,7 +39,8 @@ export const findUserTool: ToolConfig<ServiceNowFindUserParams, ServiceNowRecord
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Text to match against the display name using the ServiceNow LIKE operator, which matches anywhere in the field.',
+      description:
+        'Text to match against the display name using the ServiceNow LIKE operator, which matches anywhere in the field.',
     },
     active: {
       type: 'string',

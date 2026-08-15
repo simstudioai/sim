@@ -17984,11 +17984,11 @@
         },
         {
           "name": "Resolve Incident",
-          "description": "Move a ServiceNow incident to Resolved (state ${INCIDENT_STATE.RESOLVED}) with a resolution code and resolution notes."
+          "description": "Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes."
         },
         {
           "name": "Close Incident",
-          "description": "Move a ServiceNow incident to Closed (state ${INCIDENT_STATE.CLOSED}) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role."
+          "description": "Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role."
         },
         {
           "name": "Add Incident Comment",
@@ -18012,7 +18012,7 @@
         },
         {
           "name": "Move Change State",
-          "description": "Move a ServiceNow change request to another state. Base-system change model states are ${CHANGE_STATE.NEW}=New, ${CHANGE_STATE.ASSESS}=Assess, ${CHANGE_STATE.AUTHORIZE}=Authorize, ${CHANGE_STATE.SCHEDULED}=Scheduled, ${CHANGE_STATE.IMPLEMENT}=Implement, ${CHANGE_STATE.REVIEW}=Review, ${CHANGE_STATE.CLOSED}=Closed, ${CHANGE_STATE.CANCELED}=Canceled. The state machine rejects transitions whose conditions are not met."
+          "description": "Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met."
         },
         {
           "name": "List Change Tasks",
@@ -18040,7 +18040,7 @@
         },
         {
           "name": "List Approvals",
-          "description": "List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the \"${APPROVAL_STATE.REQUESTED}\" state, which is what a user's pending approvals look like."
+          "description": "List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the \"requested\" state, which is what a user's pending approvals look like."
         },
         {
           "name": "Approve or Reject",

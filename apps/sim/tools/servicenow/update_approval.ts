@@ -37,7 +37,7 @@ export const updateApprovalTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: `Decision to record: "${APPROVAL_STATE.APPROVED}" or "${APPROVAL_STATE.REJECTED}".`,
+      description: 'Decision to record: "approved" or "rejected".',
     },
     comments: {
       type: 'string',

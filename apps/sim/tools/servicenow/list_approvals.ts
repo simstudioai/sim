@@ -24,7 +24,7 @@ export const listApprovalsTool: ToolConfig<
 > = {
   id: 'servicenow_list_approvals',
   name: 'List ServiceNow Approvals',
-  description: `List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "${APPROVAL_STATE.REQUESTED}" state, which is what a user's pending approvals look like.`,
+  description: `List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the "requested" state, which is what a user's pending approvals look like.`,
   version: '1.0.0',
 
   params: {
@@ -40,7 +40,8 @@ export const listApprovalsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `Approval state: "${APPROVAL_STATE.REQUESTED}" (pending, the default), "${APPROVAL_STATE.APPROVED}", or "${APPROVAL_STATE.REJECTED}". Pass an empty string with a custom query to list every state.`,
+      description:
+        'Approval state: "requested" (pending, the default), "approved", or "rejected". Pass an empty string with a custom query to list every state.',
     },
     approvalFor: {
       type: 'string',
