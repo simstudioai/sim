@@ -47,10 +47,6 @@ function openBrowser(url: string): void {
   } catch {}
 }
 
-function maskKey(key: string): string {
-  return key.length <= 10 ? '•'.repeat(key.length) : `${key.slice(0, 6)}…${key.slice(-4)}`
-}
-
 async function confirmProfileOverwrite(profileName: string): Promise<boolean> {
   if (!process.stdin.isTTY) {
     throw new SimApiError(
@@ -193,6 +189,7 @@ export function whoamiCommand(): Command {
     .action((_options: unknown, command: Command) => {
       const profile = profileFrom(command)
       const { sources } = profile
+      const authenticated = sources.apiKey !== 'unset'
 
       const annotate = (value: string, source: string) =>
         source === 'unset' ? chalk.dim('not set') : `${value} ${chalk.dim(`(${source})`)}`
@@ -204,9 +201,7 @@ export function whoamiCommand(): Command {
           ['Endpoint', annotate(profile.endpoint, sources.endpoint)],
           [
             'API key',
-            profile.apiKey
-              ? annotate(maskKey(profile.apiKey), sources.apiKey)
-              : chalk.yellow('not logged in'),
+            authenticated ? annotate('configured', sources.apiKey) : chalk.yellow('not logged in'),
           ],
           ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
           ['Output', annotate(profile.output, sources.output)],
@@ -216,7 +211,7 @@ export function whoamiCommand(): Command {
           endpoint: profile.endpoint,
           workspaceId: profile.workspaceId,
           output: profile.output,
-          authenticated: Boolean(profile.apiKey),
+          authenticated,
           sources,
         }
       )

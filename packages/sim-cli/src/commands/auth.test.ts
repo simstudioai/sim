@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   profileFrom: vi.fn(() => ({
     name: 'default',
     endpoint: 'https://sim.ai',
-    apiKey: null,
+    apiKey: null as string | null,
     workspaceId: null as string | null,
     output: 'table',
     sources: {
@@ -46,7 +46,7 @@ vi.mock('../config/index', () => ({
 }))
 vi.mock('../context', () => ({ profileFrom: mocks.profileFrom }))
 
-import { loginCommand, profilesCommand } from './auth'
+import { loginCommand, profilesCommand, whoamiCommand } from './auth'
 
 const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
 
@@ -58,6 +58,12 @@ async function login(...args: string[]): Promise<void> {
   const root = new Command('sim').exitOverride()
   root.addCommand(loginCommand())
   await root.parseAsync(['node', 'sim', 'login', '--no-browser', ...args])
+}
+
+async function whoami(...args: string[]): Promise<void> {
+  const root = new Command('sim').exitOverride()
+  root.addCommand(whoamiCommand())
+  await root.parseAsync(['node', 'sim', 'whoami', ...args])
 }
 
 describe('login command', () => {
@@ -194,5 +200,35 @@ describe('login command', () => {
 describe('profiles command', () => {
   it('accepts the singular profile alias', () => {
     expect(profilesCommand().alias()).toBe('profile')
+  })
+})
+
+describe('whoami command', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  it('reports authentication without exposing any part of the API key', async () => {
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: 'sim_super_secret_value',
+      workspaceId: 'ws_1',
+      output: 'text',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'credentials',
+        workspaceId: 'config',
+        output: 'flag',
+      },
+    })
+
+    await whoami()
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('API key\tconfigured (credentials)')
+    expect(output).not.toContain('sim_super_secret_value')
+    expect(output).not.toContain('secret')
   })
 })
