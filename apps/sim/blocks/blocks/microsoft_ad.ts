@@ -42,6 +42,37 @@ const PAGED_OPERATIONS = [
  */
 const NEXT_LINK_OPERATIONS = [...PAGED_OPERATIONS, 'list_service_principal_app_role_assignments']
 
+/** Operations that own the shared `filter` and `search` fields. */
+const SHARED_FILTER_OPERATIONS = ['list_users', 'list_groups']
+
+/**
+ * The subBlock each operation reads its OData `$filter` from.
+ *
+ * A subBlock keeps its value after the operation changes, so the filter is resolved by
+ * ownership rather than by letting later assignments overwrite earlier ones. Otherwise a clause
+ * written for `/users` would still be sent when the block is switched to `/auditLogs/signIns` or
+ * `/devices`, where it is invalid.
+ */
+const FILTER_FIELD_BY_OPERATION: Record<string, string> = {
+  list_users: 'filter',
+  list_groups: 'filter',
+  list_sign_ins: 'signInFilter',
+  list_directory_audits: 'auditFilter',
+  list_user_app_role_assignments: 'appRoleFilter',
+  list_service_principal_app_role_assignments: 'appRoleFilter',
+  list_service_principals: 'servicePrincipalFilter',
+  list_devices: 'deviceFilter',
+  list_conditional_access_policies: 'policyFilter',
+}
+
+/** The subBlock each operation reads its `$search` term from. */
+const SEARCH_FIELD_BY_OPERATION: Record<string, string> = {
+  list_users: 'search',
+  list_groups: 'search',
+  list_service_principals: 'servicePrincipalSearch',
+  list_devices: 'deviceSearch',
+}
+
 /** Operations that act on a single device object. */
 const DEVICE_ID_OPERATIONS = ['get_device']
 
@@ -355,7 +386,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Filter',
       type: 'short-input',
       placeholder: "e.g., department eq 'Sales'",
-      condition: { field: 'operation', value: ['list_users', 'list_groups'] },
+      condition: { field: 'operation', value: SHARED_FILTER_OPERATIONS },
       mode: 'advanced',
     },
     {
@@ -363,7 +394,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Search',
       type: 'short-input',
       placeholder: 'Search by name or email',
-      condition: { field: 'operation', value: ['list_users', 'list_groups'] },
+      condition: { field: 'operation', value: SHARED_FILTER_OPERATIONS },
       mode: 'advanced',
     },
     {
@@ -756,17 +787,12 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       params: (params) => {
         const result: Record<string, unknown> = {}
         if (params.top) result.top = Number(params.top)
-        if (params.filter) result.filter = params.filter
-        if (params.search) result.search = params.search
         if (params.nextLink) result.nextLink = params.nextLink
-        if (params.signInFilter) result.filter = params.signInFilter
-        if (params.auditFilter) result.filter = params.auditFilter
-        if (params.appRoleFilter) result.filter = params.appRoleFilter
-        if (params.servicePrincipalFilter) result.filter = params.servicePrincipalFilter
-        if (params.servicePrincipalSearch) result.search = params.servicePrincipalSearch
-        if (params.deviceFilter) result.filter = params.deviceFilter
-        if (params.deviceSearch) result.search = params.deviceSearch
-        if (params.policyFilter) result.filter = params.policyFilter
+        const values = params as Record<string, unknown>
+        const filter = values[FILTER_FIELD_BY_OPERATION[params.operation]]
+        if (filter) result.filter = filter
+        const search = values[SEARCH_FIELD_BY_OPERATION[params.operation]]
+        if (search) result.search = search
         if (params.operation === 'set_password') {
           result.forceChangePasswordNextSignIn = params.forceChangePasswordNextSignIn !== 'false'
           if (params.forceChangePasswordNextSignInWithMfa)
