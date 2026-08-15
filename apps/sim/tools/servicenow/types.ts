@@ -383,7 +383,7 @@ export interface ServiceNowKnowledgeArticleSummary {
   title?: string
   snippet?: string
   link?: string
-  score?: string | number
+  score?: number
   rank?: number
   fields?: Record<string, any>
 }

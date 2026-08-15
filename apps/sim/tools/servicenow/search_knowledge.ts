@@ -19,7 +19,7 @@ export const searchKnowledgeTool: ToolConfig<
   id: 'servicenow_search_knowledge',
   name: 'Search ServiceNow Knowledge',
   description:
-    'Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet, the article number, and the sys_id needed to fetch the full article.',
+    'Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body.',
   version: '1.0.0',
 
   params: {
@@ -121,12 +121,16 @@ export const searchKnowledgeTool: ToolConfig<
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Article sys_id on the kb_knowledge table' },
+          id: {
+            type: 'string',
+            description:
+              'Table-prefixed article identifier, e.g. "kb_knowledge:9e528db1...". Get ServiceNow Knowledge Article takes a bare sys_id or KB number, so pass `number` or the portion after the colon rather than this value as-is',
+          },
           number: { type: 'string', description: 'Knowledge article number' },
           title: { type: 'string', description: 'Article title (short description)' },
           snippet: { type: 'string', description: 'Small excerpt of the article text' },
           link: { type: 'string', description: 'Link to the article' },
-          score: { type: 'string', description: 'Relevancy score' },
+          score: { type: 'number', description: 'Relevancy score' },
           rank: { type: 'number', description: 'Search rank of the article for this search' },
           fields: {
             type: 'json',

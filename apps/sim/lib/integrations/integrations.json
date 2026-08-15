@@ -18060,7 +18060,7 @@
         },
         {
           "name": "Search Knowledge",
-          "description": "Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet, the article number, and the sys_id needed to fetch the full article."
+          "description": "Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body."
         },
         {
           "name": "Get Knowledge Article",

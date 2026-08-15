@@ -1198,7 +1198,7 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 
 ### Search ServiceNow Knowledge
 
-Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet, the article number, and the sys_id needed to fetch the full article.
+Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body.
 
 #### Input
 
@@ -1217,12 +1217,12 @@ Search ServiceNow knowledge base articles through the Knowledge Management API. 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `articles` | array | Matching knowledge articles, sorted in descending order by relevance score |
-|   ↳ `id` | string | Article sys_id on the kb_knowledge table |
+|   ↳ `id` | string | Table-prefixed article identifier, e.g. "kb_knowledge:9e528db1...". Get ServiceNow Knowledge Article takes a bare sys_id or KB number, so pass `number` or the portion after the colon rather than this value as-is |
 |   ↳ `number` | string | Knowledge article number |
 |   ↳ `title` | string | Article title \(short description\) |
 |   ↳ `snippet` | string | Small excerpt of the article text |
 |   ↳ `link` | string | Link to the article |
-|   ↳ `score` | string | Relevancy score |
+|   ↳ `score` | number | Relevancy score |
 |   ↳ `rank` | number | Search rank of the article for this search |
 |   ↳ `fields` | json | Requested kb_knowledge fields, each \{name, label, type, value, display_value\} |
 | `metadata` | json | Operation metadata |
