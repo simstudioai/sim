@@ -449,15 +449,16 @@ const ResourceTable = memo(function ResourceTable({
       </div>
       {bodyDrop?.isActive && (
         /**
-         * A sibling overlay rather than an outline on the scroll container: an outline there is
-         * painted at the scrollport edge, so the parent's `overflow-hidden` shaves its corners
-         * and it cannot be rounded to match the rest of the surface. Inset a few pixels and
-         * absolutely positioned, the ring keeps whole rounded corners, sits clear of the
-         * scrollbar, and stays put while the list scrolls under it.
+         * A soft tint over the whole list region, not a line around it. This is the workflow
+         * sidebar's own drop-inside affordance (`bg-[var(--text-subtle)] opacity-10`), and it
+         * is the right weight here: a hairline stretched around the entire pane reads as a
+         * window border rather than a drop target, and being painted at the scrollport edge it
+         * also got its corners shaved by the parent's `overflow-hidden`. A fill has no corners
+         * to clip and no edge to fight the surrounding chrome.
          */
         <div
           aria-hidden
-          className='pointer-events-none absolute inset-1.5 rounded-[10px] border border-[var(--text-subtle)]'
+          className='pointer-events-none absolute inset-0 bg-[var(--text-subtle)] opacity-10'
         />
       )}
       {overlay}
