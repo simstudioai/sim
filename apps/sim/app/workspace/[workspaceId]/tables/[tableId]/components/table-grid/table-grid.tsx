@@ -1231,6 +1231,10 @@ export function TableGrid({
     const wrapped = ((index % matches.length) + matches.length) % matches.length
     const match = matches[wrapped]
     setCurrentMatchIndex(wrapped)
+    // Claim the target NOW, not when the reveal lands. Paging is awaited below,
+    // and a same-term refetch during that window would otherwise re-point the
+    // cursor at the cell we are navigating AWAY from.
+    activeMatchRef.current = match
     setIsJumping(true)
     // Paging to a distant match can outlast the next keystroke now that the
     // search runs as the user types. Stamp this jump and drop it on return if a
@@ -1292,7 +1296,6 @@ export function TableGrid({
     setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setSelectionFocus(null)
     cursorIsOnMatchRef.current = true
-    activeMatchRef.current = match
     setSelectionAnchor({ rowIndex, colIndex })
   }, [rows, displayColumns, pendingMatchTick])
 
@@ -1306,8 +1309,11 @@ export function TableGrid({
    * on (rowId, column) — the match's identity — keeps the cursor attached to the
    * cell rather than the position.
    *
-   * When the active match is gone entirely there is nothing to re-point at;
-   * `stepBaseIndex` clamps the now-possibly-out-of-range index instead.
+   * When the active match is gone from the set — its row deleted, its cell
+   * edited so it no longer matches — the cursor is released instead: it is no
+   * longer sitting on a hit, so the next step must LAND on the clamped index
+   * rather than move past it. Without that, deleting the match under the cursor
+   * makes Next skip the one that took its place.
    */
   useEffect(() => {
     const active = activeMatchRef.current
@@ -1315,7 +1321,13 @@ export function TableGrid({
     const index = findMatches.findIndex(
       (m) => m.rowId === active.rowId && m.column === active.column
     )
-    if (index !== -1 && index !== currentMatchIndexRef.current) setCurrentMatchIndex(index)
+    if (index === -1) {
+      activeMatchRef.current = null
+      cursorIsOnMatchRef.current = false
+      setCurrentMatchIndex((i) => Math.min(i, findMatches.length - 1))
+      return
+    }
+    if (index !== currentMatchIndexRef.current) setCurrentMatchIndex(index)
   }, [findMatches])
 
   /**
