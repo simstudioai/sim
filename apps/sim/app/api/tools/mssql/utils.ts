@@ -157,6 +157,22 @@ const MSSQL_PROCEDURE_PATTERN = /\b(?:xp_|sp_)\w+/i
 const MSSQL_STACKED_STATEMENT = /;\s*\S/
 
 /**
+ * Rejects SQL comments in the read-only path.
+ *
+ * A block comment placed inside a keyword splits it as far as a lexical scan is
+ * concerned, so no amount of keyword coverage helps if the server rejoins the
+ * halves into one token. Rather than model how the server's tokenizer treats an
+ * interior comment — which cannot be settled without a live instance — the
+ * read-only path refuses comments outright. A SELECT submitted through this
+ * operation has no need for one, and Execute Raw SQL still accepts them.
+ *
+ * {@link maskSqlStringLiterals} deliberately leaves comment markers intact, so
+ * this still fires after masking while `'-- not a comment'` inside a literal
+ * does not trip it.
+ */
+const MSSQL_COMMENT = /--|\/\*|\*\//
+
+/**
  * Restricts the Query operation to statements that only read.
  *
  * The block label, the tool description, and the docs all present this
@@ -164,9 +180,10 @@ const MSSQL_STACKED_STATEMENT = /;\s*\S/
  * `mssql_execute` is the operation that accepts mutations. Without this an
  * agent choosing `mssql_query` because "it is only a SELECT" could delete rows.
  *
- * Three screens, deliberately layered so no single one has to be exhaustive:
- * the statement must open with `SELECT` (or a leading `WITH`, since a CTE is the
- * normal way to write a non-trivial SELECT); it may not contain a second
+ * Four screens, deliberately layered so no single one has to be exhaustive: the
+ * statement must open with `SELECT` (or a leading `WITH`, since a CTE is the
+ * normal way to write a non-trivial SELECT); it may not contain a comment, which
+ * would otherwise let a keyword be split in half; it may not contain a second
  * statement after a semicolon, which rejects `SELECT 1; <anything>` structurally
  * rather than by naming the anything; and it may not mention a
  * statement-introducing keyword or a stored procedure, which covers both the
@@ -190,6 +207,14 @@ export function validateReadOnlyQuery(query: string): { isValid: boolean; error?
   }
 
   const masked = maskSqlStringLiterals(trimmedQuery)
+
+  if (MSSQL_COMMENT.test(masked)) {
+    return {
+      isValid: false,
+      error:
+        'The Query operation does not accept SQL comments, because a comment can split a keyword. Use the Execute Raw SQL operation if the statement needs one.',
+    }
+  }
 
   if (MSSQL_STACKED_STATEMENT.test(masked)) {
     return {
