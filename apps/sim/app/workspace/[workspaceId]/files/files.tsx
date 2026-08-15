@@ -369,6 +369,7 @@ export function Files() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
   const [isBodyDropActive, setIsBodyDropActive] = useState(false)
+  const [activeBreadcrumbIndex, setActiveBreadcrumbIndex] = useState<number | null>(null)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_DRAGGED_ROW_IDS)
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
@@ -869,6 +870,7 @@ export function Files() {
     setIsDraggingOver(false)
     setActiveDropTargetId(null)
     setIsBodyDropActive(false)
+    setActiveBreadcrumbIndex(null)
   }, [dragGhost, springLoad])
 
   useDragTeardown(endDrag)
@@ -918,6 +920,7 @@ export function Files() {
         // The row sits inside the scroll container, whose `dragleave` ignores contained
         // targets — clear it here so the row and the body never both read as the target.
         setIsBodyDropActive(false)
+        setActiveBreadcrumbIndex(null)
         /**
          * Armed for OS file drags too: dropping an upload into a nested folder is the same
          * gesture, and `onDragOver` only fires on folder rows.
@@ -982,6 +985,54 @@ export function Files() {
           })
       },
       onDragEnd: endDrag,
+      /**
+       * The breadcrumb is how a drag walks back UP; spring-loading only ever goes deeper.
+       * Hovering a crumb navigates to it on the same timer a folder row uses, and releasing on
+       * one files the drag there directly.
+       */
+      breadcrumb: {
+        activeIndex: activeBreadcrumbIndex,
+        onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => {
+          if (hasExternalFiles(e.dataTransfer)) return
+          const sourceRowIds = draggedRowIdsRef.current
+          if (sourceRowIds.length === 0) return
+          /** Armed even for a no-op drop: walking back to where the drag started is the point. */
+          if (folderId !== currentFolderId) springLoad.arm(folderId)
+          const canDrop = !isInvalidFolderTarget(folderId, sourceRowIds)
+          setActiveBreadcrumbIndex(canDrop ? index : null)
+          setIsBodyDropActive(false)
+          if (!canDrop) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'move'
+        },
+        onDragLeave: (_e: DragEvent<HTMLElement>, index: number) => {
+          springLoad.disarm()
+          setActiveBreadcrumbIndex((current) => (current === index ? null : current))
+        },
+        onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
+          if (hasExternalFiles(e.dataTransfer)) return
+          e.preventDefault()
+          e.stopPropagation()
+          const sourceRowIds =
+            readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
+          const canMove = sourceRowIds.length > 0 && !isInvalidFolderTarget(folderId, sourceRowIds)
+          endDrag()
+          if (!canMove) return
+
+          const fileIds: string[] = []
+          const folderIds: string[] = []
+          for (const sourceRowId of sourceRowIds) {
+            const source = parseRowId(sourceRowId)
+            if (source.kind === 'file') fileIds.push(source.id)
+            else folderIds.push(source.id)
+          }
+          void moveItems
+            .mutateAsync({ workspaceId, fileIds, folderIds, targetFolderId: folderId })
+            .then(() => clearSelection())
+            .catch((error) => logger.error('Failed to move items via the breadcrumb:', error))
+        },
+      },
       body: {
         isActive: isBodyDropActive,
         onDragOver: (e: DragEvent<HTMLDivElement>) => {
@@ -1043,6 +1094,7 @@ export function Files() {
       isInvalidDropTarget,
       isInvalidFolderTarget,
       isBodyDropActive,
+      activeBreadcrumbIndex,
       currentFolderId,
       clearSelection,
       uploadFiles,
@@ -2082,6 +2134,7 @@ export function Files() {
           icon={FILES_HEADER.rootIcon}
           title={FILES_HEADER.rootLabel}
           breadcrumbs={listBreadcrumbs}
+          breadcrumbDrop={rowDragDropConfig.breadcrumb}
           actions={headerActionsConfig}
         />
         <Resource.Options

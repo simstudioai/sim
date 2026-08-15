@@ -1327,6 +1327,7 @@ export function Knowledge() {
           title={ROOT_BREADCRUMB_LABEL}
           breadcrumbs={listBreadcrumbs}
           actions={headerActions}
+          breadcrumbDrop={rowDragDropConfig.breadcrumb}
         />
         <Resource.Options
           search={searchConfig}

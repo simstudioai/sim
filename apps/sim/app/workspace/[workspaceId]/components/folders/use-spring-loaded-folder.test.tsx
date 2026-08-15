@@ -185,6 +185,31 @@ describe('useSpringLoadedFolder', () => {
     expect(onSpringOpen).toHaveBeenCalledTimes(2)
   })
 
+  it('springs to the workspace root, which a breadcrumb targets as null', () => {
+    // Walking a drag back UP goes through the breadcrumb, whose first crumb is the root — so
+    // null has to be a real destination here, distinct from "nothing armed".
+    const onSpringOpen = vi.fn()
+    const harness = renderSpringLoad(onSpringOpen)
+
+    act(() => harness.get().arm(null))
+    rest()
+
+    expect(onSpringOpen).toHaveBeenCalledExactlyOnceWith(null, { history: 'push' })
+  })
+
+  it('opens the root at most once per drag, like any other folder', () => {
+    const onSpringOpen = vi.fn()
+    const harness = renderSpringLoad(onSpringOpen)
+
+    act(() => harness.get().arm(null))
+    rest()
+    act(() => harness.get().arm('folder-a'))
+    act(() => harness.get().arm(null))
+    rest()
+
+    expect(onSpringOpen).toHaveBeenCalledTimes(1)
+  })
+
   it('never opens a folder after unmount', () => {
     const onSpringOpen = vi.fn()
     const harness = renderSpringLoad(onSpringOpen)

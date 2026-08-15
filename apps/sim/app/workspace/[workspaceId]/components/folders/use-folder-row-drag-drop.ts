@@ -98,6 +98,7 @@ export function useFolderRowDragDrop({
 }: UseFolderRowDragDropOptions): RowDragDropConfig {
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
   const [isBodyDropActive, setIsBodyDropActive] = useState(false)
+  const [activeBreadcrumbIndex, setActiveBreadcrumbIndex] = useState<number | null>(null)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_ROW_IDS)
   /**
    * The in-flight drag source, mirrored outside React state because `onDragOver` fires far
@@ -172,6 +173,7 @@ export function useFolderRowDragDrop({
     setDraggedRowIds(EMPTY_ROW_IDS)
     setActiveDropTargetId(null)
     setIsBodyDropActive(false)
+    setActiveBreadcrumbIndex(null)
   }, [dragGhost, springLoad])
 
   useDragTeardown(endDrag)
@@ -289,6 +291,7 @@ export function useFolderRowDragDrop({
            * clearing here the row and the body would both render as the target at once.
            */
           setIsBodyDropActive(false)
+          setActiveBreadcrumbIndex(null)
           /**
            * Armed on the same condition as the highlight, so a folder only springs open where a
            * drop was already possible. A folder the drag cannot legally enter never opens.
@@ -327,6 +330,48 @@ export function useFolderRowDragDrop({
         if (move) optionsRef.current.onMoveRows(move, target.id)
       },
       onDragEnd: endDrag,
+      /**
+       * The breadcrumb is how a drag walks back UP. Spring-loading only ever goes deeper, so
+       * without this a drag that entered a folder can only leave it by being abandoned.
+       * Hovering a crumb navigates to it on the same timer a folder row uses, and releasing on
+       * one files the drag there directly.
+       */
+      breadcrumb: {
+        activeIndex: activeBreadcrumbIndex,
+        onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => {
+          const sourceRowIds = draggedRowIdsRef.current
+          const canDrop =
+            sourceRowIds.length > 0 && resolveMoveToFolder(folderId, sourceRowIds) !== null
+          /**
+           * Armed even when the drop itself would be a no-op — walking back through a crumb the
+           * rows already live in is exactly how a user returns to where they started, and
+           * refusing to navigate there would strand them.
+           */
+          if (sourceRowIds.length > 0 && folderId !== currentFolderIdRef.current) {
+            springLoad.arm(folderId)
+          }
+          setActiveBreadcrumbIndex(canDrop ? index : null)
+          setIsBodyDropActive(false)
+          if (!canDrop) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'move'
+        },
+        onDragLeave: (_e: DragEvent<HTMLElement>, index: number) => {
+          springLoad.disarm()
+          setActiveBreadcrumbIndex((current) => (current === index ? null : current))
+        },
+        onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
+          e.preventDefault()
+          e.stopPropagation()
+          const sourceRowIds =
+            readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
+          const move = sourceRowIds.length > 0 ? resolveMoveToFolder(folderId, sourceRowIds) : null
+          if (move) dropHandledRef.current = true
+          endDrag()
+          if (move) optionsRef.current.onMoveRows(move, folderId)
+        },
+      },
       body: {
         isActive: isBodyDropActive,
         onDragOver: (e: DragEvent<HTMLDivElement>) => {

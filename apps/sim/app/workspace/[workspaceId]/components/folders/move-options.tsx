@@ -184,6 +184,11 @@ export function renderMoveOptions(
  * Shared because that exclusion is a correctness invariant, not a preference: hand-copying it
  * per surface is how one list eventually offers a cyclic destination. Covers the single-folder
  * case too — pass a one-element array.
+ *
+ * Expanding each selection to its descendants is deliberately belt-and-braces: {@link
+ * buildMoveOptions} descends from the root, so an excluded folder already takes its subtree out
+ * of the walk. The explicit expansion keeps the invariant true of the exclusion set itself, so
+ * it survives that walk ever being replaced by a flat render.
  */
 export function buildMoveOptionsExcludingSubtrees({
   folders,

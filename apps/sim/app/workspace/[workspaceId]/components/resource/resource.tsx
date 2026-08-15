@@ -27,6 +27,7 @@ import { ChevronLeft, ChevronRight, Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import type { BreadcrumbDropConfig } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 
@@ -111,6 +112,8 @@ export interface RowDragDropConfig {
   onDrop?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
   onDragEnd?: (e: DragEvent<HTMLDivElement>, rowId: string) => void
   body?: BodyDropConfig
+  /** Passed to `Resource.Header` so the breadcrumb can receive the same drag. */
+  breadcrumb?: BreadcrumbDropConfig
 }
 
 export interface PaginationConfig {
@@ -354,11 +357,7 @@ const ResourceTable = memo(function ResourceTable({
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
       <div
         ref={scrollRef}
-        className={cn(
-          'min-h-0 flex-1 overflow-auto overscroll-none',
-          bodyDrop?.isActive &&
-            'outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]'
-        )}
+        className='min-h-0 flex-1 overflow-auto overscroll-none'
         onDragOver={bodyDrop?.onDragOver}
         onDragLeave={bodyDrop?.onDragLeave}
         onDrop={bodyDrop?.onDrop}
@@ -448,6 +447,19 @@ const ResourceTable = memo(function ResourceTable({
           </div>
         )}
       </div>
+      {bodyDrop?.isActive && (
+        /**
+         * A sibling overlay rather than an outline on the scroll container: an outline there is
+         * painted at the scrollport edge, so the parent's `overflow-hidden` shaves its corners
+         * and it cannot be rounded to match the rest of the surface. Inset a few pixels and
+         * absolutely positioned, the ring keeps whole rounded corners, sits clear of the
+         * scrollbar, and stays put while the list scrolls under it.
+         */
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-1.5 rounded-[10px] border border-[var(--text-subtle)]'
+        />
+      )}
       {overlay}
       {pagination && pagination.totalPages > 1 && (
         <Pagination

@@ -27,7 +27,7 @@ export interface UseSpringLoadedFolderOptions {
    * over while deciding where to drop; replacing every level would overwrite the entry they
    * were actually standing on, so Back would leave the page instead of returning to it.
    */
-  onSpringOpen: (folderId: string, options: SpringOpenOptions) => void
+  onSpringOpen: (folderId: string | null, options: SpringOpenOptions) => void
   delayMs?: number
 }
 
@@ -37,7 +37,7 @@ export interface SpringLoadedFolder {
    * fires continuously: re-arming the folder already being timed does not restart it, so the
    * countdown reflects how long the drag has actually rested there.
    */
-  arm: (folderId: string) => void
+  arm: (folderId: string | null) => void
   /** Cancels the pending open — the drag left the row, or the row stopped being a valid target. */
   disarm: () => void
   /** Cancels the pending open and forgets which folders already opened. Call when the drag ends. */
@@ -60,11 +60,14 @@ export function useSpringLoadedFolder({
   delayMs = SPRING_LOAD_DELAY_MS,
 }: UseSpringLoadedFolderOptions): SpringLoadedFolder {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** Folder the timer is currently counting down for, so re-arming it is a no-op. */
-  const armedFolderIdRef = useRef<string | null>(null)
+  /**
+   * Folder the timer is counting down for, so re-arming it is a no-op. `undefined` means
+   * nothing is armed — `null` is a real destination here, the workspace root.
+   */
+  const armedFolderIdRef = useRef<string | null | undefined>(undefined)
   /** Folders already opened during this drag; each may only spring once. */
-  const openedFolderIdsRef = useRef<Set<string> | null>(null)
-  const openedFolderIds = (openedFolderIdsRef.current ??= new Set<string>())
+  const openedFolderIdsRef = useRef<Set<string | null> | null>(null)
+  const openedFolderIds = (openedFolderIdsRef.current ??= new Set<string | null>())
 
   const onSpringOpenRef = useRef(onSpringOpen)
   onSpringOpenRef.current = onSpringOpen
@@ -72,14 +75,14 @@ export function useSpringLoadedFolder({
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) clearTimeout(timerRef.current)
     timerRef.current = null
-    armedFolderIdRef.current = null
+    armedFolderIdRef.current = undefined
   }, [])
 
   /** A drag can outlive the list that started it; never leave a timer pointing at a dead tree. */
   useEffect(() => clearTimer, [clearTimer])
 
   const arm = useCallback(
-    (folderId: string) => {
+    (folderId: string | null) => {
       if (armedFolderIdRef.current === folderId) return
 
       /**
@@ -93,7 +96,7 @@ export function useSpringLoadedFolder({
       armedFolderIdRef.current = folderId
       timerRef.current = setTimeout(() => {
         timerRef.current = null
-        armedFolderIdRef.current = null
+        armedFolderIdRef.current = undefined
         /** Read before the add: an empty set means nothing has opened in this drag yet. */
         const isFirstOpenOfDrag = openedFolderIds.size === 0
         openedFolderIds.add(folderId)

@@ -1240,6 +1240,7 @@ export function Tables() {
           breadcrumbs={breadcrumbs}
           actions={headerActions}
           aside={headerAside}
+          breadcrumbDrop={rowDragDropConfig.breadcrumb}
         />
         <Resource.Options
           search={searchConfig}

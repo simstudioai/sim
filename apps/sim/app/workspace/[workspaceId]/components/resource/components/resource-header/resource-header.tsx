@@ -2,6 +2,7 @@
 
 import {
   type ComponentType,
+  type DragEvent,
   Fragment,
   forwardRef,
   memo,
@@ -61,6 +62,12 @@ export interface BreadcrumbEditing {
 
 export interface BreadcrumbItem {
   label: string
+  /**
+   * The folder this crumb navigates to (`null` is the workspace root). Supplying it makes the
+   * crumb a drag destination: hovering it mid-drag walks back up the tree, and releasing files
+   * the drag there. Omit on a crumb that is not a folder, such as a trailing detail segment.
+   */
+  folderId?: string | null
   icon?: React.ElementType
   onClick?: () => void
   dropdownItems?: DropdownOption[]
@@ -95,6 +102,19 @@ export interface ResourceAction {
   disabled?: boolean
 }
 
+/**
+ * Makes breadcrumb crumbs drag destinations, so a drag can walk back up the tree it walked
+ * into. Hovering a crumb navigates to it after the same delay a folder row uses, and releasing
+ * on one files the drag there — the counterpart to spring-loading, which only ever goes deeper.
+ */
+export interface BreadcrumbDropConfig {
+  /** Index of the crumb currently under the drag, or `null`. Indexed because `null` is a folder. */
+  activeIndex: number | null
+  onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => void
+  onDragLeave: (e: DragEvent<HTMLElement>, index: number) => void
+  onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => void
+}
+
 interface ResourceHeaderProps {
   icon?: React.ElementType
   title?: string
@@ -109,6 +129,7 @@ interface ResourceHeaderProps {
    * in `actions`; never stuff primary actions in here.
    */
   aside?: ReactNode
+  breadcrumbDrop?: BreadcrumbDropConfig
 }
 
 export const ResourceHeader = memo(function ResourceHeader({
@@ -117,6 +138,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   breadcrumbs,
   actions,
   aside,
+  breadcrumbDrop,
 }: ResourceHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null)
   /**
@@ -164,6 +186,22 @@ export const ResourceHeader = memo(function ResourceHeader({
                */
               const showLocationPopover = LocationIcon != null
 
+              /**
+               * Only a crumb that names a folder is a destination; a trailing detail segment
+               * has no `folderId` and stays inert.
+               */
+              const crumbDrag =
+                breadcrumbDrop && crumb.folderId !== undefined
+                  ? {
+                      isActive: breadcrumbDrop.activeIndex === i,
+                      onDragOver: (e: DragEvent<HTMLElement>) =>
+                        breadcrumbDrop.onDragOver(e, crumb.folderId as string | null, i),
+                      onDragLeave: (e: DragEvent<HTMLElement>) => breadcrumbDrop.onDragLeave(e, i),
+                      onDrop: (e: DragEvent<HTMLElement>) =>
+                        breadcrumbDrop.onDrop(e, crumb.folderId as string | null),
+                    }
+                  : undefined
+
               return (
                 <Fragment key={`${crumb.label}-${i}`}>
                   {i > 0 && (
@@ -177,6 +215,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                       breadcrumbs={breadcrumbs}
                       className={segmentClassName}
                       veilBoundaryRef={headerRef}
+                      drag={crumbDrag}
                     />
                   ) : (
                     <BreadcrumbSegment
@@ -186,6 +225,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                       dropdownItems={crumb.dropdownItems}
                       editing={crumb.editing}
                       className={segmentClassName}
+                      drag={crumbDrag}
                     />
                   )}
                 </Fragment>
@@ -262,6 +302,13 @@ function getBreadcrumbSegmentClassName(
   return 'min-w-0 flex-[0_1_auto] max-w-[min(32rem,55vw)]'
 }
 
+/**
+ * A crumb receiving a drag. Same neutral tint and hairline the list rows use, so "release
+ * here" reads identically whether the destination is a row, the list body, or a crumb.
+ */
+const BREADCRUMB_DROP_CLASS =
+  'bg-[var(--surface-4)] outline outline-1 outline-[var(--text-subtle)] outline-offset-[-1px]'
+
 interface BreadcrumbSegmentProps {
   icon?: React.ElementType
   label: string
@@ -269,6 +316,13 @@ interface BreadcrumbSegmentProps {
   dropdownItems?: DropdownOption[]
   editing?: BreadcrumbEditing
   className?: string
+  /** Drag handlers plus the active flag, when this crumb is a drag destination. */
+  drag?: {
+    isActive: boolean
+    onDragOver: (e: DragEvent<HTMLElement>) => void
+    onDragLeave: (e: DragEvent<HTMLElement>) => void
+    onDrop: (e: DragEvent<HTMLElement>) => void
+  }
 }
 
 const BreadcrumbSegment = memo(function BreadcrumbSegment({
@@ -278,6 +332,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   dropdownItems,
   editing,
   className,
+  drag,
 }: BreadcrumbSegmentProps) {
   const { ref: labelRef, node: labelNode, isOverflowing } = useIsOverflowing<HTMLSpanElement>()
   const { state: tooltipState, handlers: tooltipHandlers } = useFloatingTooltip((target) =>
@@ -345,8 +400,11 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         <FloatingTooltip label={label} state={tooltipState} />
         <button
           type='button'
-          className={cn(triggerClassName, className)}
+          className={cn(triggerClassName, className, drag?.isActive && BREADCRUMB_DROP_CLASS)}
           onClick={onClick}
+          onDragOver={drag?.onDragOver}
+          onDragLeave={drag?.onDragLeave}
+          onDrop={drag?.onDrop}
           {...tooltipHandlers}
         >
           {content}
@@ -362,8 +420,12 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         className={cn(
           chipGeometryClass,
           'group inline-flex min-w-0 max-w-full cursor-default justify-start',
-          className
+          className,
+          drag?.isActive && BREADCRUMB_DROP_CLASS
         )}
+        onDragOver={drag?.onDragOver}
+        onDragLeave={drag?.onDragLeave}
+        onDrop={drag?.onDrop}
         {...tooltipHandlers}
       >
         {content}
@@ -377,6 +439,7 @@ interface BreadcrumbLocationPopoverProps {
   breadcrumbs: BreadcrumbItem[]
   className?: string
   veilBoundaryRef: React.RefObject<HTMLDivElement | null>
+  drag?: BreadcrumbSegmentProps['drag']
 }
 
 /**
@@ -392,6 +455,7 @@ function BreadcrumbLocationPopover({
   breadcrumbs,
   className,
   veilBoundaryRef,
+  drag,
 }: BreadcrumbLocationPopoverProps) {
   const [open, setOpen] = useState(false)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -456,11 +520,15 @@ function BreadcrumbLocationPopover({
             onBlur={scheduleClose}
             onMouseEnter={openPopover}
             onMouseLeave={scheduleClose}
+            onDragOver={drag?.onDragOver}
+            onDragLeave={drag?.onDragLeave}
+            onDrop={drag?.onDrop}
             className={cn(
               chipVariants(),
               'max-w-none gap-1.5 px-2 transition-colors',
               open && 'relative z-[var(--z-popover)]',
-              className
+              className,
+              drag?.isActive && BREADCRUMB_DROP_CLASS
             )}
           >
             <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>

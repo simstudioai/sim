@@ -11,10 +11,12 @@ import { nextUntitledFolderName } from '@/app/workspace/[workspaceId]/components
 import {
   folderRowId,
   parseFolderedRowId,
+  splitFolderedRowIds,
 } from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
 import {
   buildDescendantIndex,
   buildMoveOptions,
+  buildMoveOptionsExcludingSubtrees,
   parseMoveOptionValue,
   ROOT_MOVE_OPTION_VALUE,
 } from '@/app/workspace/[workspaceId]/components/folders/move-options'
@@ -329,5 +331,116 @@ describe('folderAncestorChain', () => {
       b: makeFolder('b', 'a'),
     }
     expect(folderAncestorChain('a', (id) => folders[id]).map((f) => f.id)).toEqual(['b', 'a'])
+  })
+})
+
+describe('splitFolderedRowIds', () => {
+  it('separates folder rows from resource rows', () => {
+    const { folderIds, resourceIds } = splitFolderedRowIds([
+      folderRowId('f-1'),
+      'res-1',
+      folderRowId('f-2'),
+      'res-2',
+    ])
+
+    expect(folderIds).toEqual(['f-1', 'f-2'])
+    expect(resourceIds).toEqual(['res-1', 'res-2'])
+  })
+
+  it('returns empty lists for an empty selection', () => {
+    expect(splitFolderedRowIds([])).toEqual({ folderIds: [], resourceIds: [] })
+  })
+
+  it('accepts a Set, which is how a selection is actually held', () => {
+    const { folderIds, resourceIds } = splitFolderedRowIds(new Set([folderRowId('f-1'), 'res-1']))
+    expect(folderIds).toEqual(['f-1'])
+    expect(resourceIds).toEqual(['res-1'])
+  })
+})
+
+describe('buildMoveOptionsExcludingSubtrees', () => {
+  /** `a` holds `a1`, which holds `a1x`; `b` is an unrelated sibling. */
+  const folders = [makeFolder('a'), makeFolder('a1', 'a'), makeFolder('a1x', 'a1'), makeFolder('b')]
+  const descendantsByFolderId = buildDescendantIndex(folders)
+  const valuesOf = (nodes: ReturnType<typeof buildMoveOptions>): string[] =>
+    nodes.flatMap((node) => [node.value, ...valuesOf(node.children)])
+
+  it('offers every folder when nothing is excluded', () => {
+    const options = buildMoveOptionsExcludingSubtrees({
+      folders,
+      rootLabel: 'Root',
+      excludeFolderIds: [],
+      descendantsByFolderId,
+    })
+    expect(valuesOf(options)).toEqual([ROOT_MOVE_OPTION_VALUE, 'a', 'a1', 'a1x', 'b'])
+  })
+
+  it('excludes a moving folder and its whole subtree, never offering a cycle', () => {
+    // The invariant this helper exists to hold: a folder can never be filed into itself or
+    // anything beneath it, at any depth.
+    const options = buildMoveOptionsExcludingSubtrees({
+      folders,
+      rootLabel: 'Root',
+      excludeFolderIds: ['a'],
+      descendantsByFolderId,
+    })
+    expect(valuesOf(options)).toEqual([ROOT_MOVE_OPTION_VALUE, 'b'])
+  })
+
+  it('excludes the union of several selected subtrees', () => {
+    const options = buildMoveOptionsExcludingSubtrees({
+      folders,
+      rootLabel: 'Root',
+      excludeFolderIds: ['a1', 'b'],
+      descendantsByFolderId,
+    })
+    expect(valuesOf(options)).toEqual([ROOT_MOVE_OPTION_VALUE, 'a'])
+  })
+
+  it('always keeps the workspace root as a destination', () => {
+    const options = buildMoveOptionsExcludingSubtrees({
+      folders,
+      rootLabel: 'Root',
+      excludeFolderIds: ['a', 'b'],
+      descendantsByFolderId,
+    })
+    expect(valuesOf(options)).toEqual([ROOT_MOVE_OPTION_VALUE])
+  })
+})
+
+describe('folderBreadcrumbItems drag destinations', () => {
+  const chain = [makeFolder('a'), makeFolder('a1', 'a')]
+
+  it('names the folder each crumb points at, so the header can accept a drop on it', () => {
+    const items = folderBreadcrumbItems({
+      rootLabel: 'Files',
+      breadcrumbs: chain,
+      onNavigate: vi.fn(),
+    })
+
+    expect(items.map((item) => item.folderId)).toEqual([null, 'a', 'a1'])
+  })
+
+  it('leaves a trailing crumb without a folder id, so it stays inert', () => {
+    const items = folderBreadcrumbItems({
+      rootLabel: 'Files',
+      breadcrumbs: chain,
+      onNavigate: vi.fn(),
+      trailing: [{ label: 'report.md', terminal: true }],
+    })
+
+    expect(items.at(-1)).toMatchObject({ label: 'report.md' })
+    expect(items.at(-1)?.folderId).toBeUndefined()
+  })
+
+  it('gives the root crumb null rather than omitting it — the root is a real destination', () => {
+    const items = folderBreadcrumbItems({
+      rootLabel: 'Files',
+      breadcrumbs: [],
+      onNavigate: vi.fn(),
+    })
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toHaveProperty('folderId', null)
   })
 })
