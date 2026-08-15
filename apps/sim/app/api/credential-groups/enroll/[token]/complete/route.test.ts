@@ -53,11 +53,10 @@ describe('credential group enrollment completion route', () => {
     const enrollmentRequest = request()
     const response = await POST(enrollmentRequest, context)
 
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?submitted=1'
-    )
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/credential-groups/complete')
     expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
     expect(mocks.complete).toHaveBeenCalledWith({
       principal,
       input: {},

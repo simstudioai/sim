@@ -109,7 +109,6 @@ export default async function CredentialGroupEnrollmentPage({
   const resolvedSearchParams = await searchParams
   const oauthStatus = getSearchParam(resolvedSearchParams, 'oauth')
   const connectedOptionId = getSearchParam(resolvedSearchParams, 'connected')
-  const submitted = getSearchParam(resolvedSearchParams, 'submitted')
   const oauthMessage =
     oauthStatus && oauthStatus in OAUTH_MESSAGES
       ? OAUTH_MESSAGES[oauthStatus as keyof typeof OAUTH_MESSAGES]
@@ -118,16 +117,14 @@ export default async function CredentialGroupEnrollmentPage({
   const connectedOption = connectedOptionId
     ? activeOptions.find((option) => option.id === connectedOptionId)
     : undefined
-  const notification = submitted
-    ? { message: 'Accounts submitted successfully.', variant: 'success' as const }
-    : connectedOptionId
-      ? {
-          message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
-          variant: 'success' as const,
-        }
-      : oauthMessage
-        ? { message: oauthMessage, variant: 'error' as const }
-        : null
+  const notification = connectedOptionId
+    ? {
+        message: `${connectedOption ? getCredentialGroupProviderService(connectedOption.provider).name : 'Account'} connected successfully.`,
+        variant: 'success' as const,
+      }
+    : oauthMessage
+      ? { message: oauthMessage, variant: 'error' as const }
+      : null
   const allConnected =
     activeOptions.length > 0 &&
     activeOptions.every(
