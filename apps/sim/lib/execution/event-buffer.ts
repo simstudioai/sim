@@ -628,7 +628,7 @@ export async function readExecutionMetaState(
     if (canUseMemoryEventBuffer()) {
       return readMemoryMeta(executionId)
     }
-    logger.warn('getExecutionMeta: Redis client unavailable', { executionId })
+    logger.warn('readExecutionMetaState: Redis client unavailable', { executionId })
     return { status: 'unavailable', error: 'Redis client unavailable' }
   }
   try {
@@ -657,23 +657,6 @@ export async function readExecutionMetaState(
     })
     return { status: 'unavailable', error: message }
   }
-}
-
-export async function getExecutionMeta(executionId: string): Promise<ExecutionStreamMeta | null> {
-  const result = await readExecutionMetaState(executionId)
-  if (result.status === 'found') return result.meta
-  if (result.status === 'unavailable') {
-    return null
-  }
-  return null
-}
-
-export async function readExecutionEvents(
-  executionId: string,
-  afterEventId: number
-): Promise<ExecutionEventEntry[]> {
-  const result = await readExecutionEventsState(executionId, afterEventId)
-  return result.status === 'ok' ? result.events : []
 }
 
 export async function readExecutionEventsState(

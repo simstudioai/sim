@@ -277,28 +277,3 @@ export async function validateSelectorIds(
     invalid: idsArray.filter((id) => !existingSet.has(id)),
   }
 }
-
-/**
- * Batch validate multiple selector fields
- * Returns a map of field name to validation result
- */
-async function validateAllSelectorFields(
-  fields: Array<{ fieldName: string; selectorType: string; value: string | string[] }>,
-  context: { userId: string; workspaceId?: string }
-): Promise<Map<string, SelectorValidationResult>> {
-  const results = new Map<string, SelectorValidationResult>()
-
-  // Run validations in parallel for better performance
-  const validationPromises = fields.map(async ({ fieldName, selectorType, value }) => {
-    const result = await validateSelectorIds(selectorType, value, context)
-    return { fieldName, result }
-  })
-
-  const validationResults = await Promise.all(validationPromises)
-
-  for (const { fieldName, result } of validationResults) {
-    results.set(fieldName, result)
-  }
-
-  return results
-}

@@ -25,15 +25,6 @@ export const STT_SEGMENT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete segment output definition
- */
-export const STT_SEGMENT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Transcript segment with timing information',
-  properties: STT_SEGMENT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for sentiment analysis results (AssemblyAI).
  * @see https://www.assemblyai.com/docs/audio-intelligence/sentiment-analysis
  */

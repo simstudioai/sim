@@ -43,13 +43,6 @@ export const imageToolBodySchema = z
 
 export type ImageToolBody = z.infer<typeof imageToolBodySchema>
 
-export const imageProxyContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/tools/image',
-  query: imageProxyQuerySchema,
-  response: { mode: 'binary' },
-})
-
 export const imageToolContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/image',

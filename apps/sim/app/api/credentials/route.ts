@@ -117,26 +117,6 @@ async function findExistingCredentialBySourceWith(
   return null
 }
 
-/**
- * `return await` is load-bearing, not redundant. Next 16.3.0's Turbopack
- * optimizer models a bare `return <asyncCall>()` tail call as returning the
- * promise object, then propagates that always-truthy fact through the caller's
- * `await`. It concludes `if (existingCredential)` is always taken and — because
- * every branch inside that block returns — deletes the entire create path from
- * the emitted bundle, so a first-time create throws on `existingCredential.id`.
- * Awaiting here makes the optimizer model the resolved value instead.
- */
-async function findExistingCredentialBySource(params: ExistingCredentialSourceParams) {
-  return await findExistingCredentialBySourceWith(db, params)
-}
-
-async function findExistingCredentialBySourceTx(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  params: ExistingCredentialSourceParams
-) {
-  return await findExistingCredentialBySourceWith(tx, params)
-}
-
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const session = await getSession()

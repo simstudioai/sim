@@ -1189,12 +1189,7 @@ export class PauseResumeManager {
       })()
 
       const submissionPayload =
-        normalizedResumeInputRaw &&
-        typeof normalizedResumeInputRaw === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw) &&
-        normalizedResumeInputRaw.submission &&
-        typeof normalizedResumeInputRaw.submission === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw.submission)
+        isRecordLike(normalizedResumeInputRaw) && isRecordLike(normalizedResumeInputRaw.submission)
           ? (normalizedResumeInputRaw.submission as Record<string, any>)
           : (normalizedResumeInputRaw as Record<string, any>)
 

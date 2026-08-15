@@ -69,10 +69,6 @@ export async function deleteInbox(inboxId: string): Promise<void> {
   })
 }
 
-export async function getInbox(inboxId: string): Promise<AgentMailInbox> {
-  return request<AgentMailInbox>(`/inboxes/${encodeURIComponent(inboxId)}`)
-}
-
 export async function createWebhook(opts: {
   url: string
   eventTypes: string[]

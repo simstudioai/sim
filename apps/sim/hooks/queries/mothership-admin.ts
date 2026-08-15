@@ -182,28 +182,6 @@ export function useMothershipLicenses(environment: MothershipEnv) {
   })
 }
 
-export function useMothershipLicenseDetails(
-  environment: MothershipEnv,
-  id?: string,
-  name?: string
-) {
-  return useQuery({
-    queryKey: mothershipKeys.licenseDetails(environment, id, name),
-    queryFn: ({ signal }) =>
-      mothershipPost(
-        'licenses/details',
-        environment,
-        {
-          ...(id ? { id } : {}),
-          ...(name ? { name } : {}),
-        },
-        signal
-      ),
-    enabled: !!(id || name),
-    staleTime: MOTHERSHIP_LICENSE_DETAIL_STALE_TIME,
-  })
-}
-
 export function useGenerateLicense(environment: MothershipEnv) {
   const queryClient = useQueryClient()
   return useMutation({

@@ -20,7 +20,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import {
   and,
   asc,
@@ -71,7 +71,6 @@ import {
   recordKnowledgeBaseFileOwnership,
 } from '@/lib/uploads/server/metadata'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import { isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import {
   deleteCopiedResourceMappingsByTargets,
   type ForkMappingUpsert,
@@ -538,7 +537,7 @@ export async function copyForkResourceContainers(
     const inserts: (typeof mcpServers.$inferInsert)[] = []
     for (const row of rows) {
       const childId = generateId()
-      const headers = isRecord(row.headers)
+      const headers = isRecordLike(row.headers)
         ? Object.fromEntries(
             Object.entries(row.headers).map(([key, value]) => [
               key,
@@ -942,7 +941,7 @@ function remapTableRowResourceUrls(value: unknown, maps: ForkContentRefMaps): un
     })
     return changed ? next : value
   }
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     let changed = false
     const next: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(value)) {

@@ -1,6 +1,7 @@
 import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
@@ -57,9 +58,7 @@ type SubagentSpanData = {
 }
 
 function asJsonRecord(value: unknown): JsonRecord | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as JsonRecord)
-    : undefined
+  return isRecordLike(value) ? (value as JsonRecord) : undefined
 }
 
 function parseSubagentSpanData(value: unknown): SubagentSpanData | undefined {

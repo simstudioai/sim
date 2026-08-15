@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -15,10 +16,6 @@ import type {
 } from '@/lib/webhooks/providers/types'
 
 const logger = createLogger('WebhookProvider:Zendesk')
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return (value as Record<string, unknown>) || {}
-}
 
 /** Zendesk API base for a subdomain. */
 function zendeskApiBase(subdomain: string): string {
@@ -121,7 +118,7 @@ export const zendeskHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId || triggerId === 'zendesk_webhook') return true
 
-    const eventType = asRecord(body).type as string | undefined
+    const eventType = toRecord(body).type as string | undefined
 
     const { isZendeskEventMatch } = await import('@/triggers/zendesk/utils')
     if (!isZendeskEventMatch(triggerId, eventType || '')) {
@@ -134,9 +131,9 @@ export const zendeskHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = asRecord(body)
-    const detail = asRecord(b.detail)
-    const via = asRecord(detail.via)
+    const b = toRecord(body)
+    const detail = toRecord(b.detail)
+    const via = toRecord(detail.via)
 
     return {
       input: {
@@ -167,7 +164,7 @@ export const zendeskHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown) {
-    return (asRecord(body).id as string | undefined) || null
+    return (toRecord(body).id as string | undefined) || null
   },
 
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
@@ -218,8 +215,8 @@ export const zendeskHandler: WebhookProviderHandler = {
       throw new Error(`Failed to create Zendesk webhook: ${createRes.status}`)
     }
 
-    const created = asRecord((await createRes.json().catch(() => ({}))) as unknown)
-    const externalId = asRecord(created.webhook).id as string | undefined
+    const created = toRecord((await createRes.json().catch(() => ({}))) as unknown)
+    const externalId = toRecord(created.webhook).id as string | undefined
     if (!externalId) throw new Error('Zendesk webhook created but no webhook ID was returned.')
 
     const secretRes = await fetch(`${apiBase}/webhooks/${externalId}/signing_secret`, {
@@ -235,8 +232,8 @@ export const zendeskHandler: WebhookProviderHandler = {
       throw new Error(`Failed to fetch Zendesk signing secret: ${secretRes.status}`)
     }
 
-    const secretBody = asRecord((await secretRes.json().catch(() => ({}))) as unknown)
-    const secret = asRecord(secretBody.signing_secret).secret as string | undefined
+    const secretBody = toRecord((await secretRes.json().catch(() => ({}))) as unknown)
+    const secret = toRecord(secretBody.signing_secret).secret as string | undefined
     if (!secret) {
       await deleteZendeskWebhookQuietly(apiBase, authHeader, externalId)
       throw new Error('Zendesk did not return a signing secret for the webhook.')

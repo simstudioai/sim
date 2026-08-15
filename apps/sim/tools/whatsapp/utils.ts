@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { WhatsAppMediaType, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 
 /** WhatsApp Cloud API Graph version used by every outbound tool. */
@@ -65,14 +66,10 @@ export function buildAuthHeaders(accessToken: string | undefined): Record<string
   }
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 export async function parseWhatsAppResponse(response: Response): Promise<Record<string, unknown>> {
   const responseText = await response.text()
   const parsed = responseText ? (JSON.parse(responseText) as unknown) : {}
-  return isRecord(parsed) ? parsed : {}
+  return isRecordLike(parsed) ? parsed : {}
 }
 
 /**
@@ -84,10 +81,10 @@ export async function parseWhatsAppResponse(response: Response): Promise<Record<
  * along with the numeric `code` that the error-code reference is keyed on.
  */
 export function extractWhatsAppErrorMessage(data: Record<string, unknown>, status: number): string {
-  const error = isRecord(data.error) ? data.error : undefined
+  const error = isRecordLike(data.error) ? data.error : undefined
   const summary = typeof error?.message === 'string' ? error.message : undefined
   const details =
-    isRecord(error?.error_data) && typeof error.error_data.details === 'string'
+    isRecordLike(error?.error_data) && typeof error.error_data.details === 'string'
       ? error.error_data.details
       : undefined
   const code = typeof error?.code === 'number' ? error.code : undefined
@@ -170,13 +167,13 @@ export async function transformWhatsAppSendResponse(
   }
 
   const contacts = Array.isArray(data.contacts)
-    ? data.contacts.filter(isRecord).map((contact) => ({
+    ? data.contacts.filter(isRecordLike).map((contact) => ({
         input: typeof contact.input === 'string' ? contact.input : '',
         wa_id: typeof contact.wa_id === 'string' ? contact.wa_id : null,
       }))
     : []
   const firstMessage =
-    Array.isArray(data.messages) && isRecord(data.messages[0]) ? data.messages[0] : undefined
+    Array.isArray(data.messages) && isRecordLike(data.messages[0]) ? data.messages[0] : undefined
   const messageId = typeof firstMessage?.id === 'string' ? firstMessage.id : undefined
   const messageStatus =
     typeof firstMessage?.message_status === 'string' ? firstMessage.message_status : undefined

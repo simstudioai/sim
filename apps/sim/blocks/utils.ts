@@ -9,7 +9,7 @@ import {
 import { getScopesForService } from '@/lib/oauth/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
-import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig } from '@/blocks/types'
 import {
   getBaseModelProviders,
   getHostedModels,
@@ -143,24 +143,6 @@ export function getSubBlocksDependingOnChange(
   return allSubBlocks.filter((subBlock) =>
     getDependsOnFields(subBlock.dependsOn).some((field) => changedFields.has(field))
   )
-}
-
-export function resolveOutputType(
-  outputs: Record<string, OutputFieldDefinition>
-): Record<string, BlockOutput> {
-  const resolvedOutputs: Record<string, BlockOutput> = {}
-
-  for (const [key, outputType] of Object.entries(outputs)) {
-    // Handle new format: { type: 'string', description: '...' }
-    if (typeof outputType === 'object' && outputType !== null && 'type' in outputType) {
-      resolvedOutputs[key] = outputType.type as BlockOutput
-    } else {
-      // Handle old format: just the type as string, or other object formats
-      resolvedOutputs[key] = outputType as BlockOutput
-    }
-  }
-
-  return resolvedOutputs
 }
 
 function getProviderFromStore(model: string): string | null {

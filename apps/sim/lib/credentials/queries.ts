@@ -261,22 +261,3 @@ export async function listWorkspacePrincipalCredentials(params: {
 
   return keysetPage(keys, mapped, limit)
 }
-
-/**
- * A single credential scoped to a workspace, or null when it does not exist
- * there. Scoping by workspace is what keeps a credential id from another tenant
- * from resolving at all.
- */
-export async function getWorkspaceCredential(params: {
-  workspaceId: string
-  credentialId: string
-}): Promise<CredentialRow | null> {
-  const [row] = await db
-    .select()
-    .from(credential)
-    .where(
-      and(eq(credential.id, params.credentialId), eq(credential.workspaceId, params.workspaceId))
-    )
-    .limit(1)
-  return row ?? null
-}

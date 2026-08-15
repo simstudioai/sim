@@ -4,7 +4,7 @@
  * Framework-agnostic logging utilities for the Sim platform.
  * Provides standardized console logging with environment-aware configuration.
  */
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import chalk from 'chalk'
 import { getRequestContext } from './request-context'
 
@@ -162,7 +162,7 @@ const formatObject = (obj: unknown, isDev: boolean): string => {
     if (obj instanceof Error) {
       return JSON.stringify(errorToPlainObject(obj, isDev), null, isDev ? 2 : 0)
     }
-    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    if (isRecordLike(obj)) {
       let unwrapped: Record<string, unknown> | undefined
       for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
         if (!(value instanceof Error)) continue
