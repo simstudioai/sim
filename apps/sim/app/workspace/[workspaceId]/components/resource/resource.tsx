@@ -27,6 +27,7 @@ import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inli
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
 
 export interface ResourceColumn {
   id: string
@@ -68,6 +69,12 @@ export interface ResourceCell {
    * layout, and the rename field replaces the label entirely while it is open.
    */
   pinned?: boolean
+  /**
+   * Find term to tint inside the label (Cmd/Ctrl+F match). Honoured only on the
+   * plain label cell, like `pinned` — a `content` cell owns its own rendering
+   * and the rename field replaces the label while open.
+   */
+  highlight?: string
 }
 
 export interface ResourceRow {
@@ -499,6 +506,7 @@ interface CellContentProps {
   content?: ReactNode
   editing?: ResourceCellEditing
   pinned?: boolean
+  highlight?: string
 }
 
 const CellContent = memo(function CellContent({
@@ -507,6 +515,7 @@ const CellContent = memo(function CellContent({
   content,
   editing,
   pinned,
+  highlight,
 }: CellContentProps) {
   if (editing) {
     return (
@@ -526,7 +535,9 @@ const CellContent = memo(function CellContent({
   return (
     <span className={cn('flex min-w-0 items-center', chipContentGap)}>
       {icon && <span className={cellIconNodeClass}>{icon}</span>}
-      <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)} />
+      <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)}>
+        {highlight ? <SearchHighlight text={label} searchQuery={highlight} /> : undefined}
+      </FloatingOverflowText>
       {pinned && (
         <Pin
           className='size-[12px] shrink-0 text-[var(--text-icon)]'
@@ -706,6 +717,7 @@ const DataRow = memo(function DataRow({
               content={cell?.content}
               editing={cell?.editing}
               pinned={cell?.pinned}
+              highlight={cell?.highlight}
             />
           </div>
         )

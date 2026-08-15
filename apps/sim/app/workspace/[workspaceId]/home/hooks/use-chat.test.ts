@@ -12,6 +12,7 @@ import {
   getReplayCompletedWorkflowToolCallIds,
   panelForExecutingClientTool,
   reconcileLiveAssistantTurn,
+  selectDeletedWorkflowResources,
   selectReconnectReplayState,
   shouldActivateResourceEvent,
   shouldQueueOutgoingMessage,
@@ -31,6 +32,33 @@ vi.mock('next/navigation', () => ({
     refresh: vi.fn(),
   }),
 }))
+
+describe('selectDeletedWorkflowResources', () => {
+  const resource = (id: string) => ({ type: 'workflow' as const, id, title: id })
+  const cached = (id: string) => ({
+    id,
+    name: id,
+    lastModified: new Date(0),
+    createdAt: new Date(0),
+    sortOrder: 0,
+  })
+
+  it('selects a hydrated workflow the server no longer has', () => {
+    expect(selectDeletedWorkflowResources([resource('wf-gone')], new Set(), [])).toEqual([
+      resource('wf-gone'),
+    ])
+  })
+
+  it('keeps a workflow present in the fetched list', () => {
+    expect(selectDeletedWorkflowResources([resource('wf-1')], new Set(['wf-1']), [])).toEqual([])
+  })
+
+  it('keeps a workflow the stream inserted into the cache after the list snapshot', () => {
+    expect(
+      selectDeletedWorkflowResources([resource('wf-new')], new Set(), [cached('wf-new')])
+    ).toEqual([])
+  })
+})
 
 describe('shouldActivateResourceEvent', () => {
   it('keeps background browser activity from replacing another selected resource', () => {

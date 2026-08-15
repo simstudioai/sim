@@ -50,7 +50,11 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  FloatingOverflowText,
+  Resource,
+  SearchHighlight,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
@@ -66,7 +70,6 @@ import {
   ConnectorsSection,
   DocumentContextMenu,
   RenameDocumentModal,
-  SearchHighlight,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   addConnectorParam,

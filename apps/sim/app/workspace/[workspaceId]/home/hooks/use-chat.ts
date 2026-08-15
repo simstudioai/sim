@@ -126,8 +126,10 @@ import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
+import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -1189,6 +1191,23 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
   return true
 }
 
+/**
+ * Hydrated workflow resources whose workflow exists neither in the fetched
+ * server list nor in the local cache. The cache term protects a workflow the
+ * agent created after the list snapshot was taken — the stream's registry
+ * insert lands it in the cache before any refetch does.
+ */
+export function selectDeletedWorkflowResources(
+  workflowResources: MothershipResource[],
+  fetchedWorkflowIds: ReadonlySet<string>,
+  cachedWorkflows: readonly WorkflowMetadata[]
+): MothershipResource[] {
+  const cachedIds = new Set(cachedWorkflows.map((workflow) => workflow.id))
+  return workflowResources.filter(
+    (resource) => !fetchedWorkflowIds.has(resource.id) && !cachedIds.has(resource.id)
+  )
+}
+
 export interface ResourceEventOptions {
   activate?: boolean
 }
@@ -1863,6 +1882,37 @@ export function useChat(
     }
   }, [])
 
+  /**
+   * Drops hydrated workflow tabs whose workflow no longer exists, so an old
+   * chat cannot resurrect a deleted workflow. The check is against a fetched
+   * workflow list rather than the cache: seeding the registry from the chat's
+   * persisted resources (what hydration previously did unconditionally) put
+   * phantom entries in the sidebar that 404 on click. Removal also deletes the
+   * resource from the chat's persisted set, so the tab stays gone next open.
+   */
+  const reconcileHydratedWorkflowResources = useCallback(
+    async (chatId: string, workflowResources: MothershipResource[]) => {
+      let existing: WorkflowMetadata[]
+      try {
+        existing = await getQueryClient().fetchQuery(getWorkflowListQueryOptions(workspaceId))
+      } catch {
+        // Existence is unknowable right now; keep the tabs rather than delete
+        // resources on a network failure. The next hydration retries.
+        return
+      }
+      const deleted = selectDeletedWorkflowResources(
+        workflowResources,
+        new Set(existing.map((workflow) => workflow.id)),
+        getWorkflows(workspaceId)
+      )
+      for (const resource of deleted) {
+        if ((chatIdRef.current ?? selectedChatIdRef.current) !== chatId) return
+        removeResource('workflow', resource.id)
+      }
+    },
+    [workspaceId, removeResource]
+  )
+
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
     setResources(newOrder)
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
@@ -2418,9 +2468,12 @@ export function useChat(
         setActiveResourceId(hydratedActiveResourceId)
       }
 
-      for (const resource of persistedResources) {
-        if (resource.type !== 'workflow') continue
-        ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
+      // Restored workflow tabs are verified against the server instead of
+      // seeded into the registry: a chat can outlive its workflows, and
+      // fabricating entries for deleted ones polluted the sidebar.
+      const workflowResources = persistedResources.filter((r) => r.type === 'workflow')
+      if (workflowResources.length > 0) {
+        void reconcileHydratedWorkflowResources(chatHistory.id, workflowResources)
       }
     } else if (hasPersistedStreamingFile) {
       activeResourceIdRef.current = null
@@ -2505,6 +2558,7 @@ export function useChat(
     flushPendingResources,
     openBrowserResource,
     openTerminalResource,
+    reconcileHydratedWorkflowResources,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
     setTransportIdle,
@@ -4619,6 +4673,9 @@ export function useChat(
       abortControllerRef.current?.abort('user_stop:client_stopGeneration')
       abortControllerRef.current = null
       setTransportIdle()
+      // The paced reveal may still hold up to a drain-horizon of buffered text;
+      // after an explicit Stop it must not keep typing itself out.
+      snapAllSmoothText()
 
       try {
         if (activeChatId) {

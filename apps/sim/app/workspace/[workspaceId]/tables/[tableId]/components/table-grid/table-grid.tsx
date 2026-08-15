@@ -27,6 +27,8 @@ import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { FindBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
@@ -62,7 +64,6 @@ import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
 import { RemoteSelectionOverlay } from './remote-selection-overlay'
-import { TableFind } from './table-find'
 import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
 import {
@@ -95,6 +96,7 @@ const logger = createLogger('TableView')
 
 const EMPTY_RUNNING_BY_ROW: Readonly<Record<string, number>> = Object.freeze({})
 const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
+const EMPTY_FIND_MATCH_COLUMNS: ReadonlyMap<string, ReadonlySet<string>> = Object.freeze(new Map())
 const EMPTY_FILTER_CONDITIONS: readonly Predicate[] = Object.freeze([])
 
 const COL_WIDTH_MIN = 80
@@ -484,11 +486,9 @@ export function TableGrid({
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelection>(ROW_SELECTION_NONE)
   const [isColumnSelection, setIsColumnSelection] = useState(false)
-  // Find (Cmd/Ctrl+F): `findQuery` is the live input, `submittedQuery` is the
-  // last Enter/search-triggered term the query hook runs on.
+  // Find (Cmd/Ctrl+F): `findQuery` is the live input.
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
-  const [submittedQuery, setSubmittedQuery] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
   const [isJumping, setIsJumping] = useState(false)
   // Bumped on every navigation so the reveal effect re-runs even when the target
@@ -496,6 +496,20 @@ export function TableGrid({
   const [pendingMatchTick, setPendingMatchTick] = useState(0)
   const findInputRef = useRef<HTMLInputElement>(null)
   const pendingMatchRef = useRef<TableFindMatch | null>(null)
+  /** Cell selected when find was opened, restored on close. */
+  const preFindAnchorRef = useRef<CellCoord | null>(null)
+  /** Last cell find itself moved the selection to, so close can tell a match
+   *  cursor apart from a selection the user made while the bar was open. */
+  const lastRevealedAnchorRef = useRef<CellCoord | null>(null)
+  /** Monotonic id for the in-flight match jump; see `goToMatch`. */
+  const goToMatchSeqRef = useRef(0)
+  /** Term the auto-reveal has already run for, so a background refetch of the
+   *  same term doesn't re-jump the viewport. */
+  const autoRevealedTermRef = useRef('')
+  /** Whether the selection currently sits on the match at `currentMatchIndex`.
+   *  False when the auto-reveal was skipped, so next/prev knows to land on that
+   *  index rather than step past it. */
+  const cursorIsOnMatchRef = useRef(false)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
@@ -1098,7 +1112,36 @@ export function TableGrid({
     emitCellSelection({ anchor, focus, editing: editingCell !== null })
   }, [selectionAnchor, selectionFocus, editingCell, rows, displayColumns, emitCellSelection])
 
-  const { data: findData, isFetching: isFindFetching } = useFindTableRows({
+  /**
+   * The term the search actually runs on: the live input, debounced so results
+   * follow typing without a request per keystroke.
+   *
+   * Owned here rather than via `useDebounce` because closing or clearing has to
+   * take effect IMMEDIATELY and cancel anything pending. `useDebounce` is
+   * trailing-edge and keeps serving its last value until the next timer fires,
+   * so after Esc it still holds the old term — and a guard on the *input* can't
+   * mask that, because the first keystroke of the next search makes the input
+   * non-empty again while the debounce is still holding the previous term. The
+   * result would be the old search replayed from cache (highlights, count and a
+   * viewport jump) under a box showing one fresh character. Cmd+F, Esc, Cmd+F
+   * is an ordinary correction, so that window gets hit.
+   */
+  const trimmedFindQuery = findQuery.trim()
+  const [submittedQuery, setSubmittedQuery] = useState('')
+  useEffect(() => {
+    if (!findOpen || trimmedFindQuery.length === 0) {
+      setSubmittedQuery('')
+      return
+    }
+    const timer = setTimeout(() => setSubmittedQuery(trimmedFindQuery), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [findOpen, trimmedFindQuery])
+
+  const {
+    data: findData,
+    isFetching: isFindFetching,
+    isPlaceholderData: isFindPlaceholder,
+  } = useFindTableRows({
     workspaceId,
     tableId,
     q: submittedQuery,
@@ -1113,6 +1156,11 @@ export function TableGrid({
    * to a cell that isn't rendered.
    */
   const findMatches = useMemo<readonly TableFindMatch[]>(() => {
+    // `keepPreviousData` serves the previous term's matches while a new term
+    // loads, which is what keeps the counter steady mid-typing — but with an
+    // empty term the query is disabled, so that placeholder would otherwise
+    // linger as highlights over a cleared search box.
+    if (submittedQuery.length === 0) return EMPTY_FIND_MATCHES
     const raw = findData?.matches
     if (!raw || raw.length === 0) return EMPTY_FIND_MATCHES
     // `m.column` is the stable column id (the JSONB storage key); index display
@@ -1125,7 +1173,24 @@ export function TableGrid({
           a.ordinal - b.ordinal ||
           (colIndexByKey.get(a.column) ?? 0) - (colIndexByKey.get(b.column) ?? 0)
       )
-  }, [findData, displayColumns])
+  }, [findData, displayColumns, submittedQuery])
+
+  /**
+   * Match column ids grouped by row id, so a row can mark its matching cells in
+   * O(1) without scanning the whole match list. Rebuilt only when the match set
+   * changes; `DataRow` is memoized on the per-row `Set`, so rows without a match
+   * keep the same `undefined` and never re-render for a search.
+   */
+  const findMatchColumnsByRowId = useMemo<ReadonlyMap<string, ReadonlySet<string>>>(() => {
+    if (findMatches.length === 0) return EMPTY_FIND_MATCH_COLUMNS
+    const byRow = new Map<string, Set<string>>()
+    for (const match of findMatches) {
+      const existing = byRow.get(match.rowId)
+      if (existing) existing.add(match.column)
+      else byRow.set(match.rowId, new Set([match.column]))
+    }
+    return byRow
+  }, [findMatches])
 
   const findMatchesRef = useRef(findMatches)
   findMatchesRef.current = findMatches
@@ -1142,11 +1207,16 @@ export function TableGrid({
     const match = matches[wrapped]
     setCurrentMatchIndex(wrapped)
     setIsJumping(true)
+    // Paging to a distant match can outlast the next keystroke now that the
+    // search runs as the user types. Stamp this jump and drop it on return if a
+    // newer one started, or the grid would land on a superseded term's match.
+    const seq = ++goToMatchSeqRef.current
     try {
       await ensureRowsLoadedUpToRef.current(match.ordinal + 1)
     } finally {
-      setIsJumping(false)
+      if (seq === goToMatchSeqRef.current) setIsJumping(false)
     }
+    if (seq !== goToMatchSeqRef.current) return
     // Defer the anchor set to the reveal effect: it must run after the freshly
     // loaded rows have committed, else scrollToIndex clamps to the stale count.
     pendingMatchRef.current = match
@@ -1171,34 +1241,123 @@ export function TableGrid({
     setIsColumnSelection(false)
     setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setSelectionFocus(null)
+    lastRevealedAnchorRef.current = { rowIndex, colIndex }
+    cursorIsOnMatchRef.current = true
     setSelectionAnchor({ rowIndex, colIndex })
   }, [rows, displayColumns, pendingMatchTick])
 
-  /** New result set (new submitted term) → reset to and reveal the first match. */
+  /**
+   * A new TERM resets to its first match and reveals it.
+   *
+   * Keyed on the term, not on `findMatches` identity: the find query hangs off
+   * the rows cache, so any row write or SSE update refetches it, and keying on
+   * the result set would yank a user reading match 7 back to match 1 whenever
+   * a workflow cell landed.
+   *
+   * The reveal is skipped when the match is outside the loaded window.
+   * `ensureRowsLoadedUpTo` pages sequentially, so a selective term whose first
+   * hit is 50k rows down would fire ~50 serial round trips — per typing pause,
+   * now that the search is live. Highlights and the count still cover the whole
+   * table; only the viewport jump waits for a deliberate Enter or next-click.
+   *
+   * That deliberate path still runs the same unbounded, uncancellable paging it
+   * always has; this only stops typing from triggering it. Bounding it properly
+   * wants a fetch-at-offset on the rows endpoint, which is a server change.
+   */
   useEffect(() => {
+    if (submittedQuery.length === 0) {
+      // Clearing the box has to un-latch, or retyping the same term — the
+      // ordinary "did I typo that?" correction — would match the stale latch
+      // and neither reset the cursor nor reveal anything. It also cancels an
+      // in-flight jump, exactly as closing does: otherwise a Next still paging
+      // when the term is cleared lands on a match whose highlight is gone.
+      autoRevealedTermRef.current = ''
+      goToMatchSeqRef.current++
+      pendingMatchRef.current = null
+      cursorIsOnMatchRef.current = false
+      setIsJumping(false)
+      return
+    }
+    // Wait for THIS term's own result set. `keepPreviousData` leaves
+    // `findMatches` describing the previous term while the new one loads, and
+    // on the session's first search there is no previous data at all — so
+    // `isPlaceholderData` is false while the query is still pending. Latching
+    // in either window would burn the one auto-reveal this term gets.
+    if (isFindPlaceholder || isFindFetching) return
+    if (autoRevealedTermRef.current === submittedQuery) return
+    autoRevealedTermRef.current = submittedQuery
     setCurrentMatchIndex(0)
-    if (findMatches.length > 0) goToMatch(0)
-  }, [findMatches, goToMatch])
+    cursorIsOnMatchRef.current = false
+    const first = findMatches[0]
+    if (!first) return
+    if (!rowsRef.current.some((r) => r.id === first.rowId)) return
+    goToMatch(0)
+  }, [submittedQuery, findMatches, isFindPlaceholder, isFindFetching, goToMatch])
 
-  const handleFindSubmit = useCallback(() => {
-    setSubmittedQuery(findQuery.trim())
-  }, [findQuery])
-
+  /**
+   * Step to the next/previous match — or, when the cursor is not on a match
+   * yet, to the current index itself. That second case is the term whose first
+   * hit the auto-reveal skipped because its row wasn't loaded: `+1` there would
+   * silently step over the very match the user pressed Enter to reach, and it
+   * would only come back around after wrapping the whole list.
+   */
   const handleFindNext = useCallback(() => {
-    goToMatch(currentMatchIndexRef.current + 1)
+    const index = currentMatchIndexRef.current
+    goToMatch(cursorIsOnMatchRef.current ? index + 1 : index)
   }, [goToMatch])
 
   const handleFindPrev = useCallback(() => {
-    goToMatch(currentMatchIndexRef.current - 1)
+    const index = currentMatchIndexRef.current
+    goToMatch(cursorIsOnMatchRef.current ? index - 1 : index)
   }, [goToMatch])
 
+  /**
+   * Closes the bar and leaves no trace of the search: the term, the highlights
+   * (via the emptied term), and the match cursor all go.
+   *
+   * The cell the user was on before opening find is restored, so an abandoned
+   * search does not relocate them — Sheets parks the cursor on the last match
+   * instead, which is a standing complaint there. Restoring is skipped once the
+   * user has selected a cell themselves: at that point the selection is their
+   * own work, not find's, and yanking it back would lose their place.
+   */
   const handleFindClose = useCallback(() => {
     setFindOpen(false)
     setFindQuery('')
-    setSubmittedQuery('')
+    setCurrentMatchIndex(0)
     pendingMatchRef.current = null
+    // Strands any jump still paging toward a match, so it can't reveal a cell
+    // after the bar is gone.
+    goToMatchSeqRef.current++
+    autoRevealedTermRef.current = ''
+    cursorIsOnMatchRef.current = false
+    setIsJumping(false)
+    const origin = preFindAnchorRef.current
+    const lastRevealed = lastRevealedAnchorRef.current
+    preFindAnchorRef.current = null
+    lastRevealedAnchorRef.current = null
+    const anchor = selectionAnchorRef.current
+    // A revealed match is a single cell: find sets the anchor and clears the
+    // focus. A non-null focus means the user extended a range from it
+    // (Shift+Arrow, Shift+click, drag), which makes the selection theirs even
+    // though the anchor still sits on the match — restoring would delete it.
+    const stillOnMatch =
+      lastRevealed !== null &&
+      anchor !== null &&
+      selectionFocusRef.current === null &&
+      anchor.rowIndex === lastRevealed.rowIndex &&
+      anchor.colIndex === lastRevealed.colIndex
+    if (stillOnMatch) {
+      setSelectionFocus(null)
+      setSelectionAnchor(origin)
+    }
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
+
+  /** The grid's own Escape handler is bound once and closes find through the
+   *  same path as the bar's Escape, so the two can't drift. */
+  const handleFindCloseRef = useRef(handleFindClose)
+  handleFindCloseRef.current = handleFindClose
 
   const columnRename = useInlineRename({
     // `columnName` is the column id; record the prior display name + id so undo
@@ -1507,6 +1666,10 @@ export function TableGrid({
       setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
       setIsColumnSelection(false)
       lastCheckboxRowRef.current = null
+      // Any deliberate click hands the selection back to the user, so closing
+      // find must not restore over it — including a click on the very cell find
+      // had revealed, which leaves the anchor and focus looking find-owned.
+      lastRevealedAnchorRef.current = null
       if (shiftKey && selectionAnchorRef.current) {
         setSelectionFocus({ rowIndex, colIndex })
       } else {
@@ -2566,10 +2729,7 @@ export function TableGrid({
       if (e.key === 'Escape') {
         e.preventDefault()
         if (findOpenRef.current) {
-          setFindOpen(false)
-          setFindQuery('')
-          setSubmittedQuery('')
-          pendingMatchRef.current = null
+          handleFindCloseRef.current()
           return
         }
         if (dragColumnNameRef.current) {
@@ -3460,6 +3620,10 @@ export function TableGrid({
       if (!(e.metaKey || e.ctrlKey) || e.key !== 'f') return
       if (!containerRef.current) return
       e.preventDefault()
+      // Remember where the user was, but only on the transition into find —
+      // Cmd+F pressed again while the bar is open (to refocus it) must not
+      // overwrite the origin cell with the match they are currently on.
+      if (!findOpenRef.current) preFindAnchorRef.current = selectionAnchorRef.current
       setFindOpen(true)
       requestAnimationFrame(() => {
         findInputRef.current?.focus()
@@ -4315,18 +4479,20 @@ export function TableGrid({
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       <div className='relative flex min-h-0 flex-1'>
         {findOpen && (
-          <TableFind
+          <FindBar
+            ariaLabel='Find in table'
             query={findQuery}
             onQueryChange={setFindQuery}
-            onSubmit={handleFindSubmit}
             onNext={handleFindNext}
             onPrev={handleFindPrev}
             onClose={handleFindClose}
             count={findMatches.length}
-            currentIndex={currentMatchIndex}
+            // Clamped, not stored: a background refetch of the same term can
+            // shrink the match set under a cursor the user already paged, and
+            // an unclamped index renders "8 of 5".
+            currentIndex={Math.min(currentMatchIndex, Math.max(0, findMatches.length - 1))}
             truncated={findData?.truncated ?? false}
-            isLoading={isFindFetching || isJumping}
-            isDirty={findQuery.trim() !== submittedQuery}
+            isLoading={isFindFetching || isJumping || trimmedFindQuery !== submittedQuery}
             inputRef={findInputRef}
           />
         )}
@@ -4634,6 +4800,7 @@ export function TableGrid({
                                 activeDispatches={activeDispatches}
                                 pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
                                 lastPinnedColKey={lastPinnedColKey}
+                                findMatchColumns={findMatchColumnsByRowId.get(row.id)}
                               />
                             )
                           })}

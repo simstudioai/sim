@@ -1,4 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+
+/**
+ * Global snap signal: bumping the epoch makes every mounted smooth-text reveal
+ * jump to its full content immediately. Used by the user Stop path — after an
+ * explicit abort, watching the buffered tail keep typing itself out reads as
+ * "my stop didn't work", so the paced reveal must end NOW, not over the drain
+ * horizon. One-shot per bump: subsequent streams pace normally again.
+ */
+let snapEpoch = 0
+const snapListeners = new Set<() => void>()
+
+function subscribeToSnapEpoch(listener: () => void): () => void {
+  snapListeners.add(listener)
+  return () => snapListeners.delete(listener)
+}
+
+function getSnapEpoch(): number {
+  return snapEpoch
+}
+
+/** Snap every mounted smooth-text reveal to its full content immediately. */
+export function snapAllSmoothText(): void {
+  snapEpoch++
+  for (const listener of [...snapListeners]) listener()
+}
 
 /**
  * Time-based paced reveal of a growing string. A per-frame loop earns a
@@ -111,7 +136,21 @@ export function useSmoothText(
   const prevContentRef = useRef(content)
   const prevIsStreamingRef = useRef(isStreaming)
 
+  const currentSnapEpoch = useSyncExternalStore(subscribeToSnapEpoch, getSnapEpoch, getSnapEpoch)
+  const [prevSnapEpoch, setPrevSnapEpoch] = useState(currentSnapEpoch)
+
   let effectiveRevealed = revealed
+
+  // A user Stop bumped the snap epoch: reveal everything now instead of
+  // draining the backlog at the paced cadence.
+  if (prevSnapEpoch !== currentSnapEpoch) {
+    setPrevSnapEpoch(currentSnapEpoch)
+    if (revealed < content.length) {
+      effectiveRevealed = content.length
+      revealedRef.current = content.length
+      setRevealed(content.length)
+    }
+  }
 
   if (
     isStreaming &&
