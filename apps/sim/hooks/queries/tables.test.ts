@@ -57,6 +57,7 @@ vi.mock('@sim/emcn', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }))
 
+import type { TableViewWire } from '@/lib/api/contracts/tables'
 import {
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
@@ -104,6 +105,37 @@ describe('useUpdateTableView autosave ordering', () => {
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: tableKeys.views(TABLE_ID),
     })
+  })
+
+  it('optimistically demotes the previous default when a view is promoted', () => {
+    const previousDefault: TableViewWire = {
+      id: 'view-default',
+      tableId: TABLE_ID,
+      name: 'Default',
+      config: {},
+      isDefault: true,
+      createdBy: 'user-1',
+      createdAt: new Date('2026-08-15T01:00:00.000Z'),
+      updatedAt: new Date('2026-08-15T01:00:00.000Z'),
+    }
+    const promoted: TableViewWire = {
+      ...previousDefault,
+      id: 'view-promoted',
+      name: 'My view',
+      updatedAt: new Date('2026-08-15T02:00:00.000Z'),
+    }
+    setCache(tableKeys.views(TABLE_ID), [
+      previousDefault,
+      { ...promoted, isDefault: false, updatedAt: previousDefault.updatedAt },
+    ])
+
+    const hook = useUpdateTableView({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    hook.onSuccess?.(promoted, { viewId: promoted.id, isDefault: true }, undefined, undefined)
+
+    expect(getCache<TableViewWire[]>(tableKeys.views(TABLE_ID))).toEqual([
+      { ...previousDefault, isDefault: false },
+      promoted,
+    ])
   })
 })
 

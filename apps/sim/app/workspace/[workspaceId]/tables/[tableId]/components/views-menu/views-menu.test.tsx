@@ -19,10 +19,10 @@ const DEFAULT_VIEW: TableViewWire = {
   updatedAt: new Date('2026-08-15T01:00:00.000Z'),
 }
 
-const SAVED_VIEW: TableViewWire = {
+const SECOND_VIEW: TableViewWire = {
   ...DEFAULT_VIEW,
-  id: 'view-saved',
-  name: 'Saved',
+  id: 'view-second',
+  name: 'Second view',
   isDefault: false,
 }
 
@@ -33,6 +33,7 @@ function renderMenu(views: TableViewWire[], activeViewId: string | null): string
       activeViewId={activeViewId}
       onSelect={vi.fn()}
       onRename={vi.fn()}
+      onSetDefault={vi.fn()}
       onDelete={vi.fn()}
       onNewView={vi.fn()}
       canEdit
@@ -55,18 +56,20 @@ describe('ViewsMenu', () => {
     expect(markup).not.toContain('>View<')
   })
 
-  it('only offers deletion for non-default views', () => {
+  it('only offers set-default and delete actions for non-default views', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
     const root = createRoot(container)
+    const onSetDefault = vi.fn()
 
     act(() => {
       root.render(
         <ViewsMenu
-          views={[DEFAULT_VIEW, SAVED_VIEW]}
+          views={[DEFAULT_VIEW, SECOND_VIEW]}
           activeViewId={DEFAULT_VIEW.id}
           onSelect={vi.fn()}
           onRename={vi.fn()}
+          onSetDefault={onSetDefault}
           onDelete={vi.fn()}
           onNewView={vi.fn()}
           canEdit
@@ -76,6 +79,12 @@ describe('ViewsMenu', () => {
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Views"]')?.click())
 
     expect(document.body.querySelectorAll('button[aria-label="Delete"]')).toHaveLength(1)
+    const actions = document.body.querySelectorAll<HTMLButtonElement>(
+      'button[aria-label="Set as default"]'
+    )
+    expect(actions).toHaveLength(1)
+    act(() => actions[0]?.click())
+    expect(onSetDefault).toHaveBeenCalledWith(SECOND_VIEW.id)
 
     act(() => root.unmount())
     container.remove()

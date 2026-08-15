@@ -1581,6 +1581,9 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
     onSuccess: (view) => {
       queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
         prev?.map((existing) => {
+          if (view.isDefault && existing.id !== view.id && existing.isDefault) {
+            return { ...existing, isDefault: false }
+          }
           if (existing.id !== view.id) return existing
           // Layout and view controls auto-save concurrently, and their
           // responses can arrive out of order. The DB merge is authoritative, so

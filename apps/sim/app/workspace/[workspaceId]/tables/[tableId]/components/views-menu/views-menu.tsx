@@ -13,7 +13,7 @@ import {
   PopoverItem,
   PopoverSection,
 } from '@sim/emcn'
-import { Check, Pencil, Plus, Trash } from '@sim/emcn/icons'
+import { Check, Pencil, Pin, Plus, Trash } from '@sim/emcn/icons'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 import { resolveTableViewSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 
@@ -34,6 +34,7 @@ interface ViewsMenuProps {
   activeViewId: string | null
   onSelect: (viewId: string | null) => void
   onRename: (viewId: string) => void
+  onSetDefault: (viewId: string) => void
   onDelete: (viewId: string) => void
   /** Starts a blank view — named first, configured after. */
   onNewView: () => void
@@ -53,6 +54,7 @@ export const ViewsMenu = memo(function ViewsMenu({
   activeViewId,
   onSelect,
   onRename,
+  onSetDefault,
   onDelete,
   onNewView,
   canEdit,
@@ -151,6 +153,15 @@ export const ViewsMenu = memo(function ViewsMenu({
               actions={
                 canEdit
                   ? [
+                      ...(view.isDefault
+                        ? []
+                        : [
+                            {
+                              icon: Pin,
+                              label: 'Set as default',
+                              onClick: () => runAndClose(() => onSetDefault(view.id)),
+                            },
+                          ]),
                       {
                         icon: Pencil,
                         label: 'Rename',

@@ -1,1 +1,1 @@
-export { TableFilter } from './table-filter'
+export { TableFilter, type TableFilterHandle } from './table-filter'

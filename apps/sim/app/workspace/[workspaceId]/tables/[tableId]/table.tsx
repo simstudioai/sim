@@ -82,6 +82,7 @@ import {
   type SelectionSnapshot,
   TableActionBar,
   TableFilter,
+  type TableFilterHandle,
   TableGrid,
   ViewsMenu,
   type WorkflowConfig,
@@ -248,6 +249,7 @@ export function Table({
   })
   const [filter, setFilter] = useState<TablePredicate | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
+  const tableFilterRef = useRef<TableFilterHandle>(null)
   /** Bumped whenever the filter is replaced from outside the panel, to re-seed
    *  its rule rows. See {@link replaceFilter}. */
   const [filterSeed, setFilterSeed] = useState(0)
@@ -726,6 +728,7 @@ export function Table({
   const handleSelectView = useCallback(
     (viewId: string | null) => {
       preservedViewStateRef.current = null
+      tableFilterRef.current?.flush()
       setTableParams({ view: viewId ?? ALL_VIEW_PARAM })
     },
     [setTableParams]
@@ -733,6 +736,15 @@ export function Table({
 
   const handleRenameView = useCallback((viewId: string) => {
     setViewModal({ mode: 'rename', viewId })
+  }, [])
+
+  const handleSetDefaultView = useCallback((viewId: string) => {
+    updateViewMutation.mutate(
+      { viewId, isDefault: true },
+      {
+        onError: (error) => toast.error(getErrorMessage(error, 'Failed to set default view')),
+      }
+    )
   }, [])
 
   const handleNewView = useCallback(() => {
@@ -1179,10 +1191,13 @@ export function Table({
     [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort]
   )
 
-  const handleFilterApply = (next: TablePredicate | null) => {
-    setFilter(next)
-    persistActiveViewConfig({ filter: next })
-  }
+  const handleFilterChange = useCallback(
+    (next: TablePredicate | null) => {
+      setFilter(next)
+      persistActiveViewConfig({ filter: next })
+    },
+    [persistActiveViewConfig]
+  )
 
   const handleHiddenColumnsChange = (next: string[]) => {
     setHiddenColumns(next)
@@ -1421,7 +1436,10 @@ export function Table({
 
   // Stable identity so the memoized Resource.Options can bail — an inline
   // object literal (with an inline arrow) would defeat its memo every render.
-  const handleToggleFilter = useCallback(() => setFilterOpen((prev) => !prev), [])
+  const handleToggleFilter = useCallback(() => {
+    if (filterOpen) tableFilterRef.current?.flush()
+    setFilterOpen(!filterOpen)
+  }, [filterOpen])
   const filterConfig = useMemo(
     () => ({
       mode: 'toggle' as const,
@@ -1496,6 +1514,7 @@ export function Table({
               activeViewId={activeView?.id ?? null}
               onSelect={handleSelectView}
               onRename={handleRenameView}
+              onSetDefault={handleSetDefaultView}
               onDelete={handleDeleteView}
               onNewView={handleNewView}
               canEdit={userPermissions.canEdit}
@@ -1516,11 +1535,11 @@ export function Table({
       />
       {filterOpen && (
         <TableFilter
+          ref={tableFilterRef}
           key={filterSeed}
           columns={columns}
           filter={effectiveFilter}
-          onApply={handleFilterApply}
-          onClose={() => setFilterOpen(false)}
+          onChange={handleFilterChange}
         />
       )}
       <SaveViewModal
