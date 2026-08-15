@@ -134,14 +134,6 @@ export function isVideoFileType(mimeType: string): boolean {
 }
 
 /**
- * Check if a MIME type is an audio or video type
- */
-export function isMediaFileType(mimeType: string): boolean {
-  const contentType = getContentType(mimeType)
-  return contentType === 'audio' || contentType === 'video'
-}
-
-/**
  * Convert a file buffer to base64
  */
 export function bufferToBase64(buffer: Buffer): string {

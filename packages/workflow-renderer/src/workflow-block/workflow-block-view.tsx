@@ -64,6 +64,8 @@ const TAB_LENGTH_HEADER_ONLY_PX = 10
 /** The error knob is deliberately the shortest of the connection knobs — it is
  *  a secondary output, and a full-length tab crowds the card's bottom corner. */
 const TAB_HEIGHT_RATIO = 0.5
+const DEFAULT_TARGET_SIDE: WorkflowConnectionSide = 'left'
+const DEFAULT_SOURCE_SIDE: WorkflowConnectionSide = 'right'
 const CARD_CORNER_RADIUS_PX = 16
 const CORNER_SLACK_PX = 4
 const ACTION_MENU_RIGHT_INSET_PX = 24
@@ -103,6 +105,7 @@ const WORKFLOW_ROLE_ACCENTS = {
   state: { variant: 'workflow', tone: 'yellow' },
   flow: { variant: 'workflow', tone: 'ash' },
   records: { variant: 'workflow', tone: 'green' },
+  identity: { variant: 'workflow', tone: 'identity' },
   neutral: { variant: 'workflow', tone: 'neutral' },
   generative: { variant: 'workflow', tone: 'purple' },
   knowledge: { variant: 'workflow', tone: 'content' },
@@ -116,6 +119,7 @@ const WORKFLOW_TYPE_ROLES = {
   api: 'interface',
   condition: 'logic',
   credential: 'state',
+  credential_group: 'identity',
   deployments: 'neutral',
   enrichment: 'knowledge',
   evaluator: 'logic',
@@ -183,10 +187,18 @@ export const getWorkflowTypeAccent = (type: string) =>
 export interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   type: string
   Icon: ComponentType<{ className?: string }>
+  /** Overrides the glyph size when the chip is rendered at a non-default slot. */
+  iconClassName?: string
 }
 
 /** Shared compact core-block icon used by workflow discovery surfaces. */
-export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTypeIconProps) {
+export function WorkflowTypeIcon({
+  type,
+  Icon,
+  className,
+  iconClassName,
+  ...props
+}: WorkflowTypeIconProps) {
   const typeAccent = getWorkflowTypeAccent(type)
 
   return (
@@ -197,7 +209,12 @@ export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTy
       data-workflow-type-icon={type}
       {...props}
     >
-      <Icon className='size-[10px] transition-transform duration-100 group-hover:scale-110' />
+      <Icon
+        className={cn(
+          'size-[10px] transition-transform duration-100 group-hover:scale-110',
+          iconClassName
+        )}
+      />
     </ChipTag>
   )
 }
@@ -728,16 +745,14 @@ export function WorkflowBlockView({
   const rowTabLength = clampTabLength(
     branchRowCount <= 2 ? TAB_LENGTH_SMALL_PX : TAB_LENGTH_SMALL_PX - (branchRowCount - 2) * 2
   )
-  const defaultTargetSide: WorkflowConnectionSide = 'left'
-  const defaultSourceSide: WorkflowConnectionSide = 'right'
   const borderPorts = useMemo<WorkflowBorderPort[]>(() => {
     const ports: WorkflowBorderPort[] = []
     if (shouldShowDefaultHandles) {
       ports.push({
         id: WORKFLOW_TARGET_HANDLE_ID,
-        side: defaultTargetSide,
+        side: DEFAULT_TARGET_SIDE,
         position: 'center',
-        plateau: mainTabLength(defaultTargetSide),
+        plateau: mainTabLength(DEFAULT_TARGET_SIDE),
         color: tabFill(WORKFLOW_TARGET_HANDLE_ID),
       })
     }
@@ -767,9 +782,9 @@ export function WorkflowBlockView({
     } else if (type !== 'response') {
       ports.push({
         id: WORKFLOW_SOURCE_HANDLE_ID,
-        side: defaultSourceSide,
+        side: DEFAULT_SOURCE_SIDE,
         position: 'center',
-        plateau: mainTabLength(defaultSourceSide),
+        plateau: mainTabLength(DEFAULT_SOURCE_SIDE),
         color: tabFill(WORKFLOW_SOURCE_HANDLE_ID),
       })
     }
@@ -792,8 +807,6 @@ export function WorkflowBlockView({
     conditionRows,
     actionMenuSwellOpen,
     actionMenuWidth,
-    defaultSourceSide,
-    defaultTargetSide,
     highlightedHandles,
     routerRows,
     rowTabLength,
@@ -861,6 +874,8 @@ export function WorkflowBlockView({
           }
           isSelected={usesSelectedVisuals}
           height={blockHeight}
+          canStartConnection={supportsCursorHandle}
+          canReceiveConnection={shouldShowDefaultHandles}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}
           onActionMenuReadyChange={setActionMenuSwellReady}
         />

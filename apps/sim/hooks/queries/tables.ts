@@ -140,7 +140,7 @@ type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
 
 export type TableRowsResponse = Pick<
   ContractJsonResponse<typeof listTableRowsContract>['data'],
-  'rows' | 'totalCount'
+  'rows' | 'totalCount' | 'nextCursor'
 >
 
 interface RowMutationContext {
@@ -195,8 +195,13 @@ async function fetchTableRows({
     },
     signal,
   })
-  const { rows, totalCount } = response.data
-  return { rows, totalCount }
+  const { rows, totalCount, nextCursor } = response.data
+  /**
+   * `nextCursor` is kept because it is the only authoritative end-of-table signal: the server
+   * sets it exactly when the drain proved an unreturned witness row, so it covers a page cut by
+   * the byte budget as well as one cut by `limit`. See {@link hasMoreTableRows}.
+   */
+  return { rows, totalCount, nextCursor }
 }
 
 function invalidateRowCount(queryClient: ReturnType<typeof useQueryClient>, tableId: string) {
@@ -832,6 +837,11 @@ function withOptimisticAutoFireExec(groups: WorkflowGroup[], row: TableRow): Tab
 /**
  * Apply a row-level transformation to all cached infinite row queries for this
  * table. Used for cell edits where positions don't change.
+ *
+ * Walks {@link tableKeys.infiniteRowsRoot} rather than `rowsRoot`: the latter is a
+ * shared parent, and handing this updater a `find` entry — a flat
+ * {@link TableFindResult}, not pages — throws on `old.pages` inside `onMutate`, so
+ * the whole cell edit would reject before reaching the server.
  */
 function patchCachedRows(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -839,7 +849,7 @@ function patchCachedRows(
   patchRow: (row: TableRow) => TableRow
 ) {
   queryClient.setQueriesData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
-    { queryKey: tableKeys.rowsRoot(tableId), exact: false },
+    { queryKey: tableKeys.infiniteRowsRoot(tableId), exact: false },
     (old) => {
       if (!old) return old
       return {
@@ -1010,12 +1020,12 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
       })
     },
     onMutate: async ({ rowId, data }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      await queryClient.cancelQueries({ queryKey: tableKeys.infiniteRowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<
         InfiniteData<TableRowsResponse, TableRowsPageParam>
       >({
-        queryKey: tableKeys.rowsRoot(tableId),
+        queryKey: tableKeys.infiniteRowsRoot(tableId),
       })
 
       const groups =
@@ -1061,6 +1071,18 @@ export function useUpdateTableRow({ workspaceId, tableId }: RowMutationContext) 
           updatedAt: serverRow.updatedAt,
         }
       })
+
+      // `patchCachedRows` rewrites values in place, which is the whole answer for the default
+      // view. It cannot be for a filtered or column-sorted one: editing a cell can move a row in
+      // or out of the filter and change its sort position and `totalCount`, none of which a
+      // per-row patch can express. Those views are refetched instead — the same split
+      // `useCreateTableRow` makes, and previously supplied by the broadcast this write no longer
+      // makes the acting tab honor.
+      queryClient.invalidateQueries({
+        queryKey: tableKeys.rowsRoot(tableId),
+        exact: false,
+        predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
+      })
     },
     onError: (error, _vars, context) => {
       if (context?.previousQueries) {
@@ -1100,12 +1122,12 @@ export function useBatchUpdateTableRows({ workspaceId, tableId }: RowMutationCon
       })
     },
     onMutate: async ({ updates }) => {
-      await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      await queryClient.cancelQueries({ queryKey: tableKeys.infiniteRowsRoot(tableId) })
 
       const previousQueries = queryClient.getQueriesData<
         InfiniteData<TableRowsResponse, TableRowsPageParam>
       >({
-        queryKey: tableKeys.rowsRoot(tableId),
+        queryKey: tableKeys.infiniteRowsRoot(tableId),
       })
 
       const updateMap = new Map(updates.map((u) => [u.rowId, u.data]))
@@ -1290,6 +1312,14 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
                   ...page,
                   rows: page.rows.filter((r) => keep.has(r.id)),
                   ...(page.totalCount != null ? { totalCount: keep.size } : {}),
+                  /**
+                   * The view is being emptied on purpose, so it has no next page — stated
+                   * explicitly because the server's cursor would otherwise say otherwise and
+                   * scrolling would pull back the very rows the job is deleting. Only the
+                   * row-count arithmetic used to carry this, which {@link hasMoreTableRows}
+                   * no longer consults once a cursor is present.
+                   */
+                  nextCursor: null,
                 })),
               }
             : old
@@ -2187,7 +2217,7 @@ export async function snapshotAndMutateRows(
 ): Promise<RowsCacheSnapshots> {
   const scope = options?.onlyKey
     ? ({ queryKey: options.onlyKey, exact: true } as const)
-    : ({ queryKey: tableKeys.rowsRoot(tableId) } as const)
+    : ({ queryKey: tableKeys.infiniteRowsRoot(tableId) } as const)
   if (options?.cancelInFlight !== false) {
     await queryClient.cancelQueries(scope)
   }

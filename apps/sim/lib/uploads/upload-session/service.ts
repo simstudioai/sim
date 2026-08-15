@@ -15,6 +15,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
   MAX_WORKSPACE_FILE_SIZE,
@@ -41,7 +42,6 @@ import type {
   UploadStorageProvider,
   UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
-import { sanitizeFileName } from '@/executor/constants'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
 export const UPLOAD_SESSION_PART_SIZE = 8 * 1024 * 1024
@@ -456,6 +456,11 @@ export function createUploadSessionAuthBinding(
         },
       }
     }
+    case 'credential_group_enrollment':
+      throw new UploadSessionError(
+        'forbidden',
+        'Credential Group enrollment principals cannot create uploads'
+      )
   }
 }
 
@@ -928,7 +933,10 @@ export function expectedUploadPartSize(session: UploadSessionRecord, partNumber:
     throw new UploadSessionError('conflict', 'PUT upload sessions do not have multipart parts')
   }
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > session.partCount) {
-    throw new UploadSessionError('validation', 'Invalid upload part number')
+    throw new UploadSessionError(
+      'validation',
+      `partNumber must be between 1 and ${session.partCount}`
+    )
   }
   if (partNumber < session.partCount) return session.partSize
   return session.fileSize - session.partSize * (session.partCount - 1)
@@ -1200,7 +1208,7 @@ function resolveUploadStorage(
     case 'table_import':
       return {
         storageContext: 'table-import',
-        finalKey: `table-import/${params.workspaceId}/${id}/${sanitizeFileName(params.fileName)}`,
+        finalKey: `table-import/${params.workspaceId}/${id}/${buildStorageKeySegment('', params.fileName)}`,
       }
     case 'knowledge_document':
       return {
@@ -1210,12 +1218,12 @@ function resolveUploadStorage(
     case 'profile_picture':
       return {
         storageContext: 'profile-pictures',
-        finalKey: `profile-pictures/${id}-${sanitizeFileName(params.fileName)}`,
+        finalKey: `profile-pictures/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
     case 'workspace_logo':
       return {
         storageContext: 'workspace-logos',
-        finalKey: `workspace-logos/${params.workspaceId}/${id}-${sanitizeFileName(params.fileName)}`,
+        finalKey: `workspace-logos/${params.workspaceId}/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
     case 'mothership_attachment':
       return {

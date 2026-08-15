@@ -179,13 +179,3 @@ function patchTouchesOnlyWorkflowColumns(
 export function patchColumnIds(data: RowData): string[] {
   return Object.keys(data)
 }
-
-/**
- * Escape hatch for tests and trusted system callers that legitimately invoke
- * the low-level `rows/ordering.ts` primitives without a preceding assert
- * (e.g. fixtures, or a call path already gated elsewhere). NOT for production
- * mutation paths — those must assert so locks are enforced and violations logged.
- */
-export function unsafeMutationProof<V extends TableLockKind = TableLockKind>(): MutationProof<V> {
-  return proofFor<V>()
-}

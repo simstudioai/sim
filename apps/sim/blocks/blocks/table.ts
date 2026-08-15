@@ -1,8 +1,9 @@
+import { Table } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
+import { parseOptionalNumberInput } from '@/blocks/utils'
 import type { TableQueryResponse } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
 
@@ -113,7 +114,11 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
       tableId: params.tableId,
       filter,
       data: parseJSON(params.data, 'Row Data'),
-      limit: params.limit ? Number.parseInt(params.limit) : undefined,
+      limit: parseOptionalNumberInput(params.limit, 'Limit', {
+        integer: true,
+        min: 1,
+        max: TABLE_LIMITS.MAX_BULK_OPERATION_SIZE,
+      }),
     }
   },
 
@@ -136,7 +141,11 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
     return {
       tableId: params.tableId,
       filter,
-      limit: params.limit ? Number.parseInt(params.limit) : undefined,
+      limit: parseOptionalNumberInput(params.limit, 'Limit', {
+        integer: true,
+        min: 1,
+        max: TABLE_LIMITS.MAX_BULK_OPERATION_SIZE,
+      }),
     }
   },
 
@@ -171,8 +180,11 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
       tableId: params.tableId,
       filter,
       sort,
-      limit: params.limit ? Number.parseInt(params.limit) : 100,
-      offset: params.offset ? Number.parseInt(params.offset) : 0,
+      limit: parseOptionalNumberInput(params.limit, 'Limit', {
+        integer: true,
+        min: 1,
+      }),
+      offset: parseOptionalNumberInput(params.offset, 'Offset', { integer: true, min: 0 }) ?? 0,
     }
   },
 }
@@ -197,11 +209,11 @@ export const TableBlock: BlockConfig<TableQueryResponse> = {
   name: 'Table',
   description: 'User-defined data tables',
   longDescription:
-    'Create and manage custom data tables. Store, query, and manipulate structured data within workflows.',
+    'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows returns every matching row when Limit is omitted and fails if the result exceeds 5MB.',
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
   bgColor: '#10B981',
-  icon: TableIcon,
+  icon: Table,
   canvasPresentation: {
     defaultTitle: 'Table',
     /*
@@ -652,7 +664,7 @@ Return ONLY the sort JSON:`,
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: '100',
+      placeholder: 'Leave empty for all rows (fails over 5MB)',
       condition: {
         field: 'operation',
         value: ['query_rows', 'update_rows_by_filter', 'delete_rows_by_filter'],
@@ -726,7 +738,11 @@ Return ONLY the sort JSON:`,
       description: 'Visual filter builder conditions for bulk operations',
     },
     filter: { type: 'json', description: 'Filter criteria for query/update/delete operations' },
-    limit: { type: 'number', description: 'Query or bulk operation limit' },
+    limit: {
+      type: 'number',
+      description:
+        'Optional query row limit; omit to return every matching row (fails over 5MB). Also caps bulk update/delete operations.',
+    },
     builderMode: {
       type: 'string',
       description: 'Input mode for filter and sort (builder or json)',

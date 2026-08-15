@@ -83,7 +83,7 @@ describe('/api/v2/tables/[tableId]/columns', () => {
     })
     const response = await POST(req, context)
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(201)
     expect((await response.json()).data.columns).toEqual([
       { id: 'col-1', name: 'Name', type: 'string', required: false, unique: false },
     ])

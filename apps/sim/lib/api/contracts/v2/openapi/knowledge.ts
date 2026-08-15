@@ -37,6 +37,7 @@ import {
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
@@ -64,13 +65,13 @@ function knowledgeOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeBasesContract,
     knowledgeOperation({
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
-      description: `List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge bases.' },
     }),
@@ -94,11 +95,12 @@ const routes = [
     knowledgeOperation({
       operationId: 'createKnowledgeBase',
       summary: 'Create Knowledge Base',
-      description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a \`404\`. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created knowledge base.' },
     }),
     {
+      query: v2CreateKnowledgeBaseContract.query,
       body: documentedSchema(
         v2CreateKnowledgeBaseContract.body,
         'CreateKnowledgeBaseRequest',
@@ -154,6 +156,7 @@ const routes = [
       success: { description: 'The updated knowledge base.' },
     }),
     {
+      query: v2UpdateKnowledgeBaseContract.query,
       params: documentedSchema(
         v2UpdateKnowledgeBaseContract.params,
         'UpdateKnowledgeBaseParams',
@@ -211,11 +214,12 @@ const routes = [
       operationId: 'searchKnowledge',
       summary: 'Search Knowledge',
       description:
-        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` with a `rerankerModel` to re-order the retrieved chunks with a reranking model before truncating to `topK`; reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.',
+        'Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.',
       errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'PayloadTooLarge'],
       success: { description: 'Matching document chunks ordered by relevance.' },
     }),
     {
+      query: v2SearchKnowledgeContract.query,
       body: documentedSchema(
         v2SearchKnowledgeContract.body,
         'SearchKnowledgeRequest',
@@ -243,7 +247,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeTags',
       summary: 'List Tags',
-      description: `List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Display names are what tag filters and the tag values on document reads use; slots are what document writes set. Every slot listed here is writable, in its declared type: \`tag1\`..\`tag7\` take a string, \`number1\`..\`number5\` a number, \`date1\`..\`date2\` a \`YYYY-MM-DD\` string, and \`boolean1\`..\`boolean3\` a boolean. The vocabulary is bounded by the fixed slot table. ${FULL_SET_LIST}`,
+      description: `List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The knowledge base tag vocabulary.' },
     }),
@@ -274,7 +278,7 @@ const routes = [
       operationId: 'listKnowledgeDocuments',
       summary: 'List Documents',
       description:
-        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Each document carries its tag values keyed by tag display name; resolve those names to write slots with `GET /api/v2/knowledge/{id}/tags`.',
+        'List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of knowledge documents.' },
     }),
@@ -304,11 +308,12 @@ const routes = [
     knowledgeOperation({
       operationId: 'bulkUpdateKnowledgeDocuments',
       summary: 'Bulk Enable or Disable Documents',
-      description: `Enable or disable many documents in one request, either by identifier (up to 100) or, with \`selectAll\`, every document in the knowledge base optionally narrowed by \`enabledFilter\`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`, which audits each one. An identifier request echoes the documents it changed in \`documentIds\`; a \`selectAll\` request omits that field because the selection is unbounded, and reports \`updatedCount\` alone. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      description: `Enable or disable many documents in one request, either by identifier or, with \`selectAll\`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The number and identifiers of the documents that changed.' },
     }),
     {
+      query: v2BulkUpdateKnowledgeDocumentsContract.query,
       params: documentedSchema(
         v2BulkUpdateKnowledgeDocumentsContract.params,
         'BulkUpdateKnowledgeDocumentsParams',
@@ -399,6 +404,7 @@ const routes = [
       success: { description: 'The created upload session and transfer instructions.' },
     }),
     {
+      query: v2CreateKnowledgeDocumentUploadContract.query,
       params: documentedSchema(
         v2CreateKnowledgeDocumentUploadContract.params,
         'CreateKnowledgeDocumentUploadParams',
@@ -469,7 +475,7 @@ const routes = [
       operationId: 'createKnowledgeDocumentUploadPartUrls',
       summary: 'Create Document Upload Part URLs',
       description: 'Issue short-lived signed PUT URLs for up to 100 multipart part numbers.',
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Signed URLs for the requested upload parts.' },
     }),
     {
@@ -578,11 +584,12 @@ const routes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeDocument',
       summary: 'Update Document',
-      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. A tag slot takes its declared type — a string for \`tag1\`..\`tag7\`, a number for \`number1\`..\`number5\`, a \`YYYY-MM-DD\` string for \`date1\`..\`date2\`, a boolean for \`boolean1\`..\`boolean3\` — and a value that is not valid for the slot is a \`400\` rather than a silently cleared tag. Resolve a display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (\`chunkCount\`, \`tokenCount\`, \`characterCount\`, \`processingStatus\`, \`processingError\`) is written by the processing pipeline and cannot be asserted here. \`retryProcessing: true\` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. The returned document omits the connector provenance the detail read carries. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated document, or the requeue acknowledgement.' },
     }),
     {
+      query: v2UpdateKnowledgeDocumentContract.query,
       params: documentedSchema(
         v2UpdateKnowledgeDocumentContract.params,
         'UpdateKnowledgeDocumentParams',
@@ -610,7 +617,7 @@ const routes = [
       operationId: 'deleteKnowledgeDocument',
       summary: 'Delete Document',
       description:
-        'Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.',
+        'Remove one document from a knowledge base. An uploaded document is deleted outright with its indexed chunks. A connector-backed document is instead excluded — its row and embeddings survive, but it stops being searchable and a later sync does not re-add it. Either way it no longer appears in listings or search results.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Knowledge document deletion acknowledgement.' },
     }),
@@ -655,7 +662,7 @@ const routes = [
         v2ListKnowledgeFoldersContract.response.schema,
         'V2KnowledgeFolderListResponse',
         'Knowledge folder list response',
-        'A cursor-paginated page of knowledge-base folders.'
+        'The whole bounded set of knowledge-base folders, in one page.'
       ),
     }
   ),
@@ -669,6 +676,7 @@ const routes = [
       success: { description: 'The created knowledge-base folder.' },
     }),
     {
+      query: v2CreateKnowledgeFolderContract.query,
       body: documentedSchema(
         v2CreateKnowledgeFolderContract.body,
         'CreateKnowledgeFolderRequest',
@@ -694,6 +702,7 @@ const routes = [
       success: { description: 'The relocated knowledge-base folder.' },
     }),
     {
+      query: v2RelocateKnowledgeFolderContract.query,
       body: documentedSchema(
         v2RelocateKnowledgeFolderContract.body,
         'RelocateKnowledgeFolderRequest',
@@ -740,6 +749,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const knowledgeOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-knowledge.json',

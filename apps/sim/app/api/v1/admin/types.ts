@@ -20,9 +20,7 @@ import type { InferSelectModel } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
-// =============================================================================
 // Database Model Types (inferred from schema)
-// =============================================================================
 
 export type DbUser = InferSelectModel<typeof user>
 export type DbWorkspace = InferSelectModel<typeof workspace>
@@ -33,9 +31,7 @@ export type DbSubscription = InferSelectModel<typeof subscription>
 export type DbMember = InferSelectModel<typeof member>
 export type DbUserStats = InferSelectModel<typeof userStats>
 
-// =============================================================================
 // Pagination
-// =============================================================================
 
 export interface PaginationParams {
   limit: number
@@ -52,19 +48,6 @@ export interface PaginationMeta {
 export const DEFAULT_LIMIT = 50
 export const MAX_LIMIT = 250
 
-export function parsePaginationParams(url: URL): PaginationParams {
-  return {
-    limit: parsePaginationNumber(url.searchParams.get('limit'), DEFAULT_LIMIT, MAX_LIMIT),
-    offset: parsePaginationNumber(url.searchParams.get('offset'), 0),
-  }
-}
-
-function parsePaginationNumber(value: string | null, fallback: number, max?: number): number {
-  const parsed = value ? Number.parseInt(value, 10) : fallback
-  if (!Number.isInteger(parsed) || parsed < 1) return fallback
-  return max === undefined ? parsed : Math.min(parsed, max)
-}
-
 export function createPaginationMeta(total: number, limit: number, offset: number): PaginationMeta {
   return {
     total,
@@ -74,9 +57,7 @@ export function createPaginationMeta(total: number, limit: number, offset: numbe
   }
 }
 
-// =============================================================================
 // API Response Types
-// =============================================================================
 
 export interface AdminListResponse<T> {
   data: T[]
@@ -95,9 +76,7 @@ export interface AdminErrorResponse {
   }
 }
 
-// =============================================================================
 // User Types
-// =============================================================================
 
 export interface AdminUser {
   id: string
@@ -121,9 +100,7 @@ export function toAdminUser(dbUser: DbUser): AdminUser {
   }
 }
 
-// =============================================================================
 // Workspace Types
-// =============================================================================
 
 export interface AdminWorkspace {
   id: string
@@ -148,9 +125,7 @@ export function toAdminWorkspace(dbWorkspace: DbWorkspace): AdminWorkspace {
   }
 }
 
-// =============================================================================
 // Folder Types
-// =============================================================================
 
 export interface AdminFolder {
   id: string
@@ -179,9 +154,7 @@ export function toAdminFolder(dbFolder: DbWorkflowFolder): AdminFolder {
   }
 }
 
-// =============================================================================
 // Workflow Types
-// =============================================================================
 
 export interface AdminWorkflow {
   id: string
@@ -233,9 +206,7 @@ export function toAdminWorkflow(dbWorkflow: AdminWorkflowSource): AdminWorkflow 
   }
 }
 
-// =============================================================================
 // Workflow Variable Types
-// =============================================================================
 
 export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
 
@@ -246,9 +217,7 @@ export interface WorkflowVariable {
   value: unknown
 }
 
-// =============================================================================
 // Export/Import Types
-// =============================================================================
 
 export interface WorkflowExportState {
   blocks: Record<string, BlockState>
@@ -296,9 +265,7 @@ export interface WorkspaceExportPayload {
   folders: FolderExportPayload[]
 }
 
-// =============================================================================
 // Import Types
-// =============================================================================
 
 export interface WorkflowImportRequest {
   workspaceId: string
@@ -328,9 +295,7 @@ export interface WorkspaceImportResponse {
   results: ImportResult[]
 }
 
-// =============================================================================
 // Utility Functions
-// =============================================================================
 
 /**
  * Extract workflow metadata from various export formats.
@@ -384,9 +349,7 @@ function getNestedString(obj: Record<string, unknown>, path: string): string | u
   return typeof current === 'string' ? current : undefined
 }
 
-// =============================================================================
 // Organization Types
-// =============================================================================
 
 export interface AdminOrganization {
   id: string
@@ -432,9 +395,7 @@ export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrgani
   }
 }
 
-// =============================================================================
 // Subscription Types
-// =============================================================================
 
 export interface AdminSubscription {
   id: string
@@ -470,9 +431,7 @@ export function toAdminSubscription(dbSub: DbSubscription): AdminSubscription {
   }
 }
 
-// =============================================================================
 // Member Types
-// =============================================================================
 
 export interface AdminMember {
   id: string
@@ -492,9 +451,7 @@ export interface AdminMemberDetail extends AdminMember {
   billingBlocked: boolean
 }
 
-// =============================================================================
 // Workspace Member Types
-// =============================================================================
 
 export interface AdminWorkspaceMember {
   id: string
@@ -508,9 +465,7 @@ export interface AdminWorkspaceMember {
   userImage: string | null
 }
 
-// =============================================================================
 // User Billing Types
-// =============================================================================
 
 interface AdminUserBilling {
   userId: string
@@ -539,9 +494,7 @@ export interface AdminUserBillingWithSubscription extends AdminUserBilling {
   }>
 }
 
-// =============================================================================
 // Organization Billing Summary Types
-// =============================================================================
 
 export interface AdminOrganizationBillingSummary {
   organizationId: string
@@ -587,9 +540,7 @@ export interface AdminDeploymentVersion {
   deployedByName: string | null
 }
 
-// =============================================================================
 // Audit Log Types
-// =============================================================================
 
 export type DbAuditLog = InferSelectModel<typeof auditLog>
 

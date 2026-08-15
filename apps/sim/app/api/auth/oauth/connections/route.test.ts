@@ -49,6 +49,7 @@ describe('OAuth Connections API Route', () => {
   it('should return connections successfully', async () => {
     authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
+      session: { id: 'session-1' },
     })
 
     const mockAccounts = [
@@ -105,12 +106,13 @@ describe('OAuth Connections API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(401)
-    expect(data.error).toBe('User not authenticated')
+    expect(data.error).toBe('Unauthorized')
   })
 
   it('should handle user with no connections', async () => {
     authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
+      session: { id: 'session-1' },
     })
 
     dbChainMockFns.where.mockResolvedValueOnce([])
@@ -128,6 +130,7 @@ describe('OAuth Connections API Route', () => {
   it('should handle database error', async () => {
     authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
+      session: { id: 'session-1' },
     })
 
     dbChainMockFns.where.mockRejectedValueOnce(new Error('Database error'))
@@ -144,6 +147,7 @@ describe('OAuth Connections API Route', () => {
   it('should decode ID token for display name', async () => {
     authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
+      session: { id: 'session-1' },
     })
 
     const mockAccounts = [

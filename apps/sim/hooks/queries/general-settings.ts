@@ -36,6 +36,8 @@ export interface GeneralSettings {
   errorNotificationsEnabled: boolean
   snapToGridSize: number
   showActionBar: boolean
+  /** Whether clicking a block on the canvas animates the camera to center it. */
+  autoFocusOnClick: boolean
   /** Copilot tool ids the user picked "always allow" for. */
   copilotAutoAllowedTools: string[]
   /** Saved IANA timezone, or `null` when unset (the app falls back to the browser zone). */
@@ -57,6 +59,7 @@ export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettin
     errorNotificationsEnabled: data.errorNotificationsEnabled,
     snapToGridSize: data.snapToGridSize,
     showActionBar: data.showActionBar,
+    autoFocusOnClick: data.autoFocusOnClick,
     copilotAutoAllowedTools: data.copilotAutoAllowedTools ?? [],
     timezone: data.timezone ?? null,
   }
@@ -122,14 +125,22 @@ export function useShowActionBar(): boolean {
   return data?.showActionBar ?? true
 }
 
+/**
+ * Whether the canvas camera animates to center a block when it is clicked.
+ *
+ * Scoped to clicks only. Arrow-key navigation and block creation deliberately
+ * keep following the camera regardless — both move selection to a block that
+ * may be off-screen, so suppressing the move would leave the user with no way
+ * to tell where the selection went.
+ */
+export function useAutoFocusOnClick(): boolean {
+  const { data } = useGeneralSettings()
+  return data?.autoFocusOnClick ?? true
+}
+
 export function useBillingUsageNotifications(): boolean {
   const { data } = useGeneralSettings()
   return data?.billingUsageNotificationsEnabled ?? true
-}
-
-export function useErrorNotificationsEnabled(): boolean {
-  const { data } = useGeneralSettings()
-  return data?.errorNotificationsEnabled ?? true
 }
 
 /**

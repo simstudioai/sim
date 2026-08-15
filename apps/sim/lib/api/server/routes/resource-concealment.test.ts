@@ -70,6 +70,21 @@ const policies: Array<{
     policy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
     notFoundMessage: 'Knowledge base not found',
   },
+  {
+    domain: 'knowledge base upload',
+    policy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUploadAuthorization,
+    notFoundMessage: 'Knowledge base not found',
+  },
+  {
+    domain: 'knowledge base search',
+    policy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,
+    notFoundMessage: 'Knowledge base not found',
+  },
+  {
+    domain: 'file upload',
+    policy: v2FileErrorPolicies.concealUploadAuthorization,
+    notFoundMessage: 'Upload session not found',
+  },
 ]
 
 const crossTenantAuthorizationErrors = [

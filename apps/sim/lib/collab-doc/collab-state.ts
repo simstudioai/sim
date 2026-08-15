@@ -14,17 +14,24 @@ export function hashMarkdown(markdown: Buffer): string {
   return createHash('sha256').update(markdown).digest('hex')
 }
 
-/**
- * Load a file's cached Yjs binary IF it is still fresh — i.e. was derived from markdown whose hash
- * matches `sourceHash` (the current file's markdown). Returns the binary to apply directly, or `null`
- * when there is no cache or it is stale (the markdown changed externally since it was saved), in which
- * case the caller re-converts from markdown. Applying the stored binary — rather than rebuilding a Y.Doc
- * from markdown — is what preserves the CRDT's client ids and prevents duplicated content on reconnect.
- */
-export async function loadFreshCollabDocState(
-  fileId: string,
+/** A file's stored collaborative document, with the markdown it was last derived from. */
+export interface CachedCollabDocState {
+  docState: Uint8Array
+  /** Hash of the markdown this binary projects to — `null`s out nothing; compare to decide freshness. */
   sourceHash: string
-): Promise<Uint8Array | null> {
+}
+
+/**
+ * Load a file's stored Yjs binary, fresh or not.
+ *
+ * FRESH (its `sourceHash` matches the file's current markdown) means it can seed a room verbatim.
+ * STALE means the markdown moved on out-of-band, and the caller must bring it up to date — but it must
+ * do so by UPDATING this document, never by building a second one: the stored binary carries the
+ * document's identity, and a rebuilt document's items carry different client ids, so any client still
+ * holding the old one would merge the two into duplicated content. Either way this row is the file's
+ * collaborative document; there is only ever one.
+ */
+export async function loadCollabDocState(fileId: string): Promise<CachedCollabDocState | null> {
   const [row] = await db
     .select({
       docState: workspaceFileCollabState.docState,
@@ -34,8 +41,22 @@ export async function loadFreshCollabDocState(
     .where(eq(workspaceFileCollabState.fileId, fileId))
     .limit(1)
 
-  if (!row || row.sourceHash !== sourceHash) return null
-  return new Uint8Array(row.docState)
+  if (!row) return null
+  return { docState: new Uint8Array(row.docState), sourceHash: row.sourceHash }
+}
+
+/**
+ * The markdown hash this file's cached doc state was derived from — i.e. the exact bytes the live
+ * document last projected onto the file — or `null` when nothing is cached. Selects only the tag, so a
+ * caller asking "is what's on disk still our own last write?" never loads the binary to find out.
+ */
+export async function collabDocStateSourceHash(fileId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ sourceHash: workspaceFileCollabState.sourceHash })
+    .from(workspaceFileCollabState)
+    .where(eq(workspaceFileCollabState.fileId, fileId))
+    .limit(1)
+  return row?.sourceHash ?? null
 }
 
 /**

@@ -3,6 +3,7 @@ import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { readClientId } from '@/lib/api/client-id'
 import {
   deleteTableRowContract,
   getTableQuerySchema,
@@ -14,7 +15,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { updateRow } from '@/lib/table'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChangedByActor } from '@/lib/table/events'
 import { performDeleteTableRow } from '@/lib/table/orchestration'
 import {
   createTableRowsResponse,
@@ -172,7 +173,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     )
 
     // Live-collab: tell open viewers the change landed so they refetch.
-    signalTableRowsChanged(tableId)
+    signalTableRowsChangedByActor(tableId, readClientId(request))
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.
     if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
@@ -251,7 +252,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     }
 
     // Live-collab: tell open viewers the change landed so they refetch.
-    signalTableRowsChanged(tableId)
+    signalTableRowsChangedByActor(tableId, readClientId(request))
 
     return NextResponse.json({
       success: true,

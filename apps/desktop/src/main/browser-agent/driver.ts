@@ -29,7 +29,7 @@ import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike, omit } from '@sim/utils/object'
+import { isRecordLike, omit, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
@@ -1055,7 +1055,7 @@ function raceAgainstWatchdog<T>(
  */
 async function activeElementState(target: PageExecutionTarget): Promise<Record<string, unknown>> {
   const state = await execInPage(target, readActiveElementState, []).catch(() => null)
-  return isRecordLike(state) ? state : {}
+  return toRecord(state)
 }
 
 function requireSnapshotForElementAction(): void {
@@ -1077,10 +1077,14 @@ function pageTargetForElement(contents: WebContents, elementId: number): PageExe
   return target
 }
 
+// The user's claim on the visible tab (visibleTabUserSelected) deliberately
+// does NOT gate input here: the user clicking or typing in the panel must
+// never leave the agent unable to act — hand-off is cooperative via
+// browser_request_takeover, whose serialized tool slot already keeps agent
+// input out while the user drives.
 function assertActiveContents(contents: WebContents, expectedNavigationEpoch?: number): void {
   const active = session.automationTab()
   if (
-    session.automationTabClaimedByUser() ||
     !active ||
     active.view.webContents !== contents ||
     contents.isDestroyed() ||
@@ -1278,7 +1282,7 @@ async function pageActionState(
     resetMutationRevision,
     elementId,
   ]).catch(() => null)
-  return isRecordLike(state) ? state : {}
+  return toRecord(state)
 }
 
 function pageEffect(
@@ -2669,7 +2673,7 @@ async function executeToolInner(
           },
         }
         return {
-          ...(isRecordLike(fallback) ? fallback : {}),
+          ...fallback,
           trusted,
           ...state,
           ...combinedObservation,
@@ -2955,12 +2959,11 @@ async function executeToolInner(
       await sleep(50)
       const state = unwrapPageResult(await execInPage(target, readSelectElementState, [elementId]))
       const effectObserved =
-        isRecordLike(selected) &&
         isRecordLike(state) &&
         selected.selected === state.selected &&
         selected.value === state.value
       return {
-        ...(isRecordLike(selected) ? selected : {}),
+        ...selected,
         effectObserved,
         readback: state,
         ...(!effectObserved
@@ -3100,7 +3103,7 @@ async function executeToolInner(
           : {}),
       }
       return {
-        ...(isRecordLike(result) ? result : {}),
+        ...result,
         trusted,
         effect,
         possibleEffectObserved,

@@ -24,7 +24,6 @@ import {
 import type {
   RowData,
   RowExecutionMetadata,
-  RowExecutions,
   TableDefinition,
   TableRowSecretProvenanceWrite,
   WorkflowGroup,
@@ -136,11 +135,13 @@ export async function writeWorkflowGroupState(
   // ("Open"), which the grid resolves as an option id, finds nothing, and
   // renders as an empty cell until the next refetch. Coerce a copy: the patch
   // object itself is identity-compared for the progress writer's retry
-  // bookkeeping, so it must not be mutated.
+  // bookkeeping, so it must not be mutated. The `null` policy mirrors what
+  // `updateRow` persists for a computed write, so the snapshot the client sees
+  // and the row on disk agree about a block output its column cannot hold.
   const rawEventOutputs = payload.eventOutputs ?? dataPatch
   const hasOutputs = rawEventOutputs && Object.keys(rawEventOutputs).length > 0
   const eventOutputs = hasOutputs ? { ...rawEventOutputs } : rawEventOutputs
-  if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema)
+  if (hasOutputs && eventOutputs) coerceRowValues(eventOutputs, table.schema, 'null')
   const runningBlockIds = payload.executionState.runningBlockIds
   const blockErrors = payload.executionState.blockErrors
   void appendTableEvent({
@@ -408,11 +409,4 @@ export function buildOutputsByBlockId(
     map.set(out.blockId, list)
   }
   return map
-}
-
-/** Type-narrowing helper used by readers that can't assume `executions` is set. */
-export function readExecutions(
-  row: { executions?: RowExecutions } | null | undefined
-): RowExecutions {
-  return row?.executions ?? {}
 }

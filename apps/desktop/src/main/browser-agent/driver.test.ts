@@ -1121,6 +1121,20 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
 
+  it('still dispatches input after the user has interacted with the visible tab', async () => {
+    const contents = await openPage()
+    respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
+    // User interaction claims the visible tab for panel-level ownership
+    // (popups, close protection) but must never block agent input.
+    session.claimActiveTabForUser()
+    expect(session.automationTabClaimedByUser()).toBe(true)
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'a' })
+
+    expect(result.ok).toBe(true)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
+  })
+
   it('sends the keystroke when nothing sensitive is focused', async () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })

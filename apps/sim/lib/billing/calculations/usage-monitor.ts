@@ -244,53 +244,6 @@ function buildUsageData(params: {
 }
 
 /**
- * Displays a notification to the user when they're approaching their usage limit
- * Can be called on app startup or before executing actions that might incur costs
- */
-async function checkAndNotifyUsage(userId: string): Promise<void> {
-  try {
-    if (!isBillingEnabled) {
-      return
-    }
-
-    const usageData = await checkUsageStatus(userId)
-
-    if (usageData.isExceeded) {
-      logger.warn('User has exceeded usage limits', {
-        userId,
-        usage: usageData.currentUsage,
-        limit: usageData.limit,
-      })
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('usage-exceeded', {
-            detail: { usageData },
-          })
-        )
-      }
-    } else if (usageData.isWarning) {
-      logger.info('User approaching usage limits', {
-        userId,
-        usage: usageData.currentUsage,
-        limit: usageData.limit,
-        percent: usageData.percentUsed,
-      })
-
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('usage-warning', {
-            detail: { usageData },
-          })
-        )
-      }
-    }
-  } catch (error) {
-    logger.error('Error in usage notification system', { error, userId })
-  }
-}
-
-/**
  * Whether the exact hosted user account is billing-blocked. Organization
  * memberships are deliberately ignored; workspace payer checks are separate.
  */

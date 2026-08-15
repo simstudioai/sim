@@ -2,6 +2,7 @@ import {
   v2CreateMcpServerContract,
   v2ListMcpServersContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -11,11 +12,19 @@ import {
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { createMcpServerUseCase, listMcpServersUseCase } from '@/lib/mcp/application/use-cases'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
+import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+/** Every param that changes which MCP servers, in which order, this list returns. */
+function mcpServerCursorFilters(query: { workspaceId: string; search?: string }) {
+  return cursorScopeKey(cursorRoute(v2ListMcpServersContract), {
+    workspaceId: query.workspaceId,
+    search: query.search,
+  })
+}
 
 /** GET /api/v2/mcp-servers — List MCP servers in a workspace. */
 export const GET = defineV2JsonRoute({
@@ -30,14 +39,22 @@ export const GET = defineV2JsonRoute({
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     limit: query.limit,
-    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+    cursorKeys: readSortedCursor(
+      query.cursor,
+      query.sortBy,
+      query.sortOrder,
+      mcpServerCursorFilters(query)
+    ),
   }),
   useCase: listMcpServersUseCase,
-  present: ({ servers, nextCursorKeys, sortBy, sortOrder }) => ({
+  present: ({ servers, nextCursorKeys }, { query }) => ({
     data: servers.map(toV2McpServer),
-    nextCursor: nextCursorKeys
-      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
-      : null,
+    nextCursor: writeSortedCursor(
+      nextCursorKeys,
+      query.sortBy,
+      query.sortOrder,
+      mcpServerCursorFilters(query)
+    ),
   }),
 })
 

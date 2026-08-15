@@ -5,7 +5,7 @@ import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import {
   createTable,
   deleteTable,
@@ -45,18 +45,13 @@ export const listTablesUseCase = defineAuthorizedTableUseCase({
     const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'table', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
-    const folderId =
-      input.folderPath === undefined
-        ? undefined
-        : input.folderPath === '/'
-          ? null
-          : folderIndex.idByPath.get(input.folderPath)
-    if (input.folderPath !== undefined && folderId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
+    const folderFilter = resolveFolderPathFilter(folderIndex, input.folderPath)
+    if (folderFilter.kind === 'noMatch') {
+      return { tables: [], nextKeys: null, sortBy: input.sortBy, sortOrder: input.sortOrder }
     }
 
     const { tables, nextKeys } = await queryTables(context.workspaceId, {
-      folderId,
+      folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,

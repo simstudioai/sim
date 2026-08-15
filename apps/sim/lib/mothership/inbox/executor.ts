@@ -24,6 +24,7 @@ import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -482,7 +483,10 @@ async function downloadAttachmentContents(
       const fileContent = createFileContent(buffer, attachment.content_type)
       if (!fileContent) return null
 
-      const storageKey = `copilot/${Date.now()}-${attachment.attachment_id}-${attachment.filename}`
+      const storageKey = `copilot/${buildStorageKeySegment(
+        `${Date.now()}-${attachment.attachment_id}-`,
+        attachment.filename
+      )}`
       const uploaded = await uploadFile({
         file: buffer,
         fileName: attachment.filename,

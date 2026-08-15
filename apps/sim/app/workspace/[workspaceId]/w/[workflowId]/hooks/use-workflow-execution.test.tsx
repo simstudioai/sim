@@ -191,10 +191,6 @@ vi.mock('@/executor/utils/start-block', () => ({
   coerceValue: (_type: string, value: unknown) => value,
 }))
 
-vi.mock('@/hooks/queries/subscription', () => ({
-  subscriptionKeys: { users: () => ['subscription', 'users'] },
-}))
-
 vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
   getWorkflows: () => [],
 }))

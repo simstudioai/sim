@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Files & Audit Logs",
-    "description": "Version 2 of the Sim REST API for workspace files and organization audit logs. Lists use opaque cursors, and rate-limit state is returned in response headers. Download File streams raw bytes as `application/octet-stream`; every other response uses the canonical v2 data, cursor-list, or error envelope.",
+    "description": "Version 2 of the Sim REST API for workspace files, resumable uploads, public shares, and organization audit logs.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -40,7 +40,7 @@
       "get": {
         "operationId": "listFiles",
         "summary": "List Files",
-        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted files, whose `deletedAt` is non-null and which `POST /files/{fileId}/restore` can bring back.",
+        "description": "List workspace files with search, sorting, folder filtering, and opaque cursor pagination. Defaults to active files; pass `scope=archived` to page over soft-deleted ones. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -51,6 +51,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose files should be listed."
             }
           },
@@ -58,20 +59,20 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to files directly inside this folder.",
+            "description": "Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to files directly inside this folder.",
-              "type": "string"
+              "description": "Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.",
+            "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
             "schema": {
               "default": "active",
-              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted and that `POST /files/{fileId}/restore` can bring back. `folderPath` resolves against active folders only, so combining it with `scope=archived` returns 404 when the containing folder was archived too.",
+              "description": "Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -92,10 +93,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "uploadedAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "size", "uploadedAt", "updatedAt"]
             }
@@ -120,8 +121,6 @@
             "schema": {
               "description": "Maximum files per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
               "default": 100
             }
           },
@@ -129,9 +128,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -170,6 +169,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -301,6 +303,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -339,6 +344,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the upload session."
             }
           },
@@ -429,6 +435,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the upload session."
             }
           },
@@ -492,6 +499,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -530,6 +540,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the upload session."
             }
           },
@@ -598,7 +609,7 @@
       "get": {
         "operationId": "downloadFile",
         "summary": "Download File",
-        "description": "Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it returns `409` while that artifact is still compiling and `413` if it renders past the size ceiling.",
+        "description": "Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it answers `409` while that artifact is still compiling and `413` if it renders past the size ceiling. Downloading records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -622,6 +633,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the file."
             }
           }
@@ -690,7 +702,7 @@
       "delete": {
         "operationId": "deleteFile",
         "summary": "Delete File",
-        "description": "Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in the default listing and is no longer readable through the API, and its stored bytes are never removed. List archived files with `GET /files?scope=archived` and reverse the delete with `POST /files/{fileId}/restore`.",
+        "description": "Archive a workspace file. This is a soft delete: the file stops appearing in the default listing and is no longer readable through the API, but its stored bytes are never removed. Archiving an already-archived file is a `404`, not a no-op. List archived files with `GET /files?scope=archived`, and reverse the delete with `POST /files/{fileId}/restore`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -714,6 +726,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the file."
             }
           }
@@ -751,9 +764,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -834,6 +844,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -850,7 +863,7 @@
       "post": {
         "operationId": "restoreFile",
         "summary": "Restore File",
-        "description": "Reverse a soft delete and return the file to the workspace. Restore is not a pure undo: the file comes back at the workspace root regardless of the folder it was deleted from, and it gains a `_restored` suffix when another file at the root already holds its name — so read `folderPath` and `name` off the response rather than assuming the pre-delete values. Restoring a file that is already active is a no-op that returns that file, so a retry is safe. Returns 400 when the workspace itself has been archived, and 409 when no free restore name could be found.",
+        "description": "Reverse a soft delete and return the file to the workspace. Not a pure undo: the file comes back at the workspace root, and gains a `_restored` suffix when another file there already holds its name, so read `folderPath` and `name` off the response. Restoring an already-active file returns it unchanged, so a retry is safe. An archived workspace is a `400`, and a name the restore could not free is a `409`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -915,6 +928,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -955,7 +971,20 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the file."
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.",
+              "type": "string",
+              "enum": ["active", "archived"]
             }
           }
         ],
@@ -1009,7 +1038,7 @@
       "get": {
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
-        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1026,9 +1055,9 @@
             "name": "resourceType",
             "in": "query",
             "required": false,
-            "description": "Filter by exact resource type.",
+            "description": "Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor.",
             "schema": {
-              "description": "Filter by exact resource type.",
+              "description": "Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor.",
               "type": "string"
             }
           },
@@ -1049,27 +1078,33 @@
             "description": "Filter to actions in one workspace.",
             "schema": {
               "description": "Filter to actions in one workspace.",
-              "type": "string"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           },
           {
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Inclusive ISO 8601 start timestamp.",
+            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
-              "description": "Inclusive ISO 8601 start timestamp.",
-              "type": "string"
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "Inclusive ISO 8601 end timestamp.",
+            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
-              "description": "Inclusive ISO 8601 end timestamp.",
-              "type": "string"
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
@@ -1099,9 +1134,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -1161,9 +1196,6 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1180,7 +1212,7 @@
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
-        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1306,6 +1338,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1346,6 +1381,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the file."
             }
           }
@@ -1398,7 +1434,7 @@
       "patch": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. Two enabling combinations are rejected outright with a 400 instead of being partially applied: 'password' when neither a password is supplied nor one is already stored, and 'email' or 'sso' when the resulting allowedEmails would be empty because none was supplied and none is stored. On a file that has never been shared there is nothing stored to fall back on, so enabling any mode other than 'public' must carry its credential in the same request. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
+        "description": "Create or partially update a server-tokenized public share. Only `isActive` is required; each other field states what enabling a mode does to it. Enabling any mode other than `public` on a file that has never been shared must carry its credential in the same request. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1459,6 +1495,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1607,6 +1646,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1623,7 +1665,7 @@
       "get": {
         "operationId": "listFilesFolders",
         "summary": "List Folders",
-        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1634,6 +1676,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose folders should be listed."
             }
           },
@@ -1644,7 +1687,7 @@
             "description": "Restrict results to direct children of this parent path.",
             "schema": {
               "description": "Restrict results to direct children of this parent path.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -1663,10 +1706,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -1782,6 +1825,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1846,6 +1892,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1871,6 +1920,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace containing the folder."
             }
           },
@@ -1881,16 +1931,30 @@
             "description": "Path of the folder to delete.",
             "schema": {
               "description": "Path of the folder to delete.",
-              "type": "string"
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
             }
           },
           {
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete nested files and folders when true.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Delete nested files and folders when true.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
               "default": "false",
               "type": "string"
             }
@@ -1952,7 +2016,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       }
     },
     "headers": {
@@ -2012,13 +2076,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -2033,7 +2097,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
@@ -2063,7 +2127,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\nA resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.",
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
         "content": {
           "application/json": {
             "schema": {
@@ -2093,7 +2157,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -2107,18 +2171,8 @@
           }
         }
       },
-      "Gone": {
-        "description": "The requested generated resource has expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2163,7 +2217,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -2183,7 +2237,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -2214,7 +2268,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Optional structured error details."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -2235,6 +2289,12 @@
           }
         ]
       },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "V2File": {
         "type": "object",
         "properties": {
@@ -2251,12 +2311,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -2266,7 +2326,9 @@
           },
           "folderPath": {
             "type": "string",
-            "description": "Canonical containing-folder path. `/` is the workspace root."
+            "title": "Folder path",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "maxLength": 4096
           },
           "uploadedByEmail": {
             "type": "string",
@@ -2336,7 +2398,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2398,6 +2460,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the file."
           },
           "name": {
@@ -2414,11 +2477,11 @@
           },
           "folderPath": {
             "description": "Canonical containing-folder path. Omit for the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           },
           "content": {
             "default": "",
-            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413. Use an upload session for anything larger.",
+            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.",
             "type": "string",
             "maxLength": 70000000
           },
@@ -2514,7 +2577,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -2612,6 +2675,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which the file will be registered."
           },
           "name": {
@@ -2634,7 +2698,7 @@
           },
           "folderPath": {
             "description": "Canonical destination folder path. Omit for the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "name", "contentType", "size"],
@@ -2667,7 +2731,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -2783,6 +2847,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the file."
           },
           "name": {
@@ -2838,6 +2903,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the archived file."
           }
         },
@@ -2931,12 +2997,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source, not the rendered document, so it does not predict how many bytes `GET /files/{fileId}` returns.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) this is the generation source type, not the rendered document type `GET /files/{fileId}` serves.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -2946,7 +3012,9 @@
           },
           "folderPath": {
             "type": "string",
-            "description": "Canonical containing-folder path. `/` is the workspace root."
+            "title": "Folder path",
+            "description": "Canonical containing-folder path. `/` is the workspace root.",
+            "maxLength": 4096
           },
           "uploadedByEmail": {
             "type": "string",
@@ -3196,7 +3264,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3311,6 +3379,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the files."
           },
           "fileIds": {
@@ -3325,7 +3394,7 @@
           },
           "targetFolderPath": {
             "description": "Destination folder path. Omit to move files to the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "fileIds"],
@@ -3405,25 +3474,26 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the file."
           },
           "isActive": {
             "type": "boolean",
-            "description": "Whether the share should resolve."
+            "description": "Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use."
           },
           "authType": {
-            "description": "How access to the share is gated.",
+            "description": "How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.",
             "type": "string",
             "enum": ["public", "password", "email", "sso"]
           },
           "password": {
-            "description": "Password for a password-gated share.",
+            "description": "Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.",
             "type": "string",
             "minLength": 1,
             "maxLength": 1024
           },
           "allowedEmails": {
-            "description": "Allowed addresses or @domain patterns for email and SSO shares.",
+            "description": "Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.",
             "maxItems": 200,
             "type": "array",
             "items": {
@@ -3455,12 +3525,13 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the file."
           },
           "content": {
             "type": "string",
             "maxLength": 70000000,
-            "description": "Complete replacement content for the file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413."
+            "description": "Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`."
           },
           "encoding": {
             "default": "utf-8",
@@ -3531,6 +3602,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the files."
           },
           "fileIds": {
@@ -3564,11 +3636,15 @@
           },
           "path": {
             "type": "string",
-            "description": "Canonical folder path used as the public folder identifier."
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
           },
           "parentPath": {
             "type": "string",
-            "description": "Canonical parent path; `/` is the root."
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -3605,7 +3681,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3626,17 +3702,24 @@
         "title": "File folder response",
         "description": "A single workspace file folder."
       },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "CreateFileFolderRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the folder."
           },
           "path": {
             "description": "Path of the folder to create.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path"],
@@ -3650,15 +3733,16 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the folder."
           },
           "path": {
             "description": "Current folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
             "description": "New full path for the folder and its descendants.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -3671,7 +3755,9 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Deleted folder path."
+            "title": "Folder path",
+            "description": "Deleted folder path.",
+            "maxLength": 4096
           },
           "deleted": {
             "type": "boolean",

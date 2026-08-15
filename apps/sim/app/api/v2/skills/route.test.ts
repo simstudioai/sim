@@ -50,20 +50,36 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   createSkillUseCase: { operation: { id: 'skills.create' }, execute: mocks.create },
 }))
 
+import { v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { PrincipalKindAuthorizationError } from '@/lib/core/application'
+import { cursorSortKey, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/skills/route'
 
 const WORKSPACE_ID = 'workspace-1'
 
 /**
- * The scope stamp the route mints for the default query. Written out rather
- * than imported so the test pins the wire format a shipped cursor carries.
+ * A cursor exactly as this route mints one, built from the shared codec so the
+ * test exercises the real binding rather than a restatement of it. `search` is
+ * the only filter the skills list takes beyond its workspace.
  */
-const SCOPE = ({
-  search = '',
+function skillCursor({
+  offset,
+  search,
   sortBy = 'createdAt',
   sortOrder = 'desc',
-}: Record<string, string> = {}) =>
-  `search=${search}&sortBy=${sortBy}&sortOrder=${sortOrder}&workspaceId=${WORKSPACE_ID}`
+}: {
+  offset: number
+  search?: string
+  sortBy?: string
+  sortOrder?: string
+}): string {
+  return encodeOffsetCursor(
+    cursorSortKey(sortBy, sortOrder),
+    cursorScopeKey(cursorRoute(v2ListSkillsContract), { workspaceId: WORKSPACE_ID, search }),
+    offset
+  )
+}
 const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
 const AUTH = {
   principal: PRINCIPAL,
@@ -129,7 +145,6 @@ describe('/api/v2/skills', () => {
         limit: 50,
         cursor: undefined,
         offset: 0,
-        cursorScope: SCOPE(),
       },
       request: expect.anything(),
     })
@@ -141,9 +156,8 @@ describe('/api/v2/skills', () => {
       hasMore: true,
       offset: 2,
       limit: 2,
-      cursorScope: SCOPE(),
     })
-    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+    const cursor = skillCursor({ offset: 2 })
 
     const response = await GET(
       request(
@@ -153,9 +167,7 @@ describe('/api/v2/skills', () => {
     )
 
     expect(response.status).toBe(200)
-    expect((await response.json()).nextCursor).toBe(
-      Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 4 })).toString('base64')
-    )
+    expect((await response.json()).nextCursor).toBe(skillCursor({ offset: 4 }))
     expect(mocks.list).toHaveBeenCalledWith(
       expect.objectContaining({ input: expect.objectContaining({ limit: 2, offset: 2 }) })
     )
@@ -166,7 +178,7 @@ describe('/api/v2/skills', () => {
    * cursor minted under one sort must not silently resume under another.
    */
   it('rejects a cursor replayed under a different sort', async () => {
-    const cursor = Buffer.from(JSON.stringify({ scope: SCOPE(), offset: 2 })).toString('base64')
+    const cursor = skillCursor({ offset: 2 })
 
     const response = await GET(
       request(
@@ -177,6 +189,50 @@ describe('/api/v2/skills', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `search` and `sortOrder` change the sequence the offset counts positions in
+   * just as `sortBy` does, so both are stamped into the scope and both must
+   * invalidate a replayed cursor.
+   */
+  it.each([
+    ['search', 'search=other'],
+    ['sortOrder', 'sortOrder=asc'],
+  ])('rejects a cursor replayed under a different %s', async (_field, param) => {
+    const cursor = skillCursor({ offset: 2 })
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  /**
+   * `limit` is deliberately absent from the scope: it selects how much of the
+   * sequence to return, not what the sequence is. Stamping it would strand every
+   * cursor the moment a caller changed page size, for no correctness gain.
+   */
+  it('resumes a cursor minted under a different page size', async () => {
+    mocks.list.mockResolvedValueOnce({ skills: [skill], hasMore: false, offset: 2, limit: 5 })
+    const cursor = skillCursor({ offset: 2 })
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&limit=5&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 5, offset: 2 }) })
+    )
   })
 
   /**
@@ -199,7 +255,16 @@ describe('/api/v2/skills', () => {
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
+  /**
+   * A personal key, not the suite's default workspace key. `skills.create` denies
+   * a workspace key like every other skill write: the per-skill editor row that
+   * authorizes an update or a delete resolves against a human subject a workspace
+   * key cannot supply, so allowing it to create left rows it could never remove.
+   */
   it('creates a skill with the v2 source and status', async () => {
+    const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
+    mocks.authenticate.mockResolvedValueOnce({ ...AUTH, principal, keyType: 'personal' as const })
+
     const response = await POST(
       request('POST', '/api/v2/skills', {
         workspaceId: WORKSPACE_ID,
@@ -212,7 +277,7 @@ describe('/api/v2/skills', () => {
     expect(response.status).toBe(201)
     expect((await response.json()).data.id).toBe(skill.id)
     expect(mocks.create).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
+      principal,
       input: {
         workspaceId: WORKSPACE_ID,
         name: skill.name,
@@ -222,7 +287,6 @@ describe('/api/v2/skills', () => {
       },
       request: expect.anything(),
     })
-    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('keeps skill analytics on the personal-key v2 surface', async () => {
@@ -248,6 +312,30 @@ describe('/api/v2/skills', () => {
       expect.objectContaining({ skill_id: skill.id, source: 'api' }),
       expect.anything()
     )
+  })
+
+  /**
+   * `skills.create` denies a workspace key outright, so what this pins is the
+   * surface's half: the refusal reaches the caller as the operation's own 403,
+   * and a create that never happened emits no analytics.
+   */
+  it('refuses a workspace-key create and records no analytics for it', async () => {
+    mocks.create.mockRejectedValueOnce(
+      new PrincipalKindAuthorizationError('workspace_api_key', 'skills.create')
+    )
+
+    const response = await POST(
+      request('POST', '/api/v2/skills', {
+        workspaceId: WORKSPACE_ID,
+        name: skill.name,
+        description: skill.description,
+        content: skill.content,
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ principal: PRINCIPAL }))
+    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('authenticates before parsing skill input', async () => {

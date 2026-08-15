@@ -20,7 +20,7 @@ export const workEmailEnrichment: EnrichmentConfig = {
   icon: Mail,
   inputs: [
     { id: 'fullName', name: 'Full name', type: 'string', required: true },
-    { id: 'companyDomain', name: 'Company domain', type: 'string' },
+    { id: 'companyDomain', name: 'Company domain', type: 'string', required: true },
     { id: 'linkedinUrl', name: 'LinkedIn URL', type: 'string' },
   ],
   outputs: [{ id: 'email', name: 'email', type: 'string' }],

@@ -30,6 +30,7 @@ import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { ViewInvitationsMenuItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-menu-item'
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
+import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { invitationKeys } from '@/hooks/queries/invitations'
 import {
   type Workspace,
@@ -442,7 +443,7 @@ function WorkspaceHeaderImpl({
           type='button'
           aria-label='Expand sidebar'
           onClick={onExpandSidebar}
-          className={chipVariants({ fullWidth: true })}
+          className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
         >
           <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
             {activeWorkspaceFull?.logoUrl ? (

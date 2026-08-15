@@ -72,6 +72,25 @@ vi.mock('@/hooks/use-permission-config', () => ({
   }),
 }))
 
+/**
+ * The palette owns these reads now — it mounts only while open, so the queries exist only then.
+ * `mockTables` lets a test drive the Tables section the way the `tables` prop used to.
+ */
+const mockTables = vi.hoisted(() => ({ current: [] as unknown[] }))
+
+vi.mock('@/hooks/queries/tables', () => ({
+  useTablesList: () => ({ data: mockTables.current }),
+}))
+vi.mock('@/hooks/queries/workspace-files', () => ({
+  useWorkspaceFiles: () => ({ data: [] }),
+}))
+vi.mock('@/hooks/queries/kb/knowledge', () => ({
+  useKnowledgeBasesQuery: () => ({ data: [] }),
+}))
+vi.mock('@/hooks/queries/folders', () => ({
+  useFolderMap: () => ({ data: {} }),
+}))
+
 vi.mock('@/hooks/use-settings-navigation', () => ({
   useSettingsNavigation: () => ({ navigateToSettings: vi.fn() }),
 }))
@@ -345,6 +364,74 @@ describe('SearchModal', () => {
     }
   })
 
+  it('keeps a block above its same-name trigger for the exact-name query', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      tools: [
+        {
+          id: 'gmail',
+          name: 'Gmail',
+          icon: Icon,
+          bgColor: '#E8453C',
+          type: 'gmail',
+          searchValue: 'gmail gmail',
+        },
+      ],
+      triggers: [{ id: 'gmail', name: 'Gmail', icon: Icon, bgColor: '#E8453C', type: 'gmail' }],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' />)
+      })
+
+      await enterSearchQuery('gmail')
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+        (el) => el.textContent ?? ''
+      )
+      expect(rows[0]).toContain('Gmail')
+      expect(rows[0]).not.toContain('Gmail Trigger')
+      expect(rows[1]).toContain('Gmail Trigger')
+    } finally {
+      mockSearchState.data = original
+    }
+  })
+
+  it('ranks prefix-matched rows above actions that only contain the letter mid-word', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      tools: [
+        {
+          id: 'hex',
+          name: 'Hex',
+          icon: Icon,
+          bgColor: '#111',
+          type: 'hex',
+          searchValue: 'hex hex',
+        },
+      ],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' />)
+      })
+
+      await enterSearchQuery('h')
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+        (el) => el.textContent ?? ''
+      )
+      expect(rows[0]).toContain('Hex')
+      expect(rows.findIndex((row) => row.includes('New chat'))).toBeGreaterThan(0)
+    } finally {
+      mockSearchState.data = original
+    }
+  })
+
   it('puts the workflow verb actions first for their bare-verb queries', async () => {
     const Icon = () => null
     const original = { ...mockSearchState.data }
@@ -518,11 +605,9 @@ describe('SearchModal', () => {
   })
 
   it('hoists a module page’s actions and its entity section directly under the Sim group', async () => {
-    const tables = [{ id: 'table-1', name: 'Leads', href: '/workspace/workspace-1/tables/table-1' }]
+    mockTables.current = [{ id: 'table-1', name: 'Leads', folderId: null }]
     await act(async () => {
-      root.render(
-        <SearchModal open onOpenChange={vi.fn()} pageContext='tables' canEdit tables={tables} />
-      )
+      root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='tables' canEdit />)
     })
 
     const headings = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-group-heading]')).map(

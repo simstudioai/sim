@@ -18,6 +18,10 @@ import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
 import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaBlockMeta } from '@/blocks/blocks/athena'
 import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
+import {
+  AzureDataExplorerBlock,
+  AzureDataExplorerBlockMeta,
+} from '@/blocks/blocks/azure_data_explorer'
 import { AzureDevOpsBlock, AzureDevOpsBlockMeta } from '@/blocks/blocks/azure_devops'
 import { BoxBlock, BoxBlockMeta } from '@/blocks/blocks/box'
 import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch'
@@ -42,6 +46,7 @@ import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/block
 import { ContextDevBlock, ContextDevBlockMeta } from '@/blocks/blocks/context_dev'
 import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
+import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
 import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
@@ -181,6 +186,7 @@ import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
 import { LinqBlock, LinqBlockMeta } from '@/blocks/blocks/linq'
 import { LogfireBlock, LogfireBlockMeta } from '@/blocks/blocks/logfire'
+import { LogRocketBlock, LogRocketBlockMeta } from '@/blocks/blocks/logrocket'
 import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 import { LoopsBlock, LoopsBlockMeta } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaBlockMeta } from '@/blocks/blocks/luma'
@@ -217,6 +223,7 @@ import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
+import { NetSuiteBlock, NetSuiteBlockMeta } from '@/blocks/blocks/netsuite'
 import { NeverBounceBlock, NeverBounceBlockMeta } from '@/blocks/blocks/neverbounce'
 import { NewRelicBlock, NewRelicBlockMeta } from '@/blocks/blocks/new_relic'
 import { NoteBlock } from '@/blocks/blocks/note'
@@ -249,6 +256,7 @@ import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
 import { QuartrBlock, QuartrBlockMeta } from '@/blocks/blocks/quartr'
 import { QuiverBlock, QuiverBlockMeta } from '@/blocks/blocks/quiver'
+import { RabbitmqBlock, RabbitmqBlockMeta } from '@/blocks/blocks/rabbitmq'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
 import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSBlockMeta } from '@/blocks/blocks/rds'
@@ -371,6 +379,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
+  azure_data_explorer: AzureDataExplorerBlock,
   azure_devops: AzureDevOpsBlock,
   box: BoxBlock,
   brandfetch: BrandfetchBlock,
@@ -396,6 +405,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   context_dev: ContextDevBlock,
   convex: ConvexBlock,
   credential: CredentialBlock,
+  credential_group: CredentialGroupBlock,
   crowdstrike: CrowdStrikeBlock,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
@@ -517,6 +527,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   linkup: LinkupBlock,
   linq: LinqBlock,
   logfire: LogfireBlock,
+  logrocket: LogRocketBlock,
   logs: LogsBlock,
   logs_v2: LogsV2Block,
   loops: LoopsBlock,
@@ -543,6 +554,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mothership: MothershipBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
+  netsuite: NetSuiteBlock,
   new_relic: NewRelicBlock,
   note: NoteBlock,
   notion: NotionBlock,
@@ -571,6 +583,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   qdrant: QdrantBlock,
   quartr: QuartrBlock,
   quiver: QuiverBlock,
+  rabbitmq: RabbitmqBlock,
   railway: RailwayBlock,
   rb2b: RB2BBlock,
   rds: RDSBlock,
@@ -705,6 +718,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   ashby: AshbyBlockMeta,
   athena: AthenaBlockMeta,
   attio: AttioBlockMeta,
+  azure_data_explorer: AzureDataExplorerBlockMeta,
   azure_devops: AzureDevOpsBlockMeta,
   box: BoxBlockMeta,
   brandfetch: BrandfetchBlockMeta,
@@ -826,6 +840,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   linkup: LinkupBlockMeta,
   linq: LinqBlockMeta,
   logfire: LogfireBlockMeta,
+  logrocket: LogRocketBlockMeta,
   loops: LoopsBlockMeta,
   luma: LumaBlockMeta,
   mailchimp: MailchimpBlockMeta,
@@ -845,6 +860,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mongodb: MongoDBBlockMeta,
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
+  netsuite: NetSuiteBlockMeta,
   neverbounce: NeverBounceBlockMeta,
   new_relic: NewRelicBlockMeta,
   notion: NotionBlockMeta,
@@ -871,6 +887,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   qdrant: QdrantBlockMeta,
   quartr: QuartrBlockMeta,
   quiver: QuiverBlockMeta,
+  rabbitmq: RabbitmqBlockMeta,
   railway: RailwayBlockMeta,
   rb2b: RB2BBlockMeta,
   rds: RDSBlockMeta,

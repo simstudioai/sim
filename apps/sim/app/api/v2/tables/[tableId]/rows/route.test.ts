@@ -38,7 +38,18 @@ vi.mock('@/lib/table/application/rows', () => ({
   deleteTableRows: { operation: { id: 'tables.rows.delete_many' }, execute: mocks.deleteRows },
 }))
 
+import { v2ListTableRowsContract } from '@/lib/api/contracts/v2/tables'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { DELETE, GET, PATCH, POST } from '@/app/api/v2/tables/[tableId]/rows/route'
+
+/** A row cursor exactly as the route mints one, for the table given. */
+function rowCursor(tableId: string, inner: string): string {
+  return encodeScopedCursor(
+    cursorScopeKey(cursorRoute(v2ListTableRowsContract, { tableId })),
+    inner
+  )
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -102,7 +113,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
   })
 
   it('passes the opaque native row cursor through the route unchanged', async () => {
-    const cursor = 'native-row-cursor'
+    const cursor = rowCursor('table-1', 'native-row-cursor')
     mocks.listRows.mockResolvedValue({
       table: TABLE,
       rows: [ROW],
@@ -122,11 +133,32 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         limit: 25,
-        cursor,
+        cursor: 'native-row-cursor',
       },
       request: req,
     })
-    expect((await response.json()).nextCursor).toBe('next-native-cursor')
+    expect((await response.json()).nextCursor).toBe(rowCursor('table-1', 'next-native-cursor'))
+  })
+
+  /**
+   * The row codec binds the sort and predicate a page was produced under but
+   * carries no table identity, so an unfiltered token from one table decoded
+   * cleanly against another and answered 200 with that other table's rows.
+   */
+  it('refuses a row cursor minted on a different table', async () => {
+    const foreign = rowCursor('table-2', 'native-row-cursor')
+    const response = await GET(
+      request(
+        'GET',
+        undefined,
+        `?workspaceId=${WORKSPACE_ID}&limit=25&cursor=${encodeURIComponent(foreign)}`
+      ),
+      CONTEXT
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toMatch(/requested filters/)
+    expect(mocks.listRows).not.toHaveBeenCalled()
   })
 
   it('rejects an unauthenticated request', async () => {
@@ -143,7 +175,10 @@ describe('/api/v2/tables/[tableId]/rows', () => {
 
   it('delegates single and batch creation through one semantic use case', async () => {
     const single = request('POST', { workspaceId: WORKSPACE_ID, data: { name: 'Ada' } })
-    expect((await (await POST(single, CONTEXT)).json()).data.id).toBe('row-1')
+    const singleResponse = await POST(single, CONTEXT)
+    // 201 on both arms: every v2 create answers the same status, batch included.
+    expect(singleResponse.status).toBe(201)
+    expect((await singleResponse.json()).data.id).toBe('row-1')
     expect(mocks.createRows).toHaveBeenLastCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -151,13 +186,19 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         data: { name: 'Ada' },
+        // v2 alone opts into the strict write contract: an unknown column name
+        // or a value the column cannot hold is a 400, not a dropped key or a
+        // nulled cell. Every first-party surface leaves this unset.
+        strictWrite: true,
       },
       request: single,
     })
 
     mocks.createRows.mockResolvedValue({ kind: 'batch', table: TABLE, rows: [ROW] })
     const batch = request('POST', { workspaceId: WORKSPACE_ID, rows: [{ name: 'Ada' }] })
-    expect((await (await POST(batch, CONTEXT)).json()).data.insertedCount).toBe(1)
+    const batchResponse = await POST(batch, CONTEXT)
+    expect(batchResponse.status).toBe(201)
+    expect((await batchResponse.json()).data.insertedCount).toBe(1)
     expect(mocks.createRows).toHaveBeenLastCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -165,6 +206,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         rows: [{ name: 'Ada' }],
+        strictWrite: true,
       },
       request: batch,
     })
@@ -198,6 +240,40 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         requestedCount: 2,
         missingRowIds: ['row-2'],
       },
+    })
+  })
+  /**
+   * A table cell is `z.unknown()` on the wire — its type is decided by the
+   * column, not the contract — so no string schema guards it. A `U+0000` in a
+   * cell value or a predicate value therefore travelled all the way to the
+   * driver and came back as `500 INTERNAL_ERROR`.
+   */
+  describe('NUL bytes in table values', () => {
+    const NUL = '\u0000'
+
+    it('rejects a NUL in a cell value before the row use case runs', async () => {
+      const response = await POST(
+        request('POST', { workspaceId: WORKSPACE_ID, data: { name: `a${NUL}b` } }),
+        CONTEXT
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.createRows).not.toHaveBeenCalled()
+    })
+
+    it('rejects a NUL in a predicate value on the update-by-filter path', async () => {
+      const response = await PATCH(
+        request('PATCH', {
+          workspaceId: WORKSPACE_ID,
+          filter: { all: [{ field: 'name', op: 'contains', value: `a${NUL}b` }] },
+          data: { name: 'Grace' },
+        }),
+        CONTEXT
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.updateRows).not.toHaveBeenCalled()
     })
   })
 })

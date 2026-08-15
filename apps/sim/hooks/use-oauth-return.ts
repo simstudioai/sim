@@ -25,6 +25,7 @@ import {
 import { getDesktopBridge } from '@/lib/desktop'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
+import { requireWorkspaceCredentialListResponse } from '@/hooks/queries/utils/fetch-workspace-credentials'
 
 const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
@@ -39,7 +40,7 @@ async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<string> {
     const data = await requestJson(listWorkspaceCredentialsContract, {
       query: { workspaceId: ctx.workspaceId, type: 'oauth' },
     })
-    const oauthCredentials = data.credentials ?? []
+    const oauthCredentials = requireWorkspaceCredentialListResponse(data)
 
     const forProvider = oauthCredentials.filter((c) => c.providerId === ctx.providerId)
     if (forProvider.length > ctx.preCount) {
@@ -97,7 +98,7 @@ async function verifyOAuthChatAttempt(queryClient: QueryClient, attemptId: strin
           requestJson(listWorkspaceCredentialsContract, {
             query: { workspaceId: attempt.workspaceId, type: 'oauth' },
             signal,
-          }).then((data) => data.credentials ?? []),
+          }).then(requireWorkspaceCredentialListResponse),
         staleTime: 0,
       })
 

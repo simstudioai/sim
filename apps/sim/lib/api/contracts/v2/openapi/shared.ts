@@ -3,12 +3,9 @@ import { v2ErrorResponseSchema } from '@/lib/api/contracts/v2/shared'
 import type {
   OpenApiErrorResponse,
   OpenApiHeader,
+  OpenApiRouteDefinition,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
-import {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
-  FORBIDDEN_DETAIL_CODES,
-} from '@/lib/core/application/forbidden'
 
 export const RATE_LIMIT_HEADERS = [
   'X-RateLimit-Limit',
@@ -34,24 +31,26 @@ export const WORKSPACE_ERRORS = [
  * 403 a caller can do something about names its cause in `error.details.code`.
  *
  * The wording is deliberately "where the cause is one a caller can act on"
- * rather than "always". Nine domain refusals still throw a bare
- * `OrchestrationError('forbidden', …)` and reach the wire without a code —
- * `GET /api/v2/billing/status` with a personal key against a workspace that
- * disallows them is one. Reparenting those onto `ForbiddenOperationError` is
- * worth doing, but one of them is a cross-tenant refusal that belongs in the
- * codeless class and would change its status, so it is a deliberate change
- * rather than a sweep. Until then this description must not over-claim.
+ * rather than "always", and it must stay that way. The billing, secret, table-
+ * quota, credential-list, and public-sharing refusals have been reparented onto
+ * `ForbiddenOperationError` (the one cross-tenant refusal among them became a
+ * concealed `404` instead, which is a status change rather than a code), but a
+ * handful of domain refusals still throw a bare
+ * `OrchestrationError('forbidden', …)` and reach the wire with no code — the
+ * knowledge-base file-ownership guard deliberately, others because nothing in
+ * the closed set fits them yet. Do not restate this as "every 403 names its
+ * cause": the audit that produced these codes found the claim false, and it will
+ * be false again the moment a domain adds a refusal without one.
  */
-const FORBIDDEN_DESCRIPTION = [
-  'The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:',
-  ...FORBIDDEN_DETAIL_CODES.map(
-    (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
-  ),
-  'A resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.',
-].join('\n')
+const FORBIDDEN_DESCRIPTION =
+  'The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.'
 
 export const ERROR_RESPONSES = {
-  BadRequest: { status: 400, description: 'The request is invalid.' },
+  BadRequest: {
+    status: 400,
+    description:
+      'The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.',
+  },
   Unauthorized: { status: 401, description: 'The API key is missing or invalid.' },
   UsageLimitExceeded: {
     status: 402,
@@ -63,14 +62,13 @@ export const ERROR_RESPONSES = {
   RunIdConflict: {
     status: 409,
     description:
-      'The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.',
+      'The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.',
     headers: ['X-Run-Id'],
   },
-  Gone: { status: 410, description: 'The requested generated resource has expired.' },
   PayloadTooLarge: {
     status: 413,
     description:
-      'The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.',
+      'The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.',
   },
   UnsupportedMediaType: {
     status: 415,
@@ -82,15 +80,34 @@ export const ERROR_RESPONSES = {
     description: 'The caller exceeded the request rate limit.',
     headers: ['Retry-After'],
   },
+  /**
+   * Published on exactly one operation, and deliberately not on the rest.
+   *
+   * Every v2 JSON route can *emit* a 499: `defineV2JsonRoute` renders an
+   * aborted request as `CLIENT_CLOSED_REQUEST`. But a 499 is written to a socket
+   * the caller has already closed, so no conforming client ever reads it — it is
+   * an observability record for Sim's own logs and its proxies, not a response
+   * an SDK can branch on. Publishing it on every operation would add a branch to
+   * every generated client that can never be taken.
+   *
+   * `POST /workflows/{id}/execute` is the exception because there an abort
+   * leaves *residue*: the run may keep going and bill, so the response carries
+   * `error.details.runId` for the caller to reconcile against once it reconnects.
+   * That is caller-actionable information about state that outlives the
+   * connection, which is what makes it worth documenting. Anywhere else an abort
+   * leaves nothing behind to reconcile. Publish a 499 on a new operation only
+   * when the same is true of it.
+   */
   ClientClosedRequest: {
     status: 499,
-    description: 'The client closed the connection before the response was produced.',
+    description:
+      'The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.',
   },
   InternalError: { status: 500, description: 'An unexpected server error occurred.' },
   ServiceUnavailable: {
     status: 503,
     description:
-      'A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.',
+      'A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.',
     headers: ['Retry-After'],
   },
 } as const satisfies Readonly<Record<string, OpenApiErrorResponse>>
@@ -136,6 +153,27 @@ export const RESOURCE_MUTATION_ERRORS = [
   'Locked',
 ] as const satisfies readonly ErrorResponseId[]
 
+/**
+ * Adds the `413` a body-carrying operation can emit.
+ *
+ * `parseRequest` reads the JSON body under `DEFAULT_MAX_JSON_BODY_BYTES` before
+ * schema validation, and the v2 builders supply
+ * `V2_PARSE_DEFAULTS.payloadTooLargeResponse`, so an oversized body is a real
+ * `413` on any route whose contract declares one — and a status a caller can
+ * receive but the spec omits is an unhandled branch in every generated client.
+ *
+ * Derived from the contract rather than chosen per operation, so a new body
+ * route cannot forget it. One-directional: it never removes a `413` from a
+ * bodyless read, several of which publish one for the folder-tree ceiling.
+ */
+export function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRouteDefinition {
+  if (!route.contract.body || route.operation.errors.includes('PayloadTooLarge')) return route
+  return {
+    ...route,
+    operation: { ...route.operation, errors: [...route.operation.errors, 'PayloadTooLarge'] },
+  }
+}
+
 export const V2_API_KEY_SECURITY = [{ apiKey: [] }] as const
 
 export const V2_API_KEY_SECURITY_SCHEMES = {
@@ -144,7 +182,7 @@ export const V2_API_KEY_SECURITY_SCHEMES = {
     in: 'header',
     name: 'X-API-Key',
     description:
-      'Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those.',
+      'Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description.',
   },
 } as const satisfies Readonly<Record<string, OpenApiSecurityScheme>>
 
@@ -157,19 +195,40 @@ export const V2_API_KEY_SECURITY_SCHEMES = {
  * rendering one back do not need this sentence: the shared `413` response
  * description already covers them.
  */
-export const FOLDER_TREE_TOO_LARGE =
-  'A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.'
+export const FOLDER_TREE_TOO_LARGE = 'A workspace folder tree over 10,000 folders is a `413`.'
 
 /**
  * Appended to a list whose result set is bounded by construction, so it answers
  * in one page.
  *
  * Every v2 list returns `{ data, nextCursor }`, so a caller cannot tell a
- * single-page list from a paged one by shape alone. Saying so once keeps the six
- * such operations from drifting into six paraphrases of the same promise.
+ * single-page list from a paged one by shape alone. Saying so once keeps the
+ * eight such operations from drifting into eight paraphrases of the same
+ * promise. The authoritative membership is pinned in
+ * `contracts/v2/__tests__/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
-export const FULL_SET_LIST =
-  'The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.'
+export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCursor` is always null.'
+
+/**
+ * Appended to a `GET` whose route declares `headSafe: false` because the read
+ * has an effect — an outbound connection, or an audit event.
+ *
+ * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
+ */
+export const HEAD_MIRRORS_GET =
+  'A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.'
+
+/**
+ * Appended where the skipped payload headers are the ones a caller is most
+ * likely to have wanted from a `HEAD`.
+ *
+ * `Content-Length` on a `HEAD` is the standard way to size a download before
+ * fetching it, and this surface cannot serve it: the byte length comes from the
+ * same read that records the download audit event, which is the effect
+ * `headSafe: false` exists to skip.
+ */
+export const HEAD_OMITS_PAYLOAD_HEADERS =
+  'In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.
@@ -177,15 +236,45 @@ export const FULL_SET_LIST =
  * so it is not something a workspace owner can grant around.
  */
 export const WORKSPACE_API_KEY_DENIED =
-  'A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.'
+  'A workspace API key is rejected with `403`; use a personal API key.'
 
 /**
  * {@link WORKSPACE_API_KEY_DENIED} for an operation behind the resource-concealment
  * error policy, which rewrites the authorization failure to a not-found response so
  * the caller learns nothing about the resource.
+ *
+ * Published on no operation today: every one audited so far refuses a workspace
+ * key through its principal-kind list, which raises an error the concealment
+ * policy does not rewrite, so all of them say 403. Kept because a concealed
+ * operation that denies the key through the policy itself would need this exact
+ * wording, and because `scripts/openapi/documents.test.ts` asserts the file-share
+ * description does not carry it — inlining the string there would let the guard
+ * and the wording it guards drift apart.
  */
 export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
-  'A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.'
+  'A workspace API key is rejected as `404` rather than `403`, because unauthorized resources are concealed; use a personal API key.'
+
+/**
+ * Appended to the two reads over `workflow_execution_logs`, which is the only
+ * store of a run and is hard-deleted — rows and execution files both — by the
+ * `cleanup-logs` background task once a run passes the payer's window.
+ *
+ * The window itself is `CLEANUP_CONFIG['cleanup-logs'].defaults` in
+ * `lib/billing/cleanup-dispatcher.ts`: 30 days on the free plan, and `null`
+ * — meaning the plan is skipped entirely and nothing is deleted — on Pro and
+ * Team. Enterprise resolves per organization through
+ * `resolveEffectiveRetentionHours`, with a per-workspace override, and is
+ * likewise unbounded until someone configures it. Self-hosted classifies every
+ * workspace as enterprise and dispatches nothing unless data retention is
+ * enabled.
+ *
+ * Stated because deletion is otherwise invisible: an aged-out run is not a
+ * tombstone or a 404, it is simply absent. The matching `runCount` caveat lives
+ * on that field rather than here. Kept as one constant so the two sibling reads
+ * cannot drift into two paraphrases of one window.
+ */
+export const RUN_RETENTION =
+  "Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override."
 
 export const V2_COMMON_HEADERS = {
   'X-RateLimit-Limit': {
@@ -214,7 +303,7 @@ export const V2_COMMON_HEADERS = {
       id: 'RetryAfterHeader',
       title: 'Retry after',
       description:
-        'Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.',
+        'Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.',
     }),
   },
   'X-Run-Id': {

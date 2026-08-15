@@ -55,6 +55,7 @@ vi.mock('@/lib/workflows/skills/builtin-skills', () => ({
 
 import { listVisibleWorkspaceCredentials } from '@/lib/credentials/queries'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { getDocuments } from '@/lib/knowledge/documents/service'
 import { getKnowledgeBases } from '@/lib/knowledge/service'
 import { listWorkspaceMcpServers } from '@/lib/mcp/queries'
 import { listTables } from '@/lib/table/service'
@@ -170,6 +171,22 @@ const CASES: ListCase[] = [
       sortBy: 'title',
       sortOrder: 'asc',
       columns: [schemaMock.customTools.title, schemaMock.customTools.id],
+    },
+  },
+  {
+    name: 'knowledge documents',
+    column: schemaMock.document.filename,
+    table: schemaMock.document,
+    run: ({ search, sortBy, sortOrder }) =>
+      getDocuments(
+        'knowledge-1',
+        { search, sortBy: sortBy as never, sortOrder: sortOrder as never },
+        'request-1'
+      ),
+    sort: {
+      sortBy: 'fileSize',
+      sortOrder: 'asc',
+      columns: [schemaMock.document.fileSize, schemaMock.document.filename],
     },
   },
   {

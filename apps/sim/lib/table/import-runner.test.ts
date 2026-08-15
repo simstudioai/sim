@@ -55,7 +55,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFileStream: mockDownloadFileStream,
   headObject: mockHeadObject,
 }))
-vi.mock('@/app/api/table/utils', () => ({
+vi.mock('@/lib/table/wire', () => ({
   normalizeColumn: (col: unknown) => col,
 }))
 

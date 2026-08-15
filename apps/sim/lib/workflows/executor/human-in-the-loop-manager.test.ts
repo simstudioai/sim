@@ -12,6 +12,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
 
 const { mockReleaseExecutionSlot, mockReplaceLargeValueReferenceKeysWithClient } = vi.hoisted(
   () => ({
@@ -1019,6 +1020,7 @@ describe('PauseResumeManager paused cancellation after pause release', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
     const casConditions = flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0])
@@ -1532,14 +1534,55 @@ describe('PauseResumeManager blocked resume readmission', () => {
   })
 })
 
+describe('PauseResumeManager terminal resume failure', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  async function markResumeFailed(): Promise<void> {
+    const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    await managerInternals.markResumeFailed({
+      resumeEntryId: 'resume-entry-1',
+      pausedExecutionId: 'paused-exec-1',
+      parentExecutionId: 'execution-1',
+      contextId: 'context-1',
+      failureReason: 'Resume execution failed',
+    })
+  }
+
+  it('terminalizes the parent log: end timestamp, derived duration, deadline cleared', async () => {
+    queueTableRows(workflowExecutionLogs, [{ status: 'running' }])
+    queueTableRows(pausedExecutions, [{ status: 'paused' }])
+
+    await markResumeFailed()
+
+    const logUpdate = dbChainMockFns.set.mock.calls.at(-1)?.[0] as {
+      status: string
+      endedAt: Date
+      totalDurationMs: unknown
+      executionDeadlineAt: Date | null
+    }
+    expect(logUpdate.status).toBe('failed')
+    expect(logUpdate.endedAt).toBeInstanceOf(Date)
+    expect(logUpdate.executionDeadlineAt).toBeNull()
+    expect(JSON.stringify(logUpdate.totalDurationMs)).toContain(logUpdate.endedAt.toISOString())
+  })
+})
+
 describe('PauseResumeManager completed resume transitions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  it('clears the active attempt deadline when sibling pause points remain', async () => {
-    queueTableRows(workflowExecutionLogs, [{ status: 'running' }])
+  interface MockSqlFragment {
+    values: unknown[]
+    toSQL: () => { sql: string }
+  }
+
+  async function markPartialResumeCompleted(logStatus: string): Promise<void> {
+    queueTableRows(workflowExecutionLogs, [{ status: logStatus }])
     queueTableRows(pausedExecutions, [{ status: 'paused' }])
     queueTableRows(resumeQueue, [{ status: 'claimed' }])
     queueTableRows(pausedExecutions, [{ remaining: 1 }])
@@ -1556,14 +1599,99 @@ describe('PauseResumeManager completed resume transitions', () => {
       parentExecutionId: 'execution-1',
       contextId: 'context-1',
     })
+  }
 
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(3, {
-      status: 'pending',
-      executionDeadlineAt: null,
-    })
+  /** The revival is the third write: resume queue, paused execution, then the log. */
+  function revivalPayload(): {
+    status: string
+    executionDeadlineAt: Date | null
+    endedAt: MockSqlFragment
+    totalDurationMs: MockSqlFragment
+  } {
+    return dbChainMockFns.set.mock.calls.at(-1)?.[0]
+  }
+
+  it('clears the active attempt deadline when sibling pause points remain', async () => {
+    await markPartialResumeCompleted('running')
+
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(3)
+    const revival = revivalPayload()
+    expect(revival.status).toBe('pending')
+    expect(revival.executionDeadlineAt).toBeNull()
     expect(dbChainMockFns.from).toHaveBeenNthCalledWith(1, workflowExecutionLogs)
     expect(dbChainMockFns.from).toHaveBeenNthCalledWith(2, pausedExecutions)
     expect(dbChainMockFns.from).toHaveBeenNthCalledWith(3, resumeQueue)
+  })
+
+  /**
+   * The revival claim excludes only `cancelled`, so it also matches a row
+   * `markResumeFailed` already ended: one context's resume fails, a sibling
+   * context resumes successfully afterwards, and the run goes live again. It
+   * must not go live still carrying the end timestamp and duration of the
+   * attempt that failed — a run waiting on its remaining pause points has not
+   * ended, and reporting that it has puts it in the `minDurationMs`/
+   * `maxDurationMs` filters on `GET /api/v2/logs` with a duration measured at
+   * something other than its own end.
+   */
+  it('clears the terminal stamp when a partial resume revives a force-failed row', async () => {
+    await markPartialResumeCompleted('failed')
+
+    const revival = revivalPayload()
+    expect(Object.keys(revival).sort()).toEqual([
+      'endedAt',
+      'executionDeadlineAt',
+      'status',
+      'totalDurationMs',
+    ])
+    expect(revival.status).toBe('pending')
+    expect(revival.endedAt.toSQL().sql).toContain("IN ('failed', 'completed') THEN NULL")
+    expect(revival.totalDurationMs.toSQL().sql).toContain("IN ('failed', 'completed') THEN NULL")
+    expect(revival.endedAt.values[0]).toBe(workflowExecutionLogs.status)
+    expect(revival.totalDurationMs.values[0]).toBe(workflowExecutionLogs.status)
+  })
+
+  /**
+   * The opposite case, and the reason the clear is conditional rather than
+   * unconditional: a row revived from a non-terminal status carries the
+   * checkpoint `completeWithPause` banked, which is the active duration
+   * `elapsedDurationMsSql` deliberately preserves for a `pending` row. Nulling
+   * that would redefine a later terminal duration to include the time the run
+   * sat waiting.
+   */
+  it('keeps the checkpoint a still-live row banked at its pause', async () => {
+    await markPartialResumeCompleted('running')
+
+    const revival = revivalPayload()
+    expect(revival.endedAt.toSQL().sql).toContain('ELSE ?')
+    expect(revival.totalDurationMs.toSQL().sql).toContain('ELSE ?')
+    expect(revival.endedAt.values.at(-1)).toBe(workflowExecutionLogs.endedAt)
+    expect(revival.totalDurationMs.values.at(-1)).toBe(workflowExecutionLogs.totalDurationMs)
+  })
+
+  /**
+   * The compounding half. `elapsedDurationMsSql` preserves a `pending` row's
+   * `total_duration_ms` and recomputes otherwise, so whatever the revival leaves
+   * behind is what the next terminal write — a cancel, say — records as the run's
+   * duration. Leaving the failed resume's frozen value there would freeze the
+   * cancel at it; leaving `NULL` is what makes the `COALESCE` fall through to the
+   * elapsed computation.
+   *
+   * The link is asserted as a composition rather than executed: the repository
+   * has no in-memory Postgres, and under the drizzle mock a fragment renders its
+   * interpolations as `?` with the bound columns on `values`.
+   */
+  it('lets the next terminal write recompute rather than preserve the failed resume duration', async () => {
+    await markPartialResumeCompleted('failed')
+
+    const revived = revivalPayload().totalDurationMs
+    expect(revived.toSQL().sql).toContain("IN ('failed', 'completed') THEN NULL")
+
+    const nextTerminalWrite = terminalExecutionLogFields(
+      'cancelled',
+      new Date('2026-08-14T12:00:00.000Z')
+    ).totalDurationMs as unknown as MockSqlFragment
+    expect(nextTerminalWrite.toSQL().sql).toContain("= 'pending' THEN ?")
+    expect(nextTerminalWrite.values).toContain(workflowExecutionLogs.totalDurationMs)
   })
 
   it('fails a claimed resume after cancellation wins the log lock', async () => {
@@ -1694,5 +1822,110 @@ describe('PauseResumeManager resume log claims', () => {
       statusCode: 409,
       retryable: false,
     })
+  })
+})
+
+/**
+ * Every refusal here is an ordinary client outcome — a stale `contextId`, a run
+ * someone else already resumed, a pause of the wrong kind for the endpoint. The
+ * resume surfaces classify a failure by its `statusCode`, so an untyped throw
+ * for any of these reaches the caller as a `500` and tells them nothing about
+ * what to fix.
+ */
+describe('PauseResumeManager.enqueueOrStartResume admission refusals', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  function pausedRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'paused-exec-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      status: 'paused',
+      pausePoints: {
+        'ctx-1': { contextId: 'ctx-1', resumeStatus: 'paused', snapshotReady: true },
+      },
+      ...overrides,
+    }
+  }
+
+  function enqueue(allowedPauseKinds?: ('human' | 'time')[]) {
+    return PauseResumeManager.enqueueOrStartResume({
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      contextId: 'ctx-1',
+      resumeInput: {},
+      userId: 'user-1',
+      allowedPauseKinds,
+    })
+  }
+
+  it.each([
+    ['a run with no paused row', undefined, 404, 'Paused execution not found or already resumed'],
+    [
+      'a paused row in a terminal state',
+      pausedRow({ status: 'cancelled' }),
+      409,
+      'Paused execution is not resumable',
+    ],
+    [
+      'an unknown pause point',
+      pausedRow({ pausePoints: {} }),
+      404,
+      'Pause point not found for execution',
+    ],
+    [
+      'a pause point already being resumed',
+      pausedRow({
+        pausePoints: { 'ctx-1': { resumeStatus: 'resuming', snapshotReady: true } },
+      }),
+      409,
+      'Pause point already resumed or in progress',
+    ],
+    [
+      'a pause still finalizing its snapshot',
+      pausedRow({ pausePoints: { 'ctx-1': { resumeStatus: 'paused', snapshotReady: false } } }),
+      409,
+      'Snapshot not ready; execution still finalizing pause',
+    ],
+  ])('reports %s with its own status', async (_case, row, statusCode, message) => {
+    dbChainMockFns.limit.mockResolvedValueOnce(row ? [row] : [])
+
+    await expect(enqueue()).rejects.toMatchObject({
+      name: 'ResumeAdmissionError',
+      message,
+      statusCode,
+    })
+  })
+
+  it('reports a pause of the wrong kind for the endpoint as a bad request', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      pausedRow({
+        pausePoints: {
+          'ctx-1': { resumeStatus: 'paused', snapshotReady: true, pauseKind: 'time' },
+        },
+      }),
+    ])
+
+    await expect(enqueue(['human'])).rejects.toMatchObject({
+      name: 'ResumeAdmissionError',
+      statusCode: 400,
+    })
+  })
+
+  /**
+   * A snapshot that has not finished persisting is the one refusal that a later
+   * automatic attempt can clear; the rest read identically on every retry.
+   */
+  it('marks only the still-finalizing snapshot as worth retrying', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      pausedRow({ pausePoints: { 'ctx-1': { resumeStatus: 'paused', snapshotReady: false } } }),
+    ])
+    await expect(enqueue()).rejects.toMatchObject({ retryable: true })
+
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    await expect(enqueue()).rejects.toMatchObject({ retryable: false })
   })
 })

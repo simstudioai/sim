@@ -11,7 +11,7 @@
  */
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
-  --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
+  --sidebar-collapsed-width: 48px; /* icon rail on web; desktop overrides to 0 before first paint */
   --sidebar-expanded-width: 238px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
   --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */

@@ -26,9 +26,7 @@ function isEmfFormat(path: string): boolean {
   return ext === 'emf'
 }
 
-// ---------------------------------------------------------------------------
 // Image Rendering
-// ---------------------------------------------------------------------------
 
 /**
  * Render a picture node into an absolutely-positioned HTML element.
@@ -373,9 +371,7 @@ function renderUnsupportedPlaceholder(wrapper: HTMLElement, path: string): void 
   wrapper.appendChild(placeholder)
 }
 
-// ---------------------------------------------------------------------------
 // EMF Rendering
-// ---------------------------------------------------------------------------
 
 /**
  * Render EMF content by extracting embedded PDF or bitmap data.
@@ -480,9 +476,7 @@ function createFillImage(url: string): HTMLImageElement {
   return img
 }
 
-// ---------------------------------------------------------------------------
 // Duotone Effect
-// ---------------------------------------------------------------------------
 
 import type { SafeXmlNode } from '../parser/xml-parser'
 
@@ -548,9 +542,7 @@ function applyDuotoneFilter(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Luminance Effect
-// ---------------------------------------------------------------------------
 
 /**
  * Apply a luminance (brightness/contrast) effect to an image.
@@ -606,9 +598,7 @@ function applyLumEffect(lum: SafeXmlNode, img: HTMLImageElement): void {
   }
 }
 
-// ---------------------------------------------------------------------------
 // BiLevel Effect
-// ---------------------------------------------------------------------------
 
 /**
  * Apply a bi-level (threshold) effect to an image.

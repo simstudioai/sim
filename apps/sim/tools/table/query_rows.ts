@@ -1,4 +1,3 @@
-import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
@@ -38,7 +37,8 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     limit: {
       type: 'number',
       required: false,
-      description: `Maximum rows to return (default: ${TABLE_LIMITS.DEFAULT_QUERY_LIMIT}, max: ${TABLE_LIMITS.MAX_QUERY_LIMIT})`,
+      description:
+        'Maximum rows to return. Omit to return every matching row; the query fails if the result exceeds the 5MB response budget.',
       visibility: 'user-or-llm',
     },
     offset: {
@@ -94,6 +94,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
         totalCount: data.totalCount,
         limit: data.limit,
         offset: data.offset,
+        nextCursor: data.nextCursor ?? null,
       },
     }
   },
@@ -105,5 +106,11 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
     totalCount: { type: 'number', description: 'Total rows matching filter' },
     limit: { type: 'number', description: 'Limit used in query' },
     offset: { type: 'number', description: 'Offset used in query' },
+    nextCursor: {
+      type: 'string',
+      nullable: true,
+      description:
+        'Non-null when more rows match past this page. A page can end early at the byte budget, so this — not a short rowCount — is what says whether more remain. To page, advance offset by rowCount and stop when this is null.',
+    },
   },
 }

@@ -1,5 +1,6 @@
 import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import type { ModelRuntime, ResourceLoader, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import { isRecordLike } from '@sim/utils/object'
 import type { PiToolSpec } from '@/executor/handlers/pi/core/backend'
 import { createScrubbedPiError, scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 
@@ -20,7 +21,7 @@ export function loadPiSdk(): Promise<PiSdk> {
 }
 
 function isToolArguments(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return isRecordLike(value)
 }
 
 /**

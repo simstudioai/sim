@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, ChipTag, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import {
   BookOpen,
   Check,
@@ -12,7 +12,6 @@ import {
   SquareArrowUpRight,
   Unlock,
 } from '@sim/emcn/icons'
-import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
 import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
@@ -54,8 +53,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { hasBlockAccent } from '@/blocks/accent'
-import { isLightTileColor } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -68,18 +66,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Stable empty object to avoid creating new references */
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
-
-/**
- * Icon component for rendering block icons.
- *
- * @param icon - The icon component to render
- * @param className - Optional CSS classes
- * @returns Rendered icon or null if no icon provided
- */
-const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
-  if (!Icon) return null
-  return <Icon className={className} />
-}
 
 /**
  * Editor panel component.
@@ -107,8 +93,6 @@ export function Editor() {
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
-  const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
-  const isIntegration = blockConfig != null && !hasBlockAccent(blockConfig.type)
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
@@ -440,21 +424,8 @@ export function Editor() {
         {/* Header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            {(blockConfig || isSubflow) && (
-              <ChipTag
-                variant={isIntegration ? 'brand' : typeAccent.variant}
-                tone={isIntegration ? undefined : typeAccent.tone}
-                brandColor={isIntegration ? blockConfig.bgColor : undefined}
-                brandForeground={
-                  isIntegration && isLightTileColor(blockConfig.bgColor) ? 'dark' : 'light'
-                }
-                className='size-[18px] justify-center px-0'
-              >
-                <IconComponent
-                  icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className='size-[12px]'
-                />
-              </ChipTag>
+            {currentBlock && (blockConfig || isSubflow) && (
+              <BlockTile blockType={currentBlock.type} size='lg' />
             )}
             {isRenaming ? (
               <input

@@ -23,7 +23,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   resolveWorkspaceAccess: mockResolveWorkspaceAccess,
 }))
 
-import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { authorizeCredentialUse, authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 
 afterAll(resetDbChainMock)
 
@@ -233,6 +233,43 @@ describe('authorizeCredentialUse', () => {
 
       expect(result.ok).toBe(false)
       expect(result.error).toBe('Credential not found')
+    })
+  })
+
+  /**
+   * The in-process tool executor synthesizes the AuthResult an internal JWT
+   * would have produced instead of minting one and POSTing to ourselves, so the
+   * subject-less case must still fail closed here.
+   */
+  describe('authorizeCredentialUseForAuth', () => {
+    it('fails closed when the authenticated caller carries no user id', async () => {
+      const result = await authorizeCredentialUseForAuth(
+        { success: true, authType: 'internal_jwt' },
+        { credentialId: ACCOUNT_ID }
+      )
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Authentication required')
+    })
+
+    it('fails closed when authentication did not succeed', async () => {
+      const result = await authorizeCredentialUseForAuth(
+        { success: false, error: 'Unauthorized' },
+        { credentialId: ACCOUNT_ID }
+      )
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Unauthorized')
+    })
+
+    it('rejects an asserted caller that does not match the internal token subject', async () => {
+      const result = await authorizeCredentialUseForAuth(
+        { success: true, userId: OWNER, authType: 'internal_jwt' },
+        { credentialId: ACCOUNT_ID, callerUserId: 'someone-else' }
+      )
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Caller user does not match internal token subject')
     })
   })
 })

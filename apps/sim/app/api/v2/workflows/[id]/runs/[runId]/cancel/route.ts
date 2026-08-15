@@ -27,8 +27,16 @@ export const POST = defineV2JsonRoute({
       reason: result.reason,
     },
   }),
+  /**
+   * Reports a cancellation, so it needs the run to have actually been
+   * cancelled. `success` alone no longer implies that: a cancel against an
+   * already-terminal run satisfies the request without writing anything, and
+   * reports `success: true` with `durablyRecorded: false`. Requiring both also
+   * keeps the event off a cancellation that reached the row but failed its
+   * paused reconciliation, which reports the inverse pair.
+   */
   onSuccess: ({ principal, result }) => {
-    if (!result.success || principal.kind !== 'personal_api_key') return
+    if (!result.success || !result.durablyRecorded || principal.kind !== 'personal_api_key') return
     captureServerEvent(
       principal.userId,
       'workflow_execution_cancelled',

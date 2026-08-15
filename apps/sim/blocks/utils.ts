@@ -9,7 +9,7 @@ import {
 import { getScopesForService } from '@/lib/oauth/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
-import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig } from '@/blocks/types'
 import {
   getBaseModelProviders,
   getHostedModels,
@@ -21,6 +21,7 @@ import {
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
+import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 
@@ -144,24 +145,6 @@ export function getSubBlocksDependingOnChange(
   )
 }
 
-export function resolveOutputType(
-  outputs: Record<string, OutputFieldDefinition>
-): Record<string, BlockOutput> {
-  const resolvedOutputs: Record<string, BlockOutput> = {}
-
-  for (const [key, outputType] of Object.entries(outputs)) {
-    // Handle new format: { type: 'string', description: '...' }
-    if (typeof outputType === 'object' && outputType !== null && 'type' in outputType) {
-      resolvedOutputs[key] = outputType.type as BlockOutput
-    } else {
-      // Handle old format: just the type as string, or other object formats
-      resolvedOutputs[key] = outputType as BlockOutput
-    }
-  }
-
-  return resolvedOutputs
-}
-
 function getProviderFromStore(model: string): string | null {
   const { providers } = useProvidersStore.getState()
   const normalized = model.toLowerCase()
@@ -234,6 +217,45 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   }
 
   return true
+}
+
+/** Model whose provider is recorded when a block's own `model` cannot be resolved. */
+const SERIALIZATION_FALLBACK_MODEL = 'gpt-4o'
+
+/** Last-resort provider for when even {@link SERIALIZATION_FALLBACK_MODEL} cannot be resolved. */
+const SERIALIZATION_FALLBACK_PROVIDER: ProviderId = 'openai'
+
+/**
+ * Provider id a model-driven block records for `model` during serialization.
+ *
+ * Serialization runs before variable resolution, and every model block's handler
+ * re-derives the provider from the *resolved* model without ever reading this
+ * value — so it only has to be shape-correct, and it must never throw. Two cases
+ * reach here that {@link getBaseModelProviders} cannot answer: `model` may still
+ * hold a `<variable.x>` reference, and gateway providers (OpenRouter, vLLM,
+ * LiteLLM, Ollama, …) are deliberately absent from that map even when the model
+ * id is perfectly valid. A reference resolves to {@link SERIALIZATION_FALLBACK_MODEL}'s
+ * provider; anything else is left to `getProviderFromModel`, which defaults an
+ * unrecognised id to `ollama` rather than failing serialization with an error the
+ * user cannot act on.
+ *
+ * The remaining throw is a blacklisted provider or model, which is env-driven and
+ * can name the fallback itself — so recovery returns
+ * {@link SERIALIZATION_FALLBACK_PROVIDER} outright rather than resolving a second
+ * time through the function that just threw.
+ */
+export function getSerializedModelProviderId(
+  model: unknown,
+  fallbackModel: string = SERIALIZATION_FALLBACK_MODEL
+): ProviderId {
+  const candidate =
+    typeof model === 'string' && model && !containsReference(model) ? model : fallbackModel
+
+  try {
+    return getProviderFromModel(candidate)
+  } catch {
+    return SERIALIZATION_FALLBACK_PROVIDER
+  }
 }
 
 /**
@@ -658,7 +680,7 @@ export function normalizeFileInput(
  */
 export const BUILT_IN_TOOL_TYPES = new Set([
   'api',
-  'file',
+  'file_v5',
   'function',
   'knowledge',
   'search',

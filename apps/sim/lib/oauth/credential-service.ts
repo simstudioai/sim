@@ -114,6 +114,17 @@ export async function resolveOAuthAccountId(
       }
     }
 
+    if (credentialRow.type === 'managed_oauth') {
+      return {
+        accountId: '',
+        credentialId: credentialRow.id,
+        credentialType: 'managed_oauth',
+        workspaceId: credentialRow.workspaceId,
+        providerId: credentialRow.providerId ?? undefined,
+        usedCredentialTable: true,
+      }
+    }
+
     if (credentialRow.type !== 'oauth' || !credentialRow.accountId) {
       return null
     }
@@ -352,7 +363,7 @@ export interface ServiceAccountTokenResult {
   cloudId?: string
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
   domain?: string
-  /** Salesforce only — the org's instance URL the token must be used against. */
+  /** Salesforce or NetSuite — the provider origin the token must be used against. */
   instanceUrl?: string
   /**
    * Zoho Desk only — the data-center-scoped Desk REST base the token must be
@@ -400,7 +411,7 @@ interface CachedClientCredentialToken {
    * the cached token belongs to the old app and must be re-minted.
    */
   secretFingerprint: string
-  /** Salesforce only — the instance URL returned alongside the minted token. */
+  /** Salesforce or NetSuite — the provider origin returned alongside the minted token. */
   instanceUrl?: string
   /** Zoho Desk only — the Desk REST base derived from the token's api_domain. */
   apiDomain?: string
@@ -415,11 +426,11 @@ interface FailedClientCredentialMint {
 
 /**
  * Per-instance cache of minted client-credential access tokens (Zoom S2S,
- * Box CCG, Salesforce client-credentials), keyed by credential id. Entries are
+ * Box CCG, Salesforce, NetSuite), keyed by credential id. Entries are
  * served while more than {@link CLIENT_CREDENTIAL_TOKEN_MIN_TTL_MS} of
  * validity remains, so a hot credential mints roughly once per token TTL
- * (~1h for Zoom/Box; Salesforce reports a conservative 10-minute TTL because
- * its responses never carry an expiry) per instance.
+ * (~1h for Zoom/Box/NetSuite; Salesforce reports a conservative 10-minute TTL
+ * because its responses never carry an expiry) per instance.
  *
  * Every resolution re-reads the credential row (a cheap indexed PK select —
  * the mint is the expensive part) and validates the cached entry's secret
@@ -525,6 +536,7 @@ async function resolveClientCredentialAccountToken(
         {
           clientId: blob.clientId,
           clientSecret: blob.clientSecret,
+          certificateId: blob.certificateId,
           orgId: blob.orgId,
           dataCenter: blob.dataCenter,
           authMethod: blob.authMethod,

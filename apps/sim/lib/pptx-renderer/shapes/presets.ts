@@ -26,24 +26,6 @@ function adj(
   return raw / 100000
 }
 
-/** Helper: generate a regular polygon path (inscribed in bounding box). */
-function _regularPolygon(w: number, h: number, sides: number): string {
-  const cx = w / 2
-  const cy = h / 2
-  const rx = w / 2
-  const ry = h / 2
-  const parts: string[] = []
-  for (let i = 0; i < sides; i++) {
-    // Start from top center (-90 degrees)
-    const angle = (2 * Math.PI * i) / sides - Math.PI / 2
-    const x = cx + rx * Math.cos(angle)
-    const y = cy + ry * Math.sin(angle)
-    parts.push(i === 0 ? `M${x},${y}` : `L${x},${y}`)
-  }
-  parts.push('Z')
-  return parts.join(' ')
-}
-
 /** Raw adj helper: get adjustment value without dividing by 100000. */
 function adjRaw(
   adjustments: Map<string, number> | undefined,
@@ -146,13 +128,9 @@ function mirrorAbsolutePathVertically(path: string, height: number): string {
   return out.join(' ')
 }
 
-// ---------------------------------------------------------------------------
 // Preset shape registry
-// ---------------------------------------------------------------------------
 
 export const presetShapes: Map<string, PresetShapeGenerator> = new Map()
-
-// ===== Basic Shapes =====
 
 presetShapes.set('rect', (w, h) => `M0,0 L${w},0 L${w},${h} L0,${h} Z`)
 
@@ -451,8 +429,6 @@ presetShapes.set('diagStripe', (w, h, adjustments) => {
   return [`M0,${y2}`, `L${x2},0`, `L${w},0`, `L0,${h}`, 'Z'].join(' ')
 })
 
-// ===== Star Shapes =====
-
 presetShapes.set('star4', (w, h, adjustments) => {
   // OOXML default adj=12500 → innerRatio = 12500/50000 = 0.25
   const a = adj(adjustments, 'adj', 12500) * 2
@@ -597,8 +573,6 @@ presetShapes.set('star32', (w, h, adjustments) => {
   return starShape(w, h, 32, Math.min(Math.max(a, 0), 1))
 })
 
-// ===== Lines & Connectors =====
-
 // OOXML line: diagonal (0,0→w,h) when both extents are non-zero.
 // Keep explicit horizontal/vertical handling for zero-extent cases so 1px SVGs remain visible.
 presetShapes.set('line', (w, h) => {
@@ -712,8 +686,6 @@ presetShapes.set('bentConnector5', (w, h, adjustments) => {
   const x2 = w * a3
   return `M0,0 L${x1},0 L${x1},${y1} L${x2},${y1} L${x2},${h} L${w},${h}`
 })
-
-// ===== Arrow Shapes =====
 
 presetShapes.set('rightArrow', (w, h, adjustments) => {
   const a1 = adj(adjustments, 'adj1', 50000) // shaft width ratio
@@ -1261,8 +1233,6 @@ presetShapes.set('stripedRightArrow', (w, h, adjustments) => {
     'Z',
   ].join(' ')
 })
-
-// ===== Bent / Curved / Special Arrows =====
 
 presetShapes.set('bentArrow', (w, h, adjustments) => {
   // OOXML bentArrow: L-shaped arrow with rounded bend, arrowhead pointing right.
@@ -2293,8 +2263,6 @@ presetShapes.set('swooshArrow', (w, h, adjustments) => {
   ].join(' ')
 })
 
-// ===== Flowchart Shapes =====
-
 presetShapes.set('flowChartProcess', (w, h) => `M0,0 L${w},0 L${w},${h} L0,${h} Z`)
 
 presetShapes.set('flowChartDecision', (w, h) => {
@@ -2677,8 +2645,6 @@ presetShapes.set('flowChartMultidocument', (w, h) => {
   ].join(' ')
 })
 
-// ===== Callout Shapes =====
-
 presetShapes.set('wedgeRectCallout', (w, h, adjustments) => {
   // OOXML spec: adaptive callout pointer on the edge closest to the tip
   const hc = w / 2
@@ -2842,8 +2808,6 @@ presetShapes.set('borderCallout1', (w, h, adjustments) => {
   return `M0,0 L${w},0 L${w},${h} L0,${h} Z M${x1},${y1} L${x2},${y2}`
 })
 
-// ===== Block / 3D Shapes =====
-
 presetShapes.set('cube', (w, h, adjustments) => {
   const a = adj(adjustments, 'adj', 25000)
   const depth = Math.min(w, h) * a
@@ -2962,8 +2926,6 @@ presetShapes.set('cloud', (w, h) => {
   parts.push('Z')
   return parts.join(' ')
 })
-
-// ===== Frame, Donut, Misc =====
 
 presetShapes.set('frame', (w, h, adjustments) => {
   const a = adj(adjustments, 'adj1', 12500)
@@ -3109,8 +3071,6 @@ presetShapes.set('blockArc', (w, h, adjustments) => {
   ].join(' ')
 })
 
-// ===== Gear Shapes =====
-
 presetShapes.set('gear6', (w, h, adjustments) => {
   const a1 = adjustments?.get('adj1') ?? 15000
   const a2 = adjustments?.get('adj2') ?? 3526
@@ -3217,8 +3177,6 @@ function gearShape(w: number, h: number, teeth: number, adj1Raw: number, adj2Raw
   parts.push('Z')
   return parts.join(' ')
 }
-
-// ===== Misc Shapes =====
 
 presetShapes.set('mathPlus', (w, h, adjustments) => {
   // OOXML: adj1=23520 (max 73490). dx1 = w*73490/200000, dx2 = ss*a/200000
@@ -3916,7 +3874,6 @@ presetShapes.set('rightBrace', (w, h, adjustments) => {
   )
 })
 
-// ===== Action Buttons =====
 // Action buttons are multi-path shapes: background rect + icon with darken fill + icon outline + rect outline.
 // OOXML spec uses ss*3/8 as the icon half-size (dx2), with the icon centred at (hc, vc).
 // Shapes with multiPathPresets entries below get proper 3D treatment. Remaining shapes
@@ -3930,9 +3887,7 @@ presetShapes.set('actionButtonBlank', (w, h) => `M0,0 L${w},0 L${w},${h} L0,${h}
 // Multi-path action button presets are registered after the multiPathPresets Map
 // declaration (see below in the multiPathPresets section).
 
-// ---------------------------------------------------------------------------
 // Action button icon paths (rendered as a second <path> with contrasting fill)
-// ---------------------------------------------------------------------------
 const actionButtonIcons = new Map<string, (w: number, h: number) => string>()
 
 // actionButtonHome icon removed — uses multiPathPresets entry below
@@ -4059,8 +4014,6 @@ export function getActionButtonIconPath(
   const generator = actionButtonIcons.get(key) ?? actionButtonIcons.get(shapeType)
   return generator?.(w, h)
 }
-
-// ===== Aliases and common alternative names =====
 
 // Some shapes are known by multiple names in different OOXML versions
 // flowChartOfflineStorage: registered as multiPathPreset (see below)
@@ -4415,15 +4368,11 @@ presetShapes.set('funnel', (w, h) => {
   return `${body} ${inset}`
 })
 
-// ===== Fallback =====
-
 /**
  * Get the SVG path for a preset shape, falling back to a simple rectangle
  * if the shape type is not implemented.
  */
-// ---------------------------------------------------------------------------
 // Preset shape overlays — additional paths for 3D-like shapes (lighter top face, etc.)
-// ---------------------------------------------------------------------------
 
 interface PresetOverlay {
   /** SVG path d-attribute for the overlay */
@@ -4453,25 +4402,8 @@ presetOverlays.set('can', (w, h) => {
   ]
 })
 
-/**
- * Get overlay paths for a preset shape (3D top faces, etc.).
- * Returns empty array if the shape has no overlays.
- */
-export function getPresetOverlays(
-  shapeType: string,
-  w: number,
-  h: number,
-  adjustments?: Map<string, number>
-): PresetOverlay[] {
-  const key = shapeType.toLowerCase()
-  const gen = presetOverlays.get(key) ?? presetOverlays.get(shapeType)
-  return gen ? gen(w, h, adjustments) : []
-}
-
-// ---------------------------------------------------------------------------
 // Multi-path preset shapes — complex shapes with multiple SVG paths
 // Each path has its own fill modifier and stroke behavior, matching OOXML spec.
-// ---------------------------------------------------------------------------
 
 /** A single sub-path within a multi-path preset shape. */
 export interface PresetSubPath {
@@ -4507,7 +4439,6 @@ type MultiPathPresetGenerator = (
 
 const multiPathPresets: Map<string, MultiPathPresetGenerator> = new Map()
 
-// ===== Action Button multi-path presets (OOXML spec-accurate) =====
 // Common helper: OOXML action button guide values
 function _abGuides(w: number, h: number) {
   const ss = Math.min(w, h)

@@ -1,7 +1,17 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { LIST_SORT_ORDERS, type ListSortOrder } from '@/lib/api/list-query'
-import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/lib/folders/paths'
+import {
+  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
+  FORBIDDEN_DETAIL_CODES,
+} from '@/lib/core/application/forbidden'
+import {
+  FolderPathError,
+  MAX_FOLDER_PATH_BYTES,
+  MAX_FOLDER_PATH_SEGMENTS,
+  parseFolderPath,
+  requireNonRootFolderPath,
+} from '@/lib/folders/paths'
 
 /**
  * Shared building blocks for the v2 API contract surface.
@@ -11,15 +21,17 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * - list:              `{ data: T[], nextCursor: string | null }`
  * - error:             `{ error: { code, message, details? } }`
  *
- * Every documented v2 operation uses that family. The two exceptions are the
- * local-storage upload data plane — `PUT /api/v2/uploads/{uploadId}` and
- * `PUT /api/v2/uploads/{uploadId}/parts/{partNumber}` — which emit a bare
- * `{ error: string }` body. They are authenticated by a short-lived upload
- * token rather than an API key, are deliberately absent from the public
- * OpenAPI specs (see `UNDOCUMENTED_V2_ROUTES` in
- * `scripts/check-openapi-specs.ts`), and are only ever reached through a URL
- * handed back by a documented operation, so no caller writes against them
- * from docs.
+ * Every v2 route uses that error family, including the two that are not
+ * published: the local-storage upload data plane — `PUT /api/v2/uploads/{uploadId}`
+ * and `PUT /api/v2/uploads/{uploadId}/parts/{partNumber}`. Those two are
+ * authenticated by a short-lived upload token rather than an API key and are
+ * deliberately absent from the public OpenAPI specs (see
+ * `UNDOCUMENTED_V2_ROUTES` in `scripts/check-openapi-specs.ts`), because their
+ * URL is signed, short-lived, and only ever reached through a documented
+ * operation's response. Not being in the document is a reason not to publish a
+ * route; it is not a reason to answer in a different shape. What that step
+ * promises — method, headers, `204`, and which codes mean what — is published on
+ * `transfer.url` in `contracts/v2/uploads.ts`.
  *
  * Every list returns the opaque-cursor envelope (Stripe/Slack-style)
  * `{ data, nextCursor }`, but not every list is *paged*. A paged list also
@@ -53,12 +65,12 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * - **`search`** ({@link v2SearchSchema}) — a case-insensitive substring match
  *   against the resource's *single* natural name field, and nothing else:
  *   `name` for files/folders/workflows/tables/knowledge bases/MCP servers/
- *   skills, `title` for custom tools, `filename` for knowledge documents
- *   (`GET /knowledge/{id}/documents`), and `displayName` for both credentials
- *   and secrets (`GET /secrets`, where the secret's name *is* the credential
- *   `displayName`). It never matches ids, descriptions, or content. `%` and `_` in the term are matched
- *   literally, not as wildcards. Empty is rejected rather than silently
- *   ignored — omit the param instead.
+ *   skills/credential providers, `title` for custom tools, `filename` for
+ *   knowledge documents (`GET /knowledge/{id}/documents`), and `displayName`
+ *   for both credentials and secrets (`GET /secrets`, where the secret's name
+ *   *is* the credential `displayName`). It never matches ids, descriptions, or
+ *   content. `%` and `_` in the term are matched literally, not as wildcards.
+ *   Empty is rejected rather than silently ignored — omit the param instead.
  * - **`sortBy` + `sortOrder`** ({@link v2SortFields}) — `sortBy` is a
  *   per-resource enum, never a free string, because the value selects a column
  *   in the query. `sortOrder` is `asc`/`desc`. Both always have a default, so
@@ -68,13 +80,25 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  *   from the `sortOrder` *param* on purpose.
  * - **Filters** — resource-specific and enumerated, reusing the names already
  *   on the surface (`scope`, `folderPath`, `deployedOnly`, `type`, `providerId`,
- *   `resourceType`). No generic filter expression.
+ *   `resourceType`). No generic filter expression. A filter value that matches
+ *   nothing is an empty page, never an error — including a `folderPath` naming
+ *   no folder ({@link V2_FOLDER_FILTER_MISS}).
+ *
+ * ## Blank query values
+ *
+ * A param sent with no value (`?limit=`, `?search=`, `?limit=%20`) is a 400
+ * naming it, enforced for every param at the surface by
+ * `V2_PARSE_DEFAULTS.rejectBlankQueryValues` — see
+ * `blankQueryValueValidationError` for why a schema cannot see the difference.
  *
  * Every one of these is pushed into SQL, except on `GET /skills` (which narrows the
  * static builtin registry with the same search term, merges it into the DB rows,
- * then re-sorts the merged array) and `GET /files/folders` (which applies `parentPath` and `search`
- * in JS; its sort is pushed into SQL like every other folder list). Both read a
- * full result set to produce a page; neither is a pattern to copy.
+ * then re-sorts the merged array), `GET /files/folders` (which applies
+ * `parentPath` and `search` in JS; its sort is pushed into SQL like every other
+ * folder list), and `GET /credentials/providers` (whose bounded catalog is
+ * assembled from code-defined registries before its caller-specific
+ * availability is projected). These read a full result set to produce a page;
+ * none is a pattern to copy.
  *
  * ## Which lists are paged
  *
@@ -83,35 +107,54 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * response — its OpenAPI description says so explicitly, so a caller never
  * writes a pagination loop that can only ever run once.
  *
- * Every list whose result set grows with workspace content is now paged. What
- * remains full-set is the folder lists, whose trees are already capped where
- * they load, plus `GET /mcp-servers`.
+ * Every list whose result set grows with workspace content is now paged —
+ * including `GET /mcp-servers`, since nothing caps how many servers a workspace
+ * registers. What remains full-set is bounded by construction rather than by a
+ * caller's `limit`: the four folder lists, whose trees are capped where they
+ * load; `GET /knowledge/{id}/tags`, capped by the fixed tag-slot table;
+ * `GET /mcp-servers/{id}/tools`, capped by tool discovery itself; and
+ * `GET /tables/{tableId}/views` and `GET /tables/{tableId}/groups`, capped per
+ * table; and the credential-provider catalog, bounded by code-defined OAuth
+ * and service-account registries.
  *
  * Adding `limit`/`cursor` to a full-set list is additive, but giving it a
- * *default* `limit` truncates callers reading the whole set today, so it is a
- * breaking change. Five lists took exactly that change while `v2-api` was off
- * in production and enabled only for a staging cohort — the window in which it
- * costs nothing. Once v2 is generally available, moving a shipped full-set list
- * to a defaulted page size needs a version bump.
+ * *default* `limit` truncates callers reading the whole set today, so once v2 is
+ * generally available that change needs a version bump.
  *
- * Both cursor schemes are opaque base64-JSON from `app/api/v2/lib/response.ts`,
- * and which one a list uses is decided by what its read can express rather than
- * by preference: a keyset (`encodeSortedCursor`) wherever the page comes from
- * one ordered SQL read, and an offset (`encodeCursor({ offset })`) only where it
- * cannot — `GET /skills`, which merges the static builtin registry into the DB
- * rows and re-sorts in JS, and `GET /knowledge/{id}/documents`, whose underlying
- * query is limit/offset. Prefer the keyset; an offset needs that kind of reason.
+ * Three cursor schemes are in use. Two are shared codecs in
+ * `app/api/v2/lib/response.ts`, and which of them a list uses is decided by what
+ * its read can express rather than by preference: a keyset
+ * (`encodeSortedCursor`) wherever the page comes from one ordered SQL read, and
+ * an offset (`encodeOffsetCursor`) only where it cannot — `GET /skills`, which
+ * merges the static builtin registry into the DB rows and re-sorts in JS, and
+ * `GET /knowledge/{id}/documents`, whose underlying query is limit/offset.
+ * Prefer the keyset; an offset needs that kind of reason.
  *
- * ## Sort and the opaque cursor
+ * The third is per-domain: a list whose read predates the shared codecs, or
+ * whose page boundary is not expressible as one, mints its own — a bare
+ * `encodeCursor({ version })` on `GET /workflows/{id}/versions` and
+ * `encodeCursor({ email })` on the workspace member list, the audit-log and run-log
+ * codecs in `lib/audit-logs/query.ts` and `lib/logs/list-logs.ts`, the table-row
+ * codec in `lib/table/rows/cursor.ts`, and a usage-event id passed straight
+ * through by `GET /billing/logs`. Those tokens stay opaque and untouched, but the
+ * three whose sequence a caller can re-filter are wrapped in
+ * `encodeScopedCursor` at the surface so they carry the same query binding as
+ * the shared schemes. A new list should still reach for one of the two shared
+ * codecs rather than adding a fourth.
  *
- * Lists using the shared keyset codec (`encodeSortedCursor` /
- * `decodeSortedCursor` in `app/api/v2/lib/response.ts`) carry a cursor that is
- * a keyset over the *active* sort, so its keys change when the sort does. The
- * sort is therefore encoded into the cursor and re-checked on the way back in:
- * replaying a cursor under a different `sortBy`/`sortOrder` is a 400, not a
- * silently duplicated or skipped page. Change the sort by restarting pagination
- * without a cursor. The rest delegate to their domain's own cursor codec, which
- * is opaque in exactly the same way.
+ * ## Query binding and the opaque cursor
+ *
+ * Every paged list stamps its sort and its filters into the token it returns and
+ * re-checks them on the way back in; replaying a cursor under a different
+ * `sortBy`/`sortOrder` or a changed filter is a 400 naming which half changed.
+ * What belongs in a stamp, and why `limit` and response-shaping params do not,
+ * is documented on `cursorScopeKey` in `lib/api/cursor-binding.ts`.
+ *
+ * The authoritative per-list binding is pinned in
+ * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
+ * that is neither bound nor explicitly exempted. The three lists whose token is
+ * minted by a domain codec (`GET /logs`, `GET /audit-logs`, `GET /billing/logs`)
+ * get the same binding by wrapping that token in a query-stamped envelope.
  */
 
 /**
@@ -143,7 +186,17 @@ export const v2ErrorResponseSchema = z.object({
     .object({
       code: z.string().describe('Stable machine-readable error code.'),
       message: z.string().describe('Human-readable explanation of the error.'),
-      details: z.unknown().optional().describe('Optional structured error details.'),
+      details: z
+        .unknown()
+        .optional()
+        .describe(
+          [
+            'Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:',
+            ...FORBIDDEN_DETAIL_CODES.map(
+              (code) => `- \`${code}\` — ${FORBIDDEN_DETAIL_CODE_DESCRIPTIONS[code]}`
+            ),
+          ].join('\n')
+        ),
     })
     .describe('Canonical error details.'),
 })
@@ -154,15 +207,38 @@ export type V2ErrorResponse = z.output<typeof v2ErrorResponseSchema>
 export const v2DataResponse = <T extends z.ZodType>(dataSchema: T) =>
   z.object({ data: dataSchema.describe('Response data.') })
 
-/** `{ data: T[], nextCursor: string | null }` — the v2 list envelope. */
-export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
+interface V2ListResponseOptions {
+  /**
+   * `false` for a full-set list — one that shares the envelope but declares no
+   * `cursor`/`limit` and always answers `null`. Defaults to `true`.
+   */
+  paged?: boolean
+}
+
+/**
+ * `{ data: T[], nextCursor: string | null }` — the v2 list envelope.
+ *
+ * `paged` selects the `nextCursor` documentation, and exists because the two
+ * cases had been publishing the same sentence. A full-set list accepts no
+ * `cursor` param — its query schema is `.strict()`, so the token the envelope
+ * told the caller to "send back as `cursor`" is a `400` — and its `nextCursor`
+ * is `null` by construction, so the instruction described a loop that could
+ * never run. The envelope stays shared either way: that is what lets a
+ * full-set list gain real pages later without a contract change.
+ */
+export const v2CursorListResponse = <T extends z.ZodType>(
+  itemSchema: T,
+  options: V2ListResponseOptions = {}
+) =>
   z.object({
     data: z.array(itemSchema).describe('Items in the current page.'),
     nextCursor: z
       .string()
       .nullable()
       .describe(
-        'Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself.'
+        options.paged === false
+          ? 'Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change.'
+          : 'Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself.'
       ),
   })
 
@@ -236,12 +312,21 @@ export function v2LimitSchema(options: V2LimitOptions = {}) {
   const base = z.coerce.number({ error: 'limit must be a number' })
 
   if (outOfRange === 'clamp') {
-    return base
-      .optional()
-      .default(fallback)
-      .transform((value) => Math.min(Math.max(1, Math.trunc(value)), max))
-      .describe(described)
-      .meta({ type: 'integer', minimum: 1, maximum: max })
+    return (
+      base
+        .optional()
+        .default(fallback)
+        .transform((value) => Math.min(Math.max(1, Math.trunc(value)), max))
+        .describe(described)
+        /**
+         * `minimum`/`maximum` are deliberately absent. In JSON Schema they mean
+         * "rejected outside", and this branch clamps instead — publishing them
+         * made a generated SDK refuse locally a `limit` the server would have
+         * accepted and silently corrected. The range lives in the description,
+         * which is where a clamped bound belongs.
+         */
+        .meta({ type: 'integer' })
+    )
   }
 
   return base
@@ -254,22 +339,25 @@ export function v2LimitSchema(options: V2LimitOptions = {}) {
 }
 
 /**
- * The v2 `cursor` param: the opaque token a previous page returned as
- * `nextCursor`. Empty is rejected rather than treated as "start over", so a
- * caller that accidentally forwards an empty string learns about it instead of
- * looping on page one.
- */
-export function v2CursorSchema(description = 'Opaque cursor returned by the previous page.') {
-  return z.string().min(1, 'cursor must be a non-empty token').optional().describe(description)
-}
-
-/**
  * The `limit` + `cursor` pair for a paged v2 list. Spread into a query object;
  * a list that returns `nextCursor` must accept both, and must actually apply
  * them.
+ *
+ * `cursor` is the opaque token a previous page returned as `nextCursor`. Empty
+ * is rejected rather than treated as "start over", so a caller that accidentally
+ * forwards an empty string learns about it instead of looping on page one.
  */
 export function v2PaginationFields(options: V2LimitOptions = {}) {
-  return { limit: v2LimitSchema(options), cursor: v2CursorSchema() }
+  return {
+    limit: v2LimitSchema(options),
+    cursor: z
+      .string()
+      .min(1, 'cursor must be a non-empty token')
+      .optional()
+      .describe(
+        'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.'
+      ),
+  }
 }
 
 /**
@@ -292,27 +380,108 @@ export function v2PaginationFields(options: V2LimitOptions = {}) {
  * reads over the same runs, so the same timestamp must work on both — sharing
  * the schema is what makes that true rather than merely intended, and it is why
  * the descriptions say "UTC ISO 8601" instead of overpromising "ISO 8601".
+ *
+ * Format alone is not enough, which is why the year is checked on top of it.
+ * `date-time` publishes a four-digit year, so `0000-01-01T00:00:00Z` is a
+ * spec-valid value that `Date` parses happily — but the proleptic Gregorian
+ * calendar Postgres implements has no year zero, so the resulting bind parameter
+ * is refused by the server rather than by anything in the request path, and the
+ * caller sees a 500 for a request the published schema told it to send. Year
+ * `0001` upward is storable and stays accepted, which leaves `0000` the single
+ * value the format admits and the column cannot hold.
  */
 export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
   const boundary = field === 'startDate' ? 'at or after' : 'at or before'
   return z
     .string()
     .datetime({ error: `${field} must be a UTC ISO 8601 timestamp, e.g. 2026-08-06T00:00:00Z` })
+    .refine((value) => new Date(value).getUTCFullYear() >= 1, {
+      error: `${field} must name a storable instant; there is no year 0000`,
+    })
     .describe(
-      `Only include runs started ${boundary} this UTC ISO 8601 timestamp, e.g. \`2026-08-06T00:00:00Z\`. A date without a time, or a timestamp carrying a UTC offset instead of \`Z\`, is rejected.`
+      `Only include runs started ${boundary} this UTC ISO 8601 timestamp, e.g. \`2026-08-06T00:00:00Z\`. A date without a time, or a timestamp carrying a UTC offset instead of \`Z\`, is rejected, as is year \`0000\`, which names no storable instant.`
     )
     .meta({ format: 'date-time' })
+}
+
+/**
+ * The single `order` param the two run-window reads take in place of
+ * `sortBy` + `sortOrder`, for the same reason they share
+ * {@link v2RunWindowBoundSchema}: `GET /logs` and `GET /workflows/{id}/runs` are
+ * sibling reads over the same runs, so a value that works on one must work on
+ * the other.
+ *
+ * Sharing it also keeps the *published* member order identical. Two hand-written
+ * `z.enum([...])` literals spelled the same set in opposite orders, which the
+ * generated specs faithfully reproduced — harmless to a parser, but it reads as
+ * two APIs rather than one, and a caller comparing the two pages has no way to
+ * tell an ordering accident from a meaningful difference. The order is
+ * {@link LIST_SORT_ORDERS}, the same one `sortOrder` publishes everywhere else.
+ */
+export function v2RunOrderSchema(subject: 'execution' | 'run') {
+  return z
+    .enum(LIST_SORT_ORDERS)
+    .optional()
+    .default('desc')
+    .describe(
+      `Sort direction by ${subject} start time. This list is sortable only by ${subject} start time, so it takes \`order\` in place of \`sortBy\`/\`sortOrder\`, which it rejects.`
+    )
+}
+
+/**
+ * Longest caller-supplied substring any v2 search accepts. Every one of them
+ * compiles to an unindexed `ILIKE` scan, so the term itself has to be bounded
+ * wherever it is accepted — including the searches that are not name searches.
+ */
+export const V2_SEARCH_MAX_LENGTH = 200
+
+/**
+ * Added to `sortBy` wherever a text name column is sortable.
+ *
+ * Name ordering is `ORDER BY` on the stored text with no `COLLATE` and no
+ * `lower()`, so it is whatever the server database's collation does — under a
+ * `C`-collated deployment that is byte order, which puts every capitalized name
+ * ahead of every lowercase one. Nothing in the API pins the collation, so the
+ * spec must not promise one; what it can promise is that Sim does not case-fold,
+ * which is the part a caller gets wrong.
+ */
+export function nameSortCollation(field = 'name') {
+  return `Sorting by \`${field}\` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.`
 }
 
 export const v2SearchSchema = z
   .string()
   .trim()
   .min(1, 'search cannot be empty')
-  .max(200, 'search is too long')
+  .max(V2_SEARCH_MAX_LENGTH, 'search is too long')
   .optional()
-  .describe('Case-insensitive substring search on the resource name.')
+  .describe('Case-insensitive substring match against the resource name.')
+
+/**
+ * Appended to every list folder-filter description.
+ *
+ * A folder filter is a filter: a path naming no active folder narrows the result
+ * to nothing, exactly as `workflowIds` naming no workflow does. These lists used
+ * to answer `404 Folder not found` instead, which reported a missing collection
+ * for a collection that exists, broke a pagination walk when a folder was
+ * deleted mid-walk, and made a list a folder-existence oracle. The sibling
+ * folder lists already answered a non-matching `parentPath` with an empty page.
+ * Mutations keep their 404 — creating into or moving to a folder that does not
+ * exist has no empty-set reading.
+ */
+export const V2_FOLDER_FILTER_MISS =
+  'A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.'
 
 export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS).describe('Sort direction.')
+
+/**
+ * The closed vocabulary `z.stringbool()` accepts, restated here only so the
+ * generated spec can publish it — Zod's defaults are internal to the library
+ * and contribute nothing to the JSON Schema. `shared.test.ts` pins each spelling
+ * against the schema so a Zod upgrade that changes the set fails here.
+ */
+export const V2_TRUE_VALUES = ['true', '1', 'yes', 'on', 'y', 'enabled'] as const
+export const V2_FALSE_VALUES = ['false', '0', 'no', 'off', 'n', 'disabled'] as const
 
 export type V2SortOrder = ListSortOrder
 
@@ -330,16 +499,34 @@ function canonicalFolderPathSchema(parser: (path: string) => string[]) {
   })
 }
 
+/**
+ * The canonical-path rule, published once on the two folder-path components
+ * every folder family references rather than restated per operation.
+ *
+ * `canonicalFolderPathSchema` validates through `superRefine`, which
+ * contributes nothing to JSON Schema, so a folder path shipped as an
+ * unconstrained `string`: the percent-encoding, the rejections, and both caps
+ * were invisible to a spec-driven client. `maxLength` is the byte cap measured
+ * on the *encoded* form, so it is an upper bound on characters rather than a
+ * character count — a name outside the unreserved set spends up to twelve
+ * bytes per source character.
+ */
+const FOLDER_PATH_FORMAT = `Segments are percent-encoded, so a folder shown as "New folder" is \`/New%20folder\`: everything outside \`A-Z a-z 0-9 - _ . ~\` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal \`.\` or \`..\` segment are rejected. At most ${MAX_FOLDER_PATH_SEGMENTS} segments and ${MAX_FOLDER_PATH_BYTES} encoded bytes.`
+
 /** Canonical slash-prefixed folder path. `/` is the workspace root. */
-export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath).describe(
-  'Canonical slash-prefixed folder path. `/` is the workspace root.'
-)
+export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath).meta({
+  title: 'Folder path',
+  description: `Canonical slash-prefixed folder path. \`/\` is the workspace root. ${FOLDER_PATH_FORMAT}`,
+  maxLength: MAX_FOLDER_PATH_BYTES,
+})
 export type V2FolderPath = z.output<typeof v2FolderPathSchema>
 
 /** Canonical path that identifies a real folder rather than the virtual root. */
-export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(
-  requireNonRootFolderPath
-).describe('Canonical slash-prefixed path identifying a real folder rather than the root.')
+export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRootFolderPath).meta({
+  title: 'Non-root folder path',
+  description: `Canonical slash-prefixed path identifying a real folder rather than the root. ${FOLDER_PATH_FORMAT}`,
+  maxLength: MAX_FOLDER_PATH_BYTES,
+})
 
 function normalizeFolderPathInput(path: string): string {
   return path.length === 0 || path.startsWith('/') ? path : `/${path}`
@@ -350,14 +537,24 @@ export const v2FolderPathInputSchema = z
   .string()
   .transform(normalizeFolderPathInput)
   .pipe(v2FolderPathSchema)
-  .describe('Folder path. A missing leading slash is normalized before validation.')
+  .meta({
+    id: 'FolderPathInput',
+    title: 'Folder path input',
+    description: `Folder path. A missing leading slash is normalized before validation. ${FOLDER_PATH_FORMAT}`,
+    maxLength: MAX_FOLDER_PATH_BYTES,
+  })
 
 /** Non-root input path that accepts an omitted leading slash and emits the canonical form. */
 export const v2NonRootFolderPathInputSchema = z
   .string()
   .transform(normalizeFolderPathInput)
   .pipe(v2NonRootFolderPathSchema)
-  .describe('Non-root folder path. A missing leading slash is normalized before validation.')
+  .meta({
+    id: 'NonRootFolderPathInput',
+    title: 'Non-root folder path input',
+    description: `Non-root folder path. A missing leading slash is normalized before validation. ${FOLDER_PATH_FORMAT}`,
+    maxLength: MAX_FOLDER_PATH_BYTES,
+  })
 
 export const v2FolderSchema = z
   .object({
@@ -425,10 +622,29 @@ export const v2DeleteFolderQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
     path: v2NonRootFolderPathInputSchema.describe('Path of the folder to delete.'),
+    /**
+     * Published as an enum rather than the bare `type: string` `z.stringbool()`
+     * emits. This is the difference between deleting one empty folder and
+     * deleting a subtree, and the accepted vocabulary is closed — an
+     * out-of-vocabulary value is a `400`, not a silent `false` — so leaving it
+     * undeclared hid a destructive switch behind a guess.
+     *
+     * `case: 'sensitive'` is what makes "closed" true. `z.stringbool()` folds
+     * case by default, so the server honoured `recursive=True`, `TRUE`, `YES`
+     * and `ENABLED` as a recursive delete while publishing only the twelve
+     * lowercase spellings — a generated client validates against the `enum` and
+     * would reject a request the server would have executed destructively.
+     * Accepting exactly what is published is the safe direction to close that
+     * gap: an unpublished spelling now fails the request instead of deleting a
+     * subtree.
+     */
     recursive: z
-      .stringbool()
+      .stringbool({ case: 'sensitive' })
       .prefault('false')
-      .describe('Delete nested files and folders when true.'),
+      .describe(
+        "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected."
+      )
+      .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
   })
   .strict()
 
@@ -441,8 +657,11 @@ export function v2SortFields<const F extends readonly [string, ...string[]]>(
   fields: F,
   defaults: { sortBy: F[number]; sortOrder: V2SortOrder }
 ) {
+  const sortByDescription = fields.includes('name')
+    ? `Field used to sort the result. ${nameSortCollation()}`
+    : 'Field used to sort the result.'
   return {
-    sortBy: z.enum(fields).default(defaults.sortBy).describe('Field used to sort the result.'),
+    sortBy: z.enum(fields).default(defaults.sortBy).describe(sortByDescription),
     sortOrder: v2SortOrderSchema.default(defaults.sortOrder).describe('Sort direction.'),
   }
 }

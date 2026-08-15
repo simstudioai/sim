@@ -443,9 +443,7 @@ export async function runCopilotLifecycle(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Per-subagent checkpoint resume (concurrent fan-out)
-// ---------------------------------------------------------------------------
 //
 // Under the per-subagent checkpoint model each paused subagent is its OWN
 // checkpoint chain (frame.checkpointId) joined at the orchestrator. Instead of
@@ -836,9 +834,7 @@ async function driveSubagentChains(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Checkpoint loop – the core state machine
-// ---------------------------------------------------------------------------
 
 async function runCheckpointLoop(
   initialPayload: Record<string, unknown>,
@@ -1189,9 +1185,7 @@ async function runCheckpointLoop(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Execution context builder
-// ---------------------------------------------------------------------------
 
 async function buildExecutionContext(
   requestPayload: Record<string, unknown>,
@@ -1315,9 +1309,7 @@ async function ensureHeadlessRunIdentity(input: {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Adds `enterpriseByokEligible: true` to the initial mothership payload when the

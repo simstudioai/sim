@@ -1,5 +1,6 @@
+import { isRecordLike } from '@sim/utils/object'
 import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
-import { isRecord, requiredString } from '@/tools/github/response-parsers'
+import { requiredString } from '@/tools/github/response-parsers'
 import type { ReplyReviewThreadParams, ReplyReviewThreadResponse } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -67,10 +68,10 @@ export const replyReviewThreadTool: ToolConfig<ReplyReviewThreadParams, ReplyRev
       const data = await readGraphQlData(response, CONTEXT)
 
       const payload = data.addPullRequestReviewThreadReply
-      if (!isRecord(payload))
+      if (!isRecordLike(payload))
         throw new Error(`${CONTEXT}.addPullRequestReviewThreadReply is missing`)
       const comment = payload.comment
-      if (!isRecord(comment)) throw new Error(`${CONTEXT}.comment is missing`)
+      if (!isRecordLike(comment)) throw new Error(`${CONTEXT}.comment is missing`)
 
       return {
         success: true,

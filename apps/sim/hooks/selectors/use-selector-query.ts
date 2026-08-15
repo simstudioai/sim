@@ -70,7 +70,12 @@ export function useSelectorOptions(
     context: args.context,
     search: args.search,
   }
-  const isEnabled = args.enabled ?? (definition.enabled ? definition.enabled(queryArgs) : true)
+  /**
+   * `definition.enabled` mirrors the preconditions the definition's own fetchers assert, so
+   * it is a hard precondition for the list, not a default a caller may replace. A caller's
+   * `enabled` only narrows — widening would run a fetch guaranteed to reject and cache it.
+   */
+  const isEnabled = args.enabled !== false && (definition.enabled?.(queryArgs) ?? true)
   const supportsPagination = Boolean(definition.fetchPage)
 
   const flatQuery = useQuery<SelectorOption[]>({

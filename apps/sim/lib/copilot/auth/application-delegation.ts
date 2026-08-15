@@ -1,6 +1,8 @@
 import type { DelegatedPrincipal } from '@sim/auth/principal'
+import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 
-export const COPILOT_APPLICATION_DELEGATION_TTL_MS = 5 * 60 * 1000
+/** Keeps delegated authority valid for the full bounded Copilot orchestration lifetime. */
+export const COPILOT_APPLICATION_DELEGATION_TTL_MS = ORCHESTRATION_TIMEOUT_MS
 
 export interface CopilotExecutionContext {
   userId?: string

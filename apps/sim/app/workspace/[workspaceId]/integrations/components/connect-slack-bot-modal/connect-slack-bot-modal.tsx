@@ -17,12 +17,18 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { SlackIcon } from '@/components/icons'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   useCreateWorkspaceCredential,
   useUpdateWorkspaceCredential,
 } from '@/hooks/queries/credentials'
-import { buildSlackManifest, SLACK_CAPABILITIES } from '@/triggers/slack/capabilities'
+import {
+  buildSlackManifest,
+  getSlackManagedUserAuthorizationManifestConfig,
+  SLACK_CAPABILITIES,
+  SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
+} from '@/triggers/slack/capabilities'
 import { buildSlackCustomBotRequestUrl } from '@/triggers/webhook-url'
 
 const logger = createLogger('ConnectSlackBotModal')
@@ -31,11 +37,16 @@ const DEFAULT_APP_NAME = 'Sim Bot'
 const DONE_STEP = 4
 
 /** Every capability is granted by default; trimming is an opt-in dropdown. */
-const ALL_CAPABILITIES = new Set(SLACK_CAPABILITIES.map((c) => c.id))
+const CUSTOM_BOT_CAPABILITIES = [
+  ...SLACK_CAPABILITIES,
+  SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
+] as const
 
-const CAPABILITY_OPTIONS: ChipDropdownOption[] = SLACK_CAPABILITIES.map((c) => ({
-  value: c.id,
-  label: c.label,
+const ALL_CAPABILITIES = new Set(CUSTOM_BOT_CAPABILITIES.map((capability) => capability.id))
+
+const CAPABILITY_OPTIONS: ChipDropdownOption[] = CUSTOM_BOT_CAPABILITIES.map((capability) => ({
+  value: capability.id,
+  label: capability.label,
 }))
 
 interface ConnectSlackBotModalProps {
@@ -114,10 +125,14 @@ export function ConnectSlackBotModal({
   const requestUrl = useMemo(() => buildSlackCustomBotRequestUrl(credentialId), [credentialId])
 
   const manifestJson = useMemo(() => {
+    const managedUserAuthorization = selected.has(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id)
+      ? getSlackManagedUserAuthorizationManifestConfig(getBaseUrl())
+      : undefined
     const manifest = buildSlackManifest(selected, {
       appName: appName.trim() || DEFAULT_APP_NAME,
       webhookUrl: requestUrl,
       description: appDescription,
+      ...(managedUserAuthorization ? { managedUserAuthorization } : {}),
     })
     return JSON.stringify(manifest, null, 2)
   }, [selected, appName, appDescription, requestUrl])
@@ -265,7 +280,7 @@ function StepConfigure({
   capabilityIds,
   onCapabilityIdsChange,
 }: StepConfigureProps) {
-  const allSelected = capabilityIds.length === SLACK_CAPABILITIES.length
+  const allSelected = capabilityIds.length === CUSTOM_BOT_CAPABILITIES.length
 
   return (
     <div className='space-y-4'>
@@ -306,7 +321,7 @@ function StepConfigure({
         {allSelected && (
           <p className='text-[var(--text-muted)] text-caption'>
             Full access — the bot can read and send messages, react, upload files, and chat as an AI
-            assistant.
+            assistant, and people can authorize it through Credential Groups.
           </p>
         )}
       </div>

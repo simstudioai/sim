@@ -399,30 +399,6 @@ export function useWorkspaceSettings(workspaceId: string) {
   })
 }
 
-type UpdateWorkspaceSettingsParams = { workspaceId: string } & Pick<
-  ContractBodyInput<typeof updateWorkspaceContract>,
-  'billedAccountUserId'
->
-
-/**
- * Updates workspace settings (e.g., billing configuration).
- * Invalidates the workspace settings cache on success.
- */
-export function useUpdateWorkspaceSettings() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ workspaceId, ...updates }: UpdateWorkspaceSettingsParams) => {
-      return requestJson(updateWorkspaceContract, { params: { id: workspaceId }, body: updates })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceKeys.settings(variables.workspaceId),
-      })
-    },
-  })
-}
-
 /** Workspace with admin access metadata. */
 export interface AdminWorkspace {
   id: string

@@ -1,5 +1,6 @@
 import { safeCompare } from '@sim/security/compare'
 import { sha256Base64Url, sha256Hex } from '@sim/security/hash'
+import type { CliAuthScope } from '@/lib/api/contracts/cli-auth'
 import { getRedisClient } from '@/lib/core/config/redis'
 
 /**
@@ -29,10 +30,29 @@ interface ApprovalRecord {
   challenge: string
   /** Always taken from the approving user's session, never from a request body. */
   userId: string
+  /**
+   * Which key space to mint from, fixed at approval time. Recording it here
+   * rather than reading it from the poll body is what makes the browser consent
+   * binding: the poll carries only a secret, so it cannot widen what the user
+   * agreed to. Absent on records written before the field existed — those are
+   * copilot approvals.
+   */
+  scope?: CliAuthScope
+  /** Platform scope only: the workspace the user picked, for the terminal's default. */
+  workspaceId?: string
+  /** Whether to mint a key scoped to `workspaceId`. Admin-verified at approval. */
+  workspaceBound?: boolean
   createdAt: number
 }
 
-export type PollResult = { status: 'pending' } | { status: 'approved'; userId: string }
+export interface ApprovalGrant {
+  userId: string
+  scope: CliAuthScope
+  workspaceId: string | null
+  workspaceBound: boolean
+}
+
+export type PollResult = { status: 'pending' } | ({ status: 'approved' } & ApprovalGrant)
 
 function requireRedis() {
   const redis = getRedisClient()
@@ -61,10 +81,21 @@ function mintLockKey(requestId: string): string {
 export async function createApproval(
   userId: string,
   requestId: string,
-  challenge: string
+  challenge: string,
+  grant: { scope: CliAuthScope; workspaceId?: string; workspaceBound?: boolean } = {
+    scope: 'copilot',
+  }
 ): Promise<void> {
   const redis = requireRedis()
-  const record: ApprovalRecord = { challenge, userId, createdAt: Date.now() }
+  const record: ApprovalRecord = {
+    challenge,
+    userId,
+    scope: grant.scope,
+    ...(grant.workspaceId
+      ? { workspaceId: grant.workspaceId, workspaceBound: grant.workspaceBound === true }
+      : {}),
+    createdAt: Date.now(),
+  }
   await redis.set(approvalKey(requestId), JSON.stringify(record), 'PX', APPROVAL_TTL_MS)
 }
 
@@ -97,7 +128,13 @@ export async function pollApproval(requestId: string, pollSecret: string): Promi
   const reserved = await redis.set(mintLockKey(requestId), '1', 'PX', MINT_LOCK_TTL_MS, 'NX')
   if (reserved !== 'OK') return { status: 'pending' }
 
-  return { status: 'approved', userId: record.userId }
+  return {
+    status: 'approved',
+    userId: record.userId,
+    scope: record.scope ?? 'copilot',
+    workspaceId: record.workspaceId ?? null,
+    workspaceBound: record.workspaceBound === true,
+  }
 }
 
 /** Consumes the approval after a successful mint — single-use from here on. */

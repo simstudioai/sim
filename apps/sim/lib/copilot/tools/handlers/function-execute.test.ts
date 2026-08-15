@@ -84,11 +84,13 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchServableWorkspaceFileBuffer: mockFetchServableWorkspaceFileBuffer,
   fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
   findWorkspaceFileRecord: mockFindWorkspaceFileRecord,
   getSandboxWorkspaceFilePath: mockGetSandboxWorkspaceFilePath,
   listWorkspaceFiles: mockListWorkspaceFiles,
+}))
+vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
+  fetchAuthorizedServableWorkspaceFileBuffer: mockFetchServableWorkspaceFileBuffer,
 }))
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   listWorkspaceFileFolders: mockListWorkspaceFileFolders,

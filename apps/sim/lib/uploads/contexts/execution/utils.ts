@@ -1,6 +1,7 @@
 import { generateId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
-import { isUuid, sanitizeFileName } from '@/executor/constants'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
+import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -24,7 +25,7 @@ export interface ExecutionContext {
  */
 export function generateLargeValuePayloadKey(context: ExecutionContext, id: string): string {
   const { workspaceId, workflowId, executionId } = context
-  const safeFileName = sanitizeFileName(`large-value-${id}.json`)
+  const safeFileName = buildStorageKeySegment('', `large-value-${id}.json`)
   return `execution/${workspaceId}/${workflowId}/${executionId}/${safeFileName}`
 }
 
@@ -47,7 +48,7 @@ export function generateUniqueExecutionFileKey(
   fileName: string
 ): string {
   const { workspaceId, workflowId, executionId } = context
-  const safeFileName = sanitizeFileName(fileName)
+  const safeFileName = buildStorageKeySegment('', fileName)
   return `execution/${workspaceId}/${workflowId}/${executionId}/${generateId()}/${safeFileName}`
 }
 

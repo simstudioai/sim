@@ -1,4 +1,10 @@
-import { v2ListCredentialsContract } from '@/lib/api/contracts/v2/credentials'
+import {
+  v2CreateCredentialConnectionContract,
+  v2CreateServiceAccountCredentialContract,
+  v2DeleteCredentialContract,
+  v2ListCredentialProvidersContract,
+  v2ListCredentialsContract,
+} from '@/lib/api/contracts/v2/credentials'
 import {
   v2CreateCustomToolContract,
   v2DeleteCustomToolContract,
@@ -19,14 +25,16 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   FULL_SET_LIST,
+  HEAD_MIRRORS_GET,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
-  WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2DeleteSecretContract,
@@ -93,6 +101,16 @@ const MCP_SERVER_EXAMPLE = {
   hasOauthClientSecret: false,
 } as const
 
+/**
+ * What registration actually returns, as distinct from {@link MCP_SERVER_EXAMPLE},
+ * which shows a server a discovery has already reached. Reusing the discovered
+ * example on the create response advertised a connection the call does not make.
+ */
+const MCP_SERVER_REGISTERED_EXAMPLE = (() => {
+  const { lastToolsRefresh: _refresh, lastConnected: _connected, ...rest } = MCP_SERVER_EXAMPLE
+  return { ...rest, connectionStatus: 'disconnected', toolCount: 0 } as const
+})()
+
 const MCP_TOOL_EXAMPLE = {
   name: 'search_docs',
   description: 'Search the internal documentation',
@@ -154,6 +172,63 @@ const CREDENTIAL_EXAMPLE = {
   updatedAt: '2026-06-20T14:02:11.000Z',
 } as const
 
+const CREDENTIAL_PROVIDER_EXAMPLE = {
+  type: 'oauth',
+  serviceId: 'salesforce',
+  name: 'Salesforce',
+  description: 'Connect to Salesforce CRM data and operations.',
+  providerFamily: 'salesforce',
+  available: true,
+  supportsReconnect: true,
+  authorizationOptions: [
+    { providerId: 'salesforce', label: 'Production' },
+    { providerId: 'salesforce-sandbox', label: 'Sandbox' },
+  ],
+} as const
+
+const SERVICE_ACCOUNT_PROVIDER_EXAMPLE = {
+  type: 'service_account',
+  serviceId: 'zoom-service-account',
+  providerId: 'zoom-service-account',
+  name: 'Zoom server-to-server app',
+  description: 'Connect Zoom with a server-to-server app.',
+  providerFamily: 'zoom',
+  available: true,
+  docsUrl: 'https://docs.sim.ai/integrations/zoom-service-account',
+  requiresClientGeneratedCredentialId: false,
+  fields: [
+    {
+      id: 'clientId',
+      label: 'Client ID',
+      placeholder: 'Paste the client ID',
+      required: true,
+      secret: false,
+      multiline: false,
+    },
+    {
+      id: 'clientSecret',
+      label: 'Client secret',
+      placeholder: 'Paste the client secret',
+      required: true,
+      secret: true,
+      multiline: false,
+    },
+    {
+      id: 'orgId',
+      label: 'Account ID',
+      placeholder: 'Paste the account ID',
+      required: true,
+      secret: false,
+      multiline: false,
+    },
+  ],
+} as const
+
+const CREDENTIAL_CONNECTION_EXAMPLE = {
+  authorizationUrl: 'https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123',
+  expiresAt: '2026-06-20T14:17:11.000Z',
+} as const
+
 const SECRET_EXAMPLE = {
   name: 'STRIPE_API_KEY',
   scope: 'workspace',
@@ -201,7 +276,7 @@ function resourceOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2GetWorkspaceContract,
     resourceOperation('Workspaces', {
@@ -209,10 +284,11 @@ const routes = [
       summary: 'Get Workspace',
       description:
         'Return public metadata for one accessible workspace. Governance identities, billing identities, and internal membership identifiers are intentionally omitted.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'Public workspace metadata.' },
     }),
     {
+      query: v2GetWorkspaceContract.query,
       params: documentedSchema(
         v2GetWorkspaceContract.params,
         'GetWorkspaceParams',
@@ -235,7 +311,7 @@ const routes = [
       summary: 'List Workspace Members',
       description:
         "List the workspace's effective members ordered by email. Explicit workspace grants and inherited organization-administrator grants are merged; internal membership and billing identities are omitted.",
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'An email-ordered page of effective workspace members.' },
     }),
     {
@@ -266,8 +342,8 @@ const routes = [
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
-        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. Nothing caps how many servers a workspace registers, so this list is paginated: paginate with `limit` and `cursor`, stopping when `nextCursor` is null. `connectionStatus`, `toolCount`, `lastError`, and `lastToolsRefresh` describe the most recent tool discovery and stay at their registration defaults until one runs — call `GET /api/v2/mcp-servers/{id}/tools` to run it.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The discovery fields stay at their registration defaults until `GET /api/v2/mcp-servers/{id}/tools` runs a discovery.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'MCP servers registered in the workspace.' },
     }),
     {
@@ -292,11 +368,12 @@ const routes = [
       operationId: 'createMcpServer',
       summary: 'Create MCP Server',
       description:
-        'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+        'Register an MCP server in a workspace. The endpoint URL is the server identity, so a URL already registered here is a `409` — reconfigure that server with `PATCH /api/v2/mcp-servers/{id}` instead. Registration never connects to the endpoint: the server comes back `disconnected` and stays unavailable until `GET /api/v2/mcp-servers/{id}/tools` succeeds.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The MCP server was registered.' },
     }),
     {
+      query: v2CreateMcpServerContract.query,
       body: documentedSchema(
         v2CreateMcpServerContract.body,
         'CreateMcpServerRequest',
@@ -317,7 +394,7 @@ const routes = [
         'CreateMcpServerResponse',
         'Create MCP server response',
         'The registered MCP server without write-only credentials.',
-        [{ data: MCP_SERVER_EXAMPLE }]
+        [{ data: MCP_SERVER_REGISTERED_EXAMPLE }]
       ),
     }
   ),
@@ -328,7 +405,7 @@ const routes = [
       summary: 'Get MCP Server',
       description:
         'Fetch one MCP server by identifier. Request-header values and OAuth client secrets are never returned.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The MCP server.' },
     }),
     {
@@ -359,11 +436,12 @@ const routes = [
       operationId: 'updateMcpServer',
       summary: 'Update MCP Server',
       description:
-        'Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'Update the supplied MCP server fields. Omitted fields are retained, except where a field says otherwise. Any change that invalidates authentication revokes the stored OAuth grant, resets `connectionStatus` to `disconnected`, and clears `lastConnected` and `lastError`, so the server must be rediscovered.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'The updated MCP server.' },
     }),
     {
+      query: v2UpdateMcpServerContract.query,
       params: documentedSchema(
         v2UpdateMcpServerContract.params,
         'UpdateMcpServerParams',
@@ -393,7 +471,7 @@ const routes = [
       summary: 'Delete MCP Server',
       description:
         "Remove an MCP server and revoke its OAuth tokens. Workflows retain blocks that referenced the server's tools, but those tools can no longer be called.",
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The MCP server was deleted.' },
     }),
     {
@@ -423,7 +501,7 @@ const routes = [
     resourceOperation('MCP Servers', {
       operationId: 'listMcpServerTools',
       summary: 'List MCP Server Tools',
-      description: `Connect to a registered MCP server and return the tools it exposes. Unlike most reads this one has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\` on the server resource, so registering a server and then calling this completes onboarding without opening the Sim UI. Because the pass is not a safe read, a \`HEAD\` request is answered with an empty \`200\` without connecting or writing, so it reports only that the endpoint exists and the caller is authorized. Results are served from a short-lived per-workspace cache, so an uncached call reflects whichever workspace member last ran discovery; pass \`refresh=true\` to reconnect under your own credentials and pick up tools added since the last pass, at the cost of a live round trip to the server. The set is bounded by discovery itself — at most 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a server whose stored OAuth grant no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, meaning the registration is intact but a human must reauthorize it in Sim — your API key is fine and re-issuing it changes nothing. ${WORKSPACE_API_KEY_DENIED} Discovery resolves the calling user's own OAuth credentials for the server, which a workspace key cannot supply — so a workspace key that can register a server cannot list its tools.`,
+      description: `Connect to a registered MCP server and return the tools it exposes. This read has side effects: it opens a live connection to the third-party server and writes \`connectionStatus\`, \`toolCount\`, \`lastError\`, and \`lastToolsRefresh\`. ${HEAD_MIRRORS_GET} Discovery is bounded at 1,000 tools and 5 MB of tool payload per server. ${FULL_SET_LIST} An unreachable, slow, or cooling-down server is a \`503\`; a stored OAuth grant that no longer works is a \`409\` with \`error.details.code\` \`MCP_SERVER_REAUTHORIZATION_REQUIRED\`, which only a human reauthorizing in Sim can clear. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Tools exposed by the MCP server.' },
     }),
@@ -455,8 +533,8 @@ const routes = [
       operationId: 'listSkills',
       summary: 'List Skills',
       description:
-        'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List workspace and built-in skills with opaque cursor pagination. Built-ins are marked read-only. The list omits skill bodies; fetch one skill to read its content.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Skills available in the workspace.' },
     }),
     {
@@ -480,12 +558,12 @@ const routes = [
     resourceOperation('Skills', {
       operationId: 'createSkill',
       summary: 'Create Skill',
-      description:
-        'Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      description: `Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The skill was created.' },
     }),
     {
+      query: v2CreateSkillContract.query,
       body: documentedSchema(
         v2CreateSkillContract.body,
         'CreateSkillRequest',
@@ -516,7 +594,7 @@ const routes = [
       summary: 'Get Skill',
       description:
         'Fetch one workspace or built-in skill, including its full content. Built-in skills are marked read-only.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The skill.' },
     }),
     {
@@ -547,10 +625,11 @@ const routes = [
       operationId: 'updateSkill',
       summary: 'Update Skill',
       description: `Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated skill.' },
     }),
     {
+      query: v2UpdateSkillContract.query,
       params: documentedSchema(
         v2UpdateSkillContract.params,
         'UpdateSkillParams',
@@ -579,7 +658,7 @@ const routes = [
       operationId: 'deleteSkill',
       summary: 'Delete Skill',
       description: `Delete a workspace skill. Built-in skills are read-only and cannot be deleted. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The skill was deleted.' },
     }),
     {
@@ -610,8 +689,8 @@ const routes = [
       operationId: 'listCustomTools',
       summary: 'List Custom Tools',
       description:
-        'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List code-backed custom tools defined in a workspace, with opaque cursor pagination. Legacy personal tools are excluded.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Custom tools defined in the workspace.' },
     }),
     {
@@ -637,10 +716,11 @@ const routes = [
       summary: 'Create Custom Tool',
       description:
         'Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The custom tool was created.' },
     }),
     {
+      query: v2CreateCustomToolContract.query,
       body: documentedSchema(
         v2CreateCustomToolContract.body,
         'CreateCustomToolRequest',
@@ -670,7 +750,7 @@ const routes = [
       operationId: 'getCustomTool',
       summary: 'Get Custom Tool',
       description: 'Fetch one custom tool by identifier, scoped to its workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The custom tool.' },
     }),
     {
@@ -702,10 +782,11 @@ const routes = [
       summary: 'Update Custom Tool',
       description:
         'Update the supplied custom tool fields. Omitted fields retain their stored values, and titles must remain unique within the workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated custom tool.' },
     }),
     {
+      query: v2UpdateCustomToolContract.query,
       params: documentedSchema(
         v2UpdateCustomToolContract.params,
         'UpdateCustomToolParams',
@@ -735,7 +816,7 @@ const routes = [
       summary: 'Delete Custom Tool',
       description:
         'Delete a custom tool. Agent blocks retain their configuration but can no longer call the deleted tool.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The custom tool was deleted.' },
     }),
     {
@@ -766,8 +847,8 @@ const routes = [
       operationId: 'listCredentials',
       summary: 'List Credentials',
       description:
-        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+        'List OAuth and service-account connections visible to the caller. Secret material is never returned.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Credentials visible to the caller.' },
     }),
     {
@@ -787,12 +868,141 @@ const routes = [
     }
   ),
   defineOpenApiRoute(
+    v2ListCredentialProvidersContract,
+    resourceOperation('Credentials', {
+      operationId: 'listCredentialProviders',
+      summary: 'List Credential Providers',
+      description: `List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. Optionally search provider names with a case-insensitive substring match. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Credential provider catalog with caller-specific availability.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListCredentialProvidersContract.query,
+        'ListCredentialProvidersQuery',
+        'List credential providers query',
+        'Workspace and optional provider-name search used to filter caller-specific availability.'
+      ),
+      response: documentedSchema(
+        v2ListCredentialProvidersContract.response.schema,
+        'ListCredentialProvidersResponse',
+        'List credential providers response',
+        'OAuth and service-account connection methods.',
+        [
+          {
+            data: [CREDENTIAL_PROVIDER_EXAMPLE, SERVICE_ACCOUNT_PROVIDER_EXAMPLE],
+            nextCursor: null,
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateServiceAccountCredentialContract,
+    resourceOperation('Credentials', {
+      operationId: 'createServiceAccountCredential',
+      summary: 'Create Service-Account Credential',
+      description: `Verify and store one service-account credential. Use provider discovery to select a service-account provider and submit its required fields. Secret fields are write-only and are never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: {
+        byStatus: {
+          200: { description: 'An existing credential matched the verified source.' },
+          201: { description: 'The service-account credential was created.' },
+        },
+      },
+    }),
+    {
+      query: v2CreateServiceAccountCredentialContract.query,
+      body: documentedSchema(
+        v2CreateServiceAccountCredentialContract.body,
+        'CreateServiceAccountCredentialRequest',
+        'Create service-account credential request',
+        'Provider identifier, optional display metadata, and the write-only fields declared by provider discovery.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            providerId: 'zoom-service-account',
+            displayName: 'Zoom automation',
+            clientId: 'YOUR_CLIENT_ID',
+            clientSecret: 'YOUR_CLIENT_SECRET',
+            orgId: 'YOUR_ACCOUNT_ID',
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2CreateServiceAccountCredentialContract.response.schema,
+        'CreateServiceAccountCredentialResponse',
+        'Create service-account credential response',
+        'Verified credential metadata without secret material.',
+        [{ data: CREDENTIAL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateCredentialConnectionContract,
+    resourceOperation('Credentials', {
+      operationId: 'createCredentialConnection',
+      summary: 'Create Credential Connection',
+      description: `Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL in a browser, sign in as the personal API-key owner, complete provider authorization, then refresh the credentials list. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'A short-lived browser authorization URL.' },
+    }),
+    {
+      query: v2CreateCredentialConnectionContract.query,
+      body: documentedSchema(
+        v2CreateCredentialConnectionContract.body,
+        'CreateCredentialConnectionBody',
+        'Create credential connection body',
+        'For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved.'
+      ),
+      response: documentedSchema(
+        v2CreateCredentialConnectionContract.response.schema,
+        'CreateCredentialConnectionResponse',
+        'Create credential connection response',
+        'Short-lived Sim browser entrypoint and its expiry.',
+        [{ data: CREDENTIAL_CONNECTION_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteCredentialContract,
+    resourceOperation('Credentials', {
+      operationId: 'deleteCredential',
+      summary: 'Disconnect Credential',
+      description: `Disconnect an OAuth or service-account credential and clear its stored workflow, deployment, paused-run, knowledge-connector, and webhook references. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The credential was disconnected.' },
+    }),
+    {
+      params: documentedSchema(
+        v2DeleteCredentialContract.params,
+        'DeleteCredentialParams',
+        'Disconnect credential path parameters',
+        'Credential selected for disconnection.'
+      ),
+      query: documentedSchema(
+        v2DeleteCredentialContract.query,
+        'DeleteCredentialQuery',
+        'Disconnect credential query',
+        'Workspace expected to own the credential.'
+      ),
+      response: documentedSchema(
+        v2DeleteCredentialContract.response.schema,
+        'DeleteCredentialResponse',
+        'Disconnect credential response',
+        'Acknowledgement that the credential was disconnected.',
+        [{ data: { id: CREDENTIAL_EXAMPLE.id, deleted: true } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListSecretsContract,
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
       summary: 'List Secrets',
-      description: `List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. Paginate with \`limit\` and \`cursor\`, stopping when \`nextCursor\` is null. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      description: `List workspace and caller-owned personal secret metadata with opaque cursor pagination. Only names, scope, role, and timestamps are returned; secret values are never returned. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Secret metadata visible to the caller.' },
     }),
     {
@@ -817,7 +1027,7 @@ const routes = [
       operationId: 'setSecret',
       summary: 'Set Secret',
       description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: {
         byStatus: {
           200: { description: 'The existing secret value was replaced.' },
@@ -826,6 +1036,7 @@ const routes = [
       },
     }),
     {
+      query: v2SetSecretContract.query,
       params: documentedSchema(
         v2SetSecretContract.params,
         'SetSecretParams',
@@ -860,7 +1071,7 @@ const routes = [
       operationId: 'deleteSecret',
       summary: 'Delete Secret',
       description: `Delete a workspace or caller-owned personal secret without reading or returning its stored value. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The secret was deleted.' },
     }),
     {
@@ -894,6 +1105,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const resourcesOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-resources.json',
@@ -932,7 +1145,8 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     },
     {
       name: 'Credentials',
-      description: 'List OAuth and service-account connections without secret material.',
+      description:
+        'Discover providers, create service-account credentials, connect or reconnect OAuth accounts, disconnect credentials, and list connections without secret material.',
     },
     {
       name: 'Secrets',

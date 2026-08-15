@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   SupabaseInvokeFunctionParams,
   SupabaseInvokeFunctionResponse,
@@ -87,7 +88,7 @@ export const invokeFunctionTool: ToolConfig<
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }
-      if (params.headers && typeof params.headers === 'object' && !Array.isArray(params.headers)) {
+      if (isRecordLike(params.headers)) {
         for (const [key, value] of Object.entries(params.headers)) {
           headers[key] = String(value)
         }

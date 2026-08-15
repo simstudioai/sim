@@ -15,7 +15,7 @@ import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { pendingDeleteMask } from '@/lib/table/rows/service'
+import { pendingDeleteMask } from '@/lib/table/rows/pending-delete-mask'
 import type {
   RowData,
   TableDefinition,
@@ -385,25 +385,6 @@ export async function getTableJob(
     .where(and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId)))
     .limit(1)
   return job ?? null
-}
-
-/**
- * Stamps an export job's generated-file storage key onto its payload (`{ resultKey }` merge).
- * Scoped to the still-running job so a superseded attempt can't clobber a newer run's result.
- * The download route reads it; the janitor deletes the file when the terminal job is pruned.
- */
-export async function setJobResultKey(
-  tableId: string,
-  jobId: string,
-  resultKey: string
-): Promise<void> {
-  await db
-    .update(tableJobs)
-    .set({
-      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || jsonb_build_object('resultKey', ${resultKey}::text)`,
-      updatedAt: new Date(),
-    })
-    .where(ownsActiveJob(tableId, jobId))
 }
 
 /** Stamps an export result only while the canonical workspace-scoped job is active. */

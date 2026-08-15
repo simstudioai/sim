@@ -7,6 +7,7 @@ import {
   useCallback,
   useRef,
 } from 'react'
+import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
@@ -32,9 +33,7 @@ interface FilePreviewControllerDeps {
 }
 
 function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
+  return isRecordLike(value) ? (value as Record<string, unknown>) : undefined
 }
 
 /**

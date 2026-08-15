@@ -1,3 +1,4 @@
+import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { resolveFieldNoun } from '@/lib/workflows/blocks/canvas-sentence-noun'
 import { resolveTriggerSentence } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import type {
@@ -25,16 +26,6 @@ import type {
  * sentence a user reads has the same shape before and after they fill it in.
  */
 export type ResolvedSentenceSegment = string | { subBlockId: string; noun?: string }
-
-/**
- * The subblock id that carries a block's operation.
- *
- * Singular only. Four blocks (`elasticsearch`, `mailchimp`, `onepassword`,
- * `typeform`) also declare an `operations` subblock, but it holds a JSON-patch
- * payload rather than an operation selector — matching it could only ever key
- * a sentence off the wrong value.
- */
-const OPERATION_SUBBLOCK_ID = 'operation'
 
 type CanvasSentenceConfig = Pick<BlockConfig, 'canvasPresentation' | 'subBlocks'>
 

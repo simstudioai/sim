@@ -47,6 +47,7 @@ vi.mock('@/lib/secrets/application/use-cases', () => ({
 }))
 
 import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET } from '@/app/api/v2/secrets/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -132,6 +133,78 @@ describe('GET /api/v2/secrets', () => {
         cursor: undefined,
         cursorKeys: undefined,
       },
+      request: expect.anything(),
+    })
+  })
+
+  /**
+   * Pins the binding end-to-end — the mint in `present` and the read in
+   * `mapInput` — because the contract-level sweep only checks a hand-maintained
+   * map of param names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [secret],
+      userId: 'user-1',
+      nextCursorKeys: ['STRIPE_API_KEY', 'secret-1'],
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}&search=stripe`,
+        { headers: { 'x-api-key': 'key' } }
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mocks.list.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}&search=twilio&cursor=${encodeURIComponent(nextCursor)}`,
+        { headers: { 'x-api-key': 'key' } }
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.list).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [secret],
+      userId: 'user-1',
+      nextCursorKeys: ['STRIPE_API_KEY', 'secret-1'],
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}&search=stripe`,
+        { headers: { 'x-api-key': 'key' } }
+      )
+    )
+    const { nextCursor } = await minted.json()
+
+    mocks.list.mockClear()
+    const resumed = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}&search=stripe&cursor=${encodeURIComponent(nextCursor)}`,
+        { headers: { 'x-api-key': 'key' } }
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: expect.objectContaining({
+        search: 'stripe',
+        cursorKeys: ['STRIPE_API_KEY', 'secret-1'],
+      }),
       request: expect.anything(),
     })
   })

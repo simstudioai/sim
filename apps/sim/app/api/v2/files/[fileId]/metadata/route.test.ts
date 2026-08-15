@@ -35,6 +35,7 @@ vi.mock('@/lib/users/queries', () => ({
 }))
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/files/[fileId]/metadata/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -78,6 +79,15 @@ function buildRecord() {
 
 const callGet = (query: string) =>
   GET(new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/metadata?${query}`), context)
+
+/**
+ * Stands in for the application use case's lifecycle predicate: a soft-deleted row only
+ * resolves when the caller opted into the archived set through `includeDeleted`.
+ */
+const archivedFileUseCase = async ({ input }: { input: { includeDeleted?: boolean } }) => {
+  if (!input.includeDeleted) throw new OrchestrationError('not_found', 'File not found')
+  return { file: { ...buildRecord(), deletedAt: new Date('2024-01-03T00:00:00Z') }, share: SHARE }
+}
 
 describe('GET /api/v2/files/[fileId]/metadata', () => {
   beforeEach(() => {
@@ -138,9 +148,94 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     })
     expect(mocks.readMetadata).toHaveBeenCalledWith({
       principal: auth.principal,
-      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
+      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
       request: expect.anything(),
     })
+  })
+
+  it('leaves an archived file unreachable when scope is omitted', async () => {
+    mocks.readMetadata.mockImplementation(archivedFileUseCase)
+
+    const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
+    expect(mocks.readMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
+      })
+    )
+  })
+
+  it('leaves an archived file unreachable under an explicit scope=active', async () => {
+    mocks.readMetadata.mockImplementation(archivedFileUseCase)
+
+    const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=active`)
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
+    expect(mocks.readMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: false },
+      })
+    )
+  })
+
+  it('returns archived metadata when scope=archived opts into the archived set', async () => {
+    mocks.readMetadata.mockImplementation(archivedFileUseCase)
+
+    const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=archived`)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: {
+        id: FILE_ID,
+        name: 'data.csv',
+        size: 1024,
+        type: 'text/csv',
+        key: 'workspace/ws/1-x-data.csv',
+        folderPath: '/',
+        uploadedByEmail: 'ada@example.com',
+        uploadedAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        deletedAt: '2024-01-03T00:00:00.000Z',
+        share: SHARE,
+      },
+    })
+    expect(mocks.readMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: auth.principal,
+        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: true },
+      })
+    )
+  })
+
+  it('still conceals an unauthorized archived read behind the same 404', async () => {
+    mocks.readMetadata.mockRejectedValue(new NoWorkspaceAccessError())
+
+    const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=archived`)
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
+    /**
+     * `includeDeleted: true` is what makes this the *archived* read being
+     * concealed rather than the plain cross-workspace 404 the suite already
+     * pins: without it the request never reaches the archived set and the test
+     * proves only `NoWorkspaceAccessError → 404`.
+     */
+    expect(mocks.readMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: auth.principal,
+        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, includeDeleted: true },
+      })
+    )
+  })
+
+  it('rejects an unrecognized scope before reaching the use case', async () => {
+    const response = await callGet(`workspaceId=${WORKSPACE_ID}&scope=all`)
+
+    expect(response.status).toBe(400)
+    expect(mocks.readMetadata).not.toHaveBeenCalled()
   })
 
   it('returns a null share when the file has no share configuration', async () => {

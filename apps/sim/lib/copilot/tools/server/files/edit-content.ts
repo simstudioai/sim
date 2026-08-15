@@ -237,7 +237,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       // Compile once via the right engine (or isolated-vm fallback) and resolve
       // the source MIME to store. Shared with the create path.
-      const principal = resolveCopilotFilePrincipal(context, intent.fileId)
+      const principal = resolveCopilotFilePrincipal(context)
       const compiled = await compileDocForWrite({
         source: finalContent,
         fileName: fileRecord.name,

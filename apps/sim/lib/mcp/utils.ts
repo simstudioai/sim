@@ -5,6 +5,7 @@ import {
   type McpApiResponse,
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
+  McpServerCooldownError,
 } from '@/lib/mcp/types'
 import { isMcpTool, MCP } from '@/executor/constants'
 
@@ -167,10 +168,10 @@ export function categorizeError(error: unknown): { message: string; status: numb
   if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
     return { message: 'Authentication required', status: 401 }
   }
+  if (error instanceof McpServerCooldownError) {
+    return { message: 'Server temporarily unavailable', status: 503 }
+  }
   if (error instanceof McpConnectionError) {
-    if (error.message.toLowerCase().includes('cooldown')) {
-      return { message: 'Server temporarily unavailable', status: 503 }
-    }
     return { message: 'Connection failed', status: 502 }
   }
 

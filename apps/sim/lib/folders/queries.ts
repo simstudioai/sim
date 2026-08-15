@@ -93,34 +93,6 @@ export async function findActiveFolder(
 }
 
 /**
- * A folder in a workspace's tree regardless of archive state.
- *
- * {@link findActiveFolder} answers "is this a valid destination"; this answers "does this row
- * exist here at all". Delete needs the second question — `deleteFolder` reuses an already
- * archived folder's own `deletedAt` so a cascade that failed partway can be retried, and
- * filtering archived rows out would strand those stragglers.
- */
-export async function findFolderInWorkspace(
-  folderId: string,
-  workspaceId: string,
-  resourceType: FolderResourceType
-): Promise<typeof folder.$inferSelect | null> {
-  const [row] = await db
-    .select()
-    .from(folder)
-    .where(
-      and(
-        eq(folder.id, folderId),
-        eq(folder.workspaceId, workspaceId),
-        eq(folder.resourceType, resourceType)
-      )
-    )
-    .limit(1)
-
-  return row ?? null
-}
-
-/**
  * Where a restored resource should land: its original folder when that folder is reachable,
  * otherwise the workspace root.
  *
@@ -263,6 +235,44 @@ export function resolveFolderPathFromIndex(
   path: string
 ): string | null | undefined {
   return path === ROOT_FOLDER_PATH ? null : index.idByPath.get(path)
+}
+
+/**
+ * A list's `folderPath` filter, resolved against the workspace's active folders.
+ *
+ * `unfiltered` is an omitted param, `folder` names one folder (`null` being the
+ * workspace root), and `noMatch` is a path that names no active folder.
+ */
+export type FolderPathFilter =
+  | { kind: 'unfiltered' }
+  | { kind: 'folder'; folderId: string | null }
+  | { kind: 'noMatch' }
+
+/**
+ * Resolves a list's `folderPath` filter, treating a path that names no active
+ * folder as a filter nothing satisfies rather than as a missing resource.
+ *
+ * A list is a collection, and every other filter it accepts answers a value
+ * nothing matches with an empty page — `workflowIds` naming no workflow and
+ * `model` naming no model both return zero rows. Answering `404 Folder not
+ * found` only on the folder filter made one filter's miss a different kind of
+ * event from all the others, told a caller its *collection* was missing when it
+ * was not, turned a folder deleted mid-walk into a failed pagination loop, and
+ * answered whether a path exists on an endpoint that was not asked. The sibling
+ * folder lists already answer a non-matching `parentPath` with an empty page, so
+ * this is the family's existing behavior applied to the resource lists too.
+ *
+ * A path that could not name a folder at all is still rejected by the contract,
+ * as a 400, before any of this runs. Mutations keep their 404: creating into or
+ * moving to a folder that does not exist has no empty-set reading.
+ */
+export function resolveFolderPathFilter(
+  index: FolderPathIndex,
+  path: string | undefined
+): FolderPathFilter {
+  if (path === undefined) return { kind: 'unfiltered' }
+  const folderId = resolveFolderPathFromIndex(index, path)
+  return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
 }
 
 export async function listActiveFolderRows(

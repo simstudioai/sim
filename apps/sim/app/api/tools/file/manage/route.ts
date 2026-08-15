@@ -2,6 +2,7 @@ import { Buffer, isUtf8 } from 'buffer'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
@@ -480,7 +481,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const { fileId, fileInput } = body
         const selectedFileId =
           fileId ||
-          (fileInput && typeof fileInput === 'object' && !Array.isArray(fileInput)
+          (isRecordLike(fileInput)
             ? (() => {
                 const obj = fileInput as Record<string, unknown>
                 return typeof obj.id === 'string'

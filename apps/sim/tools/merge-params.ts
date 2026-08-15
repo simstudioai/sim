@@ -43,11 +43,7 @@ function deepMergeInputMapping(
     } catch {
       // Invalid JSON, treat as empty
     }
-  } else if (
-    typeof userInputMapping === 'object' &&
-    userInputMapping !== null &&
-    !Array.isArray(userInputMapping)
-  ) {
+  } else if (isRecordLike(userInputMapping)) {
     parsedUserMapping = userInputMapping
   }
 

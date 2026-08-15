@@ -2543,6 +2543,7 @@ export class AgentBlockHandler implements BlockHandler {
           credentialId: providerRequest.vertexCredential,
           actingUserId: ctx.userId,
           workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           callerLabel: 'vertex-agent',
         })
       }

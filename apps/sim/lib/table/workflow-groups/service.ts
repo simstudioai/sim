@@ -24,6 +24,7 @@ import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { getTableById, withLockedTable } from '@/lib/table/service'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type {
@@ -37,7 +38,8 @@ import type {
   WorkflowGroup,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import { assertValidSchema, runWorkflowColumn, stripGroupDeps } from '@/lib/table/workflow-columns'
+import { runWorkflowColumn } from '@/lib/table/workflow-columns'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableWorkflowGroupsService')
 /**
@@ -140,6 +142,13 @@ export async function addWorkflowGroup(
         throw new OrchestrationError(
           'validation',
           `Workflow group "${data.group.id}" already exists`
+        )
+      }
+
+      if (groups.length >= TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE) {
+        throw new OrchestrationError(
+          'validation',
+          `Table has reached the maximum of ${TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE} workflow groups`
         )
       }
 

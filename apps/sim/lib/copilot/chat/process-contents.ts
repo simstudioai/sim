@@ -576,9 +576,6 @@ async function processPastChat(chatId: string, tagOverride?: string): Promise<Ag
 }
 
 // Back-compat alias; used by processContexts above
-async function processPastChatViaApi(chatId: string, tag?: string) {
-  return processPastChat(chatId, tag)
-}
 
 async function processKnowledgeFromDb(
   knowledgeBaseId: string,
@@ -811,9 +808,7 @@ async function processExecutionLogFromDb(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Active resource context resolution (direct DB lookups, workspace-scoped)
-// ---------------------------------------------------------------------------
 
 /**
  * Resolves the content of the currently active resource tab via direct DB

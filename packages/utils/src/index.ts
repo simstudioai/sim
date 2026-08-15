@@ -20,6 +20,8 @@ export {
   isRecordLike,
   omit,
   sortObjectKeysDeep,
+  toRecord,
+  toRecordOrNull,
 } from './object'
 export {
   generateRandomBytes,

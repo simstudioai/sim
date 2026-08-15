@@ -1,10 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { readdirSync } from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { listContractFiles } from '@/lib/api/contracts/v2/__tests__/contract-sweep'
 import {
   MAX_SCHEMA_DEPTH,
   rejectsUnknownKeys,
@@ -44,8 +43,6 @@ import {
  * no JSON envelope to classify.
  */
 
-const CONTRACTS_DIR = path.resolve(import.meta.dirname, '..', '..')
-
 /** Lists that accept `limit` + `cursor` and can return a non-null `nextCursor`. */
 const PAGED_LISTS = [
   'GET /api/v2/audit-logs',
@@ -72,19 +69,23 @@ const PAGED_LISTS = [
  * Lists that accept neither param and always return `nextCursor: null`, because
  * the set is small and bounded per workspace, per table, or per server.
  *
- * Every folder list is capped where the tree is loaded
- * (`MAX_*_FOLDERS_PER_WORKSPACE`), and one MCP server's tool inventory is capped
- * by tool discovery itself (`LIST_TOOLS_MAX_TOOLS` / `LIST_TOOLS_MAX_BYTES`) no
- * matter what the upstream server reports — bounded by construction rather than
- * by a caller's `limit`. The MCP *server* list is not: nothing caps how many
- * servers a workspace registers, which is why it is paged.
- * Every remaining entry but the MCP server list and the knowledge tag list is a
- * *folder* list, and a folder tree is already capped where it is loaded
- * (`MAX_*_FOLDERS_PER_WORKSPACE`) — bounded by construction rather than by a
- * caller's `limit`. The knowledge tag list is bounded the same way: a knowledge
- * base has a fixed number of tag slots, so its vocabulary cannot grow past them.
+ * Every entry is bounded by construction rather than by a caller's `limit`:
+ *
+ * - The four folder lists are capped where the tree is loaded
+ *   (`MAX_*_FOLDERS_PER_WORKSPACE`).
+ * - One MCP server's tool inventory is capped by tool discovery itself
+ *   (`LIST_TOOLS_MAX_TOOLS` / `LIST_TOOLS_MAX_BYTES`), whatever the upstream
+ *   server reports. The MCP *server* list is not bounded that way — nothing caps
+ *   how many servers a workspace registers — which is why it is paged and does
+ *   not appear here.
+ * - The credential-provider catalog is bounded by the code-defined OAuth and
+ *   service-account registries.
+ * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
+ *   cannot grow past them.
+ * - A table's saved views and its dispatchable groups are capped per table.
  */
 const FULL_SET_LISTS = [
+  'GET /api/v2/credentials/providers',
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',
@@ -94,6 +95,145 @@ const FULL_SET_LISTS = [
   'GET /api/v2/tables/folders',
   'GET /api/v2/workflows/folders',
 ] as const
+
+/**
+ * Which of each paged list's params its cursor is bound to.
+ *
+ * A cursor names a position in ONE sequence, and every param that reorders or
+ * re-filters that sequence decides which sequence that is. Replay a cursor
+ * across a change to any of them and the reply is wrong in a way the caller
+ * cannot see: an offset lands at an unrelated ordinal, and a keyset — which
+ * stays internally coherent — silently drops every match that sorts before its
+ * position. So all of them are stamped into the token and re-checked on the way
+ * back in, and a mismatch is a 400 telling the caller to restart paging.
+ *
+ * The stamp is applied by the route through `cursorScopeKey` +
+ * `cursorSortKey` (`app/api/v2/lib/response.ts`), or, for the three lists whose
+ * token is minted by a domain codec, by wrapping it with `encodeScopedCursor`.
+ * The table-row lists bind inside their own codec (`lib/table/rows/cursor.ts`)
+ * against the same fingerprint.
+ *
+ * This map is the declaration; the tests below check it against what each
+ * contract actually accepts, in both directions. A list that gains a filter
+ * therefore fails here until someone decides whether the cursor is bound to it.
+ */
+const CURSOR_BINDINGS: Record<string, readonly string[]> = {
+  'GET /api/v2/audit-logs': [
+    'organizationId',
+    'includeDeparted',
+    'action',
+    'resourceType',
+    'resourceId',
+    'workspaceId',
+    'actorEmail',
+    'startDate',
+    'endDate',
+  ],
+  'GET /api/v2/billing/logs': ['source', 'workspaceId', 'period', 'startDate', 'endDate'],
+  'GET /api/v2/credentials': ['workspaceId', 'type', 'providerId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/custom-tools': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/files': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/knowledge/[id]/documents': [
+    'workspaceId',
+    'enabledFilter',
+    'search',
+    'tagFilters',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/logs': [
+    'workspaceId',
+    'workflowIds',
+    'triggers',
+    'level',
+    'startDate',
+    'endDate',
+    'runId',
+    'minDurationMs',
+    'maxDurationMs',
+    'minCost',
+    'maxCost',
+    'model',
+    'folderPaths',
+    'order',
+  ],
+  'GET /api/v2/mcp-servers': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/secrets': ['workspaceId', 'scope', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/skills': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/tables': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/tables/[tableId]/rows': [],
+  'POST /api/v2/tables/[tableId]/query': ['predicate', 'sort'],
+  'GET /api/v2/workflows': [
+    'workspaceId',
+    'folderPath',
+    'deployedOnly',
+    'search',
+    'sortBy',
+    'sortOrder',
+  ],
+  'GET /api/v2/workflows/[id]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
+  'GET /api/v2/workflows/[id]/versions': [],
+  'GET /api/v2/workspaces/[workspaceId]/members': [],
+}
+
+/**
+ * The path params each nested paged list binds its cursor to — the ones that
+ * name WHICH parent resource the sequence belongs to.
+ *
+ * {@link CURSOR_BINDINGS} covers only what a contract accepts as query or body,
+ * so a nested list's parent id is invisible to it: an empty binding there reads
+ * the same whether the list genuinely has no filters or whether its parent was
+ * forgotten. Both readings were true at once — `GET /workflows/[id]/versions`
+ * and `GET /workspaces/[workspaceId]/members` declared `[]`, accepted a sibling
+ * parent's token, and answered 200 from a position in a sequence the caller
+ * never walked.
+ *
+ * Every placeholder in a paged list's path is bound, with no exemptions. A path
+ * param is never merely an asserted scope the way a `workspaceId` *query* param
+ * is on the table lists — that one is refused by authorization before paging,
+ * which is why it is exempted in {@link UNBOUND_PARAMS} instead. A placeholder
+ * is what picks the sequence out, so leaving one unbound is exactly the defect
+ * above. Routes apply this through `cursorRoute(contract, params)`, which
+ * resolves the path before fingerprinting it.
+ */
+const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
+  'GET /api/v2/knowledge/[id]/documents': ['id'],
+  'GET /api/v2/tables/[tableId]/rows': ['tableId'],
+  'POST /api/v2/tables/[tableId]/query': ['tableId'],
+  'GET /api/v2/workflows/[id]/runs': ['id'],
+  'GET /api/v2/workflows/[id]/versions': ['id'],
+  'GET /api/v2/workspaces/[workspaceId]/members': ['workspaceId'],
+}
+
+/**
+ * Params a paged list accepts that its cursor is deliberately NOT bound to,
+ * with the reason. Anything not listed here and not in {@link CURSOR_BINDINGS}
+ * fails the sweep.
+ *
+ * `limit` is excluded globally rather than per list: it selects how much of the
+ * sequence to return, not what the sequence is, so a caller is free to change
+ * page size mid-walk and binding it would strand every cursor for no
+ * correctness gain.
+ */
+const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
+  'GET /api/v2/logs': {
+    details: 'Selects how much of each row is rendered, not which rows are in the sequence.',
+    includeTraceSpans: 'Response shaping only; the row set and its order are unchanged.',
+    includeFinalOutput: 'Response shaping only; the row set and its order are unchanged.',
+  },
+  'GET /api/v2/tables/[tableId]/rows': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
+  'POST /api/v2/tables/[tableId]/query': {
+    workspaceId:
+      'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+  },
+}
+
+/** Never part of a binding, on any list. */
+const NEVER_BOUND = new Set<string>(['limit', 'cursor'])
 
 /**
  * Lists that deliberately truncate a fractional `limit` instead of rejecting it.
@@ -252,30 +392,34 @@ function rejectsFractionalLimit(contract: ContractLike): boolean {
   return false
 }
 
-function listContractFiles(dir: string): string[] {
-  const files: string[] = []
-  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
-    a.name.localeCompare(b.name)
-  )) {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (entry.name === '__tests__') continue
-      files.push(...listContractFiles(full))
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
-      files.push(full)
-    }
-  }
-  return files
-}
-
 interface V2ListContract {
   key: string
   name: string
   params: { any: string[]; all: string[] }
+  /** Every param name the contract accepts, across `query` and `body`. */
+  inputKeys: string[]
   /** `undefined` when the contract has no `query`; `null` when it could not be introspected. */
   strictQuery: boolean | null | undefined
   /** Whether a fractional `limit` draws a validation issue on `limit` itself. */
   rejectsFractionalLimit: boolean
+  /** Published description of `nextCursor`, as a caller reads it in the spec. */
+  nextCursorDescription: string
+}
+
+/**
+ * The `nextCursor` description the generated spec carries.
+ *
+ * Read off the JSON Schema rather than the Zod node because that is the
+ * artifact a caller and a generated client actually see — an envelope that is
+ * right in TypeScript but publishes the wrong sentence is exactly the
+ * divergence this exists to catch.
+ */
+function nextCursorDescription(schema: z.ZodType | undefined): string {
+  if (!schema) return ''
+  const published = z.toJSONSchema(schema, { io: 'output', unrepresentable: 'any' }) as {
+    properties?: Record<string, { description?: string }>
+  }
+  return published.properties?.nextCursor?.description ?? ''
 }
 
 /**
@@ -290,7 +434,7 @@ function loadV2ListContracts(): Promise<V2ListContract[]> {
 
 async function sweepV2ListContracts(): Promise<V2ListContract[]> {
   const found = new Map<string, V2ListContract>()
-  for (const file of listContractFiles(CONTRACTS_DIR)) {
+  for (const file of listContractFiles()) {
     const mod = (await import(file)) as Record<string, unknown>
     for (const [name, value] of Object.entries(mod)) {
       if (!isContract(value)) continue
@@ -300,12 +444,15 @@ async function sweepV2ListContracts(): Promise<V2ListContract[]> {
       const label = `${name} (${key})`
       if (!isListResponse(label, value.response?.schema)) continue
       if (found.has(key)) continue
+      const variants = inputVariants(label, value)
       found.set(key, {
         key,
         name,
-        params: paginationParams(inputVariants(label, value)),
+        params: paginationParams(variants),
+        inputKeys: [...new Set(variants.flat())].sort(),
         strictQuery: value.query ? rejectsUnknownKeys(value.query) : undefined,
         rejectsFractionalLimit: rejectsFractionalLimit(value),
+        nextCursorDescription: nextCursorDescription(value.response?.schema),
       })
     }
   }
@@ -360,6 +507,32 @@ describe('v2 list pagination split', () => {
     }
   })
 
+  /**
+   * The envelope is shared by both kinds of list, so its `nextCursor` sentence
+   * has to say which one the caller is holding. Both kinds published the paged
+   * sentence — "Send it back as `cursor`" — on lists whose `.strict()` query
+   * declares no `cursor`, so following the response's own instruction is a 400,
+   * and `nextCursor` is `null` by construction anyway. The description is the
+   * only part of the envelope that can carry the difference.
+   */
+  it('documents nextCursor as the kind of cursor the list actually has', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of FULL_SET_LISTS) {
+      expect(
+        byKey.get(key)?.nextCursorDescription,
+        `${key} returns its whole set but publishes the paged nextCursor sentence, which sends a caller to replay a token its query rejects. Build the response with v2CursorListResponse(item, { paged: false }).`
+      ).not.toMatch(/send it back as/i)
+    }
+    for (const key of PAGED_LISTS) {
+      expect(
+        byKey.get(key)?.nextCursorDescription,
+        `${key} is paged, so its nextCursor must document how to fetch the next page.`
+      ).toMatch(/send it back as/i)
+    }
+  })
+
   it('makes every v2 list query reject a param it does not implement', async () => {
     const contracts = await loadV2ListContracts()
     const byKey = new Map(contracts.map((c) => [c.key, c]))
@@ -401,6 +574,92 @@ describe('v2 list pagination split', () => {
         byKey.get(key)?.rejectsFractionalLimit,
         `${key} published that it truncates a fractional limit; rejecting it now would break callers relying on that.`
       ).toBe(false)
+    }
+  })
+
+  it('makes every paged list declare what its cursor is bound to', async () => {
+    const contracts = await loadV2ListContracts()
+    const declared = new Set(Object.keys(CURSOR_BINDINGS))
+
+    expect(
+      contracts.filter((c) => PAGED_LISTS.includes(c.key as never) && !declared.has(c.key)),
+      'A paged v2 list must declare its cursor binding in CURSOR_BINDINGS. A cursor names a position in one sequence; every param that decides that sequence has to be stamped into the token, or replaying it across a filter change answers from a sequence the caller never asked for.'
+    ).toEqual([])
+    expect([...declared].sort()).toEqual([...PAGED_LISTS].sort())
+  })
+
+  it('binds every paged list to the parent its path names', () => {
+    for (const key of PAGED_LISTS) {
+      const placeholders = [...key.matchAll(/\[([^\]]+)\]/g)].map(([, name]) => name)
+
+      expect(
+        [...(CURSOR_BOUND_PATH_PARAMS[key] ?? [])].sort(),
+        `${key} does not bind its cursor to the path param naming its parent resource. Pass it through cursorRoute(contract, params) in the route and declare it in CURSOR_BOUND_PATH_PARAMS; otherwise a sibling parent's token decodes cleanly here and answers from a sequence the caller never walked.`
+      ).toEqual(placeholders.sort())
+    }
+  })
+
+  it('never declares a path binding for a list that has no such parent', () => {
+    for (const [key, bound] of Object.entries(CURSOR_BOUND_PATH_PARAMS)) {
+      expect(PAGED_LISTS.includes(key as never), `${key} is not a paged list`).toBe(true)
+      expect(bound.length, `${key} declares an empty path binding`).toBeGreaterThan(0)
+    }
+  })
+
+  it('binds every sequence-affecting param a paged list accepts', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of PAGED_LISTS) {
+      const contract = byKey.get(key)
+      if (!contract) throw new Error(`${key} was not discovered by the contract sweep`)
+      const accounted = new Set([
+        ...CURSOR_BINDINGS[key],
+        ...Object.keys(UNBOUND_PARAMS[key] ?? {}),
+        ...NEVER_BOUND,
+      ])
+
+      expect(
+        contract.inputKeys.filter((param) => !accounted.has(param)),
+        `${key} accepts a param its cursor neither binds nor exempts. Add it to CURSOR_BINDINGS and stamp it in the route, or record why it cannot change the sequence in UNBOUND_PARAMS.`
+      ).toEqual([])
+    }
+  })
+
+  it('never declares a binding on a param the contract does not accept', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+    for (const key of PAGED_LISTS) {
+      const accepted = new Set(byKey.get(key)?.inputKeys ?? [])
+
+      expect(
+        [...CURSOR_BINDINGS[key], ...Object.keys(UNBOUND_PARAMS[key] ?? {})].filter(
+          (param) => !accepted.has(param)
+        ),
+        `${key} declares a cursor binding for a param it no longer accepts. A renamed filter leaves the stamp reading undefined on both sides, which silently restores the mid-walk filter change this map exists to prevent.`
+      ).toEqual([])
+    }
+  })
+
+  /**
+   * The one param that must never be bound. Binding it looks harmless and
+   * breaks every caller that changes page size mid-walk.
+   */
+  it('never binds the page size', () => {
+    for (const [key, bound] of Object.entries(CURSOR_BINDINGS)) {
+      expect(
+        bound.filter((param) => NEVER_BOUND.has(param)),
+        `${key} binds limit or cursor`
+      ).toEqual([])
+    }
+  })
+
+  it('gives every unbound param a non-empty reason', () => {
+    for (const [key, exemptions] of Object.entries(UNBOUND_PARAMS)) {
+      for (const [param, reason] of Object.entries(exemptions)) {
+        expect(reason.trim(), `${key}.${param} is exempted without a reason`).not.toBe('')
+      }
     }
   })
 

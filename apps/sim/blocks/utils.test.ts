@@ -69,13 +69,23 @@ vi.mock('@/lib/oauth/utils', () => ({
 
 import type { SubBlockConfig } from '@/blocks/types'
 import {
+  BUILT_IN_TOOL_TYPES,
   getApiKeyCondition,
   getDependsOnFields,
+  getSerializedModelProviderId,
   getSubBlocksDependingOnChange,
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
+import { getProviderFromModel } from '@/providers/utils'
+
+describe('BUILT_IN_TOOL_TYPES', () => {
+  it('classifies the current File block instead of the legacy File block', () => {
+    expect(BUILT_IN_TOOL_TYPES.has('file_v5')).toBe(true)
+    expect(BUILT_IN_TOOL_TYPES.has('file')).toBe(false)
+  })
+})
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
   'gpt-4o': 'openai',
@@ -454,5 +464,48 @@ describe('getSubBlocksDependingOnChange', () => {
     expect(
       getSubBlocksDependingOnChange(subBlocks, 'teamId').map((subBlock) => subBlock.id)
     ).toEqual(['projectId'])
+  })
+})
+
+describe('getSerializedModelProviderId', () => {
+  const resolver = vi.mocked(getProviderFromModel)
+
+  beforeEach(() => {
+    resolver.mockReset()
+    resolver.mockImplementation(((model: string) => {
+      if (model.startsWith('openrouter/')) return 'openrouter'
+      if (model === 'gpt-4o') return 'openai'
+      if (model === 'claude-sonnet-5') return 'anthropic'
+      throw new Error(`No provider found for model: ${model}`)
+    }) as unknown as typeof getProviderFromModel)
+  })
+
+  it('resolves a gateway model that the base model map deliberately omits', () => {
+    expect(getSerializedModelProviderId('openrouter/meta-llama/llama-4-maverick')).toBe(
+      'openrouter'
+    )
+  })
+
+  it('uses the fallback model when the model is still an unresolved reference', () => {
+    expect(getSerializedModelProviderId('openrouter/<variable.vllm>')).toBe('openai')
+    expect(resolver).not.toHaveBeenCalledWith('openrouter/<variable.vllm>')
+  })
+
+  it('honours a caller-supplied fallback model', () => {
+    expect(getSerializedModelProviderId(undefined, 'claude-sonnet-5')).toBe('anthropic')
+  })
+
+  it('never throws when the resolver rejects the model', () => {
+    expect(() => getSerializedModelProviderId('totally-unknown-model')).not.toThrow()
+    expect(getSerializedModelProviderId('totally-unknown-model')).toBe('openai')
+  })
+
+  it('never throws when the resolver rejects every model, including the fallback', () => {
+    resolver.mockImplementation((() => {
+      throw new Error('Provider "openai" is not available')
+    }) as unknown as typeof getProviderFromModel)
+
+    expect(() => getSerializedModelProviderId('gpt-4o')).not.toThrow()
+    expect(getSerializedModelProviderId('gpt-4o')).toBe('openai')
   })
 })

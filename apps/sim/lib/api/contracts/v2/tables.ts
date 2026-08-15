@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   addWorkflowGroupBodySchema,
   cancelTableRunsBodyBaseSchema,
@@ -43,6 +43,8 @@ import {
   v1ListTablesQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
 import {
+  V2_FOLDER_FILTER_MISS,
+  V2_SEARCH_MAX_LENGTH,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -337,7 +339,7 @@ export const v2ListTablesQuerySchema = z
     workspaceId: workspaceIdSchema.describe('Workspace whose tables should be listed.'),
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe('Restrict results to tables in this folder.'),
+      .describe(`Restrict results to tables in this folder. ${V2_FOLDER_FILTER_MISS}`),
     search: v2SearchSchema,
     ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
     ...v2PaginationFields({
@@ -388,24 +390,23 @@ export const v2TableColumnInputSchema = z
   .strict()
   .superRefine(refineColumnOptions)
 
-const v2InitialTableColumnInputSchema = z
-  .object({
-    ...v2TableColumnInputShape,
-    workflowGroupId: z
-      .string()
-      .optional()
-      .describe('Workflow group initially associated with the column.'),
-  })
-  .strict()
-  .superRefine(refineColumnOptions)
-
+/**
+ * Initial columns take the same shape as every other v2 column input.
+ *
+ * They deliberately cannot name a workflow group: v2 has no way to declare one
+ * on this body and mints group ids server-side, so any id a caller supplied
+ * would necessarily dangle. A dangling `workflowGroupId` is a schema invariant
+ * violation, and `createTable` does not check it while every later schema
+ * mutation does — so accepting the field made the table's own columns and
+ * groups permanently unaddable, with no update body field able to clear it.
+ */
 export const v2CreateTableBodySchema = v1CreateTableBodySchema
   .omit({ folderId: true, schema: true })
   .extend({
     schema: z
       .object({
         columns: z
-          .array(v2InitialTableColumnInputSchema)
+          .array(v2TableColumnInputSchema)
           .min(1, 'Table must have at least one column')
           .max(
             TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
@@ -440,6 +441,7 @@ export const v2ListTablesContract = defineRouteContract({
 export const v2CreateTableContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables',
+  query: noInputSchema,
   body: v2CreateTableBodySchema,
   response: {
     mode: 'json',
@@ -500,6 +502,7 @@ export const v2UpdateTableBodySchema = z
 export const v2UpdateTableContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateTableBodySchema,
   response: {
@@ -530,12 +533,13 @@ export const v2ListTableFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/tables/folders',
   query: v2ListFoldersQuerySchema,
-  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema) },
+  response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
 })
 
 export const v2CreateTableFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/folders',
+  query: noInputSchema,
   body: v2CreateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
@@ -543,6 +547,7 @@ export const v2CreateTableFolderContract = defineRouteContract({
 export const v2RelocateTableFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/folders',
+  query: noInputSchema,
   body: v2RelocateFolderBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
@@ -618,20 +623,24 @@ export const v2UpdateTableColumnBodySchema = z
 
 export type V2UpdateTableColumnBody = z.input<typeof v2UpdateTableColumnBodySchema>
 
+/** `201`, like every other v2 create; the body is the table's full column set. */
 export const v2AddTableColumnContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/columns',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableColumnBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableColumnsDataSchema),
+    status: 201,
   },
 })
 
 export const v2UpdateTableColumnContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/columns',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateTableColumnBodySchema,
   response: {
@@ -652,6 +661,7 @@ export type V2DeleteTableColumnBody = z.input<typeof v2DeleteTableColumnBodySche
 export const v2DeleteTableColumnContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/columns',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2DeleteTableColumnBodySchema,
   response: {
@@ -682,13 +692,17 @@ export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
      * `DEFAULT_QUERY_LIMIT` through the inner default.
      */
     limit: tableRowsQueryBaseSchema.shape.limit
-      .describe('Maximum rows to return in the current page.')
+      .describe(
+        `Maximum rows to return per page. Must be a whole number from 1 to ${V2_MAX_ROW_LIMIT}. Defaults to ${V2_DEFAULT_ROW_LIMIT}.`
+      )
       .prefault(TABLE_LIMITS.DEFAULT_QUERY_LIMIT),
     cursor: z
       .string()
       .min(1, 'cursor must be a non-empty token')
       .optional()
-      .describe('Opaque cursor returned by the previous page.'),
+      .describe(
+        'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.'
+      ),
   })
   .strict()
 export type V2TableRowsQuery = z.output<typeof v2TableRowsQuerySchema>
@@ -782,6 +796,7 @@ export type V2QueryRowsCountData = z.output<typeof v2QueryRowsCountDataSchema>
 export const v2QueryRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/query',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2QueryRowsBodySchema,
   response: {
@@ -803,6 +818,7 @@ export const v2QueryRowsContract = defineRouteContract({
 export const v2QueryRowsCountContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/query/count',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2QueryRowsCountBodySchema,
   response: {
@@ -851,14 +867,23 @@ export const v2CreateTableRowsBodySchema = z.union(
   }
 )
 
+/**
+ * `201` on both arms of the union. The batch arm returns a count rather than one
+ * created resource and neither arm carries a `Location`, but no v2 create does —
+ * the status describes what happened to the server, and rows were created. A
+ * caller that has to read the body to learn whether its POST created anything is
+ * exactly what a uniform create status prevents.
+ */
 export const v2CreateTableRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableRowsBodySchema,
   response: {
     mode: 'json',
     schema: z.union([v2CreateSingleTableRowResponseSchema, v2CreateBatchTableRowsResponseSchema]),
+    status: 201,
   },
 })
 
@@ -880,6 +905,7 @@ export type V2UpdateRowsByPredicateBody = z.input<typeof v2UpdateRowsByPredicate
 export const v2UpdateRowsByFilterContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/rows',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateRowsByPredicateBodySchema,
   response: {
@@ -922,6 +948,7 @@ export type V2DeleteTableRowsBody = z.input<typeof v2DeleteTableRowsBodySchema>
 export const v2DeleteTableRowsContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/rows',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2DeleteTableRowsBodySchema,
   response: {
@@ -948,7 +975,7 @@ export const v2UpsertTableRowBodySchema = upsertTableRowBodySchema
   .omit(OMIT_PRIVATE_PROVENANCE)
   .extend({
     data: v2RowDataSchema.describe(
-      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging PATCH /rows/{rowId}.'
+      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.'
     ),
   })
   .strict()
@@ -967,6 +994,7 @@ export const v2GetTableRowContract = defineRouteContract({
 export const v2UpdateTableRowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/rows/[rowId]',
+  query: noInputSchema,
   params: tableRowParamsSchema,
   body: v2UpdateTableRowBodySchema,
   response: {
@@ -989,6 +1017,7 @@ export const v2DeleteTableRowContract = defineRouteContract({
 export const v2UpsertTableRowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows/upsert',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpsertTableRowBodySchema,
   response: {
@@ -1018,8 +1047,22 @@ const v2TableViewPredicateOutputSchema = z
     'Recursive saved predicate tree. Runtime validation uses the canonical predicate schema.'
   ) as z.ZodType<z.output<typeof predicateSchema>>
 
+/**
+ * Every column reference in a v2 view config — the layout keys, `sort[].field`,
+ * and each `filter` leaf `field` — is a column **NAME**, like row `data`, query
+ * predicates, and workflow groups on this surface. The stored blob keys on
+ * stable column ids so a rename cannot orphan a view; the route translates in
+ * both directions, so a config reads back in the vocabulary it was written in.
+ */
 export const v2TableViewConfigSchema = tableMetadataSchema
   .extend({
+    columnWidths: z
+      .record(z.string(), z.number().positive())
+      .optional()
+      .describe('Column widths keyed by column name.'),
+    columnOrder: z.array(z.string()).optional().describe('Column names in display order.'),
+    pinnedColumns: z.array(z.string()).optional().describe('Names of pinned columns.'),
+    hiddenColumns: z.array(z.string()).optional().describe('Names of hidden columns.'),
     filter: v2TableViewPredicateOutputSchema
       .nullable()
       .optional()
@@ -1083,9 +1126,10 @@ export const v2DeleteTableViewDataSchema = z
 export type V2DeleteTableViewData = z.output<typeof v2DeleteTableViewDataSchema>
 
 /**
- * Every saved view on a table, oldest first. A table carries a small bounded
- * set of views, so this is a single full page (`nextCursor` is always `null`);
- * the cursor envelope keeps the v2 list surface uniform.
+ * Every saved view on a table, oldest first. The create path enforces
+ * `TABLE_LIMITS.MAX_VIEWS_PER_TABLE`, so the set is bounded and this is a single
+ * full page (`nextCursor` is always `null`); the cursor envelope keeps the v2
+ * list surface uniform.
  */
 export const v2ListTableViewsContract = defineRouteContract({
   method: 'GET',
@@ -1094,7 +1138,7 @@ export const v2ListTableViewsContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2ApiViewSchema),
+    schema: v2CursorListResponse(v2ApiViewSchema, { paged: false }),
   },
 })
 
@@ -1114,6 +1158,7 @@ export type V2UpdateTableViewBody = z.input<typeof v2UpdateTableViewBodySchema>
 export const v2CreateTableViewContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/views',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableViewBodySchema,
   response: {
@@ -1137,6 +1182,7 @@ export const v2GetTableViewContract = defineRouteContract({
 export const v2UpdateTableViewContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/views/[viewId]',
+  query: noInputSchema,
   params: tableViewParamsSchema,
   body: v2UpdateTableViewBodySchema,
   response: {
@@ -1184,7 +1230,7 @@ export const v2WorkflowGroupSchema = z
           blockId: z.string().describe('Workflow block producing this output.'),
           path: z.string().describe('Path to the value in the workflow block output.'),
           outputId: z.string().optional().describe('Registry enrichment output identifier.'),
-          columnName: z.string().describe('Table column receiving the output.'),
+          columnName: z.string().describe('Name of the table column receiving the output.'),
         })
       )
       .describe('Workflow outputs mapped to table columns.'),
@@ -1192,7 +1238,7 @@ export const v2WorkflowGroupSchema = z
       .array(
         z.object({
           inputName: z.string().describe('Workflow input name.'),
-          columnName: z.string().describe('Source table column name.'),
+          columnName: z.string().describe('Name of the source table column.'),
         })
       )
       .optional()
@@ -1219,7 +1265,7 @@ export const v2ListWorkflowGroupsContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2WorkflowGroupSchema),
+    schema: v2CursorListResponse(v2WorkflowGroupSchema, { paged: false }),
   },
 })
 
@@ -1228,10 +1274,19 @@ export const v2ListWorkflowGroupsContract = defineRouteContract({
  * shape carries `workflowGroupId` because the client mints the group id before
  * posting; v2 server-generates it, so the field is stamped from the group being
  * written rather than being a caller's to supply (and get wrong).
+ *
+ * `.strict()` is what makes that omission observable. `omit()` yields an
+ * ordinary object schema, and the enclosing body's `.strict()` binds its own
+ * level only — so a caller who kept the first-party `workflowGroupId` had it
+ * stripped, silently overwritten with the server-minted id, and answered 201.
+ * The same key is now a 400 naming the field, matching how `POST /v2/tables`
+ * refuses it on initial columns.
  */
-const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema.omit({
-  workflowGroupId: true,
-})
+const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema
+  .omit({
+    workflowGroupId: true,
+  })
+  .strict()
 
 /**
  * A group names its producer two mutually exclusive ways, and the underlying
@@ -1283,6 +1338,21 @@ export const v2AddWorkflowGroupBodySchema = z
           .min(1)
           .optional()
           .describe('Optional client-provided workflow-group identifier.'),
+        /**
+         * The first-party shape defaults this to `''`, which published a
+         * `default: ""` the surface does not honor: a `manual` group — the
+         * type you get by omitting `type` — that omits `workflowId` is refused
+         * by `refineGroupSource`, so the spec promised a fallback that always
+         * 400s. Optional with no default and a description that names the
+         * condition is what is actually true.
+         */
+        workflowId: z
+          .string()
+          .min(1, 'workflowId cannot be empty')
+          .optional()
+          .describe(
+            'Backing workflow identifier. Required when `type` is `manual` (which is also the default when `type` is omitted); omit it for an `enrichment` group.'
+          ),
       })
       .describe('Workflow or enrichment producer definition.'),
     outputColumns: z
@@ -1350,6 +1420,7 @@ export type V2DeleteWorkflowGroupData = z.output<typeof v2DeleteWorkflowGroupDat
 export const v2AddWorkflowGroupContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/groups',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2AddWorkflowGroupBodySchema,
   response: {
@@ -1362,6 +1433,7 @@ export const v2AddWorkflowGroupContract = defineRouteContract({
 export const v2UpdateWorkflowGroupContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/groups',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2UpdateWorkflowGroupBodySchema,
   response: {
@@ -1373,6 +1445,7 @@ export const v2UpdateWorkflowGroupContract = defineRouteContract({
 export const v2DeleteWorkflowGroupContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/tables/[tableId]/groups',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2DeleteWorkflowGroupBodySchema,
   response: {
@@ -1420,6 +1493,7 @@ export type V2RunColumnData = z.output<typeof v2RunColumnDataSchema>
 export const v2RunTableColumnContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/columns/run',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2RunColumnBodySchema,
   response: {
@@ -1441,6 +1515,7 @@ export type V2RowEnrichmentParams = z.output<typeof v2RowEnrichmentParamsSchema>
 export const v2RunRowEnrichmentContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
+  query: noInputSchema,
   params: v2RowEnrichmentParamsSchema,
   body: v2WorkspaceScopedBodySchema,
   response: {
@@ -1460,6 +1535,7 @@ export const v2FindRowsBodySchema = z
     q: z
       .string()
       .min(1, 'q must be a non-empty search string')
+      .max(V2_SEARCH_MAX_LENGTH, 'q is too long')
       .describe('Case-insensitive cell substring to find.'),
     predicate: predicateSchema.optional(),
     sort: sortSpecSchema.optional().describe('Ordered table-row sort specification.'),
@@ -1487,14 +1563,21 @@ export const v2RowMatchSchema = z
 export type V2RowMatch = z.output<typeof v2RowMatchSchema>
 
 /**
- * Match set. `truncated` is `true` when the search hit the server-side cap and
- * more cells match than were returned — narrow the predicate rather than
- * paging, since matches have no cursor.
+ * Match set. `truncated` is `true` when the search hit the server-side cap of
+ * {@link TABLE_LIMITS.MAX_FIND_MATCHES} and more cells match than were returned
+ * — narrow the predicate rather than paging, since matches have no cursor.
  */
 export const v2FindRowsDataSchema = z
   .object({
-    matches: z.array(v2RowMatchSchema).describe('Matching table cells.'),
-    truncated: z.boolean().describe('Whether more matches exist beyond the server cap.'),
+    matches: z
+      .array(v2RowMatchSchema)
+      .max(TABLE_LIMITS.MAX_FIND_MATCHES)
+      .describe(`Matching table cells, at most ${TABLE_LIMITS.MAX_FIND_MATCHES}.`),
+    truncated: z
+      .boolean()
+      .describe(
+        `Whether more than ${TABLE_LIMITS.MAX_FIND_MATCHES} cells matched, so the list was cut.`
+      ),
   })
   .meta({
     id: 'V2FindRowsData',
@@ -1506,6 +1589,7 @@ export type V2FindRowsData = z.output<typeof v2FindRowsDataSchema>
 export const v2FindTableRowsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows/find',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2FindRowsBodySchema,
   response: {
@@ -1520,9 +1604,11 @@ export const v2TableImportParamsSchema = z.object({
 export const v2TableExportParamsSchema = z.object({
   exportId: z.string().min(1).describe('Unique table-export identifier.'),
 })
-export const v2TableTransferWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace that owns the transfer resource.'),
-})
+export const v2TableTransferWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the transfer resource.'),
+  })
+  .strict()
 
 export const v2TableOptionalUploadTokenHeadersSchema = v2OptionalUploadTokenHeadersSchema.extend({
   'upload-token': v2OptionalUploadTokenHeadersSchema.shape['upload-token'].describe(
@@ -1669,9 +1755,17 @@ export const v2CreateTableImportBodySchema = z
   })
 export type V2CreateTableImportBody = z.input<typeof v2CreateTableImportBodySchema>
 
+/**
+ * Every state an import can be read in, and nothing else.
+ *
+ * `uploading` and `expired` come from the upload session that backs an
+ * upload-sourced import; the other four are projections of the durable job's
+ * status. There is deliberately no `queued`: a job row exists only once its
+ * runner has started it, so an import is never observable between creation and
+ * `processing`.
+ */
 export const v2TableImportStatusSchema = z.enum([
   'uploading',
-  'queued',
   'processing',
   'completed',
   'failed',
@@ -1737,8 +1831,12 @@ export const v2CreateTableImportDataSchema = z
         session: v2WorkspaceFileTableImportSchema.describe(
           'Created workspace-file import session.'
         ),
-        uploadToken: z.null().describe('Always null for workspace-file imports.'),
-        transfer: z.null().describe('Always null for workspace-file imports.'),
+        uploadToken: z
+          .null()
+          .describe('Always null; a workspace-file import has no upload to authorize.'),
+        transfer: z
+          .null()
+          .describe('Always null; a workspace-file import has no bytes to transfer.'),
       })
       .strict(),
   ])
@@ -1752,6 +1850,7 @@ export type V2CreateTableImportData = z.output<typeof v2CreateTableImportDataSch
 export const v2CreateTableImportContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/imports',
+  query: noInputSchema,
   body: v2CreateTableImportBodySchema,
   response: {
     mode: 'json',
@@ -1760,11 +1859,21 @@ export const v2CreateTableImportContract = defineRouteContract({
   },
 })
 
+/**
+ * Reads an import in any of its states, including the upload phase.
+ *
+ * The optional upload token is what makes the upload phase readable at all: an
+ * upload-sourced import has no `table_jobs` row until its upload completes, so
+ * without the token the id the 201 just handed back would 404 for the whole
+ * time the caller is uploading parts. `DELETE` takes the same header for the
+ * same reason.
+ */
 export const v2GetTableImportContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/tables/imports/[importId]',
   params: v2TableImportParamsSchema,
   query: v2TableTransferWorkspaceQuerySchema,
+  headers: v2TableOptionalUploadTokenHeadersSchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableImportSchema) },
 })
 
@@ -1832,6 +1941,7 @@ export type V2CreateTableExportBody = z.input<typeof v2CreateTableExportBodySche
 export const v2CreateTableExportContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/exports',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CreateTableExportBodySchema,
   response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema), status: 201 },
@@ -1905,6 +2015,7 @@ export type V2CancelTableRunsData = z.output<typeof v2CancelTableRunsDataSchema>
 export const v2CancelTableRunsContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/cancel-runs',
+  query: noInputSchema,
   params: tableIdParamsSchema,
   body: v2CancelTableRunsBodySchema,
   response: {

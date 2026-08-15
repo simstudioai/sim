@@ -1,5 +1,5 @@
 {
-  "name": "sim",
+  "name": "@sim/app",
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",

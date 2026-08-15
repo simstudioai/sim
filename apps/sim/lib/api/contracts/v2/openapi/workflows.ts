@@ -4,13 +4,19 @@ import {
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
+  HEAD_MIRRORS_GET,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
+  RESOURCE_MUTATION_ERRORS,
+  RUN_RETENTION,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
+  WORKSPACE_API_KEY_DENIED,
+  WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
@@ -105,25 +111,6 @@ const QUEUED_RUN_EXAMPLE = {
   },
 } as const
 
-const WORKSPACE_ERRORS = [
-  'BadRequest',
-  'Unauthorized',
-  'Forbidden',
-  'RateLimited',
-  'InternalError',
-  'ServiceUnavailable',
-] as const satisfies readonly ErrorResponseId[]
-
-const RESOURCE_ERRORS = [
-  ...WORKSPACE_ERRORS,
-  'NotFound',
-] as const satisfies readonly ErrorResponseId[]
-const RESOURCE_MUTATION_ERRORS = [
-  ...RESOURCE_ERRORS,
-  'Conflict',
-  'Locked',
-] as const satisfies readonly ErrorResponseId[]
-
 type WorkflowOperationInput = Omit<OpenApiOperationMetadata, 'tags' | 'errors'> & {
   errors: readonly ErrorResponseId[]
 }
@@ -172,7 +159,7 @@ const resumeQueuedResponseSchema = documentedSchema(
   [QUEUED_RUN_EXAMPLE]
 )
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListWorkflowsContract,
     workflowOperation({
@@ -203,6 +190,7 @@ const routes = [
       success: jsonSuccess('The created workflow.'),
     }),
     {
+      query: v2CreateWorkflowContract.query,
       body: v2CreateWorkflowContract.body,
       response: documentedSchema(
         v2CreateWorkflowContract.response.schema,
@@ -224,6 +212,7 @@ const routes = [
     }),
     {
       params: v2GetWorkflowContract.params,
+      query: v2GetWorkflowContract.query,
       response: documentedSchema(
         v2GetWorkflowContract.response.schema,
         'WorkflowDetailResponse',
@@ -243,6 +232,7 @@ const routes = [
       success: jsonSuccess('The updated workflow.'),
     }),
     {
+      query: v2UpdateWorkflowContract.query,
       params: v2UpdateWorkflowContract.params,
       body: v2UpdateWorkflowContract.body,
       response: documentedSchema(
@@ -264,6 +254,7 @@ const routes = [
       success: jsonSuccess('The workflow was deleted.'),
     }),
     {
+      query: v2DeleteWorkflowContract.query,
       params: v2DeleteWorkflowContract.params,
       response: documentedSchema(
         v2DeleteWorkflowContract.response.schema,
@@ -305,6 +296,7 @@ const routes = [
       success: jsonSuccess('The requested deployment version.'),
     }),
     {
+      query: v2GetWorkflowVersionContract.query,
       params: v2GetWorkflowVersionContract.params,
       response: documentedSchema(
         v2GetWorkflowVersionContract.response.schema,
@@ -333,11 +325,12 @@ const routes = [
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
       description:
-        'Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only place `needsRedeployment` is published — the deploy, undeploy, and rollback responses cannot carry it, because they answer at the moment the draft and the live version are equal.',
+        'Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes `needsRedeployment`.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
     {
+      query: v2GetWorkflowDeploymentContract.query,
       params: v2GetWorkflowDeploymentContract.params,
       response: documentedSchema(
         v2GetWorkflowDeploymentContract.response.schema,
@@ -380,11 +373,12 @@ const routes = [
     workflowOperation({
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description: `Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries \`latestDeploymentAttempt\` for the accepted attempt, but \`GET /workflows/{id}\` does not expose that field — poll activation with \`isDeployed\` and \`deployedAt\` on the workflow, or with \`isActive\` on \`GET /workflows/{id}/versions\`. Returns 409 when the deployment would conflict with an existing webhook path. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
+      description: `Create and asynchronously activate a deployment version. Not idempotent: every call mints a new version, so a retry after a timeout creates a second one. A deployment that would conflict with an existing webhook path is a \`409\`. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
     {
+      query: v2DeployWorkflowContract.query,
       params: v2DeployWorkflowContract.params,
       body: v2DeployWorkflowContract.body,
       response: documentedSchema(
@@ -424,11 +418,12 @@ const routes = [
     workflowOperation({
       operationId: 'undeployWorkflow',
       summary: 'Undeploy Workflow',
-      description: `Deactivate the currently serving workflow version. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
+      description: `Deactivate the currently serving workflow version. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Locked'],
       success: jsonSuccess('The workflow was undeployed.'),
     }),
     {
+      query: v2UndeployWorkflowContract.query,
       params: v2UndeployWorkflowContract.params,
       response: documentedSchema(
         v2UndeployWorkflowContract.response.schema,
@@ -455,11 +450,12 @@ const routes = [
     workflowOperation({
       operationId: 'rollbackWorkflow',
       summary: 'Rollback Workflow',
-      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge', 'Locked'],
+      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted rollback attempt.'),
     }),
     {
+      query: v2RollbackWorkflowContract.query,
       params: v2RollbackWorkflowContract.params,
       body: v2RollbackWorkflowContract.body,
       response: documentedSchema(
@@ -499,11 +495,12 @@ const routes = [
     workflowOperation({
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
     {
+      query: v2ExportWorkflowContract.query,
       params: v2ExportWorkflowContract.params,
       response: documentedSchema(
         v2ExportWorkflowContract.response.schema,
@@ -534,11 +531,12 @@ const routes = [
     workflowOperation({
       operationId: 'importWorkflow',
       summary: 'Import Workflow',
-      description: 'Create a workflow from a portable export object, bare state, or JSON string.',
+      description: `Create a workflow from a portable export object, bare state, or JSON string. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The imported workflow.'),
     }),
     {
+      query: v2ImportWorkflowContract.query,
       body: v2ImportWorkflowContract.body,
       response: documentedSchema(
         v2ImportWorkflowContract.response.schema,
@@ -566,7 +564,7 @@ const routes = [
     workflowOperation({
       operationId: 'executeWorkflowV2',
       summary: 'Execute Workflow',
-      description: `Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. The optional \`X-Run-Id\` header is a one-shot uniqueness claim, not an idempotency key: reusing a value returns 409 with \`error.details.code: "RUN_ID_CONFLICT"\` and never replays the earlier run. ${EXECUTE_OPTION_CONSTRAINTS}`,
+      description: `Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with \`status: "failed"\` and \`error.code: "TIMEOUT"\` rather than an HTTP error, so branch on \`status\`. ${EXECUTE_OPTION_CONSTRAINTS}`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -596,6 +594,7 @@ const routes = [
       },
     }),
     {
+      query: v2ExecuteWorkflowContract.query,
       params: v2ExecuteWorkflowContract.params,
       headers: v2ExecuteWorkflowContract.headers,
       body: v2ExecuteWorkflowContract.body,
@@ -608,8 +607,7 @@ const routes = [
     workflowRunOperation({
       operationId: 'listWorkflowRunsV2',
       summary: 'List Workflow Runs',
-      description:
-        'List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so direction is carried by the single `order` param.',
+      description: `List recorded runs of a workflow with filtering and opaque cursor pagination. ${RUN_RETENTION}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of workflow runs.'),
     }),
@@ -701,6 +699,7 @@ const routes = [
       },
     }),
     {
+      query: v2ResumeWorkflowContract.query,
       params: v2ResumeWorkflowContract.params,
       body: v2ResumeWorkflowContract.body,
       response: v2ResumeWorkflowContract.response.schema,
@@ -713,11 +712,12 @@ const routes = [
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description:
-        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run that has already reached a terminal state succeeds with no effect rather than returning an error. The `reason` field is present on every response, including full successes — `recorded` is the success value; it is not a partial-failure marker. A run produced by a table workflow group is a 409 when its cell can no longer accept the cancellation, because the run and its cell must reach the cancelled state together.',
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),
     {
+      query: v2CancelWorkflowRunContract.query,
       params: v2CancelWorkflowRunContract.params,
       response: documentedSchema(
         v2CancelWorkflowRunContract.response.schema,
@@ -745,7 +745,7 @@ const routes = [
     workflowOperation({
       operationId: 'listWorkflowsFolders',
       summary: 'List Workflow Folders',
-      description: `List canonical workflow folders in a workspace. ${FULL_SET_LIST}`,
+      description: `List canonical workflow folders in a workspace. ${FULL_SET_LIST} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A list of workflow folders.'),
     }),
@@ -770,11 +770,12 @@ const routes = [
     workflowOperation({
       operationId: 'createWorkflowsFolder',
       summary: 'Create Workflow Folder',
-      description: 'Create a canonical workflow folder in a workspace.',
+      description: `Create a canonical workflow folder in a workspace. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The created workflow folder.'),
     }),
     {
+      query: v2CreateWorkflowFolderContract.query,
       body: documentedSchema(
         v2CreateWorkflowFolderContract.body,
         'CreateWorkflowFolderRequest',
@@ -796,11 +797,12 @@ const routes = [
     workflowOperation({
       operationId: 'relocateWorkflowsFolder',
       summary: 'Rename or Move Workflow Folder',
-      description: 'Rename or move a workflow folder and its descendants to a canonical path.',
+      description: `Rename or move a workflow folder and its descendants to a canonical path. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The relocated workflow folder.'),
     }),
     {
+      query: v2RelocateWorkflowFolderContract.query,
       body: documentedSchema(
         v2RelocateWorkflowFolderContract.body,
         'RelocateWorkflowFolderRequest',
@@ -858,6 +860,8 @@ const routes = [
     }
   ),
 ] as const
+
+const routes = declaredRoutes.map(withRequestBodyErrors)
 
 export const workflowsOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-workflows.json',

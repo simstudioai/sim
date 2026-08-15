@@ -124,6 +124,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           'x-ms-file-name': validatedData.fileName,
         },
         body: fileBuffer,
+        /**
+         * The tool's own `stripAuthOnRedirect` only covers the hop to this
+         * route. Dataverse redirects file operations to signed storage hosts,
+         * so this outbound call has to drop the bearer token itself or the
+         * redirect target receives a reusable OAuth credential.
+         */
+        stripAuthOnRedirect: true,
       },
       'environmentUrl'
     )

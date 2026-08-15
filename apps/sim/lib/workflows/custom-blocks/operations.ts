@@ -264,12 +264,6 @@ export async function getCustomBlockWithInputsByWorkflowId(
   return row ? hydrateCustomBlockRow(row) : null
 }
 
-/** Fetch a single custom block row by id. */
-export async function getCustomBlockById(id: string) {
-  const [row] = await db.select().from(customBlock).where(eq(customBlock.id, id)).limit(1)
-  return row ?? null
-}
-
 /**
  * Org + source-workspace context for manage (edit/delete) authorization. Managing
  * a block is gated on admin of its SOURCE workflow's workspace — the same workspace

@@ -955,14 +955,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!args.connectorType) {
             return { success: false, message: 'connectorType is required for add_connector' }
           }
-          if (!args.credentialId && !args.apiKey) {
-            return {
-              success: false,
-              message:
-                'Either credentialId (for OAuth connectors) or apiKey (for API key connectors) is required for add_connector.',
-            }
-          }
-
           const sourceConfig: Record<string, unknown> = { ...(args.sourceConfig ?? {}) }
           if (args.disabledTagIds?.length) {
             sourceConfig.disabledTagIds = args.disabledTagIds

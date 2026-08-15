@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
+import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
@@ -10,7 +11,7 @@ import {
   type OrchestrationErrorCode,
 } from '@/lib/core/orchestration/types'
 import type { HttpError } from '@/lib/core/utils/http-error'
-import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middleware'
+import type { RateLimitResult } from '@/app/api/v1/middleware'
 
 /**
  * Runtime response helpers for the v2 API surface. Every v2 route renders its
@@ -99,9 +100,31 @@ const RETRY_AFTER_SECONDS_BY_STATUS: Partial<Record<number, number>> = {
   503: ADMISSION_RETRY_AFTER_SECONDS,
 }
 
+/**
+ * The challenge every v2 `401` carries, so a 401 is a complete one.
+ *
+ * RFC 9110 §11.6.1 makes `WWW-Authenticate` a MUST on 401 — a 401 without it is
+ * a refusal that never says what would have been accepted, and a generic HTTP
+ * client has nothing to react to.
+ *
+ * The scheme name is deliberately Sim-specific rather than a registered one.
+ * v2 authenticates from the `x-api-key` header and accepts no `Authorization`
+ * scheme at all — `Authorization: Bearer <key>` is not a channel here — so
+ * `Bearer` and `Basic` would both be false advertising. `Basic` is worse than
+ * false: a browser reacts to it by opening a native credential prompt that
+ * cannot produce an API key. An unregistered scheme is what remains, and it is
+ * legal: §11.6.1's grammar requires *an* `auth-scheme` token, not a registered
+ * one. Every challenge implies "retry via `Authorization: <scheme> …`" by
+ * construction, so the token is chosen to be one no client has a built-in
+ * handler for — the challenge surfaces to a human instead of triggering an
+ * automatic retry down a channel v2 does not read — and the real channel is
+ * named outright in the `header` parameter beside it.
+ */
+const V2_AUTH_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key"'
+
 type RateLimitHeaderSource = Pick<RateLimitResult, 'limit' | 'remaining' | 'resetAt'>
 
-export function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
+function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
   if (!rateLimit) return {}
   return {
     'X-RateLimit-Limit': rateLimit.limit.toString(),
@@ -121,15 +144,17 @@ function successHeaders(options: V2SuccessOptions): Record<string, string> {
 }
 
 /**
- * The bodiless 200 a `HEAD` receives from a route whose `GET` is not safe.
+ * The bodiless 200 a `HEAD` receives from a route whose `GET` is not safe, once
+ * that `HEAD` has been authorized.
  *
  * RFC 9110 §9.3.2 lets Next alias `HEAD` onto `GET` only because §9.2.1 defines
  * `HEAD` as safe — "essentially read-only". A `GET` that opens an outbound
- * connection or writes a row breaks that assumption, and an uptime monitor or
- * link checker walking the documented URL list would drive those effects
- * invisibly on every probe. Such a route answers the authorization and
- * rate-limit questions and stops there. `HEAD` carries no body in any case, so
- * nothing the caller can observe is fabricated.
+ * connection or writes a row breaks that assumption, and an uptime monitor
+ * walking the documented URL list would drive those effects on every probe.
+ *
+ * The 200 is unconditional **by construction**: callers must only reach this
+ * after `useCase.authorize` has resolved, or it becomes the existence oracle
+ * the `headSafe` option on the v2 route builders documents.
  */
 export function v2HeadNoEffect(options: V2SuccessOptions = {}): NextResponse {
   return new NextResponse(null, { status: options.status ?? 200, headers: successHeaders(options) })
@@ -139,18 +164,6 @@ export function v2HeadNoEffect(options: V2SuccessOptions = {}): NextResponse {
 export function v2Data<T>(data: T, options: V2SuccessOptions = {}): NextResponse {
   return NextResponse.json(
     { data },
-    { status: options.status ?? 200, headers: successHeaders(options) }
-  )
-}
-
-/** `{ data, nextCursor }` (+ rate-limit headers). */
-export function v2CursorList<T>(
-  data: T[],
-  nextCursor: string | null,
-  options: V2SuccessOptions = {}
-): NextResponse {
-  return NextResponse.json(
-    { data, nextCursor },
     { status: options.status ?? 200, headers: successHeaders(options) }
   )
 }
@@ -192,6 +205,7 @@ export function v2Error(
       status,
       headers: {
         ...PRIVATE_NO_STORE,
+        ...(status === 401 ? { 'WWW-Authenticate': V2_AUTH_CHALLENGE } : {}),
         ...(retryAfterSeconds === undefined ? {} : { 'Retry-After': retryAfterSeconds.toString() }),
         ...options.headers,
       },
@@ -206,16 +220,23 @@ export function v2HttpError(error: HttpError): NextResponse {
   return v2Error(code, error.message)
 }
 
+/**
+ * The 500 of the local-storage upload data plane, in the canonical envelope.
+ *
+ * `PUT /api/v2/uploads/{uploadId}` and its `/parts/{partNumber}` sibling are
+ * undocumented but still v2 routes, and they do not run `admitV2Request`, so
+ * they cannot reuse the JSON builder's handler — this is the one piece of it
+ * they need.
+ */
+export function v2UploadDataPlaneError(): NextResponse {
+  return v2Error('INTERNAL_ERROR', 'Internal server error')
+}
+
 /** Render a contract `ZodError` as the v2 error envelope. */
 export function v2ValidationError(error: ZodError): NextResponse {
   return v2Error('BAD_REQUEST', getValidationErrorMessage(error, 'Invalid request'), {
     details: serializeZodIssues(error),
   })
-}
-
-/** Render a shared {@link WorkspaceAccessError} as the v2 error envelope. */
-export function v2WorkspaceAccessError(failure: WorkspaceAccessError): NextResponse {
-  return v2Error(failure.code, failure.message, { status: failure.status })
 }
 
 /**
@@ -251,53 +272,47 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
 }
 
 interface OffsetCursorPayload {
-  /** The query state the offset counts positions within. */
-  scope: string
+  /** The ordering the offset counts positions within. */
+  sort: string
+  /** Fingerprint of the list and filters the offset counts positions within. */
+  filter: string
   offset: number
 }
 
-/**
- * The filters and sort an offset cursor was minted under.
- *
- * An offset is only meaningful against one exact sequence, so everything that
- * reorders or re-filters that sequence has to travel with it. Build the stamp
- * from every such param; a value that does not affect ordering or membership
- * (the page size itself) must stay out, or paging with a different `limit`
- * would be rejected for no reason.
- */
-export function offsetCursorScope(parts: Record<string, string | boolean | undefined>): string {
-  return Object.keys(parts)
-    .sort()
-    .map((key) => `${key}=${parts[key] ?? ''}`)
-    .join('&')
-}
-
-/** An offset cursor stamped with the query state that produced it. */
-export function encodeOffsetCursor(scope: string, offset: number): string {
-  return encodeCursor({ scope, offset } satisfies OffsetCursorPayload)
+/** An offset cursor stamped with the sort and scope that produced it. */
+export function encodeOffsetCursor(sort: string, filter: string, offset: number): string {
+  return encodeCursor({ sort, filter, offset } satisfies OffsetCursorPayload)
 }
 
 /**
- * Reads back an offset cursor, refusing one minted under different filters or a
- * different sort.
+ * Reads back an offset cursor, refusing one minted under a different sort or
+ * different filters.
  *
  * An absent cursor means page one. A cursor that is not valid base64-JSON, or
  * that does not carry a non-negative integer `offset`, is rejected rather than
  * coerced to 0: silently restarting at page one while the caller believes it is
  * paging forward makes a paging client loop over the first page forever.
  *
- * The `scope` check is the offset counterpart of {@link decodeSortedCursor}'s
- * sort stamp. A bare offset replayed against a newly filtered or re-sorted
- * sequence names a different position in it, which silently skips rows, repeats
- * them, or lands past the end and returns an empty page — the failure a keyset
- * cursor is already protected from. The v2 error policies render the thrown
- * validation error as the canonical 400.
+ * An offset is the weaker of the two schemes here: unlike a keyset it names an
+ * ordinal, not a position, so replaying it against a re-filtered or re-sorted
+ * sequence lands at an unrelated point in it — skipping rows, repeating them, or
+ * landing past the end and returning an empty page the caller reads as "no more
+ * matches". The v2 error policies render the thrown validation error as the
+ * canonical 400.
  */
-export function decodeOffsetCursor(cursor: string | undefined, scope: string): number {
+export function decodeOffsetCursor(
+  cursor: string | undefined,
+  sort: string,
+  filter: string
+): number {
   if (!cursor) return 0
   const decoded = decodeCursor<Partial<OffsetCursorPayload>>(cursor)
-  if (!decoded || decoded.scope !== scope) {
+  if (!decoded) throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
+  if (decoded.sort !== sort) {
     throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+  }
+  if ((decoded.filter ?? undefined) !== filter) {
+    throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)
   }
   const { offset } = decoded
   if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) {
@@ -318,40 +333,61 @@ export function cursorSortKey(sortBy: string, sortOrder: string): string {
 interface SortedCursorPayload {
   sort: string
   keys: CursorKey[]
+  /** Fingerprint of the list and filters the page was read under. */
+  filter: string
 }
 
 /**
- * A keyset cursor stamped with the sort that produced it. The keys are only
- * meaningful under that exact ordering, so the stamp travels with them.
+ * A keyset cursor stamped with the sort AND the scope that produced it. The
+ * keys are only meaningful under that exact ordering, and only name a useful
+ * position within that exact row set, so both stamps travel with them.
  */
-export function encodeSortedCursor(sort: string, keys: CursorKey[]): string {
-  return encodeCursor({ sort, keys } satisfies SortedCursorPayload)
+export function encodeSortedCursor(sort: string, keys: CursorKey[], filter: string): string {
+  return encodeCursor({ sort, keys, filter } satisfies SortedCursorPayload)
 }
 
-export type DecodedSortedCursor =
+type DecodedSortedCursor =
   | { status: 'absent' }
   | { status: 'ok'; keys: CursorKey[] }
-  /** Malformed, or minted under a different sort — the page cannot be resumed. */
+  /** Not a pagination cursor at all — it does not decode into one. */
+  | { status: 'unreadable' }
+  /** Minted under a different sort — the keys compare the wrong column. */
   | { status: 'invalid' }
+  /** Minted under a different list or different filters — another sequence. */
+  | { status: 'refiltered' }
 
 /**
  * Reads a keyset cursor back, refusing one that does not belong to the
- * requested sort. Resuming a `name`-ordered cursor under `createdAt` would
- * compare the wrong column and silently duplicate or skip rows, so a mismatch
- * is a client error rather than a best-effort page. A cursor that isn't valid
- * base64-JSON is rejected for the same reason: ignoring it would restart from
- * page one while the caller believes it is paging forward.
+ * requested query.
+ *
+ * Resuming a `name`-ordered cursor under `createdAt` would compare the wrong
+ * column and silently duplicate or skip rows, so a sort mismatch is a client
+ * error rather than a best-effort page. A cursor that isn't valid base64-JSON
+ * is rejected for the same reason: ignoring it would restart from page one
+ * while the caller believes it is paging forward.
+ *
+ * A filter mismatch is rejected too, even though a keyset does not corrupt the
+ * way an offset does: `(sortKey, id)` names an absolute position, so replaying
+ * it under a narrower filter returns a coherent, duplicate-free page that is
+ * silently missing every new match sorting before that position. The token is
+ * opaque, so a caller cannot tell that truncated page from a complete one.
  *
  * This checks the envelope only. The key VALUES are caller-controlled too, and
  * are type-checked against the sort's keys by `keysetAfter`, which is where a
  * bad arity or an unparseable timestamp is caught.
  */
-export function decodeSortedCursor(cursor: string | undefined, sort: string): DecodedSortedCursor {
+export function decodeSortedCursor(
+  cursor: string | undefined,
+  sort: string,
+  filter: string
+): DecodedSortedCursor {
   if (!cursor) return { status: 'absent' }
   const decoded = decodeCursor<Partial<SortedCursorPayload>>(cursor)
-  if (!decoded || decoded.sort !== sort || !Array.isArray(decoded.keys)) {
-    return { status: 'invalid' }
+  if (!decoded || typeof decoded.sort !== 'string' || !Array.isArray(decoded.keys)) {
+    return { status: 'unreadable' }
   }
+  if (decoded.sort !== sort) return { status: 'invalid' }
+  if ((decoded.filter ?? undefined) !== filter) return { status: 'refiltered' }
   return { status: 'ok', keys: decoded.keys }
 }
 
@@ -359,21 +395,95 @@ export function decodeSortedCursor(cursor: string | undefined, sort: string): De
  * The keyset a paged list should resume from, or `undefined` for page one.
  *
  * This is the `mapInput` half of every keyset list: it stamps the request's
- * sort, reads the cursor back under it, and turns a cursor that was minted
- * under a different sort into the canonical 400 rather than letting mismatched
- * keys reach `keysetAfter`. Sharing it is what keeps "a bad cursor is a 400"
- * from being re-decided per route.
+ * sort and filters, reads the cursor back under them, and turns a cursor minted
+ * under a different query into the canonical 400 rather than letting mismatched
+ * keys reach `keysetAfter` or a stale position reach a re-filtered read. Sharing
+ * it is what keeps "a bad cursor is a 400" from being re-decided per route.
+ *
+ * Build `filter` with `cursorScopeKey` from the same params on both
+ * sides of the request. A list with no filters at all passes nothing.
  */
 export function readSortedCursor(
   cursor: string | undefined,
   sortBy: string,
-  sortOrder: string
+  sortOrder: string,
+  filter: string
 ): CursorKey[] | undefined {
-  const decoded = decodeSortedCursor(cursor, cursorSortKey(sortBy, sortOrder))
+  const decoded = decodeSortedCursor(cursor, cursorSortKey(sortBy, sortOrder), filter)
+  if (decoded.status === 'unreadable') {
+    throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
+  }
   if (decoded.status === 'invalid') {
     throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
   }
+  if (decoded.status === 'refiltered') {
+    throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)
+  }
   return decoded.status === 'ok' ? decoded.keys : undefined
+}
+
+/**
+ * The next page's cursor, or `null` on the last page.
+ *
+ * The `present` half of the pair {@link readSortedCursor} opens: it stamps the
+ * response token with the same sort and filters the request was read under, so
+ * a list cannot mint a token its own reader would reject. Pass the identical
+ * `sortBy`/`sortOrder`/`filter` triple both sides.
+ */
+export function writeSortedCursor(
+  keys: CursorKey[] | null | undefined,
+  sortBy: string,
+  sortOrder: string,
+  filter: string
+): string | null {
+  return keys ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), keys, filter) : null
+}
+
+interface ScopedCursorPayload {
+  /** Fingerprint of the list, filters, and sort the inner token was minted under. */
+  scope: string
+  /** The domain codec's own opaque token, passed through untouched. */
+  inner: string
+}
+
+/**
+ * Binds a cursor minted by a domain codec to the query it was minted under.
+ *
+ * `GET /logs`, `GET /audit-logs`, and `GET /billing/logs` page through readers
+ * that predate the shared v2 codecs and mint their own tokens, so the stamp
+ * cannot live inside the payload the way it does for {@link encodeSortedCursor}.
+ * Wrapping keeps the domain token opaque and untouched while still giving those
+ * lists the same binding as the rest of the surface — one rule for v2 callers
+ * rather than "some lists notice, some don't".
+ */
+export function encodeScopedCursor(scope: string, inner: string): string {
+  return encodeCursor({ scope, inner } satisfies ScopedCursorPayload)
+}
+
+/**
+ * Unwraps a {@link encodeScopedCursor} token, yielding the domain codec's own
+ * cursor, or `undefined` for page one. A token that is malformed or was minted
+ * under a different query is the canonical 400 — the domain codec never sees it.
+ *
+ * An empty inner token is malformed, not "page one". Only an absent `cursor`
+ * param means page one; a present-but-empty inner passed the old
+ * `typeof === 'string'` envelope check and then read as falsy in every domain
+ * reader downstream, so no cursor condition was applied and the caller was
+ * handed page one again — with a `nextCursor` telling it to keep going. That is
+ * exactly the loop `UNKNOWN_CURSOR_MESSAGE` describes on the billing ledger,
+ * reached through the wrapper instead of through the token, and it slipped past
+ * the unresolvable-cursor 400 that exists to stop it.
+ */
+export function readScopedCursor(cursor: string | undefined, scope: string): string | undefined {
+  if (!cursor) return undefined
+  const decoded = decodeCursor<Partial<ScopedCursorPayload>>(cursor)
+  if (!decoded || typeof decoded.inner !== 'string' || decoded.inner.length === 0) {
+    throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
+  }
+  if ((decoded.scope ?? undefined) !== scope) {
+    throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)
+  }
+  return decoded.inner
 }
 
 const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode> = {

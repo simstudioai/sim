@@ -1,10 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ConnectedAccount,
   disconnectOAuthContract,
-  listConnectedAccountsContract,
   listOAuthConnectionsContract,
   type OAuthAccountSummary,
   type OAuthConnection,
@@ -56,6 +55,18 @@ function defineServices(): ServiceInfo[] {
   return servicesList
 }
 
+/**
+ * Resolves the service catalog merged with the caller's connections.
+ *
+ * A failed request resolves with the bare catalog rather than rejecting, so
+ * consumers keep correct service names and ids when the merge data is
+ * unavailable. The cost is that `isConnected`/`accounts` then report *unknown*
+ * as *disconnected*, which the result cannot distinguish. Read connection
+ * state from the workspace credentials query (`useWorkspaceCredentials`), which
+ * surfaces its own errors; a consumer that must branch on `isConnected` here
+ * needs this fallback removed first, or it will tell a connected user they are
+ * not.
+ */
 async function fetchOAuthConnections(signal?: AbortSignal): Promise<ServiceInfo[]> {
   try {
     const serviceDefinitions = defineServices()
@@ -253,29 +264,3 @@ export function useDisconnectOAuthService() {
 
 /** Connected OAuth account for a specific provider. */
 export type { ConnectedAccount }
-
-async function fetchConnectedAccounts(
-  provider: string,
-  signal?: AbortSignal
-): Promise<ConnectedAccount[]> {
-  const data = await requestJson(listConnectedAccountsContract, {
-    query: { provider },
-    signal,
-  })
-  return data.accounts
-}
-
-/**
- * Fetches connected accounts for a specific OAuth provider.
- * @param provider - The provider ID (e.g., 'slack', 'google')
- * @param options - Query options including enabled flag
- */
-export function useConnectedAccounts(provider: string, options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: oauthConnectionsKeys.account(provider),
-    queryFn: ({ signal }) => fetchConnectedAccounts(provider, signal),
-    enabled: options?.enabled ?? true,
-    staleTime: OAUTH_CONNECTED_ACCOUNTS_STALE_TIME,
-    placeholderData: keepPreviousData,
-  })
-}

@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { requestJson } from '@/lib/api/client/request'
+import { CLIENT_ID_HEADER } from '@/lib/api/client-id'
 import { listKnowledgeDocumentsContract } from '@/lib/api/contracts/knowledge'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
@@ -85,5 +86,40 @@ describe('requestJson query serialization', () => {
     await requestJson(contract, { query: { tags: ['a', 'b'] } })
     const url = String(fetchMock.mock.calls[0][0])
     expect(url).toContain('tags=a&tags=b')
+  })
+})
+
+/**
+ * The tab id rides on every request so a broadcast raised by one can be attributed back to the tab
+ * that caused it. Asserted here rather than on the reader, because the header being *sent* is the
+ * half that silently does nothing if it regresses.
+ */
+describe('requestJson client id header', () => {
+  const contract = defineRouteContract({
+    method: 'GET',
+    path: '/api/test',
+    response: { mode: 'json', schema: z.object({ ok: z.boolean() }) },
+  })
+
+  function sentHeaders(fetchMock: ReturnType<typeof mockFetchReturning>): Record<string, string> {
+    return (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>
+  }
+
+  it('sends the tab id in the browser', async () => {
+    vi.stubGlobal('window', {})
+    const fetchMock = mockFetchReturning({ ok: true })
+
+    await requestJson(contract, {})
+
+    expect(sentHeaders(fetchMock)[CLIENT_ID_HEADER]).toEqual(expect.any(String))
+  })
+
+  it('omits it on the server, where there is no tab to name', async () => {
+    vi.stubGlobal('window', undefined)
+    const fetchMock = mockFetchReturning({ ok: true })
+
+    await requestJson(contract, {})
+
+    expect(sentHeaders(fetchMock)[CLIENT_ID_HEADER]).toBeUndefined()
   })
 })

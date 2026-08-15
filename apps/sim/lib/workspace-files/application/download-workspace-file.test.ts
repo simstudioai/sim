@@ -27,9 +27,12 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  fetchServableWorkspaceFileBuffer: mocks.fetchServable,
   getWorkspaceFile: mocks.getFile,
   loadActiveWorkspaceFileContext: mocks.loadContext,
+}))
+
+vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
+  fetchAuthorizedServableWorkspaceFileBuffer: mocks.fetchServable,
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({
@@ -194,6 +197,7 @@ describe('workspace file downloads', () => {
 
     expect(mocks.fetchServable).toHaveBeenCalledWith(
       generatedDoc,
+      SESSION,
       expect.objectContaining({ maxBytes: MAX_RENDERED_DOCUMENT_BYTES })
     )
   })
@@ -202,7 +206,7 @@ describe('workspace file downloads', () => {
   it('routes a record with no content type by its extension', async () => {
     await downloadStream('file-1')
 
-    expect(mocks.fetchServable).toHaveBeenCalledWith(file, expect.anything())
+    expect(mocks.fetchServable).toHaveBeenCalledWith(file, SESSION, expect.anything())
     expect(mocks.downloadStream).not.toHaveBeenCalled()
   })
 
