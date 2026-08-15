@@ -17,6 +17,7 @@ import type {
   FilterOp,
   JsonValue,
   Predicate,
+  PredicateNode,
   TablePredicate,
 } from '@/lib/table/types'
 
@@ -70,26 +71,37 @@ export function cellValueFilterConditions(
   return [{ field, op: 'eq', value: value as JsonValue }]
 }
 
+/** True when any leaf anywhere under `node` filters on `field`. */
+function mentionsField(node: PredicateNode, field: string): boolean {
+  if ('field' in node) return node.field === field
+  const members = 'all' in node ? node.all : node.any
+  return members.some((member) => mentionsField(member, field))
+}
+
 /**
  * Narrows `current` with one cell's conditions.
  *
- * Existing top-level conditions on the same column are dropped first, so
- * filtering twice on one column swaps the value instead of ANDing two
- * equalities into a guaranteed-empty result. Conditions on other columns are
- * kept — the action narrows what the user is looking at rather than replacing
- * it.
+ * Anything already constraining this column is dropped first, so filtering
+ * twice on one column swaps the value instead of ANDing two conditions the
+ * same row cannot satisfy — which would empty the table the user is looking at
+ * and give them no clue why. Conditions on other columns are kept: the action
+ * narrows the current view rather than replacing it.
+ *
+ * A whole nested group is dropped when it mentions the column ANYWHERE, not
+ * just its top-level leaves. Reaching inside an `any` group to pull one leaf
+ * out would silently WIDEN the user's disjunction — dropping the group loses
+ * the other columns it mentioned, but it is visible in the panel afterwards
+ * and never contradicts what was just asked for.
  */
 export function withCellValueFilter(
   current: TablePredicate | null,
   conditions: readonly Predicate[]
-): TablePredicate {
+): TablePredicate | null {
+  // Nothing to add leaves the filter exactly as it was — an `{ all: [] }` group
+  // is not a valid predicate and the server rejects it.
+  const field = conditions[0]?.field
+  if (field === undefined) return current
   if (!current) return { all: [...conditions] }
-  if ('all' in current) {
-    const field = conditions[0]?.field
-    const kept = current.all.filter((node) => !('field' in node && node.field === field))
-    return { all: [...kept, ...conditions] }
-  }
-  // An `any` group is a whole disjunction — narrowing it means AND-ing the new
-  // conditions onto the group, not reaching inside it.
-  return { all: [current, ...conditions] }
+  const members = 'all' in current ? current.all : [current]
+  return { all: [...members.filter((node) => !mentionsField(node, field)), ...conditions] }
 }

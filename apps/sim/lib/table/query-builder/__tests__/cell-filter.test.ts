@@ -130,10 +130,42 @@ describe('withCellValueFilter', () => {
     expect(withCellValueFilter(current, [eqA])).toEqual({ all: [eqA] })
   })
 
-  it('narrows an any-group without reaching inside it', () => {
+  it('keeps an any-group that does not touch the column', () => {
     const current: TablePredicate = {
-      any: [{ all: [{ field: 'col_a', op: 'eq', value: 'old' }] }],
+      any: [{ all: [{ field: 'col_b', op: 'eq', value: 'x' }] }],
     }
     expect(withCellValueFilter(current, [eqA])).toEqual({ all: [current, eqA] })
+  })
+
+  // Reachable from the panel: an `or` rule produces an `any` group, and a cell
+  // filter on a column inside it would otherwise AND against the disjunction
+  // and empty the table.
+  it('drops a nested group that constrains the same column', () => {
+    const current: TablePredicate = {
+      any: [
+        { all: [{ field: 'col_a', op: 'eq', value: 'old' }] },
+        { all: [{ field: 'col_b', op: 'eq', value: 'keep' }] },
+      ],
+    }
+    expect(withCellValueFilter(current, [eqA])).toEqual({ all: [eqA] })
+  })
+
+  it('drops a same-column leaf nested inside an all-group', () => {
+    const current: TablePredicate = {
+      all: [
+        { all: [{ field: 'col_a', op: 'eq', value: 'old' }] },
+        { field: 'col_b', op: 'eq', value: 'keep' },
+      ],
+    }
+    expect(withCellValueFilter(current, [eqA])).toEqual({
+      all: [{ field: 'col_b', op: 'eq', value: 'keep' }, eqA],
+    })
+  })
+
+  // An `{ all: [] }` group is not a valid predicate — the server rejects it.
+  it('leaves the filter untouched when there are no conditions', () => {
+    const current: TablePredicate = { all: [{ field: 'col_a', op: 'eq', value: 'x' }] }
+    expect(withCellValueFilter(current, [])).toBe(current)
+    expect(withCellValueFilter(null, [])).toBeNull()
   })
 })
