@@ -150,11 +150,7 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [isModelAllowed, isProviderAllowed])
 
-  /**
-   * Indexed rather than scanned: the operation gate calls this once per option
-   * of every block it offers, so a linear scan made the cost of a check scale
-   * with the length of the denylist.
-   */
+  /** Indexed so the per-tool check stays O(1) over a long denylist. */
   const deniedToolSet = useMemo(() => new Set(config.deniedTools), [config.deniedTools])
 
   const isToolAllowed = useMemo(() => {

@@ -694,9 +694,8 @@ export const ToolInput = memo(function ToolInput({
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const toolBlocks = useMemo(() => {
     const allToolBlocks = getAllBlocks().filter(isAgentToolBlock)
-    /* A multi-operation block whose every operation is denied has nothing the
-       caller can run, so it leaves the picker alongside the blocks denied
-       outright by `filterBlocks`. */
+    /* An empty option list means the block declares no selectable operation, so
+       there is nothing to gate — only a wholly denied one leaves the picker. */
     return filterBlocks(allToolBlocks).filter((block) => {
       if (!hasMultipleOperations(block)) return true
       const { options, denied } = getOperationChoices(block)
@@ -818,7 +817,7 @@ export const ToolInput = memo(function ToolInput({
       if (isPreview || disabled) return
 
       const { options, denied } = hasMultipleOperations(toolBlock)
-        ? getOperationChoices(toolBlock ?? undefined)
+        ? getOperationChoices(toolBlock)
         : { options: [], denied: NO_DENIED_OPERATIONS }
       const defaultOperation = options.find((option) => !denied.has(option.id))?.id
 

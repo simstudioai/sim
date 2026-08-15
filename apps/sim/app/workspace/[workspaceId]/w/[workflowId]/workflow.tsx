@@ -895,11 +895,6 @@ const WorkflowContent = React.memo(
         if (parentId) blockData.parentId = parentId
         if (extent) blockData.extent = extent
 
-        /**
-         * `undefined` until the permission config has resolved, so a declared
-         * default is never vetoed — or let through — on a guess. Blocks pre-fill
-         * two fields the group can restrict; both go through the same gate.
-         */
         const operationGate = resolveOperationGate(getBlock(type))
         const seedGate = operationGate
           ? (subBlockId: string, value: string) => {

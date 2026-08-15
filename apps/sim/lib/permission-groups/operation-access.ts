@@ -10,7 +10,6 @@ import type { BlockConfig } from '@/blocks/types'
  */
 export const OPERATION_SUBBLOCK_ID = 'operation'
 
-/** The subblock id that carries a block's model. */
 export const MODEL_SUBBLOCK_ID = 'model'
 
 /** Shared empty result, so a caller's memo sees a stable identity. */
@@ -56,8 +55,7 @@ export function resolveOperationToolId(
       const toolId = selectTool({ operation: operationId })
       if (toolId) return toolId
     } catch {
-      /* Falls through rather than guessing a tool for an operation the
-         selector could not resolve on its own. */
+      /* Unresolvable from the operation alone; see the TSDoc above. */
     }
   }
 
