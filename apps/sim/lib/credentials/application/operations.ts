@@ -142,6 +142,13 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
   }),
+  useManagedOAuth: defineWorkspaceOperation({
+    id: 'credentials.managed_oauth.use',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+  }),
 } as const
 
 export interface CredentialUserOperation<Id extends string = string>

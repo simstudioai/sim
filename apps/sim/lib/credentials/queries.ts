@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
 import {
   type CursorKey,
@@ -15,7 +15,12 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
-import { isSharedCredentialType, SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
+import {
+  isSharedCredentialType,
+  type OrdinaryCredentialType,
+  requireOrdinaryCredentialType,
+  SHARED_CREDENTIAL_TYPES,
+} from '@/lib/credentials/access'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 /**
@@ -45,7 +50,7 @@ export interface VisibleWorkspaceCredential {
 export interface WorkspaceCredentialLookup {
   id: string
   displayName: string
-  type: CredentialRow['type']
+  type: OrdinaryCredentialType
   providerId: string | null
 }
 
@@ -126,7 +131,10 @@ export async function listVisibleWorkspaceCredentials(params: {
     limit,
   } = params
 
-  const whereClauses = [eq(credential.workspaceId, workspaceId)]
+  const whereClauses = [
+    eq(credential.workspaceId, workspaceId),
+    ne(credential.type, 'managed_oauth'),
+  ]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
   const ownedEnvSecretsClause = params.ownedEnvSecretsOnly
@@ -281,7 +289,11 @@ export async function getWorkspaceCredential(params: {
     .select()
     .from(credential)
     .where(
-      and(eq(credential.id, params.credentialId), eq(credential.workspaceId, params.workspaceId))
+      and(
+        eq(credential.id, params.credentialId),
+        eq(credential.workspaceId, params.workspaceId),
+        ne(credential.type, 'managed_oauth')
+      )
     )
     .limit(1)
   return row ?? null
@@ -302,10 +314,14 @@ export async function findWorkspaceCredentialLookup(params: {
     .select(projection)
     .from(credential)
     .where(
-      and(eq(credential.id, params.credentialId), eq(credential.workspaceId, params.workspaceId))
+      and(
+        eq(credential.id, params.credentialId),
+        eq(credential.workspaceId, params.workspaceId),
+        ne(credential.type, 'managed_oauth')
+      )
     )
     .limit(1)
-  if (byId) return byId
+  if (byId) return { ...byId, type: requireOrdinaryCredentialType(byId.type) }
 
   const [byAccountId] = await db
     .select(projection)
@@ -313,15 +329,22 @@ export async function findWorkspaceCredentialLookup(params: {
     .where(
       and(
         eq(credential.accountId, params.credentialId),
-        eq(credential.workspaceId, params.workspaceId)
+        eq(credential.workspaceId, params.workspaceId),
+        ne(credential.type, 'managed_oauth')
       )
     )
     .limit(1)
-  return byAccountId ?? null
+  return byAccountId
+    ? { ...byAccountId, type: requireOrdinaryCredentialType(byAccountId.type) }
+    : null
 }
 
 /** Canonical credential lookup used before its workspace scope is known. */
 export async function getCredentialById(credentialId: string): Promise<CredentialRow | null> {
-  const [row] = await db.select().from(credential).where(eq(credential.id, credentialId)).limit(1)
+  const [row] = await db
+    .select()
+    .from(credential)
+    .where(and(eq(credential.id, credentialId), ne(credential.type, 'managed_oauth')))
+    .limit(1)
   return row ?? null
 }

@@ -287,6 +287,7 @@ export interface OAuthTokenPayload {
   credentialId?: string
   credentialAccountUserId?: string
   providerId?: string
+  toolId?: string
   workflowId?: string
   impersonateEmail?: string
   scopes?: string[]

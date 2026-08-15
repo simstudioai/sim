@@ -17,6 +17,7 @@ import 'reactflow/dist/style.css'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import type { SubflowNodeData } from '@sim/workflow-renderer'
 import {
   BLOCK_DIMENSIONS,
@@ -40,6 +41,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
+import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
 import { requestNoteImage, requestNoteRename } from '@/lib/workflows/notes/canvas-requests'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -126,6 +128,7 @@ import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
+import { useOperationAccess } from '@/hooks/use-operation-access'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import {
@@ -867,6 +870,8 @@ const WorkflowContent = React.memo(
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
 
+    const { resolveSeedGate } = useOperationAccess()
+
     const addBlock = useCallback(
       (
         id: string,
@@ -888,6 +893,8 @@ const WorkflowContent = React.memo(
         if (parentId) blockData.parentId = parentId
         if (extent) blockData.extent = extent
 
+        const seedGate = resolveSeedGate(getBlock(type))
+
         const block = prepareBlockState({
           id,
           type,
@@ -897,6 +904,7 @@ const WorkflowContent = React.memo(
           parentId,
           extent,
           triggerMode,
+          isSeededValueAllowed: seedGate,
         })
 
         const subBlockValues: Record<string, Record<string, unknown>> = {}
@@ -914,7 +922,21 @@ const WorkflowContent = React.memo(
           if (!subBlockValues[id]) {
             subBlockValues[id] = {}
           }
-          Object.assign(subBlockValues[id], presetSubBlockValues)
+          /* The same gate as the declared default, deliberately: a preset is
+             offered by search and the connection picker, whose index reads as
+             unrestricted until the config resolves — so it is not the informed
+             pick it looks like, and honouring it would persist an operation
+             from an unfiltered list. */
+          const presetOperation = presetSubBlockValues[OPERATION_SUBBLOCK_ID]
+          const presetOperationDenied =
+            typeof presetOperation === 'string' && !seedGate(OPERATION_SUBBLOCK_ID, presetOperation)
+
+          Object.assign(
+            subBlockValues[id],
+            presetOperationDenied
+              ? omit(presetSubBlockValues, [OPERATION_SUBBLOCK_ID])
+              : presetSubBlockValues
+          )
         }
 
         collaborativeBatchAddBlocks(
@@ -926,7 +948,7 @@ const WorkflowContent = React.memo(
         )
         usePanelEditorStore.getState().setCurrentBlockId(id)
       },
-      [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection]
+      [collaborativeBatchAddBlocks, setSelectedEdges, setPendingSelection, resolveSeedGate]
     )
 
     const { activeBlockIds, pendingBlocks, isDebugging, isExecuting } = useExecutionStore(

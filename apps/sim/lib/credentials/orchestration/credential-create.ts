@@ -2,12 +2,14 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { normalizeCredentialEnvKey } from '@/lib/api/contracts/credentials'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
 import { getCredentialCreationWorkspaceContext } from '@/lib/credentials/environment'
@@ -185,6 +187,18 @@ async function findExistingCredentialBySourceWith(
   return null
 }
 
+async function serviceAccountSecretsMatch(
+  existingEncryptedSecret: string | null,
+  submittedEncryptedSecret: string | null
+): Promise<boolean> {
+  if (!existingEncryptedSecret || !submittedEncryptedSecret) return false
+  const [existing, submitted] = await Promise.all([
+    decryptSecret(existingEncryptedSecret),
+    decryptSecret(submittedEncryptedSecret),
+  ])
+  return safeCompare(existing.decrypted, submitted.decrypted)
+}
+
 function failure(
   error: string,
   errorCode: CredentialOrchestrationErrorCode,
@@ -325,12 +339,11 @@ export async function createCredentialRecord(
         )
       }
 
-      /**
-       * Token service-account creates always carry a fresh token that must be
-       * stored — falling through to the existing-credential path would return
-       * the old credential as success and silently drop the submitted token.
-       */
-      if (resolvedProviderId && isTokenServiceAccountProviderId(resolvedProviderId)) {
+      if (
+        type === 'service_account' &&
+        resolvedProviderId &&
+        isTokenServiceAccountProviderId(resolvedProviderId)
+      ) {
         return failure(
           `A credential named "${resolvedDisplayName}" already exists in this workspace. Give this one a different name.`,
           'conflict',
@@ -344,6 +357,27 @@ export async function createCredentialRecord(
 
       if (!access.member && !access.isAdmin) {
         return failure('A credential with this source already exists in this workspace', 'conflict')
+      }
+
+      /**
+       * Non-token service accounts may replay only the exact stored secret. A
+       * source match with rotated secret material must not report success while
+       * silently retaining the old ciphertext. Compare only after credential
+       * access is established so the encrypted value stays behind its resource
+       * authorization boundary.
+       */
+      if (
+        type === 'service_account' &&
+        !(await serviceAccountSecretsMatch(
+          existingCredential.encryptedServiceAccountKey,
+          resolvedEncryptedServiceAccountKey
+        ))
+      ) {
+        return failure(
+          `A credential named "${resolvedDisplayName}" already exists in this workspace. Give this one a different name.`,
+          'conflict',
+          { providerErrorCode: 'duplicate_display_name' }
+        )
       }
 
       const shouldUpdateDisplayName =

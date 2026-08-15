@@ -195,6 +195,9 @@ export const v2ListCredentialProvidersQuerySchema = z
     workspaceId: workspaceIdSchema.describe(
       'Workspace used to evaluate credential-provider availability and integration policy.'
     ),
+    search: v2SearchSchema.describe(
+      'Case-insensitive substring match against the credential provider name.'
+    ),
   })
   .strict()
 export type V2ListCredentialProvidersQuery = z.output<typeof v2ListCredentialProvidersQuerySchema>

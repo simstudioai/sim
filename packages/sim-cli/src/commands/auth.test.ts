@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createAuthRequest: vi.fn(() => ({ pairing: 'ABCD', verifier: 'verifier' })),
   createInterface: vi.fn(),
   listProfiles: vi.fn<() => string[]>(() => []),
+  readCredentialsProfile: vi.fn<() => Record<string, string>>(() => ({})),
   pollForKey: vi.fn(async () => ({
     apiKey: 'sim-key',
     scope: 'platform' as const,
@@ -26,7 +27,7 @@ vi.mock('../config/index', () => ({
   credentialsPath: () => '/tmp/sim-credentials',
   deleteProfile: vi.fn(),
   listProfiles: mocks.listProfiles,
-  readCredentialsProfile: vi.fn(() => ({})),
+  readCredentialsProfile: mocks.readCredentialsProfile,
   writeConfigProfile: mocks.writeConfigProfile,
   writeCredentialsProfile: mocks.writeCredentialsProfile,
 }))
@@ -64,6 +65,7 @@ describe('login command', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.listProfiles.mockReturnValue([])
+    mocks.readCredentialsProfile.mockReturnValue({})
     mocks.createInterface.mockReturnValue({
       question: vi.fn(async () => 'yes'),
       close: vi.fn(),
@@ -86,7 +88,7 @@ describe('login command', () => {
 
   it('requires --yes before overwriting non-interactively', async () => {
     setInteractive(false)
-    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'existing-key' })
 
     await expect(login()).rejects.toThrow(
       'Profile "default" already exists. Re-run with --yes to overwrite it.'
@@ -99,7 +101,7 @@ describe('login command', () => {
 
   it('continues only when an interactive overwrite is confirmed', async () => {
     setInteractive(true)
-    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'existing-key' })
     const question = vi.fn(async () => 'yes')
     const close = vi.fn()
     mocks.createInterface.mockReturnValue({ question, close })
@@ -115,7 +117,7 @@ describe('login command', () => {
 
   it('leaves the profile unchanged when confirmation is declined', async () => {
     setInteractive(true)
-    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.readCredentialsProfile.mockReturnValue({ api_key: 'existing-key' })
     mocks.createInterface.mockReturnValue({
       question: vi.fn(async () => 'no'),
       close: vi.fn(),
@@ -126,6 +128,17 @@ describe('login command', () => {
     expect(mocks.createAuthRequest).not.toHaveBeenCalled()
     expect(mocks.writeCredentialsProfile).not.toHaveBeenCalled()
     expect(mocks.writeConfigProfile).not.toHaveBeenCalled()
+  })
+
+  it('does not prompt for a config-only or logged-out profile', async () => {
+    setInteractive(false)
+    mocks.listProfiles.mockReturnValue(['default'])
+    mocks.readCredentialsProfile.mockReturnValue({})
+
+    await login()
+
+    expect(mocks.createInterface).not.toHaveBeenCalled()
+    expect(mocks.createAuthRequest).toHaveBeenCalledOnce()
   })
 })
 

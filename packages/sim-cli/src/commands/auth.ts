@@ -85,7 +85,7 @@ export function loginCommand(): Command {
         }
         const scope = options.scope as CliAuthScope
 
-        if (listProfiles().includes(profile.name) && !options.yes) {
+        if (readCredentialsProfile(profile.name).api_key && !options.yes) {
           const confirmed = await confirmProfileOverwrite(profile.name)
           if (!confirmed) {
             console.log(chalk.dim('Login cancelled; the existing profile was not changed.'))

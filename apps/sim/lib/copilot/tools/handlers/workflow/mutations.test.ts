@@ -47,7 +47,6 @@ import {
   executeRunFromBlock,
   executeRunWorkflow,
   executeRunWorkflowUntilBlock,
-  executeSetBlockEnabled,
   executeSetGlobalWorkflowVariables,
 } from '@/lib/copilot/tools/handlers/workflow/mutations'
 

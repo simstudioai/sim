@@ -111,6 +111,18 @@ describe('OAuth2 authorize route', () => {
     )
   })
 
+  it('requires a configured OAuth client before creating a legacy draft', async () => {
+    mocks.requireClient.mockImplementationOnce(() => {
+      throw new Error('OAuth client is not configured')
+    })
+
+    const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
+
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
+    expect(mocks.requireClient).toHaveBeenCalledWith('google-email')
+    expect(mocks.createConnection).not.toHaveBeenCalled()
+  })
+
   it('launches an exact draft without creating another one', async () => {
     const response = await GET(request({ draftId: 'draft-1' }))
 

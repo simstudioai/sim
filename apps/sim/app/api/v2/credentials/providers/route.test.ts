@@ -111,4 +111,30 @@ describe('GET /api/v2/credentials/providers', () => {
     expect(response.status).toBe(400)
     expect(mocks.execute).not.toHaveBeenCalled()
   })
+
+  it('forwards a provider-name search to the authorized application use case', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/v2/credentials/providers?workspaceId=${WORKSPACE_ID}&search=%20Sales%20`
+    )
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { workspaceId: WORKSPACE_ID, search: 'Sales' },
+      request,
+    })
+  })
+
+  it('rejects an empty provider search', async () => {
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3000/api/v2/credentials/providers?workspaceId=${WORKSPACE_ID}&search=`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
 })

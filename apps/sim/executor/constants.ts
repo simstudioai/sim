@@ -41,6 +41,7 @@ export enum BlockType {
   WORKFLOW_INPUT = 'workflow_input',
 
   CREDENTIAL = 'credential',
+  CREDENTIAL_GROUP = 'credential_group',
 
   WAIT = 'wait',
 

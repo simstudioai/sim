@@ -3317,6 +3317,7 @@ export type ListBillingLogsResponse = {
 /** `GET /api/v2/credentials/providers` */
 export type ListCredentialProvidersQuery = {
   workspaceId: string
+  search?: string
 }
 
 type ListCredentialProvidersResponseRef0 =
@@ -6778,6 +6779,7 @@ export const V2_OPERATIONS = {
     summary: 'List Credential Providers',
     query: {
       workspaceId: { kind: 'string', required: true },
+      search: { kind: 'string' },
     },
   },
   listCredentials: {

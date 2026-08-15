@@ -106,4 +106,29 @@ describe('saveCredentialDraft', () => {
     })
     expect(mocks.createDraft).not.toHaveBeenCalled()
   })
+
+  it('rejects managed OAuth credentials as reconnect targets', async () => {
+    mocks.getActor.mockResolvedValue({
+      credential: { ...credential, type: 'managed_oauth' },
+      member: { role: 'admin' },
+      hasWorkspaceAccess: true,
+      isAdmin: true,
+    })
+
+    await expect(
+      saveCredentialDraft.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          providerId: 'google-email',
+          displayName: 'Managed Gmail',
+          credentialId: 'credential-1',
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      detailCode: 'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
+    })
+    expect(mocks.createDraft).not.toHaveBeenCalled()
+  })
 })

@@ -10,6 +10,7 @@ import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/applicat
 
 export interface ListCredentialProvidersInput {
   workspaceId: string
+  search?: string
 }
 
 export interface ListCredentialProvidersResult {
@@ -24,7 +25,17 @@ export const listCredentialProviders = defineAuthorizedWorkspaceUseCase({
     return context
   },
   authorizationOptions: { delegation: credentialDelegationPolicy },
-  execute: async ({ principal, context }): Promise<ListCredentialProvidersResult> => ({
-    providers: await listCredentialProviderCatalog(principal, context),
-  }),
+  execute: async ({ principal, input, context }): Promise<ListCredentialProvidersResult> => {
+    const search = input.search?.trim().toLowerCase()
+    if (input.search !== undefined && !search) {
+      throw new OrchestrationError('validation', 'search cannot be empty')
+    }
+
+    const providers = await listCredentialProviderCatalog(principal, context)
+    return {
+      providers: search
+        ? providers.filter((provider) => provider.name.toLowerCase().includes(search))
+        : providers,
+    }
+  },
 })

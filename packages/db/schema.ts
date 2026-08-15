@@ -3726,10 +3726,25 @@ export const usageLog = pgTable(
 
 export const credentialTypeEnum = pgEnum('credential_type', [
   'oauth',
+  'managed_oauth',
   'env_workspace',
   'env_personal',
   'service_account',
 ])
+
+export const managedOauthCredentialStatusEnum = pgEnum('managed_oauth_credential_status', [
+  'active',
+  'needs_reauth',
+  'revoked',
+])
+
+export interface ManagedOAuthProviderMetadata {
+  email: string
+  displayName?: string
+  avatarUrl?: string
+  username?: string
+  tenantDisplayName?: string
+}
 
 export const credential = pgTable(
   'credential',
@@ -3746,6 +3761,24 @@ export const credential = pgTable(
     envKey: text('env_key'),
     envOwnerUserId: text('env_owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
     encryptedServiceAccountKey: text('encrypted_service_account_key'),
+    authorizationAppId: text('authorization_app_id'),
+    credentialGroupEnrollmentId: text('credential_group_enrollment_id').references(
+      (): AnyPgColumn => credentialGroupEnrollment.id,
+      { onDelete: 'cascade' }
+    ),
+    credentialGroupOptionId: text('credential_group_option_id'),
+    managedOauthScopeVersion: integer('managed_oauth_scope_version'),
+    providerSubjectId: text('provider_subject_id'),
+    providerTenantId: text('provider_tenant_id'),
+    managedOauthStatus: managedOauthCredentialStatusEnum('managed_oauth_status'),
+    grantedScopes: text('granted_scopes').array(),
+    providerMetadata: jsonb('provider_metadata').$type<ManagedOAuthProviderMetadata>(),
+    encryptedOauthTokenSet: text('encrypted_oauth_token_set'),
+    grantedAt: timestamp('granted_at'),
+    revokedAt: timestamp('revoked_at'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at'),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+    lastRefreshedAt: timestamp('last_refreshed_at'),
     createdBy: text('created_by')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -3758,6 +3791,12 @@ export const credential = pgTable(
     providerIdIdx: index('credential_provider_id_idx').on(table.providerId),
     accountIdIdx: index('credential_account_id_idx').on(table.accountId),
     envOwnerUserIdIdx: index('credential_env_owner_user_id_idx').on(table.envOwnerUserId),
+    credentialGroupEnrollmentIdx: index('credential_group_enrollment_idx').on(
+      table.credentialGroupEnrollmentId
+    ),
+    credentialGroupOptionUnique: uniqueIndex('credential_group_option_unique')
+      .on(table.credentialGroupEnrollmentId, table.credentialGroupOptionId)
+      .where(sql`${table.type} = 'managed_oauth'`),
     workspaceAccountUnique: uniqueIndex('credential_workspace_account_unique')
       .on(table.workspaceId, table.accountId)
       .where(sql`account_id IS NOT NULL`),
@@ -3771,6 +3810,29 @@ export const credential = pgTable(
       'credential_oauth_source_check',
       sql`(type <> 'oauth') OR (account_id IS NOT NULL AND provider_id IS NOT NULL)`
     ),
+    managedOauthSourceConstraint: check(
+      'credential_managed_oauth_source_check',
+      sql`(type::text <> 'managed_oauth') OR (
+        account_id IS NULL
+        AND provider_id IS NOT NULL
+        AND authorization_app_id IS NOT NULL
+        AND provider_subject_id IS NOT NULL
+        AND managed_oauth_status IS NOT NULL
+        AND granted_scopes IS NOT NULL
+        AND cardinality(granted_scopes) > 0
+        AND encrypted_oauth_token_set IS NOT NULL
+        AND granted_at IS NOT NULL
+      )`
+    ),
+    managedOauthGroupBindingConstraint: check(
+      'credential_managed_oauth_group_binding_check',
+      sql`(type::text <> 'managed_oauth') OR (
+        credential_group_enrollment_id IS NOT NULL
+        AND credential_group_option_id IS NOT NULL
+        AND managed_oauth_scope_version IS NOT NULL
+        AND managed_oauth_scope_version > 0
+      )`
+    ),
     workspaceEnvSourceConstraint: check(
       'credential_workspace_env_source_check',
       sql`(type <> 'env_workspace') OR (env_key IS NOT NULL AND env_owner_user_id IS NULL)`
@@ -3778,6 +3840,108 @@ export const credential = pgTable(
     personalEnvSourceConstraint: check(
       'credential_personal_env_source_check',
       sql`(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)`
+    ),
+  })
+)
+
+export const credentialGroupStatusEnum = pgEnum('credential_group_status', ['active', 'disabled'])
+
+export interface CredentialGroupOptionConfig {
+  id: string
+  provider: string
+  label: string
+  slackBotCredentialId?: string
+  authorizationAppId: string
+  requiredScopes: string[]
+  scopeVersion: number
+  required: boolean
+  status: 'active' | 'disabled'
+}
+
+/** Workspace-owned configuration for collecting several managed OAuth credentials. */
+export const credentialGroup = pgTable(
+  'credential_group',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    publicId: text('public_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    options: jsonb('options').$type<CredentialGroupOptionConfig[]>().notNull(),
+    encryptedProviderConfiguration: text('encrypted_provider_configuration'),
+    status: credentialGroupStatusEnum('status').notNull().default('active'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    publicIdUnique: uniqueIndex('credential_group_public_id_unique').on(table.publicId),
+    workspaceStatusIdx: index('credential_group_workspace_status_idx').on(
+      table.workspaceId,
+      table.status
+    ),
+    workspaceNameUnique: uniqueIndex('credential_group_workspace_name_unique').on(
+      table.workspaceId,
+      sql`lower(${table.name})`
+    ),
+  })
+)
+
+export const credentialGroupEnrollmentStatusEnum = pgEnum('credential_group_enrollment_status', [
+  'invited',
+  'delivery_failed',
+  'in_progress',
+  'completed',
+  'revoked',
+])
+
+/** Email-bound invitation and resumable progress for one credential-group recipient. */
+export const credentialGroupEnrollment = pgTable(
+  'credential_group_enrollment',
+  {
+    id: text('id').primaryKey(),
+    credentialGroupId: text('credential_group_id')
+      .notNull()
+      .references(() => credentialGroup.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    status: credentialGroupEnrollmentStatusEnum('status').notNull().default('invited'),
+    invitationTokenHash: text('invitation_token_hash').notNull(),
+    invitationExpiresAt: timestamp('invitation_expires_at').notNull(),
+    invitedAt: timestamp('invited_at').notNull(),
+    sentAt: timestamp('sent_at'),
+    completedAt: timestamp('completed_at'),
+    revokedAt: timestamp('revoked_at'),
+    lastDeliveryError: text('last_delivery_error'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    groupEmailUnique: uniqueIndex('credential_group_enrollment_group_email_unique').on(
+      table.credentialGroupId,
+      table.email
+    ),
+    invitationTokenHashUnique: uniqueIndex(
+      'credential_group_enrollment_invitation_token_hash_unique'
+    ).on(table.invitationTokenHash),
+    groupStatusIdx: index('credential_group_enrollment_group_status_idx').on(
+      table.credentialGroupId,
+      table.status
+    ),
+    groupInvitedAtIdIdx: index('credential_group_enrollment_group_invited_at_id_idx').on(
+      table.credentialGroupId,
+      table.invitedAt,
+      table.id
+    ),
+    normalizedEmail: check(
+      'credential_group_enrollment_normalized_email_check',
+      sql`${table.email} = lower(btrim(${table.email})) AND length(${table.email}) BETWEEN 3 AND 320`
+    ),
+    invitationTokenHashLength: check(
+      'credential_group_enrollment_invitation_token_hash_length_check',
+      sql`length(${table.invitationTokenHash}) = 64`
     ),
   })
 )

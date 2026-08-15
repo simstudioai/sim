@@ -144,6 +144,12 @@ const FEATURE_FLAGS = {
       'Off-AppConfig falls back to TABLE_VIEWS.',
     fallback: 'TABLE_VIEWS',
   },
+  'credential-groups': {
+    description:
+      'Workspace-owned collections that gather managed OAuth credentials from external users. ' +
+      'Global on/off only; hosted workspaces must also have an Enterprise subscription.',
+    fallback: 'CREDENTIAL_GROUPS',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

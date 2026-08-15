@@ -2,6 +2,10 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  NO_DENIED_OPERATIONS,
+  OPERATION_SUBBLOCK_ID,
+} from '@/lib/permission-groups/operation-access'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useFetchedOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
@@ -11,7 +15,7 @@ import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
-import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useOperationAccess } from '@/hooks/use-operation-access'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Selected-value badges shown before folding the rest into a "+N" badge. */
@@ -97,7 +101,7 @@ export const Dropdown = memo(function Dropdown({
   preserveLabelCase = false,
 }: DropdownProps) {
   const activeSearchTarget = useActiveSearchTarget()
-  const { isToolAllowed } = usePermissionConfig()
+  const { getDeniedOperations, resolveDefaultOperation, isPermissionLoading } = useOperationAccess()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
@@ -189,26 +193,17 @@ export const Dropdown = memo(function Dropdown({
 
   /**
    * Operation IDs whose resolved tool is denied by the caller's permission
-   * group. Only the `operation` selector of a block with a tool selector is
-   * gated. Denied operations are hidden from the picker (still resolvable for
-   * label display); the server is the authoritative gate regardless.
+   * group. Only the `operation` selector is gated. Denied operations are hidden
+   * from the picker (still resolvable for label display); the server is the
+   * authoritative gate regardless.
    */
   const deniedOperationIds = useMemo(() => {
-    const denied = new Set<string>()
-    if (subBlockId !== 'operation') return denied
-    const selectTool = blockConfig?.tools?.config?.tool
-    if (!selectTool) return denied
-    for (const opt of allOptions) {
-      const optionId = typeof opt === 'string' ? opt : opt.id
-      try {
-        const toolId = selectTool({ operation: optionId })
-        if (toolId && !isToolAllowed(toolId)) denied.add(optionId)
-      } catch {
-        // Unresolvable from the operation alone — leave it visible; the server still enforces.
-      }
-    }
-    return denied
-  }, [subBlockId, blockConfig, allOptions, isToolAllowed])
+    if (subBlockId !== OPERATION_SUBBLOCK_ID) return NO_DENIED_OPERATIONS
+    return getDeniedOperations(
+      blockConfig,
+      allOptions.map((opt) => (typeof opt === 'string' ? opt : opt.id))
+    )
+  }, [subBlockId, blockConfig, allOptions, getDeniedOperations])
 
   const comboboxOptions = useMemo((): ComboboxOption[] => {
     const toLabel = (raw: string) => (preserveLabelCase ? raw : raw.toLowerCase())
@@ -232,17 +227,22 @@ export const Dropdown = memo(function Dropdown({
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined
 
-    const firstSelectable = comboboxOptions.find((opt) => !opt.hidden)
-    if (defaultValue !== undefined) {
-      // Don't seed a denied operation as the default; use the first allowed option.
-      if (deniedOperationIds.has(defaultValue)) {
-        return firstSelectable?.value
-      }
-      return defaultValue
+    /**
+     * The operation field defaults through the permission gate, which withholds
+     * a value until the group config has loaded. Seeding the static first
+     * option in that window would persist an operation the group denies —
+     * nothing revisits a field that already holds a value, so the correction
+     * that arrives with the config would never apply.
+     */
+    if (subBlockId === OPERATION_SUBBLOCK_ID) {
+      const selectableIds = comboboxOptions.filter((opt) => !opt.hidden).map((opt) => opt.value)
+      return resolveDefaultOperation(blockConfig, selectableIds, defaultValue)
     }
 
-    return firstSelectable?.value
-  }, [defaultValue, comboboxOptions, deniedOperationIds, multiSelect])
+    if (defaultValue !== undefined) return defaultValue
+
+    return comboboxOptions.find((opt) => !opt.hidden)?.value
+  }, [defaultValue, comboboxOptions, multiSelect, subBlockId, blockConfig, resolveDefaultOperation])
 
   useEffect(() => {
     if (multiSelect || defaultOptionValue === undefined) {
@@ -437,7 +437,9 @@ export const Dropdown = memo(function Dropdown({
       onChange={handleChange}
       onMultiSelectChange={handleMultiSelectChange}
       placeholder={placeholder}
-      disabled={disabled}
+      /* The operation list only drops denied entries once the config resolves,
+         and a pick here persists — matching the agent tool selector. */
+      disabled={disabled || (subBlockId === OPERATION_SUBBLOCK_ID && isPermissionLoading)}
       editable={false}
       onOpenChange={handleOpenChange}
       overlayContent={multiSelectOverlay ?? singleSelectOverlay}
