@@ -82,14 +82,31 @@ describe('credential group OAuth start route', () => {
     expect(mocks.startOAuth).not.toHaveBeenCalled()
   })
 
-  it('stops before token lookup when the public IP budget is exhausted', async () => {
+  it('returns a rate-limited OAuth start to its enrollment page before token lookup', async () => {
     mocks.ipRateLimit.mockResolvedValue(
       NextResponse.json({ error: 'Too many requests' }, { status: 429 })
     )
 
     const response = await GET(request(), context)
 
-    expect(response.status).toBe(429)
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      '/credential-groups/enroll/invitation-token?oauth=rate_limited'
+    )
     expect(mocks.authenticate).not.toHaveBeenCalled()
+  })
+
+  it('returns an exhausted enrollment OAuth budget to the enrollment page', async () => {
+    mocks.enrollmentRateLimit.mockResolvedValue(
+      NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    )
+
+    const response = await GET(request(), context)
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      '/credential-groups/enroll/invitation-token?oauth=rate_limited'
+    )
+    expect(mocks.startOAuth).not.toHaveBeenCalled()
   })
 })

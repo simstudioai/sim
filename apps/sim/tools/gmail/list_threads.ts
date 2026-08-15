@@ -32,7 +32,6 @@ export const gmailListThreadsV2Tool: ToolConfig<GmailListThreadsParams, GmailLis
     oauth: {
       required: true,
       provider: 'google-email',
-      requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
     },
 
     params: {

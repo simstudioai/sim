@@ -25,11 +25,13 @@ export const GET = withRouteHandler(
     context: { params: Promise<{ token: string; optionId: string }> }
   ) => {
     const limited = await enforcePublicCredentialGroupIpRateLimit(request, 'oauth-start')
-    if (limited) return limited
 
     const parsed = await parseRequest(startCredentialGroupOAuthContract, request, context)
-    if (!parsed.success) return parsed.response
+    if (!parsed.success) return limited ?? parsed.response
     const { token, optionId } = parsed.data.params
+    if (limited) {
+      return createCredentialGroupEnrollmentRedirect(token, { oauth: 'rate_limited' })
+    }
     const principal = await authenticateCredentialGroupEnrollment(token)
     if (!principal) {
       return createCredentialGroupEnrollmentRedirect(token, { oauth: 'unavailable' })
@@ -38,7 +40,9 @@ export const GET = withRouteHandler(
     const enrollmentLimited = await enforceCredentialGroupEnrollmentOAuthRateLimit(
       principal.enrollmentId
     )
-    if (enrollmentLimited) return enrollmentLimited
+    if (enrollmentLimited) {
+      return createCredentialGroupEnrollmentRedirect(token, { oauth: 'rate_limited' })
+    }
 
     try {
       const { authorizationUrl } = await startPublicCredentialGroupOAuth.execute({

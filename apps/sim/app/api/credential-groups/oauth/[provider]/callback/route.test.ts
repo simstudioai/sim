@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -107,6 +107,22 @@ describe('credential group OAuth callback', () => {
     expect(response.headers.get('location')).toBe(
       '/credential-groups/enroll/invitation-token?oauth=unavailable'
     )
+    expect(mocks.completeOAuth).not.toHaveBeenCalled()
+  })
+
+  it('returns a valid rate-limited callback to the enrollment page without exchanging', async () => {
+    mocks.rateLimit.mockResolvedValue(
+      NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+    )
+
+    const response = await GET(request('state=state-1&code=code-1'), context)
+
+    expect(mocks.consumeAttempt).toHaveBeenCalledWith('state-1')
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(
+      '/credential-groups/enroll/invitation-token?oauth=rate_limited'
+    )
+    expect(mocks.authenticate).not.toHaveBeenCalled()
     expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
 })

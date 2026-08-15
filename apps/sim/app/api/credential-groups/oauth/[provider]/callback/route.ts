@@ -20,10 +20,9 @@ const logger = createLogger('CredentialGroupOAuthCallbackAPI')
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ provider: string }> }) => {
     const limited = await enforcePublicCredentialGroupIpRateLimit(request, 'oauth-callback')
-    if (limited) return limited
 
     const parsed = await parseRequest(credentialGroupOAuthCallbackContract, request, context)
-    if (!parsed.success) return parsed.response
+    if (!parsed.success) return limited ?? parsed.response
     const { provider } = parsed.data.params
     const { state, code, error: providerError } = parsed.data.query
 
@@ -40,10 +39,16 @@ export const GET = withRouteHandler(
       )
     }
     if (!attempt || attempt.provider !== provider) {
+      if (limited) return limited
       return NextResponse.json(
         { error: 'Authorization state is invalid or expired.' },
         { status: 400, headers: { 'Cache-Control': 'no-store' } }
       )
+    }
+    if (limited) {
+      return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, {
+        oauth: 'rate_limited',
+      })
     }
     if (providerError) {
       return createCredentialGroupEnrollmentRedirect(attempt.invitationToken, { oauth: 'denied' })

@@ -35,9 +35,19 @@ interface SlackManagedUsersModalProps {
 interface SlackManagedUsersMessage {
   type: typeof CHANNEL_NAME
   ok: boolean
+  reason?: string
   state?: string
   credentialGroupId?: string
   slackBotCredentialId?: string
+}
+
+export function getSlackManagedUsersFailureNotification(reason?: string): {
+  message: string
+  variant: 'error' | 'warning'
+} {
+  return reason === 'provider_error'
+    ? { message: 'Slack authorization canceled', variant: 'warning' }
+    : { message: 'Slack app verification failed. Please try again.', variant: 'error' }
 }
 
 function isSlackManagedUsersMessage(value: unknown): value is SlackManagedUsersMessage {
@@ -46,6 +56,7 @@ function isSlackManagedUsersMessage(value: unknown): value is SlackManagedUsersM
   return (
     message.type === CHANNEL_NAME &&
     typeof message.ok === 'boolean' &&
+    (message.reason === undefined || typeof message.reason === 'string') &&
     (message.state === undefined || typeof message.state === 'string') &&
     (message.credentialGroupId === undefined || typeof message.credentialGroupId === 'string') &&
     (message.slackBotCredentialId === undefined || typeof message.slackBotCredentialId === 'string')
@@ -97,8 +108,13 @@ export function SlackManagedUsersModal({
       popup.current?.close()
       popup.current = null
       setPending(false)
+      if (!event.data.ok) {
+        const notification = getSlackManagedUsersFailureNotification(event.data.reason)
+        if (notification.variant === 'warning') toast.warning(notification.message)
+        else toast.error(notification.message)
+        return
+      }
       if (
-        !event.data.ok ||
         event.data.credentialGroupId !== credentialGroupId ||
         !verifiedCredentialId ||
         event.data.slackBotCredentialId !== verifiedCredentialId

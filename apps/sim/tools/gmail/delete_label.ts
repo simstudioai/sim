@@ -24,7 +24,6 @@ export const gmailDeleteLabelV2Tool: ToolConfig<GmailDeleteLabelParams, GmailDel
     oauth: {
       required: true,
       provider: 'google-email',
-      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
     },
 
     params: {

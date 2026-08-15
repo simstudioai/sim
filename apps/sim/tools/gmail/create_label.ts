@@ -29,7 +29,6 @@ export const gmailCreateLabelV2Tool: ToolConfig<GmailCreateLabelParams, GmailCre
     oauth: {
       required: true,
       provider: 'google-email',
-      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
     },
 
     params: {
