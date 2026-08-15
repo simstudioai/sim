@@ -146,6 +146,10 @@ export async function executeCrowdStrikeOperation(
       if (!result.ok) return fail(result, 'Failed to query CrowdStrike alerts')
 
       const alertIds = getStringResources(result.data)
+      if (failedWithoutResources(result, alertIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike alerts')
+      }
+
       return {
         ok: true,
         output: { alertIds, count: alertIds.length, pagination: getPagination(result.data) },
@@ -229,6 +233,10 @@ export async function executeCrowdStrikeOperation(
       if (!result.ok) return fail(result, 'Failed to query CrowdStrike host groups')
 
       const hostGroupIds = getStringResources(result.data)
+      if (failedWithoutResources(result, hostGroupIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike host groups')
+      }
+
       return {
         ok: true,
         output: {
@@ -304,6 +312,10 @@ export async function executeCrowdStrikeOperation(
       if (!result.ok) return fail(result, 'Failed to query CrowdStrike indicators')
 
       const indicatorIds = getStringResources(result.data)
+      if (failedWithoutResources(result, indicatorIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike indicators')
+      }
+
       return {
         ok: true,
         output: {
@@ -419,6 +431,10 @@ export async function executeCrowdStrikeOperation(
       if (!result.ok) return fail(result, 'Failed to query CrowdStrike vulnerabilities')
 
       const vulnerabilityIds = getStringResources(result.data)
+      if (failedWithoutResources(result, vulnerabilityIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike vulnerabilities')
+      }
+
       return {
         ok: true,
         output: {
@@ -570,6 +586,10 @@ export async function executeCrowdStrikeOperation(
       if (!result.ok) return fail(result, 'Failed to query CrowdStrike cases')
 
       const caseIds = getStringResources(result.data)
+      if (failedWithoutResources(result, caseIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike cases')
+      }
+
       return {
         ok: true,
         output: { caseIds, count: caseIds.length, pagination: getPagination(result.data) },

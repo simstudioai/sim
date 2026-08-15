@@ -124,9 +124,16 @@ const aggregateQuerySchema: z.ZodType<CrowdStrikeAggregateQuery> = z.lazy(() =>
   })
 )
 
+/**
+ * Falcon treats an empty query param as an empty FQL expression rather than an
+ * absent one, so a blank string must be rejected instead of forwarded.
+ */
+const nonBlankQuerySchema = (label: string) =>
+  z.string().trim().min(1, `${label} must not be empty`).optional()
+
 const querySensorsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_query_sensors'),
-  filter: z.string().trim().min(1, 'Filter must not be empty').optional(),
+  filter: nonBlankQuerySchema('Filter'),
   limit: z
     .number()
     .int()
@@ -134,7 +141,7 @@ const querySensorsSchema = baseRequestSchema.extend({
     .max(200, 'Limit must be at most 200')
     .optional(),
   offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
-  sort: z.string().trim().min(1, 'Sort must not be empty').optional(),
+  sort: nonBlankQuerySchema('Sort'),
 })
 
 const getSensorDetailsSchema = baseRequestSchema.extend({
@@ -546,8 +553,8 @@ const crowdstrikeCasesResponseSchema = successOutput(
 
 const queryAlertsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_query_alerts'),
-  filter: z.string().optional(),
-  q: z.string().optional(),
+  filter: nonBlankQuerySchema('Filter'),
+  q: nonBlankQuerySchema('Query'),
   limit: z
     .number()
     .int()
@@ -555,7 +562,7 @@ const queryAlertsSchema = baseRequestSchema.extend({
     .max(10000, 'Limit must be at most 10000')
     .optional(),
   offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
-  sort: z.string().optional(),
+  sort: nonBlankQuerySchema('Sort'),
   includeHidden: z.boolean().optional(),
 })
 
@@ -632,7 +639,7 @@ const performHostActionSchema = baseRequestSchema.extend({
 
 const queryHostGroupsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_query_host_groups'),
-  filter: z.string().optional(),
+  filter: nonBlankQuerySchema('Filter'),
   limit: z
     .number()
     .int()
@@ -640,7 +647,7 @@ const queryHostGroupsSchema = baseRequestSchema.extend({
     .max(5000, 'Limit must be at most 5000')
     .optional(),
   offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
-  sort: z.string().optional(),
+  sort: nonBlankQuerySchema('Sort'),
 })
 
 const getHostGroupDetailsSchema = baseRequestSchema.extend({
@@ -659,19 +666,29 @@ const performHostGroupActionSchema = baseRequestSchema.extend({
   deviceIds: idsSchema(5000, 'host agent ID'),
 })
 
-const queryIndicatorsSchema = baseRequestSchema.extend({
-  operation: z.literal('crowdstrike_query_indicators'),
-  filter: z.string().optional(),
-  limit: z
-    .number()
-    .int()
-    .min(1, 'Limit must be at least 1')
-    .max(2000, 'Limit must be at most 2000')
-    .optional(),
-  offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
-  after: z.string().optional(),
-  sort: z.string().optional(),
-})
+const queryIndicatorsSchema = baseRequestSchema
+  .extend({
+    operation: z.literal('crowdstrike_query_indicators'),
+    filter: nonBlankQuerySchema('Filter'),
+    limit: z
+      .number()
+      .int()
+      .min(1, 'Limit must be at least 1')
+      .max(2000, 'Limit must be at most 2000')
+      .optional(),
+    offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
+    after: nonBlankQuerySchema('After cursor'),
+    sort: nonBlankQuerySchema('Sort'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.offset !== undefined && value.after !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['after'],
+        message: 'after cannot be combined with offset; pick one pagination mode',
+      })
+    }
+  })
 
 const getIndicatorDetailsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_get_indicator_details'),
@@ -728,8 +745,8 @@ const queryVulnerabilitiesSchema = baseRequestSchema.extend({
     .min(1, 'Limit must be at least 1')
     .max(400, 'Limit must be at most 400')
     .optional(),
-  after: z.string().optional(),
-  sort: z.string().optional(),
+  after: nonBlankQuerySchema('After cursor'),
+  sort: nonBlankQuerySchema('Sort'),
 })
 
 const getVulnerabilityDetailsSchema = baseRequestSchema.extend({
@@ -764,8 +781,8 @@ const deleteRtrSessionSchema = baseRequestSchema.extend({
 
 const queryCasesSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_query_cases'),
-  filter: z.string().optional(),
-  q: z.string().optional(),
+  filter: nonBlankQuerySchema('Filter'),
+  q: nonBlankQuerySchema('Query'),
   limit: z
     .number()
     .int()
@@ -773,7 +790,7 @@ const queryCasesSchema = baseRequestSchema.extend({
     .max(10000, 'Limit must be at most 10000')
     .optional(),
   offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
-  sort: z.string().optional(),
+  sort: nonBlankQuerySchema('Sort'),
 })
 
 const getCaseDetailsSchema = baseRequestSchema.extend({

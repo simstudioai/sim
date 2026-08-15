@@ -528,6 +528,69 @@ describe('CrowdStrike extended operations', () => {
     expect(data).toEqual({ success: false, error: 'access denied' })
   })
 
+  it('fails an alert query whose 200 envelope carries only errors', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        resources: [],
+        errors: [{ code: 403, id: null, message: 'insufficient scope' }],
+      })
+    )
+
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_query_alerts', filter: 'status:"new"' })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(data).toEqual({ success: false, error: 'insufficient scope' })
+  })
+
+  it('fails a case query whose 200 envelope carries only errors', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        resources: [],
+        errors: [{ code: 500, id: null, message: 'case service unavailable' }],
+      })
+    )
+
+    const response = await POST(requestFor({ operation: 'crowdstrike_query_cases' }))
+    const data = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(data).toEqual({ success: false, error: 'case service unavailable' })
+  })
+
+  it('still reports a genuinely empty alert query as a success', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ resources: [], errors: [] }))
+
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_query_alerts', filter: 'status:"new"' })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.output.alertIds).toEqual([])
+    expect(data.output.count).toBe(0)
+  })
+
+  it('rejects an indicator query that combines offset and after pagination', async () => {
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_query_indicators', offset: 0, after: 'cursor-1' })
+    )
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('rejects a blank alert filter so Falcon never sees an empty FQL expression', async () => {
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_query_alerts', filter: '   ' })
+    )
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+  })
+
   it('rejects a blank sensor filter instead of sending an empty FQL expression', async () => {
     const response = await POST(
       requestFor({ operation: 'crowdstrike_query_sensors', filter: '   ' })
