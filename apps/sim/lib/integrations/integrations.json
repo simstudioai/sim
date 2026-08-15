@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-14",
+  "updatedAt": "2026-08-15",
   "integrations": [
     {
       "type": "onepassword",
@@ -8987,6 +8987,174 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["google-workspace", "document-processing"]
+    },
+    {
+      "type": "google_workspace_admin",
+      "slug": "google-workspace-admin",
+      "name": "Google Workspace Admin",
+      "description": "Manage Google Workspace users, org units, admin roles, devices, and audit reports",
+      "longDescription": "Connect to the Google Admin SDK to run joiner, mover, and leaver work: create and suspend users, move them between org units, reset passwords, grant and revoke admin roles, wipe or block devices, and read audit and usage reports.",
+      "bgColor": "#E8F0FE",
+      "iconName": "GoogleWorkspaceAdminIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/google_workspace_admin",
+      "operations": [
+        {
+          "name": "List Users",
+          "description": "List Google Workspace directory users for a customer or domain"
+        },
+        {
+          "name": "Get User",
+          "description": "Read a single Google Workspace directory user"
+        },
+        {
+          "name": "Create User",
+          "description": "Create a new Google Workspace directory user account"
+        },
+        {
+          "name": "Update User",
+          "description": "Update profile fields on an existing Google Workspace directory user"
+        },
+        {
+          "name": "Delete User",
+          "description": "Permanently delete a Google Workspace user account. This removes the account and its data, and cannot be undone after the Workspace recovery window"
+        },
+        {
+          "name": "Suspend User",
+          "description": "Suspend a Google Workspace user, immediately blocking sign-in and mail delivery while preserving the account"
+        },
+        {
+          "name": "Unsuspend User",
+          "description": "Restore a suspended Google Workspace user account so the user can sign in again"
+        },
+        {
+          "name": "Reset Password",
+          "description": "Set a new password on a Google Workspace user account, optionally forcing a password change at next sign-in"
+        },
+        {
+          "name": "Move User Org Unit",
+          "description": "Move a Google Workspace user into a different organizational unit, changing the policies that apply to them"
+        },
+        {
+          "name": "Make Admin",
+          "description": "Grant super administrator privileges to a Google Workspace user, giving them full control of the account"
+        },
+        {
+          "name": "Revoke Admin",
+          "description": "Revoke super administrator privileges from a Google Workspace user"
+        },
+        {
+          "name": "Sign Out User",
+          "description": "Sign a Google Workspace user out of all web and device sessions, invalidating their sign-in cookies"
+        },
+        {
+          "name": "List User Aliases",
+          "description": "List the alias email addresses assigned to a Google Workspace user"
+        },
+        {
+          "name": "Add User Alias",
+          "description": "Add an alias email address to a Google Workspace user"
+        },
+        {
+          "name": "Remove User Alias",
+          "description": "Remove an alias email address from a Google Workspace user. Mail sent to the alias stops being delivered"
+        },
+        {
+          "name": "List User Tokens",
+          "description": "List the third-party applications a Google Workspace user has issued OAuth access tokens to"
+        },
+        {
+          "name": "Revoke User Token",
+          "description": "Revoke every OAuth access token a Google Workspace user has issued to one application, cutting off that application immediately"
+        },
+        {
+          "name": "List Org Units",
+          "description": "List the organizational units in a Google Workspace account"
+        },
+        {
+          "name": "Get Org Unit",
+          "description": "Read a single Google Workspace organizational unit"
+        },
+        {
+          "name": "Create Org Unit",
+          "description": "Create a new organizational unit in a Google Workspace account"
+        },
+        {
+          "name": "Update Org Unit",
+          "description": "Rename, re-describe, or re-parent a Google Workspace organizational unit"
+        },
+        {
+          "name": "Delete Org Unit",
+          "description": "Delete a Google Workspace organizational unit. The org unit must have no child org units, and its policies stop applying"
+        },
+        {
+          "name": "List Roles",
+          "description": "List the administrator roles defined in a Google Workspace account"
+        },
+        {
+          "name": "Get Role",
+          "description": "Read a single Google Workspace administrator role and its privileges"
+        },
+        {
+          "name": "List Role Assignments",
+          "description": "List which users and groups hold administrator roles in a Google Workspace account"
+        },
+        {
+          "name": "Create Role Assignment",
+          "description": "Grant a Google Workspace administrator role to a user or group, either across the whole account or scoped to one org unit"
+        },
+        {
+          "name": "Delete Role Assignment",
+          "description": "Revoke a Google Workspace administrator role assignment, removing that admin access immediately"
+        },
+        {
+          "name": "List Mobile Devices",
+          "description": "List the mobile devices enrolled in a Google Workspace account"
+        },
+        {
+          "name": "Get Mobile Device",
+          "description": "Read a single mobile device enrolled in a Google Workspace account"
+        },
+        {
+          "name": "Action Mobile Device",
+          "description": "Run an administrative action on an enrolled mobile device, such as approving, blocking, or remotely wiping it. Wipe actions erase data on the device and cannot be undone"
+        },
+        {
+          "name": "List ChromeOS Devices",
+          "description": "List the ChromeOS devices enrolled in a Google Workspace account"
+        },
+        {
+          "name": "Get ChromeOS Device",
+          "description": "Read a single ChromeOS device enrolled in a Google Workspace account"
+        },
+        {
+          "name": "Update ChromeOS Device",
+          "description": "Update the administrator-assigned fields on a ChromeOS device, including its assigned user, location, asset ID, notes, and org unit"
+        },
+        {
+          "name": "Change ChromeOS Device Status",
+          "description": "Deprovision, disable, or re-enable up to 50 ChromeOS devices at once. Deprovisioning removes the device from management and cannot be undone"
+        },
+        {
+          "name": "List Activities",
+          "description": "Read Google Workspace audit activities for an application, such as login, admin, drive, or token events"
+        },
+        {
+          "name": "Get Customer Usage Report",
+          "description": "Read account-wide Google Workspace usage metrics for a single day, such as active accounts and per-application usage"
+        },
+        {
+          "name": "Get User Usage Report",
+          "description": "Read per-user Google Workspace usage metrics for a single day, for one user or for every user in the account"
+        }
+      ],
+      "operationCount": 37,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "google-workspace-admin",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["google-workspace", "identity", "automation"]
     },
     {
       "type": "grafana",

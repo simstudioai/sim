@@ -1,0 +1,881 @@
+---
+title: Google Workspace Admin
+description: Manage Google Workspace users, org units, admin roles, devices, and audit reports
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_workspace_admin"
+  color="#E8F0FE"
+/>
+
+## Usage Instructions
+
+Connect to the Google Admin SDK to run joiner, mover, and leaver work: create and suspend users, move them between org units, reset passwords, grant and revoke admin roles, wipe or block devices, and read audit and usage reports.
+
+
+
+## Actions
+
+### Google Workspace Admin List Users
+
+List Google Workspace directory users for a customer or domain
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `domain` | string | No | Domain to list users from \(e.g. example.com\). Used instead of customer |
+| `query` | string | No | Directory search query filtering the results \(e.g. "orgUnitPath=/Sales" or "email:jane*"\) |
+| `maxResults` | number | No | Maximum number of users to return \(1-500\). Example: 100 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+| `orderBy` | string | No | Field to sort by: email, familyName, or givenName |
+| `sortOrder` | string | No | Sort direction: ASCENDING or DESCENDING |
+| `projection` | string | No | Fields to include for each user: basic, custom, or full |
+| `showDeleted` | boolean | No | Return recently deleted users instead of active ones |
+| `viewType` | string | No | Whether to read the admin_view or the domain_public view of each user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | json | Array of Directory API User resources |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `name` | json | Name object with givenName, familyName, fullName |
+|   ↳ `isAdmin` | boolean | Whether the user is a super administrator |
+|   ↳ `suspended` | boolean | Whether the account is suspended |
+|   ↳ `orgUnitPath` | string | Org unit the user belongs to |
+|   ↳ `lastLoginTime` | string | Last login timestamp |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Google Workspace Admin Get User
+
+Read a single Google Workspace directory user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User identifier: primary email address, alias email address, or unique user ID |
+| `projection` | string | No | Fields to include: BASIC, CUSTOM, or FULL |
+| `viewType` | string | No | Whether to read the admin_view or the domain_public view of the user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | Directory API User resource |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `name` | json | Name object with givenName, familyName, fullName |
+|   ↳ `isAdmin` | boolean | Whether the user is a super administrator |
+|   ↳ `suspended` | boolean | Whether the account is suspended |
+|   ↳ `orgUnitPath` | string | Org unit the user belongs to |
+|   ↳ `aliases` | json | Alias email addresses |
+|   ↳ `lastLoginTime` | string | Last login timestamp |
+
+### Google Workspace Admin Create User
+
+Create a new Google Workspace directory user account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `primaryEmail` | string | Yes | Primary email address for the new user \(e.g. jane.doe@example.com\) |
+| `givenName` | string | Yes | The user's first name |
+| `familyName` | string | Yes | The user's last name |
+| `password` | string | Yes | Initial password, 8-100 ASCII characters. Never returned by the API |
+| `changePasswordAtNextLogin` | boolean | No | Force the user to change their password at first sign-in |
+| `orgUnitPath` | string | No | Full path of the org unit to place the user in \(e.g. /Sales/West\) |
+| `suspended` | boolean | No | Create the account in a suspended state |
+| `recoveryEmail` | string | No | Recovery email address for the account |
+| `recoveryPhone` | string | No | Recovery phone number in E.164 format \(e.g. +16505551212\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | The created Directory API User resource |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `name` | json | Name object with givenName, familyName, fullName |
+|   ↳ `orgUnitPath` | string | Org unit the user belongs to |
+|   ↳ `suspended` | boolean | Whether the account is suspended |
+
+### Google Workspace Admin Update User
+
+Update profile fields on an existing Google Workspace directory user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User identifier: primary email address, alias email address, or unique user ID |
+| `primaryEmail` | string | No | New primary email address. Renaming a user also renames their mailbox |
+| `givenName` | string | No | New first name for the user |
+| `familyName` | string | No | New last name for the user |
+| `orgUnitPath` | string | No | Full path of the org unit to move the user into \(e.g. /Sales/West\) |
+| `suspended` | boolean | No | Set the suspended state of the account |
+| `recoveryEmail` | string | No | Recovery email address for the account |
+| `recoveryPhone` | string | No | Recovery phone number in E.164 format \(e.g. +16505551212\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | The updated Directory API User resource |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `name` | json | Name object with givenName, familyName, fullName |
+|   ↳ `orgUnitPath` | string | Org unit the user belongs to |
+|   ↳ `suspended` | boolean | Whether the account is suspended |
+
+### Google Workspace Admin Delete User
+
+Permanently delete a Google Workspace user account. This removes the account and its data, and cannot be undone after the Workspace recovery window
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User to delete, given as their primary email address, alias email address, or unique user ID. This is destructive and irreversible |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the user was deleted |
+
+### Google Workspace Admin Suspend User
+
+Suspend a Google Workspace user, immediately blocking sign-in and mail delivery while preserving the account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User to suspend, given as their primary email address, alias email address, or unique user ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | The updated Directory API User resource |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `suspended` | boolean | Whether the account is suspended |
+
+### Google Workspace Admin Unsuspend User
+
+Restore a suspended Google Workspace user account so the user can sign in again
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User to restore, given as their primary email address, alias email address, or unique user ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | The updated Directory API User resource |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `suspended` | boolean | Whether the account is suspended |
+
+### Google Workspace Admin Reset Password
+
+Set a new password on a Google Workspace user account, optionally forcing a password change at next sign-in
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User whose password is being reset, given as their primary email address, alias email address, or unique user ID |
+| `password` | string | Yes | New password. 8-100 ASCII characters in clear text, or a valid hash when hashFunction is set. Never returned by the API |
+| `changePasswordAtNextLogin` | boolean | No | Force the user to choose a new password at next sign-in. Has no effect for users signing in through a third-party identity provider |
+| `hashFunction` | string | No | Hash format of the supplied password: MD5, SHA-1, or crypt. Omit when sending a clear-text password |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | The updated Directory API User resource. The password is never returned |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `changePasswordAtNextLogin` | boolean | Whether the user must change their password at next sign-in |
+
+### Google Workspace Admin Move User Org Unit
+
+Move a Google Workspace user into a different organizational unit, changing the policies that apply to them
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User to move, given as their primary email address, alias email address, or unique user ID |
+| `orgUnitPath` | string | Yes | Full path of the destination org unit, starting with a slash \(e.g. /Sales/West\). Use / for the top-level org unit |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | The updated Directory API User resource |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `primaryEmail` | string | Primary email address |
+|   ↳ `orgUnitPath` | string | Org unit the user now belongs to |
+
+### Google Workspace Admin Make Admin
+
+Grant super administrator privileges to a Google Workspace user, giving them full control of the account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User to promote, given as their primary email address, alias email address, or unique user ID. This grants full administrative control |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the privilege was granted |
+
+### Google Workspace Admin Revoke Admin
+
+Revoke super administrator privileges from a Google Workspace user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User to demote, given as their primary email address, alias email address, or unique user ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the privilege was revoked |
+
+### Google Workspace Admin Sign Out User
+
+Sign a Google Workspace user out of all web and device sessions, invalidating their sign-in cookies
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User to sign out, given as their primary email address, alias email address, or unique user ID. All of their active sessions are terminated |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the sessions were terminated |
+
+### Google Workspace Admin List User Aliases
+
+List the alias email addresses assigned to a Google Workspace user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User identifier: primary email address, alias email address, or unique user ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `aliases` | json | Array of UserAlias resources |
+|   ↳ `id` | string | Unique ID of the user the alias belongs to |
+|   ↳ `primaryEmail` | string | The user's primary email address |
+|   ↳ `alias` | string | The alias email address |
+
+### Google Workspace Admin Add User Alias
+
+Add an alias email address to a Google Workspace user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User identifier: primary email address, alias email address, or unique user ID |
+| `alias` | string | Yes | Alias email address to add \(e.g. jane@example.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alias` | json | The created UserAlias resource |
+|   ↳ `id` | string | Unique ID of the user the alias belongs to |
+|   ↳ `primaryEmail` | string | The user's primary email address |
+|   ↳ `alias` | string | The alias email address |
+
+### Google Workspace Admin Remove User Alias
+
+Remove an alias email address from a Google Workspace user. Mail sent to the alias stops being delivered
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User identifier: primary email address, alias email address, or unique user ID |
+| `alias` | string | Yes | Alias email address to remove |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the alias was removed |
+
+### Google Workspace Admin List User Tokens
+
+List the third-party applications a Google Workspace user has issued OAuth access tokens to
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User identifier: primary email address, alias email address, or unique user ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tokens` | json | Array of Token resources, one per application the user has authorized |
+|   ↳ `clientId` | string | OAuth client ID of the application |
+|   ↳ `displayText` | string | Display name of the application |
+|   ↳ `scopes` | json | Scopes the application was granted |
+|   ↳ `userKey` | string | Unique ID of the authorizing user |
+|   ↳ `anonymous` | boolean | Whether the application is registered with Google |
+|   ↳ `nativeApp` | boolean | Whether the token is issued to an installed application |
+
+### Google Workspace Admin Revoke User Token
+
+Revoke every OAuth access token a Google Workspace user has issued to one application, cutting off that application immediately
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userKey` | string | Yes | User identifier: primary email address, alias email address, or unique user ID |
+| `clientId` | string | Yes | OAuth client ID of the application to revoke, as returned by List User Tokens. Every token that application holds for this user is deleted |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the tokens were revoked |
+
+### Google Workspace Admin List Org Units
+
+List the organizational units in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `orgUnitPath` | string | No | Org unit path to list from \(e.g. /Sales\). Defaults to the top-level org unit |
+| `type` | string | No | Which org units to return: children \(immediate children, the default\), all \(all descendants\), or allIncludingParent |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `organizationUnits` | json | Array of OrgUnit resources |
+|   ↳ `orgUnitId` | string | Unique ID of the org unit |
+|   ↳ `orgUnitPath` | string | Full path of the org unit |
+|   ↳ `name` | string | Display name of the org unit |
+|   ↳ `description` | string | Description of the org unit |
+|   ↳ `parentOrgUnitId` | string | Unique ID of the parent org unit |
+|   ↳ `parentOrgUnitPath` | string | Full path of the parent org unit |
+
+### Google Workspace Admin Get Org Unit
+
+Read a single Google Workspace organizational unit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `orgUnitPath` | string | Yes | Full path of the org unit \(e.g. /Sales/West\), or its unique org unit ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgUnit` | json | The OrgUnit resource |
+|   ↳ `orgUnitId` | string | Unique ID of the org unit |
+|   ↳ `orgUnitPath` | string | Full path of the org unit |
+|   ↳ `name` | string | Display name of the org unit |
+|   ↳ `description` | string | Description of the org unit |
+|   ↳ `parentOrgUnitId` | string | Unique ID of the parent org unit |
+|   ↳ `parentOrgUnitPath` | string | Full path of the parent org unit |
+
+### Google Workspace Admin Create Org Unit
+
+Create a new organizational unit in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `name` | string | Yes | Name of the new org unit \(e.g. West\) |
+| `parentOrgUnitPath` | string | Yes | Full path of the parent org unit \(e.g. /Sales\). Use / for the top level |
+| `description` | string | No | Description of the org unit |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgUnit` | json | The created OrgUnit resource |
+|   ↳ `orgUnitId` | string | Unique ID of the org unit |
+|   ↳ `orgUnitPath` | string | Full path of the org unit |
+|   ↳ `name` | string | Display name of the org unit |
+|   ↳ `description` | string | Description of the org unit |
+|   ↳ `parentOrgUnitPath` | string | Full path of the parent org unit |
+
+### Google Workspace Admin Update Org Unit
+
+Rename, re-describe, or re-parent a Google Workspace organizational unit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `orgUnitPath` | string | Yes | Full path of the org unit to update \(e.g. /Sales/West\), or its unique org unit ID |
+| `name` | string | No | New name for the org unit |
+| `parentOrgUnitPath` | string | No | Full path of a new parent org unit. Moving an org unit moves every user and device inside it |
+| `description` | string | No | New description for the org unit |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orgUnit` | json | The updated OrgUnit resource |
+|   ↳ `orgUnitId` | string | Unique ID of the org unit |
+|   ↳ `orgUnitPath` | string | Full path of the org unit |
+|   ↳ `name` | string | Display name of the org unit |
+|   ↳ `description` | string | Description of the org unit |
+|   ↳ `parentOrgUnitPath` | string | Full path of the parent org unit |
+
+### Google Workspace Admin Delete Org Unit
+
+Delete a Google Workspace organizational unit. The org unit must have no child org units, and its policies stop applying
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `orgUnitPath` | string | Yes | Full path of the org unit to delete \(e.g. /Sales/West\), or its unique org unit ID. This is destructive |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the org unit was deleted |
+
+### Google Workspace Admin List Roles
+
+List the administrator roles defined in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `maxResults` | number | No | Maximum number of roles to return. Example: 100 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roles` | json | Array of Role resources |
+|   ↳ `roleId` | string | Unique ID of the role |
+|   ↳ `roleName` | string | Name of the role |
+|   ↳ `roleDescription` | string | Description of the role |
+|   ↳ `rolePrivileges` | json | Privileges granted, each with serviceId and privilegeName |
+|   ↳ `isSystemRole` | boolean | Whether this is a built-in system role |
+|   ↳ `isSuperAdminRole` | boolean | Whether this is the super administrator role |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Google Workspace Admin Get Role
+
+Read a single Google Workspace administrator role and its privileges
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `roleId` | string | Yes | Unique ID of the role, as returned by List Roles |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `role` | json | The Role resource |
+|   ↳ `roleId` | string | Unique ID of the role |
+|   ↳ `roleName` | string | Name of the role |
+|   ↳ `roleDescription` | string | Description of the role |
+|   ↳ `rolePrivileges` | json | Privileges granted, each with serviceId and privilegeName |
+|   ↳ `isSystemRole` | boolean | Whether this is a built-in system role |
+|   ↳ `isSuperAdminRole` | boolean | Whether this is the super administrator role |
+
+### Google Workspace Admin List Role Assignments
+
+List which users and groups hold administrator roles in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `roleId` | string | No | Return only assignments of this role ID |
+| `userKey` | string | No | Return only assignments for this user or group, given as a primary email address, alias email address, or unique ID |
+| `includeIndirectRoleAssignments` | boolean | No | Also return roles inherited through group membership |
+| `maxResults` | number | No | Maximum number of assignments to return. Example: 100 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roleAssignments` | json | Array of RoleAssignment resources |
+|   ↳ `roleAssignmentId` | string | Unique ID of the assignment |
+|   ↳ `roleId` | string | ID of the assigned role |
+|   ↳ `assignedTo` | string | Unique ID of the user, group, or service account holding the role |
+|   ↳ `assigneeType` | string | Whether the assignee is a USER or GROUP |
+|   ↳ `scopeType` | string | Scope of the assignment: CUSTOMER or ORG_UNIT |
+|   ↳ `orgUnitId` | string | Org unit the assignment is scoped to, when scopeType is ORG_UNIT |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Google Workspace Admin Create Role Assignment
+
+Grant a Google Workspace administrator role to a user or group, either across the whole account or scoped to one org unit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `roleId` | string | Yes | Unique ID of the role to grant, as returned by List Roles |
+| `assignedTo` | string | Yes | Unique ID of the user, group, or service account receiving the role. This is the numeric directory ID, not an email address |
+| `scopeType` | string | No | Scope of the grant: CUSTOMER for the whole account, or ORG_UNIT to limit it to one org unit |
+| `orgUnitId` | string | No | Unique ID of the org unit to scope the grant to, when scopeType is ORG_UNIT |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roleAssignment` | json | The created RoleAssignment resource |
+|   ↳ `roleAssignmentId` | string | Unique ID of the assignment |
+|   ↳ `roleId` | string | ID of the assigned role |
+|   ↳ `assignedTo` | string | Unique ID of the assignee |
+|   ↳ `assigneeType` | string | Whether the assignee is a USER or GROUP |
+|   ↳ `scopeType` | string | Scope of the assignment: CUSTOMER or ORG_UNIT |
+|   ↳ `orgUnitId` | string | Org unit the assignment is scoped to, when scopeType is ORG_UNIT |
+
+### Google Workspace Admin Delete Role Assignment
+
+Revoke a Google Workspace administrator role assignment, removing that admin access immediately
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customer` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `roleAssignmentId` | string | Yes | Unique ID of the role assignment to revoke, as returned by List Role Assignments |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the role assignment was revoked |
+
+### Google Workspace Admin List Mobile Devices
+
+List the mobile devices enrolled in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `query` | string | No | Device search query \(e.g. "email:jane@example.com" or "model:Pixel"\) |
+| `maxResults` | number | No | Maximum number of devices to return \(max 100\). Example: 50 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+| `orderBy` | string | No | Field to sort by: deviceId, email, lastSync, model, name, os, status, or type |
+| `sortOrder` | string | No | Sort direction: ASCENDING or DESCENDING |
+| `projection` | string | No | Fields to include for each device: BASIC or FULL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mobileDevices` | json | Array of MobileDevice resources |
+|   ↳ `resourceId` | string | Unique resource ID used by device actions |
+|   ↳ `deviceId` | string | Serial number reported by the device |
+|   ↳ `email` | json | Email addresses associated with the device |
+|   ↳ `model` | string | Device model |
+|   ↳ `os` | string | Operating system reported by the device |
+|   ↳ `status` | string | Enrollment status of the device |
+|   ↳ `type` | string | Device management type |
+|   ↳ `lastSync` | string | Timestamp of the last device sync |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Google Workspace Admin Get Mobile Device
+
+Read a single mobile device enrolled in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `resourceId` | string | Yes | Unique resource ID of the device, as returned by List Mobile Devices |
+| `projection` | string | No | Fields to include: BASIC or FULL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mobileDevice` | json | The MobileDevice resource |
+|   ↳ `resourceId` | string | Unique resource ID used by device actions |
+|   ↳ `deviceId` | string | Serial number reported by the device |
+|   ↳ `email` | json | Email addresses associated with the device |
+|   ↳ `model` | string | Device model |
+|   ↳ `os` | string | Operating system reported by the device |
+|   ↳ `status` | string | Enrollment status of the device |
+|   ↳ `type` | string | Device management type |
+|   ↳ `lastSync` | string | Timestamp of the last device sync |
+
+### Google Workspace Admin Action Mobile Device
+
+Run an administrative action on an enrolled mobile device, such as approving, blocking, or remotely wiping it. Wipe actions erase data on the device and cannot be undone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `resourceId` | string | Yes | Unique resource ID of the device, as returned by List Mobile Devices |
+| `action` | string | Yes | Action to run: admin_remote_wipe \(erase the whole device\), admin_account_wipe \(erase only the Workspace account data\), approve, block, cancel_remote_wipe_then_activate, or cancel_remote_wipe_then_block |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Confirmation that the action was accepted |
+
+### Google Workspace Admin List ChromeOS Devices
+
+List the ChromeOS devices enrolled in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `orgUnitPath` | string | No | Return only devices in this org unit path \(e.g. /Sales\) |
+| `query` | string | No | Device search query \(e.g. "user:jane@example.com" or "status:provisioned"\) |
+| `maxResults` | number | No | Maximum number of devices to return \(should not exceed 300\). Example: 100 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+| `orderBy` | string | No | Field to sort by: annotatedLocation, annotatedUser, lastSync, notes, serialNumber, or status |
+| `sortOrder` | string | No | Sort direction: ASCENDING or DESCENDING |
+| `projection` | string | No | Fields to include for each device: BASIC or FULL |
+| `includeChildOrgunits` | boolean | No | Also return devices in org units nested under the requested org unit path |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chromeOsDevices` | json | Array of ChromeOsDevice resources |
+|   ↳ `deviceId` | string | Unique ID of the ChromeOS device |
+|   ↳ `serialNumber` | string | Serial number of the device |
+|   ↳ `status` | string | Provisioning status of the device |
+|   ↳ `orgUnitPath` | string | Org unit the device belongs to |
+|   ↳ `annotatedUser` | string | Administrator-assigned user |
+|   ↳ `annotatedLocation` | string | Administrator-assigned location |
+|   ↳ `annotatedAssetId` | string | Administrator-assigned asset ID |
+|   ↳ `lastSync` | string | Timestamp of the last device sync |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Google Workspace Admin Get ChromeOS Device
+
+Read a single ChromeOS device enrolled in a Google Workspace account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `deviceId` | string | Yes | Unique ID of the ChromeOS device, as returned by List ChromeOS Devices |
+| `projection` | string | No | Fields to include: BASIC or FULL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chromeOsDevice` | json | The ChromeOsDevice resource |
+|   ↳ `deviceId` | string | Unique ID of the ChromeOS device |
+|   ↳ `serialNumber` | string | Serial number of the device |
+|   ↳ `status` | string | Provisioning status of the device |
+|   ↳ `orgUnitPath` | string | Org unit the device belongs to |
+|   ↳ `annotatedUser` | string | Administrator-assigned user |
+|   ↳ `annotatedLocation` | string | Administrator-assigned location |
+|   ↳ `annotatedAssetId` | string | Administrator-assigned asset ID |
+|   ↳ `lastSync` | string | Timestamp of the last device sync |
+
+### Google Workspace Admin Update ChromeOS Device
+
+Update the administrator-assigned fields on a ChromeOS device, including its assigned user, location, asset ID, notes, and org unit
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `deviceId` | string | Yes | Unique ID of the ChromeOS device, as returned by List ChromeOS Devices |
+| `annotatedUser` | string | No | User the device is assigned to |
+| `annotatedLocation` | string | No | Physical location of the device |
+| `annotatedAssetId` | string | No | Asset identifier assigned to the device |
+| `notes` | string | No | Free-form administrator notes about the device |
+| `orgUnitPath` | string | No | Full path of the org unit to move the device into \(e.g. /Sales/West\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chromeOsDevice` | json | The updated ChromeOsDevice resource |
+|   ↳ `deviceId` | string | Unique ID of the ChromeOS device |
+|   ↳ `serialNumber` | string | Serial number of the device |
+|   ↳ `status` | string | Provisioning status of the device |
+|   ↳ `orgUnitPath` | string | Org unit the device belongs to |
+|   ↳ `annotatedUser` | string | Administrator-assigned user |
+|   ↳ `annotatedLocation` | string | Administrator-assigned location |
+|   ↳ `annotatedAssetId` | string | Administrator-assigned asset ID |
+|   ↳ `notes` | string | Administrator notes about the device |
+
+### Google Workspace Admin Batch Change ChromeOS Device Status
+
+Deprovision, disable, or re-enable up to 50 ChromeOS devices at once. Deprovisioning removes the device from management and cannot be undone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `deviceIds` | string | Yes | Comma-separated IDs of the ChromeOS devices to change, as returned by List ChromeOS Devices. Maximum 50 |
+| `changeChromeOsDeviceStatusAction` | string | Yes | Status change to apply: CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION \(remove from management, irreversible\), CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DISABLE \(keep managed but unusable\), or CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_REENABLE |
+| `deprovisionReason` | string | No | Why the devices are being deprovisioned. Required when the action is CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION, and omitted otherwise |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changeChromeOsDeviceStatusResults` | json | One result per requested device. Each carries either a response \(the change succeeded\) or an error |
+|   ↳ `deviceId` | string | Unique ID of the ChromeOS device |
+|   ↳ `response` | json | Present when the device changed status successfully |
+|   ↳ `error` | json | Present when the device failed to change status, with code, message, and details |
+| `succeededDeviceIds` | array | IDs of the devices that did change status, so a partial failure can be retried for the rest |
+| `failedDeviceIds` | array | IDs of the devices that did not change status |
+
+### Google Workspace Admin List Activities
+
+Read Google Workspace audit activities for an application, such as login, admin, drive, or token events
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `applicationName` | string | Yes | Audit log to read, e.g. login, admin, drive, token, groups, mobile, saml, user_accounts, chrome, or meet |
+| `userKey` | string | No | Profile ID or email address of the user whose activity to read. Defaults to all users |
+| `eventName` | string | No | Return only this event name \(e.g. login_failure\) |
+| `actorIpAddress` | string | No | Return only events originating from this IPv4 or IPv6 address |
+| `startTime` | string | No | Oldest activity to return, as an RFC 3339 timestamp |
+| `endTime` | string | No | Newest activity to return, as an RFC 3339 timestamp |
+| `filters` | string | No | Comma-separated event parameter conditions \(e.g. "doc_id==12345"\). Supported operators are ==, &lt;&gt;, &lt;, &lt;=, &gt;, and &gt;= |
+| `orgUnitID` | string | No | Return only activity for users in this org unit ID |
+| `groupIdFilter` | string | No | Comma-separated obfuscated group IDs to filter activity by |
+| `maxResults` | number | No | Maximum number of activities to return. Example: 100 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `activities` | json | Array of Activity resources |
+|   ↳ `id` | json | Identifier object with time, uniqueQualifier, applicationName, and customerId |
+|   ↳ `actor` | json | Actor object with profileId, email, callerType, key, and applicationInfo |
+|   ↳ `ipAddress` | string | IP address the action came from |
+|   ↳ `ownerDomain` | string | Domain owning the affected resource |
+|   ↳ `events` | json | Events in the activity, each with type, name, and parameters |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Google Workspace Admin Get Customer Usage Report
+
+Read account-wide Google Workspace usage metrics for a single day, such as active accounts and per-application usage
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `date` | string | Yes | Day the report covers, as yyyy-mm-dd. Usage is finalized some days after the date |
+| `customerId` | string | No | Customer ID to report on. Defaults to the authenticated account |
+| `parameters` | string | No | Comma-separated application parameters to return \(e.g. "accounts:num_users,gmail:num_emails_sent"\) |
+| `pageToken` | string | No | Token for fetching the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `usageReports` | json | Array of UsageReport resources |
+|   ↳ `date` | string | Day the report covers |
+|   ↳ `entity` | json | Entity object with customerId, entityId, and type |
+|   ↳ `parameters` | json | Measured parameters, each with name and one of intValue, stringValue, datetimeValue, boolValue, or msgValue |
+| `warnings` | json | Warnings returned with the report, each with code, message, and data |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+### Google Workspace Admin Get User Usage Report
+
+Read per-user Google Workspace usage metrics for a single day, for one user or for every user in the account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `date` | string | Yes | Day the report covers, as yyyy-mm-dd. Usage is finalized some days after the date |
+| `userKey` | string | No | Profile ID or email address of the user to report on. Defaults to all users in the account |
+| `customerId` | string | No | Customer ID to report on. Defaults to the authenticated account |
+| `parameters` | string | No | Comma-separated application parameters to return \(e.g. "accounts:last_login_time"\) |
+| `filters` | string | No | Comma-separated parameter conditions used to filter the returned users |
+| `orgUnitID` | string | No | Report only on users in this org unit ID |
+| `groupIdFilter` | string | No | Comma-separated obfuscated group IDs to filter the returned users by |
+| `maxResults` | number | No | Maximum number of user reports to return. Example: 100 |
+| `pageToken` | string | No | Token for fetching the next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `usageReports` | json | Array of UsageReport resources, one per user and day |
+|   ↳ `date` | string | Day the report covers |
+|   ↳ `entity` | json | Entity object with customerId, userEmail, profileId, entityId, and type |
+|   ↳ `parameters` | json | Measured parameters, each with name and one of intValue, stringValue, datetimeValue, boolValue, or msgValue |
+| `warnings` | json | Warnings returned with the report, each with code, message, and data |
+| `nextPageToken` | string | Token for fetching the next page of results |
+
+

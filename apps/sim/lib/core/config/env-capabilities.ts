@@ -1374,6 +1374,7 @@ const GOOGLE_OAUTH_SERVICES = new Set([
   'google-vault',
   'google-forms',
   'google-groups',
+  'google-workspace-admin',
   'google-meet',
   'vertex-ai',
 ])

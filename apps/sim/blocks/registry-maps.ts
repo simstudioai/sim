@@ -134,6 +134,10 @@ import {
 import { GoogleTasksBlock, GoogleTasksBlockMeta } from '@/blocks/blocks/google_tasks'
 import { GoogleTranslateBlock, GoogleTranslateBlockMeta } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock, GoogleVaultBlockMeta } from '@/blocks/blocks/google_vault'
+import {
+  GoogleWorkspaceAdminBlock,
+  GoogleWorkspaceAdminBlockMeta,
+} from '@/blocks/blocks/google_workspace_admin'
 import { GrafanaBlock, GrafanaBlockMeta } from '@/blocks/blocks/grafana'
 import { GrainBlock, GrainBlockMeta, GrainV2Block, GrainV2BlockMeta } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
@@ -483,6 +487,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   google_tasks: GoogleTasksBlock,
   google_translate: GoogleTranslateBlock,
   google_vault: GoogleVaultBlock,
+  google_workspace_admin: GoogleWorkspaceAdminBlock,
   grafana: GrafanaBlock,
   grain: GrainBlock,
   grain_v2: GrainV2Block,
@@ -803,6 +808,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   google_tasks: GoogleTasksBlockMeta,
   google_translate: GoogleTranslateBlockMeta,
   google_vault: GoogleVaultBlockMeta,
+  google_workspace_admin: GoogleWorkspaceAdminBlockMeta,
   grafana: GrafanaBlockMeta,
   grain: GrainBlockMeta,
   grain_v2: GrainV2BlockMeta,
