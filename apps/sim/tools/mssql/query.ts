@@ -62,7 +62,8 @@ export const queryTool: ToolConfig<MSSQLQueryParams, MSSQLQueryResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'T-SQL SELECT query to execute',
+      description:
+        'T-SQL SELECT query to execute, optionally led by a WITH clause. Statements that modify data or schema are rejected — use the Execute Raw SQL operation for those.',
     },
   },
 

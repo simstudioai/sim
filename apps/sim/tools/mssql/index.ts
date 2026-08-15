@@ -1,9 +1,9 @@
-import { deleteTool } from './delete'
-import { executeTool } from './execute'
-import { insertTool } from './insert'
-import { introspectTool } from './introspect'
-import { queryTool } from './query'
-import { updateTool } from './update'
+import { deleteTool } from '@/tools/mssql/delete'
+import { executeTool } from '@/tools/mssql/execute'
+import { insertTool } from '@/tools/mssql/insert'
+import { introspectTool } from '@/tools/mssql/introspect'
+import { queryTool } from '@/tools/mssql/query'
+import { updateTool } from '@/tools/mssql/update'
 
 export const mssqlDeleteTool = deleteTool
 export const mssqlExecuteTool = executeTool

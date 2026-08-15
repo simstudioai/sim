@@ -34,7 +34,7 @@ Execute a SELECT query on a Microsoft SQL Server database
 | `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
 | `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
-| `query` | string | Yes | T-SQL SELECT query to execute |
+| `query` | string | Yes | T-SQL SELECT query to execute, optionally led by a WITH clause. Statements that modify data or schema are rejected — use the Execute Raw SQL operation for those. |
 
 #### Output
 

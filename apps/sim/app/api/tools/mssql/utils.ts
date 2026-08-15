@@ -128,6 +128,62 @@ export async function executeQuery(
   }
 }
 
+/**
+ * Strips single-quoted string literals so keyword screening reads only code.
+ *
+ * T-SQL escapes a quote by doubling it, so `'it''s'` is one literal rather than
+ * two — matching that form is what keeps the scanner from resynchronizing on
+ * the wrong quote and exposing the rest of the statement as if it were a
+ * literal.
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/data-types/constants-transact-sql
+ */
+function stripStringLiterals(query: string): string {
+  return query.replace(/'(?:[^']|'')*'/g, "''")
+}
+
+/**
+ * Restricts the Query operation to statements that only read.
+ *
+ * The block label, the tool description, and the docs all present this
+ * operation as SELECT-only, so it must not double as a second path to DML —
+ * `mssql_execute` is the operation that accepts mutations. Without this an
+ * agent choosing `mssql_query` because "it is only a SELECT" could delete rows.
+ *
+ * A leading `WITH` is admitted because a CTE is the normal way to write a
+ * non-trivial SELECT, but T-SQL also allows `WITH x AS (...) DELETE FROM x`, so
+ * the body is screened for mutating keywords rather than trusting the leading
+ * token alone. Screening runs over the statement with string literals removed,
+ * which keeps ordinary prose in a WHERE clause from tripping it.
+ *
+ * The screen is lexical, not a parser, so it can still reject a legitimate
+ * query that uses a keyword as a bare identifier. It fails closed on purpose,
+ * and the Execute Raw SQL operation is the escape hatch for anything rejected.
+ */
+export function validateReadOnlyQuery(query: string): { isValid: boolean; error?: string } {
+  const trimmedQuery = query.trim()
+
+  if (!/^(select|with)\s/i.test(trimmedQuery)) {
+    return {
+      isValid: false,
+      error:
+        'The Query operation only accepts SELECT statements, optionally led by a WITH clause. Use the Execute Raw SQL operation to run anything else.',
+    }
+  }
+
+  const mutating =
+    /\b(insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|exec|execute|into)\b/i.exec(
+      stripStringLiterals(trimmedQuery)
+    )
+  if (mutating) {
+    return {
+      isValid: false,
+      error: `The Query operation cannot run ${mutating[0].toUpperCase()}. Use the Execute Raw SQL operation for statements that modify data or schema.`,
+    }
+  }
+
+  return { isValid: true }
+}
+
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim()
 

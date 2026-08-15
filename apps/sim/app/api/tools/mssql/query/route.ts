@@ -6,7 +6,11 @@ import { mssqlQueryContract } from '@/lib/api/contracts/tools/databases/mssql'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createMSSQLConnection, executeQuery } from '@/app/api/tools/mssql/utils'
+import {
+  createMSSQLConnection,
+  executeQuery,
+  validateReadOnlyQuery,
+} from '@/app/api/tools/mssql/utils'
 
 const logger = createLogger('MSSQLQueryAPI')
 
@@ -27,6 +31,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.info(
       `[${requestId}] Executing Microsoft SQL Server query on ${params.host}:${params.port}/${params.database}`
     )
+
+    const validation = validateReadOnlyQuery(params.query)
+    if (!validation.isValid) {
+      logger.warn(`[${requestId}] Query validation failed: ${validation.error}`)
+      return NextResponse.json(
+        { error: `Query validation failed: ${validation.error}` },
+        { status: 400 }
+      )
+    }
 
     const pool = await createMSSQLConnection(params)
 
