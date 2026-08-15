@@ -1,4 +1,5 @@
 import { isPlainRecord } from '@sim/utils/object'
+import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/credentials/constants'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
 import { setValueAtPath } from '@/lib/workflows/search-replace/value-walker'
@@ -134,6 +135,8 @@ interface SanitizedWorkflowState {
 
 interface WorkflowSanitizationOptions {
   preserveEnvVars?: boolean
+  /** Retain IDs for resources in the same workspace while still removing credentials. */
+  preserveWorkspaceReferences?: boolean
   /**
    * Withhold values whose interior cannot be projected safely once the payload leaves the
    * workspace — whole `table` values (see {@link OPAQUE_CREDENTIAL_BEARING_TYPES}) and every
@@ -155,6 +158,25 @@ interface WorkflowSanitizationOptions {
    * `import-export-roundtrip` pins the current loss so the trade cannot be reversed silently.
    */
   redactOpaqueCredentialInputs?: boolean
+}
+
+function isCredentialKey(key: string): boolean {
+  const normalized = key.replace(/[_-]/g, '').replace(/\d+$/, '').toLowerCase()
+  return (
+    normalized === 'auth' ||
+    normalized === 'authorization' ||
+    normalized.endsWith('credential') ||
+    normalized.endsWith('credentialid') ||
+    normalized.endsWith('apikey') ||
+    normalized.endsWith('accesstoken') ||
+    normalized.endsWith('refreshtoken') ||
+    normalized.endsWith('idtoken') ||
+    normalized.endsWith('authtoken') ||
+    normalized.endsWith('bottoken') ||
+    normalized.endsWith('bearertoken') ||
+    normalized.endsWith('secret') ||
+    normalized.endsWith('password')
+  )
 }
 
 type CredentialSanitizationConfig = Pick<
@@ -227,9 +249,10 @@ function sanitizeConfiguredSubBlockValue(
     return options.preserveEnvVars && isEnvironmentVariableReference(value) ? value : null
   }
   if (
-    WORKSPACE_SPECIFIC_TYPES.has(config.type) ||
-    WORKSPACE_SPECIFIC_FIELDS.has(config.id) ||
-    (config.canonicalParamId != null && WORKSPACE_SPECIFIC_FIELDS.has(config.canonicalParamId))
+    !options.preserveWorkspaceReferences &&
+    (WORKSPACE_SPECIFIC_TYPES.has(config.type) ||
+      WORKSPACE_SPECIFIC_FIELDS.has(config.id) ||
+      (config.canonicalParamId != null && WORKSPACE_SPECIFIC_FIELDS.has(config.canonicalParamId)))
   ) {
     return null
   }
@@ -260,6 +283,11 @@ export function sanitizeWorkflowForSharing(
     removeMalformedSubBlocks(block)
 
     const blockConfig = getBlock(block.type)
+    const registeredSubBlockIds = new Set<string>()
+    for (const config of blockConfig?.subBlocks ?? []) {
+      registeredSubBlockIds.add(config.id)
+      if (config.canonicalParamId) registeredSubBlockIds.add(config.canonicalParamId)
+    }
 
     // Process subBlocks with config
     if (blockConfig) {
@@ -287,8 +315,20 @@ export function sanitizeWorkflowForSharing(
           }
         }
 
+        if (
+          subBlock &&
+          (CREDENTIAL_SUBBLOCK_IDS.has(key) ||
+            (!registeredSubBlockIds.has(key) && isCredentialKey(key)))
+        ) {
+          subBlock.value = null
+        }
+
         // Clear workspace-specific fields by key name
-        if (WORKSPACE_SPECIFIC_FIELDS.has(key) && subBlock) {
+        if (
+          !options.preserveWorkspaceReferences &&
+          WORKSPACE_SPECIFIC_FIELDS.has(key) &&
+          subBlock
+        ) {
           subBlock.value = null
         }
       })
@@ -302,7 +342,7 @@ export function sanitizeWorkflowForSharing(
           block.data![key] = null
         }
         // Clear workspace-specific data
-        if (WORKSPACE_SPECIFIC_FIELDS.has(key)) {
+        if (!options.preserveWorkspaceReferences && WORKSPACE_SPECIFIC_FIELDS.has(key)) {
           block.data![key] = null
         }
       })

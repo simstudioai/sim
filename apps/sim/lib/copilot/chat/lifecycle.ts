@@ -6,7 +6,11 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
-import { type PersistedMessage, stripToolResultOutput } from '@/lib/copilot/chat/persisted-message'
+import {
+  collectChatMcpServerIds,
+  type PersistedMessage,
+  stripToolResultOutput,
+} from '@/lib/copilot/chat/persisted-message'
 import {
   assertActiveWorkspaceAccess,
   checkWorkspaceAccess,
@@ -33,6 +37,11 @@ const copilotChatAuthColumns = {
   workflowId: copilotChats.workflowId,
   workspaceId: copilotChats.workspaceId,
   type: copilotChats.type,
+} as const
+
+const copilotChatContinuationColumns = {
+  ...copilotChatAuthColumns,
+  title: copilotChats.title,
 } as const
 
 /**
@@ -102,6 +111,12 @@ type CopilotChatAuthRow = Pick<
   typeof copilotChats.$inferSelect,
   'id' | 'userId' | 'workflowId' | 'workspaceId' | 'type'
 >
+
+export type CopilotChatContinuationMetadata = CopilotChatAuthRow & {
+  title: string | null
+  hasMessages: boolean
+  mcpServerIds: string[]
+}
 
 export type CopilotChatDetailRow = Pick<
   typeof copilotChats.$inferSelect,
@@ -179,6 +194,57 @@ export async function getAccessibleCopilotChatAuth(
     .limit(1)
 
   return authorizeCopilotChatRow(chat, chatId, userId)
+}
+
+/**
+ * Loads only the authorized metadata needed to continue a persisted chat. The
+ * one-row existence probe preserves first-turn title behavior, while the MCP
+ * query projects only user-message context arrays. Assistant/tool content is
+ * never loaded or normalized.
+ */
+export async function getAccessibleCopilotChatContinuationMetadata(
+  chatId: string,
+  userId: string
+): Promise<CopilotChatContinuationMetadata | null> {
+  const [chat] = await db
+    .select(copilotChatContinuationColumns)
+    .from(copilotChats)
+    .where(ownedLiveChatWhere(chatId, userId))
+    .limit(1)
+
+  const authorized = await authorizeCopilotChatRow(chat, chatId, userId)
+  if (!authorized) return null
+
+  const [message] = await db
+    .select({ id: copilotMessages.id })
+    .from(copilotMessages)
+    .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
+    .limit(1)
+
+  if (!message) return { ...authorized, hasMessages: false, mcpServerIds: [] }
+
+  const contextRows = await db
+    .select({ contexts: sql<unknown>`${copilotMessages.content} -> 'contexts'` })
+    .from(copilotMessages)
+    .where(
+      and(
+        eq(copilotMessages.chatId, chatId),
+        eq(copilotMessages.role, 'user'),
+        isNull(copilotMessages.deletedAt),
+        sql`${copilotMessages.content} ? 'contexts'`
+      )
+    )
+    .orderBy(
+      sql`${copilotMessages.seq} asc nulls last`,
+      asc(copilotMessages.createdAt),
+      asc(copilotMessages.id)
+    )
+
+  return {
+    ...authorized,
+    hasMessages: true,
+    mcpServerIds: collectChatMcpServerIds(contextRows),
+  }
 }
 
 /**

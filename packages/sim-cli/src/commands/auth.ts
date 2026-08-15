@@ -131,8 +131,10 @@ export function loginCommand(): Command {
         // whether or not the key is scoped to it. The user chose it by name —
         // making them look up its id afterwards would waste the one moment the
         // answer was already on screen.
-        const settings: Record<string, string> = { endpoint: profile.endpoint }
-        if (key.workspaceId) settings.workspace = key.workspaceId
+        const settings: Record<string, string | null> = {
+          endpoint: profile.endpoint,
+          workspace: key.workspaceId ?? null,
+        }
         writeConfigProfile(profile.name, settings)
 
         console.log(chalk.green(`\n✓ Logged in. Key stored in ${credentialsPath()}`))
@@ -144,7 +146,7 @@ export function loginCommand(): Command {
               `  Personal key, defaulting to ${key.workspaceId}. Override per command with --workspace.`
             )
           )
-        } else if (!profile.workspaceId) {
+        } else {
           console.log(
             chalk.dim(
               '  Personal key with no default workspace. Set one with: sim configure --set-workspace <id>'

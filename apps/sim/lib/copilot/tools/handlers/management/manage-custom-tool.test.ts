@@ -4,50 +4,32 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  deleteCustomTool,
-  deleteWorkspaceCustomTool,
-  getCustomToolById,
-  getWorkspaceCustomTool,
-  listCustomTools,
-  listWorkspaceCustomTools,
-  updateWorkspaceCustomTool,
-  upsertCustomTools,
-} = vi.hoisted(() => ({
-  deleteCustomTool: vi.fn(),
-  deleteWorkspaceCustomTool: vi.fn(),
-  getCustomToolById: vi.fn(),
-  getWorkspaceCustomTool: vi.fn(),
-  listCustomTools: vi.fn(),
-  listWorkspaceCustomTools: vi.fn(),
-  updateWorkspaceCustomTool: vi.fn(),
-  upsertCustomTools: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  executeCopilotCustomToolUseCase: vi.fn(),
+  useCases: {
+    deleteAvailable: { operation: { id: 'custom_tools.delete_available' } },
+    deleteWorkspace: { operation: { id: 'custom_tools.delete' } },
+    listAvailable: { operation: { id: 'custom_tools.list_available' } },
+    listWorkspace: { operation: { id: 'custom_tools.list' } },
+    saveWorkspace: { operation: { id: 'custom_tools.save' } },
+    updateAvailable: { operation: { id: 'custom_tools.update_available' } },
+    updateWorkspace: { operation: { id: 'custom_tools.update' } },
+  },
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    CUSTOM_TOOL_CREATED: 'created',
-    CUSTOM_TOOL_UPDATED: 'updated',
-    CUSTOM_TOOL_DELETED: 'deleted',
-  },
-  AuditResourceType: { CUSTOM_TOOL: 'custom_tool' },
-  recordAudit: vi.fn(),
+vi.mock('@/lib/copilot/application/execute-custom-tool-use-case', () => ({
+  executeCopilotCustomToolUseCase: mocks.executeCopilotCustomToolUseCase,
+}))
+vi.mock('@/lib/custom-tools/application/use-cases', () => ({
+  deleteAvailableCustomToolUseCase: mocks.useCases.deleteAvailable,
+  deleteWorkspaceCustomToolUseCase: mocks.useCases.deleteWorkspace,
+  listAvailableCustomToolsUseCase: mocks.useCases.listAvailable,
+  listWorkspaceCustomToolsUseCase: mocks.useCases.listWorkspace,
+  saveWorkspaceCustomToolUseCase: mocks.useCases.saveWorkspace,
+  updateAvailableCustomToolUseCase: mocks.useCases.updateAvailable,
+  updateWorkspaceCustomToolUseCase: mocks.useCases.updateWorkspace,
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/copilot/tools/permissions', () => ({
-  copilotToolCanWrite: vi.fn(() => true),
-  copilotWriteDeniedMessage: vi.fn(),
-}))
-vi.mock('@/lib/workflows/custom-tools/operations', () => ({
-  deleteCustomTool,
-  deleteWorkspaceCustomTool,
-  getCustomToolById,
-  getWorkspaceCustomTool,
-  listCustomTools,
-  listWorkspaceCustomTools,
-  updateWorkspaceCustomTool,
-  upsertCustomTools,
-}))
 
 import { executeManageCustomTool } from './manage-custom-tool'
 
@@ -57,31 +39,43 @@ const CREDENTIALLESS_CONTEXT = {
   workspaceId: 'ws-1',
   userPermission: 'admin',
   secretActorUserId: null,
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
 }
 
 describe('manage_custom_tool credentialless workspace scope', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('lists workspace tools without including legacy personal tools', async () => {
-    listWorkspaceCustomTools.mockResolvedValue([{ id: 'tool-1', title: 'Shared tool' }])
+  it('lists only workspace tools through the authorized application use case', async () => {
+    const tools = [{ id: 'tool-1', title: 'Shared tool' }]
+    mocks.executeCopilotCustomToolUseCase.mockResolvedValue({ tools })
 
     const result = await executeManageCustomTool({ operation: 'list' }, CREDENTIALLESS_CONTEXT)
 
-    expect(result.success).toBe(true)
-    expect(listWorkspaceCustomTools).toHaveBeenCalledWith({ workspaceId: 'ws-1' })
-    expect(listCustomTools).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      success: true,
+      output: { tools, count: 1 },
+    })
+    expect(mocks.executeCopilotCustomToolUseCase).toHaveBeenCalledWith(
+      CREDENTIALLESS_CONTEXT,
+      mocks.useCases.listWorkspace,
+      { workspaceId: 'ws-1', limit: 100 }
+    )
+    expect(mocks.executeCopilotCustomToolUseCase).not.toHaveBeenCalledWith(
+      expect.anything(),
+      mocks.useCases.listAvailable,
+      expect.anything()
+    )
   })
 
-  it('edits and deletes through workspace-scoped operations', async () => {
-    const existing = {
+  it('edits and deletes through workspace-scoped application use cases', async () => {
+    const tool = {
       id: 'tool-1',
       title: 'Shared tool',
       schema: { type: 'function', function: { name: 'shared_tool', parameters: {} } },
       code: 'return 1',
     }
-    getWorkspaceCustomTool.mockResolvedValue(existing)
-    updateWorkspaceCustomTool.mockResolvedValue(existing)
-    deleteWorkspaceCustomTool.mockResolvedValue(true)
+    mocks.executeCopilotCustomToolUseCase.mockResolvedValue({ tool })
 
     const edit = await executeManageCustomTool(
       { operation: 'edit', toolId: 'tool-1', code: 'return 2' },
@@ -94,18 +88,27 @@ describe('manage_custom_tool credentialless workspace scope', () => {
 
     expect(edit.success).toBe(true)
     expect(remove.success).toBe(true)
-    expect(getWorkspaceCustomTool).toHaveBeenCalledWith({
-      toolId: 'tool-1',
-      workspaceId: 'ws-1',
-    })
-    expect(updateWorkspaceCustomTool).toHaveBeenCalledWith(
+    expect(mocks.executeCopilotCustomToolUseCase).toHaveBeenNthCalledWith(
+      1,
+      CREDENTIALLESS_CONTEXT,
+      mocks.useCases.updateWorkspace,
       expect.objectContaining({ toolId: 'tool-1', workspaceId: 'ws-1', code: 'return 2' })
     )
-    expect(deleteWorkspaceCustomTool).toHaveBeenCalledWith({
-      toolId: 'tool-1',
-      workspaceId: 'ws-1',
-    })
-    expect(getCustomToolById).not.toHaveBeenCalled()
-    expect(deleteCustomTool).not.toHaveBeenCalled()
+    expect(mocks.executeCopilotCustomToolUseCase).toHaveBeenNthCalledWith(
+      2,
+      CREDENTIALLESS_CONTEXT,
+      mocks.useCases.deleteWorkspace,
+      { toolId: 'tool-1', workspaceId: 'ws-1', source: 'tool_input' }
+    )
+    expect(mocks.executeCopilotCustomToolUseCase).not.toHaveBeenCalledWith(
+      expect.anything(),
+      mocks.useCases.updateAvailable,
+      expect.anything()
+    )
+    expect(mocks.executeCopilotCustomToolUseCase).not.toHaveBeenCalledWith(
+      expect.anything(),
+      mocks.useCases.deleteAvailable,
+      expect.anything()
+    )
   })
 })

@@ -5,6 +5,7 @@ import {
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { projectWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   createWorkflowMcpDeploymentServer,
@@ -326,9 +327,12 @@ export async function executeDiffWorkflows(
       }
     )
     const [side1, side2] = references
+    const projection = { secretless: context.secretActorUserId === null }
+    const state1 = projectWorkflowStateForCopilot(side1.state, projection)
+    const state2 = projectWorkflowStateForCopilot(side2.state, projection)
 
     // ref1 = base/previous, ref2 = target/current: added = present in ref2 only.
-    const summary = generateWorkflowDiffSummary(side2.state, side1.state)
+    const summary = generateWorkflowDiffSummary(state2, state1)
     const diff = {
       ...summary,
       modifiedBlocks: summary.modifiedBlocks.map((block) => ({

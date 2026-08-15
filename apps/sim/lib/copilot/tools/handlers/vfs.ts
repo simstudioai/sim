@@ -43,6 +43,7 @@ async function getGatedVFS(context: ExecutionContext) {
       secretMountPolicy: context.secretMountPolicy,
       filePrincipal,
       knowledgePrincipal,
+      ...(context.secretActorUserId === null ? { secretless: true } : {}),
     })
   )
 }
@@ -289,6 +290,17 @@ export async function executeVfsRead(
   const workspaceId = context.workspaceId
   if (!workspaceId) {
     return { success: false, error: 'No workspace context available' }
+  }
+
+  if (
+    context.queryOnly &&
+    /\/(?:compiled|compiled-check|extract|render)\/?$/.test(path.trim().replace(/^\/+/, ''))
+  ) {
+    return {
+      success: false,
+      error:
+        'read is query-only: document compilation, extraction, and rendering paths are not available; read the file content or metadata instead',
+    }
   }
 
   try {

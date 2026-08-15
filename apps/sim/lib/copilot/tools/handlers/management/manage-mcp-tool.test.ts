@@ -4,34 +4,21 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { select, from, where } = vi.hoisted(() => {
-  const where = vi.fn()
-  const from = vi.fn(() => ({ where }))
-  const select = vi.fn(() => ({ from }))
-  return { select, from, where }
-})
+const mocks = vi.hoisted(() => ({
+  executeCopilotMcpServerUseCase: vi.fn(),
+  listMcpServersUseCase: { operation: { id: 'mcp_servers.list' } },
+}))
 
-vi.mock('@sim/db', () => ({ db: { select } }))
-vi.mock('@sim/db/schema', () => ({
-  mcpServers: {
-    workspaceId: 'workspaceId',
-    deletedAt: 'deletedAt',
-  },
+vi.mock('@/lib/copilot/application/execute-mcp-server-use-case', () => ({
+  executeCopilotMcpServerUseCase: mocks.executeCopilotMcpServerUseCase,
 }))
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => conditions),
-  eq: vi.fn((left: unknown, right: unknown) => [left, right]),
-  isNull: vi.fn((value: unknown) => [value, null]),
+vi.mock('@/lib/mcp/application/use-cases', () => ({
+  deleteMcpServerUseCase: { operation: { id: 'mcp_servers.delete' } },
+  listMcpServersUseCase: mocks.listMcpServersUseCase,
+  reconfigureMcpServerUseCase: { operation: { id: 'mcp_servers.reconfigure' } },
+  registerMcpServerUseCase: { operation: { id: 'mcp_servers.register' } },
 }))
-vi.mock('@/lib/copilot/tools/permissions', () => ({
-  copilotToolCanWrite: vi.fn(() => true),
-  copilotWriteDeniedMessage: vi.fn(),
-}))
-vi.mock('@/lib/mcp/orchestration', () => ({
-  performCreateMcpServer: vi.fn(),
-  performDeleteMcpServer: vi.fn(),
-  performUpdateMcpServer: vi.fn(),
-}))
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
 import { executeManageMcpTool } from './manage-mcp-tool'
 
@@ -54,14 +41,12 @@ const CONTEXT = {
 describe('manage_mcp_tool list projection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    where.mockResolvedValue([SERVER])
+    mocks.executeCopilotMcpServerUseCase.mockResolvedValue({ servers: [SERVER] })
   })
 
   it('omits raw URLs from secretless workspace chat', async () => {
-    const result = await executeManageMcpTool(
-      { operation: 'list' },
-      { ...CONTEXT, secretActorUserId: null }
-    )
+    const context = { ...CONTEXT, secretActorUserId: null }
+    const result = await executeManageMcpTool({ operation: 'list' }, context)
 
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({
@@ -76,13 +61,17 @@ describe('manage_mcp_tool list projection', () => {
       ],
     })
     expect(JSON.stringify(result.output)).not.toContain('sentinel')
+    expect(mocks.executeCopilotMcpServerUseCase).toHaveBeenCalledWith(
+      context,
+      mocks.listMcpServersUseCase,
+      { workspaceId: 'workspace-1' }
+    )
   })
 
   it('keeps URLs for normal user-backed chat', async () => {
     const result = await executeManageMcpTool({ operation: 'list' }, CONTEXT)
 
     expect(result.output).toMatchObject({ servers: [{ url: SERVER.url }] })
-    expect(select).toHaveBeenCalledOnce()
-    expect(from).toHaveBeenCalledOnce()
+    expect(mocks.executeCopilotMcpServerUseCase).toHaveBeenCalledOnce()
   })
 })

@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  ensureWorkflowAccessMock,
+  authorizeWorkflowByWorkspacePermissionMock,
   applyOperationsToWorkflowStateMock,
   saveWorkflowToNormalizedTablesMock,
   assertWorkflowMutableMock,
@@ -18,7 +18,7 @@ const {
   const dbSetMock = vi.fn(() => ({ where: dbWhereMock }))
   const dbUpdateMock = vi.fn(() => ({ set: dbSetMock }))
   return {
-    ensureWorkflowAccessMock: vi.fn(),
+    authorizeWorkflowByWorkspacePermissionMock: vi.fn(),
     applyOperationsToWorkflowStateMock: vi.fn(),
     saveWorkflowToNormalizedTablesMock: vi.fn(),
     assertWorkflowMutableMock: vi.fn(),
@@ -36,6 +36,7 @@ vi.mock('@sim/db/schema', () => ({
 vi.mock('drizzle-orm', () => ({ eq: vi.fn((left, right) => [left, right]) }))
 vi.mock('@sim/platform-authz/workflow', () => ({
   assertWorkflowMutable: assertWorkflowMutableMock,
+  authorizeWorkflowByWorkspacePermission: authorizeWorkflowByWorkspacePermissionMock,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   hasWorkspaceSandboxAccess: vi.fn(async () => true),
@@ -45,9 +46,6 @@ vi.mock('@/lib/copilot/block-visibility', () => ({
 }))
 vi.mock('@/lib/copilot/sim-sandbox-projection', () => ({
   operationsReferenceSimSandbox: vi.fn(() => false),
-}))
-vi.mock('@/lib/copilot/tools/handlers/access', () => ({
-  ensureWorkflowAccess: ensureWorkflowAccessMock,
 }))
 vi.mock('@/lib/core/config/env', () => ({ env: { INTERNAL_API_SECRET: 'internal-secret' } }))
 vi.mock('@/lib/core/utils/urls', () => ({ getSocketServerUrl: () => 'http://socket.test' }))
@@ -136,7 +134,8 @@ describe('editWorkflowServerTool secretless projection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 })) as typeof fetch
-    ensureWorkflowAccessMock.mockResolvedValue({
+    authorizeWorkflowByWorkspacePermissionMock.mockResolvedValue({
+      allowed: true,
       workflow: { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
     })
     assertWorkflowMutableMock.mockResolvedValue(undefined)

@@ -11,7 +11,20 @@ const mocks = vi.hoisted(() => ({
     apiKey: 'sim-key',
     scope: 'platform' as const,
     workspaceBound: false,
-    workspaceId: 'ws_1',
+    workspaceId: 'ws_1' as string | undefined,
+  })),
+  profileFrom: vi.fn(() => ({
+    name: 'default',
+    endpoint: 'https://sim.ai',
+    apiKey: null,
+    workspaceId: null as string | null,
+    output: 'table',
+    sources: {
+      endpoint: 'default',
+      apiKey: 'unset',
+      workspaceId: 'unset',
+      output: 'default',
+    },
   })),
   writeConfigProfile: vi.fn(),
   writeCredentialsProfile: vi.fn(),
@@ -31,21 +44,7 @@ vi.mock('../config/index', () => ({
   writeConfigProfile: mocks.writeConfigProfile,
   writeCredentialsProfile: mocks.writeCredentialsProfile,
 }))
-vi.mock('../context', () => ({
-  profileFrom: () => ({
-    name: 'default',
-    endpoint: 'https://sim.ai',
-    apiKey: null,
-    workspaceId: null,
-    output: 'table',
-    sources: {
-      endpoint: 'default',
-      apiKey: 'unset',
-      workspaceId: 'unset',
-      output: 'default',
-    },
-  }),
-}))
+vi.mock('../context', () => ({ profileFrom: mocks.profileFrom }))
 
 import { loginCommand, profilesCommand } from './auth'
 
@@ -66,6 +65,25 @@ describe('login command', () => {
     vi.clearAllMocks()
     mocks.listProfiles.mockReturnValue([])
     mocks.readCredentialsProfile.mockReturnValue({})
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: null,
+      workspaceId: null,
+      output: 'table',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'unset',
+        workspaceId: 'unset',
+        output: 'default',
+      },
+    })
+    mocks.pollForKey.mockResolvedValue({
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: 'ws_1',
+    })
     mocks.createInterface.mockReturnValue({
       question: vi.fn(async () => 'yes'),
       close: vi.fn(),
@@ -139,6 +157,37 @@ describe('login command', () => {
 
     expect(mocks.createInterface).not.toHaveBeenCalled()
     expect(mocks.createAuthRequest).toHaveBeenCalledOnce()
+  })
+
+  it('clears a stale workspace default when none is selected during login', async () => {
+    setInteractive(false)
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: null,
+      workspaceId: 'ws_old',
+      output: 'table',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'unset',
+        workspaceId: 'config',
+        output: 'default',
+      },
+    })
+    mocks.pollForKey.mockResolvedValue({
+      apiKey: 'sim-key',
+      scope: 'platform',
+      workspaceBound: false,
+      workspaceId: undefined,
+    })
+
+    await login()
+
+    expect(mocks.writeConfigProfile).toHaveBeenCalledWith('default', {
+      endpoint: 'https://sim.ai',
+      workspace: null,
+    })
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('no default workspace'))
   })
 })
 

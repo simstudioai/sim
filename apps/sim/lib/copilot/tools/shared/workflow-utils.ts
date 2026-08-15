@@ -1,3 +1,4 @@
+import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import {
   type CopilotSanitizationOptions,
   sanitizeForCopilot,
@@ -10,9 +11,24 @@ type CopilotWorkflowState = {
   parallels?: Record<string, any>
 }
 
+type CopilotWorkflowProjectionOptions = CopilotSanitizationOptions & { secretless?: boolean }
+
+export function projectWorkflowStateForCopilot<T extends CopilotWorkflowState>(
+  state: T,
+  options?: CopilotWorkflowProjectionOptions
+): T {
+  return options?.secretless
+    ? (sanitizeWorkflowForSharing(state, {
+        preserveEnvVars: false,
+        preserveWorkspaceReferences: true,
+        redactOpaqueCredentialInputs: true,
+      }) as T)
+    : state
+}
+
 export function formatWorkflowStateForCopilot(
   state: CopilotWorkflowState,
-  options?: CopilotSanitizationOptions
+  options?: CopilotWorkflowProjectionOptions
 ): string {
   const workflowState = {
     blocks: state.blocks || {},
@@ -20,13 +36,14 @@ export function formatWorkflowStateForCopilot(
     loops: state.loops || {},
     parallels: state.parallels || {},
   }
-  const sanitized = sanitizeForCopilot(workflowState, options)
+  const credentialSafeState = projectWorkflowStateForCopilot(workflowState, options)
+  const sanitized = sanitizeForCopilot(credentialSafeState as typeof workflowState, options)
   return JSON.stringify(sanitized, null, 2)
 }
 
 export function formatNormalizedWorkflowForCopilot(
   normalized: CopilotWorkflowState | null | undefined,
-  options?: CopilotSanitizationOptions
+  options?: CopilotWorkflowProjectionOptions
 ): string | null {
   if (!normalized) return null
   return formatWorkflowStateForCopilot(normalized, options)
