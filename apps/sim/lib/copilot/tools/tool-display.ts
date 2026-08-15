@@ -475,6 +475,9 @@ const TOOL_TITLES: Record<string, string> = {
   // covers only the instant before the integration is known. The raw
   // humanized name ("Call Integration Tool") must never render.
   call_integration_tool: 'Calling integration',
+  search_integration_tools: 'Finding the right integration',
+  load_integration_tool: 'Loading integration tools',
+  load_skill: 'Loading skill',
   read: 'Reading file',
   search_library_docs: 'Searching library docs',
   user_table: 'Managing table',
@@ -877,14 +880,24 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         const destination = stringArg(args, 'destination')
         if (destination) return `Renaming ${pathLeaf(sources[0])} to ${pathLeaf(destination)}`
       }
+      // The model's own phrasing wins; otherwise name both ends of the
+      // move: "Moving apple.md to fruits".
       const target = firstStringArg(args, 'toolTitle', 'title')
-      return target ? `${verb} ${target}` : verb
+      if (target) return `${verb} ${target}`
+      const destination = stringArg(args, 'destination')
+      if (sources.length > 0 && destination) {
+        const what = summarizeTargets(sources.map(pathLeaf), 'files')
+        return `${verb} ${what} to ${pathLeaf(destination)}`
+      }
+      return verb
     }
     case 'cp': {
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Duplicating ${target}` : 'Duplicating workflow'
     }
     case 'mkdir': {
+      const path = stringArg(args, 'path')
+      if (path) return `Creating folder ${pathLeaf(path)}`
       const target = firstStringArg(args, 'toolTitle', 'title')
       return target ? `Creating ${target}` : 'Creating folder'
     }
@@ -896,6 +909,14 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         summarizeTargets(stringArrayArg(args, 'paths').map(pathLeaf), 'resource')
       return target ? `Deleting ${target}` : 'Deleting'
     }
+    case 'load_integration_tool': {
+      const integration = firstStringArg(args, 'integration', 'service', 'toolId')
+      return integration ? `Loading ${integration} tools` : 'Loading integration tools'
+    }
+    case 'load_skill': {
+      const skill = firstStringArg(args, 'name', 'skillId', 'skill')
+      return skill ? `Loading skill ${skill}` : 'Loading skill'
+    }
     case 'run_enrichment': {
       const subject = nestedStringArg(
         args,
@@ -906,7 +927,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         'email',
         'companyDomain'
       )
-      return subject ? `Searching for ${subject}` : 'Searching'
+      return subject ? `Looking up ${subject}` : 'Looking up data'
     }
     case 'web_scrape': {
       const url = stringArg(args, 'url')
