@@ -93,6 +93,7 @@ describe('settings navigation boundaries', () => {
       'secrets',
       'byok',
       'sandboxes',
+      'credential-groups',
       'custom-tools',
       'mcp',
       'workflow-mcp-servers',
@@ -100,7 +101,6 @@ describe('settings navigation boundaries', () => {
       'inbox',
       'recently-deleted',
       'forks',
-      'credential-groups',
       'custom-blocks',
       'self-host',
     ])
@@ -492,10 +492,10 @@ describe('settings navigation boundaries', () => {
       'teammates',
       'byok',
       'sandboxes',
+      'credential-groups',
       'workflow-mcp-servers',
       'recently-deleted',
       'forks',
-      'credential-groups',
       'custom-blocks',
       'self-host',
     ])

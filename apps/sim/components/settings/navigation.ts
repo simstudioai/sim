@@ -537,13 +537,13 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'credential-groups',
       description: 'Collect and manage OAuth credentials for people outside this workspace.',
       group: 'workspace',
-      order: 2,
+      order: 9,
       requiresEnterprise: true,
       allowNonOrgAdmin: true,
       selfHostedOverride: true,
     },
     planes: {
-      workspace: { id: 'credential-groups', group: 'enterprise', order: 10 },
+      workspace: { id: 'credential-groups', group: 'workspace', order: 4 },
     },
   },
   {
@@ -676,7 +676,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'recently-deleted',
       description: 'Restore items deleted in the last 30 days.',
       group: 'workspace',
-      order: 9,
+      order: 10,
     },
     planes: {
       workspace: { id: 'recently-deleted', group: 'system', order: 9 },

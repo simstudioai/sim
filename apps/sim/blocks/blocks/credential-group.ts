@@ -102,7 +102,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   - "Send Invite" sends one email. Use a loop when invitations should come from a dynamic list.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/credential-group',
-  bgColor: '#7C3AED',
+  bgColor: '#8B5CF6',
   icon: GridOffset,
   canvasPresentation: {
     defaultTitle: 'Credential Groups',
