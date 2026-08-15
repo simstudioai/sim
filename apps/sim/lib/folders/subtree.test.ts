@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { collectDescendantFolderIds, type FolderNode } from '@/lib/folders/subtree'
+import {
+  collectDescendantFolderIds,
+  collectDescendantFolderIdsFrom,
+  type FolderNode,
+  indexFolderChildren,
+} from '@/lib/folders/subtree'
 
 const tree: FolderNode[] = [
   { id: 'root', parentId: null },
@@ -55,5 +60,48 @@ describe('collectDescendantFolderIds', () => {
 
   it('handles an empty list', () => {
     expect(collectDescendantFolderIds([], 'x')).toEqual([])
+  })
+})
+
+describe('collectDescendantFolderIdsFrom', () => {
+  /**
+   * The index-once path is what a bulk plan walks, so it must answer exactly
+   * what the rebuild-per-call path answers — including for the cycle case.
+   */
+  it('matches the rebuild-per-call helper for every node in a tree', () => {
+    const index = indexFolderChildren(tree)
+
+    for (const node of [...tree, { id: 'missing', parentId: null }]) {
+      expect(collectDescendantFolderIdsFrom(index, node.id).sort()).toEqual(
+        collectDescendantFolderIds(tree, node.id).sort()
+      )
+    }
+  })
+
+  it('is reusable across folders without being rebuilt', () => {
+    const index = indexFolderChildren(tree)
+
+    expect(collectDescendantFolderIdsFrom(index, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
+    expect(collectDescendantFolderIdsFrom(index, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
+    expect(collectDescendantFolderIdsFrom(index, 'b')).toEqual([])
+  })
+
+  it('terminates on a parent cycle', () => {
+    const cyclic: FolderNode[] = [
+      { id: 'x', parentId: 'y' },
+      { id: 'y', parentId: 'x' },
+    ]
+
+    expect(collectDescendantFolderIdsFrom(indexFolderChildren(cyclic), 'x')).toEqual(['y'])
+  })
+})
+
+describe('indexFolderChildren', () => {
+  it('keys children by parent and drops roots', () => {
+    const index = indexFolderChildren(tree)
+
+    expect(index.get('root')).toEqual(['a', 'b'])
+    expect(index.get('a')).toEqual(['a1', 'a2'])
+    expect(index.has('other')).toBe(false)
   })
 })

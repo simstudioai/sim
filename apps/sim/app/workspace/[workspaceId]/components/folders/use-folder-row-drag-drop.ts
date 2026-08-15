@@ -1,20 +1,33 @@
 'use client'
 
-import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type DragEvent, useCallback, useMemo, useRef, useState } from 'react'
+import {
+  readRowDragPayload,
+  writeRowDragPayload,
+} from '@/app/workspace/[workspaceId]/components/folders/drag-payload'
 import { parseFolderedRowId } from '@/app/workspace/[workspaceId]/components/folders/folder-row-id'
+import { useDragTeardown } from '@/app/workspace/[workspaceId]/components/folders/use-drag-teardown'
+import { useRowDragGhost } from '@/app/workspace/[workspaceId]/components/folders/use-row-drag-ghost'
+import {
+  type SpringOpenOptions,
+  useSpringLoadedFolder,
+} from '@/app/workspace/[workspaceId]/components/folders/use-spring-loaded-folder'
 import type { RowDragDropConfig } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
-/**
- * Private drag payload, namespaced so a drag started on another Sim surface (or an external
- * drag) is never mistaken for a foldered list row.
- */
+/** The foldered-list drag MIME — see {@link writeRowDragPayload} for why each surface owns one. */
 const DRAG_ROW_MIME = 'application/x-sim-foldered-row'
 
-const DRAG_GHOST_STYLE =
-  'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid var(--border);border-radius:8px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-medium);z-index:var(--z-toast)'
+/** Stands in for an absent spring-open callback, so the timer hook needs no null handling. */
+function noop() {}
 
 /** Shared empty set so an idle drag state keeps a stable identity across renders. */
 const EMPTY_ROW_IDS = new Set<string>()
+
+/** Rows carried by one drag, already split by kind and stripped of no-op moves. */
+export interface FolderedRowMove {
+  folderIds: string[]
+  resourceIds: string[]
+}
 
 export interface UseFolderRowDragDropOptions {
   /** Drag and drop are edits; a reader gets neither draggable rows nor drop targets. */
@@ -29,10 +42,30 @@ export interface UseFolderRowDragDropOptions {
   getResourceFolderId: (resourceId: string) => string | null | undefined
   /** Label shown in the drag ghost. */
   getRowLabel: (rowId: string) => string
-  /** Reparents a folder into `targetFolderId`. */
-  onMoveFolder: (folderId: string, targetFolderId: string) => void
-  /** Files a resource into `targetFolderId`. */
-  onMoveResource: (resourceId: string, targetFolderId: string) => void
+  /**
+   * Moves every row of the drag into `targetFolderId` in one call. Rows already sitting
+   * directly in the target are filtered out before this fires, and it is never called with
+   * both lists empty — so the consumer maps it straight onto its bulk-move operations.
+   */
+  onMoveRows: (rows: FolderedRowMove, targetFolderId: string) => void
+  /**
+   * Checkbox selection, when the list has one. Dragging a selected row carries the whole
+   * selection; dragging an unselected row collapses the selection onto it first, matching
+   * every file manager. Omit on a list without selection to keep drags single-row.
+   */
+  selection?: {
+    selectedRowIds: Set<string>
+    /** Row ids in display order, so the drag carries them in the order they are read. */
+    visibleRowIds: string[]
+    /** Collapses the selection onto a single row dragged from outside it. */
+    replaceSelection: (rowIds: string[]) => void
+  }
+  /**
+   * Opens a folder the drag has rested on, so the user can file into a nested folder without
+   * dropping first. Forward `options` to the folder-navigation setter so one drag leaves one
+   * back-stack entry. Omit to disable spring-loading. See {@link useSpringLoadedFolder}.
+   */
+  onSpringOpenFolder?: (folderId: string, options: SpringOpenOptions) => void
 }
 
 /**
@@ -40,9 +73,9 @@ export interface UseFolderRowDragDropOptions {
  * Tables behave exactly like Files: only folder rows accept a drop, a folder cannot land in
  * itself or its own subtree, and a row already sitting directly in the target is a no-op.
  *
- * Single-row only, which is what the resource lists that use it support. The Files page
- * keeps its own configuration because it additionally drags multi-selections and accepts
- * external OS file drops.
+ * Carries a whole checkbox selection when `selection` is supplied, and a single row otherwise.
+ * The Files page keeps its own configuration because it additionally accepts external OS file
+ * drops, which need a second drag protocol this hook deliberately does not know about.
  */
 export function useFolderRowDragDrop({
   canEdit,
@@ -51,8 +84,9 @@ export function useFolderRowDragDrop({
   getFolderParentId,
   getResourceFolderId,
   getRowLabel,
-  onMoveFolder,
-  onMoveResource,
+  onMoveRows,
+  selection,
+  onSpringOpenFolder,
 }: UseFolderRowDragDropOptions): RowDragDropConfig {
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_ROW_IDS)
@@ -61,52 +95,73 @@ export function useFolderRowDragDrop({
    * faster than a re-render and must decide drop validity against the current source
    * synchronously.
    */
-  const draggedRowIdRef = useRef<string | null>(null)
-  const dragGhostRef = useRef<HTMLElement | null>(null)
+  const draggedRowIdsRef = useRef<string[]>([])
 
   const optionsRef = useRef({
     descendantsByFolderId,
     getFolderParentId,
     getResourceFolderId,
     getRowLabel,
-    onMoveFolder,
-    onMoveResource,
+    onMoveRows,
+    selection,
   })
   optionsRef.current = {
     descendantsByFolderId,
     getFolderParentId,
     getResourceFolderId,
     getRowLabel,
-    onMoveFolder,
-    onMoveResource,
+    onMoveRows,
+    selection,
   }
 
+  const springLoad = useSpringLoadedFolder({ onSpringOpen: onSpringOpenFolder ?? noop })
+
+  const dragGhost = useRowDragGhost()
+
+  /** Returns the list to its resting state once a drag is over, however it ended. */
+  const endDrag = useCallback(() => {
+    dragGhost.remove()
+    draggedRowIdsRef.current = []
+    springLoad.reset()
+    setDraggedRowIds(EMPTY_ROW_IDS)
+    setActiveDropTargetId(null)
+  }, [dragGhost, springLoad])
+
+  useDragTeardown(endDrag)
+
   /**
-   * The ghost lives on `document.body`, but the only thing that removes it is `dragend`, which
-   * fires on the SOURCE ROW. `Resource.Table` is virtualized, so scrolling the source out of
-   * view mid-drag unmounts that row and the event never arrives — leaving the ghost stuck on
-   * the page and every row frozen at drag opacity. Clean up on unmount as the backstop.
+   * Splits the drag into the rows that would actually move, dropping any row already sitting
+   * directly in the target. Returns `null` when the drop is illegal outright — the target is
+   * not a folder, or it is one of the dragged folders or inside one, which would orphan a
+   * subtree into itself.
    */
-  useEffect(
-    () => () => {
-      dragGhostRef.current?.remove()
-      dragGhostRef.current = null
+  const resolveMove = useCallback(
+    (targetRowId: string, sourceRowIds: string[]): FolderedRowMove | null => {
+      const target = parseFolderedRowId(targetRowId)
+      if (target.kind !== 'folder') return null
+
+      const { descendantsByFolderId, getFolderParentId, getResourceFolderId } = optionsRef.current
+      const folderIds: string[] = []
+      const resourceIds: string[] = []
+
+      for (const sourceRowId of sourceRowIds) {
+        const source = parseFolderedRowId(sourceRowId)
+        if (source.kind === 'folder') {
+          if (source.id === target.id) return null
+          if (descendantsByFolderId.get(source.id)?.has(target.id)) return null
+          if ((getFolderParentId(source.id) ?? null) === target.id) continue
+          folderIds.push(source.id)
+          continue
+        }
+        if ((getResourceFolderId(source.id) ?? null) === target.id) continue
+        resourceIds.push(source.id)
+      }
+
+      if (folderIds.length === 0 && resourceIds.length === 0) return null
+      return { folderIds, resourceIds }
     },
     []
   )
-
-  const isInvalidDropTarget = useCallback((targetRowId: string, sourceRowId: string) => {
-    const target = parseFolderedRowId(targetRowId)
-    if (target.kind !== 'folder') return true
-
-    const source = parseFolderedRowId(sourceRowId)
-    if (source.kind === 'folder') {
-      if (source.id === target.id) return true
-      if (optionsRef.current.descendantsByFolderId.get(source.id)?.has(target.id)) return true
-      return (optionsRef.current.getFolderParentId(source.id) ?? null) === target.id
-    }
-    return (optionsRef.current.getResourceFolderId(source.id) ?? null) === target.id
-  }, [])
 
   return useMemo<RowDragDropConfig>(
     () => ({
@@ -121,29 +176,30 @@ export function useFolderRowDragDrop({
           return
         }
 
-        draggedRowIdRef.current = rowId
-        setDraggedRowIds(new Set([rowId]))
+        const { selection } = optionsRef.current
+        /**
+         * Read the selection in display order rather than insertion order, so a shift-range
+         * drag carries its rows the way the user sees them.
+         */
+        const sourceRowIds = selection?.selectedRowIds.has(rowId)
+          ? selection.visibleRowIds.filter((visibleRowId) =>
+              selection.selectedRowIds.has(visibleRowId)
+            )
+          : [rowId]
+        if (selection && !selection.selectedRowIds.has(rowId)) selection.replaceSelection([rowId])
+
+        draggedRowIdsRef.current = sourceRowIds
+        setDraggedRowIds(new Set(sourceRowIds))
 
         e.dataTransfer.effectAllowed = 'move'
-        e.dataTransfer.setData(DRAG_ROW_MIME, rowId)
-        e.dataTransfer.setData('text/plain', rowId)
+        writeRowDragPayload(e.dataTransfer, DRAG_ROW_MIME, sourceRowIds)
 
-        const ghost = document.createElement('div')
-        ghost.style.cssText = DRAG_GHOST_STYLE
-        const text = document.createElement('span')
-        text.style.cssText = 'max-width:200px;overflow:hidden;text-overflow:ellipsis'
-        text.textContent = optionsRef.current.getRowLabel(rowId)
-        ghost.appendChild(text)
-        document.body.appendChild(ghost)
-        // Force a layout pass so the drag image is measurable before it is captured.
-        void ghost.offsetHeight
-        e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-        dragGhostRef.current = ghost
+        dragGhost.attach(e, optionsRef.current.getRowLabel(sourceRowIds[0]), sourceRowIds.length)
       },
       onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
-        const sourceRowId = draggedRowIdRef.current
-        if (sourceRowId) {
-          if (isInvalidDropTarget(rowId, sourceRowId)) return
+        const sourceRowIds = draggedRowIdsRef.current
+        if (sourceRowIds.length > 0) {
+          if (!resolveMove(rowId, sourceRowIds)) return
         } else if (!e.dataTransfer.types.includes(DRAG_ROW_MIME)) {
           /**
            * No local source and no payload of ours — an external or foreign drag. Returning
@@ -165,38 +221,55 @@ export function useFolderRowDragDrop({
          * would light up as a valid target — including the dragged folder itself and its own
          * descendants — and the drop would then silently do nothing.
          */
-        if (sourceRowId) setActiveDropTargetId(rowId)
+        if (sourceRowIds.length > 0) {
+          setActiveDropTargetId(rowId)
+          /**
+           * Armed on the same condition as the highlight, so a folder only springs open where a
+           * drop was already possible. A folder the drag cannot legally enter never opens.
+           */
+          springLoad.arm(parseFolderedRowId(rowId).id)
+        }
       },
       onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
         const relatedTarget = e.relatedTarget
         if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
+        springLoad.disarm()
         setActiveDropTargetId((current) => (current === rowId ? null : current))
       },
       onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
         e.preventDefault()
         e.stopPropagation()
-        setActiveDropTargetId(null)
 
         const target = parseFolderedRowId(rowId)
-        if (target.kind !== 'folder') return
-
         // Prefer the dataTransfer payload over the ref so a drag that started in another
-        // mount of this page still resolves to a real row id.
-        const sourceRowId = e.dataTransfer.getData(DRAG_ROW_MIME) || draggedRowIdRef.current
-        if (!sourceRowId || isInvalidDropTarget(rowId, sourceRowId)) return
+        // mount of this page still resolves to real row ids.
+        const sourceRowIds =
+          readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
+        const move =
+          target.kind === 'folder' && sourceRowIds.length > 0
+            ? resolveMove(rowId, sourceRowIds)
+            : null
 
-        const source = parseFolderedRowId(sourceRowId)
-        if (source.kind === 'folder') optionsRef.current.onMoveFolder(source.id, target.id)
-        else optionsRef.current.onMoveResource(source.id, target.id)
+        /**
+         * Ends the drag here rather than leaving it to `dragend`. This handler stops
+         * propagation, so the window-level backstop never sees this drop, and the source row
+         * may already have unmounted — after a spring-open it always has.
+         */
+        endDrag()
+
+        if (move) optionsRef.current.onMoveRows(move, target.id)
       },
-      onDragEnd: () => {
-        dragGhostRef.current?.remove()
-        dragGhostRef.current = null
-        draggedRowIdRef.current = null
-        setDraggedRowIds(EMPTY_ROW_IDS)
-        setActiveDropTargetId(null)
-      },
+      onDragEnd: endDrag,
     }),
-    [activeDropTargetId, draggedRowIds, canEdit, editingRowId, isInvalidDropTarget]
+    [
+      activeDropTargetId,
+      draggedRowIds,
+      canEdit,
+      editingRowId,
+      resolveMove,
+      springLoad,
+      endDrag,
+      dragGhost,
+    ]
   )
 }

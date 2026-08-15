@@ -16,8 +16,10 @@ import {
   Button,
   Checkbox,
   cellIconNodeClass,
+  chipActiveSurfaceClass,
   chipContentGap,
   chipContentLabelClass,
+  chipHoverSurfaceClass,
   cn,
   Loader,
 } from '@sim/emcn'
@@ -586,6 +588,8 @@ const DataRow = memo(function DataRow({
   const isDragging = rowDragDrop?.draggedRowIds?.has(row.id) ?? false
   const isAnyDragActive = rowDragDrop?.isAnyDragActive ?? false
   const hasActiveSelection = (selectable?.selectedIds.size ?? 0) > 0
+  /** Hover and active are mutually exclusive, so a selected row holds its surface through hover. */
+  const isRowActive = selectedRowId === row.id || isSelected || isContextMenuTarget
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -664,16 +668,20 @@ const DataRow = memo(function DataRow({
       className={cn(
         'grid w-full transition-colors',
         isWindowed && 'absolute top-0 left-0',
-        !isAnyDragActive && 'hover-hover:bg-[var(--surface-3)]',
+        !isAnyDragActive && !isRowActive && chipHoverSurfaceClass,
         onRowClick && 'cursor-pointer',
         isDraggable && 'cursor-grab active:cursor-grabbing',
-        isDropTarget && 'data-[drop-target=true]:outline-offset-[-1px]',
-        (selectedRowId === row.id || isSelected || isContextMenuTarget) && 'bg-[var(--surface-3)]',
-        isActiveDropTarget && 'bg-[var(--surface-4)] outline outline-1 outline-[var(--accent)]',
+        isRowActive && chipActiveSurfaceClass,
+        /**
+         * Drawn inside the row's own box (`outline-offset-[-1px]`) so the ring never overlaps
+         * the rows above and below, and in the same brand colour as the Files drop-to-upload
+         * overlay so every "release here" affordance reads as one thing.
+         */
+        isActiveDropTarget &&
+          'bg-[var(--surface-4)] outline outline-1 outline-[var(--brand-secondary)] outline-offset-[-1px]',
         (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}
       style={rowStyle}
-      data-drop-target={isDropTarget || undefined}
       draggable={isDraggable}
       onClick={onRowClick || selectable ? handleClick : undefined}
       onMouseEnter={handleMouseEnter}

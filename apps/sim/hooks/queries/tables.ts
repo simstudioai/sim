@@ -38,8 +38,12 @@ import {
   addWorkflowGroupContract,
   type BatchInsertTableRowsBodyInput,
   type BatchUpdateTableRowsBodyInput,
+  type BulkDeleteTablesBody,
+  type BulkMoveTablesBody,
   batchCreateTableRowsContract,
   batchUpdateTableRowsContract,
+  bulkDeleteTablesContract,
+  bulkMoveTablesContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
   cancelTableRunsContract,
@@ -114,6 +118,7 @@ import { sanitizeName } from '@/lib/table/import'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   TABLE_LIST_STALE_TIME,
   TABLE_VIEWS_STALE_TIME,
@@ -2507,6 +2512,84 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+/**
+ * Move a mixed selection of tables and table folders into one folder, or to the
+ * workspace root with `targetFolderId: null`.
+ *
+ * One request, one authorized operation: the Tables list interleaves folder and
+ * table rows in a single grid, so a selection is routinely mixed and must not be
+ * split into a resource call plus a per-folder fan-out.
+ *
+ * No optimistic patch. A folder move re-parents rows that the list renders at a
+ * different level, and the response reports per-item outcomes (`skipped`,
+ * `notFound`, `failed`) the client cannot predict, so the caller reads the
+ * result rather than guessing it.
+ */
+export function useBulkMoveTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+      targetFolderId,
+    }: Omit<BulkMoveTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkMoveTablesContract, {
+        body: { workspaceId, tableIds, folderIds, targetFolderId },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+      }
+    },
+  })
+}
+
+/**
+ * Archive a mixed selection of tables and table folders.
+ *
+ * Deleting a folder cascades to every table and subfolder inside it, so the
+ * response's `deletedItems` totals exceed the explicitly selected count. Cached
+ * detail and row entries are removed only for the tables named in the request —
+ * a cascaded table's detail cache is left to the list invalidation, since the
+ * request never named it.
+ */
+export function useBulkDeleteTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+    }: Omit<BulkDeleteTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkDeleteTablesContract, {
+        body: { workspaceId, tableIds, folderIds },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
+        queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      }
     },
   })
 }
