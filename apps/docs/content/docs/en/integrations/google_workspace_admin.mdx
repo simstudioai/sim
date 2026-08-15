@@ -790,6 +790,8 @@ Deprovision, disable, or re-enable up to 50 ChromeOS devices at once. Deprovisio
 |   ↳ `deviceId` | string | Unique ID of the ChromeOS device |
 |   ↳ `response` | json | Present when the device changed status successfully |
 |   ↳ `error` | json | Present when the device failed to change status, with code, message, and details |
+| `succeededDeviceIds` | array | IDs of the devices that did change status, so a partial failure can be retried for the rest |
+| `failedDeviceIds` | array | IDs of the devices that did not change status |
 
 ### Google Workspace Admin List Activities
 

@@ -11,8 +11,19 @@ import {
 } from '@/tools/google_workspace_admin/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * A per-device outcome. The Admin SDK returns HTTP 200 for the batch as a whole
+ * and reports each device individually, so a device that stayed enabled is only
+ * visible through its `error`.
+ */
+interface ChangeChromeOsDeviceStatusResult {
+  deviceId?: string
+  response?: unknown
+  error?: { code?: number; message?: string; details?: unknown[] }
+}
+
 interface BatchChangeChromeOsDeviceStatusApiResponse {
-  changeChromeOsDeviceStatusResults?: unknown[]
+  changeChromeOsDeviceStatusResults?: ChangeChromeOsDeviceStatusResult[]
 }
 
 /**
@@ -101,10 +112,36 @@ export const batchChangeChromeOsDeviceStatusTool: ToolConfig<
       response,
       'Failed to change ChromeOS device status'
     )
+    const results = data.changeChromeOsDeviceStatusResults ?? []
+    const failed = results.filter((result) => result.error !== undefined)
+    const succeededDeviceIds = results
+      .filter((result) => result.error === undefined)
+      .map((result) => result.deviceId ?? '')
+      .filter((deviceId) => deviceId.length > 0)
+
+    if (failed.length > 0) {
+      return {
+        success: false,
+        error: `${failed.length} of ${results.length} ChromeOS devices failed to change status: ${failed
+          .map(
+            (result) =>
+              `${result.deviceId ?? 'unknown device'} (${result.error?.message ?? 'no reason given'})`
+          )
+          .join('; ')}`,
+        output: {
+          changeChromeOsDeviceStatusResults: results,
+          succeededDeviceIds,
+          failedDeviceIds: failed.map((result) => result.deviceId ?? '').filter(Boolean),
+        },
+      }
+    }
+
     return {
       success: true,
       output: {
-        changeChromeOsDeviceStatusResults: data.changeChromeOsDeviceStatusResults ?? [],
+        changeChromeOsDeviceStatusResults: results,
+        succeededDeviceIds,
+        failedDeviceIds: [],
       },
     }
   },
@@ -131,6 +168,17 @@ export const batchChangeChromeOsDeviceStatusTool: ToolConfig<
           },
         },
       },
+    },
+    succeededDeviceIds: {
+      type: 'array',
+      description:
+        'IDs of the devices that did change status, so a partial failure can be retried for the rest',
+      items: { type: 'string' },
+    },
+    failedDeviceIds: {
+      type: 'array',
+      description: 'IDs of the devices that did not change status',
+      items: { type: 'string' },
     },
   },
 }
