@@ -2,7 +2,10 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { ChipTag, Combobox, type ComboboxOption } from '@sim/emcn'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
+import {
+  NO_DENIED_OPERATIONS,
+  OPERATION_SUBBLOCK_ID,
+} from '@/lib/permission-groups/operation-access'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useFetchedOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
@@ -17,8 +20,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Selected-value badges shown before folding the rest into a "+N" badge. */
 const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
-
-const EMPTY_DENIED_OPERATIONS: ReadonlySet<string> = new Set()
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon.
@@ -197,7 +198,7 @@ export const Dropdown = memo(function Dropdown({
    * authoritative gate regardless.
    */
   const deniedOperationIds = useMemo(() => {
-    if (subBlockId !== OPERATION_SUBBLOCK_ID) return EMPTY_DENIED_OPERATIONS
+    if (subBlockId !== OPERATION_SUBBLOCK_ID) return NO_DENIED_OPERATIONS
     return getDeniedOperations(
       blockConfig,
       allOptions.map((opt) => (typeof opt === 'string' ? opt : opt.id))
@@ -226,8 +227,6 @@ export const Dropdown = memo(function Dropdown({
   const defaultOptionValue = useMemo(() => {
     if (multiSelect) return undefined
 
-    const selectableIds = comboboxOptions.filter((opt) => !opt.hidden).map((opt) => opt.value)
-
     /**
      * The operation field defaults through the permission gate, which withholds
      * a value until the group config has loaded. Seeding the static first
@@ -236,12 +235,13 @@ export const Dropdown = memo(function Dropdown({
      * that arrives with the config would never apply.
      */
     if (subBlockId === OPERATION_SUBBLOCK_ID) {
+      const selectableIds = comboboxOptions.filter((opt) => !opt.hidden).map((opt) => opt.value)
       return resolveDefaultOperation(blockConfig, selectableIds, defaultValue)
     }
 
     if (defaultValue !== undefined) return defaultValue
 
-    return selectableIds[0]
+    return comboboxOptions.find((opt) => !opt.hidden)?.value
   }, [defaultValue, comboboxOptions, multiSelect, subBlockId, blockConfig, resolveDefaultOperation])
 
   useEffect(() => {

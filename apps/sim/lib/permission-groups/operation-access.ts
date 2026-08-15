@@ -10,6 +10,12 @@ import type { BlockConfig } from '@/blocks/types'
  */
 export const OPERATION_SUBBLOCK_ID = 'operation'
 
+/** The subblock id that carries a block's model. */
+export const MODEL_SUBBLOCK_ID = 'model'
+
+/** Shared empty result, so a caller's memo sees a stable identity. */
+export const NO_DENIED_OPERATIONS: ReadonlySet<string> = new Set()
+
 /** The slice of a block config the operation gate reads. */
 export type OperationGateBlock = Pick<BlockConfig, 'tools'>
 
@@ -19,6 +25,12 @@ export type IsToolAllowed = (toolId: string) => boolean
 /**
  * The tool id a block operation maps to, or `null` when it cannot be resolved
  * from the operation alone.
+ *
+ * Deliberately not `getToolIdForOperation` from `@/tools/params`: that one ends
+ * with an unconditional `access[0]` fallback, which for a gate would authorize
+ * an unrecognized operation against a tool it has nothing to do with. It also
+ * logs on every selector throw, and this runs once per option of every block
+ * offered.
  *
  * Never guesses. A selector that also reads sibling fields throws when handed
  * an operation on its own, and an operation the block does not recognize has

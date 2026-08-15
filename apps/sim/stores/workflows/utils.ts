@@ -1,9 +1,7 @@
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { filterUniqueWorkflowEdges } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
-import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -12,7 +10,6 @@ import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { buildDefaultCanonicalModes } from '@/lib/workflows/subblocks/visibility'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks'
-import type { SubBlockConfig } from '@/blocks/types'
 import { escapeRegExp, normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -105,43 +102,20 @@ export interface PrepareBlockStateOptions {
   extent?: 'parent'
   triggerMode?: boolean
   /**
-   * Gate for the seeded operation. A block whose declared default operation the
-   * creator's permission group denies is seeded with the first operation they
-   * can run instead — nothing revisits a field that already holds a value, so
-   * an unpermitted default would otherwise survive until it failed at
-   * execution. Omitted where the acting user's config is unknown or does not
-   * apply, in which case the declared default is used unchanged.
+   * Vetoes a declared default that the creator's permission group denies —
+   * today the `operation` and `model` fields, both of which blocks pre-fill.
+   *
+   * A vetoed field is seeded with nothing rather than a substitute. The editor's
+   * own permission-aware pickers already resolve the right replacement (first
+   * allowed operation; preferred-then-first allowed model) and they only fill a
+   * field that is empty, so leaving it empty hands the choice to the one place
+   * that knows how to make it. Substituting here instead would also drift from
+   * `getDefaultBlockName`, which names the block after its *declared* default.
+   *
+   * Omitted where the acting user's config is unknown or does not apply, in
+   * which case declared defaults are seeded unchanged.
    */
-  isOperationAllowed?: (operationId: string) => boolean
-}
-
-/**
- * The first operation the caller may run from an operation subblock's declared
- * options, skipping the ones its block hides from the picker.
- */
-function firstAllowedOperation(
-  subBlock: SubBlockConfig,
-  isOperationAllowed: (operationId: string) => boolean
-): string | null {
-  let options: unknown
-  try {
-    options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
-  } catch {
-    return null
-  }
-  if (!Array.isArray(options)) return null
-
-  for (const option of options) {
-    if (typeof option === 'string') {
-      if (isOperationAllowed(option)) return option
-      continue
-    }
-    if (isRecordLike(option) && typeof option.id === 'string' && !option.hidden) {
-      if (isOperationAllowed(option.id)) return option.id
-    }
-  }
-
-  return null
+  isSeededValueAllowed?: (subBlockId: string, value: string) => boolean
 }
 
 /**
@@ -158,7 +132,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
     parentId,
     extent,
     triggerMode = false,
-    isOperationAllowed,
+    isSeededValueAllowed,
   } = options
 
   const blockConfig = getBlock(type)
@@ -205,12 +179,12 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
       }
 
       if (
-        isOperationAllowed &&
-        subBlock.id === OPERATION_SUBBLOCK_ID &&
+        isSeededValueAllowed &&
         typeof initialValue === 'string' &&
-        !isOperationAllowed(initialValue)
+        initialValue !== '' &&
+        !isSeededValueAllowed(subBlock.id, initialValue)
       ) {
-        initialValue = firstAllowedOperation(subBlock, isOperationAllowed)
+        initialValue = null
       }
 
       subBlocks[subBlock.id] = {

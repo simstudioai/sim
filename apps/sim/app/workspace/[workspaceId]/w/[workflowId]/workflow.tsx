@@ -41,7 +41,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
-import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
+import { MODEL_SUBBLOCK_ID, OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
 import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
 import { requestNoteImage, requestNoteRename } from '@/lib/workflows/notes/canvas-requests'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -129,6 +129,7 @@ import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
 import { useOperationAccess } from '@/hooks/use-operation-access'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
 import {
@@ -870,7 +871,8 @@ const WorkflowContent = React.memo(
      */
     const pendingFocusBlockIdRef = useRef<string | null>(null)
 
-    const { isOperationAllowed, isReady: isOperationAccessReady } = useOperationAccess()
+    const { resolveOperationGate } = useOperationAccess()
+    const { isModelUsable } = usePermissionConfig()
 
     const addBlock = useCallback(
       (
@@ -894,11 +896,17 @@ const WorkflowContent = React.memo(
         if (extent) blockData.extent = extent
 
         /**
-         * Withheld until the permission config has resolved, since it reads as
-         * "nothing denied" in flight and would let a denied default through.
+         * `undefined` until the permission config has resolved, so a declared
+         * default is never vetoed — or let through — on a guess. Blocks pre-fill
+         * two fields the group can restrict; both go through the same gate.
          */
-        const operationGate = isOperationAccessReady
-          ? (operationId: string) => isOperationAllowed(getBlock(type), operationId)
+        const operationGate = resolveOperationGate(getBlock(type))
+        const seedGate = operationGate
+          ? (subBlockId: string, value: string) => {
+              if (subBlockId === OPERATION_SUBBLOCK_ID) return operationGate(value)
+              if (subBlockId === MODEL_SUBBLOCK_ID) return isModelUsable(value)
+              return true
+            }
           : undefined
 
         const block = prepareBlockState({
@@ -910,7 +918,7 @@ const WorkflowContent = React.memo(
           parentId,
           extent,
           triggerMode,
-          isOperationAllowed: operationGate,
+          isSeededValueAllowed: seedGate,
         })
 
         const subBlockValues: Record<string, Record<string, unknown>> = {}
@@ -958,8 +966,8 @@ const WorkflowContent = React.memo(
         collaborativeBatchAddBlocks,
         setSelectedEdges,
         setPendingSelection,
-        isOperationAllowed,
-        isOperationAccessReady,
+        resolveOperationGate,
+        isModelUsable,
       ]
     )
 

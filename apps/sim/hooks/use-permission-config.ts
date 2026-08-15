@@ -24,6 +24,7 @@ import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/p
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
+import { getProviderFromModel } from '@/providers/utils'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
@@ -34,6 +35,12 @@ export interface PermissionConfigResult {
   isBlockAllowed: (blockType: string) => boolean
   isProviderAllowed: (providerId: string) => boolean
   isModelAllowed: (model: string) => boolean
+  /**
+   * Whether a model is usable at all: allowed by the model denylist *and* by the
+   * provider allowlist. Both gates apply to every model field, so prefer this
+   * over calling `isModelAllowed` and `isProviderAllowed` separately.
+   */
+  isModelUsable: (model: string) => boolean
   isToolAllowed: (toolId: string) => boolean
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
@@ -120,20 +127,39 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [config.allowedModelProviders])
 
+  /** Indexed so the per-model check stays O(1) over a long denylist. */
+  const deniedModelSet = useMemo(
+    () => new Set(config.deniedModels.map((denied) => denied.toLowerCase())),
+    [config.deniedModels]
+  )
+
   const isModelAllowed = useMemo(() => {
+    return (model: string) => !deniedModelSet.has(model.toLowerCase())
+  }, [deniedModelSet])
+
+  const isModelUsable = useMemo(() => {
     return (model: string) => {
-      if (config.deniedModels.length === 0) return true
-      const normalized = model.toLowerCase()
-      return !config.deniedModels.some((denied) => denied.toLowerCase() === normalized)
+      if (!isModelAllowed(model)) return false
+      try {
+        return isProviderAllowed(getProviderFromModel(model))
+      } catch {
+        /* A model whose provider cannot be derived is left to the server gate
+           rather than hidden on a parse failure. */
+        return true
+      }
     }
-  }, [config.deniedModels])
+  }, [isModelAllowed, isProviderAllowed])
+
+  /**
+   * Indexed rather than scanned: the operation gate calls this once per option
+   * of every block it offers, so a linear scan made the cost of a check scale
+   * with the length of the denylist.
+   */
+  const deniedToolSet = useMemo(() => new Set(config.deniedTools), [config.deniedTools])
 
   const isToolAllowed = useMemo(() => {
-    return (toolId: string) => {
-      if (config.deniedTools.length === 0) return true
-      return !config.deniedTools.includes(toolId)
-    }
-  }, [config.deniedTools])
+    return (toolId: string) => !deniedToolSet.has(toolId)
+  }, [deniedToolSet])
 
   const filterBlocks = useMemo(() => {
     return <T extends { type: string }>(blocks: T[]): T[] => {
@@ -173,6 +199,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isModelAllowed,
+      isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
@@ -187,6 +214,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       isBlockAllowed,
       isProviderAllowed,
       isModelAllowed,
+      isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
