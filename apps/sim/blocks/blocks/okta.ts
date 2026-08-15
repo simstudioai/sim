@@ -816,6 +816,9 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       condition: {
         field: 'operation',
         value: [
+          'okta_list_users',
+          'okta_list_groups',
+          'okta_list_group_members',
           'okta_get_logs',
           'okta_list_apps',
           'okta_list_app_users',

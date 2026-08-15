@@ -113,6 +113,7 @@ interface OktaGroupOutput {
 export interface OktaListUsersParams extends OktaBaseParams {
   search?: string
   filter?: string
+  after?: string
   limit?: number
 }
 
@@ -120,6 +121,8 @@ export interface OktaListUsersResponse extends ToolResponse {
   output: {
     users: OktaUserOutput[]
     count: number
+    nextCursor: string | null
+    hasMore: boolean
     success: boolean
   }
 }
@@ -229,6 +232,7 @@ export interface OktaDeactivateUserResponse extends ToolResponse {
 export interface OktaListGroupsParams extends OktaBaseParams {
   search?: string
   filter?: string
+  after?: string
   limit?: number
 }
 
@@ -236,6 +240,8 @@ export interface OktaListGroupsResponse extends ToolResponse {
   output: {
     groups: OktaGroupOutput[]
     count: number
+    nextCursor: string | null
+    hasMore: boolean
     success: boolean
   }
 }
@@ -291,6 +297,7 @@ export interface OktaRemoveUserFromGroupResponse extends ToolResponse {
 // List Group Members
 export interface OktaListGroupMembersParams extends OktaBaseParams {
   groupId: string
+  after?: string
   limit?: number
 }
 
@@ -298,6 +305,8 @@ export interface OktaListGroupMembersResponse extends ToolResponse {
   output: {
     members: OktaUserOutput[]
     count: number
+    nextCursor: string | null
+    hasMore: boolean
     success: boolean
   }
 }

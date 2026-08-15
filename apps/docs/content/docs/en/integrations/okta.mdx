@@ -50,7 +50,8 @@ List all users in your Okta organization with optional search and filtering
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `search` | string | No | Okta search expression \(e.g., profile.firstName eq "John" or profile.email co "example.com"\) |
 | `filter` | string | No | Okta filter expression \(e.g., status eq "ACTIVE"\) |
-| `limit` | number | No | Maximum number of users to return \(default: 200, max: 200\) |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of users to return per page \(default: 200\) |
 
 #### Output
 
@@ -72,6 +73,8 @@ List all users in your Okta organization with optional search and filtering
 |   ↳ `activated` | string | Activation timestamp |
 |   ↳ `statusChanged` | string | Status change timestamp |
 | `count` | number | Number of users returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more users are available |
 | `success` | boolean | Operation success status |
 
 ### Get User from Okta
@@ -320,7 +323,8 @@ List all groups in your Okta organization with optional search and filtering
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `search` | string | No | Okta search expression for groups \(e.g., profile.name sw "Engineering" or type eq "OKTA_GROUP"\) |
 | `filter` | string | No | Okta filter expression \(e.g., type eq "OKTA_GROUP"\) |
-| `limit` | number | No | Maximum number of groups to return \(default: 10000, max: 10000\) |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of groups to return per page \(max: 10000\) |
 
 #### Output
 
@@ -335,6 +339,8 @@ List all groups in your Okta organization with optional search and filtering
 |   ↳ `lastUpdated` | string | Last update timestamp |
 |   ↳ `lastMembershipUpdated` | string | Last membership change timestamp |
 | `count` | number | Number of groups returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more groups are available |
 | `success` | boolean | Operation success status |
 
 ### Get Group from Okta
@@ -490,7 +496,8 @@ List all members of a specific group in your Okta organization
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `groupId` | string | Yes | Group ID to list members for |
-| `limit` | number | No | Maximum number of members to return \(default: 1000, max: 1000\) |
+| `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `limit` | number | No | Maximum number of members to return per page \(max: 1000\) |
 
 #### Output
 
@@ -512,6 +519,8 @@ List all members of a specific group in your Okta organization
 |   ↳ `activated` | string | Activation timestamp |
 |   ↳ `statusChanged` | string | Status change timestamp |
 | `count` | number | Number of members returned |
+| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `hasMore` | boolean | Whether more members are available |
 | `success` | boolean | Operation success status |
 
 ### List Group Rules from Okta
