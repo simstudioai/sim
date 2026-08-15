@@ -59,7 +59,9 @@ function render(overrides: Partial<TableFindProps> = {}) {
     onQueryChange: vi.fn(),
     onNext: vi.fn(),
     onPrev: vi.fn(),
+    onSubmit: vi.fn(),
     onClose: vi.fn(),
+    isStale: false,
     count: 0,
     currentIndex: 0,
     truncated: false,
@@ -154,6 +156,19 @@ describe('TableFind keyboard', () => {
     const props = render({ query: 'a', count: 3 })
     press('Escape')
     expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  // Mid-debounce the visible matches still belong to the previous term, so
+  // stepping through them would land on a cell the box no longer describes.
+  it('commits instead of stepping while the results are stale', () => {
+    const props = render({ query: 'abcd', count: 3, isStale: true })
+    press('Enter')
+    expect(props.onSubmit).toHaveBeenCalledTimes(1)
+    expect(props.onNext).not.toHaveBeenCalled()
+
+    press('Enter', { shiftKey: true })
+    expect(props.onSubmit).toHaveBeenCalledTimes(2)
+    expect(props.onPrev).not.toHaveBeenCalled()
   })
 })
 

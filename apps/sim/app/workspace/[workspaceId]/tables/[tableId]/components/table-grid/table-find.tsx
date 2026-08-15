@@ -10,7 +10,11 @@ export interface TableFindProps {
   onQueryChange: (query: string) => void
   onNext: () => void
   onPrev: () => void
+  /** Adopts the typed term immediately, skipping the debounce. */
+  onSubmit: () => void
   onClose: () => void
+  /** Whether the results on screen still describe an older term. */
+  isStale: boolean
   /** Number of matches after dropping columns not in the current view. */
   count: number
   /** 0-based index of the active match. Ignored when `count` is 0. */
@@ -31,7 +35,9 @@ export const TableFind = memo(function TableFind({
   onQueryChange,
   onNext,
   onPrev,
+  onSubmit,
   onClose,
+  isStale,
   count,
   currentIndex,
   truncated,
@@ -41,7 +47,10 @@ export const TableFind = memo(function TableFind({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (e.shiftKey) onPrev()
+      // Committing beats stepping while the matches on screen belong to an
+      // older term — stepping there navigates results the box no longer shows.
+      if (isStale) onSubmit()
+      else if (e.shiftKey) onPrev()
       else onNext()
       return
     }

@@ -493,11 +493,6 @@ export function TableGrid({
   const [pendingMatchTick, setPendingMatchTick] = useState(0)
   const findInputRef = useRef<HTMLInputElement>(null)
   const pendingMatchRef = useRef<TableFindMatch | null>(null)
-  /** Cell selected when find was opened, restored on close. */
-  const preFindAnchorRef = useRef<CellCoord | null>(null)
-  /** Last cell find itself moved the selection to, so close can tell a match
-   *  cursor apart from a selection the user made while the bar was open. */
-  const lastRevealedAnchorRef = useRef<CellCoord | null>(null)
   /** Monotonic id for the in-flight match jump; see `goToMatch`. */
   const goToMatchSeqRef = useRef(0)
   /** Term the auto-reveal has already run for, so a background refetch of the
@@ -1132,6 +1127,21 @@ export function TableGrid({
     return () => clearTimeout(timer)
   }, [findOpen, trimmedFindQuery])
 
+  const trimmedFindQueryRef = useRef(trimmedFindQuery)
+  trimmedFindQueryRef.current = trimmedFindQuery
+
+  /**
+   * Adopt the typed term now instead of waiting out the debounce. Enter uses
+   * this while the two disagree: navigating there would step through the
+   * PREVIOUS term's matches — `keepPreviousData` still holds them — and land on
+   * a cell that doesn't match the box. Pressing Enter means "search this now",
+   * so it commits rather than navigates, and the auto-reveal takes it from
+   * there. The pending timer is harmless: it later sets the same string.
+   */
+  const handleFindSubmit = useCallback(() => {
+    setSubmittedQuery(trimmedFindQueryRef.current)
+  }, [])
+
   const {
     data: findData,
     isFetching: isFindFetching,
@@ -1260,7 +1270,6 @@ export function TableGrid({
     setIsColumnSelection(false)
     setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
     setSelectionFocus(null)
-    lastRevealedAnchorRef.current = { rowIndex, colIndex }
     cursorIsOnMatchRef.current = true
     setSelectionAnchor({ rowIndex, colIndex })
   }, [rows, displayColumns, pendingMatchTick])
@@ -1328,11 +1337,15 @@ export function TableGrid({
    * Closes the bar and leaves no trace of the search: the term, the highlights
    * (via the emptied term), and the match cursor all go.
    *
-   * The cell the user was on before opening find is restored, so an abandoned
-   * search does not relocate them — Sheets parks the cursor on the last match
-   * instead, which is a standing complaint there. Restoring is skipped once the
-   * user has selected a cell themselves: at that point the selection is their
-   * own work, not find's, and yanking it back would lose their place.
+   * The cell selection is deliberately left where it is. Restoring the cell the
+   * user was on before opening find reads nicely, but deciding whether the
+   * current selection belongs to find or to the user is not answerable here —
+   * the grid has ~15 places that move the selection and no notion of who owns
+   * it, so every heuristic (compare the anchor, also check the focus, clear on
+   * click, clear on keydown) mis-fires on some ordinary gesture: extending a
+   * range from a match, clicking the match cell itself, arrowing away and back,
+   * Cmd+Z, or Cmd+F to refocus the bar. Leaving the cursor on the last match is
+   * what Sheets does and what this grid already did before find was reworked.
    */
   const handleFindClose = useCallback(() => {
     setFindOpen(false)
@@ -1345,25 +1358,6 @@ export function TableGrid({
     autoRevealedTermRef.current = ''
     cursorIsOnMatchRef.current = false
     setIsJumping(false)
-    const origin = preFindAnchorRef.current
-    const lastRevealed = lastRevealedAnchorRef.current
-    preFindAnchorRef.current = null
-    lastRevealedAnchorRef.current = null
-    const anchor = selectionAnchorRef.current
-    // A revealed match is a single cell: find sets the anchor and clears the
-    // focus. A non-null focus means the user extended a range from it
-    // (Shift+Arrow, Shift+click, drag), which makes the selection theirs even
-    // though the anchor still sits on the match — restoring would delete it.
-    const stillOnMatch =
-      lastRevealed !== null &&
-      anchor !== null &&
-      selectionFocusRef.current === null &&
-      anchor.rowIndex === lastRevealed.rowIndex &&
-      anchor.colIndex === lastRevealed.colIndex
-    if (stillOnMatch) {
-      setSelectionFocus(null)
-      setSelectionAnchor(origin)
-    }
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
@@ -1679,10 +1673,6 @@ export function TableGrid({
       setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
       setIsColumnSelection(false)
       lastCheckboxRowRef.current = null
-      // Any deliberate click hands the selection back to the user, so closing
-      // find must not restore over it — including a click on the very cell find
-      // had revealed, which leaves the anchor and focus looking find-owned.
-      lastRevealedAnchorRef.current = null
       if (shiftKey && selectionAnchorRef.current) {
         setSelectionFocus({ rowIndex, colIndex })
       } else {
@@ -2644,13 +2634,6 @@ export function TableGrid({
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
-      // Any key that reaches the GRID while find is open is the user driving
-      // the grid — the find input swallows its own keys via the guard above —
-      // so the selection is theirs from here on and close must not restore over
-      // it. Escape is excluded: it IS the close, and must still restore.
-      // One choke point rather than a hook at each of the ~15 anchor writers.
-      if (e.key !== 'Escape') lastRevealedAnchorRef.current = null
-
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'y')) {
         e.preventDefault()
         if (e.key === 'y' || e.shiftKey) {
@@ -3555,10 +3538,6 @@ export function TableGrid({
       if (!(e.metaKey || e.ctrlKey) || e.key !== 'f') return
       if (!containerRef.current) return
       e.preventDefault()
-      // Remember where the user was, but only on the transition into find —
-      // Cmd+F pressed again while the bar is open (to refocus it) must not
-      // overwrite the origin cell with the match they are currently on.
-      if (!findOpenRef.current) preFindAnchorRef.current = selectionAnchorRef.current
       setFindOpen(true)
       requestAnimationFrame(() => {
         findInputRef.current?.focus()
@@ -4419,7 +4398,9 @@ export function TableGrid({
             onQueryChange={setFindQuery}
             onNext={handleFindNext}
             onPrev={handleFindPrev}
+            onSubmit={handleFindSubmit}
             onClose={handleFindClose}
+            isStale={trimmedFindQuery !== submittedQuery}
             count={findMatches.length}
             // Clamped, not stored: a background refetch of the same term can
             // shrink the match set under a cursor the user already paged, and
