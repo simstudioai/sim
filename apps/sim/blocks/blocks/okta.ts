@@ -3,6 +3,20 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type { OktaResponse } from '@/tools/okta/types'
 
+/**
+ * Coerces a numeric subBlock value, dropping anything that is not a real number.
+ *
+ * These fields are free-text inputs, so a stray non-numeric entry would otherwise
+ * become `NaN` and serialize to `null`, which Okta rejects with a validation
+ * error that points at the wrong thing. Omitting the field instead lets Okta
+ * apply its own default.
+ */
+function toFiniteNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export const OktaBlock: BlockConfig<OktaResponse> = {
   type: 'okta',
   name: 'Okta',
@@ -896,10 +910,11 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           domain: params.domain,
         }
 
-        if (params.limit) result.limit = Number(params.limit)
-        if (params.priority !== undefined && params.priority !== null && params.priority !== '') {
-          result.priority = Number(params.priority)
-        }
+        const limit = toFiniteNumber(params.limit)
+        if (limit !== undefined) result.limit = limit
+
+        const priority = toFiniteNumber(params.priority)
+        if (priority !== undefined) result.priority = priority
 
         // Map group-specific UI fields to tool param names
         if (params.groupName) result.name = params.groupName
