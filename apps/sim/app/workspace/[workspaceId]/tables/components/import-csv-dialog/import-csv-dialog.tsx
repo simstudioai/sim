@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ButtonGroup,
@@ -14,11 +14,7 @@ import {
   ChipModalHeader,
   type ComboboxOption,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  type TableColumn,
   toast,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -131,6 +127,11 @@ async function parseCsvPreview(file: File, fallbackDelimiter: CsvDelimiter) {
   return parseCsvBuffer(bytes, delimiter)
 }
 
+/** A CSV header is unique within its file, so it is its own row identity. */
+function getCsvHeaderRowId(header: string): string {
+  return header
+}
+
 export function ImportCsvDialog({
   open,
   onOpenChange,
@@ -219,7 +220,7 @@ export function ImportCsvDialog({
     if (file) void handleFileSelected(file)
   }
 
-  function handleMappingChange(header: string, value: string) {
+  const handleMappingChange = useCallback((header: string, value: string) => {
     setSubmitError(null)
     if (value === CREATE_VALUE) {
       setCreateHeaders((prev) => {
@@ -240,7 +241,7 @@ export function ImportCsvDialog({
       ...prev,
       [header]: value === SKIP_VALUE ? null : value,
     }))
-  }
+  }, [])
 
   function handleCreateAllUnmapped() {
     if (!parsed) return
@@ -295,6 +296,56 @@ export function ImportCsvDialog({
       createCount: creating,
     }
   }, [mapping, parsed?.headers, table.schema.columns, createHeaders])
+
+  /** First two non-empty sample values per header, shown under the header name. */
+  const sampleByHeader = useMemo(() => {
+    const samples = new Map<string, string>()
+    if (!parsed) return samples
+    for (const header of parsed.headers) {
+      samples.set(
+        header,
+        parsed.sampleRows
+          .map((row) => (row[header] === '' || row[header] == null ? '' : String(row[header])))
+          .filter(Boolean)
+          .slice(0, 2)
+          .join(', ')
+      )
+    }
+    return samples
+  }, [parsed])
+
+  const mappingColumns = useMemo<TableColumn<string>[]>(
+    () => [
+      {
+        key: 'csv',
+        header: 'CSV column',
+        cell: (header) => {
+          const sample = sampleByHeader.get(header)
+          return (
+            <div className='flex min-w-0 flex-col'>
+              <span className='truncate text-[var(--text-primary)]'>{header}</span>
+              {sample && (
+                <span className='truncate text-[var(--text-tertiary)] text-xs'>{sample}</span>
+              )}
+            </div>
+          )
+        },
+      },
+      {
+        key: 'target',
+        header: 'Target column',
+        cell: (header) => (
+          <ChipCombobox
+            options={columnOptions}
+            value={createHeaders.has(header) ? CREATE_VALUE : (mapping[header] ?? SKIP_VALUE)}
+            onChange={(value) => handleMappingChange(header, value)}
+            className='w-full'
+          />
+        ),
+      },
+    ],
+    [sampleByHeader, columnOptions, createHeaders, mapping, handleMappingChange]
+  )
 
   const canSubmit =
     parsed !== null &&
@@ -414,57 +465,13 @@ export function ImportCsvDialog({
                   </Button>
                 </div>
               )}
-              <div className='overflow-hidden rounded-sm border border-[var(--border)]'>
-                <div className='max-h-[320px] overflow-auto'>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>CSV column</TableHead>
-                        <TableHead>Target column</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {parsed.headers.map((header) => {
-                        const sample = parsed.sampleRows
-                          .map((r) =>
-                            r[header] === '' || r[header] == null ? '' : String(r[header])
-                          )
-                          .filter(Boolean)
-                          .slice(0, 2)
-                          .join(', ')
-                        return (
-                          <TableRow key={header}>
-                            <TableCell>
-                              <div className='flex min-w-0 flex-col'>
-                                <span className='truncate text-[var(--text-primary)]'>
-                                  {header}
-                                </span>
-                                {sample && (
-                                  <span className='truncate text-[var(--text-tertiary)] text-xs'>
-                                    {sample}
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <ChipCombobox
-                                options={columnOptions}
-                                value={
-                                  createHeaders.has(header)
-                                    ? CREATE_VALUE
-                                    : (mapping[header] ?? SKIP_VALUE)
-                                }
-                                onChange={(value) => handleMappingChange(header, value)}
-                                className='w-full'
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
+              <Table
+                aria-label='Column mapping'
+                className='max-h-[320px]'
+                rows={parsed.headers}
+                getRowId={getCsvHeaderRowId}
+                columns={mappingColumns}
+              />
               <span className='text-[var(--text-tertiary)] text-xs'>
                 {mappedCount} mapped
                 {createCount > 0

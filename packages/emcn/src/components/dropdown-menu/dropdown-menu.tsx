@@ -141,7 +141,31 @@ function DropdownMenu({
   return <DropdownMenuPrimitive.Root modal={insideModal ? true : modal} {...props} />
 }
 
-const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
+/**
+ * Radix decides whether to open from the Trigger's OWN `disabled`, and Chrome
+ * still dispatches `pointerdown` on a disabled `<button>` — so `asChild` with a
+ * disabled child renders something that looks inert and opens anyway.
+ *
+ * This lifts the child's `disabled` onto the Trigger, so both spellings are
+ * correct: put it on the trigger, on the child, or both. Passing it here also
+ * flows down to an `asChild` child, so a caller that sets it once still gets the
+ * disabled styling.
+ */
+const DropdownMenuTrigger = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
+>(({ disabled, children, ...props }, ref) => {
+  const childDisabled =
+    props.asChild && React.isValidElement<{ disabled?: boolean }>(children)
+      ? children.props.disabled
+      : undefined
+  return (
+    <DropdownMenuPrimitive.Trigger ref={ref} disabled={disabled ?? childDisabled} {...props}>
+      {children}
+    </DropdownMenuPrimitive.Trigger>
+  )
+})
+DropdownMenuTrigger.displayName = DropdownMenuPrimitive.Trigger.displayName
 
 const DropdownMenuGroup = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Group>,

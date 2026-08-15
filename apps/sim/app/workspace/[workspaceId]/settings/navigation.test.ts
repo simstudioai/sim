@@ -30,6 +30,7 @@ describe('unified settings navigation', () => {
       { id: 'billing', label: 'Subscription', section: 'account' },
       { id: 'teammates', label: 'Teammates', section: 'workspace' },
       { id: 'organization', label: 'Members', section: 'organization' },
+      { id: 'workspaces', label: 'Workspaces', section: 'organization' },
       { id: 'secrets', label: 'Secrets', section: 'workspace' },
       { id: 'custom-tools', label: 'Custom tools', section: 'workspace' },
       { id: 'mcp', label: 'MCP tools', section: 'workspace' },
@@ -78,6 +79,7 @@ describe('unified settings navigation', () => {
       'recently-deleted',
     ])
     expect(idsForSection('organization')).toEqual([
+      'workspaces',
       'organization',
       'custom-blocks',
       'forks',

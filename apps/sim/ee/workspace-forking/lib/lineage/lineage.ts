@@ -1,17 +1,7 @@
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-
-export interface ForkLineageNode {
-  id: string
-  name: string
-  organizationId: string | null
-}
-
-export interface ForkLineageChild extends ForkLineageNode {
-  createdAt: Date
-}
 
 export interface ForkEdge {
   childWorkspaceId: string
@@ -22,46 +12,13 @@ export interface ForkEdge {
  * The parent workspace id a fork was created from, or null when the workspace
  * is not a fork (or has been archived).
  */
-export async function getForkParentId(workspaceId: string): Promise<string | null> {
+async function getForkParentId(workspaceId: string): Promise<string | null> {
   const [row] = await db
     .select({ parentId: workspace.forkedFromWorkspaceId })
     .from(workspace)
     .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
     .limit(1)
   return row?.parentId ?? null
-}
-
-/** The parent lineage node for a fork, or null when it has no live parent. */
-export async function getForkParent(workspaceId: string): Promise<ForkLineageNode | null> {
-  const parentId = await getForkParentId(workspaceId)
-  if (!parentId) return null
-  const [row] = await db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      organizationId: workspace.organizationId,
-    })
-    .from(workspace)
-    .where(and(eq(workspace.id, parentId), isNull(workspace.archivedAt)))
-    .limit(1)
-  return row ?? null
-}
-
-/**
- * The live (non-archived) forks created from this workspace, newest first, for
- * the Forks settings page's read-only fork list.
- */
-export async function getForkChildren(workspaceId: string): Promise<ForkLineageChild[]> {
-  return db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      organizationId: workspace.organizationId,
-      createdAt: workspace.createdAt,
-    })
-    .from(workspace)
-    .where(and(eq(workspace.forkedFromWorkspaceId, workspaceId), isNull(workspace.archivedAt)))
-    .orderBy(desc(workspace.createdAt))
 }
 
 /**

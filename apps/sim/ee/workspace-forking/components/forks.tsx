@@ -1,309 +1,103 @@
 'use client'
 
-import { useState } from 'react'
-import { ChipConfirmModal, toast } from '@sim/emcn'
-import { ArrowLeft, Plus, TriangleAlert } from '@sim/emcn/icons'
+import { useMemo, useState } from 'react'
+import { ChipDropdown } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { useParams } from 'next/navigation'
+import { useQueryState, useQueryStates } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
-import type { ForkLineageChildApi, ForkLineageNodeApi } from '@/lib/api/contracts/workspace-fork'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import {
-  forkIdParam,
-  forkIdUrlKeys,
-  forkSyncDirectionParam,
-  forkSyncDirectionUrlKeys,
-  forkViewParam,
-  forkViewUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import {
-  type RowAction,
-  RowActionsMenu,
-} from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
 import { ForkActivityPanel } from '@/ee/workspace-forking/components/fork-activity-panel/fork-activity-panel'
 import { ForkExcludedWorkflows } from '@/ee/workspace-forking/components/fork-excluded-workflows/fork-excluded-workflows'
-import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
+import { forkKindLabel } from '@/ee/workspace-forking/components/fork-kind-label'
 import {
-  ARCHIVED_PREVIEW_LIMIT,
-  useForkSync,
-} from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
+  ForkLineage,
+  forkLineageRootId,
+  forkLineageRoots,
+} from '@/ee/workspace-forking/components/fork-lineage'
+import { ForkMappings, useForkMatrixEditor } from '@/ee/workspace-forking/components/fork-mappings'
+import { ForkEdgeDetail } from '@/ee/workspace-forking/components/fork-sync/fork-edge-detail'
+import {
+  FORK_TABLE_STACK_CLASS,
+  ForkTableTabs,
+  ForkTableToolbar,
+} from '@/ee/workspace-forking/components/fork-table'
 import { ForkWorkspaceModal } from '@/ee/workspace-forking/components/fork-workspace-modal/fork-workspace-modal'
 import { useForkingAvailability } from '@/ee/workspace-forking/hooks/use-forking-available'
+import { useForkForest, useForkMatrix } from '@/ee/workspace-forking/hooks/workspace-fork'
 import {
-  useForkLineage,
-  useRollbackFork,
-  useUnlinkFork,
-} from '@/ee/workspace-forking/hooks/workspace-fork'
-import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
+  FORK_EVENT_FILTERS,
+  FORK_RESOURCE_FILTERS,
+  type ForkTab,
+  forkEdgeIdParam,
+  forkEdgeIdUrlKeys,
+  forkFilterParsers,
+  forkFilterUrlKeys,
+  forkRootIdParam,
+  forkTabParam,
+  forkTabUrlKeys,
+} from '@/ee/workspace-forking/search-params'
+import { useWorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
-/** Explains a disabled lineage action whose target workspace the viewer cannot open. */
-const NO_ACCESS_TOOLTIP = "You don't have access to this workspace"
+const TAB_ITEMS: ReadonlyArray<{ id: ForkTab; label: string }> = [
+  { id: 'lineage', label: 'Lineage' },
+  { id: 'mappings', label: 'Mappings' },
+  { id: 'excluded', label: 'Excluded' },
+  { id: 'activity', label: 'Activity' },
+]
 
-/** Lineage partner names by id (the parent + this workspace's forks), for the Activity view. */
-function lineagePartnerNames(
-  parent: ForkLineageNodeApi | null,
-  forks: ForkLineageChildApi[]
-): ReadonlyMap<string, string> {
-  const names = new Map<string, string>()
-  if (parent) names.set(parent.id, parent.name)
-  for (const fork of forks) names.set(fork.id, fork.name)
-  return names
+const RESOURCE_FILTER_OPTIONS = FORK_RESOURCE_FILTERS.map((value) => ({
+  value,
+  label: value === 'all' ? 'All resources' : forkKindLabel(value),
+}))
+
+const EVENT_FILTER_LABELS: Record<(typeof FORK_EVENT_FILTERS)[number], string> = {
+  all: 'All events',
+  fork_content_copy: 'Forks',
+  fork_sync: 'Syncs',
+  fork_rollback: 'Rollbacks',
 }
 
-interface ForkListRowProps {
-  name: string
-  /** Entries for the row's `...` menu (Edit mappings / Open workspace / Disconnect). */
-  actions: RowAction[]
-}
+const EVENT_FILTER_OPTIONS = FORK_EVENT_FILTERS.map((value) => ({
+  value,
+  label: EVENT_FILTER_LABELS[value],
+}))
 
-function ForkListRow({ name, actions }: ForkListRowProps) {
-  return (
-    <div className='flex items-center justify-between gap-3'>
-      <FloatingOverflowText
-        label={name}
-        className='block min-w-0 truncate text-[var(--text-body)] text-sm'
-      />
-      <div className='flex flex-shrink-0 items-center gap-1'>
-        <RowActionsMenu label='Fork actions' actions={actions} />
-      </div>
-    </div>
-  )
-}
-
-interface ForkSyncDetailViewProps {
-  title: string
-  workspaceId: string
-  /** The other side of the edge being synced (this workspace's parent). */
-  otherWorkspaceId: string
-  otherWorkspaceName: string
-  onBack: () => void
-  /** Header chips rendered left of Sync (e.g. Open workspace) — the caller owns those. */
-  actions: SettingsAction[]
-}
+/** Wide enough to hold "All resources" without the trigger resizing per selection. */
+const FILTER_TRIGGER_WIDTH = 'w-[170px]'
 
 /**
- * The parent edge's sync page (reached from the parent row): direction, deployed-workflow
- * changes, per-kind mappings (each an expandable row whose status badge is the summary),
- * copy resources, and blocking references, all as page sections.
- * The header's Sync chip is gated until zero blockers + required mappings + reconfigure are
- * complete, and always confirms the overwrite first — that confirm is the flow's one modal.
- * While the mapping has unsaved edits the header swaps to Discard/Save and leaving is guarded;
- * Sync itself persists the effective mapping as part of the run.
+ * What the search box narrows, per tab. Activity has none: its feed is keyset-paginated, so a box
+ * that only filtered the pages already loaded would silently miss everything older.
  */
-function ForkSyncDetailView({
-  title,
-  workspaceId,
-  otherWorkspaceId,
-  otherWorkspaceName,
-  onBack,
-  actions,
-}: ForkSyncDetailViewProps) {
-  // Sync direction is shareable view state: a copied link opens the same side of the sync.
-  const [direction, setDirection] = useQueryState(forkSyncDirectionParam.key, {
-    ...forkSyncDirectionParam.parser,
-    ...forkSyncDirectionUrlKeys,
-  })
-
-  const controller = useForkSync({
-    workspaceId,
-    otherWorkspaceId,
-    otherWorkspaceName,
-    direction,
-    enabled: true,
-  })
-
-  // Guard leaving the detail view (Back) while the mapping has unsaved edits, and feed
-  // the shared settings dirty store so a sidebar section switch confirms too.
-  const guard = useSettingsUnsavedGuard({ isDirty: controller.dirty })
-
-  const [confirmSyncOpen, setConfirmSyncOpen] = useState(false)
-
-  // Sync is the edge's primary action, so it's the rightmost/black chip; the caller's
-  // Open workspace chip sits left of it. Dirty mapping edits swap the whole cluster
-  // for Discard/Save until they're saved or discarded.
-  const panelActions: SettingsAction[] = controller.dirty
-    ? saveDiscardActions({
-        dirty: controller.dirty,
-        saving: controller.saving,
-        onSave: controller.save,
-        onDiscard: controller.discard,
-      })
-    : [
-        ...actions,
-        {
-          text: controller.submitting ? 'Working...' : 'Sync',
-          variant: 'primary' as const,
-          onSelect: () => setConfirmSyncOpen(true),
-          disabled: controller.syncDisabled,
-          tooltip: controller.syncDisabled
-            ? controller.syncDisabledReason
-            : `Push to or pull from ${otherWorkspaceName}`,
-        },
-      ]
-
-  const targetWorkspaceName = controller.targetWorkspaceName
-
-  return (
-    <>
-      <SettingsPanel
-        back={{
-          text: 'Workspace Forks',
-          icon: ArrowLeft,
-          onSelect: () =>
-            guard.guardBack(() => {
-              void setDirection(null)
-              onBack()
-            }),
-        }}
-        title={title}
-        actions={panelActions}
-      >
-        <ForkSyncView
-          controller={controller}
-          onDirectionChange={(next) => void setDirection(next)}
-        />
-      </SettingsPanel>
-
-      <UnsavedChangesModal
-        open={guard.showUnsavedModal}
-        onOpenChange={guard.setShowUnsavedModal}
-        onDiscard={guard.confirmDiscard}
-      />
-
-      <ChipConfirmModal
-        open={confirmSyncOpen}
-        onOpenChange={setConfirmSyncOpen}
-        srTitle='Sync workspace'
-        title='Overwrite target workspace'
-        text={[
-          'The target may have been modified since the last sync. Syncing will ',
-          { text: 'overwrite any changes', bold: true },
-          ' there. Continue?',
-        ]}
-        confirm={{
-          label: 'Sync',
-          onClick: () => {
-            setConfirmSyncOpen(false)
-            void controller.sync()
-          },
-          pending: controller.submitting,
-          pendingLabel: 'Syncing...',
-        }}
-      >
-        {controller.archivedWorkflowNames.length > 0 ? (
-          <div className='flex flex-col gap-1 px-2'>
-            <p className='break-words text-[var(--text-primary)] text-sm'>
-              Will be archived in <span>{targetWorkspaceName}</span> (deleted in the source):
-            </p>
-            {controller.archivedWorkflowNames
-              .slice(0, ARCHIVED_PREVIEW_LIMIT)
-              .map((name, index) => (
-                <div
-                  key={`${name}:${index}`}
-                  className='min-w-0 truncate text-[var(--text-muted)] text-small'
-                >
-                  {name}
-                </div>
-              ))}
-            {controller.archivedWorkflowNames.length > ARCHIVED_PREVIEW_LIMIT ? (
-              <div className='text-[var(--text-muted)] text-small'>
-                and {controller.archivedWorkflowNames.length - ARCHIVED_PREVIEW_LIMIT} more
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {/* A dead trigger URL is only discoverable after the fact, when the external caller goes
-            quiet - so it belongs in the confirm, next to the other irreversible consequences. */}
-        {controller.triggerUrlChanges.length > 0 ? (
-          <div className='flex flex-col gap-1 px-2'>
-            <p className='break-words text-[var(--text-primary)] text-sm'>
-              {controller.triggerUrlChanges.length === 1 ? 'A webhook URL' : 'Webhook URLs'} in{' '}
-              <span>{targetWorkspaceName}</span> will stop being served — anything calling{' '}
-              {controller.triggerUrlChanges.length === 1 ? 'it' : 'them'} breaks until you
-              re-register:
-            </p>
-            {controller.triggerUrlChanges.slice(0, ARCHIVED_PREVIEW_LIMIT).map((change) => (
-              // Naming the URL, not just its workflow: several URLs in one workflow would render
-              // as identical lines, and this confirm is the last point before they stop serving.
-              <div
-                key={`${change.workflowName}:${change.path}`}
-                className='min-w-0 text-[var(--text-muted)] text-small'
-              >
-                {change.workflowName}
-                <span className='block truncate font-mono text-caption'>
-                  {buildWebhookTriggerUrl(change.path)}
-                </span>
-              </div>
-            ))}
-            {controller.triggerUrlChanges.length > ARCHIVED_PREVIEW_LIMIT ? (
-              <div className='text-[var(--text-muted)] text-small'>
-                and {controller.triggerUrlChanges.length - ARCHIVED_PREVIEW_LIMIT} more
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </ChipConfirmModal>
-    </>
-  )
-}
-
-interface ForkActivityDetailViewProps {
-  workspaceId: string
-  /** Lineage partner names by id, for phrasing rows recorded on the other side of an edge. */
-  workspaceNames: ReadonlyMap<string, string>
-  onBack: () => void
-  /** Header actions (e.g. the destructive Rollback chip while the last sync is undoable). */
-  actions?: SettingsAction[]
+const SEARCH_PLACEHOLDER: Partial<Record<ForkTab, string>> = {
+  lineage: 'Search workspaces',
+  mappings: 'Search resources',
+  excluded: 'Search workflows',
 }
 
 /**
- * Workspace-scoped activity: every fork, sync, and rollback involving this workspace
- * (both sides of each edge), reached from the page header's "See activity" action.
- */
-function ForkActivityDetailView({
-  workspaceId,
-  workspaceNames,
-  onBack,
-  actions,
-}: ForkActivityDetailViewProps) {
-  return (
-    <SettingsPanel
-      back={{ text: 'Workspace Forks', icon: ArrowLeft, onSelect: onBack }}
-      title='Activity'
-      actions={actions}
-    >
-      <ForkActivityPanel workspaceId={workspaceId} workspaceNames={workspaceNames} />
-    </SettingsPanel>
-  )
-}
-
-/**
- * Forks settings page. The workspace's single parent (if it's a fork) sits in its own
- * "Parent" section, above the "Forks" list of child forks. The parent row's `...` menu
- * has Edit mappings (the child owns its edge's re-picks), Open workspace, and
- * Disconnect; fork rows offer Open workspace and Disconnect only. Activity is
- * workspace-scoped and lives behind the header's "See activity" action (including
- * Rollback when the last sync into this workspace is undoable). Sync lives on the
- * parent's sync detail page.
- * Forking and sync rewrite workflow state and deployments en masse, so the page is
- * workspace-admin only and gated on the workspace's fork entitlement - every fork route
- * re-checks both; the server remains the boundary.
+ * The Forks console.
+ *
+ * One surface for every fork lineage the viewer can reach: the tree of workspaces, the resource
+ * mappings across a whole lineage, each workspace's exclusion list, and the history of every fork,
+ * sync, and rollback. Opening an edge from the tree drills into its sync page.
+ *
+ * Forking and syncing rewrite workflow state and deployments en masse, so the console is
+ * workspace-admin only and gated on the workspace's fork entitlement. Every fork route re-checks
+ * both, and each row carries its own permission flags — the server remains the boundary.
  */
 export function Forks() {
   const params = useParams()
-  const router = useRouter()
   const workspaceId = params.workspaceId as string
 
   const { canAdmin, isLoading: permissionsLoading } = useUserPermissionsContext()
@@ -311,80 +105,64 @@ export function Forks() {
     useForkingAvailability(workspaceId)
   const canUseForking = forkingAvailable && canAdmin
 
-  const { data: workspaces } = useWorkspacesQuery()
   const { data: creationPolicy } = useWorkspaceCreationPolicy()
   const { navigateToSettings } = useSettingsNavigation()
-  const lineage = useForkLineage(workspaceId, canUseForking)
-  const rollback = useRollbackFork()
-  const unlink = useUnlinkFork()
 
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [isForkModalOpen, setIsForkModalOpen] = useState(false)
-  const [confirmRollbackOpen, setConfirmRollbackOpen] = useState(false)
-  const [confirmUnlink, setConfirmUnlink] = useState<{ id: string; name: string } | null>(null)
-
-  const [selectedForkId, setSelectedForkId] = useQueryState(forkIdParam.key, {
-    ...forkIdParam.parser,
-    ...forkIdUrlKeys,
+  const [tab, setTab] = useQueryState(forkTabParam.key, {
+    ...forkTabParam.parser,
+    ...forkTabUrlKeys,
   })
-  const [forkView, setForkView] = useQueryState(forkViewParam.key, {
-    ...forkViewParam.parser,
-    ...forkViewUrlKeys,
+  const [edgeId, setEdgeId] = useQueryState(forkEdgeIdParam.key, {
+    ...forkEdgeIdParam.parser,
+    ...forkEdgeIdUrlKeys,
   })
+  const [rootId, setRootId] = useQueryState(forkRootIdParam.key, forkRootIdParam.parser)
+  const [filters, setFilters] = useQueryStates(forkFilterParsers, forkFilterUrlKeys)
 
-  const workspaceName = workspaces?.find((workspace) => workspace.id === workspaceId)?.name
-  const canFork = creationPolicy?.canCreate ?? true
-  const parent = lineage.data?.parent ?? null
-  const forks = lineage.data?.children ?? []
-  const undoableRun = lineage.data?.undoableRun ?? null
-  const gateLoading = availabilityLoading || permissionsLoading
+  const forest = useForkForest(workspaceId, canUseForking)
+  const nodes = useMemo(() => forest.data?.nodes ?? [], [forest.data?.nodes])
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes])
+  /** Names by id, so the activity feed can phrase a row recorded on the other side of an edge. */
+  const workspaceNames = useMemo(() => new Map(nodes.map((node) => [node.id, node.name])), [nodes])
 
-  // Rollback undoes the last sync INTO this workspace, restoring each affected
-  // workflow to its prior deployed version.
-  const runRollback = async () => {
-    if (!undoableRun) return
-    try {
-      const result = await rollback.mutateAsync({
-        workspaceId,
-        body: { otherWorkspaceId: undoableRun.otherWorkspaceId },
-      })
-      if (result.pendingActivations.length > 0) {
-        toast.warning(`Undid sync from "${undoableRun.otherName}"`, {
-          description: `${result.pendingActivations.length} restored deployment(s) are still activating. Undo stays available until they finish, in case a retry is needed.`,
-        })
-      } else {
-        toast.success(`Undid sync from "${undoableRun.otherName}"`)
-      }
-      setConfirmRollbackOpen(false)
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Undo failed'))
-    }
-  }
+  /**
+   * Derived from the loaded forest rather than duplicated into state. A stale id — a disconnected
+   * edge restored from history, or an old link — resolves to nothing and falls back to the console;
+   * the lingering param is harmless and the next selection overwrites it.
+   */
+  const edgeChild = edgeId ? nodeById.get(edgeId) : undefined
+  const edgeParent = edgeChild?.parentId ? nodeById.get(edgeChild.parentId) : undefined
 
-  const openForkWorkspace = (forkId: string) => {
-    router.push(`/workspace/${forkId}/w`)
-  }
+  /** The lineage the matrix lays out: the caller's pick, else the one this workspace belongs to. */
+  const activeRootId = rootId ?? forkLineageRootId(nodes, workspaceId) ?? null
+  const matrix = useForkMatrix(
+    workspaceId,
+    activeRootId ?? undefined,
+    canUseForking && tab === 'mappings'
+  )
+  const matrixEditor = useForkMatrixEditor(matrix.data)
 
-  const openForkMappings = (forkId: string) => {
-    void setSelectedForkId(forkId)
-  }
+  // Called unconditionally, before every early-return gate: a hook placed after one is skipped on
+  // gated renders and crashes.
+  const guard = useSettingsUnsavedGuard({ isDirty: matrixEditor.dirty })
 
-  /** Permanently dissolve the edge with the confirmed workspace; both workspaces remain. */
-  const runUnlink = async () => {
-    if (!confirmUnlink) return
-    try {
-      await unlink.mutateAsync({
-        workspaceId,
-        body: { otherWorkspaceId: confirmUnlink.id },
-      })
-      toast.success(`Disconnected "${confirmUnlink.name}"`)
-      setConfirmUnlink(null)
-    } catch (err) {
-      toast.error(getErrorMessage(err, 'Disconnect failed'))
-    }
-  }
+  const roots = useMemo(() => forkLineageRoots(nodes), [nodes])
+  const rootOptions = useMemo(
+    () => roots.map((root) => ({ value: root.id, label: root.name })),
+    [roots]
+  )
 
-  if (gateLoading) {
+  /** Workspaces whose exclusion list the viewer may edit, for the Excluded tab's picker. */
+  const excludableWorkspaces = useMemo(() => nodes.filter((node) => node.viewerCanAdmin), [nodes])
+  const excludedWorkspaceId = excludableWorkspaces.some((node) => node.id === workspaceId)
+    ? workspaceId
+    : (excludableWorkspaces[0]?.id ?? workspaceId)
+  const [excludedTarget, setExcludedTarget] = useState<string | null>(null)
+  const activeExcludedId = excludedTarget ?? excludedWorkspaceId
+
+  if (availabilityLoading || permissionsLoading) {
     return <SettingsPanel />
   }
 
@@ -400,218 +178,174 @@ export function Forks() {
     )
   }
 
-  const searchLower = searchTerm.trim().toLowerCase()
-  const parentVisible =
-    parent !== null && (!searchLower || parent.name.toLowerCase().includes(searchLower))
-  const filteredForks = forks.filter((fork) => fork.name.toLowerCase().includes(searchLower))
+  if (edgeChild && edgeParent) {
+    return (
+      <ForkEdgeDetail
+        key={edgeChild.id}
+        child={edgeChild}
+        parent={edgeParent}
+        onBack={() => void setEdgeId(null, { history: 'replace' })}
+      />
+    )
+  }
 
-  // The sync detail exists only for the PARENT edge: sync (and the mapping re-picks it
-  // persists) belongs to the child workspace configuring how it maps its parent's
-  // resources, so a parent browsing its forks gets no detail for them (a stale fork-id
-  // deep link falls back to the list). Fork rows offer Open workspace / Disconnect only.
-  const showParentDetail = Boolean(selectedForkId && parent && parent.id === selectedForkId)
+  if (forest.isError) {
+    return (
+      <SettingsPanel>
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(forest.error, 'Failed to load fork lineages')}
+        </SettingsEmptyState>
+      </SettingsPanel>
+    )
+  }
 
-  // Open workspace sits left of the detail view's primary Sync chip, which the sync
-  // page owns (it carries the gating). Rollback lives on the Activity view only.
-  const parentHeaderActions: SettingsAction[] = parent
-    ? [
+  const searchPlaceholder = SEARCH_PLACEHOLDER[tab]
+
+  const openTab = (next: ForkTab) => {
+    guard.guardBack(() => {
+      // The matrix editor outlives the tab that hosts it, so leaving has to drop its edits too —
+      // otherwise Save and Discard would follow the user onto a tab that cannot explain them.
+      matrixEditor.discard()
+      // The search box means something different per tab, so it never carries across.
+      setSearchTerm('')
+      void setTab(next)
+    })
+  }
+
+  // Saving the matrix is the console's only editable state, so its Save and Discard replace the
+  // header cluster exactly while it is dirty.
+  const actions: SettingsAction[] = matrixEditor.dirty
+    ? saveDiscardActions({
+        dirty: matrixEditor.dirty,
+        saving: matrixEditor.saving,
+        onSave: () => void matrixEditor.save(),
+        onDiscard: matrixEditor.discard,
+      })
+    : [
         {
-          text: 'Open workspace',
-          onSelect: () => openForkWorkspace(parent.id),
-          disabled: !parent.viewerAccessible,
-          tooltip: parent.viewerAccessible ? undefined : NO_ACCESS_TOOLTIP,
+          text: 'Create fork',
+          icon: Plus,
+          variant: 'primary',
+          onSelect: () => setIsForkModalOpen(true),
         },
       ]
-    : []
+
+  const filterControls =
+    tab === 'mappings' ? (
+      <>
+        <ChipDropdown
+          value={activeRootId ?? undefined}
+          options={rootOptions}
+          matchTriggerWidth={false}
+          className={FILTER_TRIGGER_WIDTH}
+          aria-label='Lineage'
+          placeholder='Pick a lineage'
+          onChange={(value) => void setRootId(value)}
+        />
+        <ChipDropdown
+          value={filters.resource}
+          options={RESOURCE_FILTER_OPTIONS}
+          matchTriggerWidth={false}
+          className={FILTER_TRIGGER_WIDTH}
+          aria-label='Filter by resource type'
+          onChange={(value) =>
+            setFilters({
+              resource: FORK_RESOURCE_FILTERS.find((entry) => entry === value) ?? null,
+            })
+          }
+        />
+      </>
+    ) : tab === 'excluded' ? (
+      <ChipDropdown
+        value={activeExcludedId}
+        options={excludableWorkspaces.map((node) => ({ value: node.id, label: node.name }))}
+        matchTriggerWidth={false}
+        className={FILTER_TRIGGER_WIDTH}
+        aria-label='Workspace'
+        onChange={setExcludedTarget}
+      />
+    ) : tab === 'activity' ? (
+      <ChipDropdown
+        value={filters.event}
+        options={EVENT_FILTER_OPTIONS}
+        matchTriggerWidth={false}
+        className={FILTER_TRIGGER_WIDTH}
+        aria-label='Filter by event'
+        onChange={(value) =>
+          setFilters({ event: FORK_EVENT_FILTERS.find((entry) => entry === value) ?? null })
+        }
+      />
+    ) : undefined
 
   return (
     <>
-      {showParentDetail && parent ? (
-        <ForkSyncDetailView
-          key={parent.id}
-          title={parent.name}
-          workspaceId={workspaceId}
-          otherWorkspaceId={parent.id}
-          otherWorkspaceName={parent.name}
-          onBack={() => void setSelectedForkId(null, { history: 'replace' })}
-          actions={parentHeaderActions}
-        />
-      ) : forkView === 'activity' ? (
-        <ForkActivityDetailView
-          workspaceId={workspaceId}
-          workspaceNames={lineagePartnerNames(parent, forks)}
-          onBack={() => void setForkView(null, { history: 'replace' })}
-          actions={
-            undoableRun
-              ? [
-                  {
-                    text: 'Rollback',
-                    variant: 'destructive',
-                    onSelect: () => setConfirmRollbackOpen(true),
-                    disabled: rollback.isPending,
-                    tooltip: `The last sync into this workspace (from ${undoableRun.otherName}) can be undone — it restores each workflow's prior deployed version.`,
-                  },
-                ]
-              : undefined
-          }
-        />
-      ) : (
-        <SettingsPanel
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: 'Search forks...',
-          }}
-          actions={[
-            { text: 'See activity', onSelect: () => void setForkView('activity') },
-            {
-              text: 'Create fork',
-              icon: Plus,
-              variant: 'primary',
-              onSelect: () => setIsForkModalOpen(true),
-            },
-          ]}
-        >
-          {lineage.isError ? (
-            <div className='flex h-full flex-col items-center justify-center gap-2'>
-              <p className='text-[var(--text-error)] text-sm leading-tight'>
-                {getErrorMessage(lineage.error, 'Failed to load forks')}
-              </p>
-            </div>
-          ) : lineage.isLoading ? null : (
-            <div className='flex flex-col gap-7'>
-              {parentVisible && parent !== null && (
-                <SettingsSection label='Parent'>
-                  <ForkListRow
-                    name={parent.name}
-                    actions={[
-                      {
-                        label: 'Edit mappings',
-                        onSelect: () => openForkMappings(parent.id),
-                        disabled: !parent.viewerAccessible,
-                        tooltip: parent.viewerAccessible ? undefined : NO_ACCESS_TOOLTIP,
-                      },
-                      {
-                        label: 'Open workspace',
-                        onSelect: () => openForkWorkspace(parent.id),
-                        disabled: !parent.viewerAccessible,
-                        tooltip: parent.viewerAccessible ? undefined : NO_ACCESS_TOOLTIP,
-                      },
-                      // Disconnect stays enabled regardless of access: severing the edge is a
-                      // current-workspace operation (admin on the acting side only), and must
-                      // remain reachable exactly when the other side is inaccessible.
-                      {
-                        label: 'Disconnect',
-                        destructive: true,
-                        onSelect: () => setConfirmUnlink({ id: parent.id, name: parent.name }),
-                      },
-                    ]}
-                  />
-                </SettingsSection>
-              )}
-              <SettingsSection label='Forks'>
-                {filteredForks.length > 0 ? (
-                  <div className='flex flex-col gap-2'>
-                    {filteredForks.map((fork) => (
-                      <ForkListRow
-                        key={fork.id}
-                        name={fork.name}
-                        actions={[
-                          {
-                            label: 'Open workspace',
-                            onSelect: () => openForkWorkspace(fork.id),
-                            disabled: !fork.viewerAccessible,
-                            tooltip: fork.viewerAccessible ? undefined : NO_ACCESS_TOOLTIP,
-                          },
-                          {
-                            label: 'Disconnect',
-                            destructive: true,
-                            onSelect: () => setConfirmUnlink({ id: fork.id, name: fork.name }),
-                          },
-                        ]}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <SettingsEmptyState variant='inline'>
-                    {searchTerm.trim()
-                      ? `No forks found matching "${searchTerm}"`
-                      : 'No forks yet — click "Create fork" above to get started'}
-                  </SettingsEmptyState>
-                )}
-              </SettingsSection>
-              <SettingsSection label='Excluded workflows'>
-                <ForkExcludedWorkflows workspaceId={workspaceId} />
-              </SettingsSection>
-            </div>
-          )}
-        </SettingsPanel>
-      )}
+      <SettingsPanel actions={actions}>
+        <div className={FORK_TABLE_STACK_CLASS}>
+          <ForkTableTabs label='Fork views' items={TAB_ITEMS} activeId={tab} onChange={openTab} />
+          <ForkTableToolbar
+            search={
+              searchPlaceholder
+                ? { value: searchTerm, onChange: setSearchTerm, placeholder: searchPlaceholder }
+                : undefined
+            }
+            filters={filterControls}
+          />
+
+          {tab === 'lineage' ? (
+            <ForkLineage
+              workspaceId={workspaceId}
+              nodes={nodes}
+              loading={forest.isLoading}
+              searchTerm={searchTerm}
+              onOpenEdge={(childWorkspaceId) => void setEdgeId(childWorkspaceId)}
+            />
+          ) : null}
+
+          {tab === 'mappings' ? (
+            activeRootId ? (
+              <ForkMappings
+                editor={matrixEditor}
+                loading={matrix.isLoading}
+                searchTerm={searchTerm}
+                resourceFilter={filters.resource}
+              />
+            ) : (
+              <SettingsEmptyState variant='inline'>
+                No lineages yet. Create a fork to start mapping resources across workspaces.
+              </SettingsEmptyState>
+            )
+          ) : null}
+
+          {tab === 'excluded' ? (
+            <ForkExcludedWorkflows workspaceId={activeExcludedId} searchTerm={searchTerm} />
+          ) : null}
+
+          {tab === 'activity' ? (
+            <ForkActivityPanel
+              workspaceId={workspaceId}
+              workspaceNames={workspaceNames}
+              eventFilter={filters.event}
+            />
+          ) : null}
+        </div>
+      </SettingsPanel>
+
+      <UnsavedChangesModal
+        open={guard.showUnsavedModal}
+        onOpenChange={guard.setShowUnsavedModal}
+        onDiscard={guard.confirmDiscard}
+      />
 
       <ForkWorkspaceModal
         open={isForkModalOpen}
         onOpenChange={setIsForkModalOpen}
         sourceWorkspaceId={workspaceId}
-        sourceWorkspaceName={workspaceName || 'Workspace'}
-        canFork={canFork}
+        sourceWorkspaceName={nodeById.get(workspaceId)?.name ?? 'Workspace'}
+        canFork={creationPolicy?.canCreate ?? true}
         onUpgrade={() => {
           if (isBillingEnabled) navigateToSettings({ section: 'billing' })
         }}
       />
-
-      <ChipConfirmModal
-        open={confirmUnlink !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirmUnlink(null)
-        }}
-        srTitle='Disconnect fork'
-        title='Disconnect fork'
-        text={[
-          'This permanently removes the fork relationship with ',
-          { text: confirmUnlink?.name ?? '', bold: true },
-          ". Both workspaces stay exactly as they are, but they will no longer appear in each other's fork lists, and syncing between them stops.",
-        ]}
-        confirm={{
-          label: 'Disconnect',
-          onClick: () => void runUnlink(),
-          pending: unlink.isPending,
-          pendingLabel: 'Disconnecting...',
-        }}
-      >
-        <div className='flex items-start gap-1.5 px-2 text-[var(--text-secondary)] text-caption'>
-          <TriangleAlert className='mt-[1px] size-[14px] shrink-0' />
-          <span>
-            This cannot be undone — the saved mappings and sync history for this pair are deleted,
-            and forking again creates a brand-new workspace.
-          </span>
-        </div>
-      </ChipConfirmModal>
-
-      <ChipConfirmModal
-        open={confirmRollbackOpen}
-        onOpenChange={setConfirmRollbackOpen}
-        srTitle='Undo last sync'
-        title='Undo last sync'
-        text={[
-          'This restores each affected workflow to its ',
-          { text: 'prior deployed version', bold: true },
-          ' and removes workflows the sync created. Continue?',
-        ]}
-        confirm={{
-          label: 'Rollback',
-          onClick: () => void runRollback(),
-          pending: rollback.isPending,
-          pendingLabel: 'Rolling back...',
-        }}
-      >
-        <div className='flex items-start gap-1.5 px-2 text-[var(--text-secondary)] text-caption'>
-          <TriangleAlert className='mt-[1px] size-[14px] shrink-0' />
-          <span>
-            Resources copied into this workspace during syncs may remain afterward — rollback
-            restores workflows to their prior versions but does not remove copied resources.
-          </span>
-        </div>
-      </ChipConfirmModal>
     </>
   )
 }

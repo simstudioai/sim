@@ -8,6 +8,7 @@ import {
   HexSimple,
   Key,
   KeySquare,
+  Layout,
   Lock,
   LogIn,
   Palette,
@@ -40,7 +41,7 @@ import {
   isWhitelabelingEnabled,
 } from '@/lib/core/config/env-flags'
 
-export type SettingsPlane = 'account' | 'organization' | 'selfhost' | 'workspace'
+export type SettingsPlane = 'account' | 'selfhost' | 'workspace'
 
 export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
 
@@ -50,8 +51,15 @@ export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin
  */
 export type SelfHostSettingsSection = 'general' | 'billing' | 'chat-keys'
 
+/**
+ * The organization-scoped settings sections. There is no organization plane —
+ * every one of these is reached at `/workspace/[id]/settings/...` — but they are
+ * authorized against the host ORGANIZATION rather than the workspace, so they
+ * keep their own union as the gate's vocabulary.
+ */
 export type OrganizationSettingsSection =
   | 'members'
+  | 'workspaces'
   | 'billing'
   | 'access-control'
   | 'audit-logs'
@@ -82,8 +90,6 @@ export type SettingsSection =
   | SelfHostSettingsSection
   | WorkspaceSettingsSection
 
-export type OrganizationSettingsRouteSection = OrganizationSettingsSection | 'unavailable'
-
 export interface SettingsNavigationItem<Section extends string = string> {
   id: Section
   label: string
@@ -107,6 +113,7 @@ export type UnifiedSettingsSection =
   | 'billing'
   | 'teammates'
   | 'organization'
+  | 'workspaces'
   | 'sso'
   | 'whitelabeling'
   | 'forks'
@@ -168,7 +175,6 @@ interface UnifiedSettingsProjection
 
 interface SettingsPlaneSectionMap {
   account: AccountSettingsSection
-  organization: OrganizationSettingsSection
   selfhost: SelfHostSettingsSection
   workspace: WorkspaceSettingsSection
 }
@@ -246,17 +252,6 @@ export function getSelfHostSettingsHref(
   return withSettingsSearchParams(`/selfhost/settings/${section}`, searchParams)
 }
 
-export function getOrganizationSettingsHref(
-  organizationId: string,
-  section: OrganizationSettingsRouteSection,
-  searchParams?: SettingsHrefSearchParams
-): string {
-  return withSettingsSearchParams(
-    `/organization/${organizationId}/settings/${section}`,
-    searchParams
-  )
-}
-
 export function getWorkspaceSettingsHref(
   workspaceId: string,
   section: WorkspaceSettingsSection,
@@ -268,12 +263,6 @@ export function getWorkspaceSettingsHref(
 export const ACCOUNT_SETTINGS_PATH_ALIASES = {
   apikeys: 'api-keys',
 } as const satisfies Readonly<Record<string, AccountSettingsSection>>
-
-export const ORGANIZATION_SETTINGS_PATH_ALIASES = {
-  organization: 'members',
-  // Verified domains moved into the SSO page; keep old links working.
-  domains: 'sso',
-} as const satisfies Readonly<Record<string, OrganizationSettingsSection>>
 
 export const WORKSPACE_SETTINGS_PATH_ALIASES = {
   apikeys: 'api-keys',
@@ -338,19 +327,12 @@ export const SETTINGS_PLANE_CHROME: Record<
   { label: string; showWordmark: boolean }
 > = {
   account: { label: 'Account', showWordmark: false },
-  organization: { label: 'Organization', showWordmark: false },
   selfhost: { label: 'Self-host', showWordmark: true },
 }
 
 export const SELFHOST_SETTINGS_GROUPS = [
   { key: 'account', title: 'Account' },
   { key: 'developer', title: 'Developer' },
-] as const
-
-export const ORGANIZATION_SETTINGS_GROUPS = [
-  { key: 'organization', title: 'Organization' },
-  { key: 'security', title: 'Security' },
-  { key: 'enterprise', title: 'Enterprise' },
 ] as const
 
 export const WORKSPACE_SETTINGS_GROUPS = [
@@ -416,14 +398,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'access-control',
       description: 'Manage permission groups across your organization.',
       group: 'organization',
-      order: 3,
+      order: 5,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.accessControl,
     },
-    planes: {
-      organization: { id: 'access-control', group: 'security', order: 2 },
-    },
+    planes: {},
   },
   {
     label: 'Audit logs',
@@ -433,14 +413,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'audit-logs',
       description: 'Review activity and changes across your organization.',
       group: 'organization',
-      order: 4,
+      order: 6,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.auditLogs,
     },
-    planes: {
-      organization: { id: 'audit-logs', group: 'security', order: 3 },
-    },
+    planes: {},
   },
   {
     label: 'Workspace forks',
@@ -450,7 +428,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'forks',
       description: 'Fork this workspace and sync changes with its parent.',
       group: 'organization',
-      order: 2,
+      order: 4,
     },
     planes: {
       workspace: { id: 'forks', group: 'enterprise', order: 10 },
@@ -479,12 +457,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
         group: 'account',
         order: 1,
       },
-      organization: {
-        id: 'billing',
-        description: 'Manage the organization plan, usage, and invoices.',
-        group: 'organization',
-        order: 1,
-      },
     },
   },
   {
@@ -507,19 +479,37 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'organization',
       description: "Manage your organization's members and seats.",
       group: 'organization',
+      order: 2,
+      hideWhenBillingDisabled: true,
+      requiresHosted: true,
+      requiresTeam: true,
+    },
+    planes: {},
+  },
+  {
+    label: 'Workspaces',
+    icon: Layout,
+    /**
+     * This section routes through the organization gate in
+     * `settings/[section]/page.tsx` — host organization present, org-admin
+     * viewer — so the sidebar must never offer it more widely than the route
+     * serves it. `requiresTeam` is the only flag that ANDs `isOrgAdminOrOwner`
+     * into the sidebar filter, so it is what stops a non-admin seeing a link
+     * that 404s; `requiresHosted` keeps it to deployments that have
+     * organizations at all; and `hideWhenBillingDisabled` keeps it co-visible
+     * with Members — the roster this view groups by workspace. All three land
+     * strictly inside what the route will serve.
+     */
+    unified: {
+      id: 'workspaces',
+      description: 'Browse every workspace and the members in each.',
+      group: 'organization',
       order: 0,
       hideWhenBillingDisabled: true,
       requiresHosted: true,
       requiresTeam: true,
     },
-    planes: {
-      organization: {
-        id: 'members',
-        description: 'Manage organization members, roles, and seats.',
-        group: 'organization',
-        order: 0,
-      },
-    },
+    planes: {},
   },
   {
     label: 'Secrets',
@@ -692,14 +682,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'sso',
       description: 'Configure single sign-on for your organization.',
       group: 'organization',
-      order: 6,
+      order: 8,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sso,
     },
-    planes: {
-      organization: { id: 'sso', group: 'security', order: 4 },
-    },
+    planes: {},
   },
   {
     label: 'Session policies',
@@ -709,14 +697,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'sessions',
       description: 'Limit session lifetimes and sign out members org-wide.',
       group: 'organization',
-      order: 7,
+      order: 9,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.sessionPolicies,
     },
-    planes: {
-      organization: { id: 'sessions', group: 'security', order: 5 },
-    },
+    planes: {},
   },
   {
     label: 'Data retention',
@@ -727,14 +713,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       description:
         'Control data retention windows and PII redaction. Workspaces without an override inherit the organization defaults.',
       group: 'organization',
-      order: 8,
+      order: 10,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataRetention,
     },
-    planes: {
-      organization: { id: 'data-retention', group: 'enterprise', order: 6 },
-    },
+    planes: {},
   },
   {
     label: 'Data drains',
@@ -744,14 +728,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'data-drains',
       description: 'Stream your logs and events to external destinations.',
       group: 'organization',
-      order: 9,
+      order: 11,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.dataDrains,
     },
-    planes: {
-      organization: { id: 'data-drains', group: 'enterprise', order: 7 },
-    },
+    planes: {},
   },
   {
     label: 'White-labeling',
@@ -761,14 +743,12 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'whitelabeling',
       description: 'Customize your workspace branding and appearance.',
       group: 'organization',
-      order: 5,
+      order: 7,
       requiresHosted: true,
       requiresEnterprise: true,
       selfHostedOverride: SETTINGS_SELF_HOSTED_OVERRIDES.whitelabeling,
     },
-    planes: {
-      organization: { id: 'whitelabeling', group: 'enterprise', order: 8 },
-    },
+    planes: {},
   },
   {
     label: 'Custom blocks',
@@ -778,7 +758,7 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       id: 'custom-blocks',
       description: 'Publish workflows as reusable blocks for your organization.',
       group: 'organization',
-      order: 1,
+      order: 3,
       requiresHosted: true,
       requiresEnterprise: true,
       allowNonOrgAdmin: true,
@@ -866,9 +846,6 @@ function buildPlaneSettingsItems<Plane extends SettingsPlane>(
 export const ACCOUNT_SETTINGS_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
   buildPlaneSettingsItems('account')
 
-export const ORGANIZATION_SETTINGS_ITEMS: SettingsNavigationItem<OrganizationSettingsSection>[] =
-  buildPlaneSettingsItems('organization')
-
 export const SELFHOST_SETTINGS_ITEMS: SettingsNavigationItem<SelfHostSettingsSection>[] =
   buildPlaneSettingsItems('selfhost')
 
@@ -876,15 +853,31 @@ export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsS
   buildPlaneSettingsItems('workspace')
 
 /**
- * Unified sections that resolve to organization-plane settings. The workspace
- * settings section page routes these through the organization gate (host
- * organization present + org-admin viewer), so workspace-plane navigation must
- * apply the same requirement before surfacing them.
+ * Unified sections that are organization-scoped, mapped to the organization
+ * section each is authorized as.
+ *
+ * The workspace settings route gates every one of these behind a host
+ * organization plus an org-admin viewer, and the sidebar hides what that gate
+ * would 404. Both read this map, because they previously read two hand-kept
+ * lists that had already drifted: `sessions` was in the sidebar's set but
+ * missing from the route's, so the session-policy page rendered its editable
+ * form for any organization member who typed the URL.
  */
-export const ORGANIZATION_PLANE_UNIFIED_SECTIONS: ReadonlySet<UnifiedSettingsSection> = new Set(
-  SETTINGS_SECTION_REGISTRY.flatMap((entry) =>
-    entry.planes?.organization && entry.unified ? [entry.unified.id] : []
-  )
+export const ORGANIZATION_SCOPED_SECTIONS = {
+  organization: 'members',
+  workspaces: 'workspaces',
+  billing: 'billing',
+  'access-control': 'access-control',
+  'audit-logs': 'audit-logs',
+  sso: 'sso',
+  sessions: 'sessions',
+  'data-retention': 'data-retention',
+  'data-drains': 'data-drains',
+  whitelabeling: 'whitelabeling',
+} as const satisfies Partial<Record<UnifiedSettingsSection, OrganizationSettingsSection>>
+
+export const ORGANIZATION_SCOPED_UNIFIED_SECTIONS: ReadonlySet<UnifiedSettingsSection> = new Set(
+  Object.keys(ORGANIZATION_SCOPED_SECTIONS) as UnifiedSettingsSection[]
 )
 
 export type OrganizationSectionAccess = 'unavailable' | 'view' | 'manage'
@@ -932,6 +925,18 @@ export function getOrganizationSettingsFeatures(
 }
 
 /**
+ * Sections every organization gets, on any plan and any deployment: the roster
+ * and the two views built directly on it. They are ordinary organization
+ * features rather than enterprise add-ons, so they are listed here instead of
+ * falling through to the plan/flag gate — which would hide them from every
+ * non-enterprise organization and leave no self-hosted flag to turn them on.
+ */
+const ALWAYS_AVAILABLE_ORGANIZATION_SECTIONS: ReadonlySet<OrganizationSettingsSection> = new Set([
+  'members',
+  'workspaces',
+])
+
+/**
  * Applies deployment and target-organization plan gates without consulting the
  * viewer's active organization.
  */
@@ -939,7 +944,7 @@ export function isOrganizationSettingsSectionAvailable(
   section: OrganizationSettingsSection,
   features: OrganizationSettingsFeatures
 ): boolean {
-  if (section === 'members') return true
+  if (ALWAYS_AVAILABLE_ORGANIZATION_SECTIONS.has(section)) return true
   if (section === 'billing') return features.billingEnabled
   if (features.hosted) return features.hasEnterprisePlan
   return features.selfHosted[section] ?? false
@@ -1053,11 +1058,9 @@ export function getSettingsSectionMeta(
   const catalog =
     plane === 'account'
       ? ACCOUNT_SETTINGS_ITEMS
-      : plane === 'organization'
-        ? ORGANIZATION_SETTINGS_ITEMS
-        : plane === 'selfhost'
-          ? SELFHOST_SETTINGS_ITEMS
-          : WORKSPACE_SETTINGS_ITEMS
+      : plane === 'selfhost'
+        ? SELFHOST_SETTINGS_ITEMS
+        : WORKSPACE_SETTINGS_ITEMS
   const item = catalog.find((candidate) => candidate.id === section)
   return item ? { label: item.label, description: item.description, docsLink: item.docsLink } : null
 }

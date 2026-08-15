@@ -44,8 +44,8 @@ export function RemoveMemberDialog({
   const title = isSelfRemoval
     ? 'Leave Organization'
     : isExternalRemoval
-      ? 'Remove External Member'
-      : 'Remove Team Member'
+      ? 'Remove external member'
+      : 'Remove team member'
 
   const errorMessage = error ? getErrorMessage(error) || 'Failed to remove member' : null
 
@@ -84,7 +84,7 @@ export function RemoveMemberDialog({
               ]
       }
       confirm={{
-        label: isSelfRemoval ? 'Leave Organization' : 'Remove',
+        label: isSelfRemoval ? 'Leave Organization' : 'Remove from Organization',
         onClick: () => onConfirmRemove(),
         pending: isSubmitting,
         /**

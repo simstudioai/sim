@@ -73,6 +73,11 @@ const TeamManagement = dynamic(() =>
     (m) => m.TeamManagement
   )
 )
+const OrganizationWorkspaces = dynamic(() =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/organization-workspaces/organization-workspaces'
+  ).then((m) => m.OrganizationWorkspaces)
+)
 const WorkflowMcpServers = dynamic(() =>
   import(
     '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
@@ -183,6 +188,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
           organizationId={organizationId}
           billingHref={`/workspace/${hostContext.workspace.id}/settings/billing`}
         />
+      )}
+      {effectiveSection === 'workspaces' && organizationId && (
+        <OrganizationWorkspaces organizationId={organizationId} />
       )}
       {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
       {effectiveSection === 'sessions' && organizationId && (

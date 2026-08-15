@@ -5,7 +5,7 @@ import { notFound, redirect } from 'next/navigation'
 import {
   getOrganizationSettingsFeatures,
   isOrganizationSettingsSectionAvailable,
-  type OrganizationSettingsSection,
+  ORGANIZATION_SCOPED_SECTIONS,
   resolveWorkspaceNavigation,
   type WorkspaceSettingsSection,
 } from '@/components/settings/navigation'
@@ -59,17 +59,6 @@ const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSe
   forks: 'forks',
   'custom-blocks': 'custom-blocks',
   'self-host': 'self-host',
-}
-
-const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSettingsSection>> = {
-  organization: 'members',
-  billing: 'billing',
-  'access-control': 'access-control',
-  'audit-logs': 'audit-logs',
-  sso: 'sso',
-  'data-retention': 'data-retention',
-  'data-drains': 'data-drains',
-  whitelabeling: 'whitelabeling',
 }
 
 function parseSection(section: string): SettingsSection | null {
@@ -134,7 +123,8 @@ export default async function WorkspaceSettingsSectionPage({
     if (!navigation.some((item) => item.id === workspaceSection)) notFound()
   }
 
-  const organizationSection = ORGANIZATION_SECTION_MAP[parsed]
+  const organizationSection =
+    ORGANIZATION_SCOPED_SECTIONS[parsed as keyof typeof ORGANIZATION_SCOPED_SECTIONS]
   if (organizationSection) {
     if (!isBillingEnabled && (parsed === 'billing' || parsed === 'organization')) {
       redirect(`/workspace/${workspaceId}/settings/general`)

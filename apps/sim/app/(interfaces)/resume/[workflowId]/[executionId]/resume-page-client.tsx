@@ -11,11 +11,7 @@ import {
   cn,
   Label,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  type TableColumn,
   Tooltip,
 } from '@sim/emcn'
 import { RefreshCw } from '@sim/emcn/icons'
@@ -151,6 +147,16 @@ function renderStructuredValuePreview(value: unknown) {
       )}
     </div>
   )
+}
+
+const RESPONSE_STRUCTURE_COLUMNS: TableColumn<ResponseStructureRow>[] = [
+  { key: 'field', header: 'Field', cell: (row) => row.name },
+  { key: 'type', header: 'Type', cell: (row) => row.type },
+  { key: 'value', header: 'Value', cell: (row) => renderStructuredValuePreview(row.value) },
+]
+
+function getResponseStructureRowId(row: ResponseStructureRow): string {
+  return row.id
 }
 
 export default function ResumeExecutionPage({
@@ -873,44 +879,23 @@ export default function ResumeExecutionPage({
                 ) : (
                   <>
                     {/* Display Data */}
-                    {responseStructureRows.length > 0 ? (
-                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                        <div className='border-[var(--border)] border-b px-4 py-3'>
-                          <Label>Display Data</Label>
-                        </div>
-                        <div className='p-4'>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Field</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Value</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {responseStructureRows.map((row) => (
-                                <TableRow key={row.id}>
-                                  <TableCell>{row.name}</TableCell>
-                                  <TableCell>{row.type}</TableCell>
-                                  <TableCell>{renderStructuredValuePreview(row.value)}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
-                        <div className='border-[var(--border)] border-b px-4 py-3'>
-                          <Label>Display Data</Label>
-                        </div>
-                        <div className='p-4'>
+                    <div className='flex flex-col gap-[9px]'>
+                      <Label>Display Data</Label>
+                      {responseStructureRows.length > 0 ? (
+                        <Table
+                          aria-label='Display data'
+                          rows={responseStructureRows}
+                          getRowId={getResponseStructureRowId}
+                          columns={RESPONSE_STRUCTURE_COLUMNS}
+                        />
+                      ) : (
+                        <div className='rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-4'>
                           <p className='text-[13px] text-[var(--text-muted)]'>
                             No display data configured
                           </p>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
                     {/* Resume Form */}
                     {isHumanMode && hasInputFormat ? (

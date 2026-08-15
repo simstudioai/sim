@@ -12,7 +12,7 @@ import { ChevronLeft } from '@sim/emcn/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import type { DesktopSettingsSurface } from '@/components/settings/navigation'
-import { ORGANIZATION_PLANE_UNIFIED_SECTIONS } from '@/components/settings/navigation'
+import { ORGANIZATION_SCOPED_UNIFIED_SECTIONS } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
@@ -143,12 +143,12 @@ export function SettingsSidebar({
 
       if (item.selfHostedOverride && !isHosted) {
         /**
-         * Org-plane sections route through the organization gate in
+         * Organization-scoped sections route through the organization gate in
          * `settings/[section]/page.tsx` (host organization + org-admin viewer),
          * which 404s other viewers — mirror it here so the item never links to
          * a dead page.
          */
-        if (ORGANIZATION_PLANE_UNIFIED_SECTIONS.has(item.id) && !isOrgAdminOrOwner) {
+        if (ORGANIZATION_SCOPED_UNIFIED_SECTIONS.has(item.id) && !isOrgAdminOrOwner) {
           return false
         }
         if (item.id === 'sso') {

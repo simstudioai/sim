@@ -113,8 +113,8 @@ describe('desktop title-bar surface audit', () => {
 
   it('defines the content-pane lane once, defaulting to zero', () => {
     // A `:root` default keeps the variable defined for bars that render outside
-    // `.workspace-content-shell` (the standalone settings shell at /account,
-    // /organization/[id], /selfhost; the landing tables preview). An undefined var()
+    // `.workspace-content-shell` (the standalone settings shell at /account and
+    // /selfhost; the landing tables preview). An undefined var()
     // inside calc() is invalid at computed-value time and drops padding-top entirely.
     expect(globalStyles).toMatch(/:root\s*\{[^}]*--workspace-content-title-bar-inset:\s*0px/s)
     // The pane owns the lane in both arrangements where the sidebar is not there to
@@ -197,7 +197,7 @@ describe('desktop title-bar surface audit', () => {
  * reservation outright — class gone, nothing put back — also drops the file from the check.
  * That regression is loud rather than silent (the surface stops being full height, which is
  * plainly visible), and closing it properly means treating every route entry point as a
- * window root, which pulls in seven account/organization/selfhost pages that each need
+ * window root, which pulls in the account/selfhost pages that each need
  * their own assessment. Worth doing; not worth guessing at here. Reaching for this allowlist should feel like a claim you have to defend — the
  * entry that read "marketing chrome, not reachable in the desktop shell" was false, and
  * hid four live surfaces behind one unverified sentence.

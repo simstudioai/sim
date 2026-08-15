@@ -4,8 +4,9 @@ import {
   type ForkWorkspaceBody,
   forkWorkspaceContract,
   getForkDiffContract,
-  getForkLineageContract,
+  getForkForestContract,
   getForkMappingContract,
+  getForkMatrixContract,
   getForkResourcesContract,
   type PromoteForkBody,
   promoteForkContract,
@@ -30,11 +31,14 @@ export type ForkDirection = 'push' | 'pull'
 
 export const forkKeys = {
   all: ['workspace-fork'] as const,
-  lineages: () => [...forkKeys.all, 'lineage'] as const,
-  lineage: (workspaceId?: string) => [...forkKeys.lineages(), workspaceId ?? ''] as const,
+  forests: () => [...forkKeys.all, 'forest'] as const,
+  forest: (workspaceId?: string) => [...forkKeys.forests(), workspaceId ?? ''] as const,
   mappings: () => [...forkKeys.all, 'mapping'] as const,
   mapping: (workspaceId?: string, otherWorkspaceId?: string, direction?: ForkDirection) =>
     [...forkKeys.mappings(), workspaceId ?? '', otherWorkspaceId ?? '', direction ?? ''] as const,
+  matrices: () => [...forkKeys.all, 'matrix'] as const,
+  matrix: (workspaceId?: string, rootId?: string) =>
+    [...forkKeys.matrices(), workspaceId ?? '', rootId ?? ''] as const,
   diffs: () => [...forkKeys.all, 'diff'] as const,
   diff: (workspaceId?: string, otherWorkspaceId?: string, direction?: ForkDirection) =>
     [...forkKeys.diffs(), workspaceId ?? '', otherWorkspaceId ?? '', direction ?? ''] as const,
@@ -43,8 +47,9 @@ export const forkKeys = {
 }
 
 export const WORKSPACE_FORK_RESOURCES_STALE_TIME = 30 * 1000
-export const WORKSPACE_FORK_LINEAGE_STALE_TIME = 30 * 1000
+export const WORKSPACE_FORK_FOREST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FORK_MAPPING_STALE_TIME = 15 * 1000
+export const WORKSPACE_FORK_MATRIX_STALE_TIME = 15 * 1000
 export const WORKSPACE_FORK_DIFF_STALE_TIME = 10 * 1000
 
 export function useForkResources(workspaceId?: string, enabled = true) {
@@ -57,13 +62,30 @@ export function useForkResources(workspaceId?: string, enabled = true) {
   })
 }
 
-export function useForkLineage(workspaceId?: string, enabled = true) {
+/** Every fork lineage the viewer can reach from this workspace, as flat depth-first rows. */
+export function useForkForest(workspaceId?: string, enabled = true) {
   return useQuery({
-    queryKey: forkKeys.lineage(workspaceId),
+    queryKey: forkKeys.forest(workspaceId),
     queryFn: ({ signal }) =>
-      requestJson(getForkLineageContract, { params: { id: workspaceId as string }, signal }),
+      requestJson(getForkForestContract, { params: { id: workspaceId as string }, signal }),
     enabled: Boolean(workspaceId) && enabled,
-    staleTime: WORKSPACE_FORK_LINEAGE_STALE_TIME,
+    staleTime: WORKSPACE_FORK_FOREST_STALE_TIME,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** Resource chains across one lineage, with the targets each cell may be re-pointed at. */
+export function useForkMatrix(workspaceId?: string, rootId?: string, enabled = true) {
+  return useQuery({
+    queryKey: forkKeys.matrix(workspaceId, rootId),
+    queryFn: ({ signal }) =>
+      requestJson(getForkMatrixContract, {
+        params: { id: workspaceId as string },
+        query: { rootId: rootId as string },
+        signal,
+      }),
+    enabled: Boolean(workspaceId && rootId) && enabled,
+    staleTime: WORKSPACE_FORK_MATRIX_STALE_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -96,7 +118,8 @@ export function useForkWorkspace() {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.forests() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.matrices() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
   })
@@ -129,6 +152,7 @@ export function useUpdateForkMapping() {
       requestJson(updateForkMappingContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.matrices() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
     },
   })
@@ -162,8 +186,9 @@ export function usePromoteFork() {
     onSettled: () => {
       // A sync changes lineage (undoable run), mappings, and the diff - not the
       // workspace's copyable resource inventory, so leave `resources` cached.
-      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.forests() })
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.matrices() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
       // A sync rewrites the target workflows' drafts AND redeploys them. The promote
@@ -184,8 +209,9 @@ export function useUnlinkFork() {
     onSettled: () => {
       // Unlink dissolves the edge: lineage loses the row, and the edge's mappings/diff
       // no longer exist. Workflows and deployments are untouched.
-      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.forests() })
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.matrices() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
     },
@@ -200,8 +226,9 @@ export function useRollbackFork() {
     onSettled: () => {
       // Rollback changes lineage, mappings, and the diff - not the copyable resource
       // inventory, so leave `resources` cached (mirrors usePromoteFork).
-      queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.forests() })
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
+      queryClient.invalidateQueries({ queryKey: forkKeys.matrices() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
       // Rollback restores the target workflows' drafts + reactivates a prior deployment,

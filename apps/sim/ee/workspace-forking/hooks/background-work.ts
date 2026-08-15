@@ -2,6 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type BackgroundWorkItem,
+  type ForkActivityFilter,
   type GetWorkspaceBackgroundWorkResponse,
   getWorkspaceBackgroundWorkContract,
 } from '@/lib/api/contracts/workspace-fork'
@@ -12,7 +13,8 @@ export const backgroundWorkKeys = {
   // under the old key was an array, and an infinite query reading such a cache entry
   // renders as empty. A shape change must always re-key.
   lists: () => [...backgroundWorkKeys.all, 'list', 'infinite'] as const,
-  list: (workspaceId?: string) => [...backgroundWorkKeys.lists(), workspaceId ?? ''] as const,
+  list: (workspaceId?: string, kind: ForkActivityFilter = 'all') =>
+    [...backgroundWorkKeys.lists(), workspaceId ?? '', kind] as const,
 }
 
 export const BACKGROUND_WORK_STALE_TIME = 5_000
@@ -22,12 +24,13 @@ const BACKGROUND_WORK_PAGE_SIZE = '50'
 
 async function fetchWorkspaceBackgroundWork(
   workspaceId: string,
+  kind: ForkActivityFilter,
   cursor?: string,
   signal?: AbortSignal
 ): Promise<GetWorkspaceBackgroundWorkResponse> {
   return requestJson(getWorkspaceBackgroundWorkContract, {
     params: { id: workspaceId },
-    query: { cursor, limit: BACKGROUND_WORK_PAGE_SIZE },
+    query: { cursor, limit: BACKGROUND_WORK_PAGE_SIZE, kind },
     signal,
   })
 }
@@ -44,11 +47,11 @@ const isActive = (item: BackgroundWorkItem) =>
  * loaded page sequentially with fresh cursors, so pagination stays consistent.
  * Refetch on focus catches changes after the tab was away.
  */
-export function useWorkspaceBackgroundWork(workspaceId?: string) {
+export function useWorkspaceBackgroundWork(workspaceId?: string, kind: ForkActivityFilter = 'all') {
   return useInfiniteQuery({
-    queryKey: backgroundWorkKeys.list(workspaceId),
+    queryKey: backgroundWorkKeys.list(workspaceId, kind),
     queryFn: ({ pageParam, signal }) =>
-      fetchWorkspaceBackgroundWork(workspaceId as string, pageParam, signal),
+      fetchWorkspaceBackgroundWork(workspaceId as string, kind, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: Boolean(workspaceId),

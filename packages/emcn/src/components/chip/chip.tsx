@@ -12,6 +12,7 @@ import Link, { type LinkProps } from 'next/link'
 import { cn } from '../../lib/cn'
 import {
   chipActiveSurfaceClass,
+  chipBorderClass,
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
@@ -33,10 +34,10 @@ import {
  * to get it (shadcn-style); never write `variant='default'`. Named variants:
  * `filled` (`--surface-5` light / `--surface-4` dark fill, `--surface-hover` hover) — a borderless surface reserved for
  * chip FIELDS/TRIGGERS ({@link ChipInput}/{@link ChipDropdown}/{@link ChipSelect}/{@link ChipDatePicker}), **never `Chip`
- * itself**; those triggers add the `--border-1` outline themselves via `TRIGGER_BORDER_CLASS`;
+ * itself**; those triggers add the {@link chipBorderClass} outline themselves via `TRIGGER_BORDER_CLASS`;
  * `primary` (inverse surface), `destructive` (error-token surface), `border-shadow` (raised card-like surface),
- * `border` (the `border-shadow` shadow ring on a transparent surface — an outline drawn purely via box-shadow,
- * no CSS border, no fill).
+ * `border` (a flat {@link chipBorderClass} outline on a transparent surface — a real CSS border, so it stays a
+ * hairline beside the cards and dividers it sits among, rather than the raised box-shadow ring it used to draw).
  * `active` renders the default/filled chip in its selected state — `--surface-active`, held through hover.
  * `fullWidth` swaps `inline-flex` for block-level `flex`.
  *
@@ -65,7 +66,7 @@ const chipVariants = cva(
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         'border-shadow':
           'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
-        border: `shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] ${chipHoverSurfaceClass} dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]`,
+        border: `${chipBorderClass} ${chipHoverSurfaceClass}`,
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
@@ -197,12 +198,12 @@ const ChipLink = forwardRef<HTMLAnchorElement, ChipLinkProps>(function ChipLink(
 })
 
 /**
- * 1px border applied to `filled` and default chip triggers to read as
- * interactive form controls rather than static pills. Omitted on `primary`,
- * `destructive`, and `border-shadow` variants which carry their own surface
- * treatment.
+ * The neutral outline applied to `filled` and default chip triggers so they read
+ * as interactive form controls rather than static pills. Omitted on `primary`,
+ * `destructive`, and `border-shadow`, which carry their own surface treatment,
+ * and on `border`, which already draws {@link chipBorderClass} itself.
  */
-export const TRIGGER_BORDER_CLASS = 'border border-[var(--border-1)]'
+export const TRIGGER_BORDER_CLASS = chipBorderClass
 
 export { Chip, ChipLink, chipVariants }
 export type { ChipLinkProps, ChipProps }

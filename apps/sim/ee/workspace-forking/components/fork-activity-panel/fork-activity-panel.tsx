@@ -5,7 +5,7 @@ import { Badge, Button, Tooltip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { truncate } from '@sim/utils/string'
-import type { BackgroundWorkItem } from '@/lib/api/contracts/workspace-fork'
+import type { BackgroundWorkItem, ForkActivityFilter } from '@/lib/api/contracts/workspace-fork'
 import {
   ActivityLog,
   type ActivityLogEntry,
@@ -28,7 +28,7 @@ function countList(pairs: Array<[number | undefined, string]>): string {
   return pairs
     .filter(([n]) => (n ?? 0) > 0)
     .map(([n, verb]) => `${n} ${verb}`)
-    .join(' · ')
+    .join(', ')
 }
 
 /** A named group (one resource kind or change action) of a job's report. */
@@ -226,7 +226,7 @@ function jobReport(job: BackgroundWorkItem): JobReport {
     ]
       .filter(([n]) => ((n as number | undefined) ?? 0) > 0)
       .map(([n, noun]) => plural(n as number, noun as string))
-      .join(' · ')
+      .join(', ')
     if (counts) notes.push({ value: counts })
   }
   if (m.failed && m.failed > 0) {
@@ -297,6 +297,8 @@ interface ForkActivityPanelProps {
   workspaceId: string
   /** Lineage partner names by id (the parent + forks), for phrasing partner-recorded rows. */
   workspaceNames: ReadonlyMap<string, string>
+  /** Narrows the feed to one kind of fork event; `all` leaves it unfiltered. */
+  eventFilter?: ForkActivityFilter
 }
 
 /**
@@ -305,9 +307,13 @@ interface ForkActivityPanelProps {
  * so it reads identically to the enterprise audit log: each row (timestamp, action
  * badge, description, actor) expands to a per-kind breakdown of what changed.
  */
-export function ForkActivityPanel({ workspaceId, workspaceNames }: ForkActivityPanelProps) {
+export function ForkActivityPanel({
+  workspaceId,
+  workspaceNames,
+  eventFilter = 'all',
+}: ForkActivityPanelProps) {
   const { data, isPending, isError, hasNextPage, fetchNextPage, isFetchingNextPage } =
-    useWorkspaceBackgroundWork(workspaceId)
+    useWorkspaceBackgroundWork(workspaceId, eventFilter)
   const view: ActivityView = { workspaceId, workspaceNames }
 
   const jobs = useMemo(() => {

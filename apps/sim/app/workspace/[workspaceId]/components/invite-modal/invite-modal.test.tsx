@@ -36,7 +36,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: () => hostContext.current,
+  useOptionalWorkspaceHostContext: () => hostContext.current,
 }))
 
 vi.mock('@/hooks/queries/invitations', () => ({

@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organizationMemberUsageLimit,
+  subscription as subscriptionTable,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -94,11 +100,25 @@ export const GET = withRouteHandler(
             userEmail: user.email,
             currentPeriodCost: userStats.currentPeriodCost,
             currentUsageLimit: userStats.currentUsageLimit,
+            organizationCreditLimit: organizationMemberUsageLimit.usageLimit,
             usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
           })
           .from(member)
           .innerJoin(user, eq(member.userId, user.id))
           .leftJoin(userStats, eq(user.id, userStats.userId))
+          /**
+           * The org-scoped cap lives in its own table keyed by (organization,
+           * user). `userStats.currentUsageLimit` is the member's PERSONAL
+           * subscription cap and is nulled for org-scoped members, so reading it
+           * here would report "no limit" for every member of every organization.
+           */
+          .leftJoin(
+            organizationMemberUsageLimit,
+            and(
+              eq(organizationMemberUsageLimit.organizationId, member.organizationId),
+              eq(organizationMemberUsageLimit.userId, member.userId)
+            )
+          )
           .where(eq(member.organizationId, organizationId))
 
         // The billing period is the same for every member — it comes from

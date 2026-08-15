@@ -2,20 +2,50 @@
 
 import { useMemo, useState } from 'react'
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-  Badge,
   Banner,
-  ChipConfirmModal,
-  ChipInput,
-  cn,
-  Search,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Skeleton,
+  Table,
+  type TableColumn,
+  TableIdentityCell,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { getUserColor } from '@/lib/workspaces/colors'
+import { ORGANIZATION_ROLE_LABELS } from '@/app/workspace/[workspaceId]/settings/components/team-management/member-rows'
 import type { RosterMember } from '@/hooks/queries/organization'
+
+/**
+ * Candidates are ranked admins-first because an admin already holds most of what
+ * ownership adds, then alphabetically so the list is stable between opens.
+ */
+function byOwnershipReadiness(a: RosterMember, b: RosterMember) {
+  if (a.role === 'admin' && b.role !== 'admin') return -1
+  if (a.role !== 'admin' && b.role === 'admin') return 1
+  return a.name.localeCompare(b.name)
+}
+
+const CANDIDATE_COLUMNS: TableColumn<RosterMember>[] = [
+  {
+    key: 'identity',
+    cell: (member) => (
+      <TableIdentityCell
+        primary={member.name}
+        secondary={member.name === member.email ? undefined : member.email}
+        imageSrc={member.image ?? undefined}
+      />
+    ),
+  },
+  {
+    key: 'role',
+    align: 'right',
+    width: 96,
+    cell: (member) => ORGANIZATION_ROLE_LABELS[member.role],
+  },
+]
 
 interface TransferOwnershipDialogProps {
   open: boolean
@@ -32,6 +62,13 @@ interface TransferOwnershipDialogProps {
   onOpenBillingPortal: () => void
 }
 
+/**
+ * Hands the organization to another member and leaves. Structured as an ordinary
+ * chip modal — header, one labelled field, footer — rather than a confirm modal,
+ * because the decision the user makes here is a *choice from a list*, not a
+ * yes/no. The list is the shared `Table` in single-select mode, so a candidate
+ * row reads exactly like a member row on the Members page.
+ */
 export function TransferOwnershipDialog({
   open,
   onOpenChange,
@@ -49,25 +86,25 @@ export function TransferOwnershipDialog({
   const [search, setSearch] = useState('')
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
-  const candidates = useMemo(() => {
-    const others = members.filter(
-      (m) => m.userId !== currentUserId && m.role !== 'owner' && m.role !== 'external'
-    )
-    others.sort((a, b) => {
-      if (a.role === 'admin' && b.role !== 'admin') return -1
-      if (a.role !== 'admin' && b.role === 'admin') return 1
-      return a.name.localeCompare(b.name)
-    })
-    if (!search.trim()) return others
-    const q = search.trim().toLowerCase()
-    return others.filter(
-      (m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
-    )
-  }, [members, currentUserId, search])
-
-  const hasCandidates = members.some(
-    (m) => m.userId !== currentUserId && m.role !== 'owner' && m.role !== 'external'
+  /** Ownership can only pass to an internal member who is not already the owner. */
+  const eligible = useMemo(
+    () =>
+      members.filter(
+        (member) =>
+          member.userId !== currentUserId && member.role !== 'owner' && member.role !== 'external'
+      ),
+    [members, currentUserId]
   )
+
+  const candidates = useMemo(() => {
+    const ranked = [...eligible].sort(byOwnershipReadiness)
+    const query = search.trim().toLowerCase()
+    if (!query) return ranked
+    return ranked.filter(
+      (member) =>
+        member.name.toLowerCase().includes(query) || member.email.toLowerCase().includes(query)
+    )
+  }, [eligible, search])
 
   const handleClose = (next: boolean) => {
     if (!next) {
@@ -77,139 +114,92 @@ export function TransferOwnershipDialog({
     onOpenChange(next)
   }
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (!selectedUserId) return
-    await onConfirm(selectedUserId)
+    void onConfirm(selectedUserId)
   }
 
   return (
-    <ChipConfirmModal
-      open={open}
-      onOpenChange={handleClose}
-      srTitle='Leave organization'
-      title='Leave organization'
-      confirm={{
-        label: 'Transfer & leave',
-        onClick: handleConfirm,
-        pending: isSubmitting,
-        pendingLabel: 'Transferring...',
-        disabled: !selectedUserId || !hasCandidates || isLoadingMembers,
-      }}
-    >
-      <div className='flex flex-col gap-4'>
-        {isLoadingMembers ? (
-          <div className='space-y-3'>
-            <Skeleton className='h-4 w-3/4' />
-            <Skeleton className='h-4 w-1/2' />
-            <div className='space-y-2 pt-2'>
-              <Skeleton className='h-10 w-full' />
-              <Skeleton className='h-10 w-full' />
-              <Skeleton className='h-10 w-full' />
-            </div>
-          </div>
-        ) : !hasCandidates ? (
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            You're the only member of this organization. Invite another admin before leaving.
-          </p>
-        ) : (
-          <div className='space-y-3'>
-            <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              As the owner, you need to hand off the organization before you can leave. Pick a
-              member to become the new owner. They'll inherit billing access, seat management, and
-              all owner-only permissions. You'll lose access to every shared workspace in this
-              organization.
-            </p>
-
-            {hasPaidSubscription && (
-              <Banner
-                variant='default'
-                className='rounded-md px-3 py-2'
-                textClassName='text-[var(--text-primary)]'
-                actionLabel={isOpeningBillingPortal ? 'Opening...' : 'Open Stripe billing portal'}
-                actionDisabled={isOpeningBillingPortal}
-                onAction={onOpenBillingPortal}
-                text={
-                  <>
-                    <span className='block'>Your payment method stays on this organization</span>
-                    <span className='block text-[var(--text-secondary)]'>
-                      Future charges will keep hitting the card you added. Open the Stripe billing
-                      portal to remove it before you leave.
-                    </span>
-                  </>
-                }
-              />
-            )}
-
-            {portalError && <p className='px-2 text-[var(--text-error)] text-sm'>{portalError}</p>}
-
-            <ChipInput
-              icon={Search}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder='Search members...'
+    <ChipModal open={open} onOpenChange={handleClose} srTitle='Leave organization'>
+      <ChipModalHeader onClose={() => handleClose(false)}>Leave organization</ChipModalHeader>
+      <ChipModalBody>
+        {hasPaidSubscription && (
+          /**
+           * Wrapped to the field gutter: `ChipModalBody` pads `px-2` and every
+           * `ChipModalField` adds another `px-2`, so a bare notice would sit 8px
+           * proud of the field beneath it.
+           */
+          <div className='px-2'>
+            <Banner
+              variant='default'
+              actionLabel={isOpeningBillingPortal ? 'Opening...' : 'Open billing portal'}
+              actionDisabled={isOpeningBillingPortal}
+              onAction={onOpenBillingPortal}
+              text='Your payment method stays on this organization. Remove it in Stripe before you leave.'
             />
-
-            <div className='max-h-[280px] overflow-y-auto rounded-md border border-[var(--border-1)]'>
-              {candidates.length === 0 ? (
-                <div className='px-3 py-4 text-center text-[var(--text-muted)] text-small'>
-                  No members match "{search}"
-                </div>
-              ) : (
-                <ul className='divide-y divide-[var(--border-1)]'>
-                  {candidates.map((m) => {
-                    const isSelected = selectedUserId === m.userId
-                    return (
-                      <li key={m.userId}>
-                        <button
-                          type='button'
-                          onClick={() => setSelectedUserId(m.userId)}
-                          className={cn(
-                            'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
-                            isSelected
-                              ? 'bg-[var(--surface-active)]'
-                              : 'hover-hover:bg-[var(--surface-hover)]'
-                          )}
-                        >
-                          <Avatar className='size-8 shrink-0'>
-                            {m.image && <AvatarImage src={m.image} alt={m.name} />}
-                            <AvatarFallback
-                              style={{ background: getUserColor(m.userId || m.email) }}
-                              className='border-0 text-white'
-                            >
-                              {m.name.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className='min-w-0 flex-1'>
-                            <div className='flex items-center gap-2'>
-                              <span className='truncate text-[var(--text-primary)] text-small'>
-                                {m.name}
-                              </span>
-                              {m.role === 'admin' && (
-                                <Badge variant='gray-secondary' size='sm'>
-                                  Admin
-                                </Badge>
-                              )}
-                            </div>
-                            <div className='truncate text-[var(--text-muted)] text-caption'>
-                              {m.email}
-                            </div>
-                          </div>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
           </div>
         )}
 
-        {error && (
-          <p className='px-2 text-[var(--text-error)] text-sm'>
-            {getErrorMessage(error) || 'Failed to transfer ownership'}
-          </p>
+        {isLoadingMembers ? (
+          <ChipModalField type='custom' title='New owner'>
+            <div className='flex flex-col gap-2'>
+              <Skeleton className='h-[30px] w-full rounded-lg' />
+              <Skeleton className='h-[120px] w-full rounded-lg' />
+            </div>
+          </ChipModalField>
+        ) : eligible.length === 0 ? (
+          <ChipModalField
+            type='custom'
+            title='New owner'
+            hint='Invite another member before you can leave.'
+          >
+            <p className='text-[var(--text-muted)] text-small'>
+              You're the only member of this organization.
+            </p>
+          </ChipModalField>
+        ) : (
+          <ChipModalField
+            type='custom'
+            title='New owner'
+            hint='They inherit billing, seats, and every owner-only permission. You lose access to this organization and its workspaces.'
+          >
+            <Table
+              aria-label='Ownership candidates'
+              /** The search row plus roughly four candidates; the rest scroll. */
+              className='max-h-[260px]'
+              rows={candidates}
+              getRowId={(member) => member.userId}
+              columns={CANDIDATE_COLUMNS}
+              toolbar={{
+                search: {
+                  value: search,
+                  onChange: setSearch,
+                  placeholder: 'Search members...',
+                },
+              }}
+              selection={{
+                mode: 'single',
+                selectedId: selectedUserId,
+                onSelect: setSelectedUserId,
+              }}
+              empty={`No members match "${search.trim()}"`}
+            />
+          </ChipModalField>
         )}
-      </div>
-    </ChipConfirmModal>
+
+        <ChipModalError>
+          {portalError ?? (error ? getErrorMessage(error, 'Failed to transfer ownership') : null)}
+        </ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => handleClose(false)}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting ? 'Transferring...' : 'Transfer & leave',
+          onClick: handleConfirm,
+          disabled: !selectedUserId || isSubmitting || isLoadingMembers,
+        }}
+      />
+    </ChipModal>
   )
 }

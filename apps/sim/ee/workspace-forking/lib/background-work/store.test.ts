@@ -151,12 +151,12 @@ describe('listSurfacedBackgroundWork', () => {
 
     const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
     expect(rowsWhere.type).toBe('and')
-    expect(rowsWhere.conditions).toHaveLength(3)
+    expect(rowsWhere.conditions).toHaveLength(4)
 
     // The cursor timestamp is bound as a `::timestamp`-cast SQL fragment so the
     // comparison happens at full microsecond precision in Postgres.
     const expectedTimestampFragment = expect.objectContaining({ values: [cursorTimestamp] })
-    const keyset = (rowsWhere.conditions as MockCondition[])[2]
+    const keyset = (rowsWhere.conditions as MockCondition[])[3]
     expect(keyset).toEqual(
       expect.objectContaining({
         type: 'or',
@@ -189,8 +189,8 @@ describe('listSurfacedBackgroundWork', () => {
     await listSurfacedBackgroundWork(executor, 'ws-1', { cursor })
 
     const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    expect(rowsWhere.conditions).toHaveLength(3)
-    const keyset = (rowsWhere.conditions as MockCondition[])[2]
+    expect(rowsWhere.conditions).toHaveLength(4)
+    const keyset = (rowsWhere.conditions as MockCondition[])[3]
     expect((keyset.conditions as MockCondition[])[0]).toEqual(
       expect.objectContaining({
         type: 'lt',
@@ -232,7 +232,7 @@ describe('listSurfacedBackgroundWork', () => {
     })
 
     const rowsWhere = dbChainMockFns.where.mock.calls[3][0] as MockCondition
-    const keyset = (rowsWhere.conditions as MockCondition[])[2]
+    const keyset = (rowsWhere.conditions as MockCondition[])[3]
     expect(keyset.conditions?.[1]).toEqual(
       expect.objectContaining({
         type: 'and',
@@ -261,7 +261,7 @@ describe('listSurfacedBackgroundWork', () => {
     await listSurfacedBackgroundWork(executor, 'ws-1', { cursor })
 
     const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    expect(rowsWhere.conditions).toHaveLength(2)
+    expect(rowsWhere.conditions).toHaveLength(3)
   })
 
   it('ignores a cursor with an out-of-range time and serves the first page', async () => {
@@ -271,7 +271,7 @@ describe('listSurfacedBackgroundWork', () => {
     await listSurfacedBackgroundWork(executor, 'ws-1', { cursor })
 
     const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    expect(rowsWhere.conditions).toHaveLength(2)
+    expect(rowsWhere.conditions).toHaveLength(3)
   })
 
   it('ignores an undecodable cursor and serves the first page', async () => {
@@ -280,7 +280,7 @@ describe('listSurfacedBackgroundWork', () => {
     await listSurfacedBackgroundWork(executor, 'ws-1', { cursor: 'not-base64-json' })
 
     const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    expect(rowsWhere.conditions).toHaveLength(2)
+    expect(rowsWhere.conditions).toHaveLength(3)
   })
 
   it('clamps the requested limit to the server-side cap', async () => {
@@ -305,13 +305,35 @@ describe('listSurfacedBackgroundWork', () => {
     })
   })
 
+  it('restricts the feed to fork kinds, so a deploy job never lands in a fork history', async () => {
+    mockChildrenLookup([])
+    await listSurfacedBackgroundWork(executor, 'ws-1')
+
+    const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
+    const kinds = (rowsWhere.conditions as MockCondition[])[2]
+    expect(kinds).toEqual({
+      type: 'inArray',
+      column: 'kind',
+      values: ['fork_content_copy', 'fork_sync', 'fork_rollback'],
+    })
+  })
+
+  it('narrows to one kind when the caller asks for it', async () => {
+    mockChildrenLookup([])
+    await listSurfacedBackgroundWork(executor, 'ws-1', { kinds: ['fork_sync'] })
+
+    const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
+    const kinds = (rowsWhere.conditions as MockCondition[])[2]
+    expect(kinds).toEqual({ type: 'inArray', column: 'kind', values: ['fork_sync'] })
+  })
+
   it('matches rows keyed to the workspace, to it as fork child, and to it as edge partner', async () => {
     mockChildrenLookup([])
     await listSurfacedBackgroundWork(executor, 'ws-1')
 
     const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
     expect(rowsWhere.type).toBe('and')
-    expect(rowsWhere.conditions).toHaveLength(2)
+    expect(rowsWhere.conditions).toHaveLength(3)
     const [involves, statuses] = rowsWhere.conditions as [MockCondition, MockCondition]
 
     expect(involves.type).toBe('or')

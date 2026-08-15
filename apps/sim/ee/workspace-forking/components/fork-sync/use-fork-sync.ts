@@ -36,6 +36,12 @@ import {
   effectiveDependentValue,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import {
+  buildForkResolveItems,
+  type ForkResolveItem,
+  type ForkResolveProgress,
+  forkResolveProgress,
+} from '@/ee/workspace-forking/components/fork-sync/resolve-items'
+import {
   forkDyingTriggerUrls,
   forkTriggerChoices,
   forkTriggerPathOwners,
@@ -49,25 +55,6 @@ import {
 } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
 
-/**
- * The mapping kinds that can be a standalone mapping entry. `knowledge-document` is excluded:
- * the mapping view (`getForkMappingView`) skips documents — they ride their parent KB via the
- * reconfigure flow — so a `knowledge-document` mapping section is never reachable.
- */
-export type MappableMappingKind = Exclude<ForkMappingEntry['kind'], 'knowledge-document'>
-
-/** Section label + display order per mapping kind (one mapping group per kind). */
-const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: number }> = {
-  credential: { label: 'Credentials', order: 0 },
-  'env-var': { label: 'Secrets', order: 1 },
-  table: { label: 'Tables', order: 2 },
-  'knowledge-base': { label: 'Knowledge bases', order: 3 },
-  file: { label: 'Files', order: 4 },
-  'mcp-server': { label: 'MCP servers', order: 5 },
-  'custom-tool': { label: 'Custom tools', order: 6 },
-  skill: { label: 'Skills', order: 7 },
-}
-
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
 const EMPTY_TARGET_OWNERS: ReadonlyMap<string, string> = new Map()
 
@@ -80,22 +67,6 @@ const EMPTY_DEPENDENTS: ForkDependentReconfig[] = []
 
 /** Target workflows this sync archives, previewed in the confirm before "and X more". */
 export const ARCHIVED_PREVIEW_LIMIT = 5
-
-export interface ForkMappingGroup {
-  kind: MappableMappingKind
-  label: string
-  items: ForkMappingEntry[]
-}
-
-/** Per-kind mapping status for the Mappings section's summary badges. */
-export interface ForkKindSummary {
-  kind: MappableMappingKind
-  total: number
-  mapped: number
-  copied: number
-  requiredPending: boolean
-  reconfigPending: boolean
-}
 
 export interface ForkSyncController {
   direction: ForkDirection
@@ -113,20 +84,17 @@ export interface ForkSyncController {
   diffErrorMessage: string | null
   /** True once the diff payload for ANY direction is present (placeholder included). */
   hasDiff: boolean
-  /** True once the mapping payload is present (placeholder included), gating the Mappings section. */
+  /** True once the mapping payload is present (placeholder included), gating the Resolve section. */
   hasMapping: boolean
-  groups: ForkMappingGroup[]
-  /** Per-kind mapping status, aligned with `groups` (same kinds, same order). */
-  kindSummaries: ForkKindSummary[]
+  /** Every reference this sync has to resolve, most-blocking first. */
+  resolveItems: ForkResolveItem[]
+  resolveProgress: ForkResolveProgress
   /** Effective (in-session override, else persisted/suggested) target for an entry. */
   targetFor: (entry: ForkMappingEntry) => string
   /** Set an entry's target ('' clears it) and drop its dependents' stale re-picks. */
   setTarget: (entry: ForkMappingEntry, value: string) => void
-  /** Targets already claimed by another source in the same kind (push targets are unique; pull never disables). */
-  takenOwnersFor: (
-    entry: ForkMappingEntry,
-    items: ForkMappingEntry[]
-  ) => ReadonlyMap<string, string>
+  /** Targets already claimed by another source of the same kind (push targets are unique; pull never disables). */
+  takenOwnersFor: (entry: ForkMappingEntry) => ReadonlyMap<string, string>
   /** Every workflow an entry's resource is used in (diff-fed; empty until the diff loads). */
   usagesForEntry: (entry: ForkMappingEntry) => ForkResourceUsage['workflows']
   /** An entry's dependent fields (its credential/KB/table's selectors), from the diff. */
@@ -147,7 +115,7 @@ export interface ForkSyncController {
   /** In-session dependent re-picks, keyed by `dependentKey`. */
   reconfig: Record<string, string>
   setReconfig: Dispatch<SetStateAction<Record<string, string>>>
-  /** Keys the backend offers as copy candidates, for the entry rows' "Copy instead" affordance. */
+  /** Keys the backend offers as copy candidates, for the entry rows' "New copy" affordance. */
   copyableKeys: ReadonlySet<string>
   /** Copyables actually selected for copy (visible + checked), keyed `${kind}:${sourceId}`. */
   copyingKeys: ReadonlySet<string>
@@ -166,19 +134,12 @@ export interface ForkSyncController {
   /** Source-deleted blockers still awaiting a decision, for the bulk affordance. */
   droppableBlockerCount: number
   /**
-   * How many blocking rows name each resource, keyed `${kind}:${sourceId}`. A drop is inherently
-   * resource-scoped - the remapper clears by reference, not by field - so the row that offers the
-   * control states how many fields it covers rather than implying a per-field choice.
+   * Copy candidates no synced workflow references, grouped per kind for the extra-resources
+   * picker. The referenced ones need no section of their own: each is already a Resolve row whose
+   * picker offers the copy.
    */
-  blockingUsesByResource: ReadonlyMap<string, number>
-  /** Index of the row that owns each resource's Drop control, so it renders exactly once. */
-  firstBlockingRowForResource: ReadonlyMap<string, number>
-  /** Visible copy candidates split by referenced-ness, grouped per kind for the section rows. */
-  referencedByKind: ReadonlyMap<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>
   unreferencedByKind: ReadonlyMap<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>
-  hasVisibleCopyables: boolean
-  /** Would-clear references that BLOCK sync (mirrors the server's zero-cleared-refs gate). */
-  blockingRefs: ForkClearedRef[]
+  hasUnreferencedCopyables: boolean
   /** Informational would-clear dependents (owned by the reconfigure flow; never block). */
   dependentClears: ForkClearedRef[]
   /** Deployed-workflow change list (update → create → archive, then by name). */
@@ -381,20 +342,20 @@ export function useForkSync(params: {
     return new Set([...copyingKeys, ...droppedRefs])
   }, [copyingKeys, droppedRefs])
 
-  // Group the visible copy candidates by kind so each renders as its own expandable section
-  // (chevron + tri-state select-all + count), matching the fork picker. Referenced and
-  // unreferenced candidates group separately: unreferenced ones (used by no synced workflow)
-  // render under a muted "Not used by any workflow" grouping and default to unselected.
-  const { referencedByKind, unreferencedByKind } = useMemo(() => {
-    const referenced = new Map<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>()
+  // Copy candidates no synced workflow references, grouped by kind so each renders as its own
+  // expandable picker (chevron + tri-state select-all + count), matching the fork modal. The
+  // REFERENCED candidates need no picker of their own: every one of them is already a Resolve row
+  // whose target picker offers the copy, and listing them twice is what made the old page's
+  // Mappings and Copy resources sections contradict each other.
+  const unreferencedByKind = useMemo(() => {
     const unreferenced = new Map<ForkCopyableUnmapped['kind'], ForkCopyableUnmapped[]>()
     for (const candidate of visibleCopyables) {
-      const groups = candidate.referenced ? referenced : unreferenced
-      const list = groups.get(candidate.kind)
+      if (candidate.referenced) continue
+      const list = unreferenced.get(candidate.kind)
       if (list) list.push(candidate)
-      else groups.set(candidate.kind, [candidate])
+      else unreferenced.set(candidate.kind, [candidate])
     }
-    return { referencedByKind: referenced, unreferencedByKind: unreferenced }
+    return unreferenced
   }, [visibleCopyables])
 
   // Default every REFERENCED copyable resource to "copy" once the diff loads, so the common case
@@ -462,11 +423,22 @@ export function useForkSync(params: {
     })
   }
 
-  const takenOwnersFor = (
-    entry: ForkMappingEntry,
-    items: ForkMappingEntry[]
-  ): ReadonlyMap<string, string> =>
-    direction === 'push' ? takenTargetOwners(items, targets, entry) : EMPTY_TARGET_OWNERS
+  // Target uniqueness is a per-KIND rule, so a row only ever competes with entries of its own
+  // kind - indexed once rather than re-filtered per row.
+  const entriesByKind = useMemo(() => {
+    const byKind = new Map<string, ForkMappingEntry[]>()
+    for (const entry of entries) {
+      const list = byKind.get(entry.kind)
+      if (list) list.push(entry)
+      else byKind.set(entry.kind, [entry])
+    }
+    return byKind
+  }, [entries])
+
+  const takenOwnersFor = (entry: ForkMappingEntry): ReadonlyMap<string, string> =>
+    direction === 'push'
+      ? takenTargetOwners(entriesByKind.get(entry.kind) ?? [], targets, entry)
+      : EMPTY_TARGET_OWNERS
 
   const toggleCopyKeys = (keys: string[], checked: boolean) =>
     setCopySelected((prev) => {
@@ -477,24 +449,6 @@ export function useForkSync(params: {
       }
       return next
     })
-
-  // Group mappings by resource type - one accordion row per kind, required types first.
-  const groups = useMemo<ForkMappingGroup[]>(() => {
-    const byKind = new Map<MappableMappingKind, ForkMappingEntry[]>()
-    for (const entry of entries) {
-      // The mapping view never emits a document entry (it rides its KB), so the group is
-      // unreachable - skip defensively so the narrowed `MAPPING_SECTION` lookup stays sound.
-      if (entry.kind === 'knowledge-document') continue
-      const list = byKind.get(entry.kind)
-      if (list) list.push(entry)
-      else byKind.set(entry.kind, [entry])
-    }
-    return Array.from(byKind, ([kind, items]) => ({
-      kind,
-      label: MAPPING_SECTION[kind].label,
-      items: items.slice().sort((a, b) => a.sourceLabel.localeCompare(b.sourceLabel)),
-    })).sort((a, b) => MAPPING_SECTION[a.kind].order - MAPPING_SECTION[b.kind].order)
-  }, [entries])
 
   // The mapping entry each dependent hangs off, indexed by `kind:sourceId` (matching `entryKey`)
   // so the per-field lookups below are O(1) instead of rescanning `entries` for every dependent -
@@ -548,10 +502,10 @@ export function useForkSync(params: {
     return dependentValueFor(field, parent, resolution) !== ''
   })
 
-  // Kinds with a required DEPENDENT that still has no value (its parent is resolved): these
-  // block Sync via `reconfigComplete`, so the summary badge for that kind must not read
-  // "Fully mapped".
-  const reconfigPendingByKind = new Set<MappableMappingKind>()
+  // How many required DEPENDENT fields each resolved entry is still missing. These block Sync via
+  // `reconfigComplete`, so an entry carrying one must never read as finished - and the count is
+  // what lets its Resolve row say how much is left rather than just that something is.
+  const reconfigPendingCounts = new Map<string, number>()
   for (const field of dependentReconfigs) {
     if (!field.required) continue
     const parent = entryForDependent(field)
@@ -559,9 +513,11 @@ export function useForkSync(params: {
     const resolution = resolutionFor(parent)
     if (resolution === 'unresolved') continue
     if (dependentValueFor(field, parent, resolution) === '') {
-      reconfigPendingByKind.add(parent.kind as MappableMappingKind)
+      const key = entryKey(parent)
+      reconfigPendingCounts.set(key, (reconfigPendingCounts.get(key) ?? 0) + 1)
     }
   }
+  const reconfigPendingKeys = new Set(reconfigPendingCounts.keys())
 
   // The references this sync would blank, reactively narrowed to the current selection. A
   // resource is "resolved" once it has a mapping target OR is selected for copy - the same
@@ -592,30 +548,28 @@ export function useForkSync(params: {
     }
   }, [clearedRefs, entriesByParent, targets, copyingKeys, droppedRefs])
 
-  // Per-kind status for the Mappings summary: "Fully mapped" or "n/total mapped", flagged when
-  // a REQUIRED target is still missing (which blocks Sync). Reads the effective
-  // (override-or-persisted) target so it reflects both remembered mappings and in-session edits.
-  const kindSummaries: ForkKindSummary[] = groups.map((group) => {
-    const total = group.items.length
-    const mapped = group.items.filter((entry) => targetFor(entry) !== '').length
-    // Copy-selected items are resolved too (their refs are kept), so they count toward
-    // completion and render as "copied" rather than unconfigured. mapped/copied are disjoint:
-    // a mapped copyable is excluded from the copy candidates, so copyingKeys never overlaps a
-    // mapped entry.
-    const copied = group.items.filter((entry) => copyingKeys.has(entryKey(entry))).length
-    // Mirror the Sync gate: a required ref selected for copy is satisfied, so it is not
-    // "pending".
-    const requiredPending = forkRequiredPending(group.items, targets, satisfiedKeys)
-    const reconfigPending = reconfigPendingByKind.has(group.kind)
-    return { kind: group.kind, total, mapped, copied, requiredPending, reconfigPending }
+  // Every reference this sync has to resolve, as one ordered list - the Resolve section's rows and
+  // its progress line both read from it, so what the user sees and what gates Sync stay in step.
+  const resolveItems = buildForkResolveItems({
+    entries,
+    targetFor,
+    copyingKeys,
+    droppedRefs,
+    reconfigPendingKeys,
+    reconfigPendingCounts,
+    blockingRefs,
+    dependentClears,
   })
+  const resolveProgress = forkResolveProgress(resolveItems)
 
   // Kinds whose required gate is still failing, so the Sync tooltip can name the actual
   // obstacle. An unmapped credential/secret is NEVER a cleared-ref blocker (the collector
   // excludes required kinds), so the required gate must not borrow the blocker message -
-  // it would point at a "Blocking sync" section that isn't rendered.
+  // it would point at blockers the Resolve list is not showing.
   const pendingRequiredKinds = new Set<string>(
-    kindSummaries.filter((summary) => summary.requiredPending).map((summary) => summary.kind)
+    entries.flatMap((entry) =>
+      forkRequiredPending([entry], targets, satisfiedKeys) ? [entry.kind] : []
+    )
   )
 
   // Sync details still settling for the current direction: loading, a failed/empty mapping
@@ -783,19 +737,6 @@ export function useForkSync(params: {
   const dropAllDeletedRefs = () => {
     setDroppedRefs((prev) => new Set([...prev, ...droppableBlockerKeys]))
   }
-
-  // Blocking rows indexed by the resource they name, so the Drop control renders once per resource
-  // and can state how many fields it covers - matching what the sync actually does.
-  const { blockingUsesByResource, firstBlockingRowForResource } = useMemo(() => {
-    const uses = new Map<string, number>()
-    const firstRow = new Map<string, number>()
-    blockingRefs.forEach((ref, index) => {
-      const key = `${ref.kind}:${ref.sourceId}`
-      uses.set(key, (uses.get(key) ?? 0) + 1)
-      if (!firstRow.has(key)) firstRow.set(key, index)
-    })
-    return { blockingUsesByResource: uses, firstBlockingRowForResource: firstRow }
-  }, [blockingRefs])
 
   const setTriggerAdoption = (sourceBlockId: string, path: string) => {
     setTriggerAdoptions((prev) => ({ ...prev, [sourceBlockId]: path }))
@@ -973,8 +914,8 @@ export function useForkSync(params: {
       : null,
     hasDiff: Boolean(diff.data),
     hasMapping: Boolean(mapping.data),
-    groups,
-    kindSummaries,
+    resolveItems,
+    resolveProgress,
     targetFor,
     setTarget,
     takenOwnersFor,
@@ -993,12 +934,8 @@ export function useForkSync(params: {
     toggleDroppedRef,
     dropAllDeletedRefs,
     droppableBlockerCount: droppableBlockerKeys.length,
-    blockingUsesByResource,
-    firstBlockingRowForResource,
-    referencedByKind,
     unreferencedByKind,
-    hasVisibleCopyables: visibleCopyables.length > 0,
-    blockingRefs,
+    hasUnreferencedCopyables: unreferencedByKind.size > 0,
     dependentClears,
     workflowChanges,
     archivedWorkflowNames,

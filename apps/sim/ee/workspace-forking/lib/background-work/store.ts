@@ -39,6 +39,14 @@ const SURFACED_STATUSES: BackgroundWorkStatusValue[] = [
   'failed',
 ]
 
+/**
+ * The kinds the Forks console's Activity view is a record of. `deployment_side_effects` shares
+ * this table but is not a fork event: it is keyed to the workspace like every other row, so
+ * without this filter a deploy would appear in a fork's history with no fork to attribute it to.
+ */
+export const FORK_ACTIVITY_KINDS = ['fork_content_copy', 'fork_sync', 'fork_rollback'] as const
+export type ForkActivityKind = (typeof FORK_ACTIVITY_KINDS)[number]
+
 /** Default page size for the workspace's Activity tab (mirrors the audit log's). */
 const BACKGROUND_WORK_PAGE_SIZE = 50
 
@@ -301,7 +309,7 @@ export interface BackgroundWorkPage {
 export async function listSurfacedBackgroundWork(
   executor: DbOrTx,
   workspaceId: string,
-  options?: { cursor?: string; limit?: number }
+  options?: { cursor?: string; limit?: number; kinds?: readonly ForkActivityKind[] }
 ): Promise<BackgroundWorkPage> {
   const limit = Math.min(
     Math.max(options?.limit ?? BACKGROUND_WORK_PAGE_SIZE, 1),
@@ -328,7 +336,11 @@ export async function listSurfacedBackgroundWork(
       : [])
   )
 
-  const conditions = [involvesWorkspace, inArray(backgroundWorkStatus.status, SURFACED_STATUSES)]
+  const conditions = [
+    involvesWorkspace,
+    inArray(backgroundWorkStatus.status, SURFACED_STATUSES),
+    inArray(backgroundWorkStatus.kind, [...(options?.kinds ?? FORK_ACTIVITY_KINDS)]),
+  ]
   if (options?.cursor) {
     const cursorCondition = buildCursorCondition(options.cursor)
     if (cursorCondition) conditions.push(cursorCondition)

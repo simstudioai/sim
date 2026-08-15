@@ -20,6 +20,7 @@ export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
   chipActiveSurfaceClass,
+  chipBorderClass,
   chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,
@@ -188,16 +189,8 @@ export {
   tabDropIndex,
   tabStripWheelPosition,
 } from './tab-strip/tab-strip'
-export {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from './table/table'
+export { Table, type TableColumn } from './table/table'
+export { TableIdentityCell } from './table/table-identity-cell'
 export { type FileInputOptions, TagInput, type TagItem } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
 export { TimePicker, timePickerVariants } from './time-picker/time-picker'

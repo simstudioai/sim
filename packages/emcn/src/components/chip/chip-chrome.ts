@@ -1,12 +1,23 @@
 /** The filled FILL (surface only, no border) — used by the borderless `filled` chip variant. */
 export const chipFilledFillTokens = 'bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
 /**
- * The filled surface WITH a `--border-1` border, for chip FIELDS ({@link ChipInput},
+ * The neutral chip outline — a REAL CSS border, so it follows `--border-width`
+ * (a true hairline at 2dppx) and the `--border` colour token like every other
+ * line in the product. A box-shadow ring cannot follow `--border-width`, so it
+ * renders at a full device pixel beside hairline neighbours; see
+ * `.claude/rules/sim-styling.md` § "Line weight".
+ *
+ * Single source for the chip FIELDS ({@link chipFilledSurfaceTokens}), the pill
+ * TRIGGERS (`TRIGGER_BORDER_CLASS`), and the `border` chip variant.
+ */
+export const chipBorderClass = 'border border-[var(--border)]'
+/**
+ * The filled surface WITH its border, for chip FIELDS ({@link ChipInput},
  * {@link ChipTextarea}). The `filled` chip variant itself is borderless
  * ({@link chipFilledFillTokens}); pill triggers (`ChipDropdown`/`ChipSelect`/
  * `ChipDatePicker`) opt into the border via `TRIGGER_BORDER_CLASS`.
  */
-export const chipFilledSurfaceTokens = `border border-[var(--border-1)] ${chipFilledFillTokens}`
+export const chipFilledSurfaceTokens = `${chipBorderClass} ${chipFilledFillTokens}`
 /**
  * The primary (inverse) chip fill at rest — dark fill, inverse text, mirrored in
  * dark mode. `chipVariants`' `primary` variant composes this with its hover

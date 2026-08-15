@@ -63,13 +63,8 @@ import {
   Slider,
   Switch,
   Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
+  type TableColumn,
+  TableIdentityCell,
   TagInput,
   type TagItem,
   Textarea,
@@ -104,6 +99,77 @@ function VariantRow({ label, children }: { label: string; children: React.ReactN
       <span className='w-32 shrink-0 text-[var(--text-secondary)] text-sm'>{label}</span>
       <div className='flex flex-wrap items-center gap-2'>{children}</div>
     </div>
+  )
+}
+
+interface DemoMember {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+const DEMO_MEMBERS: DemoMember[] = [
+  { id: '1', name: 'Ada Lovelace', email: 'ada@example.com', role: 'Owner' },
+  { id: '2', name: 'Grace Hopper', email: 'grace@example.com', role: 'Admin' },
+  { id: '3', name: 'Alan Turing', email: 'alan@example.com', role: 'Member' },
+]
+
+const DEMO_TABS = [
+  { id: 'members', label: 'Members' },
+  { id: 'invites', label: 'Pending invitations' },
+]
+
+/**
+ * Exercises the full Table surface in one place — tabs, the search toolbar,
+ * controlled selection with a bulk action, an identity cell, and a
+ * right-aligned action column. Kept local so the page component's state list
+ * does not grow for a single gallery entry.
+ */
+function TableDemo() {
+  const [activeTab, setActiveTab] = useState('members')
+  const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const rows =
+    activeTab === 'members'
+      ? DEMO_MEMBERS.filter(
+          (member) =>
+            member.name.toLowerCase().includes(search.toLowerCase()) ||
+            member.email.toLowerCase().includes(search.toLowerCase())
+        )
+      : []
+
+  const columns: TableColumn<DemoMember>[] = [
+    {
+      key: 'identity',
+      header: 'Member',
+      cell: (member) => <TableIdentityCell primary={member.name} secondary={member.email} />,
+    },
+    { key: 'role', header: 'Role', align: 'right', cell: (member) => member.role, width: 120 },
+    {
+      key: 'actions',
+      align: 'right',
+      width: 140,
+      cell: () => <Button variant='outline'>Manage access</Button>,
+    },
+  ]
+
+  return (
+    <Table
+      aria-label='Organization members'
+      rows={rows}
+      getRowId={(member) => member.id}
+      columns={columns}
+      tabs={{ items: DEMO_TABS, activeId: activeTab, onChange: setActiveTab }}
+      toolbar={{ search: { value: search, onChange: setSearch, placeholder: 'Filter' } }}
+      selection={{
+        selectedIds,
+        onSelectionChange: setSelectedIds,
+        bulkActions: <Button variant='outline'>Remove from organization</Button>,
+      }}
+      empty={activeTab === 'members' ? 'No members found' : 'No pending invitations'}
+    />
   )
 }
 
@@ -603,79 +669,7 @@ export default function PlaygroundPage() {
             {/* Table */}
             <Section title='Table'>
               <VariantRow label='default'>
-                <Table className='max-w-md'>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Role</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow className='hover:bg-[var(--surface-2)]'>
-                      <TableCell>Alice</TableCell>
-                      <TableCell>Active</TableCell>
-                      <TableCell>Admin</TableCell>
-                    </TableRow>
-                    <TableRow className='hover:bg-[var(--surface-2)]'>
-                      <TableCell>Bob</TableCell>
-                      <TableCell>Pending</TableCell>
-                      <TableCell>User</TableCell>
-                    </TableRow>
-                    <TableRow className='hover:bg-[var(--surface-2)]'>
-                      <TableCell>Charlie</TableCell>
-                      <TableCell>Active</TableCell>
-                      <TableCell>User</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </VariantRow>
-              <VariantRow label='with footer'>
-                <Table className='max-w-md'>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className='text-right'>Price</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Product A</TableCell>
-                      <TableCell className='text-right'>$10.00</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Product B</TableCell>
-                      <TableCell className='text-right'>$20.00</TableCell>
-                    </TableRow>
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow>
-                      <TableCell>Total</TableCell>
-                      <TableCell className='text-right'>$30.00</TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              </VariantRow>
-              <VariantRow label='with caption'>
-                <Table className='max-w-md'>
-                  <TableCaption>A list of team members</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Department</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Alice</TableCell>
-                      <TableCell>Engineering</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Bob</TableCell>
-                      <TableCell>Design</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
+                <TableDemo />
               </VariantRow>
             </Section>
 

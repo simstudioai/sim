@@ -57,36 +57,3 @@ export function splitForkClearedRefs(visibleRefs: ForkClearedRef[]): {
   }
   return { blockers, informational }
 }
-
-/**
- * Human label per remap kind for the resolution copy (singular, lowercase mid-sentence). Shared
- * with the Mappings section's source-deleted note so both phrase the same resolution identically.
- * `credential` is reachable only from a mapping entry - credentials gate through the required
- * check, never through the cleared-ref blockers.
- */
-export const FORK_RESOURCE_KIND_LABEL: Record<string, string> = {
-  table: 'table',
-  'knowledge-base': 'knowledge base',
-  file: 'file',
-  'custom-tool': 'custom tool',
-  skill: 'skill',
-  'mcp-server': 'MCP server',
-  credential: 'credential',
-}
-
-/**
- * The actionable resolution line for a blocking entry, phrased for "{block} would lose {field}
- * in {workflow} - {resolution}". Null for non-blocking (dependent) entries.
- */
-export function forkBlockerResolution(ref: ForkClearedRef): string | null {
-  const reason = forkSyncBlockerReasonFor(ref)
-  if (!reason) return null
-  switch (reason) {
-    case 'unmapped-copyable':
-      return 'map it to a target or select it for copy'
-    case 'source-deleted':
-      return `deleted in the source — map it to an existing ${FORK_RESOURCE_KIND_LABEL[ref.kind] ?? 'resource'} in the target`
-    case 'workflow-missing':
-      return `deploy "${ref.sourceLabel}" in the source or remove the reference`
-  }
-}

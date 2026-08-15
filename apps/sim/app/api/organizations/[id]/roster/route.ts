@@ -92,6 +92,8 @@ export const GET = withRouteHandler(
         .select({
           id: workspace.id,
           name: workspace.name,
+          logoUrl: workspace.logoUrl,
+          color: workspace.color,
           ownerId: workspace.ownerId,
           billedAccountUserId: workspace.billedAccountUserId,
         })
@@ -291,7 +293,12 @@ export const GET = withRouteHandler(
       const data = {
         members: rosterMembers,
         pendingInvitations,
-        workspaces: orgWorkspaces.map((ws) => ({ id: ws.id, name: ws.name })),
+        workspaces: orgWorkspaces.map((ws) => ({
+          id: ws.id,
+          name: ws.name,
+          logoUrl: ws.logoUrl,
+          color: ws.color,
+        })),
       } satisfies OrganizationRoster
       return NextResponse.json({
         success: true,

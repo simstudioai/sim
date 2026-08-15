@@ -3,9 +3,9 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  forkLineageChildSchema,
-  forkLineageNodeSchema,
+  forkForestNodeSchema,
   forkMappableResourceTypeSchema,
+  forkMatrixRowSchema,
   getForkDiffContract,
   getWorkspaceBackgroundWorkQuerySchema,
   promoteForkBodySchema,
@@ -39,25 +39,79 @@ describe('forkMappableResourceTypeSchema', () => {
   })
 })
 
-describe('forkLineageNodeSchema', () => {
-  const baseNode = { id: 'ws-1', name: 'Parent', organizationId: null }
+describe('forkForestNodeSchema', () => {
+  const rootNode = {
+    id: 'ws-1',
+    name: 'Root',
+    color: '#33C482',
+    logoUrl: null,
+    organizationId: null,
+    parentId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    viewerAccessible: true,
+    viewerCanAdmin: true,
+    deployedWorkflowCount: 2,
+    edge: null,
+  }
 
-  it('requires viewerAccessible on every node (both accessible and inaccessible parse)', () => {
-    expect(forkLineageNodeSchema.safeParse(baseNode).success).toBe(false)
-    expect(forkLineageNodeSchema.safeParse({ ...baseNode, viewerAccessible: true }).success).toBe(
-      true
-    )
-    expect(forkLineageNodeSchema.safeParse({ ...baseNode, viewerAccessible: false }).success).toBe(
-      true
-    )
+  it('requires both permission flags, so a row can never render un-gated by accident', () => {
+    const { viewerCanAdmin, ...withoutAdmin } = rootNode
+    expect(forkForestNodeSchema.safeParse(withoutAdmin).success).toBe(false)
+    const { viewerAccessible, ...withoutAccess } = rootNode
+    expect(forkForestNodeSchema.safeParse(withoutAccess).success).toBe(false)
+    expect(forkForestNodeSchema.safeParse(rootNode).success).toBe(true)
   })
 
-  it('requires viewerAccessible on child nodes too', () => {
-    const child = { ...baseNode, createdAt: '2026-01-01T00:00:00.000Z' }
-    expect(forkLineageChildSchema.safeParse(child).success).toBe(false)
-    expect(forkLineageChildSchema.safeParse({ ...child, viewerAccessible: false }).success).toBe(
-      true
-    )
+  it('carries no edge on a root and a full edge on a fork', () => {
+    expect(forkForestNodeSchema.parse(rootNode).edge).toBeNull()
+    const fork = {
+      ...rootNode,
+      id: 'ws-2',
+      parentId: 'ws-1',
+      edge: {
+        mapped: 3,
+        unmapped: 1,
+        lastSyncAt: '2026-01-02T00:00:00.000Z',
+        undoableRun: { otherWorkspaceId: 'ws-1', otherName: 'Root', direction: 'push' },
+      },
+    }
+    expect(forkForestNodeSchema.parse(fork).edge?.unmapped).toBe(1)
+  })
+
+  it('rejects an edge whose undoable run names an unknown direction', () => {
+    const fork = {
+      ...rootNode,
+      parentId: 'ws-1',
+      edge: {
+        mapped: 0,
+        unmapped: 0,
+        lastSyncAt: null,
+        undoableRun: { otherWorkspaceId: 'ws-1', otherName: 'Root', direction: 'sideways' },
+      },
+    }
+    expect(forkForestNodeSchema.safeParse(fork).success).toBe(false)
+  })
+})
+
+describe('forkMatrixRowSchema', () => {
+  const row = {
+    key: 'ws-1:env_var:API_KEY',
+    resourceType: 'env_var',
+    kind: 'env-var',
+    originWorkspaceId: 'ws-1',
+    label: 'API_KEY',
+    cells: {
+      'ws-1': { resourceId: 'API_KEY', label: 'API_KEY', missing: false },
+      'ws-2': { resourceId: null, label: null, missing: false },
+    },
+  }
+
+  it('accepts a chain whose downstream cell is unmapped', () => {
+    expect(forkMatrixRowSchema.safeParse(row).success).toBe(true)
+  })
+
+  it('rejects a row typed as a system-managed resource, which is never user-mappable', () => {
+    expect(forkMatrixRowSchema.safeParse({ ...row, resourceType: 'workflow' }).success).toBe(false)
   })
 })
 

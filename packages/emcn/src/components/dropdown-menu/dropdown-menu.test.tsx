@@ -109,4 +109,73 @@ describe('menu row labels', () => {
 
     expect(row().querySelectorAll('span')).toHaveLength(1)
   })
+
+  /**
+   * Radix reads `disabled` off the Trigger, not off an `asChild` child — and a
+   * disabled `<button>` still dispatches `pointerdown` in Chrome, so the menu
+   * opened from a control that looked inert. The trigger lifts the child's
+   * `disabled` so either spelling disables it for real.
+   */
+  describe('disabled trigger', () => {
+    function mountTrigger(node: ReactNode): HTMLButtonElement {
+      ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      act(() =>
+        root?.render(
+          <DropdownMenu modal={false}>
+            {node}
+            <DropdownMenuContent>
+              <DropdownMenuItem>Remove</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      )
+      return container.querySelector('button') as HTMLButtonElement
+    }
+
+    function pointerDown(el: HTMLElement) {
+      act(() => {
+        el.dispatchEvent(
+          new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 })
+        )
+      })
+    }
+
+    it('stays closed when only the asChild child is disabled', () => {
+      const trigger = mountTrigger(
+        <DropdownMenuTrigger asChild>
+          <button type='button' disabled>
+            Actions
+          </button>
+        </DropdownMenuTrigger>
+      )
+      expect(trigger.disabled).toBe(true)
+      pointerDown(trigger)
+      expect(document.querySelector('[role="menu"]')).toBeNull()
+    })
+
+    it('stays closed when only the trigger is disabled, and disables the child too', () => {
+      const trigger = mountTrigger(
+        <DropdownMenuTrigger asChild disabled>
+          <button type='button'>Actions</button>
+        </DropdownMenuTrigger>
+      )
+      expect(trigger.disabled).toBe(true)
+      pointerDown(trigger)
+      expect(document.querySelector('[role="menu"]')).toBeNull()
+    })
+
+    it('still opens when nothing is disabled', () => {
+      const trigger = mountTrigger(
+        <DropdownMenuTrigger asChild>
+          <button type='button'>Actions</button>
+        </DropdownMenuTrigger>
+      )
+      expect(trigger.disabled).toBe(false)
+      pointerDown(trigger)
+      expect(document.querySelector('[role="menu"]')).not.toBeNull()
+    })
+  })
 })

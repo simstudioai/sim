@@ -78,49 +78,69 @@ export const forkCopyableKindSchema = z.enum([
 ])
 export type ForkCopyableKind = z.infer<typeof forkCopyableKindSchema>
 
-export const forkLineageNodeSchema = z.object({
+/** The most recent undoable promote into a workspace, for the rollback affordance. */
+export const forkUndoableRunSchema = z.object({
+  otherWorkspaceId: z.string(),
+  otherName: z.string(),
+  direction: forkDirectionSchema,
+})
+export type ForkUndoableRun = z.output<typeof forkUndoableRunSchema>
+
+/**
+ * Stored-mapping and sync state for a node's PARENT edge, so the console can rank a whole
+ * lineage without running a diff per edge (which would mean scanning every deployed workflow on
+ * page load). `mapped`/`unmapped` therefore count persisted mapping rows, not live references -
+ * the edge's sync page remains the authority on what actually blocks a sync.
+ */
+export const forkForestEdgeSchema = z.object({
+  mapped: z.number().int(),
+  unmapped: z.number().int(),
+  /** When this edge last synced in either direction (ISO timestamp), or null if never. */
+  lastSyncAt: z.string().nullable(),
+  /** The most recent undoable promote INTO this node, when there is one. */
+  undoableRun: forkUndoableRunSchema.nullable(),
+})
+
+/**
+ * One workspace in a fork tree the viewer can reach.
+ *
+ * `viewerAccessible` is read-or-higher access (explicit or org-derived) and gates opening the
+ * workspace; `viewerCanAdmin` additionally gates every fork operation, because a node is listed
+ * to any admin of the anchor workspace, who may hold nothing on the other side of an edge.
+ */
+export const forkForestNodeSchema = z.object({
   id: z.string(),
   name: z.string(),
+  color: z.string().nullable(),
+  logoUrl: z.string().nullable(),
   organizationId: z.string().nullable(),
-  /**
-   * Whether the viewer has any access (read or higher, explicit or org-derived) to this
-   * lineage workspace. Drives the Forks page's row-action gating - lineage rows are visible
-   * to any admin of the CURRENT workspace, who may hold no access to the other side.
-   */
-  viewerAccessible: z.boolean(),
-})
-
-/** A live fork of this workspace, listed read-only on the Forks settings page. */
-export const forkLineageChildSchema = forkLineageNodeSchema.extend({
-  /** When the fork was created (ISO timestamp). */
+  /** The workspace this one was forked from, or null for a root. */
+  parentId: z.string().nullable(),
+  /** When the workspace was created (ISO timestamp). */
   createdAt: z.string(),
+  viewerAccessible: z.boolean(),
+  viewerCanAdmin: z.boolean(),
+  /** Deployed, unarchived workflows — the only ones a fork or a sync ever carries. */
+  deployedWorkflowCount: z.number().int(),
+  /** Parent-edge state; null on a root, which has no edge. */
+  edge: forkForestEdgeSchema.nullable(),
 })
+export type ForkForestNode = z.output<typeof forkForestNodeSchema>
 
-export const getForkLineageContract = defineRouteContract({
+export const getForkForestContract = defineRouteContract({
   method: 'GET',
-  path: '/api/workspaces/[id]/fork/lineage',
+  path: '/api/workspaces/[id]/fork/forest',
   params: workspaceIdParamsSchema,
   response: {
     mode: 'json',
     schema: z.object({
       workspaceId: z.string(),
-      parent: forkLineageNodeSchema.nullable(),
-      /** Live forks created from this workspace, newest first. */
-      children: z.array(forkLineageChildSchema),
-      /** The most recent undoable promote into this workspace, for the rollback UI. */
-      undoableRun: z
-        .object({
-          otherWorkspaceId: z.string(),
-          otherName: z.string(),
-          direction: forkDirectionSchema,
-        })
-        .nullable(),
+      /** Every workspace in a fork tree reachable from this one, roots first then depth-first. */
+      nodes: z.array(forkForestNodeSchema),
     }),
   },
 })
-export type ForkLineageNodeApi = z.output<typeof forkLineageNodeSchema>
-export type ForkLineageChildApi = z.output<typeof forkLineageChildSchema>
-export type GetForkLineageResponse = z.output<typeof getForkLineageContract.response.schema>
+export type GetForkForestResponse = z.output<typeof getForkForestContract.response.schema>
 
 const forkResourceIdList = z.array(nonEmptyIdSchema).max(2000).optional()
 
@@ -202,6 +222,7 @@ export const forkMappingCandidateSchema = z.object({
   label: z.string(),
   providerId: z.string().optional(),
 })
+export type ForkMappingCandidate = z.output<typeof forkMappingCandidateSchema>
 
 export const forkMappingEntrySchema = z.object({
   kind: forkRemapKindSchema,
@@ -300,6 +321,77 @@ export const updateForkMappingContract = defineRouteContract({
   },
 })
 export type UpdateForkMappingBody = z.input<typeof updateForkMappingBodySchema>
+
+/** One workspace column of the mappings matrix, in depth-first order under the chosen root. */
+export const forkMatrixWorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string().nullable(),
+  logoUrl: z.string().nullable(),
+  /** The workspace this column was forked from; null on the root column. */
+  parentId: z.string().nullable(),
+  /** Whether the viewer may edit the mapping on this column's parent edge. */
+  viewerCanAdmin: z.boolean(),
+})
+export type ForkMatrixWorkspace = z.output<typeof forkMatrixWorkspaceSchema>
+
+/** What one resource chain resolves to inside one workspace column. */
+export const forkMatrixCellSchema = z.object({
+  /** The resource id in this workspace, or null where the chain has no mapping. */
+  resourceId: z.string().nullable(),
+  /** Display name, falling back to the raw id when the resource no longer exists. */
+  label: z.string().nullable(),
+  /** True when `resourceId` names a resource that is gone from this workspace. */
+  missing: z.boolean(),
+})
+export type ForkMatrixCell = z.output<typeof forkMatrixCellSchema>
+
+/**
+ * One resource followed across a lineage: the chain of `workspace_fork_resource_map` pairs that
+ * link a root resource to its counterpart in each descendant workspace. A chain is keyed by the
+ * workspace it starts in plus that workspace's resource id, so two unrelated resources that
+ * happen to share a name stay separate rows.
+ */
+export const forkMatrixRowSchema = z.object({
+  key: z.string(),
+  resourceType: forkMappableResourceTypeSchema,
+  kind: forkRemapKindSchema,
+  /** The workspace the chain starts in — the shallowest column that resolves it. */
+  originWorkspaceId: z.string(),
+  /** The chain's name, taken from its origin. */
+  label: z.string(),
+  /** One entry per workspace the chain reaches, keyed by workspace id. */
+  cells: z.record(z.string(), forkMatrixCellSchema),
+})
+export type ForkMatrixRow = z.output<typeof forkMatrixRowSchema>
+
+export const getForkMatrixQuerySchema = z.object({
+  /** Root of the lineage to lay out. Must be a workspace in the anchor's own fork tree. */
+  rootId: workspaceIdSchema,
+})
+
+export const getForkMatrixContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/fork/matrix',
+  params: workspaceIdParamsSchema,
+  query: getForkMatrixQuerySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      rootWorkspaceId: z.string(),
+      workspaces: z.array(forkMatrixWorkspaceSchema),
+      rows: z.array(forkMatrixRowSchema),
+      /**
+       * Mapping targets a cell may pick, keyed by workspace id then by remap kind. Capped per
+       * workspace like the mapping editor's own picker; `candidatesTruncated` names the
+       * workspaces whose list is partial.
+       */
+      candidates: z.record(z.string(), z.record(z.string(), z.array(forkMappingCandidateSchema))),
+      candidatesTruncated: z.array(z.string()),
+    }),
+  },
+})
+export type GetForkMatrixResponse = z.output<typeof getForkMatrixContract.response.schema>
 
 export const forkUnmappedReferenceSchema = z.object({
   kind: forkRemapKindSchema,
@@ -804,6 +896,18 @@ export const backgroundWorkItemSchema = z.object({
   completedAt: z.string().nullable(),
 })
 export type BackgroundWorkMetadata = z.output<typeof backgroundWorkMetadataSchema>
+/**
+ * Fork events the Activity view can narrow to. `all` is the unfiltered feed; the rest name one
+ * job kind each, so the filter and the badge a row renders can never disagree.
+ */
+export const forkActivityFilterSchema = z.enum([
+  'all',
+  'fork_content_copy',
+  'fork_sync',
+  'fork_rollback',
+])
+export type ForkActivityFilter = z.output<typeof forkActivityFilterSchema>
+
 /** Keyset pagination inputs, mirroring the audit log's (`auditLogsQuerySchema`). */
 export const getWorkspaceBackgroundWorkQuerySchema = z.object({
   /** Opaque cursor from a prior page's `nextCursor`; omit for the first page. */
@@ -812,6 +916,7 @@ export const getWorkspaceBackgroundWorkQuerySchema = z.object({
     .string()
     .optional()
     .transform((value) => Math.min(Math.max(Number(value) || 50, 1), 100)),
+  kind: forkActivityFilterSchema.default('all'),
 })
 export const getWorkspaceBackgroundWorkContract = defineRouteContract({
   method: 'GET',

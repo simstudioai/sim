@@ -295,7 +295,20 @@ export const rosterPendingInvitationSchema = z.object({
 export const organizationRosterSchema = z.object({
   members: z.array(rosterMemberSchema),
   pendingInvitations: z.array(rosterPendingInvitationSchema),
-  workspaces: z.array(z.object({ id: z.string(), name: z.string() })),
+  workspaces: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      /**
+       * The workspace's logo and accent colour, so its tile reads the same here
+       * as in the sidebar's workspace header — which prefers the logo and falls
+       * back to a monogram on the colour. Both nullable; consumers fall back to
+       * the brand accent.
+       */
+      logoUrl: z.string().nullable(),
+      color: z.string().nullable(),
+    })
+  ),
 })
 
 export const organizationMemberUsageSchema = z
@@ -308,7 +321,20 @@ export const organizationMemberUsageSchema = z
     userName: z.string().nullable(),
     userEmail: z.string().nullable(),
     currentPeriodCost: numericResponseSchema.nullable().optional(),
+    /**
+     * The member's PERSONAL subscription cap (`user_stats.current_usage_limit`).
+     * Org-scoped members carry `null` here by design, so this is not the cap that
+     * governs their usage inside the organization — see
+     * {@link organizationMemberUsageSchema.shape.organizationCreditLimit}.
+     */
     currentUsageLimit: numericResponseSchema.nullable().optional(),
+    /**
+     * The per-member cap that actually governs usage in this organization's
+     * workspaces (`organization_member_usage_limit`, keyed by organization+user).
+     * `null` means no per-member cap — only the pooled organization limit applies.
+     * This is the value the Usage settings page reads and writes.
+     */
+    organizationCreditLimit: numericResponseSchema.nullable().optional(),
     usageLimitUpdatedAt: z.string().nullable().optional(),
     billingPeriodStart: z.string().nullable().optional(),
     billingPeriodEnd: z.string().nullable().optional(),

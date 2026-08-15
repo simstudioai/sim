@@ -11,17 +11,15 @@ import {
   buildUnifiedSettingsNavigation,
   canMutateWorkspaceSettingsSection,
   getAccountSettingsHref,
-  getOrganizationSettingsHref,
   getWorkspaceSettingsHref,
   isOrganizationSettingsSectionAvailable,
-  ORGANIZATION_PLANE_UNIFIED_SECTIONS,
-  ORGANIZATION_SETTINGS_ITEMS,
-  ORGANIZATION_SETTINGS_PATH_ALIASES,
+  ORGANIZATION_SCOPED_UNIFIED_SECTIONS,
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
   resolveWorkspaceNavigation,
   SELFHOST_SETTINGS_ITEMS,
   SETTINGS_SECTION_REGISTRY,
+  type UnifiedSettingsSection,
   WORKSPACE_SETTINGS_ITEMS,
   WORKSPACE_SETTINGS_PATH_ALIASES,
 } from '@/components/settings/navigation'
@@ -37,7 +35,7 @@ afterAll(() => {
 })
 
 describe('settings navigation boundaries', () => {
-  it('preserves the order of all four settings catalogs', () => {
+  it('preserves the order of every settings catalog', () => {
     expect(buildUnifiedSettingsNavigation().map(({ id }) => id)).toEqual([
       'general',
       'desktop',
@@ -49,6 +47,7 @@ describe('settings navigation boundaries', () => {
       'billing',
       'teammates',
       'organization',
+      'workspaces',
       'secrets',
       'custom-tools',
       'mcp',
@@ -76,17 +75,6 @@ describe('settings navigation boundaries', () => {
       'mothership',
     ])
     expect(SELFHOST_SETTINGS_ITEMS.map(({ id }) => id)).toEqual(['general', 'billing', 'chat-keys'])
-    expect(ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
-      'members',
-      'billing',
-      'access-control',
-      'audit-logs',
-      'sso',
-      'sessions',
-      'data-retention',
-      'data-drains',
-      'whitelabeling',
-    ])
     expect(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id)).toEqual([
       'teammates',
       'secrets',
@@ -188,9 +176,6 @@ describe('settings navigation boundaries', () => {
     const accountIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
       planes?.account ? [planes.account.id] : []
     )
-    const organizationIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
-      planes?.organization ? [planes.organization.id] : []
-    )
     const selfHostIds = SETTINGS_SECTION_REGISTRY.flatMap(({ planes }) =>
       planes?.selfhost ? [planes.selfhost.id] : []
     )
@@ -200,7 +185,6 @@ describe('settings navigation boundaries', () => {
 
     expect(new Set(unifiedIds).size).toBe(unifiedIds.length)
     expect(new Set(accountIds).size).toBe(accountIds.length)
-    expect(new Set(organizationIds).size).toBe(organizationIds.length)
     expect(new Set(selfHostIds).size).toBe(selfHostIds.length)
     expect(new Set(workspaceIds).size).toBe(workspaceIds.length)
     expect([...unifiedIds].sort()).toEqual(
@@ -209,15 +193,17 @@ describe('settings navigation boundaries', () => {
         .sort()
     )
     expect([...accountIds].sort()).toEqual(ACCOUNT_SETTINGS_ITEMS.map(({ id }) => id).sort())
-    expect([...organizationIds].sort()).toEqual(
-      ORGANIZATION_SETTINGS_ITEMS.map(({ id }) => id).sort()
-    )
     expect([...selfHostIds].sort()).toEqual(SELFHOST_SETTINGS_ITEMS.map(({ id }) => id).sort())
     expect([...workspaceIds].sort()).toEqual(WORKSPACE_SETTINGS_ITEMS.map(({ id }) => id).sort())
   })
 
-  it('derives the organization-plane unified sections from the registry', () => {
-    expect([...ORGANIZATION_PLANE_UNIFIED_SECTIONS].sort()).toEqual([
+  /**
+   * The route gate and this set read one map, so a section cannot be hidden in
+   * the sidebar while its page stays reachable — which is exactly how `sessions`
+   * shipped an editable policy form to any organization member with the URL.
+   */
+  it('names every organization-scoped unified section', () => {
+    expect([...ORGANIZATION_SCOPED_UNIFIED_SECTIONS].sort()).toEqual([
       'access-control',
       'audit-logs',
       'billing',
@@ -227,27 +213,63 @@ describe('settings navigation boundaries', () => {
       'sessions',
       'sso',
       'whitelabeling',
+      'workspaces',
     ])
   })
 
-  it('shares labels, icons, and docs links across projections', () => {
-    const unifiedSso = buildUnifiedSettingsNavigation().find(({ id }) => id === 'sso')
-    const organizationSso = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'sso')
-
-    expect(organizationSso?.label).toBe(unifiedSso?.label)
-    expect(organizationSso?.icon).toBe(unifiedSso?.icon)
-    expect(organizationSso?.docsLink).toBe(unifiedSso?.docsLink)
+  /**
+   * The workspace-plane sidebar sorts each group by `order`, so this pins the
+   * Organization group's top-down reading order: the two views built on the
+   * roster lead, then the roster itself, then the enterprise controls.
+   */
+  it('orders the unified Organization group top-down', () => {
+    expect(
+      buildUnifiedSettingsNavigation()
+        .filter(({ section }) => section === 'organization')
+        .sort((left, right) => left.order - right.order)
+        .map(({ id }) => id)
+    ).toEqual([
+      'workspaces',
+      'organization',
+      'custom-blocks',
+      'forks',
+      'access-control',
+      'audit-logs',
+      'whitelabeling',
+      'sso',
+      'sessions',
+      'data-retention',
+      'data-drains',
+    ])
   })
 
-  it('uses scope-specific labels consistently across settings surfaces', () => {
-    const organizationMembers = ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === 'members')
-    const unifiedOrganization = buildUnifiedSettingsNavigation().find(
-      ({ id }) => id === 'organization'
-    )
+  /**
+   * On the workspace plane both sections route through the organization gate in
+   * `settings/[section]/page.tsx` (host organization present + org-admin
+   * viewer). `requiresTeam` is the only flag that ANDs `isOrgAdminOrOwner` into
+   * the sidebar filter, so dropping it would list Workspaces for viewers the
+   * route 404s.
+   */
+  it('gates the organization roster views exactly as it gates Members', () => {
+    const unified = buildUnifiedSettingsNavigation()
+    const gateFor = (id: UnifiedSettingsSection) => {
+      const item = unified.find((candidate) => candidate.id === id)
+      return {
+        section: item?.section,
+        hideWhenBillingDisabled: item?.hideWhenBillingDisabled,
+        requiresHosted: item?.requiresHosted,
+        requiresTeam: item?.requiresTeam,
+      }
+    }
+    const organizationRosterGate = {
+      section: 'organization',
+      hideWhenBillingDisabled: true,
+      requiresHosted: true,
+      requiresTeam: true,
+    }
 
-    expect(organizationMembers?.label).toBe('Members')
-    expect(organizationMembers?.description).toBe('Manage organization members, roles, and seats.')
-    expect(unifiedOrganization?.label).toBe('Members')
+    expect(gateFor('organization')).toEqual(organizationRosterGate)
+    expect(gateFor('workspaces')).toEqual(organizationRosterGate)
   })
 
   it('keeps self-host settings on their standalone account projection', () => {
@@ -280,11 +302,8 @@ describe('settings navigation boundaries', () => {
     ])
   })
 
-  it('builds canonical settings hrefs across all three planes', () => {
+  it('builds canonical settings hrefs across every plane', () => {
     expect(getAccountSettingsHref('general')).toBe('/account/settings/general')
-    expect(getOrganizationSettingsHref('organization-a', 'members')).toBe(
-      '/organization/organization-a/settings/members'
-    )
     expect(getWorkspaceSettingsHref('workspace-a', 'teammates')).toBe(
       '/workspace/workspace-a/settings/teammates'
     )
@@ -317,20 +336,6 @@ describe('settings navigation boundaries', () => {
     expect(parseAccountPath('/account/settings', 'general')).toBe('general')
   })
 
-  it('parses canonical, aliased, and invalid organization settings paths', () => {
-    const parseOrganizationPath = (path: string) =>
-      parseSettingsPathSection({
-        path,
-        items: ORGANIZATION_SETTINGS_ITEMS,
-        defaultSection: null,
-        aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
-      })
-
-    expect(parseOrganizationPath('sso')).toBe('sso')
-    expect(parseOrganizationPath('/organization/org-a/settings/organization')).toBe('members')
-    expect(parseOrganizationPath('/organization/org-a/settings/not-a-section')).toBeNull()
-  })
-
   it('parses canonical, aliased, and invalid workspace settings paths', () => {
     const parseWorkspacePath = (path: string) =>
       parseSettingsPathSection({
@@ -348,7 +353,6 @@ describe('settings navigation boundaries', () => {
   it('keeps API keys split between account and workspace settings', () => {
     expect(ACCOUNT_SETTINGS_ITEMS.some(({ id }) => id === 'api-keys')).toBe(true)
     expect(WORKSPACE_SETTINGS_ITEMS.some(({ id }) => id === 'api-keys')).toBe(true)
-    expect(ORGANIZATION_SETTINGS_ITEMS.some(({ id }) => String(id) === 'api-keys')).toBe(false)
   })
 
   it('requires target-organization membership and admin authority', () => {

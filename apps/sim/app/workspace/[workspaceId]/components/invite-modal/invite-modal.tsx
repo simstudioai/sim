@@ -19,7 +19,7 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useSendWorkspaceInvitations } from '@/hooks/queries/invitations'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useAdminWorkspaces } from '@/hooks/queries/workspace'
@@ -99,6 +99,15 @@ interface InviteModalProps {
   inviteDisabledReason?: string | null
   /** False when the viewer lacks permission to invite. */
   canInvite?: boolean
+  /**
+   * Whether the viewer administers {@link InviteModalProps.organizationId}.
+   *
+   * Inside a workspace route the host context answers this on its own. On the
+   * organization plane there is no host workspace, so the calling page — which
+   * already resolved the viewer's organization role to decide whether to render
+   * its admin controls at all — passes the answer in.
+   */
+  isOrganizationAdmin?: boolean
 }
 
 /**
@@ -114,6 +123,7 @@ export function InviteModal({
   organizationId = null,
   inviteDisabledReason = null,
   canInvite = true,
+  isOrganizationAdmin,
 }: InviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>(
@@ -170,27 +180,32 @@ export function InviteModal({
    * it is fetched solely when the viewer administers the organization the page
    * is actually hosted by.
    */
-  const hostContext = useWorkspaceHostContext()
   /**
-   * Organization Admin is an organization-level grant — it carries admin on every
-   * workspace the org owns plus member and billing management — so it is only
-   * offered to someone who already holds it. The batch endpoint enforces the same
-   * rule; this only keeps the UI from presenting an option that would be refused.
+   * Optional because this modal also opens from the organization plane, which
+   * is outside every workspace route and so has no host provider. There the
+   * caller supplies {@link InviteModalProps.isOrganizationAdmin} instead.
    */
-  const canGrantOrganizationAdmin =
+  const hostContext = useOptionalWorkspaceHostContext()
+  /**
+   * Whether the viewer administers the organization this invite is scoped to.
+   * Gates two things: offering Organization Admin as a membership — an
+   * org-level grant carrying admin on every workspace the org owns plus member
+   * and billing management, so it is only offered to someone who already holds
+   * it — and reading the seat counts, which are org-admin-only. The batch
+   * endpoint enforces both; this only keeps the UI from presenting what would
+   * be refused.
+   */
+  const administersOrganization =
     isOrganizationInvite &&
-    hostContext.hostOrganizationId === organizationId &&
-    hostContext.viewer.isHostOrganizationAdmin
-  const membershipOptions = canGrantOrganizationAdmin
+    (isOrganizationAdmin ??
+      (hostContext?.hostOrganizationId === organizationId &&
+        hostContext.viewer.isHostOrganizationAdmin))
+  const membershipOptions = administersOrganization
     ? MEMBERSHIP_OPTIONS
     : MEMBERSHIP_OPTIONS.filter((option) => option.value !== 'admin')
-  const canViewOrganizationBilling =
-    isOrganizationInvite &&
-    hostContext.hostOrganizationId === organizationId &&
-    hostContext.viewer.isHostOrganizationAdmin
 
   const { data: organizationBillingData } = useOrganizationBilling(organizationId ?? '', {
-    enabled: open && isBillingEnabled && canViewOrganizationBilling,
+    enabled: open && isBillingEnabled && administersOrganization,
   })
 
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
@@ -201,7 +216,7 @@ export function InviteModal({
    * are provisioned when an invitee accepts, and externals never take one.
    */
   const isEnterpriseOrg = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
-  const hasSeatData = canViewOrganizationBilling && isEnterpriseOrg && totalSeats > 0
+  const hasSeatData = administersOrganization && isEnterpriseOrg && totalSeats > 0
   /**
    * Advisory only. The server decides per email and does not charge a seat for
    * everyone: an existing organization member is granted access directly, and an

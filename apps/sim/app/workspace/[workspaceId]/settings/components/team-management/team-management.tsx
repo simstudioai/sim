@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -11,12 +12,11 @@ import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-mod
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   NoOrganizationView,
-  OrganizationMemberLists,
+  OrganizationMembersTable,
   RemoveMemberDialog,
   TeamSeatsOverview,
   TransferOwnershipDialog,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useCreateOrganization,
   useMemberRemovalImpact,
@@ -33,16 +33,13 @@ const logger = createLogger('TeamManagement')
 
 interface TeamManagementProps {
   organizationId: string
-  billingHref?: string
+  /** Where "View plans" goes. Always workspace-scoped — organization settings live there now. */
+  billingHref: string
 }
 
-export function TeamManagement({
-  organizationId,
-  billingHref = `/organization/${organizationId}/settings/billing`,
-}: TeamManagementProps) {
+export function TeamManagement({ organizationId, billingHref }: TeamManagementProps) {
   const { data: session } = useSession()
   const { isInvitationsDisabled } = usePermissionConfig()
-  const [memberQuery, setMemberQuery] = useSettingsSearch()
 
   const { data: userSubscriptionData } = useSubscriptionData()
   const subscriptionAccess = getSubscriptionAccessState(userSubscriptionData?.data)
@@ -97,8 +94,6 @@ export function TeamManagement({
 
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
   const usedSeats = organizationBillingData?.data?.members?.length ?? 0
-  const reservedSeats = organizationBillingData?.data?.usedSeats ?? 0
-  const pendingSeats = Math.max(0, reservedSeats - usedSeats)
 
   /**
    * The org's active subscription, derived from DB-backed organization billing
@@ -263,17 +258,18 @@ export function TeamManagement({
           portalWindow?.close()
           logger.error('Failed to open billing portal from transfer dialog', { error })
           setTransferPortalError(
-            error instanceof Error
-              ? error.message
-              : 'Failed to open Stripe billing portal. Please try again.'
+            getErrorMessage(error, 'Failed to open Stripe billing portal. Please try again.')
           )
         },
       }
     )
   }, [organizationId, openBillingPortal])
 
-  const queryError = orgError
-  const errorMessage = queryError instanceof Error ? queryError.message : null
+  const errorMessage = orgError
+    ? getErrorMessage(orgError, 'Failed to load organization')
+    : createOrgMutation.error
+      ? getErrorMessage(createOrgMutation.error, 'Failed to create organization')
+      : null
   const displayOrganization = organization
 
   if (isLoading && !displayOrganization) {
@@ -301,11 +297,6 @@ export function TeamManagement({
   return (
     <>
       <SettingsPanel
-        search={{
-          value: memberQuery,
-          onChange: setMemberQuery,
-          placeholder: 'Search members...',
-        }}
         actions={
           adminOrOwner
             ? [
@@ -328,17 +319,15 @@ export function TeamManagement({
             isLoadingSubscription={isOrgBillingLoading}
             totalSeats={totalSeats}
             usedSeats={usedSeats}
-            pendingSeats={pendingSeats}
           />
         )}
 
-        <OrganizationMemberLists
-          canManage={adminOrOwner}
+        <OrganizationMembersTable
           organizationId={displayOrganization.id}
+          canManage={adminOrOwner}
+          currentUserId={session?.user?.id ?? ''}
           roster={roster ?? null}
           isLoadingRoster={isLoadingRoster}
-          currentUserId={session?.user?.id ?? ''}
-          query={memberQuery}
           onRemoveMember={handleRemoveMember}
           onTransferOwnership={handleOpenTransferDialog}
         />
@@ -350,6 +339,7 @@ export function TeamManagement({
           onOpenChange={setInviteModalOpen}
           organizationId={displayOrganization.id}
           canInvite={adminOrOwner}
+          isOrganizationAdmin={adminOrOwner}
         />
       )}
 

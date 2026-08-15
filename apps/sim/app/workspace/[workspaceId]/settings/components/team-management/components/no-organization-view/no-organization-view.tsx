@@ -45,7 +45,7 @@ export function NoOrganizationView({
       <div>
         <div className='flex flex-col gap-5'>
           <div>
-            <h4 className='text-[var(--text-primary)] text-base'>Create Your Team Workspace</h4>
+            <h4 className='text-[var(--text-primary)] text-base'>Create your Team workspace</h4>
             <p className='mt-1 text-[var(--text-muted)] text-small'>
               You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
               workspace to start collaborating with your team.
@@ -65,7 +65,7 @@ export function NoOrganizationView({
               aria-label='Ignore this field'
             />
             <div>
-              <Label htmlFor='team-name-field'>Team Name</Label>
+              <Label htmlFor='team-name-field'>Team name</Label>
               <ChipInput
                 id='team-name-field'
                 value={orgName}
@@ -107,7 +107,7 @@ export function NoOrganizationView({
                   onClick={onCreateOrganization}
                   disabled={!orgName || !orgSlug || isCreatingOrg}
                 >
-                  {isCreatingOrg ? 'Creating...' : 'Create Team Workspace'}
+                  {isCreatingOrg ? 'Creating...' : 'Create Team workspace'}
                 </Button>
               </div>
             </div>
@@ -174,7 +174,7 @@ export function NoOrganizationView({
   return (
     <div className='flex flex-col gap-5'>
       <div className='flex flex-col gap-2'>
-        <h3 className='text-[var(--text-primary)] text-base'>No Team Workspace</h3>
+        <h3 className='text-[var(--text-primary)] text-base'>No Team workspace</h3>
         <p className='text-[var(--text-secondary)] text-small'>
           You don't have a team workspace yet. To collaborate with others, first upgrade to a team
           or enterprise plan.

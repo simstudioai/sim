@@ -17,13 +17,18 @@ export const GET = withRouteHandler(
     const parsed = await parseRequest(getWorkspaceBackgroundWorkContract, req, context)
     if (!parsed.success) return parsed.response
     const { id } = parsed.data.params
-    const { cursor, limit } = parsed.data.query
+    const { cursor, limit, kind } = parsed.data.query
 
     // The fork Activity feed is a fork feature: gate it behind the same forking-enabled +
     // workspace-admin check the other fork routes use, instead of a bare access check.
     await assertWorkspaceAdminAccess(id, session.user.id)
 
-    const { rows, nextCursor } = await listSurfacedBackgroundWork(db, id, { cursor, limit })
+    const { rows, nextCursor } = await listSurfacedBackgroundWork(db, id, {
+      cursor,
+      limit,
+      // `all` leaves the store's own fork-kind default in place rather than restating it here.
+      ...(kind === 'all' ? {} : { kinds: [kind] }),
+    })
     return NextResponse.json({
       items: rows.map((row) => ({
         id: row.id,

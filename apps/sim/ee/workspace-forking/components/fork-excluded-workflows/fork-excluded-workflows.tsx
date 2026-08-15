@@ -90,32 +90,46 @@ export function buildExcludedWorkflowTree(
 }
 
 interface ForkExcludedWorkflowsProps {
+  /** The workspace whose exclusion list is being edited — any the viewer administers. */
   workspaceId: string
+  /** Narrows the tree by workflow name; folders with no surviving workflow are pruned. */
+  searchTerm?: string
 }
 
 /**
- * The Forks page's "Excluded workflows" section body: the workspace's deployed
- * workflows in their sidebar folder structure, each with a checkbox. Checked =
- * excluded - the workflow never syncs to or from a fork and is not copied into
- * new forks. A folder's checkbox toggles its whole subtree at once (tri-state
- * while partially excluded). Toggles apply immediately.
+ * A workspace's exclusion list: its deployed workflows in the sidebar's folder structure, each
+ * with a checkbox. Checked means excluded — the workflow never syncs in either direction and is
+ * never copied into a new fork. A folder's checkbox toggles its whole subtree at once, showing
+ * tri-state while partially excluded, and every toggle applies immediately.
  */
-export function ForkExcludedWorkflows({ workspaceId }: ForkExcludedWorkflowsProps) {
+export function ForkExcludedWorkflows({
+  workspaceId,
+  searchTerm = '',
+}: ForkExcludedWorkflowsProps) {
   const workflowsQuery = useWorkflows(workspaceId)
   const foldersQuery = useFolders(workspaceId)
   const updateExcluded = useUpdateForkExcludedWorkflows()
 
   const workflows = workflowsQuery.data
   const folders = foldersQuery.data
+  const query = searchTerm.trim().toLowerCase()
 
   const excludedIds = useMemo(
     () =>
       new Set((workflows ?? []).filter((workflow) => workflow.forkSyncExcluded).map((w) => w.id)),
     [workflows]
   )
+  // Filtering the workflows is enough to filter the tree: the builder already prunes any branch
+  // left with no deployed workflow beneath it.
   const tree = useMemo(
-    () => buildExcludedWorkflowTree(workflows ?? [], folders ?? []),
-    [workflows, folders]
+    () =>
+      buildExcludedWorkflowTree(
+        query
+          ? (workflows ?? []).filter((workflow) => workflow.name.toLowerCase().includes(query))
+          : (workflows ?? []),
+        folders ?? []
+      ),
+    [workflows, folders, query]
   )
 
   const toggle = (workflowIds: string[], excluded: boolean) => {
@@ -131,12 +145,16 @@ export function ForkExcludedWorkflows({ workspaceId }: ForkExcludedWorkflowsProp
     )
   }
 
-  if (workflowsQuery.isLoading || foldersQuery.isLoading) return null
+  if (workflowsQuery.isLoading || foldersQuery.isLoading) {
+    return <SettingsEmptyState variant='inline'>Loading workflows...</SettingsEmptyState>
+  }
 
   if (tree.folders.length === 0 && tree.rootWorkflows.length === 0) {
     return (
       <SettingsEmptyState variant='inline'>
-        No deployed workflows — only deployed workflows sync
+        {query
+          ? `No deployed workflows matching “${searchTerm.trim()}”`
+          : 'No deployed workflows. Only deployed workflows ever sync.'}
       </SettingsEmptyState>
     )
   }
