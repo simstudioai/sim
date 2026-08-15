@@ -99,7 +99,12 @@ export const CHANGE_CLOSE_CODE_OPTIONS = [
 
 /**
  * Approval record `state` values on the Approval [sysapproval_approver] table.
- * Source: https://www.servicenow.com/docs/bundle/australia-build-workflows/page/administer/approvals/reference/r_Approvals.html
+ *
+ * ServiceNow documents four approval statuses — Requested, Approved, Rejected,
+ * and Not Requested — at
+ * https://www.servicenow.com/docs/bundle/australia-build-workflows/page/administer/approvals/concept/c_ApprovalStatus.html
+ * Only the three a caller acts on are listed here; `not_requested` is reachable
+ * through the raw state parameter.
  */
 export const APPROVAL_STATE = {
   REQUESTED: 'requested',
