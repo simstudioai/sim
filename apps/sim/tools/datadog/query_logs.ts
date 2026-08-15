@@ -85,7 +85,11 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
       'DD-APPLICATION-KEY': params.applicationKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: {
+        filter: { query: string; from: string; to: string; indexes?: string[] }
+        page: { limit: number }
+        sort?: 'timestamp' | '-timestamp'
+      } = {
         filter: {
           query: params.query,
           from: params.from,
@@ -163,6 +167,8 @@ export const queryLogsTool: ToolConfig<QueryLogsParams, QueryLogsResponse> = {
               service: { type: 'string', description: 'Service name' },
               message: { type: 'string', description: 'Log message' },
               status: { type: 'string', description: 'Log status/level' },
+              attributes: { type: 'json', description: 'Free-form log attributes' },
+              tags: { type: 'array', description: 'Log tags' },
             },
           },
         },

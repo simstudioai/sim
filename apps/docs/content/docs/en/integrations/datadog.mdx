@@ -72,6 +72,11 @@ Query metric timeseries data from Datadog. Use for analyzing trends, creating re
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `series` | array | Array of timeseries data with metric name, tags, and data points |
+|   ↳ `metric` | string | Metric name |
+|   ↳ `tags` | array | Tags attached to the series |
+|   ↳ `points` | array | Data points |
+|     ↳ `timestamp` | number | Point timestamp \(Unix seconds\) |
+|     ↳ `value` | number | Point value |
 | `status` | string | Query status |
 
 ### Datadog Create Event
@@ -143,6 +148,8 @@ Create a new monitor/alert in Datadog. Monitors can track metrics, service check
 |   ↳ `overall_state` | string | Current monitor state |
 |   ↳ `created` | string | Creation timestamp |
 |   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
+|   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
 ### Datadog Get Monitor
 
@@ -174,6 +181,8 @@ Retrieve details of a specific monitor by ID.
 |   ↳ `overall_state` | string | Current monitor state |
 |   ↳ `created` | string | Creation timestamp |
 |   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
+|   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
 ### Datadog List Monitors
 
@@ -203,12 +212,18 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 |   ↳ `name` | string | Monitor name |
 |   ↳ `type` | string | Monitor type |
 |   ↳ `query` | string | Monitor query |
+|   ↳ `message` | string | Notification message |
 |   ↳ `overall_state` | string | Current state |
 |   ↳ `tags` | array | Tags |
+|   ↳ `priority` | number | Monitor priority |
+|   ↳ `options` | json | Monitor options \(thresholds, notification settings\) |
+|   ↳ `created` | string | Creation timestamp |
+|   ↳ `modified` | string | Last modification timestamp |
+|   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
 ### Datadog Mute Monitor
 
-Mute a monitor to temporarily suppress notifications.
+Mute a monitor to temporarily suppress notifications. This endpoint is legacy and is no longer published in the Datadog v1 API specification — schedule a downtime instead for supported muting.
 
 #### Input
 
@@ -257,6 +272,8 @@ Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or mon
 |     ↳ `service` | string | Service name |
 |     ↳ `message` | string | Log message |
 |     ↳ `status` | string | Log status/level |
+|     ↳ `attributes` | json | Free-form log attributes |
+|     ↳ `tags` | array | Log tags |
 | `nextLogId` | string | Cursor for pagination |
 
 ### Datadog Send Logs
@@ -302,12 +319,15 @@ Schedule a downtime to suppress monitor notifications during maintenance windows
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `downtime` | object | The created downtime details |
-|   ↳ `id` | number | Downtime ID |
+|   ↳ `id` | string | Downtime UUID |
 |   ↳ `scope` | array | Downtime scope |
 |   ↳ `message` | string | Downtime message |
 |   ↳ `start` | number | Start time \(Unix timestamp\) |
 |   ↳ `end` | number | End time \(Unix timestamp\) |
+|   ↳ `timezone` | string | Display timezone for the downtime |
 |   ↳ `active` | boolean | Whether downtime is currently active |
+|   ↳ `created` | number | Creation time \(Unix timestamp\) |
+|   ↳ `modified` | number | Last modification time \(Unix timestamp\) |
 
 ### Datadog List Downtimes
 
@@ -318,7 +338,6 @@ List all scheduled downtimes in Datadog.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `currentOnly` | boolean | No | Only return currently active downtimes |
-| `monitorId` | string | No | Filter by monitor ID \(e.g., "12345678"\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
@@ -328,12 +347,15 @@ List all scheduled downtimes in Datadog.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `downtimes` | array | List of downtimes |
-|   ↳ `id` | number | Downtime ID |
+|   ↳ `id` | string | Downtime UUID |
 |   ↳ `scope` | array | Downtime scope |
 |   ↳ `message` | string | Downtime message |
 |   ↳ `start` | number | Start time \(Unix timestamp\) |
 |   ↳ `end` | number | End time \(Unix timestamp\) |
+|   ↳ `timezone` | string | Display timezone for the downtime |
 |   ↳ `active` | boolean | Whether downtime is currently active |
+|   ↳ `created` | number | Creation time \(Unix timestamp\) |
+|   ↳ `modified` | number | Last modification time \(Unix timestamp\) |
 
 ### Datadog Cancel Downtime
 
@@ -927,6 +949,39 @@ Get the latest result summaries (up to the last 150 runs) for a Synthetic API te
 |     ↳ `timings` | object | Request timing breakdown |
 | `lastTimestampFetched` | number | Timestamp of the latest test run |
 
+### Datadog Get Browser Synthetic Test Results
+
+Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `publicId` | string | Yes | The public ID of the Synthetic browser test |
+| `fromTs` | number | No | Timestamp in milliseconds from which to start querying results |
+| `toTs` | number | No | Timestamp in milliseconds up to which to query results |
+| `probeDc` | string | No | Comma-separated locations to query results for \(e.g., "aws:eu-west-3"\) |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Latest browser test result summaries |
+|   ↳ `result_id` | string | ID of the browser test result |
+|   ↳ `check_time` | number | Time the browser test ran |
+|   ↳ `probe_dc` | string | Location the browser test ran from |
+|   ↳ `status` | number | Monitor status: 0 not triggered, 1 triggered, 2 no data |
+|   ↳ `result` | object | Run outcome |
+|     ↳ `duration` | number | Length of the run in milliseconds |
+|     ↳ `errorCount` | number | Number of errors collected in the run |
+|     ↳ `stepCountCompleted` | number | Steps completed before failing |
+|     ↳ `stepCountTotal` | number | Total number of steps |
+|     ↳ `device` | object | Device the run was performed on |
+| `lastTimestampFetched` | number | Timestamp of the latest browser test run |
+
 ### Datadog Trigger Synthetic Tests
 
 Trigger an immediate run of one or more Synthetic tests by public ID.
@@ -1056,6 +1111,7 @@ Change the triage state of a Cloud SIEM security signal to open, under_review, o
 | --------- | ---- | ----------- |
 | `signal` | object | The updated signal triage data |
 |   ↳ `id` | string | Signal ID |
+|   ↳ `type` | string | Resource type of the signal |
 |   ↳ `state` | string | Current triage state |
 |   ↳ `assignee` | object | User the signal is assigned to |
 |   ↳ `incidentIds` | array | IDs of incidents linked to the signal |
@@ -1083,9 +1139,12 @@ Assign a Cloud SIEM security signal to a Datadog user by UUID. Requires the `sec
 | --------- | ---- | ----------- |
 | `signal` | object | The updated signal triage data |
 |   ↳ `id` | string | Signal ID |
+|   ↳ `type` | string | Resource type of the signal |
 |   ↳ `state` | string | Current triage state |
 |   ↳ `assignee` | object | User the signal is assigned to |
 |   ↳ `incidentIds` | array | IDs of incidents linked to the signal |
+|   ↳ `archiveReason` | string | Archive reason, when archived |
+|   ↳ `archiveComment` | string | Archive comment, when archived |
 |   ↳ `stateUpdateTimestamp` | number | Timestamp of the last state update |
 
 ### Datadog List Security Rules
@@ -1121,7 +1180,7 @@ List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` p
 
 ### Datadog Search Spans
 
-Search APM spans using the span query syntax. Datadog rate limits this endpoint to 300 requests per hour.
+Search indexed APM spans using the span query syntax, with cursor pagination.
 
 #### Input
 

@@ -103,6 +103,7 @@ export const updateSecuritySignalStateTool: ToolConfig<
       description: 'The updated signal triage data',
       properties: {
         id: { type: 'string', description: 'Signal ID' },
+        type: { type: 'string', description: 'Resource type of the signal' },
         state: { type: 'string', description: 'Current triage state' },
         assignee: { type: 'object', description: 'User the signal is assigned to' },
         incidentIds: { type: 'array', description: 'IDs of incidents linked to the signal' },

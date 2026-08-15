@@ -106,6 +106,24 @@ export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeser
     series: {
       type: 'array',
       description: 'Array of timeseries data with metric name, tags, and data points',
+      items: {
+        type: 'object',
+        properties: {
+          metric: { type: 'string', description: 'Metric name' },
+          tags: { type: 'array', description: 'Tags attached to the series' },
+          points: {
+            type: 'array',
+            description: 'Data points',
+            items: {
+              type: 'object',
+              properties: {
+                timestamp: { type: 'number', description: 'Point timestamp (Unix seconds)' },
+                value: { type: 'number', description: 'Point value' },
+              },
+            },
+          },
+        },
+      },
     },
     status: {
       type: 'string',

@@ -1,4 +1,9 @@
-import type { CreateEventParams, CreateEventResponse } from '@/tools/datadog/types'
+import type {
+  CreateEventParams,
+  CreateEventResponse,
+  EventAlertType,
+  EventPriority,
+} from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse> = {
@@ -91,7 +96,17 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       'DD-API-KEY': params.apiKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: {
+        title: string
+        text: string
+        alert_type?: EventAlertType
+        priority?: EventPriority
+        host?: string
+        aggregation_key?: string
+        source_type_name?: string
+        date_happened?: number
+        tags?: string[]
+      } = {
         title: params.title,
         text: params.text,
       }

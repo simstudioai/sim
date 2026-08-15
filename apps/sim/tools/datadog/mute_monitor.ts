@@ -61,7 +61,7 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
       'DD-APPLICATION-KEY': params.applicationKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const body: { scope?: string; end?: number } = {}
       if (params.scope) body.scope = params.scope
       if (params.end) body.end = params.end
       return body

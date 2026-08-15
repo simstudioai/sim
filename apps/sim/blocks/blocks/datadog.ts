@@ -1875,14 +1875,12 @@ Return ONLY the search query string - no explanations.`,
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        // Base params that are always needed
-        const baseParams: Record<string, any> = {
+        const baseParams: { apiKey: string; applicationKey: string; site: string } = {
           apiKey: params.apiKey,
           applicationKey: params.applicationKey,
           site: params.site,
         }
 
-        // Only include params relevant to each operation
         switch (params.operation) {
           case 'datadog_submit_metrics':
             return { ...baseParams, series: params.series }

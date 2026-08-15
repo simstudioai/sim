@@ -110,7 +110,23 @@ export function buildSloPayload(params: CreateSloParams): Record<string, unknown
  * both return `SecurityMonitoringSignalTriageUpdateResponse`) onto a flat shape.
  */
 export function mapSignalTriageData(data: unknown): SecuritySignalTriageData {
-  const payload = (data as { data?: Record<string, any> })?.data ?? {}
+  const payload =
+    (
+      data as {
+        data?: {
+          id?: string
+          type?: string
+          attributes?: {
+            state?: string
+            assignee?: SecuritySignalTriageData['assignee']
+            incident_ids?: number[]
+            archive_reason?: string
+            archive_comment?: string
+            state_update_timestamp?: number
+          }
+        }
+      }
+    )?.data ?? {}
   const attributes = payload.attributes ?? {}
   return {
     id: payload.id,

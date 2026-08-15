@@ -1,4 +1,4 @@
-import type { CreateMonitorParams, CreateMonitorResponse } from '@/tools/datadog/types'
+import type { CreateMonitorParams, CreateMonitorResponse, MonitorType } from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorResponse> = {
@@ -86,7 +86,15 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
       'DD-APPLICATION-KEY': params.applicationKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: {
+        name: string
+        type: MonitorType
+        query: string
+        message?: string
+        priority?: number
+        tags?: string[]
+        options?: unknown
+      } = {
         name: params.name,
         type: params.type,
         query: params.query,
@@ -164,6 +172,11 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
         overall_state: { type: 'string', description: 'Current monitor state' },
         created: { type: 'string', description: 'Creation timestamp' },
         modified: { type: 'string', description: 'Last modification timestamp' },
+        options: {
+          type: 'json',
+          description: 'Monitor options (thresholds, notification settings)',
+        },
+        creator: { type: 'json', description: 'Monitor creator (email, handle, name)' },
       },
     },
   },

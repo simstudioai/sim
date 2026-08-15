@@ -115,6 +115,11 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
         overall_state: { type: 'string', description: 'Current monitor state' },
         created: { type: 'string', description: 'Creation timestamp' },
         modified: { type: 'string', description: 'Last modification timestamp' },
+        options: {
+          type: 'json',
+          description: 'Monitor options (thresholds, notification settings)',
+        },
+        creator: { type: 'json', description: 'Monitor creator (email, handle, name)' },
       },
     },
   },
