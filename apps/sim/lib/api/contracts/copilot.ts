@@ -725,22 +725,6 @@ export const revertCopilotCheckpointContract = defineRouteContract({
   },
 })
 
-export const copilotChatAbortContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/chat/abort',
-  body: copilotChatAbortBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      aborted: z.boolean(),
-      settled: z.boolean().optional(),
-      // True when the stream did not settle within the grace window and the
-      // chat stream lock was force-broken so the chat is immediately usable.
-      forceReleased: z.boolean().optional(),
-    }),
-  },
-})
-
 export const copilotChatStreamContract = defineRouteContract({
   method: 'GET',
   path: '/api/copilot/chat/stream',

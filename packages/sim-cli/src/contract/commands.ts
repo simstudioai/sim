@@ -55,6 +55,7 @@ function moveResource(command: string, resource: string): CommandVariantSpec {
  *   upsertTableRow        → sim tables upsert <tableId>
  */
 export const CLI_CONTRACT: CliContract = {
+  createCredentialConnection: { hidden: true },
   getBillingStatus: {
     command: 'billing status',
     allWorkspaces: true,
@@ -136,6 +137,9 @@ export const CLI_CONTRACT: CliContract = {
     confirm: 'This deletes the document and its embeddings.',
   },
   deleteFile: { confirm: 'This archives the file.' },
+  deleteCredential: {
+    confirm: 'This disconnects the credential and removes its stored authentication.',
+  },
   deleteSkill: { confirm: 'This deletes the skill.' },
   deleteCustomTool: { confirm: 'This deletes the custom tool.' },
   deleteMcpServer: {

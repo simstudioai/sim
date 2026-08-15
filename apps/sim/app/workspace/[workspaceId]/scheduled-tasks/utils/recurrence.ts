@@ -36,12 +36,6 @@ export interface Recurrence {
   cron?: string
 }
 
-export const DEFAULT_RECURRENCE: Recurrence = {
-  frequency: 'once',
-  weekdays: [],
-  end: { type: 'never' },
-}
-
 /** Upper bound on occurrences materialized for one schedule in a single view. */
 const MAX_OCCURRENCES_PER_VIEW = 500
 

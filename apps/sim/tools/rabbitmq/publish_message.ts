@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   RabbitmqPublishMessageParams,
   RabbitmqPublishMessageResponse,
@@ -84,10 +85,7 @@ export const rabbitmqPublishMessageTool: ToolConfig<
         // Only merge onto an existing headers object. Spreading a string or array here would
         // turn it into index-keyed junk on the published message.
         const existing = properties.headers
-        const base =
-          typeof existing === 'object' && existing !== null && !Array.isArray(existing)
-            ? (existing as Record<string, unknown>)
-            : {}
+        const base = isRecordLike(existing) ? (existing as Record<string, unknown>) : {}
         properties.headers = { ...base, ...headers }
       }
 

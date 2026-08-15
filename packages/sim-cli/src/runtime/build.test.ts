@@ -459,7 +459,7 @@ describe('commands parsed through commander', () => {
       scope: 'workspace',
       value: 'test-secret',
     })
-    expect(commandAt('credentials').commands.map((command) => command.name())).toEqual(['list'])
+    expect(commandAt('credentials', 'list').name()).toBe('list')
   })
 
   it('exposes workspace metadata and email-attributed members', async () => {

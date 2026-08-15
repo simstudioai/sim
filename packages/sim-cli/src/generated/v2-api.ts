@@ -637,6 +637,29 @@ export type CompleteTableImportResponse = {
   data: CompleteTableImportResponseRef3
 }
 
+/** `POST /api/v2/credentials/connections` */
+export type CreateCredentialConnectionQuery = Record<string, unknown>
+
+export type CreateCredentialConnectionBody =
+  | {
+      workspaceId: string
+      providerId: string
+      displayName: string
+    }
+  | {
+      workspaceId: string
+      credentialId: string
+    }
+
+type CreateCredentialConnectionResponseRef0 = {
+  authorizationUrl: string
+  expiresAt: string
+}
+
+export type CreateCredentialConnectionResponse = {
+  data: CreateCredentialConnectionResponseRef0
+}
+
 /** `POST /api/v2/custom-tools` */
 export type CreateCustomToolQuery = Record<string, unknown>
 
@@ -1071,6 +1094,48 @@ type CreateMcpServerResponseRef0 = {
 
 export type CreateMcpServerResponse = {
   data: CreateMcpServerResponseRef0
+}
+
+/** `POST /api/v2/credentials` */
+export type CreateServiceAccountCredentialQuery = Record<string, unknown>
+
+export type CreateServiceAccountCredentialBody = {
+  workspaceId: string
+  type: 'service_account'
+  providerId: string
+  displayName?: string
+  description?: string
+  id?: string
+  serviceAccountJson?: string
+  apiToken?: string
+  domain?: string
+  signingSecret?: string
+  botToken?: string
+  clientId?: string
+  clientSecret?: string
+  certificateId?: string
+  orgId?: string
+  dataCenter?: string
+  authMethod?: string
+  privateKey?: string
+  username?: string
+}
+
+type CreateServiceAccountCredentialResponseRef0 = {
+  id: string
+  type: 'oauth' | 'service_account'
+  displayName: string
+  description: string | null
+  providerId: string | null
+  accountId: string | null
+  hasServiceAccountKey: boolean
+  role: 'admin' | 'member'
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateServiceAccountCredentialResponse = {
+  data: CreateServiceAccountCredentialResponseRef0
 }
 
 /** `POST /api/v2/skills` */
@@ -1614,6 +1679,24 @@ type CreateWorkflowFolderResponseRef0 = {
 
 export type CreateWorkflowFolderResponse = {
   data: CreateWorkflowFolderResponseRef0
+}
+
+/** `DELETE /api/v2/credentials/[credentialId]` */
+export type DeleteCredentialParams = {
+  credentialId: string
+}
+
+export type DeleteCredentialQuery = {
+  workspaceId: string
+}
+
+type DeleteCredentialResponseRef0 = {
+  id: string
+  deleted: true
+}
+
+export type DeleteCredentialResponse = {
+  data: DeleteCredentialResponseRef0
 }
 
 /** `DELETE /api/v2/custom-tools/[id]` */
@@ -3228,6 +3311,57 @@ type ListBillingLogsResponseRef0 = {
 
 export type ListBillingLogsResponse = {
   data: Array<ListBillingLogsResponseRef0>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/credentials/providers` */
+export type ListCredentialProvidersQuery = {
+  workspaceId: string
+}
+
+type ListCredentialProvidersResponseRef0 =
+  | {
+      type: 'oauth'
+      serviceId: string
+      name: string
+      description: string
+      providerFamily: string
+      available: boolean
+      supportsReconnect: boolean
+      authorizationOptions: Array<{
+        providerId: string
+        label: string
+      }>
+    }
+  | {
+      type: 'service_account'
+      serviceId: string
+      name: string
+      description: string
+      providerFamily: string
+      available: boolean
+      providerId: string
+      docsUrl: string
+      helpText?: string
+      requiresClientGeneratedCredentialId: boolean
+      fields: Array<{
+        id: string
+        label: string
+        placeholder: string
+        required: boolean
+        secret: boolean
+        multiline: boolean
+        requiredForAuthMethods?: Array<string>
+        options?: Array<{
+          value: string
+          label: string
+        }>
+        hint?: string
+      }>
+    }
+
+export type ListCredentialProvidersResponse = {
+  data: Array<ListCredentialProvidersResponseRef0>
   nextCursor: string | null
 }
 
@@ -5745,6 +5879,17 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
+  createCredentialConnection: {
+    method: 'POST',
+    path: '/api/v2/credentials/connections',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Credential Connection',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+    },
+    opaqueBody: true,
+  },
   createCustomTool: {
     method: 'POST',
     path: '/api/v2/custom-tools',
@@ -5891,6 +6036,34 @@ export const V2_OPERATIONS = {
       oauthClientSecret: { kind: 'string' },
     },
   },
+  createServiceAccountCredential: {
+    method: 'POST',
+    path: '/api/v2/credentials',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Create Service-Account Credential',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      type: { kind: 'string', required: true },
+      providerId: { kind: 'string', required: true },
+      displayName: { kind: 'string' },
+      description: { kind: 'string' },
+      id: { kind: 'string' },
+      serviceAccountJson: { kind: 'string' },
+      apiToken: { kind: 'string' },
+      domain: { kind: 'string' },
+      signingSecret: { kind: 'string' },
+      botToken: { kind: 'string' },
+      clientId: { kind: 'string' },
+      clientSecret: { kind: 'string' },
+      certificateId: { kind: 'string' },
+      orgId: { kind: 'string' },
+      dataCenter: { kind: 'string' },
+      authMethod: { kind: 'string' },
+      privateKey: { kind: 'string' },
+      username: { kind: 'string' },
+    },
+  },
   createSkill: {
     method: 'POST',
     path: '/api/v2/skills',
@@ -6013,6 +6186,16 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       path: { kind: 'string', required: true },
+    },
+  },
+  deleteCredential: {
+    method: 'DELETE',
+    path: '/api/v2/credentials/[credentialId]',
+    pathParams: ['credentialId'] as const,
+    responseMode: 'json',
+    summary: 'Disconnect Credential',
+    query: {
+      workspaceId: { kind: 'string', required: true },
     },
   },
   deleteCustomTool: {
@@ -6585,6 +6768,16 @@ export const V2_OPERATIONS = {
       endDate: { kind: 'string' },
       limit: { kind: 'integer', default: 50 },
       cursor: { kind: 'string' },
+    },
+  },
+  listCredentialProviders: {
+    method: 'GET',
+    path: '/api/v2/credentials/providers',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Credential Providers',
+    query: {
+      workspaceId: { kind: 'string', required: true },
     },
   },
   listCredentials: {

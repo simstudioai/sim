@@ -23,6 +23,7 @@ import { environmentKeys } from '@/hooks/queries/environment'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import {
   fetchWorkspaceCredentialList,
+  requireWorkspaceCredentialListResponse,
   WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
 } from '@/hooks/queries/utils/fetch-workspace-credentials'
 
@@ -74,7 +75,7 @@ export function useWorkspaceCredentials(params: {
         },
         signal,
       })
-      return data.credentials ?? []
+      return requireWorkspaceCredentialListResponse(data)
     },
     enabled: Boolean(workspaceId) && enabled,
     staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,

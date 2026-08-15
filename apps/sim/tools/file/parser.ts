@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
 import type {
@@ -15,11 +16,8 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('FileParserTool')
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === 'object'
-
 const isUserFile = (value: unknown): value is UserFile =>
-  isRecord(value) &&
+  isRecordLike(value) &&
   typeof value.id === 'string' &&
   typeof value.name === 'string' &&
   typeof value.url === 'string' &&
@@ -28,7 +26,7 @@ const isUserFile = (value: unknown): value is UserFile =>
   typeof value.key === 'string'
 
 const isFileParseResult = (value: unknown): value is FileParseResult =>
-  isRecord(value) &&
+  isRecordLike(value) &&
   typeof value.content === 'string' &&
   typeof value.fileType === 'string' &&
   typeof value.size === 'number' &&
@@ -50,7 +48,7 @@ const normalizeHeaders = (headers: FileParserInput['headers']): Record<string, s
 }
 
 const normalizeFileParseResult = (value: unknown): FileParseResult => {
-  if (isRecord(value) && isFileParseResult(value.output)) {
+  if (isRecordLike(value) && isFileParseResult(value.output)) {
     return value.output
   }
 
@@ -58,9 +56,9 @@ const normalizeFileParseResult = (value: unknown): FileParseResult => {
     return value
   }
 
-  const record = isRecord(value) ? value : {}
+  const record = isRecordLike(value) ? value : {}
   const file = isUserFile(record.file) ? record.file : undefined
-  const metadata = isRecord(record.metadata) ? record.metadata : undefined
+  const metadata = isRecordLike(record.metadata) ? record.metadata : undefined
   const fallback: FileParseResult = {
     content: typeof record.content === 'string' ? record.content : '',
     fileType: typeof record.fileType === 'string' ? record.fileType : '',
@@ -90,15 +88,15 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
   logger.info('Response parsed successfully')
 
   // Handle multiple files response
-  if (isRecord(result) && Array.isArray(result.results)) {
+  if (isRecordLike(result) && Array.isArray(result.results)) {
     logger.info('Processing multiple files response')
 
     const failedResults = result.results.filter(
-      (fileResult) => isRecord(fileResult) && fileResult.success === false
+      (fileResult) => isRecordLike(fileResult) && fileResult.success === false
     )
     if (failedResults.length === result.results.length) {
       const firstError = failedResults.find(
-        (fileResult) => isRecord(fileResult) && typeof fileResult.error === 'string'
+        (fileResult) => isRecordLike(fileResult) && typeof fileResult.error === 'string'
       )
       return {
         success: false,
@@ -107,7 +105,7 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
           combinedContent: '',
         },
         error:
-          isRecord(firstError) && typeof firstError.error === 'string'
+          isRecordLike(firstError) && typeof firstError.error === 'string'
             ? firstError.error
             : 'Failed to parse files',
       }
@@ -115,7 +113,7 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
 
     // Extract individual file results
     const fileResults: FileParseResult[] = result.results
-      .filter((fileResult) => !(isRecord(fileResult) && fileResult.success === false))
+      .filter((fileResult) => !(isRecordLike(fileResult) && fileResult.success === false))
       .map((fileResult) => normalizeFileParseResult(fileResult))
 
     const processedFiles = fileResults.flatMap((file) => (file.file ? [file.file] : []))
@@ -144,7 +142,7 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
     }
   }
 
-  if (isRecord(result) && result.success === false) {
+  if (isRecordLike(result) && result.success === false) {
     return {
       success: false,
       output: {
@@ -165,7 +163,7 @@ const parseFileParserResponse = async (response: Response): Promise<FileParserOu
     files: [fileOutput],
     combinedContent:
       fileOutput.content ||
-      (isRecord(result) && typeof result.content === 'string' ? result.content : ''),
+      (isRecordLike(result) && typeof result.content === 'string' ? result.content : ''),
     ...(fileOutput.file && { processedFiles: [fileOutput.file] }),
   }
 
@@ -220,7 +218,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       const determinedFileType: string | undefined = params.fileType
 
       const resolveFilePath = (fileInput: unknown): string | null => {
-        if (!isRecord(fileInput)) return null
+        if (!isRecordLike(fileInput)) return null
 
         if (typeof fileInput.path === 'string') {
           return fileInput.path

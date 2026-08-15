@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import {
@@ -167,12 +168,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           modelId: body.modelId,
           voice: body.voice,
           language: body.language,
-          outputFormat:
-            body.outputFormat &&
-            typeof body.outputFormat === 'object' &&
-            !Array.isArray(body.outputFormat)
-              ? (body.outputFormat as CartesiaTtsParams['outputFormat'])
-              : undefined,
+          outputFormat: isRecordLike(body.outputFormat)
+            ? (body.outputFormat as CartesiaTtsParams['outputFormat'])
+            : undefined,
           speed: body.speed,
           emotion: body.emotion,
         })

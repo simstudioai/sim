@@ -1,10 +1,10 @@
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { randomInt } from '@sim/utils/random'
 import { and, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 
 const logger = createLogger('WorkspaceForkCopyChats')
 
@@ -47,7 +47,7 @@ function remapChatOutputConfigs(
 ): unknown {
   if (!Array.isArray(value)) return value
   return value.map((entry) => {
-    if (!isRecord(entry) || typeof entry.blockId !== 'string') return entry
+    if (!isRecordLike(entry) || typeof entry.blockId !== 'string') return entry
     return { ...entry, blockId: resolveBlockId(targetWorkflowId, entry.blockId) }
   })
 }

@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -852,7 +853,7 @@ export class BlockExecutor {
               }
             })()
           : mapping
-      inputs = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+      inputs = isRecordLike(parsed) ? parsed : {}
     }
 
     const result: Record<string, any> = {}

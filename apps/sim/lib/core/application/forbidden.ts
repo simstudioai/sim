@@ -48,6 +48,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'WORKSPACE_RESOURCE_LIMIT_REACHED',
   /** The workspace's organization does not permit public sharing. */
   'PUBLIC_SHARING_NOT_ALLOWED',
+  /** The caller can reach the workspace but cannot administer this credential. */
+  'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
   /** The MCP server URL is outside the allowed domains or resolves internally. */
   'MCP_SERVER_URL_NOT_ALLOWED',
 ] as const
@@ -83,6 +85,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
     'The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.',
   PUBLIC_SHARING_NOT_ALLOWED:
     "The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.",
+  CREDENTIAL_ADMIN_ACCESS_REQUIRED:
+    'The caller can reach the workspace but cannot administer this credential.',
   MCP_SERVER_URL_NOT_ALLOWED:
     'The supplied MCP server URL is outside the allowed domains or resolves to an internal address.',
 }

@@ -319,13 +319,6 @@ export const wordpressUploadContract = defineRouteContract({
   response: { mode: 'json', schema: jsonResponseSchema },
 })
 
-export const sftpListContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/sftp/list',
-  body: sftpListBodySchema,
-  response: { mode: 'json', schema: jsonResponseSchema },
-})
-
 export const sftpDeleteContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/sftp/delete',

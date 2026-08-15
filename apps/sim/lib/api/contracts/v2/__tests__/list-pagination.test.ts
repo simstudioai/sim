@@ -83,6 +83,7 @@ const PAGED_LISTS = [
  * - A table's saved views and its dispatchable groups are capped per table.
  */
 const FULL_SET_LISTS = [
+  'GET /api/v2/credentials/providers',
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',

@@ -203,7 +203,3 @@ export function getHostedKeyQueue(): HostedKeyQueue {
   }
   return cachedQueue
 }
-
-export function resetHostedKeyQueue(): void {
-  cachedQueue = null
-}

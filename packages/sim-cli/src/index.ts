@@ -5,6 +5,7 @@ import chalk from 'chalk'
 import { Command, Option } from 'commander'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth'
 import { configureCommand } from './commands/configure'
+import { attachCredentialCommands } from './commands/credentials'
 import { attachProtocolCommands } from './commands/protocol/index'
 import { OUTPUT_FORMATS, ProfileConfigError } from './config/index'
 import { formatApiErrorDetails, SimApiError } from './http/client'
@@ -49,6 +50,7 @@ for (const command of buildGeneratedCommands()) {
   program.addCommand(command)
 }
 
+attachCredentialCommands(program)
 attachProtocolCommands(program)
 
 program.addHelpText(

@@ -8,6 +8,7 @@ const { mocks, useCases } = vi.hoisted(() => ({
     custom: vi.fn(),
     mcp: vi.fn(),
     skill: vi.fn(),
+    credential: vi.fn(),
     capture: vi.fn(),
   },
   useCases: {
@@ -23,6 +24,8 @@ const { mocks, useCases } = vi.hoisted(() => ({
     deleteSkill: { operation: { id: 'skills.delete' } },
     listSkill: { operation: { id: 'skills.list_available' } },
     updateSkill: { operation: { id: 'skills.update' } },
+    updateCredential: { operation: { id: 'credentials.update' } },
+    deleteManyCredentials: { operation: { id: 'credentials.delete_many' } },
   },
 }))
 
@@ -34,6 +37,9 @@ vi.mock('@/lib/copilot/application/execute-mcp-server-use-case', () => ({
 }))
 vi.mock('@/lib/copilot/application/execute-skill-use-case', () => ({
   executeCopilotSkillUseCase: mocks.skill,
+}))
+vi.mock('@/lib/copilot/application/execute-credential-use-case', () => ({
+  executeCopilotCredentialUseCase: mocks.credential,
 }))
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   deleteAvailableCustomToolUseCase: useCases.deleteCustom,
@@ -53,9 +59,16 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   listAvailableSkillsUseCase: useCases.listSkill,
   updateSkillUseCase: useCases.updateSkill,
 }))
+vi.mock('@/lib/credentials/application/credential-crud', () => ({
+  updateWorkspaceCredentialUseCase: useCases.updateCredential,
+}))
+vi.mock('@/lib/credentials/application/delete-many-credentials', () => ({
+  deleteManyCredentialsUseCase: useCases.deleteManyCredentials,
+}))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { executeManageCredential } from '@/lib/copilot/tools/handlers/management/manage-credential'
 import { executeManageCustomTool } from '@/lib/copilot/tools/handlers/management/manage-custom-tool'
 import { executeManageMcpTool } from '@/lib/copilot/tools/handlers/management/manage-mcp-tool'
 import { executeManageSkill } from '@/lib/copilot/tools/handlers/management/manage-skill'
@@ -156,5 +169,44 @@ describe('Copilot management application boundaries', () => {
         source: 'tool_input',
       }
     )
+  })
+
+  it('renames credentials through the shared credential use case', async () => {
+    mocks.credential.mockResolvedValue({
+      credential: { id: 'credential-1', displayName: 'Renamed' },
+      previousDisplayName: 'Original',
+    })
+
+    const result = await executeManageCredential(
+      { operation: 'rename', credentialId: 'credential-1', displayName: 'Renamed' },
+      context
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { previousDisplayName: 'Original', displayName: 'Renamed' },
+    })
+    expect(mocks.credential).toHaveBeenCalledWith(context, useCases.updateCredential, {
+      credentialId: 'credential-1',
+      displayName: 'Renamed',
+    })
+  })
+
+  it('keeps best-effort batch deletion inside one semantic application command', async () => {
+    mocks.credential.mockResolvedValue({ deleted: ['credential-1'], failed: ['credential-2'] })
+
+    const result = await executeManageCredential(
+      { operation: 'delete', credentialIds: ['credential-1', 'credential-2'] },
+      context
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { deleted: ['credential-1'], failed: ['credential-2'] },
+    })
+    expect(mocks.credential).toHaveBeenCalledWith(context, useCases.deleteManyCredentials, {
+      workspaceId: 'workspace-1',
+      credentialIds: ['credential-1', 'credential-2'],
+    })
   })
 })

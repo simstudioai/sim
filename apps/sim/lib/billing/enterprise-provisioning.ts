@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, outboxEvent, subscription, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
@@ -33,9 +34,7 @@ import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/servic
 const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 
 function metadataRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function isNonterminalSubscriptionStatus(status: string | null | undefined): boolean {
