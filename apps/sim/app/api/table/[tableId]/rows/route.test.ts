@@ -208,19 +208,19 @@ describe('GET /api/table/[tableId]/rows', () => {
     expect(body.data.rows[0].data).toEqual({ Name: 'Ada', Age: 36 })
   })
 
-  it('skips counts and execution metadata for an omitted or expanded limit', async () => {
+  it('keeps counts but skips execution metadata for an omitted or expanded limit', async () => {
     authAs('internal_jwt')
 
     const omitted = await callGet({ workspaceId: 'workspace-1' })
     expect(omitted.status).toBe(200)
     expect(mockQueryRows.mock.calls[0][1]).toEqual(
-      expect.objectContaining({ limit: undefined, includeTotal: false, withExecutions: false })
+      expect.objectContaining({ limit: undefined, includeTotal: true, withExecutions: false })
     )
 
     const expanded = await callGet({ workspaceId: 'workspace-1', limit: '1000000' })
     expect(expanded.status).toBe(200)
     expect(mockQueryRows.mock.calls[1][1]).toEqual(
-      expect.objectContaining({ limit: 1000000, includeTotal: false, withExecutions: false })
+      expect.objectContaining({ limit: 1000000, includeTotal: true, withExecutions: false })
     )
   })
 

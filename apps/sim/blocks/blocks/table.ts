@@ -785,8 +785,7 @@ Return ONLY the sort JSON:`,
     },
     totalCount: {
       type: 'number',
-      description:
-        'Total rows matching the filter, or null for an omitted Limit or a Limit above 1,000',
+      description: 'Total rows matching filter',
       condition: { field: 'operation', value: 'query_rows' },
     },
     insertedCount: {

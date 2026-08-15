@@ -103,7 +103,7 @@ export interface TableQueryResponse extends ToolResponse {
   output: {
     rows: TableRow[]
     rowCount: number
-    totalCount: number | null
+    totalCount: number
     limit: number
     offset: number
     /**

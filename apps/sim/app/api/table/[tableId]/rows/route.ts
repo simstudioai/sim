@@ -360,10 +360,9 @@ export const GET = withRouteHandler(
 
       const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
       /**
-       * The newly expanded path can return up to the byte budget, so keep it
-       * v2-like: no separate count and no per-row execution-sidecar load.
-       * Existing queries within the former 1,000-row ceiling retain their
-       * prior metadata behavior.
+       * The newly expanded path can return up to the byte budget, so skip the
+       * per-row execution-sidecar load. Keep the count behavior unchanged so
+       * Query Rows continues to return totalCount for workflow callers.
        */
       const isExpandedQuery =
         validated.limit === undefined || validated.limit > TABLE_LIMITS.MAX_QUERY_LIMIT
@@ -389,7 +388,7 @@ export const GET = withRouteHandler(
           limit: validated.limit,
           offset: validated.offset,
           after: validated.after,
-          includeTotal: isExpandedQuery ? false : validated.includeTotal,
+          includeTotal: validated.includeTotal,
           withExecutions: !isExpandedQuery,
         },
         requestId

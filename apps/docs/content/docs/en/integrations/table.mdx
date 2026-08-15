@@ -223,7 +223,7 @@ Query rows from a table with filtering, sorting, and pagination
 | `success` | boolean | Whether query succeeded |
 | `rows` | array | Query result rows |
 | `rowCount` | number | Number of rows returned |
-| `totalCount` | number | Total rows matching the filter. Null when Limit is omitted or exceeds 1,000 to avoid a separate count query. |
+| `totalCount` | number | Total rows matching filter |
 | `limit` | number | Limit used in query |
 | `offset` | number | Offset used in query |
 | `nextCursor` | string | Non-null when more rows match past this page. A page can end early at the byte budget, so this — not a short rowCount — is what says whether more remain. To page, advance offset by rowCount and stop when this is null. |
