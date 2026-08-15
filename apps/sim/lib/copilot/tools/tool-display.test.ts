@@ -72,9 +72,9 @@ describe('humanizeToolName', () => {
 
 describe('getToolDisplayTitle natural-language coverage', () => {
   it('gives gerund titles to tools that previously fell through to humanize', () => {
-    expect(getToolDisplayTitle('deploy_as_api')).toBe('Deploying API')
+    expect(getToolDisplayTitle('deploy_as_api')).toBe('Deploying as API')
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')
-    expect(getToolDisplayTitle('oauth_get_auth_link')).toBe('Getting authorization link')
+    expect(getToolDisplayTitle('oauth_get_auth_link')).toBe('Creating sign-in link')
     expect(getToolDisplayTitle('diff_workflows')).toBe('Comparing workflows')
   })
 
@@ -107,16 +107,16 @@ describe('getToolDisplayTitle natural-language coverage', () => {
 
   it('resolves every catalog action and operation enum without a generic placeholder', () => {
     const genericPlaceholders = new Set([
-      'Credential action',
-      'Custom tool action',
+      'Managing credential',
+      'Managing custom tool',
       'Editing file',
       'Folder action',
-      'MCP server action',
+      'Managing MCP server',
       'Managing knowledge base',
       'Managing table',
       'Preparing file',
       'Processing media',
-      'Skill action',
+      'Managing skill',
     ])
     const unresolvedVariants: string[] = []
 
@@ -141,14 +141,14 @@ describe('getToolDisplayTitle natural-language coverage', () => {
 
 describe('getToolDisplayTitle for deployments', () => {
   it.each([
-    ['deploy_as_api', undefined, 'Deploying API'],
-    ['deploy_as_api', { action: 'deploy' }, 'Deploying API'],
-    ['deploy_as_api', { action: 'undeploy' }, 'Undeploying API'],
-    ['deploy_as_chat', { action: 'deploy' }, 'Deploying chat'],
-    ['deploy_as_chat', { action: 'undeploy' }, 'Undeploying chat'],
+    ['deploy_as_api', undefined, 'Deploying as API'],
+    ['deploy_as_api', { action: 'deploy' }, 'Deploying as API'],
+    ['deploy_as_api', { action: 'undeploy' }, 'Undeploying as API'],
+    ['deploy_as_chat', { action: 'deploy' }, 'Deploying as chat app'],
+    ['deploy_as_chat', { action: 'undeploy' }, 'Undeploying as chat app'],
     ['publish_custom_block', { action: 'deploy' }, 'Publishing custom block'],
     ['publish_custom_block', { action: 'undeploy' }, 'Unpublishing custom block'],
-    ['deploy_as_mcp', undefined, 'Deploying MCP tool'],
+    ['deploy_as_mcp', undefined, 'Deploying as MCP tool'],
     ['redeploy', undefined, 'Redeploying API'],
   ])('uses the action and deployment type for %s', (toolName, args, expected) => {
     expect(getToolDisplayTitle(toolName, args)).toBe(expected)
@@ -167,7 +167,7 @@ describe('getToolCompletedTitle', () => {
     expect(getToolCompletedTitle('Creating workflow')).toBe('Created workflow')
     expect(getToolCompletedTitle('Running workflow')).toBe('Ran workflow')
     expect(getToolCompletedTitle('Reading file')).toBe('Read file')
-    expect(getToolCompletedTitle('Undeploying API')).toBe('Undeployed API')
+    expect(getToolCompletedTitle('Undeploying as API')).toBe('Undeployed as API')
     expect(getToolCompletedTitle('Duplicating workflow')).toBe('Duplicated workflow')
     expect(getToolCompletedTitle('Viewing custom tools')).toBe('Viewed custom tools')
     expect(getToolCompletedTitle('Saving report.pdf')).toBe('Saved report.pdf')

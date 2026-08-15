@@ -54,8 +54,56 @@ function stringOrNumberArg(args: ToolArgs, key: string): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
 }
 
+/**
+ * Titles for the split table tools: each names its own action, refined by the
+ * operation and the named target when the args carry one — a card full of
+ * table work should read as adds, updates, and wiring, never a wall of
+ * identical "Queried table" rows.
+ */
+function splitTableTitle(name: string, args: ToolArgs): string {
+  const op = stringArg(args, 'operation')
+  const target = firstStringArg(args, 'name', 'columnName', 'viewName', 'tableName', 'title')
+  const suffix = target ? ` ${target}` : ''
+  switch (name) {
+    case 'table_manage':
+      if (op === 'create') return `Creating table${suffix}`
+      if (op === 'delete') return `Deleting table${suffix}`
+      if (op === 'read' || op === 'get' || op === 'list') return 'Reading table'
+      return 'Updating table'
+    case 'table_rows':
+      if (op === 'insert' || op === 'add' || op === 'create') return 'Adding rows'
+      if (op === 'update') return 'Updating rows'
+      if (op === 'delete') return 'Deleting rows'
+      if (op === 'read' || op === 'list' || op === 'query') return 'Reading rows'
+      return 'Editing rows'
+    case 'table_columns':
+      if (op === 'add' || op === 'create') return `Adding column${suffix}`
+      if (op === 'update') return `Updating column${suffix}`
+      if (op === 'delete') return `Deleting column${suffix}`
+      if (op === 'read' || op === 'list') return 'Reading columns'
+      return 'Editing columns'
+    case 'table_automations':
+      if (op === 'read' || op === 'list') return 'Reading automations'
+      if (op === 'delete') return 'Removing automation'
+      return 'Wiring automation'
+    case 'table_enrichments':
+      if (op === 'read' || op === 'list') return 'Reading enrichments'
+      if (op === 'delete') return 'Removing enrichment'
+      return 'Configuring enrichment'
+    case 'table_views':
+      if (op === 'create') return `Creating view${suffix}`
+      if (op === 'delete') return `Deleting view${suffix}`
+      if (op === 'read' || op === 'list') return 'Reading views'
+      return 'Editing views'
+    default:
+      return 'Updating table'
+  }
+}
+
 function deploymentTitle(args: ToolArgs, deploymentType: string): string {
-  return `${stringArg(args, 'action') === 'undeploy' ? 'Undeploying' : 'Deploying'} ${deploymentType}`
+  const verb = stringArg(args, 'action') === 'undeploy' ? 'Undeploying' : 'Deploying'
+  const workflow = firstStringArg(args, 'workflowName', 'name', 'title')
+  return workflow ? `${verb} ${workflow} as ${deploymentType}` : `${verb} as ${deploymentType}`
 }
 
 function resourceTypeLabel(type: string): string {
@@ -253,19 +301,6 @@ function manageSandboxTitle(args: ToolArgs): string {
   return titles[stringArg(args, 'operation')] ?? 'Managing sandbox'
 }
 
-function manageScheduledTaskTitle(args: ToolArgs): string {
-  const operationArgs = recordArg(args, 'args')
-  const title = stringArg(operationArgs, 'title')
-  const titles: Record<string, string> = {
-    create: `Creating ${title || 'scheduled task'}`,
-    list: 'Listing scheduled tasks',
-    get: 'Reading scheduled task',
-    update: `Updating ${title || 'scheduled task'}`,
-    delete: 'Deleting scheduled task',
-  }
-  return titles[stringArg(args, 'operation')] ?? 'Managing scheduled task'
-}
-
 function userTableTitle(args: ToolArgs): string {
   const operation = stringArg(args, 'operation')
   const operationArgs = recordArg(args, 'args')
@@ -445,14 +480,14 @@ const TOOL_TITLES: Record<string, string> = {
   user_table: 'Managing table',
   run_code: 'Running code',
   query_user_table: 'Querying table',
-  table_manage: 'Managing table',
-  table_rows: 'Editing table rows',
-  table_columns: 'Editing table columns',
-  table_automations: 'Managing table automations',
-  table_enrichments: 'Managing table enrichments',
-  table_views: 'Managing table views',
+  table_manage: 'Updating table',
+  table_rows: 'Editing rows',
+  table_columns: 'Editing columns',
+  table_automations: 'Wiring automation',
+  table_enrichments: 'Configuring enrichment',
+  table_views: 'Editing views',
   prepare_file_edit: 'Editing file',
-  apply_file_edit: 'Applying file content',
+  apply_file_edit: 'Writing changes',
   create_workflow: 'Creating workflow',
   edit_workflow: 'Editing workflow',
   manage_knowledge_base: 'Managing knowledge base',
@@ -467,23 +502,21 @@ const TOOL_TITLES: Record<string, string> = {
   create_file_folder: 'Creating folder',
   create_workspace_mcp_server: 'Creating MCP server',
   delete_workspace_mcp_server: 'Deleting MCP server',
-  deploy_as_api: 'Deploying API',
-  deploy_as_chat: 'Deploying chat',
+  deploy_as_api: 'Deploying as API',
+  deploy_as_chat: 'Deploying as chat app',
   publish_custom_block: 'Publishing custom block',
-  deploy_as_mcp: 'Deploying MCP tool',
+  deploy_as_mcp: 'Deploying as MCP tool',
   diff_workflows: 'Comparing workflows',
   download_file: 'Downloading file',
   run_function: 'Running code',
-  complete_scheduled_task: 'Completing scheduled task',
   generate_api_key: 'Generating API key',
-  get_block_outputs: 'Getting block outputs',
-  get_block_upstream_references: 'Getting block references',
-  get_deployed_workflow_state: 'Getting deployed workflow',
+  get_block_outputs: 'Reading block outputs',
+  get_block_upstream_references: 'Tracing block inputs',
+  get_deployed_workflow_state: 'Reading the deployed version',
   list_deployment_versions: 'Listing deployment versions',
   get_ui_reference: 'Reading UI reference',
-  get_scheduled_task_logs: 'Reading scheduled task logs',
-  get_workflow_data: 'Getting workflow data',
-  get_workflow_run_options: 'Getting run options',
+  get_workflow_data: 'Reading workflow',
+  get_workflow_run_options: 'Checking run settings',
   list_file_folders: 'Listing folders',
   list_integration_tools: 'Listing integration tools',
   list_user_workspaces: 'Listing workspaces',
@@ -492,11 +525,10 @@ const TOOL_TITLES: Record<string, string> = {
   save_upload: 'Saving upload',
   connect_slack_bot: 'Connecting Slack bot',
   manage_sandbox: 'Managing sandbox',
-  manage_scheduled_task: 'Managing scheduled task',
   move_file: 'Moving file',
   move_file_folder: 'Moving folder',
   move_workflow: 'Moving workflow',
-  oauth_get_auth_link: 'Getting authorization link',
+  oauth_get_auth_link: 'Creating sign-in link',
   oauth_request_access: 'Requesting access',
   promote_to_live: 'Promoting to live',
   redeploy: 'Redeploying API',
@@ -505,13 +537,11 @@ const TOOL_TITLES: Record<string, string> = {
   rename_workflow: 'Renaming workflow',
   restore_resource: 'Restoring resource',
   run_block: 'Running block',
-  scheduled_task: 'Managing scheduled task',
   search_sim_docs: 'Searching Sim docs',
   set_block_enabled: 'Toggling block',
   set_environment_variables: 'Setting environment variables',
   set_global_workflow_variables: 'Setting workflow variables',
   update_deployment_version: 'Updating deployment',
-  update_scheduled_task_history: 'Updating scheduled task history',
   update_workspace_mcp_server: 'Updating MCP server',
   // Browser agent tools without an argument-aware title.
   browser_go_back: 'Going back',
@@ -705,7 +735,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'deploy_as_api':
       return deploymentTitle(args, 'API')
     case 'deploy_as_chat':
-      return deploymentTitle(args, 'chat')
+      return deploymentTitle(args, 'chat app')
     case 'publish_custom_block':
       return `${stringArg(args, 'action') === 'undeploy' ? 'Unpublishing' : 'Publishing'} custom block`
     case 'ffmpeg':
@@ -713,19 +743,18 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'manage_knowledge_base':
       return knowledgeBaseTitle(args)
     case 'query_user_table':
+      return queryUserTableTitle(args)
     case 'table_manage':
     case 'table_rows':
     case 'table_columns':
     case 'table_automations':
     case 'table_enrichments':
     case 'table_views':
-      return queryUserTableTitle(args)
+      return splitTableTitle(name, args)
     case 'search_knowledge_base':
       return searchKnowledgeBaseTitle(args)
     case 'manage_sandbox':
       return manageSandboxTitle(args)
-    case 'manage_scheduled_task':
-      return manageScheduledTaskTitle(args)
     case 'user_table':
       return userTableTitle(args)
     case 'save_upload':
@@ -768,12 +797,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     case 'restore_resource': {
       const type = stringArg(args, 'type')
       return `Restoring ${type ? resourceTypeLabel(type) : 'resource'}`
-    }
-    case 'set_block_enabled': {
-      const enabled = args?.enabled
-      return typeof enabled === 'boolean'
-        ? `${enabled ? 'Enabling' : 'Disabling'} block`
-        : 'Toggling block'
     }
     case 'load_deployment': {
       const version = stringOrNumberArg(args, 'version')
@@ -927,9 +950,9 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'web_fetch': {
       const urls = stringArrayArg(args, 'urls')
-      if (urls.length === 1) return `Getting ${urls[0]}`
-      if (urls.length > 1) return `Getting ${urls.length} pages`
-      return 'Getting page contents'
+      if (urls.length === 1) return `Fetching ${urls[0]}`
+      if (urls.length > 1) return `Fetching ${urls.length} pages`
+      return 'Fetching page'
     }
     case 'manage_custom_tool': {
       const schema = args?.schema
@@ -938,7 +961,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         (schema && typeof schema === 'object'
           ? nestedStringArg(schema as Record<string, unknown>, 'function', 'name')
           : '')
-      return namedOperationTitle(args, target, 'Custom tool action', {
+      return namedOperationTitle(args, target, 'Managing custom tool', {
         add: { verb: 'Creating', resource: 'custom tool' },
         edit: { verb: 'Updating', resource: 'custom tool' },
         delete: { verb: 'Deleting', resource: 'custom tool' },
@@ -949,7 +972,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const target =
         firstStringArg(args, 'serverName', 'name', 'title') ||
         nestedStringArg(args, 'config', 'name')
-      return namedOperationTitle(args, target, 'MCP server action', {
+      return namedOperationTitle(args, target, 'Managing MCP server', {
         add: { verb: 'Creating', resource: 'MCP server' },
         edit: { verb: 'Updating', resource: 'MCP server' },
         delete: { verb: 'Deleting', resource: 'MCP server' },
@@ -958,7 +981,7 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'manage_skill': {
       const target = firstStringArg(args, 'name', 'skillName', 'title')
-      return namedOperationTitle(args, target, 'Skill action', {
+      return namedOperationTitle(args, target, 'Managing skill', {
         add: { verb: 'Creating', resource: 'skill' },
         edit: { verb: 'Updating', resource: 'skill' },
         delete: { verb: 'Deleting', resource: 'skill' },
@@ -974,14 +997,40 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         return to ? `Renaming credential to ${to}` : 'Renaming credential'
       }
       const target = firstStringArg(args, 'credentialName', 'displayName', 'name', 'title')
-      return namedOperationTitle(args, target, 'Credential action', {
+      return namedOperationTitle(args, target, 'Managing credential', {
         delete: { verb: 'Deleting', resource: 'credential' },
       })
     }
-    case 'run_workflow':
-    case 'run_from_block':
-    case 'run_workflow_until_block':
-      return 'Running workflow'
+    case 'run_workflow': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Running ${workflow}` : 'Running workflow'
+    }
+    case 'run_from_block': {
+      const block = firstStringArg(args, 'blockName', 'block_name', 'startBlockName', 'blockId')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      if (!block) return 'Running workflow'
+      return workflow ? `Running from ${block} in ${workflow}` : `Running from ${block}`
+    }
+    case 'run_workflow_until_block': {
+      const block = firstStringArg(args, 'blockName', 'block_name', 'untilBlockName', 'blockId')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      if (!block) return workflow ? `Running ${workflow}` : 'Running workflow'
+      return `Running ${workflow || 'workflow'} until ${block}`
+    }
+    case 'run_block': {
+      const block = firstStringArg(args, 'blockName', 'block_name', 'blockId')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      if (!block) return 'Running block'
+      return workflow ? `Running ${block} in ${workflow}` : `Running ${block}`
+    }
+    case 'set_block_enabled': {
+      const block = firstStringArg(args, 'blockName', 'block_name', 'blockId')
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      const verb =
+        args?.enabled === false ? 'Disabling' : args?.enabled === true ? 'Enabling' : 'Toggling'
+      if (!block) return `${verb} block`
+      return workflow ? `${verb} ${block} in ${workflow}` : `${verb} ${block}`
+    }
     case 'query_logs': {
       // The model narrates its own query; the per-view titles are fallbacks.
       const title = stringArg(args, 'title')
@@ -1007,9 +1056,26 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       }
     }
     case 'read': {
-      if (isWorkflowArtifactPath(stringArg(args, 'path'), 'lint.json')) {
+      const path = stringArg(args, 'path')
+      if (isWorkflowArtifactPath(path, 'lint.json')) {
         return 'Validating workflow state'
       }
+      // Workflow artifacts name BOTH the workflow and which part, so five
+      // reads in a row differentiate instead of all saying the same thing.
+      const workflowArtifact = path.match(/^workflows\/([^/]+)\/([^/]+)$/)
+      if (workflowArtifact) {
+        const part =
+          (
+            {
+              'meta.json': 'meta',
+              'state.json': 'state',
+              'deployment.json': 'deployment',
+              'README.md': 'notes',
+            } as Record<string, string>
+          )[workflowArtifact[2]] ?? decodePathSegment(workflowArtifact[2])
+        return `Reading ${decodePathSegment(workflowArtifact[1])} ${part}`
+      }
+      if (path) return `Reading ${pathLeaf(path)}`
       break
     }
     case 'prepare_file_edit':
@@ -1063,8 +1129,13 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Finding: 'Found',
   Gathering: 'Gathered',
   Generating: 'Generated',
-  Getting: 'Got',
   Going: 'Went',
+  Fetching: 'Fetched',
+  Tracing: 'Traced',
+  Wiring: 'Wired',
+  Configuring: 'Configured',
+  Looking: 'Looked',
+  Rotating: 'Rotated',
   Hovering: 'Hovered',
   Importing: 'Imported',
   Inspecting: 'Inspected',

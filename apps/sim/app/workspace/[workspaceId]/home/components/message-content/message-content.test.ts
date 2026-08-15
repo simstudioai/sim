@@ -483,9 +483,11 @@ describe('completed tool titles', () => {
           timestamp: 1,
         },
       ])
-    ).toBe('Undeployed API')
+    ).toBe('Undeployed as API')
 
-    expect(firstToolTitle([mainToolCall('deploy-mcp', 'deploy_as_mcp')])).toBe('Deployed MCP tool')
+    expect(firstToolTitle([mainToolCall('deploy-mcp', 'deploy_as_mcp')])).toBe(
+      'Deployed as MCP tool'
+    )
   })
 
   it('renders Compared after the full diff_workflows wire lifecycle succeeds', () => {
