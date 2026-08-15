@@ -15,6 +15,8 @@ import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
+  Predicate,
+  SortDirection,
   TableLocks,
   TableMetadata,
   TablePredicate,
@@ -24,6 +26,7 @@ import type {
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
+import { cellValueFilterConditions } from '@/lib/table/query-builder/cell-filter'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import type { RemoteTableSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-room'
 import type { BlockedTableAction } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
@@ -91,6 +94,7 @@ const logger = createLogger('TableView')
 
 const EMPTY_RUNNING_BY_ROW: Readonly<Record<string, number>> = Object.freeze({})
 const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
+const EMPTY_FILTER_CONDITIONS: readonly Predicate[] = Object.freeze([])
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
@@ -238,6 +242,14 @@ interface TableGridProps {
   onSelectionChange: (state: SelectionSnapshot) => void
   /** Filter + sort. Lifted to wrapper so a single `useTable` call serves both. */
   queryOptions: QueryOptions
+  /**
+   * Narrows the active filter with the conditions matching one cell's value
+   * ("Filter by cell value"). The wrapper owns the filter, so the grid only
+   * reports the conditions the clicked cell produced.
+   */
+  onFilterByCellValue?: (conditions: readonly Predicate[]) => void
+  onSortColumn?: (columnId: string, direction: SortDirection) => void
+  onClearSort?: () => void
   /**
    * **Column ids** to hide from the grid. Owned by the wrapper because the filter
    * panel's Columns section edits the same list and the active view persists it.
@@ -438,6 +450,9 @@ export function TableGrid({
   onStopRow,
   onSelectionChange,
   queryOptions,
+  onFilterByCellValue,
+  onSortColumn,
+  onClearSort,
   hiddenColumns,
   viewLayout,
   viewLayoutKey = null,
@@ -555,6 +570,9 @@ export function TableGrid({
     // (and one the server rejects outright).
     filter: effectiveFilter,
   } = useTable({ workspaceId, tableId, queryOptions })
+
+  /** Sort is single-column, so only the first spec entry can be active. */
+  const activeSort = queryOptions.sort?.[0]
 
   const { data: tableRunState } = useTableRunState(tableId)
   const activeDispatches = tableRunState?.dispatches
@@ -1203,20 +1221,40 @@ export function TableGrid({
     []
   )
 
+  /** The right-clicked cell's column. One lookup shared by every menu item that
+   *  needs it, rather than a scan per item. */
+  const contextMenuColumn = contextMenu.columnName
+    ? columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
+    : undefined
+
   function handleContextMenuEditCell() {
     if (contextMenu.row && contextMenu.columnName) {
-      const column = columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
-      if (column && columnTypeOf(column).editor === 'toggle') {
+      if (contextMenuColumn && columnTypeOf(contextMenuColumn).editor === 'toggle') {
         toggleBooleanCell(
           contextMenu.row.id,
           contextMenu.columnName,
           contextMenu.row.data[contextMenu.columnName]
         )
-      } else if (column) {
+      } else if (contextMenuColumn) {
         setEditingCell({ rowId: contextMenu.row.id, columnName: contextMenu.columnName })
         setInitialCharacter(null)
       }
     }
+    closeContextMenu()
+  }
+
+  /** Conditions matching the right-clicked cell; empty when it has none the
+   *  filter grammar can express (see `cellValueFilterConditions`). Gated on
+   *  `isOpen` because closing the menu leaves `row`/`columnName` set, and this
+   *  would otherwise rebuild on every render of the grid for the rest of the
+   *  session. */
+  const contextMenuFilterConditions =
+    contextMenu.isOpen && contextMenu.row && contextMenu.columnName
+      ? cellValueFilterConditions(contextMenuColumn, contextMenu.row.data[contextMenu.columnName])
+      : EMPTY_FILTER_CONDITIONS
+
+  function handleContextMenuFilterByCellValue() {
+    onFilterByCellValue?.(contextMenuFilterConditions)
     closeContextMenu()
   }
 
@@ -1301,7 +1339,7 @@ export function TableGrid({
   // cascade re-runs dependents on its own) instead of every group on the row.
   let contextMenuGroupId: string | null = null
   if (contextMenu.row && contextMenu.columnName) {
-    const _col = columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
+    const _col = contextMenuColumn
     const _gid = _col?.workflowGroupId
     if (_col && _gid) {
       const _exec = contextMenu.row.executions?.[_gid]
@@ -4402,6 +4440,11 @@ export function TableGrid({
                             sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
                             onViewWorkflow={handleViewWorkflow}
+                            onSortColumn={onSortColumn}
+                            onClearSort={onClearSort}
+                            sortDirection={
+                              activeSort?.field === column.key ? activeSort.direction : undefined
+                            }
                             isPinned={colIsPinned}
                             onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                             stickyLeft={colStickyLeft}
@@ -4574,6 +4617,11 @@ export function TableGrid({
           Boolean(contextMenuEnrichment)
         }
         canEditCell={!contextMenuIsWorkflowColumn}
+        onFilterByCellValue={
+          onFilterByCellValue && contextMenuFilterConditions.length > 0
+            ? handleContextMenuFilterByCellValue
+            : undefined
+        }
         selectedRowCount={selectedRowCount}
         onRunWorkflows={
           userPermissions.canEdit && hasWorkflowColumns && contextMenuStats.hasIncompleteOrFailed
