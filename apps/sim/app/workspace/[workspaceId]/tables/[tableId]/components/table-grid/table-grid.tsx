@@ -1661,6 +1661,10 @@ export function TableGrid({
       setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
       setIsColumnSelection(false)
       lastCheckboxRowRef.current = null
+      // Any deliberate click hands the selection back to the user, so closing
+      // find must not restore over it — including a click on the very cell find
+      // had revealed, which leaves the anchor and focus looking find-owned.
+      lastRevealedAnchorRef.current = null
       if (shiftKey && selectionAnchorRef.current) {
         setSelectionFocus({ rowIndex, colIndex })
       } else {
