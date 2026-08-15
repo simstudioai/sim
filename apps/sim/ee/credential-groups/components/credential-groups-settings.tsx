@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipTag } from '@sim/emcn'
+import { ChipTag } from '@sim/emcn'
 import { GridOffset, Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import {
   credentialGroupIdParam,
   credentialGroupIdUrlKeys,
+  credentialGroupTabParam,
+  credentialGroupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -20,7 +21,7 @@ import {
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CredentialGroupCreateModal } from '@/ee/credential-groups/components/credential-group-create-modal'
 import { CredentialGroupDetail } from '@/ee/credential-groups/components/credential-group-detail'
-import { useCredentialGroups, useDeleteCredentialGroup } from '@/hooks/queries/credential-groups'
+import { useCredentialGroups } from '@/hooks/queries/credential-groups'
 
 interface CredentialGroupsSettingsProps {
   workspaceId: string
@@ -28,15 +29,30 @@ interface CredentialGroupsSettingsProps {
 
 export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettingsProps) {
   const { data: groups = [], isPending, error } = useCredentialGroups(workspaceId)
-  const deleteGroup = useDeleteCredentialGroup()
   const [search, setSearch] = useSettingsSearch()
   const [showCreate, setShowCreate] = useState(false)
-  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useQueryState(credentialGroupIdParam.key, {
     ...credentialGroupIdParam.parser,
     ...credentialGroupIdUrlKeys,
   })
-  const deletingGroup = groups.find((group) => group.id === deletingGroupId)
+  /**
+   * The detail view's tab is scoped to one group, so both transitions reset it —
+   * otherwise a `credential-group-id` that never resolves leaves
+   * `credential-group-tab` behind and the next group opens on the previous
+   * group's tab. nuqs batches these same-tick writes into one URL update.
+   */
+  const [, setSelectedTab] = useQueryState(credentialGroupTabParam.key, {
+    ...credentialGroupTabParam.parser,
+    ...credentialGroupTabUrlKeys,
+  })
+  const openGroup = (groupId: string) => {
+    void setSelectedGroupId(groupId)
+    void setSelectedTab(null)
+  }
+  const closeGroup = () => {
+    void setSelectedGroupId(null, { history: 'replace' })
+    void setSelectedTab(null)
+  }
   const selectedGroup = selectedGroupId
     ? groups.find((group) => group.id === selectedGroupId)
     : undefined
@@ -59,22 +75,20 @@ export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettin
     },
   ]
 
-  const handleDelete = async () => {
-    if (!deletingGroupId) return
-    try {
-      await deleteGroup.mutateAsync({ workspaceId, groupId: deletingGroupId })
-      setDeletingGroupId(null)
-    } catch {
-      return
-    }
-  }
+  /**
+   * Hold the first paint while a deep-linked id could still resolve, so a valid
+   * link never flashes the list before jumping to it. A dead id still falls back
+   * to the list.
+   */
+  if (selectedGroupId !== null && isPending) return null
 
   if (selectedGroup) {
     return (
       <CredentialGroupDetail
+        key={selectedGroup.id}
         workspaceId={workspaceId}
         groupId={selectedGroup.id}
-        onBack={() => void setSelectedGroupId(null, { history: 'replace' })}
+        onBack={closeGroup}
       />
     )
   }
@@ -97,36 +111,30 @@ export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettin
         ) : isPending ? null : groups.length === 0 ? (
           <SettingsEmptyState>Click "Create group" above to get started</SettingsEmptyState>
         ) : filtered.length === 0 ? (
-          <SettingsEmptyState variant='inline'>No groups match "{search}"</SettingsEmptyState>
+          <SettingsEmptyState variant='inline'>
+            No credential groups found matching "{search}"
+          </SettingsEmptyState>
         ) : (
           <div className={RESOURCE_LIST_STACK}>
             {filtered.map((group) => {
               const optionCount = group.options.length
+              const accountTypes = `${optionCount} account type${optionCount === 1 ? '' : 's'}`
               return (
                 <SettingsResourceRow
                   key={group.id}
-                  icon={<GridOffset />}
+                  icon={<GridOffset className='text-[var(--text-icon)]' />}
+                  iconFilled
                   title={group.name}
-                  description={`${optionCount} account type${optionCount === 1 ? '' : 's'} · ${group.description || 'Managed workspace credentials'}`}
-                  onClick={() => void setSelectedGroupId(group.id)}
+                  description={
+                    group.description ? `${accountTypes} · ${group.description}` : accountTypes
+                  }
+                  onClick={() => openGroup(group.id)}
                   clickLabel={`Open ${group.name}`}
                   navigable
                   badge={
                     group.status === 'disabled' ? (
                       <ChipTag variant='gray'>Disabled</ChipTag>
                     ) : undefined
-                  }
-                  trailing={
-                    <RowActionsMenu
-                      label={`${group.name} actions`}
-                      actions={[
-                        {
-                          label: 'Delete',
-                          destructive: true,
-                          onSelect: () => setDeletingGroupId(group.id),
-                        },
-                      ]}
-                    />
                   }
                 />
               )
@@ -137,24 +145,8 @@ export function CredentialGroupsSettings({ workspaceId }: CredentialGroupsSettin
       <CredentialGroupCreateModal
         open={showCreate}
         onOpenChange={setShowCreate}
-        onCreated={(groupId) => void setSelectedGroupId(groupId)}
+        onCreated={openGroup}
         workspaceId={workspaceId}
-      />
-      <ChipConfirmModal
-        open={Boolean(deletingGroup)}
-        onOpenChange={(open) => !open && !deleteGroup.isPending && setDeletingGroupId(null)}
-        srTitle='Delete credential group'
-        title='Delete credential group'
-        text={[
-          `Delete ${deletingGroup?.name ?? 'this credential group'}?`,
-          { text: ' This cannot be undone.', error: true },
-        ]}
-        dismissLabel='Cancel'
-        confirm={{
-          label: deleteGroup.isPending ? 'Deleting...' : 'Delete',
-          onClick: handleDelete,
-          disabled: deleteGroup.isPending,
-        }}
       />
     </>
   )
