@@ -85,22 +85,75 @@ export const oktaGetAppTool: ToolConfig<OktaGetAppParams, OktaGetAppResponse> = 
     lastUpdated: { type: 'string', description: 'Last update timestamp' },
     accessibility: {
       type: 'json',
-      description: 'Accessibility settings, whose fields vary by application',
+      description: 'Access settings for the app',
       optional: true,
+      properties: {
+        errorRedirectUrl: {
+          type: 'string',
+          description: 'Custom error page URL',
+          optional: true,
+        },
+        loginRedirectUrl: {
+          type: 'string',
+          description: 'Custom login page URL',
+          optional: true,
+        },
+        selfService: {
+          type: 'boolean',
+          description: 'Whether users can self-assign the app',
+          optional: true,
+        },
+      },
     },
     visibility: {
       type: 'json',
-      description: 'Visibility settings, whose fields vary by application',
+      description: 'Visibility settings for the app',
       optional: true,
+      properties: {
+        appLinks: {
+          type: 'json',
+          description: 'Map of app link name to whether it appears on the End-User Dashboard',
+          optional: true,
+        },
+        autoLaunch: {
+          type: 'boolean',
+          description: 'Signs in to the app automatically when the user signs in to Okta',
+          optional: true,
+        },
+        autoSubmitToolbar: {
+          type: 'boolean',
+          description: 'Signs in automatically when the user lands on the sign-in page',
+          optional: true,
+        },
+        hide: {
+          type: 'json',
+          description: 'Which end-user apps hide this app',
+          optional: true,
+          properties: {
+            iOS: {
+              type: 'boolean',
+              description: 'Hidden in Okta Mobile',
+              optional: true,
+            },
+            web: {
+              type: 'boolean',
+              description: 'Hidden on the Okta End-User Dashboard',
+              optional: true,
+            },
+          },
+        },
+      },
     },
     settings: {
       type: 'json',
-      description: 'Application settings, whose shape varies by sign-on mode',
+      description:
+        'Application settings. Okta types these per app kind, so settings.app differs between a SAML, OIDC, bookmark, or SWA app',
       optional: true,
     },
     profile: {
       type: 'json',
-      description: 'Application profile attributes, whose shape varies by application',
+      description:
+        'Application profile attributes. Okta accepts any valid JSON schema here, so the shape is whatever the org configured',
       optional: true,
     },
     success: { type: 'boolean', description: 'Operation success status' },

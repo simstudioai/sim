@@ -42,7 +42,8 @@ export const oktaListAppsTool: ToolConfig<OktaListAppsParams, OktaListAppsRespon
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include applications that are not deleted (default: false)',
+      description:
+        'Also return inactive applications. Deleted applications stay excluded either way (default: false)',
     },
     after: {
       type: 'string',

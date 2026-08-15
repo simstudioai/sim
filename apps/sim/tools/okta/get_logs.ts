@@ -246,7 +246,8 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
           },
           debugData: {
             type: 'json',
-            description: 'Free-form debug context published with the event',
+            description:
+              'Extra context whose keys depend on the event type. Okta states these keys and values can change between releases, so treat them as a debugging aid rather than a contract',
             optional: true,
           },
         },

@@ -149,7 +149,8 @@ export const oktaEnrollFactorTool: ToolConfig<OktaEnrollFactorParams, OktaEnroll
     lastUpdated: { type: 'string', description: 'Last update timestamp', optional: true },
     profile: {
       type: 'json',
-      description: 'Factor-specific attributes, which vary by factor type',
+      description:
+        'Factor-specific attributes, which vary by factor type (phone number, email, question, credential ID)',
       optional: true,
     },
     enrolled: { type: 'boolean', description: 'Whether the factor was enrolled' },

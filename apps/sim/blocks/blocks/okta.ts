@@ -78,9 +78,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         ],
         okta_get_session: [{ text: 'Read session', field: 'sessionId', core: true }],
         okta_revoke_session: [{ text: 'Revoke session', field: 'sessionId', core: true }],
-        okta_list_factors: [
-          { text: 'List the MFA factors of user', field: 'userId', core: true },
-        ],
+        okta_list_factors: [{ text: 'List the MFA factors of user', field: 'userId', core: true }],
         okta_get_factor: [
           { text: 'Read factor', field: 'factorId', core: true },
           { text: 'of user', field: 'userId' },
@@ -255,12 +253,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       placeholder: 'Keyword to search for',
       condition: {
         field: 'operation',
-        value: [
-          'okta_get_logs',
-          'okta_list_apps',
-          'okta_list_app_users',
-          'okta_list_app_groups',
-        ],
+        value: ['okta_get_logs', 'okta_list_apps', 'okta_list_app_users', 'okta_list_app_groups'],
       },
     },
     // User ID (shared across user operations that need it)
@@ -726,15 +719,33 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       id: 'customRoleId',
       title: 'Custom Role ID',
       type: 'short-input',
-      placeholder: 'Required when the role type is Custom',
-      condition: { field: 'operation', value: 'okta_assign_user_role' },
+      placeholder: 'ID of the custom role to grant',
+      condition: {
+        field: 'operation',
+        value: 'okta_assign_user_role',
+        and: { field: 'roleType', value: 'CUSTOM' },
+      },
+      required: {
+        field: 'operation',
+        value: 'okta_assign_user_role',
+        and: { field: 'roleType', value: 'CUSTOM' },
+      },
     },
     {
       id: 'resourceSetId',
       title: 'Resource Set ID',
       type: 'short-input',
-      placeholder: 'Required when the role type is Custom',
-      condition: { field: 'operation', value: 'okta_assign_user_role' },
+      placeholder: 'Resource set the custom role applies to',
+      condition: {
+        field: 'operation',
+        value: 'okta_assign_user_role',
+        and: { field: 'roleType', value: 'CUSTOM' },
+      },
+      required: {
+        field: 'operation',
+        value: 'okta_assign_user_role',
+        and: { field: 'roleType', value: 'CUSTOM' },
+      },
     },
     {
       id: 'disableNotifications',
@@ -963,7 +974,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     appUserName: { type: 'string', description: 'Username the user signs in to the app with' },
     scope: { type: 'string', description: 'Application assignment scope' },
     priority: { type: 'number', description: 'Application group assignment priority' },
-    includeNonDeleted: { type: 'boolean', description: 'Include applications that are not deleted' },
+    includeNonDeleted: {
+      type: 'boolean',
+      description: 'Include applications that are not deleted',
+    },
     roleType: { type: 'string', description: 'Admin role type to assign' },
     customRoleId: { type: 'string', description: 'Custom role ID' },
     resourceSetId: { type: 'string', description: 'Resource set ID for a custom role' },

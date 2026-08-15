@@ -732,7 +732,7 @@ Retrieve a single enrolled MFA factor for a user, including its type, provider, 
 | `status` | string | Enrollment status |
 | `created` | string | Enrollment timestamp |
 | `lastUpdated` | string | Last update timestamp |
-| `profile` | json | Factor-specific attributes, which vary by factor type |
+| `profile` | json | Factor-specific attributes, which vary by factor type \(phone number, email, question, credential ID\) |
 | `success` | boolean | Operation success status |
 
 ### Enroll Factor in Okta
@@ -765,7 +765,7 @@ Enroll an MFA factor for a user. The profile fields required depend on the facto
 | `status` | string | Enrollment status, typically PENDING_ACTIVATION until the user activates it |
 | `created` | string | Enrollment timestamp |
 | `lastUpdated` | string | Last update timestamp |
-| `profile` | json | Factor-specific attributes, which vary by factor type |
+| `profile` | json | Factor-specific attributes, which vary by factor type \(phone number, email, question, credential ID\) |
 | `enrolled` | boolean | Whether the factor was enrolled |
 | `success` | boolean | Operation success status |
 
@@ -895,7 +895,7 @@ List the applications configured in your Okta organization, with optional name s
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `q` | string | No | Search for applications whose name or label starts with this value |
 | `filter` | string | No | Okta filter expression \(e.g., status eq "ACTIVE"\) |
-| `includeNonDeleted` | boolean | No | Include applications that are not deleted \(default: false\) |
+| `includeNonDeleted` | boolean | No | Also return inactive applications. Deleted applications stay excluded either way \(default: false\) |
 | `after` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
 | `limit` | number | No | Maximum number of applications to return \(max: 200\) |
 
@@ -941,10 +941,19 @@ Retrieve a single Okta application by ID, including its sign-on mode, status, en
 | `features` | array | Enabled provisioning features |
 | `created` | string | Creation timestamp |
 | `lastUpdated` | string | Last update timestamp |
-| `accessibility` | json | Accessibility settings, whose fields vary by application |
-| `visibility` | json | Visibility settings, whose fields vary by application |
-| `settings` | json | Application settings, whose shape varies by sign-on mode |
-| `profile` | json | Application profile attributes, whose shape varies by application |
+| `accessibility` | json | Access settings for the app |
+|   ↳ `errorRedirectUrl` | string | Custom error page URL |
+|   ↳ `loginRedirectUrl` | string | Custom login page URL |
+|   ↳ `selfService` | boolean | Whether users can self-assign the app |
+| `visibility` | json | Visibility settings for the app |
+|   ↳ `appLinks` | json | Map of app link name to whether it appears on the End-User Dashboard |
+|   ↳ `autoLaunch` | boolean | Signs in to the app automatically when the user signs in to Okta |
+|   ↳ `autoSubmitToolbar` | boolean | Signs in automatically when the user lands on the sign-in page |
+|   ↳ `hide` | json | Which end-user apps hide this app |
+|     ↳ `iOS` | boolean | Hidden in Okta Mobile |
+|     ↳ `web` | boolean | Hidden on the Okta End-User Dashboard |
+| `settings` | json | Application settings. Okta types these per app kind, so settings.app differs between a SAML, OIDC, bookmark, or SWA app |
+| `profile` | json | Application profile attributes. Okta accepts any valid JSON schema here, so the shape is whatever the org configured |
 | `success` | boolean | Operation success status |
 
 ### List Application Users from Okta
@@ -1256,7 +1265,7 @@ Query the Okta System Log for sign-ins, admin changes, and security events. Supp
 |     ↳ `type` | string | Target type |
 |     ↳ `alternateId` | string | Target alternate ID |
 |     ↳ `displayName` | string | Target display name |
-|   ↳ `debugData` | json | Free-form debug context published with the event |
+|   ↳ `debugData` | json | Extra context whose keys depend on the event type. Okta states these keys and values can change between releases, so treat them as a debugging aid rather than a contract |
 | `count` | number | Number of events returned |
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether more events are available |
