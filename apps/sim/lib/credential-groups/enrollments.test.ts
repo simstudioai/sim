@@ -4,6 +4,7 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { credentialGroupEnrollmentListQuerySchema } from '@/lib/api/contracts/credential-groups'
 
 const { adapter } = vi.hoisted(() => ({
   adapter: {
@@ -151,6 +152,9 @@ describe('listCredentialGroupEnrollments', () => {
       statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'],
     })
     if (!firstPage.nextCursor) throw new Error('Expected a next enrollment cursor')
+    expect(
+      credentialGroupEnrollmentListQuerySchema.parse({ cursor: firstPage.nextCursor }).cursor
+    ).toBe(firstPage.nextCursor)
     const result = await listCredentialGroupEnrollments(
       'workspace-1',
       'group-1',

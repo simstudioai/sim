@@ -1,5 +1,7 @@
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 
+export const CREDENTIAL_GROUP_ENROLLMENT_CURSOR_MAX_LENGTH = 256
+
 interface CredentialGroupOptionInputBase {
   label: string
   required: boolean
