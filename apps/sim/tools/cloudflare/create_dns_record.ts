@@ -77,7 +77,8 @@ export const createDnsRecordTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/dns_records`,
+    url: (params) =>
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

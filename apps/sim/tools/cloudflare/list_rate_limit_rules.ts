@@ -17,7 +17,7 @@ export const listRateLimitRulesTool: ToolConfig<
   id: 'cloudflare_list_rate_limit_rules',
   name: 'Cloudflare List Rate Limiting Rules',
   description:
-    'Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API, not the deprecated legacy rate_limits endpoint. The returned ruleset ID is what "Create Rate Limiting Rule", "Update Rate Limiting Rule", and "Delete Ruleset Rule" need. Requires an API token with Zone WAF Read.',
+    'Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API; the legacy rate_limits endpoint is no longer available. The returned ruleset ID is what "Create Rate Limiting Rule", "Update Rate Limiting Rule", and "Delete Ruleset Rule" need. Requires an API token with Zone WAF Read.',
   version: '1.0.0',
 
   params: {
@@ -37,7 +37,7 @@ export const listRateLimitRulesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets/phases/http_ratelimit/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/http_ratelimit/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

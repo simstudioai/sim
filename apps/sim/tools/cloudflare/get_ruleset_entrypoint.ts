@@ -44,7 +44,7 @@ export const getRulesetEntrypointTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets/phases/${params.phase}/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/${params.phase.trim()}/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

@@ -38,7 +38,7 @@ export const deleteAccessApplicationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/apps/${params.appId}`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}`,
     method: 'DELETE',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

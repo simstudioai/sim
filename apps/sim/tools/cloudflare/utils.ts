@@ -7,6 +7,24 @@
  * `data.success` rather than on the HTTP status.
  */
 
+import type {
+  CloudflareEnvelope,
+  CloudflareRawAccessApplication,
+  CloudflareRawAccessPolicy,
+  CloudflareRawRuleset,
+} from '@/tools/cloudflare/types'
+
+/**
+ * Reads a Cloudflare v4 response body into the shared envelope shape. This is
+ * the one JSON boundary cast in the integration — every caller then branches on
+ * the typed `success` flag and reads `result` through a checked payload type.
+ */
+export async function readCloudflareResponse<TResult>(
+  response: Response
+): Promise<CloudflareEnvelope<TResult>> {
+  return (await response.json()) as CloudflareEnvelope<TResult>
+}
+
 /** Standard bearer-token headers for the Cloudflare v4 API. */
 export function cloudflareHeaders(apiKey: string): Record<string, string> {
   return {
@@ -16,8 +34,8 @@ export function cloudflareHeaders(apiKey: string): Record<string, string> {
 }
 
 /** Extracts the first error message from a Cloudflare envelope. */
-export function cloudflareErrorMessage(data: any, fallback: string): string {
-  const message = data?.errors?.[0]?.message
+export function cloudflareErrorMessage(data: CloudflareEnvelope, fallback: string): string {
+  const message = data.errors?.[0]?.message
   return typeof message === 'string' && message.length > 0 ? message : fallback
 }
 
@@ -71,7 +89,7 @@ export function parseCsvParam(value: unknown): string[] | undefined {
  * shared by the get-ruleset, phase-entrypoint, and rule mutation tools — every
  * one of those endpoints answers with the full ruleset object.
  */
-export function mapRuleset(ruleset: any) {
+export function mapRuleset(ruleset: CloudflareRawRuleset | undefined) {
   return {
     id: ruleset?.id ?? '',
     name: ruleset?.name ?? '',
@@ -81,7 +99,7 @@ export function mapRuleset(ruleset: any) {
     version: ruleset?.version ?? null,
     last_updated: ruleset?.last_updated ?? null,
     rules: Array.isArray(ruleset?.rules)
-      ? ruleset.rules.map((rule: any) => ({
+      ? ruleset.rules.map((rule) => ({
           id: rule.id ?? '',
           version: rule.version ?? null,
           action: rule.action ?? '',
@@ -114,7 +132,7 @@ export function emptyRuleset() {
 }
 
 /** Maps a Cloudflare Access application `result` payload onto the flat output shape. */
-export function mapAccessApplication(app: any) {
+export function mapAccessApplication(app: CloudflareRawAccessApplication | undefined) {
   return {
     id: app?.id ?? '',
     name: app?.name ?? null,
@@ -158,7 +176,7 @@ export function emptyAccessApplication() {
 }
 
 /** Maps a Cloudflare Access policy `result` payload onto the flat output shape. */
-export function mapAccessPolicy(policy: any) {
+export function mapAccessPolicy(policy: CloudflareRawAccessPolicy | undefined) {
   return {
     id: policy?.id ?? '',
     name: policy?.name ?? null,

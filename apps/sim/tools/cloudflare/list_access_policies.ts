@@ -56,7 +56,7 @@ export const listAccessPoliciesTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/apps/${params.appId}/policies`
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}/policies`
       )
       appendParam(url, 'page', params.page)
       appendParam(url, 'per_page', params.per_page)

@@ -18,7 +18,7 @@ export const createRateLimitRuleTool: ToolConfig<
   id: 'cloudflare_create_rate_limit_rule',
   name: 'Cloudflare Create Rate Limiting Rule',
   description:
-    'Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (not the deprecated legacy rate_limits endpoint). Run "List Rate Limiting Rules" first to get the ruleset ID. Requires an API token with Zone WAF Edit.',
+    'Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (the legacy rate_limits endpoint is no longer available). Run "List Rate Limiting Rules" first to get the ruleset ID. Requires an API token with Zone WAF Edit.',
   version: '1.0.0',
 
   params: {
@@ -111,7 +111,7 @@ export const createRateLimitRuleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets/${params.rulesetId}/rules`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}/rules`,
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {

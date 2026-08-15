@@ -1,7 +1,9 @@
 import type {
   CloudflareListDnsRecordsParams,
   CloudflareListDnsRecordsResponse,
+  CloudflareRawDnsRecord,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDnsRecordsTool: ToolConfig<
@@ -109,7 +111,9 @@ export const listDnsRecordsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(`https://api.cloudflare.com/client/v4/zones/${params.zoneId}/dns_records`)
+      const url = new URL(
+        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records`
+      )
       if (params.type) url.searchParams.append('type', params.type)
       if (params.name) url.searchParams.append('name.exact', params.name)
       if (params.content) url.searchParams.append('content.exact', params.content)
@@ -133,7 +137,7 @@ export const listDnsRecordsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawDnsRecord[]>(response)
 
     if (!data.success) {
       return {
@@ -147,7 +151,7 @@ export const listDnsRecordsTool: ToolConfig<
       success: true,
       output: {
         records:
-          data.result?.map((record: any) => ({
+          data.result?.map((record) => ({
             id: record.id ?? '',
             zone_id: record.zone_id ?? '',
             zone_name: record.zone_name ?? '',

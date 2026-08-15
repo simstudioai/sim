@@ -57,7 +57,8 @@ export const createR2BucketTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/r2/buckets`,
+    url: (params) =>
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets`,
     method: 'POST',
     headers: (params) => {
       const headers = cloudflareHeaders(params.apiKey)

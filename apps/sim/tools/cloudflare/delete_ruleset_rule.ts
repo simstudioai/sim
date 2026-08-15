@@ -49,7 +49,7 @@ export const deleteRulesetRuleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets/${params.rulesetId}/rules/${params.ruleId}`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}/rules/${params.ruleId.trim()}`,
     method: 'DELETE',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

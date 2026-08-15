@@ -1,8 +1,14 @@
 import type {
   CloudflareListRulesetsParams,
   CloudflareListRulesetsResponse,
+  CloudflareRawRuleset,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listRulesetsTool: ToolConfig<
@@ -22,6 +28,19 @@ export const listRulesetsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The zone ID to list rulesets for',
     },
+    per_page: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of rulesets to return per page',
+    },
+    cursor: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Cursor for the next page, taken from the cursor output of a previous call. This endpoint paginates by cursor, not by page number',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -31,18 +50,25 @@ export const listRulesetsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets`,
+    url: (params) => {
+      const url = new URL(
+        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets`
+      )
+      appendParam(url, 'per_page', params.per_page)
+      appendParam(url, 'cursor', params.cursor)
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawRuleset[]>(response)
 
     if (!data.success) {
       return {
         success: false,
-        output: { rulesets: [], total_count: 0 },
+        output: { rulesets: [], total_count: 0, cursor: null },
         error: cloudflareErrorMessage(data, 'Failed to list rulesets'),
       }
     }
@@ -52,7 +78,7 @@ export const listRulesetsTool: ToolConfig<
     return {
       success: true,
       output: {
-        rulesets: rulesets.map((ruleset: any) => ({
+        rulesets: rulesets.map((ruleset) => ({
           id: ruleset.id ?? '',
           name: ruleset.name ?? '',
           description: ruleset.description ?? '',
@@ -62,6 +88,7 @@ export const listRulesetsTool: ToolConfig<
           last_updated: ruleset.last_updated ?? null,
         })),
         total_count: rulesets.length,
+        cursor: data.result_info?.cursors?.after ?? null,
       },
     }
   },
@@ -94,6 +121,11 @@ export const listRulesetsTool: ToolConfig<
         },
       },
     },
-    total_count: { type: 'number', description: 'Number of rulesets returned' },
+    total_count: { type: 'number', description: 'Number of rulesets returned on this page' },
+    cursor: {
+      type: 'string',
+      description: 'Cursor to pass to the next call to read the following page, when more remain',
+      optional: true,
+    },
   },
 }

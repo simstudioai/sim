@@ -40,7 +40,7 @@ export const getRulesetTool: ToolConfig<CloudflareGetRulesetParams, CloudflareRu
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets/${params.rulesetId}`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

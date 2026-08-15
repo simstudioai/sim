@@ -1,8 +1,14 @@
 import type {
   CloudflareListWorkerScriptsParams,
   CloudflareListWorkerScriptsResponse,
+  CloudflareRawWorkerScript,
 } from '@/tools/cloudflare/types'
-import { appendParam, cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWorkerScriptsTool: ToolConfig<
@@ -39,7 +45,7 @@ export const listWorkerScriptsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/workers/scripts`
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/workers/scripts`
       )
       appendParam(url, 'tags', params.tags)
       return url.toString()
@@ -49,7 +55,7 @@ export const listWorkerScriptsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawWorkerScript[]>(response)
 
     if (!data.success) {
       return {
@@ -64,7 +70,7 @@ export const listWorkerScriptsTool: ToolConfig<
     return {
       success: true,
       output: {
-        scripts: scripts.map((script: any) => ({
+        scripts: scripts.map((script) => ({
           id: script.id ?? '',
           tag: script.tag ?? null,
           etag: script.etag ?? null,

@@ -80,7 +80,7 @@ export const listAccessApplicationsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/apps`
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'domain', params.domain)

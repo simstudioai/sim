@@ -1,8 +1,13 @@
 import type {
   CloudflareListWorkerRoutesParams,
   CloudflareListWorkerRoutesResponse,
+  CloudflareRawWorkerRoute,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWorkerRoutesTool: ToolConfig<
@@ -32,13 +37,14 @@ export const listWorkerRoutesTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/workers/routes`,
+    url: (params) =>
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/workers/routes`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawWorkerRoute[]>(response)
 
     if (!data.success) {
       return {
@@ -53,7 +59,7 @@ export const listWorkerRoutesTool: ToolConfig<
     return {
       success: true,
       output: {
-        routes: routes.map((route: any) => ({
+        routes: routes.map((route) => ({
           id: route.id ?? '',
           pattern: route.pattern ?? '',
           script: route.script ?? null,

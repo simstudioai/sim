@@ -1,7 +1,9 @@
 import type {
   CloudflareListCertificatesParams,
   CloudflareListCertificatesResponse,
+  CloudflareRawCertificatePack,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCertificatesTool: ToolConfig<
@@ -55,7 +57,7 @@ export const listCertificatesTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/ssl/certificate_packs`
+        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/ssl/certificate_packs`
       )
       if (params.status) url.searchParams.append('status', params.status)
       if (params.page) url.searchParams.append('page', String(params.page))
@@ -71,7 +73,7 @@ export const listCertificatesTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawCertificatePack[]>(response)
 
     if (!data.success) {
       return {
@@ -85,14 +87,14 @@ export const listCertificatesTool: ToolConfig<
       success: true,
       output: {
         certificates:
-          data.result?.map((cert: any) => ({
+          data.result?.map((cert) => ({
             id: cert.id ?? '',
             type: cert.type ?? '',
             hosts: cert.hosts ?? [],
             primary_certificate: cert.primary_certificate ?? '',
             status: cert.status ?? '',
             certificates:
-              cert.certificates?.map((c: any) => ({
+              cert.certificates?.map((c) => ({
                 id: c.id ?? '',
                 hosts: c.hosts ?? [],
                 issuer: c.issuer ?? '',
@@ -111,11 +113,11 @@ export const listCertificatesTool: ToolConfig<
             validity_days: cert.validity_days ?? 0,
             certificate_authority: cert.certificate_authority ?? '',
             validation_errors:
-              cert.validation_errors?.map((e: any) => ({
+              cert.validation_errors?.map((e) => ({
                 message: e.message ?? '',
               })) ?? [],
             validation_records:
-              cert.validation_records?.map((r: any) => ({
+              cert.validation_records?.map((r) => ({
                 cname: r.cname ?? '',
                 cname_target: r.cname_target ?? '',
                 emails: r.emails ?? [],
@@ -126,7 +128,7 @@ export const listCertificatesTool: ToolConfig<
                 txt_value: r.txt_value ?? '',
               })) ?? [],
             dcv_delegation_records:
-              cert.dcv_delegation_records?.map((r: any) => ({
+              cert.dcv_delegation_records?.map((r) => ({
                 cname: r.cname ?? '',
                 cname_target: r.cname_target ?? '',
                 emails: r.emails ?? [],

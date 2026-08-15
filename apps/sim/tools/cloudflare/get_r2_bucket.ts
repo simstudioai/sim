@@ -42,7 +42,7 @@ export const getR2BucketTool: ToolConfig<CloudflareGetR2BucketParams, Cloudflare
 
     request: {
       url: (params) =>
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/r2/buckets/${encodeURIComponent(params.bucketName)}`,
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets/${encodeURIComponent(params.bucketName)}`,
       method: 'GET',
       headers: (params) => {
         const headers = cloudflareHeaders(params.apiKey)

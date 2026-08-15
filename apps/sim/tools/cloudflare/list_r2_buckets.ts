@@ -1,8 +1,14 @@
 import type {
   CloudflareListR2BucketsParams,
   CloudflareListR2BucketsResponse,
+  CloudflareRawR2Bucket,
 } from '@/tools/cloudflare/types'
-import { appendParam, cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listR2BucketsTool: ToolConfig<
@@ -69,16 +75,16 @@ export const listR2BucketsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/r2/buckets`
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/r2/buckets`
       )
       appendParam(url, 'name_contains', params.name_contains)
       appendParam(url, 'start_after', params.start_after)
       appendParam(url, 'cursor', params.cursor)
       appendParam(url, 'direction', params.direction)
       appendParam(url, 'per_page', params.per_page)
-      if (params.name_contains || params.start_after || params.direction) {
-        url.searchParams.append('order', 'name')
-      }
+      // `direction` only means something alongside an ordering field, and `name`
+      // is the sole value Cloudflare documents for `order`.
+      if (params.direction) url.searchParams.append('order', 'name')
       return url.toString()
     },
     method: 'GET',
@@ -90,7 +96,7 @@ export const listR2BucketsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<{ buckets?: CloudflareRawR2Bucket[] }>(response)
 
     if (!data.success) {
       return {
@@ -105,7 +111,7 @@ export const listR2BucketsTool: ToolConfig<
     return {
       success: true,
       output: {
-        buckets: buckets.map((bucket: any) => ({
+        buckets: buckets.map((bucket) => ({
           name: bucket.name ?? '',
           creation_date: bucket.creation_date ?? null,
           location: bucket.location ?? null,

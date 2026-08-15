@@ -38,7 +38,7 @@ export const revokeAccessServiceTokenTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/service_tokens/${params.serviceTokenId}`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/service_tokens/${params.serviceTokenId.trim()}`,
     method: 'DELETE',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

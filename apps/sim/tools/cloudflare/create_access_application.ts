@@ -115,7 +115,7 @@ export const createAccessApplicationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/apps`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps`,
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {

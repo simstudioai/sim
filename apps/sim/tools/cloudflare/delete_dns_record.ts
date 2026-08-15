@@ -36,7 +36,7 @@ export const deleteDnsRecordTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/dns_records/${params.recordId}`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records/${params.recordId.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

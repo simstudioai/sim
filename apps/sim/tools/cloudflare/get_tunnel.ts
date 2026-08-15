@@ -32,7 +32,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/cfd_tunnel/${params.tunnelId}`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel/${params.tunnelId.trim()}`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
@@ -51,6 +51,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
           status: null,
           tun_type: null,
           remote_config: null,
+          metadata: null,
           created_at: null,
           deleted_at: null,
           conns_active_at: null,
@@ -72,6 +73,7 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
         status: tunnel?.status ?? null,
         tun_type: tunnel?.tun_type ?? null,
         remote_config: tunnel?.remote_config ?? null,
+        metadata: tunnel?.metadata ?? null,
         created_at: tunnel?.created_at ?? null,
         deleted_at: tunnel?.deleted_at ?? null,
         conns_active_at: tunnel?.conns_active_at ?? null,
@@ -103,6 +105,11 @@ export const getTunnelTool: ToolConfig<CloudflareGetTunnelParams, CloudflareTunn
     remote_config: {
       type: 'boolean',
       description: 'Whether the tunnel is remotely managed',
+      optional: true,
+    },
+    metadata: {
+      type: 'json',
+      description: 'Metadata associated with the tunnel',
       optional: true,
     },
     created_at: { type: 'string', description: 'Creation timestamp', optional: true },

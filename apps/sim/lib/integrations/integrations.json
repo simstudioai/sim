@@ -3899,11 +3899,11 @@
         },
         {
           "name": "List Rate Limiting Rules",
-          "description": "Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API, not the deprecated legacy rate_limits endpoint. The returned ruleset ID is what \"Create Rate Limiting Rule\", \"Update Rate Limiting Rule\", and \"Delete Ruleset Rule\" need. Requires an API token with Zone WAF Read."
+          "description": "Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API; the legacy rate_limits endpoint is no longer available. The returned ruleset ID is what \"Create Rate Limiting Rule\", \"Update Rate Limiting Rule\", and \"Delete Ruleset Rule\" need. Requires an API token with Zone WAF Read."
         },
         {
           "name": "Create Rate Limiting Rule",
-          "description": "Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (not the deprecated legacy rate_limits endpoint). Run \"List Rate Limiting Rules\" first to get the ruleset ID. Requires an API token with Zone WAF Edit."
+          "description": "Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (the legacy rate_limits endpoint is no longer available). Run \"List Rate Limiting Rules\" first to get the ruleset ID. Requires an API token with Zone WAF Edit."
         },
         {
           "name": "Update Rate Limiting Rule",

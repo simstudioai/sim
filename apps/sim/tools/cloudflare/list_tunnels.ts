@@ -1,8 +1,14 @@
 import type {
   CloudflareListTunnelsParams,
   CloudflareListTunnelsResponse,
+  CloudflareRawTunnel,
 } from '@/tools/cloudflare/types'
-import { appendParam, cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTunnelsTool: ToolConfig<
@@ -99,7 +105,7 @@ export const listTunnelsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/cfd_tunnel`
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'status', params.status)
@@ -121,7 +127,7 @@ export const listTunnelsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawTunnel[]>(response)
 
     if (!data.success) {
       return {
@@ -136,7 +142,7 @@ export const listTunnelsTool: ToolConfig<
     return {
       success: true,
       output: {
-        tunnels: tunnels.map((tunnel: any) => ({
+        tunnels: tunnels.map((tunnel) => ({
           id: tunnel.id ?? '',
           name: tunnel.name ?? null,
           account_tag: tunnel.account_tag ?? null,
@@ -144,6 +150,7 @@ export const listTunnelsTool: ToolConfig<
           status: tunnel.status ?? null,
           tun_type: tunnel.tun_type ?? null,
           remote_config: tunnel.remote_config ?? null,
+          metadata: tunnel.metadata ?? null,
           created_at: tunnel.created_at ?? null,
           deleted_at: tunnel.deleted_at ?? null,
           conns_active_at: tunnel.conns_active_at ?? null,
@@ -187,6 +194,11 @@ export const listTunnelsTool: ToolConfig<
           remote_config: {
             type: 'boolean',
             description: 'Whether the tunnel is remotely managed',
+            optional: true,
+          },
+          metadata: {
+            type: 'json',
+            description: 'Metadata associated with the tunnel',
             optional: true,
           },
           created_at: { type: 'string', description: 'Creation timestamp', optional: true },

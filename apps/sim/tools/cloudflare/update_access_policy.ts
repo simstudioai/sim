@@ -118,7 +118,7 @@ export const updateAccessPolicyTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/apps/${params.appId}/policies/${params.policyId}`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/apps/${params.appId.trim()}/policies/${params.policyId.trim()}`,
     method: 'PUT',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {

@@ -32,8 +32,7 @@ export const updateZoneSettingTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'New value for the setting as a string or JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \'["ECDHE-RSA-AES128-GCM-SHA256"]\' for ciphers)',
+      description: `New value for the setting as a string, or a JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, ["ECDHE-RSA-AES128-GCM-SHA256"] for ciphers)`,
     },
     apiKey: {
       type: 'string',
@@ -45,7 +44,7 @@ export const updateZoneSettingTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/settings/${params.settingId}`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/settings/${params.settingId.trim()}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

@@ -38,7 +38,7 @@ export const getWorkerScriptSettingsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/workers/scripts/${encodeURIComponent(params.scriptName)}/settings`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/workers/scripts/${encodeURIComponent(params.scriptName)}/settings`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

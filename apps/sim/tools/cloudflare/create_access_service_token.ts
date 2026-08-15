@@ -45,7 +45,7 @@ export const createAccessServiceTokenTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/service_tokens`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/service_tokens`,
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {

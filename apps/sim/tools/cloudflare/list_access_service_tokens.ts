@@ -1,8 +1,14 @@
 import type {
   CloudflareListAccessServiceTokensParams,
   CloudflareListAccessServiceTokensResponse,
+  CloudflareRawAccessServiceToken,
 } from '@/tools/cloudflare/types'
-import { appendParam, cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAccessServiceTokensTool: ToolConfig<
@@ -57,7 +63,7 @@ export const listAccessServiceTokensTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/service_tokens`
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/service_tokens`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'search', params.search)
@@ -70,7 +76,7 @@ export const listAccessServiceTokensTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawAccessServiceToken[]>(response)
 
     if (!data.success) {
       return {
@@ -85,7 +91,7 @@ export const listAccessServiceTokensTool: ToolConfig<
     return {
       success: true,
       output: {
-        service_tokens: tokens.map((token: any) => ({
+        service_tokens: tokens.map((token) => ({
           id: token.id ?? '',
           name: token.name ?? null,
           client_id: token.client_id ?? null,

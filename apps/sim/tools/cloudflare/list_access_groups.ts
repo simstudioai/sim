@@ -1,8 +1,14 @@
 import type {
   CloudflareListAccessGroupsParams,
   CloudflareListAccessGroupsResponse,
+  CloudflareRawAccessGroup,
 } from '@/tools/cloudflare/types'
-import { appendParam, cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAccessGroupsTool: ToolConfig<
@@ -57,7 +63,7 @@ export const listAccessGroupsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/groups`
+        `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/groups`
       )
       appendParam(url, 'name', params.name)
       appendParam(url, 'search', params.search)
@@ -70,7 +76,7 @@ export const listAccessGroupsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawAccessGroup[]>(response)
 
     if (!data.success) {
       return {
@@ -85,7 +91,7 @@ export const listAccessGroupsTool: ToolConfig<
     return {
       success: true,
       output: {
-        groups: groups.map((group: any) => ({
+        groups: groups.map((group) => ({
           id: group.id ?? '',
           name: group.name ?? null,
           is_default: group.is_default ?? null,

@@ -88,7 +88,7 @@ export const updateRulesetRuleTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets/${params.rulesetId}/rules/${params.ruleId}`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/${params.rulesetId.trim()}/rules/${params.ruleId.trim()}`,
     method: 'PATCH',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {

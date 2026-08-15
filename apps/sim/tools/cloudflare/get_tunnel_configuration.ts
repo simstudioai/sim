@@ -38,7 +38,7 @@ export const getTunnelConfigurationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/cfd_tunnel/${params.tunnelId}/configurations`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/cfd_tunnel/${params.tunnelId.trim()}/configurations`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },

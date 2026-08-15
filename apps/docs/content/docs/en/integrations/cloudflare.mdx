@@ -455,7 +455,7 @@ Gets all settings for a zone including SSL mode, caching level, and security set
 | --------- | ---- | ----------- |
 | `settings` | array | List of zone settings |
 |   ↳ `id` | string | Setting identifier \(e.g., ssl, cache_level, security_level, always_use_https\) |
-|   ↳ `value` | string | Setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified \(e.g., \ |
+|   ↳ `value` | string | Setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified \(e.g., \{"css":"on","html":"on","js":"on"\}\). |
 |   ↳ `editable` | boolean | Whether the setting can be modified for the current zone plan |
 |   ↳ `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
 |   ↳ `time_remaining` | number | Seconds remaining until the setting can be modified again \(only present for rate-limited settings\) |
@@ -470,7 +470,7 @@ Updates a specific zone setting such as SSL mode, security level, cache level, o
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to update settings for |
 | `settingId` | string | Yes | Setting to update \(e.g., "ssl", "security_level", "cache_level", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers"\) |
-| `value` | string | Yes | New value for the setting as a string or JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \'\["ECDHE-RSA-AES128-GCM-SHA256"\]\' for ciphers\) |
+| `value` | string | Yes | New value for the setting as a string, or a JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \["ECDHE-RSA-AES128-GCM-SHA256"\] for ciphers\) |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -574,6 +574,8 @@ Lists every ruleset defined on a zone across all phases (WAF custom rules, manag
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to list rulesets for |
+| `per_page` | number | No | Number of rulesets to return per page |
+| `cursor` | string | No | Cursor for the next page, taken from the cursor output of a previous call. This endpoint paginates by cursor, not by page number |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -588,7 +590,8 @@ Lists every ruleset defined on a zone across all phases (WAF custom rules, manag
 |   ↳ `phase` | string | Phase the ruleset runs in \(e.g., http_request_firewall_custom, http_request_firewall_managed, http_ratelimit\) |
 |   ↳ `version` | string | Ruleset version |
 |   ↳ `last_updated` | string | RFC 3339 timestamp of the last change |
-| `total_count` | number | Number of rulesets returned |
+| `total_count` | number | Number of rulesets returned on this page |
+| `cursor` | string | Cursor to pass to the next call to read the following page, when more remain |
 
 ### Cloudflare Get Ruleset
 
@@ -812,12 +815,12 @@ Lists the WAF managed rulesets deployed on a zone together with the overrides ap
 |   ↳ `description` | string | Description of the deployment rule |
 |   ↳ `expression` | string | Filter expression scoping which requests the managed ruleset runs on |
 |   ↳ `enabled` | boolean | Whether the deployment is enabled |
-|   ↳ `overrides` | json | Overrides applied to the managed ruleset, with optional ruleset-level, categories, and rules entries. Cloudflare documents action and enabled as the overridable properties |
+|   ↳ `overrides` | json | Overrides applied to the managed ruleset, at three levels — ruleset \(top level\), categories, and rules. The Rulesets engine documents action and enabled as the properties overridable at every level; individual managed rulesets may add more, and the OWASP Core Ruleset also accepts score_threshold on a rule override |
 | `total_count` | number | Number of managed ruleset deployments found |
 
 ### Cloudflare List Rate Limiting Rules
 
-Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API, not the deprecated legacy rate_limits endpoint. The returned ruleset ID is what "Create Rate Limiting Rule", "Update Rate Limiting Rule", and "Delete Ruleset Rule" need. Requires an API token with Zone WAF Read.
+Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API; the legacy rate_limits endpoint is no longer available. The returned ruleset ID is what "Create Rate Limiting Rule", "Update Rate Limiting Rule", and "Delete Ruleset Rule" need. Requires an API token with Zone WAF Read.
 
 #### Input
 
@@ -853,7 +856,7 @@ Lists the rate limiting rules on a zone by reading the http_ratelimit phase entr
 
 ### Cloudflare Create Rate Limiting Rule
 
-Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (not the deprecated legacy rate_limits endpoint). Run "List Rate Limiting Rules" first to get the ruleset ID. Requires an API token with Zone WAF Edit.
+Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (the legacy rate_limits endpoint is no longer available). Run "List Rate Limiting Rules" first to get the ruleset ID. Requires an API token with Zone WAF Edit.
 
 #### Input
 
@@ -1617,6 +1620,7 @@ Lists the Cloudflare Tunnels (cloudflared) in an account, with their health stat
 |   ↳ `status` | string | Tunnel health: inactive, degraded, healthy, or down |
 |   ↳ `tun_type` | string | Tunnel type, e.g. cfd_tunnel, warp_connector, or warp |
 |   ↳ `remote_config` | boolean | Whether the tunnel is remotely managed |
+|   ↳ `metadata` | json | Metadata associated with the tunnel |
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `deleted_at` | string | Deletion timestamp |
 |   ↳ `conns_active_at` | string | When the tunnel last had active connections |
@@ -1647,6 +1651,7 @@ Reads a single Cloudflare Tunnel (cloudflared), including its health status and 
 | `status` | string | Tunnel health: inactive, degraded, healthy, or down |
 | `tun_type` | string | Tunnel type, e.g. cfd_tunnel, warp_connector, or warp |
 | `remote_config` | boolean | Whether the tunnel is remotely managed |
+| `metadata` | json | Metadata associated with the tunnel |
 | `created_at` | string | Creation timestamp |
 | `deleted_at` | string | Deletion timestamp |
 | `conns_active_at` | string | When the tunnel last had active connections |

@@ -1359,7 +1359,8 @@ To override specific categories:
 To override specific rules:
 {"id":"<MANAGED_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","action":"log","enabled":true}]}}
 
-Cloudflare documents "action" and "enabled" as the overridable properties.
+"action" and "enabled" are overridable at every level. Individual managed rulesets may accept more: an OWASP Core Ruleset rule override also takes "score_threshold", e.g.
+{"id":"<OWASP_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","score_threshold":60,"action":"managed_challenge"}]}}
 
 Return ONLY the JSON object - no explanations, no markdown fences.`,
         placeholder:
@@ -2018,7 +2019,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Pagination cursor from a previous call',
-      condition: { field: 'operation', value: 'list_r2_buckets' },
+      condition: { field: 'operation', value: ['list_r2_buckets', 'list_rulesets'] },
       mode: 'advanced',
     },
     {
@@ -2170,6 +2171,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
           'list_access_groups',
           'list_access_service_tokens',
           'list_r2_buckets',
+          'list_rulesets',
           'list_tunnels',
         ],
       },
@@ -2706,6 +2708,25 @@ export const CloudflareBlockMeta = {
       category: 'engineering',
       tags: ['devops', 'enterprise', 'monitoring'],
     },
+    {
+      icon: CloudflareIcon,
+      title: 'Cloudflare WAF and rate limit rollout',
+      prompt:
+        'Build a workflow that reads a table of WAF rules — expression, action, and rate limit — validates each row against the zone it targets, deploys it into the matching Cloudflare ruleset phase, and posts a Slack summary of every rule created, changed, or skipped.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'security', 'infrastructure'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudflareIcon,
+      title: 'Cloudflare Zero Trust access review',
+      prompt:
+        'Create a scheduled monthly workflow that lists every Cloudflare Access application and its policies, flags applications with no policy, overly broad email-domain rules, or bypass decisions, logs the findings to a table, and emails an access review to security leadership.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['security', 'enterprise', 'monitoring'],
+    },
   ],
   skills: [
     {
@@ -2742,6 +2763,27 @@ export const CloudflareBlockMeta = {
         'Add or update the SPF, DKIM, and DMARC TXT records a zone needs to authenticate outbound email and improve deliverability.',
       content:
         '# Set Up Email Authentication Records\n\nEmail providers (Google Workspace, Microsoft 365, transactional senders) require SPF, DKIM, and DMARC TXT records to authenticate mail and avoid it being marked as spam.\n\n## Steps\n1. Resolve the zone ID for the sending domain.\n2. List existing TXT records to check for conflicting or duplicate SPF/DMARC entries.\n3. Create or update the SPF TXT record (`v=spf1 ...`), the DKIM selector TXT record, and the DMARC TXT record (`_dmarc` name, `v=DMARC1; ...` policy) with the values the mail provider supplies.\n4. Confirm each record was created with the correct name, type, and content.\n\n## Output\nA confirmation of the SPF, DKIM, and DMARC records now in place, with their record IDs and TTLs.',
+    },
+    {
+      name: 'deploy-waf-custom-rule',
+      description:
+        'Add a WAF custom rule to a Cloudflare zone through the Rulesets engine, blocking or challenging traffic that matches a filter expression.',
+      content:
+        '# Deploy a WAF Custom Rule\n\nWAF custom rules live in the `http_request_firewall_custom` phase of the Rulesets engine, so the ruleset ID has to be resolved before a rule can be added.\n\n## Steps\n1. Resolve the zone ID for the target domain.\n2. Read the `http_request_firewall_custom` phase entry point ruleset for that zone to get its ruleset ID and current rules.\n3. Write the filter expression for the traffic to act on (e.g. `(ip.src.country in {"GB" "FR"})` or `(http.request.uri.path matches "^/admin")`).\n4. Create the rule in that ruleset with the chosen action — `block`, `managed_challenge`, `js_challenge`, `challenge`, `skip`, or `log`. Start with `log` to observe impact before enforcing.\n5. Read the ruleset back and confirm the new rule appears in the intended evaluation order.\n\n## Output\nThe ruleset ID, the new rule ID, its expression and action, and its position in the evaluation order.\n\n## Cautions\nRules take effect on live traffic immediately. A broad expression with `block` can lock out legitimate users, so verify the expression in `log` mode first.',
+    },
+    {
+      name: 'rate-limit-an-api-endpoint',
+      description:
+        'Protect an API path from abuse with a Cloudflare rate limiting rule using the current Rulesets-based rate limiting API.',
+      content:
+        '# Rate Limit an API Endpoint\n\nRate limiting rules are rules in the `http_ratelimit` phase entry point ruleset. The legacy `rate_limits` endpoint is no longer the way to do this.\n\n## Steps\n1. Resolve the zone ID for the domain serving the API.\n2. List the existing rate limiting rules to get the `http_ratelimit` entry point ruleset ID and see what is already in place.\n3. Decide the counting characteristics. `cf.colo.id` is mandatory, plus exactly one of `ip.src` (per IP) or `cf.unique_visitor_id` (per visitor); add `http.request.headers["<name>"]` to count per API key.\n4. Pick a counting period (10, 60, 120, 300, 600, or 3600 seconds) and the request allowance for that period.\n5. Create the rule with the matching expression (e.g. `(http.request.uri.path matches "^/api/")`), the counting configuration, and the mitigation action.\n6. Read the rules back and confirm the new rule and its limit.\n\n## Output\nThe ruleset ID, the new rule ID, the expression, and the effective limit (requests per period, characteristics, and mitigation timeout).\n\n## Cautions\nThe rule applies to live traffic as soon as it is created. Size the allowance against real traffic before choosing `block` over `log` or `managed_challenge`.',
+    },
+    {
+      name: 'review-zero-trust-access',
+      description:
+        'Audit Cloudflare Access applications and their policies to find unprotected apps, over-broad rules, and bypass decisions.',
+      content:
+        '# Review Zero Trust Access\n\nAccess applications and policies are account-scoped. An application with no policy denies everyone; a broad `allow` policy lets in more than intended.\n\n## Steps\n1. List the Access applications in the account.\n2. For each application, list its policies in precedence order.\n3. List the configured identity providers so `allowed_idps` values can be read as names rather than IDs.\n4. Flag applications with no policies, `allow` policies whose include rules are a whole email domain or `everyone`, any `bypass` decision, and applications with no `allowed_idps` restriction.\n5. Note session durations that are longer than the organization allows.\n\n## Output\nA per-application summary of domain, type, identity providers, policy decisions and include rules, and the flagged findings ranked by risk.',
     },
   ],
 } as const satisfies BlockMeta

@@ -1,8 +1,13 @@
 import type {
   CloudflareListManagedRulesetOverridesParams,
   CloudflareListManagedRulesetOverridesResponse,
+  CloudflareRawRuleset,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listManagedRulesetOverridesTool: ToolConfig<
@@ -32,13 +37,13 @@ export const listManagedRulesetOverridesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/rulesets/phases/http_request_firewall_managed/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/http_request_firewall_managed/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawRuleset>(response)
 
     if (!data.success) {
       return {
@@ -50,8 +55,8 @@ export const listManagedRulesetOverridesTool: ToolConfig<
 
     const rules = Array.isArray(data.result?.rules) ? data.result.rules : []
     const deployments = rules
-      .filter((rule: any) => rule.action === 'execute')
-      .map((rule: any) => ({
+      .filter((rule) => rule.action === 'execute')
+      .map((rule) => ({
         rule_id: rule.id ?? '',
         managed_ruleset_id: rule.action_parameters?.id ?? null,
         description: rule.description ?? '',
@@ -100,7 +105,7 @@ export const listManagedRulesetOverridesTool: ToolConfig<
           overrides: {
             type: 'json',
             description:
-              'Overrides applied to the managed ruleset, with optional ruleset-level, categories, and rules entries. Cloudflare documents action and enabled as the overridable properties',
+              'Overrides applied to the managed ruleset, at three levels — ruleset (top level), categories, and rules. The Rulesets engine documents action and enabled as the properties overridable at every level; individual managed rulesets may add more, and the OWASP Core Ruleset also accepts score_threshold on a rule override',
             optional: true,
           },
         },

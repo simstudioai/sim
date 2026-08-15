@@ -59,7 +59,8 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
     },
 
     request: {
-      url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/purge_cache`,
+      url: (params) =>
+        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/purge_cache`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

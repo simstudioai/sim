@@ -1,8 +1,13 @@
 import type {
   CloudflareListAccessIdentityProvidersParams,
   CloudflareListAccessIdentityProvidersResponse,
+  CloudflareRawAccessIdentityProvider,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listAccessIdentityProvidersTool: ToolConfig<
@@ -32,13 +37,13 @@ export const listAccessIdentityProvidersTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId}/access/identity_providers`,
+      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/identity_providers`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawAccessIdentityProvider[]>(response)
 
     if (!data.success) {
       return {
@@ -53,7 +58,7 @@ export const listAccessIdentityProvidersTool: ToolConfig<
     return {
       success: true,
       output: {
-        identity_providers: providers.map((provider: any) => ({
+        identity_providers: providers.map((provider) => ({
           id: provider.id ?? '',
           name: provider.name ?? null,
           type: provider.type ?? null,
