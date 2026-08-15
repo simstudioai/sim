@@ -236,7 +236,7 @@ export function whoamiCommand(): Command {
           authenticated: authentication.authenticated,
           sources: {
             endpoint: sources.endpoint,
-            apiKey: authentication.source,
+            authentication: authentication.source,
             workspaceId: sources.workspaceId,
             output: sources.output,
           },

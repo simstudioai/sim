@@ -231,4 +231,30 @@ describe('whoami command', () => {
     expect(output).not.toContain('sim_super_secret_value')
     expect(output).not.toContain('secret')
   })
+
+  it('uses non-secret-shaped authentication metadata in machine output', async () => {
+    mocks.profileFrom.mockReturnValue({
+      name: 'default',
+      endpoint: 'https://sim.ai',
+      apiKey: 'sim_super_secret_value',
+      workspaceId: 'ws_1',
+      output: 'json',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'credentials',
+        workspaceId: 'config',
+        output: 'flag',
+      },
+    })
+
+    await whoami()
+
+    const output = String(vi.mocked(console.log).mock.calls[0][0])
+    expect(JSON.parse(output)).toMatchObject({
+      authenticated: true,
+      sources: { authentication: 'credentials' },
+    })
+    expect(output).not.toContain('apiKey')
+    expect(output).not.toContain('sim_super_secret_value')
+  })
 })
