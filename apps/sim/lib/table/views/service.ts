@@ -2,11 +2,12 @@
  * Saved views on a user table — named presets of `{ filter, sort, column layout }`.
  *
  * A view is presentation state, never an access boundary: it narrows what a
- * reader sees by default, but every row it hides is still reachable by switching
- * to "All". Row access is enforced entirely by the caller's workspace permission.
+ * reader sees by default, but every row it hides remains accessible by clearing
+ * the filter or selecting another view. Row access is enforced entirely by the
+ * caller's workspace permission.
  *
- * "All" is the *absence* of a view, so no row is seeded per table and a table is
- * always reachable unfiltered even if every saved view is broken or deleted.
+ * New tables are seeded with an empty default view. Legacy tables without one
+ * temporarily use "All" as an unfiltered fallback until they are migrated.
  */
 
 import { db } from '@sim/db'
@@ -193,10 +194,10 @@ function tolerantColumns(
  * `carriedForward` names the references that are exempt from that refusal.
  * Deleting a column leaves every view that filtered on it dangling —
  * `pruneViewConfig` deliberately does not prune a filter — so without the
- * exemption the view becomes unwritable: the Save chip sends the whole
- * `{filter, sort, hiddenColumns}` slice, and a user changing the sort would be
- * refused over a condition they did not touch, with no way to save the removal
- * of anything else first. The v2 surface exempts only what the STORED config
+ * exemption the filter becomes unwritable: changing one of its other conditions
+ * autosaves the whole predicate and would be refused over the dangling condition
+ * the user did not touch, with no way to save its eventual removal. The v2
+ * surface exempts only what the STORED config
  * already held, so a reference the caller INTRODUCES is refused; a first-party
  * caller exempts its own refs too, which is the behavior the grid has always
  * had — see {@link CreateTableViewData.strictRefs}.
@@ -425,9 +426,8 @@ export interface CreateTableViewData {
    * Absent — the first-party grid, which does not author these refs so much as
    * carry them: a view filtered on a since-deleted column keeps the dangling
    * leaf through every read (`pruneViewConfig` spares filters) and hands it
-   * straight back on the next save. Refusing it would 400 "Save as view" on a
-   * config the Save chip accepts, one menu item apart, over a condition the user
-   * never touched.
+   * straight back on the next autosave. Refusing it would reject a config the
+   * first-party grid already accepted, over a condition the user never touched.
    */
   strictRefs?: boolean
 }
@@ -495,7 +495,7 @@ export interface UpdateTableViewData {
   tableId: string
   workspaceId?: string
   name?: string
-  /** Full replace — an explicit Save, where removing a filter must persist. */
+  /** Full replacement for callers that own the complete configuration snapshot. */
   config?: TableViewConfig
   /** Shallow-merged into the stored config. Mutually exclusive with `config`. */
   configPatch?: TableViewConfig

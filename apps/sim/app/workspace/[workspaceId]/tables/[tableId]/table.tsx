@@ -39,6 +39,12 @@ import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presen
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import {
+  getTableViewRevision,
+  resolveTableViewSelection,
+  shouldApplyTableViewRevision,
+  type TableViewRevision,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
@@ -161,46 +167,8 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
 /** Stable identity so a loading/disabled views query doesn't remint `[]` each render. */
 const NO_VIEWS: TableViewWire[] = []
 
-/** `blank` starts the view from "All" (no filter/sort/hidden) so it is configured
- *  after naming, rather than capturing whatever is currently applied. */
-type ViewModalState =
-  | { mode: 'create'; blank?: boolean }
-  | { mode: 'rename'; viewId: string }
-  | null
-
-/**
- * Order-insensitive JSON, used to compare a locally-built config against one that
- * has round-tripped through Postgres. `jsonb` does not preserve object key order
- * (`{status,plan}` comes back `{plan,status}`), so a plain `JSON.stringify` would
- * report any multi-key filter as permanently dirty. Array order is preserved —
- * it is meaningful for `columnOrder`.
- */
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, entry]) => entry !== undefined)
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`).join(',')}}`
-}
-
-/**
- * Structural equality for the parts of a view config the user edits directly.
- * Column layout (widths/order/pinning) is excluded — it auto-saves into the
- * active view as the user drags, so it can never be the thing that is "unsaved".
- *
- * Compares serialized form rather than field-by-field because `filter` is an
- * arbitrarily nested predicate tree.
- */
-function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
-  const normalize = (config: TableViewConfig) =>
-    stableStringify({
-      filter: config.filter ?? null,
-      sort: config.sort ?? null,
-      hiddenColumns: [...(config.hiddenColumns ?? [])].sort(),
-    })
-  return normalize(a) === normalize(b)
-}
+/** New views are named before configuration; rename targets an existing view. */
+type ViewModalState = { mode: 'new' } | { mode: 'rename'; viewId: string } | null
 
 /**
  * Page-level wrapper for the table detail view. Mirrors the shape of
@@ -410,21 +378,20 @@ export function Table({
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
   const deleteViewMutation = useDeleteTableView({ workspaceId, tableId })
 
-  /** The selected view, or `null` for the built-in "All" state. A view id that no
-   *  longer resolves (deleted, stale bookmark) falls back to "All" rather than
-   *  rendering an empty view. */
-  const activeView = activeViewId ? (views.find((view) => view.id === activeViewId) ?? null) : null
+  /** Resolve the default synchronously so the grid, autosave owner, and menu all
+   *  agree before the URL effect records the adopted view id. */
+  const { selectedView, defaultView, activeView } = resolveTableViewSelection(views, activeViewId)
 
   const [viewModal, setViewModal] = useState<ViewModalState>(null)
-  /** Which view id the local filter/sort/hidden state was last seeded from.
+  /** Which persisted view revision last seeded the local filter/sort/hidden state.
    *  `undefined` means "nothing seeded yet" so the first resolve still runs. */
-  const seededViewIdRef = useRef<string | null | undefined>(undefined)
+  const appliedViewRevisionRef = useRef<TableViewRevision | undefined>(undefined)
 
   /**
    * A view this client just created, held only until the list refetch carries it.
-   * Distinct from `seededViewIdRef`, which is stamped on EVERY selection — reusing
-   * that for the create race also matched a view that had been selected normally
-   * and then deleted, so the delete never cleaned up.
+   * Distinct from `appliedViewRevisionRef`, which is stamped on EVERY selection —
+   * reusing that for the create race also matched a view that had been selected
+   * normally and then deleted, so the delete never cleaned up.
    */
   const pendingCreatedViewIdRef = useRef<string | null>(null)
 
@@ -495,10 +462,9 @@ export function Table({
    * disappears on refresh. Adopting a view instead re-seeds the grid from that
    * view's config, which already replaced the gesture on screen, so it is dropped.
    *
-   * Called from the resolve effect rather than keyed on `activeView`: adoption
-   * writes the view id through the URL, so for one render the query has settled
-   * while `activeView` is still null, and an effect would flush to All in exactly
-   * the case that must drop.
+   * Called from the resolve effect rather than keyed on the URL selection:
+   * default adoption is resolved synchronously before that URL catches up, and
+   * an independent effect could flush to All in exactly the case that must drop.
    */
   const resolvePendingLayout = useCallback(
     (adoptedView: boolean) => {
@@ -527,8 +493,10 @@ export function Table({
 
   /**
    * Resolves the active view and seeds the local filter/sort/hidden-column state
-   * from it. Runs only when the *selected view id* changes, never on every edit,
-   * so ad-hoc changes on top of a view are preserved until the user switches away.
+   * from it. A different view always applies; a newer revision of the same view
+   * applies once this client's autosave queue settles. That lets navigation
+   * rehydrate a freshly saved filter without an intermediate response rewinding
+   * a newer local gesture.
    *
    * On first load with no `?view=` the table's default view (if any) is selected
    * and written into the URL explicitly — a link then keeps resolving to the same
@@ -539,7 +507,7 @@ export function Table({
     // Terminal only when the fetch failed WITHOUT ever producing a list — then
     // the table settles to All: mark the owner resolved so layout writes flow
     // to shared metadata, and flush what was touched during the load. It does
-    // NOT stamp `seededViewIdRef` — that would consume the first resolve, and a
+    // NOT stamp `appliedViewRevisionRef` — that would consume the first resolve, and a
     // later successful refetch must still run adoption (with `localWork` keep,
     // so filters set while errored survive). An error with a cached list falls
     // through — the list is still resolvable.
@@ -550,53 +518,62 @@ export function Table({
     }
     if (!viewsAvailable) return
     ownerResolvedRef.current = true
-
-    if (seededViewIdRef.current === undefined) {
+    if (appliedViewRevisionRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
       // mothership panel keeps across resource switches. A view id this table
       // can't resolve was left by the previously-open resource — ignore it so
-      // this table picks its own default. A param it CAN resolve is honoured,
-      // including an explicit All: that is a real bookmark or a remount after
-      // switching resources away and back, not leakage.
+      // this table picks its own default. A param it CAN resolve is honoured.
       const inheritedParams =
         embedded &&
         activeViewId !== null &&
         activeViewId !== ALL_VIEW_PARAM &&
-        !views.some((view) => view.id === activeViewId)
+        selectedView === null
+      // Until the backfill ships, All remains the compatibility state for a
+      // table with no persisted default. Once a default exists, an old All URL
+      // upgrades to that view instead of preserving the synthetic state.
+      const legacyAllWithDefault = activeViewId === ALL_VIEW_PARAM && defaultView !== null
 
-      if (activeViewId === null || inheritedParams) {
-        const defaultView = views.find((view) => view.isDefault)
+      if (activeViewId === null || inheritedParams || legacyAllWithDefault) {
+        const pinnedView =
+          embedded && initialViewId ? views.find((view) => view.id === initialViewId) : undefined
+        const viewToAdopt = pinnedView ?? defaultView
         // `sort` rides the same host URL, so when the view id is inherited the
         // sort beside it is too — not local work, and it must not suppress the
         // default view's own sort.
-        const keep = inheritedParams ? { ...localWork(), sort: false } : localWork()
-        if (defaultView) {
-          seededViewIdRef.current = defaultView.id
-          setTableParams({ view: defaultView.id })
-          applyViewConfig(defaultView.config, keep)
+        const keep = inheritedParams
+          ? { ...localWork(), sort: false }
+          : legacyAllWithDefault
+            ? undefined
+            : localWork()
+        if (viewToAdopt) {
+          appliedViewRevisionRef.current = getTableViewRevision(viewToAdopt)
+          setTableParams({ view: viewToAdopt.id })
+          applyViewConfig(viewToAdopt.config, keep)
           resolvePendingLayout(true)
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that
         // would clear a deep-linked `?sort=` on mount. Inherited params are the
         // exception: nothing about them refers to this table, so they're cleared.
-        seededViewIdRef.current = null
+        appliedViewRevisionRef.current = getTableViewRevision(null)
         if (inheritedParams) setTableParams({ view: ALL_VIEW_PARAM, sort: null, dir: null })
         resolvePendingLayout(false)
         return
       }
       if (activeViewId === ALL_VIEW_PARAM) {
-        seededViewIdRef.current = null
+        appliedViewRevisionRef.current = getTableViewRevision(null)
         resolvePendingLayout(false)
         return
       }
-      // A `?view=` that resolves to nothing (deleted view, stale bookmark) falls
-      // back to "All" without touching state, for the same reason. An explicit
-      // `?sort=` alongside `?view=` also wins over the view's stored sort.
-      seededViewIdRef.current = activeView?.id ?? null
+      // A `?view=` that resolves to nothing adopts the persisted default when
+      // one exists; tables awaiting backfill retain the legacy All fallback.
+      appliedViewRevisionRef.current = getTableViewRevision(activeView)
       resolvePendingLayout(activeView !== null)
-      if (activeView) {
-        applyViewConfig(activeView.config, localWork())
+      if (selectedView) {
+        applyViewConfig(selectedView.config, localWork())
+      } else if (defaultView) {
+        setTableParams({ view: defaultView.id })
+        applyViewConfig(defaultView.config)
       } else {
         // Nothing to apply, but the URL still names a view that no longer exists.
         // Rewrite it so a stale bookmark can't be copied on, and so the param
@@ -607,26 +584,38 @@ export function Table({
     }
 
     // The id resolved, so any create race for it is over.
-    if (activeView && pendingCreatedViewIdRef.current === activeView.id) {
+    if (selectedView && pendingCreatedViewIdRef.current === selectedView.id) {
       pendingCreatedViewIdRef.current = null
     }
 
     // A selected id that doesn't resolve is one of two things. Ours — creation
     // writes the URL before the list refetches, and clearing there would wipe the
     // config just saved. Or genuinely dead (deleted by someone else, stale
-    // bookmark), where leaving it applied keeps the grid narrowed under an "All"
-    // label, since the menu resolves the same missing view to null.
-    if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !activeView) {
+    // bookmark), where leaving it applied keeps the grid narrowed under the
+    // wrong label because the menu resolves the same missing view to null.
+    if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !selectedView) {
       if (pendingCreatedViewIdRef.current === activeViewId) return
-      seededViewIdRef.current = null
-      setTableParams({ view: ALL_VIEW_PARAM })
-      applyViewConfig(null)
+      appliedViewRevisionRef.current = getTableViewRevision(defaultView)
+      setTableParams({ view: defaultView?.id ?? ALL_VIEW_PARAM })
+      applyViewConfig(defaultView?.config ?? null)
       return
     }
 
-    const nextViewId = activeView?.id ?? null
-    if (seededViewIdRef.current === nextViewId) return
-    seededViewIdRef.current = nextViewId
+    const nextViewRevision = getTableViewRevision(activeView)
+    if (
+      !shouldApplyTableViewRevision(
+        appliedViewRevisionRef.current,
+        nextViewRevision,
+        updateViewMutation.isPending
+      )
+    ) {
+      return
+    }
+    appliedViewRevisionRef.current = nextViewRevision
+    const nextViewId = nextViewRevision.id
+    if (activeView && (activeViewId === null || activeViewId === ALL_VIEW_PARAM)) {
+      setTableParams({ view: activeView.id })
+    }
     // Navigating away ends any create race — without this a reconcile on the
     // destination could fall back to the still-pending created id.
     if (pendingCreatedViewIdRef.current && pendingCreatedViewIdRef.current !== nextViewId) {
@@ -638,10 +627,13 @@ export function Table({
     viewsAvailable,
     viewsErrored,
     views,
+    selectedView,
+    defaultView,
     activeView,
     activeViewId,
     embedded,
     sortColumn,
+    updateViewMutation.isPending,
     applyViewConfig,
     setTableParams,
     resolvePendingLayout,
@@ -650,10 +642,8 @@ export function Table({
   /**
    * Live state pruned the same way `pruneViewConfig` prunes the stored config on
    * read. Without this, deleting a hidden or sorted column leaves the local ids
-   * behind while the server drops them, so the dirty check never balances again —
-   * Save writes the stale id, the response comes back pruned, and the chip is
-   * stuck on. Guarded on the schema being loaded so an empty first render doesn't
-   * prune everything.
+   * behind while the server drops them. Guarded on the schema being loaded so
+   * an empty first render doesn't prune everything.
    */
   const liveColumnIds = useMemo(() => new Set(columns.map(getColumnId)), [columns])
   const effectiveHiddenColumns = useMemo(
@@ -666,7 +656,7 @@ export function Table({
    * Drops a sort whose column was deleted by clearing the URL, rather than masking
    * it in a derived value: `queryOptions` feeds the query that produces `columns`,
    * so a pruned sort can't flow back into it without a cycle. Clearing keeps one
-   * source of truth, so the rows query, the dirty check, and the Save patch can't
+   * source of truth, so the rows query and the active-view autosave cannot
    * disagree about whether a sort is active.
    */
   useEffect(() => {
@@ -674,50 +664,6 @@ export function Table({
     if (liveColumnIds.has(sortColumn)) return
     setTableParams({ sort: null, dir: null })
   }, [sortColumn, columns.length, liveColumnIds, setTableParams])
-
-  /** The payload for creating a view, and the left-hand side of the dirty check.
-   *  Carries the current layout so "Save as view" from "All" captures the widths /
-   *  order / pins the grid is rendering (they live in the table's shared metadata
-   *  until a view owns them) instead of creating a layout-less view that then
-   *  resets the grid. Updates never send this — they send a merge patch. */
-  const currentViewConfig = useMemo<TableViewConfig>(
-    () => ({
-      ...(activeView?.config ?? tableData?.metadata),
-      filter: effectiveFilter ?? null,
-      sort: sortQuery,
-      hiddenColumns: effectiveHiddenColumns,
-    }),
-    [activeView, tableData?.metadata, effectiveFilter, sortQuery, effectiveHiddenColumns]
-  )
-
-  /**
-   * The active view's stored config, pruned against the live columns exactly as
-   * the local state is. The server prunes on read, but the cached copy is not
-   * re-pruned when the schema changes here — so without this, deleting a hidden or
-   * sorted column makes the two sides disagree and lights Save with no user edit.
-   */
-  const storedViewConfig = useMemo<TableViewConfig | null>(() => {
-    if (!activeView) return null
-    const stored = activeView.config
-    if (columns.length === 0) return stored
-    return {
-      ...stored,
-      hiddenColumns: (stored.hiddenColumns ?? []).filter((id) => liveColumnIds.has(id)),
-      sort:
-        stored.sort && Object.keys(stored.sort).every((id) => liveColumnIds.has(id))
-          ? stored.sort
-          : null,
-    }
-  }, [activeView, columns.length, liveColumnIds])
-
-  /**
-   * Whether the live state diverges from what the active view stores (or, on
-   * "All", whether anything is applied at all). Drives the Save button — it is
-   * the only affordance that persists, so ad-hoc exploration stays throwaway.
-   */
-  const isViewDirty = storedViewConfig
-    ? !isSameViewConfig(currentViewConfig, storedViewConfig)
-    : Boolean(effectiveFilter) || Boolean(sortQuery) || effectiveHiddenColumns.length > 0
 
   /** Rename targets a live view rather than a snapshot, so a concurrent rename or
    *  delete can't leave the modal editing stale data. */
@@ -736,12 +682,33 @@ export function Table({
   }, [])
 
   const handleNewView = useCallback(() => {
-    setViewModal({ mode: 'create', blank: true })
+    setViewModal({ mode: 'new' })
   }, [])
 
-  /** Column order/width/pinning auto-saves into the active view as the user drags,
-   *  which is why `isSameViewConfig` excludes layout from the dirty check. Sent as
-   *  a `configPatch` so the server merges it — two overlapping layout writes must
+  /**
+   * Persists one user-committed view change. Filter application, sorting, and
+   * column visibility are discrete gestures, so they can save immediately
+   * without the document-style debounce needed for text editing. The mutation
+   * hook serializes patches for this table, preserving click order when several
+   * visibility changes happen before the first request settles.
+   */
+  const persistActiveViewConfig = useCallback(
+    (configPatch: TableViewConfig) => {
+      const viewId = activeView?.id
+      if (!viewId || !userPermissions.canEdit) return
+
+      updateViewMutation.mutate(
+        { viewId, configPatch },
+        {
+          onError: (error) => toast.error(getErrorMessage(error, 'Failed to save view')),
+        }
+      )
+    },
+    [activeView?.id, userPermissions.canEdit]
+  )
+
+  /** Column order/width/pinning auto-saves into the active view as the user drags.
+   *  Sent as a `configPatch` so the server merges it — two overlapping layout writes must
    *  not each replace the whole blob from their own snapshot. With All selected
    *  the sink is unbound and the grid writes the table's shared metadata instead;
    *  while the views query is still loading the sink IS bound and the write is
@@ -780,28 +747,6 @@ export function Table({
     [userPermissions.canEdit]
   )
 
-  const handleSaveView = () => {
-    if (activeView) {
-      // Only the fields Save owns, merged server-side — never a client-built full
-      // config. A full replace from a cached snapshot would drop a layout write
-      // still in flight (and vice versa). `null`/`[]` merge as explicit values, so
-      // clearing a filter or unhiding every column still persists as a removal.
-      updateViewMutation.mutate(
-        {
-          viewId: activeView.id,
-          configPatch: {
-            filter: effectiveFilter,
-            sort: sortQuery,
-            hiddenColumns: effectiveHiddenColumns,
-          },
-        },
-        { onError: (error) => toast.error(getErrorMessage(error, 'Failed to save view')) }
-      )
-      return
-    }
-    setViewModal({ mode: 'create' })
-  }
-
   const handleSubmitViewName = (name: string) => {
     if (viewModal?.mode === 'rename') {
       updateViewMutation.mutate(
@@ -813,19 +758,15 @@ export function Table({
       )
       return
     }
-    // "New view" starts from All and is configured afterwards; "Save as view"
-    // captures what is already applied. Both keep the current column layout so
-    // creating a view never visually resets the grid.
-    const blank = viewModal?.blank === true
-    const config: TableViewConfig = blank
-      ? {
-          ...(activeView?.config ?? tableData?.metadata),
-          ...readLayout(),
-          filter: null,
-          sort: null,
-          hiddenColumns: [],
-        }
-      : { ...currentViewConfig, ...readLayout() }
+    // New views start unfiltered and are configured after naming. They inherit
+    // the live layout so creation never visually resets the grid.
+    const config: TableViewConfig = {
+      ...(activeView?.config ?? tableData?.metadata),
+      ...readLayout(),
+      filter: null,
+      sort: null,
+      hiddenColumns: [],
+    }
     createViewMutation.mutate(
       { name, config },
       {
@@ -833,12 +774,12 @@ export function Table({
           setViewModal(null)
           // Stamp before selecting so the resolve effect treats this as already
           // seeded — it can't tell a just-created view from a dead id otherwise.
-          seededViewIdRef.current = view.id
+          appliedViewRevisionRef.current = getTableViewRevision(view)
           pendingCreatedViewIdRef.current = view.id
           setTableParams({ view: view.id })
-          // Which means the blank config must be applied here; nuqs batches this
-          // sort write with the `view` write above into one URL update.
-          if (blank) applyViewConfig(view.config)
+          // Apply the clean config immediately; nuqs batches its sort write with
+          // the `view` write above into one URL update.
+          applyViewConfig(view.config)
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to create view')),
       }
@@ -849,12 +790,14 @@ export function Table({
     (viewId: string) => {
       deleteViewMutation.mutate(viewId, {
         onSuccess: () => {
-          if (viewId === activeViewId) setTableParams({ view: ALL_VIEW_PARAM })
+          if (viewId !== activeViewId) return
+          const defaultView = views.find((view) => view.isDefault && view.id !== viewId)
+          setTableParams({ view: defaultView?.id ?? ALL_VIEW_PARAM })
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to delete view')),
       })
     },
-    [activeViewId, setTableParams]
+    [activeViewId, views, setTableParams]
   )
 
   const runColumnMutation = useRunColumn({ workspaceId, tableId })
@@ -1123,18 +1066,21 @@ export function Table({
   )
 
   const handleSortColumn = useCallback(
-    (column: string, direction: SortDirection) => setTableParams({ sort: column, dir: direction }),
-    [setTableParams]
+    (column: string, direction: SortDirection) => {
+      setTableParams({ sort: column, dir: direction })
+      persistActiveViewConfig({ sort: [{ field: column, direction }] })
+    },
+    [setTableParams, persistActiveViewConfig]
   )
 
   /**
    * Clearing writes the default direction (stripped by clearOnDefault) and
    * drops the column, leaving a clean URL with no active sort.
    */
-  const handleClearSort = useCallback(
-    () => setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
-    [setTableParams]
-  )
+  const handleClearSort = useCallback(() => {
+    setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION })
+    persistActiveViewConfig({ sort: null })
+  }, [setTableParams, persistActiveViewConfig])
 
   const sortConfig = useMemo<SortConfig>(
     () => ({
@@ -1148,6 +1094,12 @@ export function Table({
 
   const handleFilterApply = (next: TablePredicate | null) => {
     setFilter(next)
+    persistActiveViewConfig({ filter: next })
+  }
+
+  const handleHiddenColumnsChange = (next: string[]) => {
+    setHiddenColumns(next)
+    persistActiveViewConfig({ hiddenColumns: next })
   }
 
   /**
@@ -1403,22 +1355,9 @@ export function Table({
       />
     ) : null
 
-  const saveViewChip =
-    viewsEnabled && isViewDirty && userPermissions.canEdit ? (
-      <Chip onClick={handleSaveView} disabled={updateViewMutation.isPending}>
-        {activeView ? 'Save' : 'Save as view'}
-      </Chip>
-    ) : null
-
   /** Right-aligned slot. Left `undefined` when both are absent so the options bar
    *  doesn't render an empty flex row — a fragment would always read as truthy. */
-  const optionsTrailing =
-    runStatus || saveViewChip ? (
-      <>
-        {runStatus}
-        {saveViewChip}
-      </>
-    ) : undefined
+  const optionsTrailing = runStatus || undefined
 
   return (
     <Resource>
@@ -1462,7 +1401,7 @@ export function Table({
         sort={sortConfig}
         filter={filterConfig}
         aside={
-          viewsEnabled ? (
+          viewsEnabled && viewsAvailable ? (
             <ViewsMenu
               views={views}
               activeViewId={activeView?.id ?? null}
@@ -1480,7 +1419,7 @@ export function Table({
               columns={columns}
               workflowGroups={tableWorkflowGroups}
               hiddenColumns={effectiveHiddenColumns}
-              onChange={setHiddenColumns}
+              onChange={handleHiddenColumnsChange}
             />
           ) : undefined
         }
@@ -1496,9 +1435,9 @@ export function Table({
         />
       )}
       <SaveViewModal
-        open={viewsEnabled && (viewModal?.mode === 'create' || renamingView !== null)}
+        open={viewsEnabled && (viewModal?.mode === 'new' || renamingView !== null)}
         onOpenChange={(open) => !open && setViewModal(null)}
-        mode={viewModal?.mode === 'rename' ? 'rename' : viewModal?.blank ? 'new' : 'create'}
+        mode={viewModal?.mode === 'rename' ? 'rename' : 'new'}
         initialName={renamingView?.name ?? ''}
         onSubmit={handleSubmitViewName}
         isSubmitting={createViewMutation.isPending || updateViewMutation.isPending}
