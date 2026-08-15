@@ -147,6 +147,7 @@ describe('MicrosoftDynamics365Block', () => {
         maxResults: '100',
         includeCount: false,
         nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/accounts?$skiptoken=opaque`,
+        nextPageSize: '100',
         data: '{"stale":true}',
         leadId: 'stale-lead',
       })
@@ -160,6 +161,7 @@ describe('MicrosoftDynamics365Block', () => {
       pageSize: 100,
       count: 'false',
       nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/accounts?$skiptoken=opaque`,
+      nextPageSize: 100,
     })
 
     expect(
@@ -207,6 +209,36 @@ describe('MicrosoftDynamics365Block', () => {
     })
     expect(
       mapParams({
+        operation: 'list_records',
+        recordType: 'account',
+        nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/accounts?$skiptoken=opaque`,
+        nextPageSize: '25',
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      entitySetName: 'accounts',
+      count: 'false',
+      nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/accounts?$skiptoken=opaque`,
+      nextPageSize: 25,
+    })
+    expect(() =>
+      mapParams({
+        operation: 'list_records',
+        recordType: 'account',
+        nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/accounts?$skiptoken=opaque`,
+      })
+    ).toThrow('Next page size is required when Next Page URL is provided')
+    expect(() =>
+      mapParams({
+        operation: 'list_records',
+        recordType: 'account',
+        maxResults: '100',
+        nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/accounts?$skiptoken=opaque`,
+        nextPageSize: '25',
+      })
+    ).toThrow('Max results must match Next page size')
+    expect(
+      mapParams({
         operation: 'search_records',
         recordType: 'account',
         searchTerm: 'Contoso',
@@ -243,14 +275,15 @@ describe('MicrosoftDynamics365Block', () => {
         operation: 'list_owners',
         ownerType: 'team',
         nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/teams?$skiptoken=opaque`,
+        nextPageSize: '100',
       })
     ).toEqual({
       ...BASE_PARAMS,
       entitySetName: 'teams',
       select: 'teamid,name,teamtype',
-      pageSize: 100,
       filter: 'teamtype ne 1',
       nextLink: `${BASE_PARAMS.environmentUrl}/api/data/v9.2/teams?$skiptoken=opaque`,
+      nextPageSize: 100,
     })
   })
 
@@ -436,6 +469,54 @@ describe('MicrosoftDynamics365Block', () => {
     ).toThrow('Time spent must be at most 2147483647')
   })
 
+  it('supports an optional opportunity subject and enforces close-description limits', () => {
+    expect(
+      mapParams({
+        operation: 'close_opportunity',
+        closeOpportunityId: '11111111-1111-4111-8111-111111111111',
+        opportunityOutcome: 'won',
+      })
+    ).toEqual({
+      ...BASE_PARAMS,
+      opportunityId: '11111111-1111-4111-8111-111111111111',
+      outcome: 'won',
+    })
+    expect(
+      mapParams({
+        operation: 'close_opportunity',
+        closeOpportunityId: '11111111-1111-4111-8111-111111111111',
+        opportunityOutcome: 'lost',
+        opportunityDescription: 'x'.repeat(2_000),
+      })
+    ).toMatchObject({ description: 'x'.repeat(2_000) })
+    expect(() =>
+      mapParams({
+        operation: 'close_opportunity',
+        closeOpportunityId: '11111111-1111-4111-8111-111111111111',
+        opportunityDescription: 'x'.repeat(2_001),
+      })
+    ).toThrow('Close notes must be at most 2000 characters')
+    expect(
+      mapParams({
+        operation: 'close_case',
+        caseId: '22222222-2222-4222-8222-222222222222',
+        caseSubject: 'Issue resolved',
+        caseDescription: 'x'.repeat(100_000),
+      })
+    ).toMatchObject({ description: 'x'.repeat(100_000) })
+    expect(() =>
+      mapParams({
+        operation: 'close_case',
+        caseId: '22222222-2222-4222-8222-222222222222',
+        caseSubject: 'Issue resolved',
+        caseDescription: 'x'.repeat(100_001),
+      })
+    ).toThrow('Resolution notes must be at most 100000 characters')
+    expect(
+      MicrosoftDynamics365Block.subBlocks.find(({ id }) => id === 'opportunitySubject')?.required
+    ).toBeUndefined()
+  })
+
   it('declares only outputs returned by the reused and lifecycle tools', () => {
     expect(Object.keys(MicrosoftDynamics365Block.outputs)).toEqual([
       'records',
@@ -445,6 +526,7 @@ describe('MicrosoftDynamics365Block', () => {
       'totalCount',
       'totalCountLimitExceeded',
       'nextLink',
+      'nextPageSize',
       'results',
       'facets',
       'createdEntities',

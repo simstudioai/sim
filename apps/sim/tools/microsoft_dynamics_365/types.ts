@@ -85,6 +85,7 @@ export interface DataverseListRecordsParams {
   expand?: string
   count?: string
   nextLink?: string
+  nextPageSize?: number
 }
 
 export interface DataverseCreateRecordResponse extends ToolResponse {
@@ -117,6 +118,7 @@ export interface DataverseListRecordsResponse extends ToolResponse {
     totalCount: number | null
     totalCountLimitExceeded: boolean | null
     nextLink: string | null
+    nextPageSize: number | null
     success: boolean
   }
 }
@@ -178,7 +180,7 @@ export interface DataverseCloseOpportunityParams {
   environmentUrl: string
   opportunityId: string
   outcome: DataverseOpportunityOutcome
-  subject: string
+  subject?: string
   description?: string
   statusReason?: number
 }

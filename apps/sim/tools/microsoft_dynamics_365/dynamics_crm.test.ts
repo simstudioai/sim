@@ -186,6 +186,7 @@ describe('Microsoft Dataverse Dynamics CRM shared safety', () => {
 describe('microsoft_dynamics_365_list_records response validation', () => {
   it('uses a bounded page preference without $top for CRM continuation metadata', () => {
     const params = { ...LIST_PARAMS, pageSize: 25 }
+    const nextLink = `${ENVIRONMENT_URL}/api/data/v9.2/accounts?$skiptoken=opaque`
 
     expect(resolveUrl(microsoftDynamics365ListRecordsTool.request.url, params)).toBe(
       `${ENVIRONMENT_URL}/api/data/v9.2/accounts`
@@ -196,6 +197,42 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
     expect(microsoftDynamics365ListRecordsTool.request.headers(LIST_PARAMS).Prefer).toContain(
       'odata.maxpagesize=100'
     )
+    expect(
+      microsoftDynamics365ListRecordsTool.request.headers({
+        ...LIST_PARAMS,
+        nextLink,
+        nextPageSize: 25,
+      }).Prefer
+    ).toContain('odata.maxpagesize=25')
+    expect(
+      microsoftDynamics365ListRecordsTool.request.headers({
+        ...LIST_PARAMS,
+        nextLink,
+        nextPageSize: 25,
+        pageSize: 25,
+      }).Prefer
+    ).toContain('odata.maxpagesize=25')
+    expect(() =>
+      microsoftDynamics365ListRecordsTool.request.headers({ ...LIST_PARAMS, nextLink })
+    ).toThrow('nextPageSize is required when nextLink is provided')
+    expect(() =>
+      microsoftDynamics365ListRecordsTool.request.headers({
+        ...LIST_PARAMS,
+        nextLink,
+        nextPageSize: 25,
+        pageSize: 100,
+      })
+    ).toThrow('pageSize must match nextPageSize')
+    expect(() =>
+      microsoftDynamics365ListRecordsTool.request.headers({
+        ...LIST_PARAMS,
+        nextLink,
+        nextPageSize: 0,
+      })
+    ).toThrow('nextPageSize must be an integer from 1 to 100')
+    expect(() =>
+      microsoftDynamics365ListRecordsTool.request.headers({ ...LIST_PARAMS, nextPageSize: 25 })
+    ).toThrow('nextPageSize may only be provided with nextLink')
     expect(() =>
       microsoftDynamics365ListRecordsTool.request.headers({ ...LIST_PARAMS, pageSize: 101 })
     ).toThrow('pageSize must be an integer from 1 to 100')
@@ -214,6 +251,7 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
       resolveUrl(microsoftDynamics365ListRecordsTool.request.url, {
         ...LIST_PARAMS,
         nextLink,
+        nextPageSize: 25,
         select: 'name',
         filter: 'statecode eq 0',
       })
@@ -222,6 +260,7 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
       resolveUrl(microsoftDynamics365ListRecordsTool.request.url, {
         ...LIST_PARAMS,
         nextLink: aliasNextLink,
+        nextPageSize: 25,
       })
     ).toBe(aliasNextLink)
 
@@ -237,6 +276,7 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
         resolveUrl(microsoftDynamics365ListRecordsTool.request.url, {
           ...LIST_PARAMS,
           nextLink: invalidNextLink,
+          nextPageSize: 25,
         })
       ).toThrow(/nextLink/i)
     }
@@ -253,7 +293,10 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
     })
 
     await expect(
-      microsoftDynamics365ListRecordsTool.transformResponse!(response, LIST_PARAMS)
+      microsoftDynamics365ListRecordsTool.transformResponse!(response, {
+        ...LIST_PARAMS,
+        pageSize: 25,
+      })
     ).resolves.toEqual({
       success: true,
       output: {
@@ -262,6 +305,7 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
         totalCount: 1,
         totalCountLimitExceeded: false,
         nextLink: `${ENVIRONMENT_URL}/api/data/v9.2/accounts?$skiptoken=opaque`,
+        nextPageSize: 25,
         success: true,
       },
     })
@@ -281,6 +325,7 @@ describe('microsoft_dynamics_365_list_records response validation', () => {
         totalCount: 0,
         totalCountLimitExceeded: null,
         nextLink: null,
+        nextPageSize: null,
         success: true,
       },
     })
@@ -878,6 +923,25 @@ describe('microsoft_dynamics_365_close_opportunity', () => {
     })
   })
 
+  it('supports the documented close action without a subject', () => {
+    const { subject: _subject, ...params } = CLOSE_OPPORTUNITY_PARAMS
+    expect(microsoftDynamics365CloseOpportunityTool.request.body!(params)).toEqual({
+      OpportunityClose: {
+        'opportunityid@odata.bind': `/opportunities(${OPPORTUNITY_ID})`,
+      },
+      Status: 3,
+    })
+    expect(
+      microsoftDynamics365CloseOpportunityTool.request.body!({ ...params, subject: '  Won  ' })
+    ).toEqual({
+      OpportunityClose: {
+        'opportunityid@odata.bind': `/opportunities(${OPPORTUNITY_ID})`,
+        subject: 'Won',
+      },
+      Status: 3,
+    })
+  })
+
   it('preserves optional text and a zero custom status reason', () => {
     expect(
       microsoftDynamics365CloseOpportunityTool.request.body!({
@@ -914,6 +978,21 @@ describe('microsoft_dynamics_365_close_opportunity', () => {
         subject: 'x'.repeat(201),
       })
     ).toThrow(/at most 200 characters/)
+  })
+
+  it('enforces the documented opportunity-close description limit', () => {
+    expect(
+      microsoftDynamics365CloseOpportunityTool.request.body!({
+        ...CLOSE_OPPORTUNITY_PARAMS,
+        description: 'x'.repeat(2_000),
+      }).OpportunityClose
+    ).toMatchObject({ description: 'x'.repeat(2_000) })
+    expect(() =>
+      microsoftDynamics365CloseOpportunityTool.request.body!({
+        ...CLOSE_OPPORTUNITY_PARAMS,
+        description: 'x'.repeat(2_001),
+      })
+    ).toThrow('description must be at most 2000 characters')
   })
 
   it('accepts the documented 204 and returns only caller-known values', async () => {
@@ -990,6 +1069,21 @@ describe('microsoft_dynamics_365_close_case', () => {
         subject: 'x'.repeat(201),
       })
     ).toThrow(/at most 200 characters/)
+  })
+
+  it('enforces the documented case-resolution description limit', () => {
+    expect(
+      microsoftDynamics365CloseCaseTool.request.body!({
+        ...CLOSE_CASE_PARAMS,
+        description: 'x'.repeat(100_000),
+      }).IncidentResolution
+    ).toMatchObject({ description: 'x'.repeat(100_000) })
+    expect(() =>
+      microsoftDynamics365CloseCaseTool.request.body!({
+        ...CLOSE_CASE_PARAMS,
+        description: 'x'.repeat(100_001),
+      })
+    ).toThrow('description must be at most 100000 characters')
   })
 
   it('accepts the documented 204 and returns only the caller-known case ID', async () => {

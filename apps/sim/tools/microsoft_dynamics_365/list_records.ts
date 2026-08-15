@@ -16,6 +16,34 @@ import type { ToolConfig } from '@/tools/types'
 const logger = createLogger('DataverseListRecords')
 const DATAVERSE_MAX_NEXT_LINK_LENGTH = 32_768
 
+function assertDynamics365PageSize(value: number, fieldName: string): number {
+  if (!Number.isInteger(value) || value < 1 || value > 100) {
+    throw new Error(`${fieldName} must be an integer from 1 to 100`)
+  }
+  return value
+}
+
+function getDynamics365ListPageSize(params: DataverseListRecordsParams): number {
+  if (params.nextLink !== undefined) {
+    if (params.nextPageSize === undefined) {
+      throw new Error('nextPageSize is required when nextLink is provided')
+    }
+    const nextPageSize = assertDynamics365PageSize(params.nextPageSize, 'nextPageSize')
+    if (params.pageSize !== undefined) {
+      const pageSize = assertDynamics365PageSize(params.pageSize, 'pageSize')
+      if (pageSize !== nextPageSize) {
+        throw new Error('pageSize must match nextPageSize')
+      }
+    }
+    return nextPageSize
+  }
+
+  if (params.nextPageSize !== undefined) {
+    throw new Error('nextPageSize may only be provided with nextLink')
+  }
+  return assertDynamics365PageSize(params.pageSize ?? 100, 'pageSize')
+}
+
 function assertDynamics365ListNextLink(
   value: string,
   baseUrl: string,
@@ -134,13 +162,20 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Exact nextLink returned by a previous page of this operation',
     },
+    nextPageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Exact nextPageSize returned alongside nextLink by the previous page',
+    },
   },
 
   request: {
     url: (params) => {
+      getDynamics365ListPageSize(params)
       const baseUrl = getDynamics365BaseUrl(params.environmentUrl, params.instanceUrl)
       const entitySetName = normalizeDynamics365ListEntitySetName(params.entitySetName)
-      if (params.nextLink) {
+      if (params.nextLink !== undefined) {
         return assertDynamics365ListNextLink(params.nextLink, baseUrl, entitySetName)
       }
       const queryParts: string[] = []
@@ -160,10 +195,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
     method: 'GET',
     stripAuthOnRedirect: true,
     headers: (params) => {
-      const pageSize = params.pageSize ?? 100
-      if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
-        throw new Error('pageSize must be an integer from 1 to 100')
-      }
+      const pageSize = getDynamics365ListPageSize(params)
       const preferParts = ['odata.include-annotations="*"']
       preferParts.push(`odata.maxpagesize=${pageSize}`)
       return {
@@ -210,6 +242,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
     ) {
       throw new Error('Invalid Dataverse list records response: @odata.nextLink must be a string')
     }
+    let nextPageSize: number | null = null
     if (typeof rawNextLink === 'string') {
       if (!params) {
         throw new Error(
@@ -220,6 +253,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
         const baseUrl = getDynamics365BaseUrl(params.environmentUrl, params.instanceUrl)
         const entitySetName = normalizeDynamics365ListEntitySetName(params.entitySetName)
         assertDynamics365ListNextLink(rawNextLink, baseUrl, entitySetName)
+        nextPageSize = getDynamics365ListPageSize(params)
       } catch {
         throw new Error(
           'Invalid Dataverse list records response: @odata.nextLink must stay on the selected environment and CRM table'
@@ -264,6 +298,7 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
         totalCount,
         totalCountLimitExceeded,
         nextLink,
+        nextPageSize,
         success: true,
       },
     }
@@ -288,6 +323,12 @@ export const microsoftDynamics365ListRecordsTool: ToolConfig<
     nextLink: {
       type: 'string',
       description: 'URL for the next page of results',
+      optional: true,
+      nullable: true,
+    },
+    nextPageSize: {
+      type: 'number',
+      description: 'Page size that must accompany nextLink on the continuation request',
       optional: true,
       nullable: true,
     },

@@ -61,7 +61,8 @@ export const microsoftDynamics365CloseCaseTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional description for the case-resolution activity',
+      description:
+        'Optional description for the case-resolution activity (maximum 100,000 characters)',
     },
     timeSpent: {
       type: 'number',
@@ -103,6 +104,9 @@ export const microsoftDynamics365CloseCaseTool: ToolConfig<
       if (params.description !== undefined) {
         if (typeof params.description !== 'string') {
           throw new Error('description must be a string')
+        }
+        if (params.description.length > 100_000) {
+          throw new Error('description must be at most 100000 characters')
         }
         incidentResolution.description = params.description
       }
