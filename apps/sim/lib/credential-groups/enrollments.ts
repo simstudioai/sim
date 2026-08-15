@@ -7,7 +7,9 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
+import { hmacSha256Hex } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail, truncate } from '@sim/utils/string'
@@ -15,6 +17,7 @@ import { and, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
 import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
+import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
@@ -134,26 +137,41 @@ export class CredentialGroupEnrollmentError extends Error {
 }
 
 interface CredentialGroupEnrollmentCursor {
+  v: 1
   id: string
   invitedAt: Date
 }
 
 function encodeCredentialGroupEnrollmentCursor(
-  enrollment: Pick<EnrollmentRow, 'id' | 'invitedAt'>
+  enrollment: Pick<EnrollmentRow, 'id' | 'invitedAt'>,
+  scope: string
 ): string {
-  return Buffer.from(
-    JSON.stringify({ id: enrollment.id, invitedAt: enrollment.invitedAt.toISOString() })
+  const encoded = Buffer.from(
+    JSON.stringify({ v: 1, id: enrollment.id, invitedAt: enrollment.invitedAt.toISOString() })
   ).toString('base64url')
+  return `${encoded}.${hmacSha256Hex(`${encoded}.${scope}`, env.BETTER_AUTH_SECRET)}`
 }
 
-function decodeCredentialGroupEnrollmentCursor(cursor: string): CredentialGroupEnrollmentCursor {
+function decodeCredentialGroupEnrollmentCursor(
+  cursor: string,
+  scope: string
+): CredentialGroupEnrollmentCursor {
   try {
-    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'))
+    const [encoded, signature, extra] = cursor.split('.')
+    if (!encoded || !signature || extra !== undefined) {
+      throw new Error('Cursor token is malformed')
+    }
+    const expectedSignature = hmacSha256Hex(`${encoded}.${scope}`, env.BETTER_AUTH_SECRET)
+    if (!safeCompare(signature, expectedSignature)) {
+      throw new Error('Cursor signature is invalid')
+    }
+    const decoded: unknown = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
     if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) {
       throw new Error('Cursor payload must be an object')
     }
-    const { id, invitedAt: invitedAtValue } = decoded as Record<string, unknown>
+    const { v, id, invitedAt: invitedAtValue } = decoded as Record<string, unknown>
     if (
+      v !== 1 ||
       typeof id !== 'string' ||
       !id.trim() ||
       id !== id.trim() ||
@@ -166,10 +184,25 @@ function decodeCredentialGroupEnrollmentCursor(cursor: string): CredentialGroupE
     if (Number.isNaN(invitedAt.getTime()) || invitedAt.toISOString() !== invitedAtValue) {
       throw new Error('Cursor timestamp is invalid')
     }
-    return { id, invitedAt }
+    return { v, id, invitedAt }
   } catch {
     throw new CredentialGroupEnrollmentError('Enrollment cursor is invalid', 400)
   }
+}
+
+function credentialGroupEnrollmentCursorScope(
+  workspaceId: string,
+  groupId: string,
+  filters: ListCredentialGroupEnrollmentFilters
+): string {
+  return sha256Hex(
+    JSON.stringify({
+      workspaceId,
+      groupId,
+      email: filters.email || null,
+      statuses: [...new Set(filters.statuses ?? [])].sort(),
+    })
+  )
 }
 
 function hashInvitationToken(token: string): string {
@@ -482,7 +515,10 @@ export async function listCredentialGroupEnrollments(
     .filter((option) => option.status === 'active')
     .map((option) => option.id)
 
-  const cursorPosition = cursor ? decodeCredentialGroupEnrollmentCursor(cursor) : undefined
+  const cursorScope = credentialGroupEnrollmentCursorScope(workspaceId, groupId, filters)
+  const cursorPosition = cursor
+    ? decodeCredentialGroupEnrollmentCursor(cursor, cursorScope)
+    : undefined
 
   const rows = await db
     .select({ enrollment: credentialGroupEnrollment })
@@ -564,7 +600,7 @@ export async function listCredentialGroupEnrollments(
       connections: connectionsByEnrollment.get(enrollment.id) ?? [],
     })),
     nextCursor: nextCursorEnrollment
-      ? encodeCredentialGroupEnrollmentCursor(nextCursorEnrollment)
+      ? encodeCredentialGroupEnrollmentCursor(nextCursorEnrollment, cursorScope)
       : null,
   }
 }
