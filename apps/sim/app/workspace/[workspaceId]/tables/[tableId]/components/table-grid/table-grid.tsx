@@ -1219,6 +1219,30 @@ export function TableGrid({
   }, [])
 
   /**
+   * Editing the query strands a jump still paging toward the previous term's
+   * match: without this, that jump can finish, pass its own sequence check, and
+   * reveal a cell that no longer matches — most visibly when the new term's
+   * first hit isn't loaded, so nothing else moves the selection afterwards.
+   *
+   * Declared above BOTH the reveal and the auto-reveal effects so it runs
+   * first. Effects fire in declaration order, so if a queued reveal and a
+   * keystroke land in the same commit, a cancel declared later would clear
+   * `pendingMatchRef` only after the reveal had already applied the stale match.
+   *
+   * Keyed on the LIVE input, not the debounced term: during the debounce window
+   * the submitted term still names the old search, so keying on it would leave
+   * that jump valid for another `SEARCH_DEBOUNCE_MS` after the box already
+   * shows something else. Clearing and closing land here too — both blank the
+   * input.
+   */
+  useEffect(() => {
+    goToMatchSeqRef.current++
+    pendingMatchRef.current = null
+    cursorIsOnMatchRef.current = false
+    setIsJumping(false)
+  }, [trimmedFindQuery, findOpen])
+
+  /**
    * Reveal the pending match's cell once its row is in the loaded window. Keyed
    * on `rows` (new pages) and `pendingMatchTick` (so it fires even when the row
    * was already loaded). Sets the cell anchor → the existing scroll effect
@@ -1240,26 +1264,6 @@ export function TableGrid({
     cursorIsOnMatchRef.current = true
     setSelectionAnchor({ rowIndex, colIndex })
   }, [rows, displayColumns, pendingMatchTick])
-
-  /**
-   * Editing the query strands a jump still paging toward the previous term's
-   * match. Declared above the auto-reveal so it runs first: without it that
-   * jump can finish, pass its own sequence check, and reveal a cell that no
-   * longer matches — most visibly when the new term's first hit isn't loaded,
-   * so nothing else moves the selection afterwards.
-   *
-   * Keyed on the LIVE input, not the debounced term: during the debounce window
-   * the submitted term still names the old search, so keying on it would leave
-   * that jump valid for another `SEARCH_DEBOUNCE_MS` after the box already
-   * shows something else. Clearing and closing land here too — both blank the
-   * input.
-   */
-  useEffect(() => {
-    goToMatchSeqRef.current++
-    pendingMatchRef.current = null
-    cursorIsOnMatchRef.current = false
-    setIsJumping(false)
-  }, [trimmedFindQuery, findOpen])
 
   /**
    * A new TERM resets to its first match and reveals it.
@@ -2639,6 +2643,13 @@ export function TableGrid({
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      // Any key that reaches the GRID while find is open is the user driving
+      // the grid — the find input swallows its own keys via the guard above —
+      // so the selection is theirs from here on and close must not restore over
+      // it. Escape is excluded: it IS the close, and must still restore.
+      // One choke point rather than a hook at each of the ~15 anchor writers.
+      if (e.key !== 'Escape') lastRevealedAnchorRef.current = null
 
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'y')) {
         e.preventDefault()
