@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipModalTabs, ChipTag, toast } from '@sim/emcn'
-import { ArrowLeft, KeySquare, Plus } from '@sim/emcn/icons'
+import { ArrowLeft, Plus, User } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
@@ -311,7 +311,7 @@ export function CredentialGroupDetail({
                       return (
                         <SettingsResourceRow
                           key={enrollment.id}
-                          icon={<KeySquare className='text-[var(--text-icon)]' />}
+                          icon={<User className='text-[var(--text-icon)]' />}
                           iconFilled
                           title={enrollment.email}
                           description={
