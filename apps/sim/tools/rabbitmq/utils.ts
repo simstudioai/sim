@@ -1,4 +1,5 @@
 import { isLoopbackIp } from '@sim/security/ssrf'
+import { toRecord } from '@sim/utils/object'
 import type {
   RabbitmqBinding,
   RabbitmqChannel,
@@ -282,12 +283,6 @@ export function unwrapPaginated<T>(data: unknown): PaginatedResult<T> {
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
 function asNumberOrNull(value: unknown): number | null {
   return typeof value === 'number' ? value : null
 }
@@ -339,7 +334,7 @@ export const RABBITMQ_EXCHANGE_COLUMNS = [
  * until it has collected stats for the queue, so they are nullable.
  */
 export function projectQueue(raw: unknown): RabbitmqQueue {
-  const queue = asRecord(raw)
+  const queue = toRecord(raw)
   return {
     name: String(queue.name ?? ''),
     vhost: String(queue.vhost ?? ''),
@@ -350,7 +345,7 @@ export function projectQueue(raw: unknown): RabbitmqQueue {
     exclusive: asBooleanOrNull(queue.exclusive),
     node: asStringOrNull(queue.node),
     policy: asStringOrNull(queue.policy),
-    arguments: asRecord(queue.arguments),
+    arguments: toRecord(queue.arguments),
     messages: asNumberOrNull(queue.messages),
     messagesReady: asNumberOrNull(queue.messages_ready),
     messagesUnacknowledged: asNumberOrNull(queue.messages_unacknowledged),
@@ -360,7 +355,7 @@ export function projectQueue(raw: unknown): RabbitmqQueue {
 }
 
 export function projectExchange(raw: unknown): RabbitmqExchange {
-  const exchange = asRecord(raw)
+  const exchange = toRecord(raw)
   return {
     name: String(exchange.name ?? ''),
     vhost: String(exchange.vhost ?? ''),
@@ -368,12 +363,12 @@ export function projectExchange(raw: unknown): RabbitmqExchange {
     durable: exchange.durable === true,
     autoDelete: exchange.auto_delete === true,
     internal: exchange.internal === true,
-    arguments: asRecord(exchange.arguments),
+    arguments: toRecord(exchange.arguments),
   }
 }
 
 export function projectBinding(raw: unknown): RabbitmqBinding {
-  const binding = asRecord(raw)
+  const binding = toRecord(raw)
   return {
     source: String(binding.source ?? ''),
     vhost: String(binding.vhost ?? ''),
@@ -381,7 +376,7 @@ export function projectBinding(raw: unknown): RabbitmqBinding {
     destinationType: String(binding.destination_type ?? ''),
     routingKey: String(binding.routing_key ?? ''),
     propertiesKey: String(binding.properties_key ?? ''),
-    arguments: asRecord(binding.arguments),
+    arguments: toRecord(binding.arguments),
   }
 }
 
@@ -391,7 +386,7 @@ export function projectBinding(raw: unknown): RabbitmqBinding {
  * makes truncation visible instead of silently handing back a short payload.
  */
 export function projectMessage(raw: unknown, truncateLimit: number): RabbitmqMessage {
-  const message = asRecord(raw)
+  const message = toRecord(raw)
   const payloadBytes = typeof message.payload_bytes === 'number' ? message.payload_bytes : 0
   return {
     truncated: payloadBytes > truncateLimit,
@@ -402,7 +397,7 @@ export function projectMessage(raw: unknown, truncateLimit: number): RabbitmqMes
     routingKey: String(message.routing_key ?? ''),
     redelivered: message.redelivered === true,
     messageCount: typeof message.message_count === 'number' ? message.message_count : 0,
-    properties: asRecord(message.properties),
+    properties: toRecord(message.properties),
   }
 }
 
@@ -523,7 +518,7 @@ export const RABBITMQ_POLICY_OUTPUT_PROPERTIES = {
 } as const
 
 export function projectVhost(raw: unknown): RabbitmqVhost {
-  const vhost = asRecord(raw)
+  const vhost = toRecord(raw)
   return {
     name: String(vhost.name ?? ''),
     description: asStringOrNull(vhost.description),
@@ -533,12 +528,12 @@ export function projectVhost(raw: unknown): RabbitmqVhost {
     messages: asNumberOrNull(vhost.messages),
     messagesReady: asNumberOrNull(vhost.messages_ready),
     messagesUnacknowledged: asNumberOrNull(vhost.messages_unacknowledged),
-    clusterState: asRecord(vhost.cluster_state),
+    clusterState: toRecord(vhost.cluster_state),
   }
 }
 
 export function projectConnection(raw: unknown): RabbitmqConnection {
-  const connection = asRecord(raw)
+  const connection = toRecord(raw)
   return {
     name: String(connection.name ?? ''),
     user: String(connection.user ?? ''),
@@ -555,8 +550,8 @@ export function projectConnection(raw: unknown): RabbitmqConnection {
 }
 
 export function projectChannel(raw: unknown): RabbitmqChannel {
-  const channel = asRecord(raw)
-  const connectionDetails = asRecord(channel.connection_details)
+  const channel = toRecord(raw)
+  const connectionDetails = toRecord(channel.connection_details)
   return {
     name: String(channel.name ?? ''),
     number: asNumberOrNull(channel.number),
@@ -573,9 +568,9 @@ export function projectChannel(raw: unknown): RabbitmqChannel {
 }
 
 export function projectConsumer(raw: unknown): RabbitmqConsumer {
-  const consumer = asRecord(raw)
-  const queue = asRecord(consumer.queue)
-  const channelDetails = asRecord(consumer.channel_details)
+  const consumer = toRecord(raw)
+  const queue = toRecord(consumer.queue)
+  const channelDetails = toRecord(consumer.channel_details)
   return {
     consumerTag: String(consumer.consumer_tag ?? ''),
     queue: String(queue.name ?? ''),
@@ -591,7 +586,7 @@ export function projectConsumer(raw: unknown): RabbitmqConsumer {
 }
 
 export function projectNode(raw: unknown): RabbitmqNode {
-  const node = asRecord(raw)
+  const node = toRecord(raw)
   return {
     name: String(node.name ?? ''),
     type: asStringOrNull(node.type),
@@ -613,14 +608,14 @@ export function projectNode(raw: unknown): RabbitmqNode {
 }
 
 export function projectPolicy(raw: unknown): RabbitmqPolicy {
-  const policy = asRecord(raw)
+  const policy = toRecord(raw)
   return {
     name: String(policy.name ?? ''),
     vhost: String(policy.vhost ?? ''),
     pattern: String(policy.pattern ?? ''),
     applyTo: asStringOrNull(policy['apply-to']),
     priority: asNumberOrNull(policy.priority),
-    definition: asRecord(policy.definition),
+    definition: toRecord(policy.definition),
   }
 }
 

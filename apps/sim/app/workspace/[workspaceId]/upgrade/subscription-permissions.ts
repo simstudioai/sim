@@ -61,22 +61,3 @@ export function getSubscriptionPermissions(
     canViewUsageInfo,
   }
 }
-
-export function getVisiblePlans(
-  subscription: SubscriptionState,
-  userRole: UserRole
-): ('pro' | 'team' | 'enterprise')[] {
-  const plans: ('pro' | 'team' | 'enterprise')[] = []
-  const { isFree, isPro, isEnterprise, isOrgScoped } = subscription
-  const { isTeamAdmin } = userRole
-
-  if (isFree) {
-    plans.push('pro', 'team', 'enterprise')
-  } else if (isPro && !isOrgScoped) {
-    plans.push('team', 'enterprise')
-  } else if (isOrgScoped && isTeamAdmin && !isEnterprise) {
-    plans.push('enterprise')
-  }
-
-  return plans
-}

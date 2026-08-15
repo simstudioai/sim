@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 export function parseDataArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value
   if (typeof value === 'string' && value.trim().length > 0) {
@@ -12,13 +13,13 @@ export function parseDataArray(value: unknown): unknown[] {
 }
 
 export function parseFiltersObject(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
+  if (isRecordLike(value)) {
     return value as Record<string, unknown>
   }
   if (typeof value === 'string' && value.trim().length > 0) {
     try {
       const parsed = JSON.parse(value)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      if (isRecordLike(parsed)) {
         return parsed as Record<string, unknown>
       }
     } catch {}

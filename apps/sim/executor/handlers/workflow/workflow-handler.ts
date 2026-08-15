@@ -347,7 +347,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       if (inputs.inputMapping !== undefined && inputs.inputMapping !== null) {
         const normalized = parseJSON(inputs.inputMapping, inputs.inputMapping)
 
-        if (normalized && typeof normalized === 'object' && !Array.isArray(normalized)) {
+        if (isRecordLike(normalized)) {
           // Custom blocks key their mapping by the source field's stable id so a
           // rename never orphans the consumer's value; remap id → current name
           // before the child (which is addressed by name) receives it.

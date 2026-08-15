@@ -5,7 +5,6 @@ import type {
   WorkflowSearchResourceMeta,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
 
 /**
  * Which kind wins when two matches cover the same span. Exported so the
@@ -64,16 +63,6 @@ export function getWorkflowSearchMatchResourceGroupKey(match: WorkflowSearchMatc
       selectorKey: match.resource?.selectorKey,
       selectorContext: match.resource?.selectorContext,
     })
-  )
-}
-
-export function selectorContextMatches(
-  left: SelectorContext | undefined,
-  right: SelectorContext | undefined
-): boolean {
-  return (
-    stableStringifyWorkflowSearchValue(left ?? {}) ===
-    stableStringifyWorkflowSearchValue(right ?? {})
   )
 }
 

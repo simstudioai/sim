@@ -1,13 +1,10 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { WorkflowSearchValuePath } from '@/lib/workflows/search-replace/types'
 
 export interface WalkedStringValue {
   path: WorkflowSearchValuePath
   value: string
   originalValue: unknown
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 export function walkStringValues(
@@ -26,7 +23,7 @@ export function walkStringValues(
     return value.flatMap((item, index) => walkStringValues(item, [...path, index]))
   }
 
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     return Object.entries(value).flatMap(([key, item]) => walkStringValues(item, [...path, key]))
   }
 
@@ -38,7 +35,7 @@ export function getValueAtPath(value: unknown, path: WorkflowSearchValuePath): u
     if (Array.isArray(current) && typeof segment === 'number') {
       return current[segment]
     }
-    if (isRecord(current) && typeof segment === 'string') {
+    if (isRecordLike(current) && typeof segment === 'string') {
       return current[segment]
     }
     return undefined
@@ -61,7 +58,7 @@ export function setValueAtPath(
     return copy
   }
 
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     if (typeof segment !== 'string') return value
     return {
       ...value,

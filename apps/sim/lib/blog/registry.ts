@@ -21,5 +21,3 @@ export const getAllPostMeta = blogRegistry.getAllPostMeta
 export const getPostBySlug = blogRegistry.getPostBySlug
 export const getAllTags = blogRegistry.getAllTags
 export const getRelatedPosts = blogRegistry.getRelatedPosts
-export const getNavBlogPosts = blogRegistry.getNavPosts
-export const invalidateBlogCaches = blogRegistry.invalidateCaches

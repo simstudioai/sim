@@ -1,4 +1,4 @@
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
   PRIVATE_SECRET_PROVENANCE_FIELD,
@@ -473,10 +473,7 @@ export function inspectModelInputProvenanceRequest(
   headers: HeaderReader,
   payload: unknown
 ): ModelInputProvenanceInspection {
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
   const hasProvenance = record ? Object.hasOwn(record, RESOLVED_SECRET_PROVENANCE_FIELD) : false
   const receivedType = headers.get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)
 
@@ -493,10 +490,7 @@ export function inspectPrivateSecretProvenanceRequest(
   headers: HeaderReader,
   payload: unknown
 ): ModelInputProvenanceInspection {
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
   const hasProvenance = record ? Object.hasOwn(record, PRIVATE_SECRET_PROVENANCE_FIELD) : false
   const receivedType = headers.get(PRIVATE_SECRET_PROVENANCE_HEADER)
 

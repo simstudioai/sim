@@ -353,13 +353,6 @@ export const ORGANIZATION_SETTINGS_GROUPS = [
   { key: 'enterprise', title: 'Enterprise' },
 ] as const
 
-export const WORKSPACE_SETTINGS_GROUPS = [
-  { key: 'workspace', title: 'Workspace' },
-  { key: 'tools', title: 'Tools' },
-  { key: 'system', title: 'System' },
-  { key: 'enterprise', title: 'Enterprise' },
-] as const
-
 export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] = [
   {
     label: 'General',

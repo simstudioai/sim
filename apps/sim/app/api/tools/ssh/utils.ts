@@ -366,22 +366,6 @@ export function escapeShellArg(arg: string): string {
 }
 
 /**
- * Validate that authentication credentials are provided
- */
-export function validateAuth(params: { password?: string; privateKey?: string }): {
-  isValid: boolean
-  error?: string
-} {
-  if (!params.password && !params.privateKey) {
-    return {
-      isValid: false,
-      error: 'Either password or privateKey must be provided for authentication',
-    }
-  }
-  return { isValid: true }
-}
-
-/**
  * Parse file permissions from octal string
  */
 export function parsePermissions(mode: number): string {

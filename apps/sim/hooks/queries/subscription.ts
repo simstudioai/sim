@@ -8,14 +8,11 @@ import {
   getUserBillingContract,
   getUserUsageLimitContract,
   type InvoicesApiResponse,
-  purchaseCreditsContract,
   type SubscriptionApiResponse,
   updateUsageLimitContract,
 } from '@/lib/api/contracts/subscription'
-import { organizationKeys } from '@/hooks/queries/organization'
 import { invalidateWorkspaceUsage } from '@/hooks/queries/utils/invalidate-usage'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
-import { workspaceKeys } from '@/hooks/queries/workspace'
 
 export type { SubscriptionApiResponse }
 
@@ -59,18 +56,6 @@ export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
     staleTime,
     placeholderData: keepPreviousData,
     enabled,
-  })
-}
-
-/**
- * Prefetch subscription data into a QueryClient cache.
- * Use on hover to warm data before navigation.
- */
-export function prefetchSubscriptionData(queryClient: QueryClient) {
-  queryClient.prefetchQuery({
-    queryKey: subscriptionKeys.user(false),
-    queryFn: ({ signal }) => fetchSubscriptionData(false, signal),
-    staleTime: SUBSCRIPTION_DATA_STALE_TIME,
   })
 }
 
@@ -255,81 +240,6 @@ export function useUpdateUsageLimit() {
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
         invalidateWorkspaceUsage(queryClient),
-      ])
-    },
-  })
-}
-
-/**
- * Upgrade subscription mutation
- */
-interface UpgradeSubscriptionParams {
-  plan: string
-  orgId?: string
-}
-
-export function useUpgradeSubscription() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ plan }: UpgradeSubscriptionParams) => {
-      return { plan }
-    },
-    onSettled: (_data, _error, variables) => {
-      return Promise.all([
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.invoicesAll() }),
-        queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
-        invalidateWorkspaceUsage(queryClient),
-        ...(variables.orgId
-          ? [
-              queryClient.invalidateQueries({
-                queryKey: organizationKeys.billing(variables.orgId),
-              }),
-              queryClient.invalidateQueries({
-                queryKey: organizationKeys.subscription(variables.orgId),
-              }),
-            ]
-          : []),
-      ])
-    },
-  })
-}
-
-/**
- * Purchase credits mutation
- */
-interface PurchaseCreditsParams {
-  amount: ContractBodyInput<typeof purchaseCreditsContract>['amount']
-  requestId: ContractBodyInput<typeof purchaseCreditsContract>['requestId']
-  orgId?: string
-}
-
-export function usePurchaseCredits() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ amount, requestId }: PurchaseCreditsParams) => {
-      return requestJson(purchaseCreditsContract, {
-        body: { amount, requestId },
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      return Promise.all([
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
-        queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
-        invalidateWorkspaceUsage(queryClient),
-        ...(variables.orgId
-          ? [
-              queryClient.invalidateQueries({
-                queryKey: organizationKeys.billing(variables.orgId),
-              }),
-              queryClient.invalidateQueries({
-                queryKey: organizationKeys.subscription(variables.orgId),
-              }),
-            ]
-          : []),
       ])
     },
   })

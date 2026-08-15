@@ -98,27 +98,6 @@ export const ACCOUNT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete Account object output definition for single record
- */
-export const ACCOUNT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Salesforce Account object',
-  properties: ACCOUNT_OUTPUT_PROPERTIES,
-}
-
-/**
- * Accounts array output definition for list operations
- */
-export const ACCOUNTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Account objects',
-  items: {
-    type: 'object',
-    properties: ACCOUNT_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for Contact sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_contact.htm
  */
@@ -200,27 +179,6 @@ export const CONTACT_OUTPUT_PROPERTIES = {
   EmailBouncedDate: { type: 'string', description: 'Date of email bounce', optional: true },
   PhotoUrl: { type: 'string', description: 'URL to contact photo', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete Contact object output definition for single record
- */
-export const CONTACT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Salesforce Contact object',
-  properties: CONTACT_OUTPUT_PROPERTIES,
-}
-
-/**
- * Contacts array output definition for list operations
- */
-export const CONTACTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Contact objects',
-  items: {
-    type: 'object',
-    properties: CONTACT_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Output definition for Lead sObject
@@ -310,27 +268,6 @@ export const LEAD_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete Lead object output definition for single record
- */
-export const LEAD_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Salesforce Lead object',
-  properties: LEAD_OUTPUT_PROPERTIES,
-}
-
-/**
- * Leads array output definition for list operations
- */
-export const LEADS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Lead objects',
-  items: {
-    type: 'object',
-    properties: LEAD_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for Opportunity sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_opportunity.htm
  */
@@ -410,27 +347,6 @@ export const OPPORTUNITY_OUTPUT_PROPERTIES = {
   FiscalYear: { type: 'number', description: 'Fiscal year', optional: true },
   ContactId: { type: 'string', description: 'ID of the primary contact', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete Opportunity object output definition for single record
- */
-export const OPPORTUNITY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Salesforce Opportunity object',
-  properties: OPPORTUNITY_OUTPUT_PROPERTIES,
-}
-
-/**
- * Opportunities array output definition for list operations
- */
-export const OPPORTUNITIES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Opportunity objects',
-  items: {
-    type: 'object',
-    properties: OPPORTUNITY_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Output definition for Case sObject
@@ -515,27 +431,6 @@ export const CASE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete Case object output definition for single record
- */
-export const CASE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Salesforce Case object',
-  properties: CASE_OUTPUT_PROPERTIES,
-}
-
-/**
- * Cases array output definition for list operations
- */
-export const CASES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Case objects',
-  items: {
-    type: 'object',
-    properties: CASE_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for Task sObject
  * @see https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_task.htm
  */
@@ -618,27 +513,6 @@ export const TASK_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete Task object output definition for single record
- */
-export const TASK_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Salesforce Task object',
-  properties: TASK_OUTPUT_PROPERTIES,
-}
-
-/**
- * Tasks array output definition for list operations
- */
-export const TASKS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Task objects',
-  items: {
-    type: 'object',
-    properties: TASK_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for Report list item
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_get_reportlist.htm
  */
@@ -688,18 +562,6 @@ export const REPORT_LIST_ITEM_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Reports array output definition
- */
-export const REPORTS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Report objects',
-  items: {
-    type: 'object',
-    properties: REPORT_LIST_ITEM_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for Dashboard list item
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_getbasic_dashboardlist.htm
  */
@@ -715,18 +577,6 @@ export const DASHBOARD_LIST_ITEM_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Dashboards array output definition
- */
-export const DASHBOARDS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Dashboard objects',
-  items: {
-    type: 'object',
-    properties: DASHBOARD_LIST_ITEM_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Output definition for Report Type list item
  * @see https://developer.salesforce.com/docs/atlas.en-us.api_analytics.meta/api_analytics/sforce_analytics_rest_api_list_reporttypes.htm
  */
@@ -740,18 +590,6 @@ export const REPORT_TYPE_OUTPUT_PROPERTIES = {
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Report types array output definition
- */
-export const REPORT_TYPES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of Salesforce Report Type objects',
-  items: {
-    type: 'object',
-    properties: REPORT_TYPE_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Output definition for sObject describe field metadata

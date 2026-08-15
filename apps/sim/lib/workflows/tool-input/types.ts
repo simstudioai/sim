@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+
 interface StoredToolSchema {
   description?: string
   properties?: Record<string, unknown>
@@ -39,10 +41,9 @@ export function parseStoredToolInputValue(value: unknown): ParsedStoredTool[] {
     const record = tool as Record<string, unknown>
     if (typeof record.type !== 'string') return []
 
-    const params =
-      record.params && typeof record.params === 'object' && !Array.isArray(record.params)
-        ? (record.params as Record<string, unknown>)
-        : undefined
+    const params = isRecordLike(record.params)
+      ? (record.params as Record<string, unknown>)
+      : undefined
 
     return [
       {
@@ -60,10 +61,7 @@ export function parseStoredToolInputValue(value: unknown): ParsedStoredTool[] {
             ? record.usageControl
             : undefined,
         isExpanded: typeof record.isExpanded === 'boolean' ? record.isExpanded : undefined,
-        schema:
-          record.schema && typeof record.schema === 'object' && !Array.isArray(record.schema)
-            ? (record.schema as StoredToolSchema)
-            : undefined,
+        schema: isRecordLike(record.schema) ? (record.schema as StoredToolSchema) : undefined,
       },
     ]
   })

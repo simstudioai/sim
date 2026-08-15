@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import { EVALUATOR } from '@/executor/constants'
 
 const logger = createLogger('JSONUtils')
@@ -14,18 +13,6 @@ export function parseJSON<T>(value: unknown, fallback: T): T {
   } catch (error) {
     return fallback
   }
-}
-
-export function parseJSONOrThrow(value: string): any {
-  try {
-    return JSON.parse(value.trim())
-  } catch (error) {
-    throw new Error(`Invalid JSON: ${getErrorMessage(error, 'Parse error')}`)
-  }
-}
-
-export function normalizeJSONString(value: string): string {
-  return value.replace(/'/g, '"')
 }
 
 export function stringifyJSON(value: any, indent?: number): string {

@@ -261,7 +261,6 @@ export async function listWorkspacePrincipalCredentials(params: {
 
   return keysetPage(keys, mapped, limit)
 }
-
 /**
  * A single credential scoped to a workspace, or null when it does not exist
  * there. Scoping by workspace is what keeps a credential id from another tenant
