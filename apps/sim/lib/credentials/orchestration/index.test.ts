@@ -599,7 +599,7 @@ describe('deleteCredentialRecord', () => {
         workspaceId: 'ws-1',
         type: 'service_account',
         providerId: 'google-service-account',
-        accountId: null,
+        accountId: 'acct-1',
       } as never,
       reason: 'user_delete',
     })

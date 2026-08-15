@@ -147,21 +147,12 @@ export function ConnectedCredentialDetail({
   /**
    * Every credential type disconnects through the workspace-scoped credential
    * delete, which authorizes against credential admin — explicit members and
-   * derived workspace admins alike. The personal OAuth disconnect is scoped to
-   * the acting user's own `account` rows, so routing an admin through it
-   * silently matched nothing when the connection belonged to a teammate.
+   * derived workspace admins alike.
    */
   const handleConfirmDelete = async () => {
     if (!credential) return
     try {
       await deleteCredential.mutateAsync(credential.id)
-      if (credential.type === 'oauth' && credential.providerId) {
-        window.dispatchEvent(
-          new CustomEvent('oauth-credentials-updated', {
-            detail: { providerId: credential.providerId, workspaceId },
-          })
-        )
-      }
       setShowDeleteConfirmDialog(false)
       router.push(integrationsHref)
     } catch (error) {

@@ -4,6 +4,7 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
+import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -184,15 +185,6 @@ export async function handleReconnectCredential(params: {
   })
 
   if (oldAccountId) {
-    const [stillReferenced] = await db
-      .select({ id: schema.credential.id })
-      .from(schema.credential)
-      .where(eq(schema.credential.accountId, oldAccountId))
-      .limit(1)
-
-    if (!stillReferenced) {
-      await db.delete(schema.account).where(eq(schema.account.id, oldAccountId))
-      logger.info('Deleted orphaned account after reconnect', { accountId: oldAccountId })
-    }
+    await deleteOrphanedOAuthAccount(oldAccountId)
   }
 }

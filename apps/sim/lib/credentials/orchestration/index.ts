@@ -558,22 +558,23 @@ export async function deleteCredentialRecord(
     return true
   }
 
-  const deleted = await deleteConnectionCredential({
+  if (credentialRow.type === 'oauth') {
+    const deleted = await deleteConnectionCredential({
+      credentialId: credentialRow.id,
+      workspaceId: credentialRow.workspaceId,
+      reason: params.reason,
+    })
+    if (deleted && credentialRow.accountId) {
+      await deleteOrphanedOAuthAccount(credentialRow.accountId)
+    }
+    return deleted
+  }
+
+  return deleteConnectionCredential({
     credentialId: credentialRow.id,
     workspaceId: credentialRow.workspaceId,
     reason: params.reason,
   })
-
-  // An OAuth credential's secret source is its `account` row, so deleting the
-  // credential alone would leave the provider grant behind. Revoke it here
-  // rather than only on the personal disconnect path, so an admin removing a
-  // teammate's connection tears down the same state the owner's own disconnect
-  // would. Idempotent for the disconnect path, which sweeps accounts after.
-  if (deleted && credentialRow.type === 'oauth' && credentialRow.accountId) {
-    await deleteOrphanedOAuthAccount(credentialRow.accountId)
-  }
-
-  return deleted
 }
 
 /** Preserves the legacy callers while application adapters migrate to the manager above. */

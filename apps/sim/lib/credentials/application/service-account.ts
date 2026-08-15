@@ -15,7 +15,6 @@ import {
 import {
   type CreateServiceAccountCredentialParams,
   createServiceAccountCredential,
-  deleteConnectionCredential,
   deleteCredentialRecord,
 } from '@/lib/credentials/orchestration'
 import type { CredentialRow } from '@/lib/credentials/queries'
@@ -159,18 +158,7 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
       )
     }
     const reason = principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'
-    // Every type but `service_account` goes through the record manager so it also
-    // tears down the credential's secret source — for `oauth` that is the backing
-    // `account` row, which an admin deleting a teammate's connection must revoke
-    // too, not just the credential that pointed at it.
-    const deleted =
-      context.credential.type === 'service_account'
-        ? await deleteConnectionCredential({
-            credentialId: context.credential.id,
-            workspaceId: context.workspaceId,
-            reason,
-          })
-        : await deleteCredentialRecord({ credential: context.credential, reason })
+    const deleted = await deleteCredentialRecord({ credential: context.credential, reason })
     return { credential: context.credential, deleted }
   },
   projectAudit: ({ principal, result }) => {

@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ConnectedAccount,
-  disconnectOAuthContract,
   listOAuthConnectionsContract,
   type OAuthAccountSummary,
   type OAuthConnection,
@@ -192,69 +191,6 @@ export function useConnectOAuthService() {
     },
     onError: (error) => {
       logger.error('OAuth connection error:', error)
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
-    },
-  })
-}
-
-interface DisconnectServiceParams {
-  provider: string
-  providerId?: string
-  serviceId: string
-  accountId?: string
-}
-
-/**
- * Disconnects an OAuth service account.
- * Performs optimistic update and rolls back on failure.
- */
-export function useDisconnectOAuthService() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ provider, providerId, accountId }: DisconnectServiceParams) => {
-      return requestJson(disconnectOAuthContract, {
-        body: {
-          provider,
-          providerId,
-          accountId,
-        },
-      })
-    },
-    onMutate: async ({ serviceId, accountId }) => {
-      await queryClient.cancelQueries({ queryKey: oauthConnectionsKeys.connections() })
-
-      const previousServices = queryClient.getQueryData<ServiceInfo[]>(
-        oauthConnectionsKeys.connections()
-      )
-
-      if (previousServices) {
-        queryClient.setQueryData<ServiceInfo[]>(
-          oauthConnectionsKeys.connections(),
-          previousServices.map((svc) => {
-            if (svc.id === serviceId) {
-              const updatedAccounts =
-                accountId && svc.accounts ? svc.accounts.filter((acc) => acc.id !== accountId) : []
-              return {
-                ...svc,
-                accounts: updatedAccounts,
-                isConnected: updatedAccounts.length > 0,
-              }
-            }
-            return svc
-          })
-        )
-      }
-
-      return { previousServices }
-    },
-    onError: (_err, _variables, context) => {
-      if (context?.previousServices) {
-        queryClient.setQueryData(oauthConnectionsKeys.connections(), context.previousServices)
-      }
-      logger.error('Failed to disconnect service')
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })

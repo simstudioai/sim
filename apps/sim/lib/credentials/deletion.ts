@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, notExists, or, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
@@ -102,32 +102,36 @@ export async function deleteConnectionCredential(
 }
 
 /**
- * Deletes the OAuth grant backing a credential once no credential references it
- * any more, and reports whether it went. The `account` row is an OAuth
- * credential's secret source, so leaving it behind keeps the provider grant
- * alive after the credential it backed is gone.
+ * Deletes the stored OAuth grant behind a credential once nothing references
+ * it. The `account` row is an OAuth credential's secret source, so leaving it
+ * behind keeps a usable grant; nothing is revoked provider-side.
  *
- * Scoped by `accountId` rather than by owner: the caller has already been
- * authorized against the credential, and the grant may belong to a different
- * user than the one deleting it (a workspace admin removing a teammate's
- * connection). Returns false when another credential still uses the grant.
+ * Scoped by `accountId`, not by owner — the caller is already authorized
+ * against the credential, which may belong to another user.
+ *
+ * The reference check is a predicate on the delete: `credential.accountId` is
+ * `ON DELETE CASCADE`, so a credential racing a separate check would be reaped
+ * by Postgres without {@link clearCredentialRefs} ever running.
  */
-export async function deleteOrphanedOAuthAccount(accountId: string): Promise<boolean> {
-  const [stillReferenced] = await db
-    .select({ id: schema.credential.id })
-    .from(schema.credential)
-    .where(eq(schema.credential.accountId, accountId))
-    .limit(1)
-  if (stillReferenced) return false
-
+export async function deleteOrphanedOAuthAccount(accountId: string): Promise<void> {
   const deleted = await db
     .delete(schema.account)
-    .where(eq(schema.account.id, accountId))
+    .where(
+      and(
+        eq(schema.account.id, accountId),
+        notExists(
+          db
+            .select({ referenced: sql`1` })
+            .from(schema.credential)
+            .where(eq(schema.credential.accountId, accountId))
+        )
+      )
+    )
     .returning({ id: schema.account.id })
+
   if (deleted.length > 0) {
     logger.info('Deleted orphaned OAuth account', { accountId })
   }
-  return deleted.length > 0
 }
 
 /**
