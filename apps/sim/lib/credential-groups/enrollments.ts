@@ -457,10 +457,7 @@ export async function listCredentialGroupEnrollments(
           eq(credentialGroupEnrollment.id, cursor),
           eq(credentialGroup.id, groupId),
           eq(credentialGroup.workspaceId, workspaceId),
-          filters.email ? eq(credentialGroupEnrollment.email, filters.email) : undefined,
-          filters.statuses?.length
-            ? inArray(credentialGroupEnrollment.status, filters.statuses)
-            : undefined
+          filters.email ? eq(credentialGroupEnrollment.email, filters.email) : undefined
         )
       )
       .limit(1)

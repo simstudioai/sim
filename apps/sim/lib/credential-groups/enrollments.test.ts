@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { adapter } = vi.hoisted(() => ({
@@ -132,6 +133,38 @@ describe('listCredentialGroupEnrollments', () => {
       'Credential group enrollment limit must be between 1 and 100'
     )
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
+  })
+
+  it('continues pagination when the cursor enrollment was deleted between pages', async () => {
+    const remainingEnrollment = {
+      ...ENROLLMENT,
+      id: 'enrollment-2',
+      invitedAt: new Date('2026-08-10T12:00:00.000Z'),
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([
+        { id: ENROLLMENT.id, invitedAt: new Date('2026-08-11T12:00:00.000Z') },
+      ])
+      .mockResolvedValueOnce([{ enrollment: remainingEnrollment }])
+
+    const result = await listCredentialGroupEnrollments(
+      'workspace-1',
+      'group-1',
+      50,
+      ENROLLMENT.id,
+      { statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'] }
+    )
+
+    expect(result.enrollments).toHaveLength(1)
+    expect(result.enrollments[0]?.id).toBe(remainingEnrollment.id)
+    expect(inArray).toHaveBeenCalledOnce()
+    expect(inArray).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.status, [
+      'invited',
+      'in_progress',
+      'completed',
+      'delivery_failed',
+    ])
   })
 })
 
