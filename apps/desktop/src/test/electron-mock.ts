@@ -222,6 +222,8 @@ export class BrowserWindow {
     getZoomFactor: vi.fn(() => 1),
     executeJavaScript: vi.fn(() => Promise.resolve(true)),
     focus: vi.fn(),
+    isFocused: vi.fn(() => false),
+    isDestroyed: vi.fn(() => false),
     send: vi.fn(),
     setWindowOpenHandler: vi.fn(),
     isDevToolsOpened: vi.fn(() => false),
