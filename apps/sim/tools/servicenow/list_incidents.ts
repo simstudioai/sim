@@ -34,7 +34,7 @@ export const listIncidentsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Text to match against the incident short description (LIKE, case-sensitive).',
+      description: 'Text to match against the incident short description using the ServiceNow LIKE operator, which matches anywhere in the field.',
     },
     state: {
       type: 'string',

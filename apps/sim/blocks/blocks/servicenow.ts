@@ -81,6 +81,16 @@ const PAGINATED_OPS = [
   'servicenow_search_knowledge',
 ] as const
 
+/**
+ * Operations whose `sysparm_display_value` comes from the semantic `all`-defaulted
+ * control rather than the generic Table API one, which stays unset by default so
+ * the pre-existing generic tools keep their original wire behavior.
+ */
+const SEMANTIC_DISPLAY_VALUE_OPS: ReadonlySet<string> = new Set([
+  ...SEMANTIC_READ_OPS,
+  ...SEMANTIC_WRITE_OPS,
+])
+
 const OPTIONAL_CHOICE = { label: 'Any (not set)', id: '' } as const
 
 const optionalChoices = <T extends { label: string; id: string }>(options: readonly T[]) => [
@@ -203,7 +213,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         ],
         servicenow_update_change_state: [
           { text: 'Move change request', field: 'sysId', core: true },
-          { text: 'to state', field: 'state', core: true },
+          { text: 'to state', field: 'targetState', core: true },
         ],
         servicenow_list_change_tasks: [
           { text: 'List tasks on change request', field: 'changeSysId', core: true },
@@ -230,7 +240,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         servicenow_list_approvals: [
           'List approvals',
           { text: 'for approver', field: 'approverSysId', core: true },
-          { text: ', in state', field: 'state' },
+          { text: ', in state', field: 'approvalState' },
         ],
         servicenow_update_approval: [
           { text: 'Record decision', field: 'decision', core: true },
@@ -462,7 +472,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       mode: 'advanced',
     },
     {
-      id: 'displayValue',
+      id: 'semanticDisplayValue',
       title: 'Display Value',
       type: 'dropdown',
       options: [...DISPLAY_VALUE_OPTIONS],
@@ -740,7 +750,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
           'servicenow_list_catalog_items',
         ],
       },
-      description: 'Case-sensitive LIKE match',
+      description: 'LIKE match — matches anywhere in the field',
     },
     // State dropdowns — one per state model
     {
@@ -774,7 +784,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         'Base-system change model states. Instances with a customized state model can use different coded values.',
     },
     {
-      id: 'state',
+      id: 'targetState',
       title: 'Target State',
       type: 'dropdown',
       options: [...CHANGE_STATE_OPTIONS],
@@ -785,7 +795,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         'The change state machine rejects a transition whose conditions have not been met.',
     },
     {
-      id: 'state',
+      id: 'approvalState',
       title: 'Approval State',
       type: 'dropdown',
       options: [
@@ -1313,7 +1323,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         field: 'operation',
         value: ['servicenow_search_cis', 'servicenow_find_user'],
       },
-      description: 'Case-sensitive LIKE match',
+      description: 'LIKE match — matches anywhere in the field',
     },
     {
       id: 'operationalStatus',
@@ -1513,9 +1523,24 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        const { operation, fields, file, attachmentLimit, ...rest } = params
+        const {
+          operation,
+          fields,
+          file,
+          attachmentLimit,
+          semanticDisplayValue,
+          targetState,
+          approvalState,
+          ...rest
+        } = params
         const isCreateOrUpdate =
           operation === 'servicenow_create_record' || operation === 'servicenow_update_record'
+
+        if (SEMANTIC_DISPLAY_VALUE_OPS.has(operation)) {
+          rest.displayValue = semanticDisplayValue
+        }
+        if (operation === 'servicenow_update_change_state') rest.state = targetState
+        if (operation === 'servicenow_list_approvals') rest.state = approvalState
 
         if (attachmentLimit != null && attachmentLimit !== '') rest.limit = Number(attachmentLimit)
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
@@ -1576,6 +1601,10 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     offset: { type: 'number', description: 'Pagination offset' },
     fields: { type: 'json', description: 'Fields object or JSON string' },
     displayValue: { type: 'string', description: 'Display value mode for reference fields' },
+    semanticDisplayValue: {
+      type: 'string',
+      description: 'Display value mode for the semantic operations, defaulting to "all"',
+    },
     count: { type: 'boolean', description: 'Return record count (aggregate)' },
     groupBy: { type: 'string', description: 'Comma-separated fields to group by (aggregate)' },
     avgFields: { type: 'string', description: 'Comma-separated fields to average (aggregate)' },
@@ -1591,6 +1620,8 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     description: { type: 'string', description: 'Detailed description of the record' },
     searchText: { type: 'string', description: 'Text matched against the short description' },
     state: { type: 'string', description: 'State coded value' },
+    targetState: { type: 'string', description: 'Target state for a change request transition' },
+    approvalState: { type: 'string', description: 'Approval state filter' },
     impact: { type: 'string', description: 'Impact coded value' },
     urgency: { type: 'string', description: 'Urgency coded value' },
     priority: { type: 'string', description: 'Priority coded value' },
@@ -1670,7 +1701,11 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         'Base64-encoded downloaded file content, or the HTML body of a knowledge article',
     },
     attachment: { type: 'json', description: 'Uploaded attachment metadata' },
-    tasks: { type: 'json', description: 'Change tasks belonging to a change request' },
+    tasks: {
+      type: 'json',
+      description:
+        'Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as {value, display_value} regardless of the display value setting',
+    },
     items: { type: 'json', description: 'Service catalog items' },
     articles: { type: 'json', description: 'Knowledge article search results' },
     attributes: { type: 'json', description: 'Configuration item attributes' },

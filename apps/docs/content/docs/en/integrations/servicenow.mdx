@@ -262,7 +262,7 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -301,7 +301,7 @@ Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Re
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -325,7 +325,7 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `searchText` | string | No | Text to match against the incident short description \(LIKE, case-sensitive\). |
+| `searchText` | string | No | Text to match against the incident short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `state` | string | No | Incident state coded value. Base system: $\{INCIDENT_STATE.NEW\}=New, $\{INCIDENT_STATE.IN_PROGRESS\}=In Progress, $\{INCIDENT_STATE.ON_HOLD\}=On Hold, $\{INCIDENT_STATE.RESOLVED\}=Resolved, $\{INCIDENT_STATE.CLOSED\}=Closed, $\{INCIDENT_STATE.CANCELED\}=Canceled. |
 | `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
 | `assignmentGroup` | string | No | sys_id of the assignment group. |
@@ -347,7 +347,7 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -399,7 +399,7 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -441,7 +441,7 @@ Move a ServiceNow incident to Resolved (state $\{INCIDENT_STATE.RESOLVED\}) with
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -483,7 +483,7 @@ Move a ServiceNow incident to Closed (state $\{INCIDENT_STATE.CLOSED\}) with a r
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -524,7 +524,7 @@ Append an internal work note or a customer-visible additional comment to a Servi
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -580,7 +580,7 @@ Create a change request in ServiceNow. Reference fields (assignment group, assig
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -619,7 +619,7 @@ Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -643,7 +643,7 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `searchText` | string | No | Text to match against the change short description \(LIKE, case-sensitive\). |
+| `searchText` | string | No | Text to match against the change short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `state` | string | No | Change state coded value. Base system: $\{CHANGE_STATE.NEW\}=New, $\{CHANGE_STATE.ASSESS\}=Assess, $\{CHANGE_STATE.AUTHORIZE\}=Authorize, $\{CHANGE_STATE.SCHEDULED\}=Scheduled, $\{CHANGE_STATE.IMPLEMENT\}=Implement, $\{CHANGE_STATE.REVIEW\}=Review, $\{CHANGE_STATE.CLOSED\}=Closed, $\{CHANGE_STATE.CANCELED\}=Canceled. |
 | `type` | string | No | Change type: "normal", "standard", or "emergency". |
 | `risk` | string | No | Risk coded value. The choice list is configured per instance. |
@@ -665,7 +665,7 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -717,7 +717,7 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -760,7 +760,7 @@ Move a ServiceNow change request to another state. Base-system change model stat
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -858,7 +858,7 @@ Submit a service catalog request for a catalog item using the Service Catalog AP
 
 ### List ServiceNow Requested Items
 
-List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a request, a requester, or a catalog item.
+List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a parent request or a catalog item. To scope by requester, pass an encoded query against the parent request, for example "request.requested_for=&lt;sys_id&gt;".
 
 #### Input
 
@@ -882,7 +882,7 @@ List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] ta
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -921,7 +921,7 @@ Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001)
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -963,7 +963,7 @@ List approval records from the ServiceNow Approval [sysapproval_approver] table.
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -1005,7 +1005,7 @@ Approve or reject a ServiceNow approval record by setting its state on the Appro
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -1030,7 +1030,7 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `ciClass` | string | No | CMDB class \(table\) to search, e.g., cmdb_ci_linux_server or cmdb_ci_app_server. Defaults to $\{SERVICENOW_TABLES.CI\}, which covers every CI class. |
-| `name` | string | No | Text to match against the CI name \(LIKE, case-sensitive\). |
+| `name` | string | No | Text to match against the CI name using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `operationalStatus` | string | No | Operational status coded value \(operational_status\). The choice list is configured per instance. |
 
 #### Output
@@ -1047,7 +1047,7 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -1116,7 +1116,7 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -1203,7 +1203,7 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 | --------- | ---- | -------- | ----------- |
 | `email` | string | No | Exact email address to match. |
 | `userName` | string | No | Exact user name \(user_name\) to match. |
-| `name` | string | No | Text to match against the display name \(LIKE, case-sensitive\). |
+| `name` | string | No | Text to match against the display name using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) users. |
 
 #### Output
@@ -1220,7 +1220,7 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
@@ -1261,7 +1261,7 @@ List the members of a ServiceNow group from the Group Member [sys_user_grmember]
 | `file` | file | Downloaded attachment file |
 | `content` | string | Base64-encoded downloaded file content, or the HTML body of a knowledge article |
 | `attachment` | json | Uploaded attachment metadata |
-| `tasks` | json | Change tasks belonging to a change request |
+| `tasks` | json | Change tasks belonging to a change request. Unlike the Table API operations, the Change Management API always returns every field as \{value, display_value\} regardless of the display value setting |
 | `items` | json | Service catalog items |
 | `articles` | json | Knowledge article search results |
 | `attributes` | json | Configuration item attributes |
