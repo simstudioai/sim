@@ -1246,6 +1246,19 @@ export function TableGrid({
       if (seq === goToMatchSeqRef.current) setIsJumping(false)
     }
     if (seq !== goToMatchSeqRef.current) return
+    // The match set can change while we page — find hangs off the rows cache,
+    // so any row write or SSE update refetches it. If the target is gone,
+    // revealing it would select a cell that no longer matches and mark the
+    // cursor as sitting on a result, which then makes the next step skip the
+    // match that replaced it.
+    const stillMatches = findMatchesRef.current.some(
+      (m) => m.rowId === match.rowId && m.column === match.column
+    )
+    if (!stillMatches) {
+      activeMatchRef.current = null
+      cursorIsOnMatchRef.current = false
+      return
+    }
     // Defer the anchor set to the reveal effect: it must run after the freshly
     // loaded rows have committed, else scrollToIndex clamps to the stale count.
     pendingMatchRef.current = match
