@@ -31,6 +31,40 @@ export type RowSelection =
 export const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
 export const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
 
+interface HorizontalEdgeScrollVelocityInput {
+  pointerX: number
+  visibleLeft: number
+  visibleRight: number
+  hotZone: number
+  maxVelocity: number
+}
+
+export function horizontalEdgeScrollVelocity({
+  pointerX,
+  visibleLeft,
+  visibleRight,
+  hotZone,
+  maxVelocity,
+}: HorizontalEdgeScrollVelocityInput): number {
+  if (hotZone <= 0) throw new Error('hotZone must be greater than zero')
+  if (maxVelocity <= 0) throw new Error('maxVelocity must be greater than zero')
+  if (visibleRight <= visibleLeft) throw new Error('visibleRight must be greater than visibleLeft')
+
+  const distanceFromLeft = pointerX - visibleLeft
+  if (distanceFromLeft < hotZone) {
+    const intensity = 1 - Math.max(0, distanceFromLeft) / hotZone
+    return -Math.ceil(intensity * maxVelocity)
+  }
+
+  const distanceFromRight = visibleRight - pointerX
+  if (distanceFromRight < hotZone) {
+    const intensity = 1 - Math.max(0, distanceFromRight) / hotZone
+    return Math.ceil(intensity * maxVelocity)
+  }
+
+  return 0
+}
+
 export function rowSelectionIncludes(sel: RowSelection, id: string): boolean {
   if (sel.kind === 'all') return !sel.excluded?.has(id)
   if (sel.kind === 'some') return sel.ids.has(id)

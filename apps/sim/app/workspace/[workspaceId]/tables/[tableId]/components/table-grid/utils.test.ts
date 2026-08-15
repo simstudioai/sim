@@ -13,6 +13,7 @@ import {
   canWriteRowsWithChip,
   chipRowCount,
   drainTargetForChip,
+  horizontalEdgeScrollVelocity,
   selectedColumnIds,
 } from './utils'
 
@@ -24,6 +25,40 @@ function columns(count: number): DisplayColumn[] {
 }
 
 const rowIds = (count: number) => Array.from({ length: count }, (_, i) => `r${i}`)
+
+describe('horizontalEdgeScrollVelocity', () => {
+  const getVelocity = (pointerX: number) =>
+    horizontalEdgeScrollVelocity({
+      pointerX,
+      visibleLeft: 140,
+      visibleRight: 900,
+      hotZone: 48,
+      maxVelocity: 14,
+    })
+
+  it('scrolls left when the pointer enters the visible edge after sticky columns', () => {
+    expect(getVelocity(140)).toBe(-14)
+    expect(getVelocity(164)).toBe(-7)
+  })
+
+  it('scrolls right at the opposite edge and stays still between edge zones', () => {
+    expect(getVelocity(876)).toBe(7)
+    expect(getVelocity(900)).toBe(14)
+    expect(getVelocity(500)).toBe(0)
+  })
+
+  it('fails fast for invalid geometry', () => {
+    expect(() =>
+      horizontalEdgeScrollVelocity({
+        pointerX: 100,
+        visibleLeft: 200,
+        visibleRight: 100,
+        hotZone: 48,
+        maxVelocity: 14,
+      })
+    ).toThrow('visibleRight must be greater than visibleLeft')
+  })
+})
 
 describe('selectedColumnIds', () => {
   it('returns the ids the range spans', () => {

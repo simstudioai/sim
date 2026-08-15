@@ -78,6 +78,7 @@ import {
   drainTargetForChip,
   type ExecStatusMix,
   expandToDisplayColumns,
+  horizontalEdgeScrollVelocity,
   isCellInSelection,
   moveCell,
   ROW_SELECTION_ALL,
@@ -99,6 +100,8 @@ const EMPTY_FILTER_CONDITIONS: readonly Predicate[] = Object.freeze([])
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
 const ROW_HEIGHT_ESTIMATE = 35
+const COLUMN_DRAG_SCROLL_HOT_ZONE_PX = 48
+const COLUMN_DRAG_SCROLL_MAX_VELOCITY_PX = 14
 
 /**
  * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
@@ -532,6 +535,8 @@ export function TableGrid({
   const seededLayoutKeyRef = useRef<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const columnDragPointerXRef = useRef<number | null>(null)
+  const columnDragScrollFrameRef = useRef<number | null>(null)
   const theadRef = useRef<HTMLTableSectionElement>(null)
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
   const isDraggingRef = useRef(false)
@@ -1763,13 +1768,58 @@ export function TableGrid({
     )
   }, [])
 
-  const handleColumnDragStart = useCallback((columnName: string) => {
-    setDragColumnName(columnName)
-    setSelectionAnchor(null)
-    setSelectionFocus(null)
-    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
-    setIsColumnSelection(false)
+  const stopColumnDragAutoScroll = useCallback(() => {
+    columnDragPointerXRef.current = null
+    if (columnDragScrollFrameRef.current !== null) {
+      cancelAnimationFrame(columnDragScrollFrameRef.current)
+      columnDragScrollFrameRef.current = null
+    }
   }, [])
+
+  function startColumnDragAutoScroll(pointerX: number) {
+    columnDragPointerXRef.current = pointerX
+    if (columnDragScrollFrameRef.current !== null) return
+
+    const tick = () => {
+      columnDragScrollFrameRef.current = null
+      const scrollEl = scrollRef.current
+      const currentPointerX = columnDragPointerXRef.current
+      if (!scrollEl || currentPointerX === null || !dragColumnNameRef.current) return
+
+      const scrollRect = scrollEl.getBoundingClientRect()
+      const velocity = horizontalEdgeScrollVelocity({
+        pointerX: currentPointerX,
+        visibleLeft: scrollRect.left + pinnedStickyLeftEdge,
+        visibleRight: scrollRect.right,
+        hotZone: COLUMN_DRAG_SCROLL_HOT_ZONE_PX,
+        maxVelocity: COLUMN_DRAG_SCROLL_MAX_VELOCITY_PX,
+      })
+      if (velocity === 0) return
+
+      const previousScrollLeft = scrollEl.scrollLeft
+      scrollEl.scrollLeft += velocity
+      if (scrollEl.scrollLeft !== previousScrollLeft) {
+        columnDragScrollFrameRef.current = requestAnimationFrame(tick)
+      }
+    }
+
+    columnDragScrollFrameRef.current = requestAnimationFrame(tick)
+  }
+
+  useEffect(() => stopColumnDragAutoScroll, [stopColumnDragAutoScroll])
+
+  const handleColumnDragStart = useCallback(
+    (columnName: string) => {
+      stopColumnDragAutoScroll()
+      dragColumnNameRef.current = columnName
+      setDragColumnName(columnName)
+      setSelectionAnchor(null)
+      setSelectionFocus(null)
+      setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
+      setIsColumnSelection(false)
+    },
+    [stopColumnDragAutoScroll]
+  )
 
   const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
     const dragged = dragColumnNameRef.current
@@ -1811,6 +1861,7 @@ export function TableGrid({
   }, [])
 
   const handleColumnDragEnd = useCallback(() => {
+    stopColumnDragAutoScroll()
     const dragged = dragColumnNameRef.current
     if (!dragged) {
       setDragColumnName(null)
@@ -1945,7 +1996,7 @@ export function TableGrid({
     setDragColumnName(null)
     setDropTargetColumnName(null)
     setDropSide('left')
-  }, [])
+  }, [stopColumnDragAutoScroll])
 
   const handleColumnDragLeave = useCallback(() => {
     dropTargetColumnNameRef.current = null
@@ -1953,12 +2004,18 @@ export function TableGrid({
   }, [])
 
   function handleScrollDragOver(e: React.DragEvent) {
-    if (!dragColumnNameRef.current) return
+    const draggedName = dragColumnNameRef.current
+    if (!draggedName) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
 
     const scrollEl = scrollRef.current
     if (!scrollEl) return
+    if (pinnedColumnsRef.current.includes(draggedName)) {
+      stopColumnDragAutoScroll()
+    } else {
+      startColumnDragAutoScroll(e.clientX)
+    }
     const scrollRect = scrollEl.getBoundingClientRect()
     const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
 
@@ -2003,6 +2060,7 @@ export function TableGrid({
 
   function handleScrollDrop(e: React.DragEvent) {
     e.preventDefault()
+    stopColumnDragAutoScroll()
   }
 
   useEffect(() => {
