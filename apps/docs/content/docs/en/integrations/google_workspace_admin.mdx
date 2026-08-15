@@ -769,6 +769,28 @@ Update the administrator-assigned fields on a ChromeOS device, including its ass
 |   ↳ `annotatedAssetId` | string | Administrator-assigned asset ID |
 |   ↳ `notes` | string | Administrator notes about the device |
 
+### Google Workspace Admin Batch Change ChromeOS Device Status
+
+Deprovision, disable, or re-enable up to 50 ChromeOS devices at once. Deprovisioning removes the device from management and cannot be undone
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | No | Customer ID, or "my_customer" for the authenticated account \(default\) |
+| `deviceIds` | string | Yes | Comma-separated IDs of the ChromeOS devices to change, as returned by List ChromeOS Devices. Maximum 50 |
+| `changeChromeOsDeviceStatusAction` | string | Yes | Status change to apply: CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION \(remove from management, irreversible\), CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DISABLE \(keep managed but unusable\), or CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_REENABLE |
+| `deprovisionReason` | string | No | Why the devices are being deprovisioned. Required when the action is CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION, and omitted otherwise |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `changeChromeOsDeviceStatusResults` | json | One result per requested device. Each carries either a response \(the change succeeded\) or an error |
+|   ↳ `deviceId` | string | Unique ID of the ChromeOS device |
+|   ↳ `response` | json | Present when the device changed status successfully |
+|   ↳ `error` | json | Present when the device failed to change status, with code, message, and details |
+
 ### Google Workspace Admin List Activities
 
 Read Google Workspace audit activities for an application, such as login, admin, drive, or token events

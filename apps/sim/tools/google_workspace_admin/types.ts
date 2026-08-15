@@ -263,6 +263,22 @@ export interface GoogleWorkspaceAdminUpdateChromeOsDeviceParams
   orgUnitPath?: string
 }
 
+/** Parameters for `customer.devices.chromeos.batchChangeStatus`. */
+export interface GoogleWorkspaceAdminBatchChangeChromeOsDeviceStatusParams
+  extends GoogleWorkspaceAdminCommonParams {
+  customerId?: string
+  deviceIds: string
+  changeChromeOsDeviceStatusAction:
+    | 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION'
+    | 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DISABLE'
+    | 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_REENABLE'
+  deprovisionReason?:
+    | 'DEPROVISION_REASON_SAME_MODEL_REPLACEMENT'
+    | 'DEPROVISION_REASON_DIFFERENT_MODEL_REPLACEMENT'
+    | 'DEPROVISION_REASON_RETIRING_DEVICE'
+    | 'DEPROVISION_REASON_UPGRADE_TRANSFER'
+}
+
 /** Parameters for `activities.list`. */
 export interface GoogleWorkspaceAdminListActivitiesParams extends GoogleWorkspaceAdminCommonParams {
   applicationName: string
@@ -322,6 +338,7 @@ export interface GoogleWorkspaceAdminResponse extends ToolResponse {
     mobileDevice?: unknown
     chromeOsDevices?: unknown[]
     chromeOsDevice?: unknown
+    changeChromeOsDeviceStatusResults?: unknown[]
     activities?: unknown[]
     usageReports?: unknown[]
     warnings?: unknown[]

@@ -54,6 +54,7 @@ const CUSTOMER_OPERATIONS = [
   'list_chromeos_devices',
   'get_chromeos_device',
   'update_chromeos_device',
+  'batch_change_chromeos_device_status',
   'get_customer_usage_report',
   'get_user_usage_report',
 ] as const
@@ -133,6 +134,7 @@ const SUPPORTED_OPERATIONS = new Set([
   'list_chromeos_devices',
   'get_chromeos_device',
   'update_chromeos_device',
+  'batch_change_chromeos_device_status',
   'list_activities',
   'get_customer_usage_report',
   'get_user_usage_report',
@@ -227,6 +229,9 @@ export const GoogleWorkspaceAdminBlock: BlockConfig = {
         ],
         get_chromeos_device: [{ text: 'Read ChromeOS device', field: 'deviceId', core: true }],
         update_chromeos_device: [{ text: 'Update ChromeOS device', field: 'deviceId', core: true }],
+        batch_change_chromeos_device_status: [
+          { text: 'Change the status of ChromeOS devices', field: 'deviceIds', core: true },
+        ],
         list_activities: [
           { text: 'Read audit log', field: 'applicationName', core: true },
           { text: 'for', field: 'userKey' },
@@ -278,6 +283,10 @@ export const GoogleWorkspaceAdminBlock: BlockConfig = {
         { label: 'List ChromeOS Devices', id: 'list_chromeos_devices' },
         { label: 'Get ChromeOS Device', id: 'get_chromeos_device' },
         { label: 'Update ChromeOS Device', id: 'update_chromeos_device' },
+        {
+          label: 'Change ChromeOS Device Status',
+          id: 'batch_change_chromeos_device_status',
+        },
         { label: 'List Activities', id: 'list_activities' },
         { label: 'Get Customer Usage Report', id: 'get_customer_usage_report' },
         { label: 'Get User Usage Report', id: 'get_user_usage_report' },
@@ -484,6 +493,7 @@ export const GoogleWorkspaceAdminBlock: BlockConfig = {
         { id: 'CUSTOMER', label: 'Whole account' },
         { id: 'ORG_UNIT', label: 'One org unit' },
       ],
+      value: () => 'CUSTOMER',
       condition: { field: 'operation', value: 'create_role_assignment' },
     },
     {
@@ -569,6 +579,74 @@ export const GoogleWorkspaceAdminBlock: BlockConfig = {
       mode: 'advanced',
       placeholder: 'Administrator notes about this device',
       condition: { field: 'operation', value: 'update_chromeos_device' },
+    },
+    {
+      id: 'deviceIds',
+      title: 'ChromeOS Device IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated device IDs, up to 50',
+      required: true,
+      condition: { field: 'operation', value: 'batch_change_chromeos_device_status' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Produce a comma-separated list of Google Workspace ChromeOS device IDs from the description, with no spaces after the commas and at most 50 entries. Return ONLY the comma-separated list - no explanations, no extra text.',
+        placeholder: 'Describe which devices to change...',
+      },
+    },
+    {
+      id: 'changeChromeOsDeviceStatusAction',
+      title: 'Status Change',
+      type: 'dropdown',
+      required: true,
+      options: [
+        {
+          id: 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DISABLE',
+          label: 'Disable (keep managed, block use)',
+        },
+        {
+          id: 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_REENABLE',
+          label: 'Re-enable a disabled device',
+        },
+        {
+          id: 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION',
+          label: 'Deprovision (remove from management, irreversible)',
+        },
+      ],
+      value: () => 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DISABLE',
+      condition: { field: 'operation', value: 'batch_change_chromeos_device_status' },
+    },
+    {
+      id: 'deprovisionReason',
+      title: 'Deprovision Reason',
+      type: 'dropdown',
+      required: true,
+      options: [
+        {
+          id: 'DEPROVISION_REASON_RETIRING_DEVICE',
+          label: 'Retiring from the fleet',
+        },
+        {
+          id: 'DEPROVISION_REASON_SAME_MODEL_REPLACEMENT',
+          label: 'Replacing with the same model',
+        },
+        {
+          id: 'DEPROVISION_REASON_DIFFERENT_MODEL_REPLACEMENT',
+          label: 'Replacing with a different model',
+        },
+        {
+          id: 'DEPROVISION_REASON_UPGRADE_TRANSFER',
+          label: 'ChromeOS Flex upgrade transfer',
+        },
+      ],
+      condition: {
+        field: 'operation',
+        value: 'batch_change_chromeos_device_status',
+        and: {
+          field: 'changeChromeOsDeviceStatusAction',
+          value: 'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION',
+        },
+      },
     },
     {
       id: 'includeChildOrgunits',
@@ -849,6 +927,7 @@ Return ONLY the query string - no explanations, no quotes, no extra text.`,
       'google_workspace_admin_list_chromeos_devices',
       'google_workspace_admin_get_chromeos_device',
       'google_workspace_admin_update_chromeos_device',
+      'google_workspace_admin_batch_change_chromeos_device_status',
       'google_workspace_admin_list_activities',
       'google_workspace_admin_get_customer_usage_report',
       'google_workspace_admin_get_user_usage_report',
@@ -1060,6 +1139,18 @@ Return ONLY the query string - no explanations, no quotes, no extra text.`,
               notes: rest.notes,
               orgUnitPath: rest.orgUnitPath,
             }
+          case 'batch_change_chromeos_device_status':
+            return {
+              oauthCredential,
+              customerId: rest.customerId,
+              deviceIds: rest.deviceIds,
+              changeChromeOsDeviceStatusAction: rest.changeChromeOsDeviceStatusAction,
+              deprovisionReason:
+                rest.changeChromeOsDeviceStatusAction ===
+                'CHANGE_CHROME_OS_DEVICE_STATUS_ACTION_DEPROVISION'
+                  ? rest.deprovisionReason
+                  : undefined,
+            }
           case 'list_activities':
             return {
               oauthCredential,
@@ -1142,6 +1233,15 @@ Return ONLY the query string - no explanations, no quotes, no extra text.`,
     annotatedLocation: { type: 'string', description: 'Location of a ChromeOS device' },
     annotatedAssetId: { type: 'string', description: 'Asset ID of a ChromeOS device' },
     notes: { type: 'string', description: 'Administrator notes on a ChromeOS device' },
+    deviceIds: { type: 'string', description: 'Comma-separated ChromeOS device IDs, up to 50' },
+    changeChromeOsDeviceStatusAction: {
+      type: 'string',
+      description: 'Status change to apply to a batch of ChromeOS devices',
+    },
+    deprovisionReason: {
+      type: 'string',
+      description: 'Why a batch of ChromeOS devices is being deprovisioned',
+    },
     includeChildOrgunits: { type: 'boolean', description: 'Include nested org units when listing' },
     applicationName: { type: 'string', description: 'Audit log to read' },
     eventName: { type: 'string', description: 'Audit event name filter' },
@@ -1179,6 +1279,10 @@ Return ONLY the query string - no explanations, no quotes, no extra text.`,
     mobileDevice: { type: 'json', description: 'Single MobileDevice resource' },
     chromeOsDevices: { type: 'json', description: 'Array of ChromeOsDevice resources' },
     chromeOsDevice: { type: 'json', description: 'Single ChromeOsDevice resource' },
+    changeChromeOsDeviceStatusResults: {
+      type: 'json',
+      description: 'Per-device status change results ([{deviceId, response, error}])',
+    },
     activities: { type: 'json', description: 'Array of audit Activity resources' },
     usageReports: { type: 'json', description: 'Array of UsageReport resources' },
     warnings: { type: 'json', description: 'Warnings returned alongside a usage report' },

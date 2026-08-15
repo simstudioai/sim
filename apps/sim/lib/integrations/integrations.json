@@ -9131,6 +9131,10 @@
           "description": "Update the administrator-assigned fields on a ChromeOS device, including its assigned user, location, asset ID, notes, and org unit"
         },
         {
+          "name": "Change ChromeOS Device Status",
+          "description": "Deprovision, disable, or re-enable up to 50 ChromeOS devices at once. Deprovisioning removes the device from management and cannot be undone"
+        },
+        {
           "name": "List Activities",
           "description": "Read Google Workspace audit activities for an application, such as login, admin, drive, or token events"
         },
@@ -9143,7 +9147,7 @@
           "description": "Read per-user Google Workspace usage metrics for a single day, for one user or for every user in the account"
         }
       ],
-      "operationCount": 36,
+      "operationCount": 37,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",

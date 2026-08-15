@@ -299,7 +299,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/admin.directory.orgunit',
           'https://www.googleapis.com/auth/admin.directory.rolemanagement',
           'https://www.googleapis.com/auth/admin.directory.device.mobile',
-          'https://www.googleapis.com/auth/admin.directory.device.mobile.action',
           'https://www.googleapis.com/auth/admin.directory.device.chromeos',
           'https://www.googleapis.com/auth/admin.reports.audit.readonly',
           'https://www.googleapis.com/auth/admin.reports.usage.readonly',

@@ -1,5 +1,6 @@
 import { actionMobileDeviceTool } from './action_mobile_device'
 import { addUserAliasTool } from './add_user_alias'
+import { batchChangeChromeOsDeviceStatusTool } from './batch_change_chromeos_device_status'
 import { createOrgUnitTool } from './create_org_unit'
 import { createRoleAssignmentTool } from './create_role_assignment'
 import { createUserTool } from './create_user'
@@ -37,6 +38,8 @@ import { updateUserTool } from './update_user'
 
 export const googleWorkspaceAdminActionMobileDeviceTool = actionMobileDeviceTool
 export const googleWorkspaceAdminAddUserAliasTool = addUserAliasTool
+export const googleWorkspaceAdminBatchChangeChromeOsDeviceStatusTool =
+  batchChangeChromeOsDeviceStatusTool
 export const googleWorkspaceAdminCreateOrgUnitTool = createOrgUnitTool
 export const googleWorkspaceAdminCreateRoleAssignmentTool = createRoleAssignmentTool
 export const googleWorkspaceAdminCreateUserTool = createUserTool

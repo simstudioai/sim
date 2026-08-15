@@ -1779,6 +1779,7 @@ import {
 import {
   googleWorkspaceAdminActionMobileDeviceTool,
   googleWorkspaceAdminAddUserAliasTool,
+  googleWorkspaceAdminBatchChangeChromeOsDeviceStatusTool,
   googleWorkspaceAdminCreateOrgUnitTool,
   googleWorkspaceAdminCreateRoleAssignmentTool,
   googleWorkspaceAdminCreateUserTool,
@@ -8981,6 +8982,8 @@ export const tools: Record<string, ToolConfig> = {
   google_groups_update_settings: googleGroupsUpdateSettingsTool,
   google_workspace_admin_action_mobile_device: googleWorkspaceAdminActionMobileDeviceTool,
   google_workspace_admin_add_user_alias: googleWorkspaceAdminAddUserAliasTool,
+  google_workspace_admin_batch_change_chromeos_device_status:
+    googleWorkspaceAdminBatchChangeChromeOsDeviceStatusTool,
   google_workspace_admin_create_org_unit: googleWorkspaceAdminCreateOrgUnitTool,
   google_workspace_admin_create_role_assignment: googleWorkspaceAdminCreateRoleAssignmentTool,
   google_workspace_admin_create_user: googleWorkspaceAdminCreateUserTool,

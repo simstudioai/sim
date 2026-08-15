@@ -56,9 +56,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/admin.directory.rolemanagement':
     'Manage Google Workspace admin roles and role assignments',
   'https://www.googleapis.com/auth/admin.directory.device.mobile':
-    'View and manage enrolled mobile devices',
-  'https://www.googleapis.com/auth/admin.directory.device.mobile.action':
-    'Run administrative actions on enrolled mobile devices',
+    'View and manage enrolled mobile devices, including approving, blocking, and wiping them',
   'https://www.googleapis.com/auth/admin.directory.device.chromeos':
     'View and manage enrolled ChromeOS devices',
   'https://www.googleapis.com/auth/admin.reports.audit.readonly':

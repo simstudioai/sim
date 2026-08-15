@@ -47,6 +47,34 @@ export function encodeOrgUnitPath(orgUnitPath: string): string {
     .join('/')
 }
 
+/**
+ * Maximum devices the Admin SDK accepts in one
+ * `customer.devices.chromeos:batchChangeStatus` call.
+ */
+const MAX_BATCH_DEVICE_IDS = 50
+
+/**
+ * Splits a comma-separated ChromeOS device ID list into the array the batch
+ * status endpoint expects, rejecting an empty or over-long list up front so the
+ * caller gets a precise message instead of a generic 400.
+ */
+export function parseDeviceIds(deviceIds: string): string[] {
+  const ids = deviceIds
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0)
+
+  if (ids.length === 0) {
+    throw new Error('At least one ChromeOS device ID is required')
+  }
+  if (ids.length > MAX_BATCH_DEVICE_IDS) {
+    throw new Error(
+      `Google Workspace accepts at most ${MAX_BATCH_DEVICE_IDS} ChromeOS device IDs per batch, received ${ids.length}`
+    )
+  }
+  return ids
+}
+
 /** Extracts the Admin SDK's `error.message` from an error payload. */
 function extractAdminError(data: unknown): string | undefined {
   if (typeof data !== 'object' || data === null) return undefined
