@@ -27,65 +27,6 @@ export interface WorkspaceAuthorizationOptions<C extends WorkspaceAuthorizationC
   executor?: Pick<typeof db, 'select'>
   forUpdate?: boolean
   delegation?: WorkspaceDelegationPolicy<C>
-  /**
-   * Memo for the human-permission lookup, supplied by a caller that authorizes many items in one
-   * operation. Ignored alongside `executor` or `forUpdate` — see
-   * {@link createWorkspacePermissionCache}.
-   */
-  permissionCache?: WorkspacePermissionCache
-}
-
-export interface WorkspacePermissionCache {
-  resolve(
-    userId: string,
-    workspaceId: string,
-    workspaceOrganizationId: string | null
-  ): Promise<PermissionType | null>
-}
-
-/**
- * Memoizes the effective-permission lookup across the items of one bulk operation.
- *
- * A batch authorizes every item separately — delegation scope is per-resource, so the check
- * cannot simply be hoisted out of the loop — but the human-permission half of it reads the same
- * `(user, workspace, organization)` triple every time, two queries deep. On a hundred-item
- * request that is two hundred round trips for a value that cannot change within the batch.
- *
- * Caller-owned and request-scoped on purpose: nothing here outlives the operation that created
- * it, so a permission changed between requests is always seen by the next one. Skipped entirely
- * when the caller passes its own `executor` (a transaction has its own snapshot to honour) or
- * `forUpdate` (that lookup takes a row lock, which is a side effect, not a read).
- *
- * Neither of the repo's two existing memo idioms fits. `coalesceLocally` evicts on settle, so a
- * sequential per-item loop would re-query every item. React `cache()` cannot be skipped per call
- * for the `executor`/`forUpdate` paths and has no request scope in the worker runtime. An
- * implicit process-wide memo on an authorization read is a lifetime worth refusing outright.
- */
-export function createWorkspacePermissionCache(): WorkspacePermissionCache {
-  const entries = new Map<string, Promise<PermissionType | null>>()
-  return {
-    resolve(userId, workspaceId, workspaceOrganizationId) {
-      /** Structural, so no id can run into the next and answer another workspace's question. */
-      const key = JSON.stringify([userId, workspaceId, workspaceOrganizationId])
-      const cached = entries.get(key)
-      if (cached) return cached
-      /**
-       * The in-flight promise is what gets stored, so concurrent items share one query rather
-       * than racing to start their own. Evicted if it rejects: a transient database failure must
-       * not become the permanent answer for the rest of the batch.
-       */
-      const pending = resolveEffectiveWorkspacePermission(
-        userId,
-        workspaceId,
-        workspaceOrganizationId
-      ).catch((error) => {
-        entries.delete(key)
-        throw error
-      })
-      entries.set(key, pending)
-      return pending
-    },
-  }
 }
 
 export class InsufficientWorkspacePermissionsError extends ForbiddenOperationError {
@@ -210,16 +151,13 @@ async function requireCurrentHumanPermission<C extends WorkspaceAuthorizationCon
   required: PermissionType,
   options?: WorkspaceAuthorizationOptions<C>
 ): Promise<void> {
-  const memo = options?.executor || options?.forUpdate ? undefined : options?.permissionCache
-  const permission = memo
-    ? await memo.resolve(userId, context.workspaceId, context.workspaceOrganizationId)
-    : await resolveEffectiveWorkspacePermission(
-        userId,
-        context.workspaceId,
-        context.workspaceOrganizationId,
-        options?.executor,
-        { forUpdate: options?.forUpdate }
-      )
+  const permission = await resolveEffectiveWorkspacePermission(
+    userId,
+    context.workspaceId,
+    context.workspaceOrganizationId,
+    options?.executor,
+    { forUpdate: options?.forUpdate }
+  )
   requirePermission(permission, required)
 }
 

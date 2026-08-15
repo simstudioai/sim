@@ -2,7 +2,6 @@ import type { Principal } from '@sim/auth/principal'
 import {
   authorizeWorkspaceOperation,
   type WorkspaceAuthorizationContext,
-  type WorkspaceAuthorizationOptions,
   type WorkspaceDelegationPolicy,
 } from '@/lib/core/application'
 import type { TableOperation } from '@/lib/table/application/operations'
@@ -31,21 +30,12 @@ export const tableDelegationPolicy: WorkspaceDelegationPolicy<TableAuthorization
   },
 }
 
-/** Everything {@link authorizeWorkspaceOperation} takes except the delegation policy, which is
- *  fixed for this domain. */
-export type TableAuthorizationOptions = Omit<
-  WorkspaceAuthorizationOptions<TableAuthorizationContext>,
-  'delegation'
->
-
 export function authorizeTableOperation(
   principal: Principal,
   operation: TableOperation,
-  context: TableAuthorizationContext,
-  options?: TableAuthorizationOptions
+  context: TableAuthorizationContext
 ) {
   return authorizeWorkspaceOperation(principal, operation, context, {
-    ...options,
     delegation: tableDelegationPolicy,
   })
 }

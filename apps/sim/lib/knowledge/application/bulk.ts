@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { authorizeWorkspaceOperation, createWorkspacePermissionCache } from '@/lib/core/application'
+import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { classifyBulkItemError } from '@/lib/core/application/bulk-items'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -12,10 +12,7 @@ import {
   planFolderSelection,
 } from '@/lib/folders/bulk'
 import { findActiveFolder } from '@/lib/folders/queries'
-import {
-  type KnowledgeAuthorizationOptions,
-  knowledgeDelegationPolicy,
-} from '@/lib/knowledge/application/authorization'
+import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   type BoundedKnowledgeSelection,
@@ -124,21 +121,11 @@ async function runKnowledgeItems(
   knowledgeBaseIds: readonly string[],
   workspace: KnowledgeWorkspaceContext,
   covered: ReadonlySet<string>,
-  authorize: (
-    canonical: ActiveKnowledgeBaseContext,
-    options: KnowledgeAuthorizationOptions
-  ) => Promise<void>,
+  authorize: (canonical: ActiveKnowledgeBaseContext) => Promise<void>,
   apply: (canonical: ActiveKnowledgeBaseContext) => Promise<string>,
   succeeded: BulkKnowledgeItem[],
   outcome: BulkKnowledgeOutcome
 ): Promise<unknown | undefined> {
-  /**
-   * Built here rather than by each caller so a bulk loop cannot forget it: every item authorizes
-   * against the same `(user, workspace, organization)` triple, and without the memo that is two
-   * identical queries per item.
-   */
-  const permissionCache = createWorkspacePermissionCache()
-
   for (const knowledgeBaseId of knowledgeBaseIds) {
     let knowledgeBaseName = knowledgeBaseId
     try {
@@ -153,7 +140,7 @@ async function runKnowledgeItems(
         })
         continue
       }
-      await authorize(canonical, { permissionCache })
+      await authorize(canonical)
       succeeded.push({
         kind: 'knowledgeBase',
         id: canonical.knowledgeBaseId,
@@ -233,9 +220,8 @@ export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
       context.knowledgeBaseIds,
       context,
       plan.covered,
-      (canonical, options) =>
+      (canonical) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkMoveItems, canonical, {
-          ...options,
           delegation: knowledgeDelegationPolicy,
         }),
       async (canonical) =>
@@ -336,9 +322,8 @@ export const bulkDeleteKnowledgeItems = defineAuthorizedKnowledgeUseCase({
       context.knowledgeBaseIds,
       context,
       plan.covered,
-      (canonical, options) =>
+      (canonical) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkDeleteItems, canonical, {
-          ...options,
           delegation: knowledgeDelegationPolicy,
         }),
       async (canonical) => {

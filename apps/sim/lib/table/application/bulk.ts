@@ -1,7 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { createWorkspacePermissionCache } from '@/lib/core/application'
 import { type BulkItemDisposition, classifyBulkItemError } from '@/lib/core/application/bulk-items'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -14,10 +13,7 @@ import {
 import { findActiveFolder } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { deleteTable, moveTableToFolder } from '@/lib/table'
-import {
-  authorizeTableOperation,
-  type TableAuthorizationOptions,
-} from '@/lib/table/application/authorization'
+import { authorizeTableOperation } from '@/lib/table/application/authorization'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import {
   type BoundedTableSelection,
@@ -165,19 +161,12 @@ async function runTableItems(
   tableIds: readonly string[],
   workspace: TableWorkspaceContext,
   covered: ReadonlySet<string>,
-  authorize: (canonical: ActiveTableContext, options: TableAuthorizationOptions) => Promise<void>,
+  authorize: (canonical: ActiveTableContext) => Promise<void>,
   /** Runs against an already-authorized canonical table. Returns its authoritative name. */
   apply: (canonical: ActiveTableContext) => Promise<string>,
   succeeded: BulkTableItem[],
   outcome: BulkTablesOutcome
 ): Promise<unknown | undefined> {
-  /**
-   * Built here rather than by each caller so a bulk loop cannot forget it: every item authorizes
-   * against the same `(user, workspace, organization)` triple, and without the memo that is two
-   * identical queries per item.
-   */
-  const permissionCache = createWorkspacePermissionCache()
-
   for (const tableId of tableIds) {
     let tableName = tableId
     try {
@@ -187,7 +176,7 @@ async function runTableItems(
         outcome.skipped.push({ kind: 'table', id: canonical.table.id, name: tableName })
         continue
       }
-      await authorize(canonical, { permissionCache })
+      await authorize(canonical)
       succeeded.push({
         kind: 'table',
         id: canonical.table.id,
@@ -259,8 +248,7 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
         context.tableIds,
         context,
         plan.covered,
-        (canonical, options) =>
-          authorizeTableOperation(principal, tableOperations.bulkMove, canonical, options),
+        (canonical) => authorizeTableOperation(principal, tableOperations.bulkMove, canonical),
         async (canonical) =>
           (
             await moveTableToFolder(
@@ -366,8 +354,7 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
         context.tableIds,
         context,
         plan.covered,
-        (canonical, options) =>
-          authorizeTableOperation(principal, tableOperations.bulkDelete, canonical, options),
+        (canonical) => authorizeTableOperation(principal, tableOperations.bulkDelete, canonical),
         async (canonical) => {
           const { archived } = await deleteTable(canonical.table.id, generateRequestId(), {
             expectedWorkspaceId: context.workspaceId,

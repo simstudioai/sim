@@ -292,15 +292,15 @@ describe('table bulk application use cases', () => {
   })
 
   /**
-   * The batch authorizes every table separately — delegation scope is per-resource — but the
-   * human-permission half of that check reads the same row every time. Without the shared memo a
-   * hundred-table request is a hundred identical lookups, two queries deep.
+   * The canonical workspace context is what bounded and authorized the request; it cannot differ
+   * per item, so the batch resolves it once and composes each table onto it. Resolving it per
+   * item was a whole extra load each.
    *
-   * Two calls, not one: the use case authorizes the operation itself before the loop starts, and
-   * that check is outside the batch memo. What matters is that the count does not grow with the
-   * selection.
+   * Note this deliberately does NOT memoize the per-item permission check: each item commits
+   * independently, so every one of them re-reads the caller's current permission and a
+   * revocation part-way through a batch stops the rest.
    */
-  it('resolves the caller permission once for the whole batch, however many items it carries', async () => {
+  it('loads the workspace context once however many items the batch carries', async () => {
     const move = (tableIds: string[]) =>
       bulkMoveTables.execute({
         principal,
@@ -314,14 +314,33 @@ describe('table bulk application use cases', () => {
 
     const small = await move(['table-1', 'table-2', 'table-3'])
     expect(small.moved).toHaveLength(3)
-    const afterSmall = mocks.resolvePermission.mock.calls.length
+    expect(mocks.resolveWorkspaceContext).toHaveBeenCalledTimes(1)
 
-    mocks.resolvePermission.mockClear()
+    mocks.resolveWorkspaceContext.mockClear()
     const large = await move(Array.from({ length: 25 }, (_, index) => `table-${index}`))
     expect(large.moved).toHaveLength(25)
+    expect(mocks.resolveWorkspaceContext).toHaveBeenCalledTimes(1)
+  })
 
-    expect(mocks.resolvePermission).toHaveBeenCalledTimes(afterSmall)
-    expect(afterSmall).toBe(2)
+  /** A revocation part-way through a batch must stop the items that have not run yet. */
+  it('re-checks the caller permission for every item', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce('write')
+    mocks.resolvePermission.mockResolvedValue(null)
+
+    const result = await bulkMoveTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        tableIds: ['table-1', 'table-2', 'table-3'],
+        folderIds: [],
+        targetFolderId: 'folder-1',
+      },
+    })
+
+    expect(result.moved).toHaveLength(1)
+    expect(result.failed.concat(result.notFound as never[])).toHaveLength(2)
+    /** One for the operation itself, then one per item — no memo may collapse these. */
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(4)
   })
 
   it('moves tables and folders in one operation', async () => {

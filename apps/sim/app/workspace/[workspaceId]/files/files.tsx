@@ -323,6 +323,18 @@ export function Files() {
   const uploading = uploadProgress.total > 0
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
+  /**
+   * Takes down the "Drop to upload" overlay.
+   *
+   * Every path that consumes an OS file drag has to call this, including the one that never
+   * reaches the page-level handler: a drop on a folder row is handled by the drag hook, which
+   * stops propagation, so `handleDrop` below never runs and the counter it would have zeroed
+   * keeps the overlay on screen over the finished upload.
+   */
+  const dismissUploadOverlay = useCallback(() => {
+    dragCounterRef.current = 0
+    setIsDraggingOver(false)
+  }, [])
   const [
     { search: urlSearchTerm, type: typeFilter, size: sizeFilter, uploadedBy: uploadedByFilter },
     setFileFilters,
@@ -810,6 +822,7 @@ export function Files() {
     externalDrop: {
       matches: hasExternalFiles,
       onDropIntoFolder: (dataTransfer, targetFolderId) => {
+        dismissUploadOverlay()
         const dropped = Array.from(dataTransfer.files ?? [])
         if (dropped.length > 0) void uploadFiles(dropped, targetFolderId)
       },
@@ -851,8 +864,7 @@ export function Files() {
      * began in — pulling the user out of the folder they just spring-opened to receive it.
      */
     rowDragDropConfig.externalDropHandled()
-    dragCounterRef.current = 0
-    setIsDraggingOver(false)
+    dismissUploadOverlay()
     const dropped = Array.from(e.dataTransfer.files)
     if (dropped.length > 0) await uploadFiles(dropped)
   }

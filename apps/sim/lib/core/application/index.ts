@@ -21,11 +21,9 @@ export type {
   WorkspaceAuthorizationContext,
   WorkspaceAuthorizationOptions,
   WorkspaceDelegationPolicy,
-  WorkspacePermissionCache,
 } from '@/lib/core/application/workspace-authorization'
 export {
   authorizeWorkspaceOperation,
-  createWorkspacePermissionCache,
   DelegatedServiceAuthorizationError,
   DelegatedWorkspaceAuthorizationError,
   InsufficientWorkspacePermissionsError,
