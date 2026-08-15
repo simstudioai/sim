@@ -213,6 +213,10 @@ export interface BuildManifestOptions {
   webhookUrl: string | null
   /** Shown on the bot's Slack profile and as the assistant description. */
   description?: string
+  managedUserAuthorization?: {
+    redirectUrls: readonly string[]
+    userScopes: readonly string[]
+  }
 }
 
 /**
@@ -227,10 +231,15 @@ export interface BuildManifestOptions {
  */
 export function buildSlackManifest(
   enabled: ReadonlySet<string>,
-  { appName, webhookUrl, description }: BuildManifestOptions
+  { appName, webhookUrl, description, managedUserAuthorization }: BuildManifestOptions
 ): Record<string, unknown> {
   const active = SLACK_CAPABILITIES.filter((c) => enabled.has(c.id))
-  const scopes = [...new Set(active.flatMap((c) => c.scopes))].sort()
+  const scopes = [
+    ...new Set([
+      ...active.flatMap((c) => c.scopes),
+      ...(managedUserAuthorization ? ['users:read'] : []),
+    ]),
+  ].sort()
   const events = [...new Set(active.flatMap((c) => c.events))].sort()
   const displayName = appName.trim() || 'Sim Workflow Bot'
   const trimmedDescription = description?.trim() || ''
@@ -255,14 +264,27 @@ export function buildSlackManifest(
     }
   }
 
+  const oauthConfig: Record<string, unknown> = { scopes: { bot: scopes } }
+  if (managedUserAuthorization) {
+    const redirectUrls = [
+      ...new Set(managedUserAuthorization.redirectUrls.map((url) => url.trim()).filter(Boolean)),
+    ]
+    const userScopes = [
+      ...new Set(managedUserAuthorization.userScopes.map((scope) => scope.trim()).filter(Boolean)),
+    ].sort()
+    if (redirectUrls.length === 0 || userScopes.length === 0) {
+      throw new Error('Managed Slack users require redirect URLs and user scopes')
+    }
+    oauthConfig.redirect_urls = redirectUrls
+    oauthConfig.scopes = { bot: scopes, user: userScopes }
+  }
+
   const manifest: Record<string, unknown> = {
     display_information: trimmedDescription
       ? { name: displayName, description: trimmedDescription }
       : { name: displayName },
     features,
-    oauth_config: {
-      scopes: { bot: scopes },
-    },
+    oauth_config: oauthConfig,
     settings: {
       org_deploy_enabled: false,
       socket_mode_enabled: false,

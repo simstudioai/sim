@@ -18,7 +18,7 @@ export interface CredentialAccessResult {
   credentialOwnerUserId?: string
   workspaceId?: string
   resolvedCredentialId?: string
-  credentialType?: 'oauth' | 'service_account'
+  credentialType?: 'oauth' | 'managed_oauth' | 'service_account'
 }
 
 const NO_CREDENTIAL_ACCESS =
@@ -122,6 +122,13 @@ export async function authorizeCredentialUseForAuth(
 
     const accessError = credentialAccessError(platformAccess)
     if (accessError) return { ok: false, error: accessError }
+
+    if (platformCredential.type === 'managed_oauth') {
+      return {
+        ok: false,
+        error: 'Managed credential access requires scoped workflow delegation',
+      }
+    }
 
     if (platformCredential.type === 'service_account') {
       return {

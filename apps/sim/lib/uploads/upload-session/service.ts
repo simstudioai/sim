@@ -456,6 +456,11 @@ export function createUploadSessionAuthBinding(
         },
       }
     }
+    case 'credential_group_enrollment':
+      throw new UploadSessionError(
+        'forbidden',
+        'Credential Group enrollment principals cannot create uploads'
+      )
   }
 }
 

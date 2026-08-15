@@ -2003,7 +2003,6 @@ export async function refreshOAuthToken(
         hasClientId: !!config.clientId,
         hasClientSecret: !!config.clientSecret,
         hasRefreshToken: !!refreshToken,
-        refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
       })
       return {
         ok: false,

@@ -7,4 +7,11 @@ export const credentialOperations = {
     workspaceApiKey: 'allow',
     principalKinds: ['personal_api_key', 'workspace_api_key'],
   }),
+  useManagedOAuth: defineWorkspaceOperation({
+    id: 'credentials.managed_oauth.use',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['executor'],
+  }),
 } as const

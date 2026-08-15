@@ -7,6 +7,8 @@ import type {
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+export const MANAGED_OAUTH_DELEGATION_HEADER = 'x-sim-managed-oauth-delegation'
+
 export const oauthAccountSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -70,6 +72,7 @@ export const oauthTokenRequestBodySchema = z
     credentialId: z.string().min(1).optional(),
     credentialAccountUserId: z.string().min(1).optional(),
     providerId: z.string().min(1).optional(),
+    toolId: z.string().min(1).optional(),
     workflowId: z.string().min(1).nullish(),
     scopes: z.array(z.string()).optional(),
     impersonateEmail: impersonateEmailSchema.optional(),
@@ -89,6 +92,10 @@ export const oauthTokenGetQuerySchema = z.object({
 
 export const oauthTokenPostQuerySchema = z.object({
   userId: z.string().min(1).optional(),
+})
+
+export const oauthTokenPostHeadersSchema = z.object({
+  [MANAGED_OAUTH_DELEGATION_HEADER]: z.string().min(1).optional(),
 })
 
 const oauthTokenResponseSchema = z.object({
@@ -119,6 +126,7 @@ export const oauthTokenPostContract = defineRouteContract({
   method: 'POST',
   path: '/api/auth/oauth/token',
   query: oauthTokenPostQuerySchema,
+  headers: oauthTokenPostHeadersSchema,
   body: oauthTokenRequestBodySchema,
   response: {
     mode: 'json',

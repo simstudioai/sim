@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
-import { and, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
 import {
   type CursorKey,
@@ -119,7 +119,10 @@ export async function listVisibleWorkspaceCredentials(params: {
     limit,
   } = params
 
-  const whereClauses = [eq(credential.workspaceId, workspaceId)]
+  const whereClauses = [
+    eq(credential.workspaceId, workspaceId),
+    ne(credential.type, 'managed_oauth'),
+  ]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
   const ownedEnvSecretsClause = params.ownedEnvSecretsOnly

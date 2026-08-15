@@ -20,6 +20,7 @@ import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
@@ -56,6 +57,7 @@ export function usePermissionConfig(): PermissionConfigResult {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
   const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const hostContext = useOptionalWorkspaceHostContext()
 
   const { data: permissionData, isLoading: isPermissionLoading } =
     useUserPermissionConfig(workspaceId)
@@ -94,6 +96,9 @@ export function usePermissionConfig(): PermissionConfigResult {
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
       const normalizedBlockType = blockType.toLowerCase()
+      if (normalizedBlockType === 'credential_group' && !hostContext?.features?.credentialGroups) {
+        return false
+      }
       const availability = integrationAvailability.get(normalizedBlockType)
       if (
         isDeploymentGatedIntegrationType(normalizedBlockType) &&
@@ -106,7 +111,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       if (mergedAllowedIntegrations === null) return true
       return mergedAllowedIntegrations.includes(normalizedBlockType)
     }
-  }, [integrationAvailability, mergedAllowedIntegrations])
+  }, [hostContext?.features?.credentialGroups, integrationAvailability, mergedAllowedIntegrations])
 
   const isProviderAllowed = useMemo(() => {
     return (providerId: string) => {
