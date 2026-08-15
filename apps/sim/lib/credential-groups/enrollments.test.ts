@@ -33,6 +33,7 @@ import {
   completeCredentialGroupEnrollment,
   listCredentialGroupEnrollments,
   resendCredentialGroupEnrollment,
+  revokeCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
 import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -199,6 +200,28 @@ describe('resendCredentialGroupEnrollment', () => {
       1,
       expect.objectContaining({ status: 'completed', completedAt: ENROLLMENT.completedAt })
     )
+  })
+})
+
+describe('revokeCredentialGroupEnrollment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('deletes every managed credential collected under the revoked enrollment', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ email: ENROLLMENT.email }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { ...ENROLLMENT, status: 'revoked', revokedAt: new Date() },
+    ])
+
+    const result = await revokeCredentialGroupEnrollment('workspace-1', 'group-1', ENROLLMENT.id)
+
+    expect(result.status).toBe('revoked')
+    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment)
+    expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
+    expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credential)
   })
 })
 

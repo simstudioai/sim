@@ -673,8 +673,7 @@ export async function revokeCredentialGroupEnrollment(
     if (!revoked) throw new Error('Credential group enrollment update returned no row')
 
     await tx
-      .update(credential)
-      .set({ managedOauthStatus: 'revoked', revokedAt: now, updatedAt: now })
+      .delete(credential)
       .where(
         and(
           eq(credential.type, 'managed_oauth'),

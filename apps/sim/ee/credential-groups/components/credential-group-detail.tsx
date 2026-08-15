@@ -234,10 +234,10 @@ export function CredentialGroupDetail({
         groupId,
         enrollmentId: revokingEnrollment.id,
       })
-      toast.success(`Invitation revoked for ${revokingEnrollment.email}`)
+      toast.success(`Access revoked for ${revokingEnrollment.email}`)
       setRevokingEnrollmentId(null)
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to revoke invitation'))
+      toast.error(getErrorMessage(error, 'Failed to revoke access'))
     }
   }
 
@@ -365,9 +365,9 @@ export function CredentialGroupDetail({
       <ChipConfirmModal
         open={Boolean(revokingEnrollment)}
         onOpenChange={(open) => !open && !revoke.isPending && setRevokingEnrollmentId(null)}
-        srTitle='Revoke invitation'
-        title='Revoke invitation?'
-        text={`Revoke the invitation for ${revokingEnrollment?.email ?? 'this user'}? Their private link will stop working immediately.`}
+        srTitle='Revoke access'
+        title='Revoke access?'
+        text={`Revoke access for ${revokingEnrollment?.email ?? 'this user'}? Their private link will stop working and all accounts they connected to this Credential Group will be removed.`}
         dismissLabel='Cancel'
         confirm={{
           label: revoke.isPending ? 'Revoking...' : 'Revoke',
