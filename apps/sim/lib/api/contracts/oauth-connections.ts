@@ -30,8 +30,15 @@ export const disconnectOAuthBodySchema = z.object({
   accountId: z.string().optional(),
 })
 
+const firstQueryStringSchema = z
+  .union([z.string(), z.array(z.string()).min(1)])
+  .transform((value) => (Array.isArray(value) ? value[0] : value))
+
 export const connectedAccountsQuerySchema = z.object({
-  provider: z.string().min(1).optional(),
+  provider: firstQueryStringSchema
+    .transform((value) => value || undefined)
+    .pipe(z.string().min(1).optional())
+    .optional(),
 })
 
 export const connectedAccountSchema = z.object({

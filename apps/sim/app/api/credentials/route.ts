@@ -27,12 +27,10 @@ export const GET = defineInternalJsonRoute({
   parseOptions: credentialValidationParseOptions,
   mapInput: ({ query }) => query,
   useCase: listInternalCredentials,
-  present: ({ credentials, credential }) => ({
-    credentials: credentials.map((row) => toWorkspaceCredential(row)),
-    ...(credential !== undefined
-      ? { credential: credential ? toWorkspaceCredential(credential) : null }
-      : {}),
-  }),
+  present: (result) =>
+    result.mode === 'lookup'
+      ? { credential: result.credential }
+      : { credentials: result.credentials.map((row) => toWorkspaceCredential(row)) },
 })
 
 export const POST = defineInternalJsonRoute({

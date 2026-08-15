@@ -22,6 +22,7 @@ const {
   mockGetCredentialCreationWorkspaceContext,
   mockLoadWorkspace,
   mockResolveWorkspacePermission,
+  mockSyncWorkspaceOAuthCredentials,
   mockVerifyAndBuildServiceAccountSecret,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
@@ -29,6 +30,7 @@ const {
   mockGetCredentialCreationWorkspaceContext: vi.fn(),
   mockLoadWorkspace: vi.fn(),
   mockResolveWorkspacePermission: vi.fn(),
+  mockSyncWorkspaceOAuthCredentials: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
 }))
 
@@ -62,7 +64,7 @@ vi.mock('@/lib/credentials/environment', () => ({
 }))
 
 vi.mock('@/lib/credentials/oauth', () => ({
-  syncWorkspaceOAuthCredentialsForUser: vi.fn(),
+  syncWorkspaceOAuthCredentialsForUser: mockSyncWorkspaceOAuthCredentials,
 }))
 
 vi.mock('@/lib/oauth', () => ({
@@ -144,6 +146,53 @@ describe('GET /api/credentials', () => {
         role: 'admin',
       }),
     ])
+  })
+
+  it('normalizes padded, blank, and duplicate legacy query values', async () => {
+    queueTableRows(credential, [])
+    const url = new URL('http://localhost:3000/api/credentials')
+    url.searchParams.append('workspaceId', ` ${WORKSPACE_ID} `)
+    url.searchParams.append('workspaceId', 'not-the-selected-value')
+    url.searchParams.set('type', '')
+    url.searchParams.set('providerId', '')
+    url.searchParams.set('credentialId', ' ')
+
+    const response = await GET(createMockRequest('GET', undefined, {}, url.toString()))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ credentials: [] })
+    expect(mockLoadWorkspace).toHaveBeenCalledWith(WORKSPACE_ID)
+  })
+
+  it('uses the legacy workspace-scoped id/account lookup without sync, filters, or shape drift', async () => {
+    queueTableRows(credential, [])
+    queueTableRows(credential, [
+      {
+        id: 'credential-1',
+        displayName: 'Google account',
+        type: 'oauth',
+        providerId: 'google-email',
+      },
+    ])
+    const url = new URL('http://localhost:3000/api/credentials')
+    url.searchParams.set('workspaceId', WORKSPACE_ID)
+    url.searchParams.set('credentialId', ' account-1 ')
+    url.searchParams.set('type', 'env_workspace')
+    url.searchParams.set('providerId', 'different-provider')
+
+    const response = await GET(createMockRequest('GET', undefined, {}, url.toString()))
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      credential: {
+        id: 'credential-1',
+        displayName: 'Google account',
+        type: 'oauth',
+        providerId: 'google-email',
+      },
+    })
+    expect(mockSyncWorkspaceOAuthCredentials).not.toHaveBeenCalled()
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
   })
 })
 

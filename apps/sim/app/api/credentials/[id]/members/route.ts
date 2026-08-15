@@ -10,7 +10,8 @@ import {
 } from '@/lib/api/server/routes'
 import {
   credentialValidationParseOptions,
-  internalCredentialErrorPolicy,
+  internalCredentialMemberListErrorPolicy,
+  internalCredentialMemberMutationErrorPolicy,
 } from '@/lib/credentials/api/route-policies'
 import {
   listCredentialMembersUseCase,
@@ -26,7 +27,7 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: credentialOperations.listMembers,
   rateLimit,
-  errorPolicy: internalCredentialErrorPolicy,
+  errorPolicy: internalCredentialMemberListErrorPolicy,
   parseOptions: credentialValidationParseOptions,
   mapInput: ({ params }) => ({ credentialId: params.id }),
   useCase: listCredentialMembersUseCase,
@@ -43,7 +44,7 @@ export const POST = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: credentialOperations.upsertMember,
   rateLimit,
-  errorPolicy: internalCredentialErrorPolicy,
+  errorPolicy: internalCredentialMemberMutationErrorPolicy,
   parseOptions: credentialValidationParseOptions,
   mapInput: ({ params, body }) => ({ credentialId: params.id, ...body }),
   useCase: upsertCredentialMemberUseCase,
@@ -56,7 +57,7 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: credentialOperations.removeMember,
   rateLimit,
-  errorPolicy: internalCredentialErrorPolicy,
+  errorPolicy: internalCredentialMemberMutationErrorPolicy,
   parseOptions: credentialValidationParseOptions,
   mapInput: ({ params, query }) => ({ credentialId: params.id, userId: query.userId }),
   useCase: removeCredentialMemberUseCase,

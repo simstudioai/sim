@@ -4,6 +4,7 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 
@@ -190,6 +191,30 @@ describe('OAuth2 authorize route', () => {
 
     expect(credentialResponse.headers.get('location')).toContain('credential_access_denied')
     expect(workspaceResponse.headers.get('location')).toContain('workspace_access_denied')
+  })
+
+  it('keeps a reconnect workspace-role denial classified as workspace access', async () => {
+    mocks.createConnection.mockRejectedValue(new InsufficientWorkspacePermissionsError())
+
+    const response = await GET(
+      request({
+        providerId: 'google-email',
+        workspaceId: WORKSPACE_ID,
+        credentialId: 'credential-1',
+      })
+    )
+
+    expect(response.headers.get('location')).toBe(
+      `${BASE_URL}/workspace?error=workspace_access_denied`
+    )
+  })
+
+  it('redirects a draft launch infrastructure failure through the browser error contract', async () => {
+    mocks.launchConnection.mockRejectedValue(new Error('Database unavailable'))
+
+    const response = await GET(request({ draftId: 'draft-1' }))
+
+    expect(response.headers.get('location')).toBe(`${BASE_URL}/workspace?error=oauth_link_failed`)
   })
 
   it('routes custom providers through the exact application draft', async () => {

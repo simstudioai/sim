@@ -63,11 +63,13 @@ describe('Shopify OAuth callback', () => {
     mockCompleteShopifyOAuthConnection.mockResolvedValue(undefined)
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ access_token: 'shopify-token', scope: 'read_products' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ access_token: 'shopify-token', scope: 'read_products' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        )
       )
     )
   })
@@ -77,6 +79,7 @@ describe('Shopify OAuth callback', () => {
       userId: 'user-1',
       shopDomain: SHOP_DOMAIN,
       draftId: 'draft-from-state',
+      returnUrl: 'https://sim.test/oauth/credential-connected?result=connected',
       clientSecret: CLIENT_SECRET,
     })
 
@@ -92,6 +95,41 @@ describe('Shopify OAuth callback', () => {
     })
     expect(response.headers.get('location')).toBe(
       'https://sim.test/oauth/credential-connected?result=connected&shopify_connected=true'
+    )
+  })
+
+  it('keeps overlapping flows bound to their own return destinations', async () => {
+    const firstState = createShopifyOAuthState({
+      userId: 'user-1',
+      shopDomain: SHOP_DOMAIN,
+      draftId: 'draft-first',
+      returnUrl: 'https://sim.test/oauth/credential-connected?flow=first',
+      clientSecret: CLIENT_SECRET,
+    })
+    const secondState = createShopifyOAuthState({
+      userId: 'user-1',
+      shopDomain: SHOP_DOMAIN,
+      draftId: 'draft-second',
+      returnUrl: 'https://sim.test/oauth/credential-connected?flow=second',
+      clientSecret: CLIENT_SECRET,
+    })
+
+    const firstResponse = await GET(callbackRequest(firstState))
+    const secondResponse = await GET(callbackRequest(secondState))
+
+    expect(firstResponse.headers.get('location')).toBe(
+      'https://sim.test/oauth/credential-connected?flow=first&shopify_connected=true'
+    )
+    expect(secondResponse.headers.get('location')).toBe(
+      'https://sim.test/oauth/credential-connected?flow=second&shopify_connected=true'
+    )
+    expect(mockCompleteShopifyOAuthConnection).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ draftId: 'draft-first' })
+    )
+    expect(mockCompleteShopifyOAuthConnection).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ draftId: 'draft-second' })
     )
   })
 })

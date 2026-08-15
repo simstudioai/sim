@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   requireConfiguredOAuthClient: vi.fn(),
+  createShopifyOAuthState: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -22,7 +23,7 @@ vi.mock('@/lib/core/utils/urls', () => ({
 }))
 
 vi.mock('@/lib/oauth/shopify-state', () => ({
-  createShopifyOAuthState: () => 'signed-state',
+  createShopifyOAuthState: mocks.createShopifyOAuthState,
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
@@ -41,9 +42,10 @@ describe('Shopify authorize route', () => {
         SHOPIFY_CLIENT_SECRET: 'shopify-secret',
       },
     })
+    mocks.createShopifyOAuthState.mockReturnValue('signed-state')
   })
 
-  it('keeps the post-connect return URL for the full credential draft lifetime', async () => {
+  it('binds the post-connect return URL to the signed flow state', async () => {
     const request = createMockRequest(
       'GET',
       undefined,
@@ -54,7 +56,25 @@ describe('Shopify authorize route', () => {
     const response = await GET(request)
 
     expect(response.status).toBe(307)
-    expect(response.headers.get('set-cookie')).toContain('shopify_return_url=')
-    expect(response.headers.get('set-cookie')).toContain('Max-Age=900')
+    expect(mocks.createShopifyOAuthState).toHaveBeenCalledWith({
+      userId: 'user-1',
+      shopDomain: 'test-store.myshopify.com',
+      draftId: 'draft-1',
+      returnUrl: 'https://sim.test/oauth/credential-connected',
+      clientSecret: 'shopify-secret',
+    })
+    expect(response.headers.get('set-cookie')).toContain('shopify_return_url=;')
+  })
+
+  it('escapes a user-controlled draft id before embedding it in inline script', async () => {
+    const url = new URL('https://sim.test/api/auth/shopify/authorize')
+    url.searchParams.set('draftId', '</script><script>document.title=location.origin</script>')
+
+    const response = await GET(createMockRequest('GET', undefined, {}, url.toString()))
+    const html = await response.text()
+
+    expect(response.status).toBe(200)
+    expect(html.match(/<script>/g)).toHaveLength(1)
+    expect(html).toContain('\\u003c/script>\\u003cscript>document.title=location.origin')
   })
 })

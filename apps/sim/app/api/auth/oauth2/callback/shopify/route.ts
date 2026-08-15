@@ -103,7 +103,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_invalid_shop`)
     }
 
-    const { draftId } = parseShopifyOAuthState({
+    const { draftId, returnUrl } = parseShopifyOAuthState({
       state,
       userId: session.user.id,
       shopDomain,
@@ -154,9 +154,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       signal: request.signal,
     })
 
-    const returnUrlCookie = request.cookies.get('shopify_return_url')?.value
-    const redirectUrl =
-      returnUrlCookie && isSameOrigin(returnUrlCookie) ? returnUrlCookie : `${baseUrl}/workspace`
+    if (returnUrl && !isSameOrigin(returnUrl)) {
+      throw new Error('Shopify OAuth state contains an invalid return URL')
+    }
+    const redirectUrl = returnUrl ?? `${baseUrl}/workspace`
     const finalUrl = new URL(redirectUrl)
     finalUrl.searchParams.set('shopify_connected', 'true')
 

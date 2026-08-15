@@ -274,7 +274,7 @@ async function fetchWorksheets(accessToken: string, basePath: string): Promise<W
     worksheets.push(...(data.value ?? []))
 
     const next = data['@odata.nextLink']
-    url = next && next.startsWith(GRAPH_API_BASE) ? next : undefined
+    url = next?.startsWith(GRAPH_API_BASE) ? next : undefined
   }
 
   return worksheets

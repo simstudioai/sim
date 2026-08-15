@@ -169,22 +169,30 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
         : await deleteCredentialRecord({ credential: context.credential, reason })
     return { credential: context.credential, deleted }
   },
-  projectAudit: ({ principal, result }) =>
-    result.deleted
-      ? {
-          action: AuditAction.CREDENTIAL_DELETED,
-          resourceType: AuditResourceType.CREDENTIAL,
-          resourceId: result.credential.id,
-          resourceName: result.credential.displayName,
-          description: `Deleted ${result.credential.type} credential "${result.credential.displayName}" (${principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'})`,
-          metadata: {
-            reason: principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete',
-            credentialType: result.credential.type,
-            providerId: result.credential.providerId,
-            accountId: result.credential.accountId,
-          },
-        }
-      : [],
+  projectAudit: ({ principal, result }) => {
+    if (!result.deleted) return []
+    const reason = principal.kind === 'delegated' ? 'copilot_delete' : 'user_delete'
+    const description =
+      result.credential.type === 'env_personal'
+        ? `Deleted personal env credential "${result.credential.envKey}"`
+        : result.credential.type === 'env_workspace'
+          ? `Deleted workspace env credential "${result.credential.envKey}"`
+          : `Deleted ${result.credential.type} credential "${result.credential.displayName}" (${reason})`
+    return {
+      action: AuditAction.CREDENTIAL_DELETED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: result.credential.id,
+      resourceName: result.credential.displayName,
+      description,
+      metadata: {
+        reason,
+        credentialType: result.credential.type,
+        providerId: result.credential.providerId,
+        accountId: result.credential.accountId,
+        envKey: result.credential.envKey,
+      },
+    }
+  },
   afterSuccess: ({ principal, context, result }) => {
     if (!result.deleted) return
     captureServerEvent(
@@ -192,7 +200,8 @@ export const deleteCredentialUseCase = defineAuthorizedCredentialUseCase({
       'credential_deleted',
       {
         credential_type: result.credential.type,
-        provider_id: result.credential.providerId ?? result.credential.id,
+        provider_id:
+          result.credential.providerId ?? result.credential.envKey ?? result.credential.id,
         workspace_id: context.workspaceId,
       },
       { groups: { workspace: context.workspaceId } }

@@ -32,17 +32,25 @@ describe('Shopify OAuth state', () => {
       userId: USER_ID,
       shopDomain: SHOP_DOMAIN,
       draftId: 'draft-1',
+      returnUrl: 'https://sim.test/oauth/credential-connected?flow=first',
       clientSecret: CLIENT_SECRET,
     })
     const second = createShopifyOAuthState({
       userId: USER_ID,
       shopDomain: SHOP_DOMAIN,
       draftId: 'draft-2',
+      returnUrl: 'https://sim.test/oauth/credential-connected?flow=second',
       clientSecret: CLIENT_SECRET,
     })
 
-    expect(parse(first)).toEqual({ draftId: 'draft-1' })
-    expect(parse(second)).toEqual({ draftId: 'draft-2' })
+    expect(parse(first)).toEqual({
+      draftId: 'draft-1',
+      returnUrl: 'https://sim.test/oauth/credential-connected?flow=first',
+    })
+    expect(parse(second)).toEqual({
+      draftId: 'draft-2',
+      returnUrl: 'https://sim.test/oauth/credential-connected?flow=second',
+    })
   })
 
   it('rejects tampered, cross-user, and cross-shop state', () => {

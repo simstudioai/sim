@@ -11,6 +11,7 @@ interface ShopifyOAuthStatePayload {
   userId: string
   shopDomain: string
   draftId?: string
+  returnUrl?: string
   issuedAt: number
 }
 
@@ -18,6 +19,7 @@ interface CreateShopifyOAuthStateParams {
   userId: string
   shopDomain: string
   draftId?: string
+  returnUrl?: string
   clientSecret: string
 }
 
@@ -42,6 +44,8 @@ function isShopifyOAuthStatePayload(value: unknown): value is ShopifyOAuthStateP
     payload.shopDomain.length > 0 &&
     (payload.draftId === undefined ||
       (typeof payload.draftId === 'string' && payload.draftId.length > 0)) &&
+    (payload.returnUrl === undefined ||
+      (typeof payload.returnUrl === 'string' && payload.returnUrl.length > 0)) &&
     typeof payload.issuedAt === 'number' &&
     Number.isSafeInteger(payload.issuedAt)
   )
@@ -55,6 +59,7 @@ export function createShopifyOAuthState(params: CreateShopifyOAuthStateParams): 
     userId: params.userId,
     shopDomain: params.shopDomain,
     ...(params.draftId ? { draftId: params.draftId } : {}),
+    ...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
     issuedAt: Date.now(),
   }
   const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
@@ -65,6 +70,7 @@ export function createShopifyOAuthState(params: CreateShopifyOAuthStateParams): 
 /** Verifies Shopify state integrity, expiry, user ownership, and shop binding. */
 export function parseShopifyOAuthState(params: ParseShopifyOAuthStateParams): {
   draftId?: string
+  returnUrl?: string
 } {
   const [encoded, signature, extra] = params.state.split('.')
   if (!encoded || !signature || extra !== undefined) {
@@ -98,5 +104,8 @@ export function parseShopifyOAuthState(params: ParseShopifyOAuthStateParams): {
     throw new Error('Shopify OAuth state is expired')
   }
 
-  return decoded.draftId ? { draftId: decoded.draftId } : {}
+  return {
+    ...(decoded.draftId ? { draftId: decoded.draftId } : {}),
+    ...(decoded.returnUrl ? { returnUrl: decoded.returnUrl } : {}),
+  }
 }

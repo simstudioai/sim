@@ -6,6 +6,7 @@ import {
   disconnectOAuthAccounts,
   listConnectedAccountsForUser,
   listOAuthConnectionsForUser,
+  OAuthDisconnectPartialFailureError,
 } from '@/lib/credentials/oauth-accounts'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -44,6 +45,45 @@ export interface DisconnectOAuthInput {
   accountId?: string
 }
 
+function projectDeletedCredentialAudit(
+  credentials: OAuthDisconnectPartialFailureError['credentials']
+) {
+  return credentials.map((credential) => ({
+    workspaceId: credential.workspaceId,
+    action: AuditAction.CREDENTIAL_DELETED,
+    resourceType: AuditResourceType.CREDENTIAL,
+    resourceId: credential.id,
+    resourceName: credential.displayName,
+    description: `Deleted oauth credential "${credential.displayName}" (oauth_disconnect)`,
+    metadata: {
+      reason: 'oauth_disconnect',
+      credentialType: credential.type,
+      providerId: credential.providerId,
+      accountId: credential.accountId,
+    },
+  }))
+}
+
+function captureDeletedCredentialEvents(
+  userId: string,
+  credentials: OAuthDisconnectPartialFailureError['credentials'],
+  provider: string,
+  providerId?: string
+): void {
+  for (const credential of credentials) {
+    captureServerEvent(
+      userId,
+      'credential_deleted',
+      {
+        credential_type: 'oauth',
+        provider_id: credential.providerId ?? providerId ?? provider,
+        workspace_id: credential.workspaceId,
+      },
+      { groups: { workspace: credential.workspaceId } }
+    )
+  }
+}
+
 export const disconnectOAuthUseCase = defineAuthorizedCredentialUserUseCase({
   operation: credentialUserOperations.disconnectOAuth,
   async execute({
@@ -57,20 +97,7 @@ export const disconnectOAuthUseCase = defineAuthorizedCredentialUserUseCase({
     return { ...result, ...input, success: true as const }
   },
   projectAudit: ({ result }) => [
-    ...result.credentials.map((credential) => ({
-      workspaceId: credential.workspaceId,
-      action: AuditAction.CREDENTIAL_DELETED,
-      resourceType: AuditResourceType.CREDENTIAL,
-      resourceId: credential.id,
-      resourceName: credential.displayName,
-      description: `Deleted oauth credential "${credential.displayName}" (oauth_disconnect)`,
-      metadata: {
-        reason: 'oauth_disconnect',
-        credentialType: credential.type,
-        providerId: credential.providerId,
-        accountId: credential.accountId,
-      },
-    })),
+    ...projectDeletedCredentialAudit(result.credentials),
     {
       workspaceId: null,
       action: AuditAction.OAUTH_DISCONNECTED,
@@ -81,18 +108,25 @@ export const disconnectOAuthUseCase = defineAuthorizedCredentialUserUseCase({
       metadata: { provider: result.provider, providerId: result.providerId },
     },
   ],
+  projectErrorAudit: ({ error }) =>
+    error instanceof OAuthDisconnectPartialFailureError
+      ? projectDeletedCredentialAudit(error.credentials)
+      : undefined,
   afterSuccess: ({ principal, result }) => {
-    for (const credential of result.credentials) {
-      captureServerEvent(
-        principal.userId,
-        'credential_deleted',
-        {
-          credential_type: 'oauth',
-          provider_id: credential.providerId ?? result.providerId ?? result.provider,
-          workspace_id: credential.workspaceId,
-        },
-        { groups: { workspace: credential.workspaceId } }
-      )
-    }
+    captureDeletedCredentialEvents(
+      principal.userId,
+      result.credentials,
+      result.provider,
+      result.providerId
+    )
+  },
+  afterError: ({ principal, input, error }) => {
+    if (!(error instanceof OAuthDisconnectPartialFailureError)) return
+    captureDeletedCredentialEvents(
+      principal.userId,
+      error.credentials,
+      input.provider,
+      input.providerId
+    )
   },
 })

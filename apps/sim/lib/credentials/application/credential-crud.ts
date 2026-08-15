@@ -20,8 +20,10 @@ import {
 } from '@/lib/credentials/orchestration'
 import {
   type CredentialRow,
+  findWorkspaceCredentialLookup,
   listVisibleWorkspaceCredentials,
   type VisibleWorkspaceCredential,
+  type WorkspaceCredentialLookup,
 } from '@/lib/credentials/queries'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
@@ -71,10 +73,9 @@ export interface ListInternalCredentialsInput {
   credentialId?: string
 }
 
-export interface ListInternalCredentialsResult {
-  credentials: VisibleWorkspaceCredential[]
-  credential: VisibleWorkspaceCredential | null | undefined
-}
+export type ListInternalCredentialsResult =
+  | { mode: 'list'; credentials: VisibleWorkspaceCredential[] }
+  | { mode: 'lookup'; credential: WorkspaceCredentialLookup | null }
 
 export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.listInternal,
@@ -85,6 +86,16 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
   },
   authorizationOptions: {},
   async execute({ principal, input, context }): Promise<ListInternalCredentialsResult> {
+    if (input.credentialId) {
+      return {
+        mode: 'lookup',
+        credential: await findWorkspaceCredentialLookup({
+          workspaceId: context.workspaceId,
+          credentialId: input.credentialId,
+        }),
+      }
+    }
+
     const userId = requirePrincipalSubjectUserId(principal)
     if (!input.type || input.type === 'oauth') {
       await syncWorkspaceOAuthCredentialsForUser({ workspaceId: context.workspaceId, userId })
@@ -97,13 +108,7 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
       types: input.type ? [input.type] : undefined,
       providerId: input.providerId,
     })
-    const lookup = input.credentialId
-      ? (page.data.find(
-          (candidate) =>
-            candidate.id === input.credentialId || candidate.accountId === input.credentialId
-        ) ?? null)
-      : undefined
-    return { credentials: input.credentialId ? [] : page.data, credential: lookup }
+    return { mode: 'list', credentials: page.data }
   },
 })
 

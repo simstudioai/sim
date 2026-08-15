@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { auditMock, auditMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -13,9 +14,11 @@ const mocks = vi.hoisted(() => ({
   getCredential: vi.fn(),
   getActor: vi.fn(),
   delete: vi.fn(),
+  deleteRecord: vi.fn(),
   capture: vi.fn(),
 }))
 
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
 }))
@@ -27,6 +30,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/credentials/orchestration', () => ({
   createServiceAccountCredential: mocks.create,
   deleteConnectionCredential: mocks.delete,
+  deleteCredentialRecord: mocks.deleteRecord,
 }))
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
   listCredentialProviderCatalog: mocks.listCatalog,
@@ -93,6 +97,7 @@ describe('credential service-account application operations', () => {
     })
     mocks.listCatalog.mockResolvedValue([{ providerId: 'zoom-service-account' }])
     mocks.delete.mockResolvedValue(true)
+    mocks.deleteRecord.mockResolvedValue(true)
     mocks.requireProvider.mockReturnValue({
       type: 'service_account',
       providerId: 'zoom-service-account',
@@ -274,5 +279,48 @@ describe('credential service-account application operations', () => {
     })
 
     expect(result).toEqual({ credential, deleted: false })
+  })
+
+  it.each([
+    ['env_personal', 'personal'],
+    ['env_workspace', 'workspace'],
+  ] as const)('preserves %s deletion audit and analytics dimensions', async (type, label) => {
+    const envCredential = {
+      ...credential,
+      type,
+      displayName: 'MY_API_KEY',
+      providerId: null,
+      envKey: 'MY_API_KEY',
+      envOwnerUserId: type === 'env_personal' ? 'user-1' : null,
+      encryptedServiceAccountKey: null,
+    }
+    mocks.getCredential.mockResolvedValue(envCredential)
+    mocks.getActor.mockResolvedValue({
+      credential: envCredential,
+      member: { role: 'admin' },
+      hasWorkspaceAccess: true,
+      isAdmin: true,
+    })
+
+    await deleteCredentialUseCase.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: WORKSPACE_ID, credentialId: envCredential.id },
+    })
+
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: `Deleted ${label} env credential "MY_API_KEY"`,
+        metadata: expect.objectContaining({
+          credentialType: type,
+          envKey: 'MY_API_KEY',
+        }),
+      })
+    )
+    expect(mocks.capture).toHaveBeenCalledWith(
+      'user-1',
+      'credential_deleted',
+      expect.objectContaining({ provider_id: 'MY_API_KEY' }),
+      expect.anything()
+    )
   })
 })

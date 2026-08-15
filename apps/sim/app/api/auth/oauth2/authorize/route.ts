@@ -39,40 +39,40 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { draftId } = parsed.data.query
   let { providerId, workspaceId, callbackURL: requestedCallback, credentialId } = parsed.data.query
 
-  let fromConnectionDraft = false
-  let connectionDraftId: string | undefined
-  if (draftId) {
-    try {
-      const { draft } = await launchCredentialConnection.execute({
-        principal,
-        input: { draftId },
-        request,
-      })
-      providerId = draft.providerId
-      workspaceId = draft.workspaceId
-      credentialId = draft.credentialId ?? undefined
-      connectionDraftId = draft.id
-      fromConnectionDraft = true
-    } catch (error) {
-      if (!(error instanceof OrchestrationError)) throw error
-      logger.warn('Rejected OAuth connection draft', { userId, draftId, code: error.code })
-      return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_invalid`)
-    }
-  }
-
-  if (!providerId || !workspaceId) {
-    throw new Error('Validated OAuth authorization request is missing its target')
-  }
-
-  const connectionCompleteUrl = new URL('/oauth/credential-connected', baseUrl)
-  connectionCompleteUrl.searchParams.set('result', 'connected')
-  const callbackURL = fromConnectionDraft
-    ? connectionCompleteUrl.toString()
-    : requestedCallback?.startsWith(`${baseUrl}/`)
-      ? requestedCallback
-      : `${baseUrl}/workspace`
-
   try {
+    let fromConnectionDraft = false
+    let connectionDraftId: string | undefined
+    if (draftId) {
+      try {
+        const { draft } = await launchCredentialConnection.execute({
+          principal,
+          input: { draftId },
+          request,
+        })
+        providerId = draft.providerId
+        workspaceId = draft.workspaceId
+        credentialId = draft.credentialId ?? undefined
+        connectionDraftId = draft.id
+        fromConnectionDraft = true
+      } catch (error) {
+        if (!(error instanceof OrchestrationError)) throw error
+        logger.warn('Rejected OAuth connection draft', { userId, draftId, code: error.code })
+        return NextResponse.redirect(`${baseUrl}/workspace?error=oauth_link_invalid`)
+      }
+    }
+
+    if (!providerId || !workspaceId) {
+      throw new Error('Validated OAuth authorization request is missing its target')
+    }
+
+    const connectionCompleteUrl = new URL('/oauth/credential-connected', baseUrl)
+    connectionCompleteUrl.searchParams.set('result', 'connected')
+    const callbackURL = fromConnectionDraft
+      ? connectionCompleteUrl.toString()
+      : requestedCallback?.startsWith(`${baseUrl}/`)
+        ? requestedCallback
+        : `${baseUrl}/workspace`
+
     if (!fromConnectionDraft) {
       try {
         const connection = await createCredentialConnection.execute({
@@ -90,7 +90,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         if (error instanceof CredentialConnectionProviderMismatchError) {
           return NextResponse.redirect(`${baseUrl}/workspace?error=credential_provider_mismatch`)
         }
-        if (credentialId && error instanceof ForbiddenOperationError) {
+        if (
+          credentialId &&
+          error instanceof ForbiddenOperationError &&
+          error.detailCode === 'CREDENTIAL_ADMIN_ACCESS_REQUIRED'
+        ) {
           return NextResponse.redirect(`${baseUrl}/workspace?error=credential_access_denied`)
         }
         if (error instanceof OrchestrationError && error.code === 'not_found') {

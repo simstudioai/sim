@@ -112,15 +112,12 @@ export const credentialOperations = {
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
   }),
-  listMembers: defineCredentialOperation(
-    defineWorkspaceOperation({
-      id: 'credentials.members.list',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      principalKinds: ['session'],
-    }),
-    'member'
-  ),
+  listMembers: defineWorkspaceOperation({
+    id: 'credentials.members.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
   upsertMember: defineCredentialOperation(
     defineWorkspaceOperation({
       id: 'credentials.members.upsert',

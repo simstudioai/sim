@@ -9,7 +9,6 @@ import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { CREDENTIAL_DRAFT_TTL_SECONDS } from '@/lib/credentials/draft-constants'
 import { createShopifyOAuthState } from '@/lib/oauth/shopify-state'
 import { getScopesForService } from '@/lib/oauth/utils'
 
@@ -18,6 +17,11 @@ const logger = createLogger('ShopifyAuthorize')
 export const dynamic = 'force-dynamic'
 
 const SHOPIFY_SCOPES = getScopesForService('shopify').join(',')
+
+/** Serializes user-controlled text without allowing it to terminate an inline script element. */
+function serializeInlineScriptString(value: string): string {
+  return JSON.stringify(value).replaceAll('<', '\\u003c')
+}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -40,8 +44,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!shopDomain) {
       const safeReturnUrl =
         returnUrl && isSameOrigin(returnUrl) ? encodeURIComponent(returnUrl) : ''
-      const returnUrlJsLiteral = JSON.stringify(safeReturnUrl)
-      const draftIdJsLiteral = JSON.stringify(draftId ?? '')
+      const returnUrlJsLiteral = serializeInlineScriptString(safeReturnUrl)
+      const draftIdJsLiteral = serializeInlineScriptString(draftId ?? '')
       return new NextResponse(
         `<!DOCTYPE html>
 <html>
@@ -175,11 +179,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const baseUrl = getBaseUrl()
     const redirectUri = `${baseUrl}/api/auth/oauth2/callback/shopify`
+    const safeReturnUrl = returnUrl && isSameOrigin(returnUrl) ? returnUrl : undefined
 
     const state = createShopifyOAuthState({
       userId: session.user.id,
       shopDomain: cleanShop,
       draftId,
+      returnUrl: safeReturnUrl,
       clientSecret,
     })
 
@@ -205,17 +211,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     response.cookies.delete('shopify_shop_domain')
     response.cookies.delete('shopify_credential_draft_id')
 
-    if (returnUrl && isSameOrigin(returnUrl)) {
-      response.cookies.set('shopify_return_url', returnUrl, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
-        path: '/',
-      })
-    } else {
-      response.cookies.delete('shopify_return_url')
-    }
+    response.cookies.delete('shopify_return_url')
 
     return response
   } catch (error) {

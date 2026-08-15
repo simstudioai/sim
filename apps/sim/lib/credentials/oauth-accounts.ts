@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account, credential, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray, like, or } from 'drizzle-orm'
 import { decodeJwt } from 'jose'
 import type { OAuthConnection } from '@/lib/api/contracts/oauth-connections'
@@ -99,6 +100,17 @@ export interface DisconnectOAuthAccountsParams {
   accountId?: string
 }
 
+export class OAuthDisconnectPartialFailureError extends Error {
+  constructor(
+    readonly credentials: Array<typeof credential.$inferSelect>,
+    cause: unknown
+  ) {
+    const error = toError(cause)
+    super(error.message, { cause: error })
+    this.name = 'OAuthDisconnectPartialFailureError'
+  }
+}
+
 export async function disconnectOAuthAccounts(params: DisconnectOAuthAccountsParams) {
   const accountFilter = params.accountId
     ? and(eq(account.userId, params.userId), eq(account.id, params.accountId))
@@ -120,16 +132,21 @@ export async function disconnectOAuthAccounts(params: DisconnectOAuthAccountsPar
     .from(credential)
     .where(inArray(credential.accountId, targetAccountIds))
   const deletedCredentials: typeof credentialRows = []
-  for (const credentialRow of credentialRows) {
-    if (credentialRow.type !== 'oauth') {
-      throw new Error(`OAuth account ${credentialRow.accountId} owns a non-OAuth credential`)
+  try {
+    for (const credentialRow of credentialRows) {
+      if (credentialRow.type !== 'oauth') {
+        throw new Error(`OAuth account ${credentialRow.accountId} owns a non-OAuth credential`)
+      }
+      const deleted = await deleteCredentialRecord({
+        credential: credentialRow,
+        reason: 'oauth_disconnect',
+      })
+      if (deleted) deletedCredentials.push(credentialRow)
     }
-    const deleted = await deleteCredentialRecord({
-      credential: credentialRow,
-      reason: 'oauth_disconnect',
-    })
-    if (deleted) deletedCredentials.push(credentialRow)
+    await db.delete(account).where(inArray(account.id, targetAccountIds))
+  } catch (error) {
+    if (deletedCredentials.length === 0) throw error
+    throw new OAuthDisconnectPartialFailureError(deletedCredentials, error)
   }
-  await db.delete(account).where(inArray(account.id, targetAccountIds))
   return { credentials: deletedCredentials }
 }

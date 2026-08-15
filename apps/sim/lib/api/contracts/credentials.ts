@@ -42,11 +42,24 @@ export type WorkspaceCredentialRole = z.output<typeof workspaceCredentialRoleSch
 export type WorkspaceCredentialMemberStatus = z.output<typeof workspaceCredentialMemberStatusSchema>
 export type WorkspaceCredential = z.output<typeof workspaceCredentialSchema>
 
+const firstQueryStringSchema = z
+  .union([z.string(), z.array(z.string()).min(1)])
+  .transform((value) => (Array.isArray(value) ? value[0] : value))
+
+function trimmedOptionalQueryString<T extends z.ZodType<string, string>>(schema: T) {
+  return firstQueryStringSchema
+    .transform((value) => value.trim() || undefined)
+    .pipe(schema.optional())
+    .optional()
+}
+
 export const credentialsListQuerySchema = z.object({
-  workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  type: workspaceCredentialTypeSchema.optional(),
-  providerId: z.string().optional(),
-  credentialId: z.string().optional(),
+  workspaceId: firstQueryStringSchema
+    .transform((value) => value.trim())
+    .pipe(z.string().uuid('Workspace ID must be a valid UUID')),
+  type: trimmedOptionalQueryString(workspaceCredentialTypeSchema),
+  providerId: trimmedOptionalQueryString(z.string()),
+  credentialId: trimmedOptionalQueryString(z.string()),
 })
 
 export const credentialIdParamsSchema = z.object({
@@ -307,6 +320,14 @@ export const oauthCredentialSchema = z.object({
   scopes: z.array(z.string()).optional(),
 })
 
+export const workspaceCredentialLookupSchema = workspaceCredentialSchema.pick({
+  id: true,
+  displayName: true,
+  type: true,
+  providerId: true,
+})
+export type WorkspaceCredentialLookup = z.output<typeof workspaceCredentialLookupSchema>
+
 export const oauthCredentialsQuerySchema = z
   .object({
     provider: z.string().nullish(),
@@ -325,10 +346,10 @@ export const listWorkspaceCredentialsContract = defineRouteContract({
   query: credentialsListQuerySchema,
   response: {
     mode: 'json',
-    schema: z.object({
-      credentials: z.array(workspaceCredentialSchema),
-      credential: workspaceCredentialSchema.nullable().optional(),
-    }),
+    schema: z.union([
+      z.object({ credentials: z.array(workspaceCredentialSchema) }),
+      z.object({ credential: workspaceCredentialLookupSchema.nullable() }),
+    ]),
   },
 })
 

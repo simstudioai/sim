@@ -42,6 +42,13 @@ export interface VisibleWorkspaceCredential {
   role: 'admin' | 'member'
 }
 
+export interface WorkspaceCredentialLookup {
+  id: string
+  displayName: string
+  type: CredentialRow['type']
+  providerId: string | null
+}
+
 const credentialIdKey = textKey<VisibleWorkspaceCredential>(credential.id, (row) => row.id)
 
 /**
@@ -278,6 +285,39 @@ export async function getWorkspaceCredential(params: {
     )
     .limit(1)
   return row ?? null
+}
+
+/** Preserves the internal route's legacy id-first, account-id-second lookup semantics. */
+export async function findWorkspaceCredentialLookup(params: {
+  workspaceId: string
+  credentialId: string
+}): Promise<WorkspaceCredentialLookup | null> {
+  const projection = {
+    id: credential.id,
+    displayName: credential.displayName,
+    type: credential.type,
+    providerId: credential.providerId,
+  }
+  const [byId] = await db
+    .select(projection)
+    .from(credential)
+    .where(
+      and(eq(credential.id, params.credentialId), eq(credential.workspaceId, params.workspaceId))
+    )
+    .limit(1)
+  if (byId) return byId
+
+  const [byAccountId] = await db
+    .select(projection)
+    .from(credential)
+    .where(
+      and(
+        eq(credential.accountId, params.credentialId),
+        eq(credential.workspaceId, params.workspaceId)
+      )
+    )
+    .limit(1)
+  return byAccountId ?? null
 }
 
 /** Canonical credential lookup used before its workspace scope is known. */

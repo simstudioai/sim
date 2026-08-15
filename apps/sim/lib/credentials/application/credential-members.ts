@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, type SessionPrincipal } from '@sim/auth/principal'
+import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { defineAuthorizedCredentialUseCase } from '@/lib/credentials/application/authorized-credential-use-case'
 import { defineAuthorizedCredentialUserUseCase } from '@/lib/credentials/application/authorized-user-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
@@ -27,7 +28,7 @@ function resolveSessionCredentialContext(
   return resolveCredentialApplicationContext(input)
 }
 
-export const listCredentialMembersUseCase = defineAuthorizedCredentialUseCase({
+export const listCredentialMembersUseCase = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.listMembers,
   resolveContext: ({
     principal,
@@ -36,6 +37,7 @@ export const listCredentialMembersUseCase = defineAuthorizedCredentialUseCase({
     principal: SessionPrincipal
     input: CredentialMemberResourceInput
   }) => resolveSessionCredentialContext(principal, input),
+  authorizationOptions: {},
   async execute({ context }) {
     return { members: await listCredentialMembers(context.credential) }
   },
