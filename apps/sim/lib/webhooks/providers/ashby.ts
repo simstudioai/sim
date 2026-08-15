@@ -62,6 +62,35 @@ function ashbyErrorMessage(data: unknown, fallback: string): string {
   return fallback
 }
 
+/**
+ * Whether an Ashby error response means the webhook id no longer exists.
+ *
+ * Ashby signals this as the machine code `webhook_not_found`, carried on
+ * `errorInfo.code` and/or as an `errors` entry — but the same envelope's
+ * `errorInfo.message` reads `Webhook not found`, and that is what
+ * `ashbyErrorMessage` returns, since message wins over the deprecated code
+ * array. Matching the extracted message against the code therefore misses the
+ * envelope Ashby actually sends for a repeat delete, and idempotent cleanup
+ * would be reported as a real failure. Read the codes directly, and keep a
+ * prose fallback for the message-only form.
+ */
+function isAshbyWebhookNotFound(data: Record<string, unknown>, message: string): boolean {
+  const info = data.errorInfo as Record<string, unknown> | undefined
+  if (typeof info?.code === 'string' && /webhook_not_found/i.test(info.code)) return true
+
+  if (Array.isArray(data.errors)) {
+    for (const entry of data.errors) {
+      if (typeof entry === 'string' && /webhook_not_found/i.test(entry)) return true
+      if (entry && typeof entry === 'object') {
+        const entryMessage = (entry as Record<string, unknown>).message
+        if (typeof entryMessage === 'string' && /webhook_not_found/i.test(entryMessage)) return true
+      }
+    }
+  }
+
+  return /webhook[\s_]not[\s_]found/i.test(message)
+}
+
 const logger = createLogger('WebhookProvider:Ashby')
 
 function validateAshbySignature(secretToken: string, signature: string, body: string): boolean {
@@ -362,7 +391,10 @@ export const ashbyHandler: WebhookProviderHandler = {
         logger.info(
           `[${ctx.requestId}] Successfully deleted Ashby webhook subscription ${externalId}`
         )
-      } else if (ashbyResponse.status === 404 || /webhook_not_found/i.test(errorMessage)) {
+      } else if (
+        ashbyResponse.status === 404 ||
+        isAshbyWebhookNotFound(responseBody, errorMessage)
+      ) {
         logger.info(
           `[${ctx.requestId}] Ashby webhook ${externalId} not found during deletion (already removed)`
         )

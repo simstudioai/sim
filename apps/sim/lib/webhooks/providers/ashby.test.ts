@@ -238,6 +238,27 @@ describe('ashbyHandler', () => {
       await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
     })
 
+    it('recognizes the not-found envelope Ashby actually sends for a repeat delete', async () => {
+      // errorInfo.message wins over the code array in the extractor, so it reads
+      // 'Webhook not found' - matching that against `webhook_not_found` would
+      // turn idempotent cleanup into a strict-mode throw.
+      respondWith({
+        success: false,
+        errors: ['webhook_not_found'],
+        errorInfo: {
+          code: 'webhook_not_found',
+          message: 'Webhook not found',
+          requestId: '01JSJ8FEK5ZN4XQBZP7DBKK7ZC',
+        },
+      })
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
+    })
+
+    it('recognizes a not-found reported only as prose', async () => {
+      respondWith({ success: false, errorInfo: { message: 'Webhook not found' } })
+      await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
+    })
+
     it('accepts a successful delete', async () => {
       respondWith({ success: true, results: { webhookId: 'ext-1' } })
       await expect(ashbyHandler.deleteSubscription?.(ctx(true))).resolves.toBeUndefined()
