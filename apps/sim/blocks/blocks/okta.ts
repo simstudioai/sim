@@ -1,6 +1,6 @@
 import { OktaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { OktaResponse } from '@/tools/okta/types'
 
 /**
@@ -8,13 +8,18 @@ import type { OktaResponse } from '@/tools/okta/types'
  *
  * These fields are free-text inputs, so a stray non-numeric entry would otherwise
  * become `NaN` and serialize to `null`, which Okta rejects with a validation
- * error that points at the wrong thing. Omitting the field instead lets Okta
+ * error that points at the wrong thing. Dropping the field instead lets Okta
  * apply its own default.
  */
 function toFiniteNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/** Treats a blank subBlock value as absent. */
+function blankToUndefined(value: unknown): unknown {
+  return value === null || value === '' ? undefined : value
 }
 
 export const OktaBlock: BlockConfig<OktaResponse> = {
@@ -25,6 +30,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     'Integrate Okta identity management into your workflow. Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.',
   docsLink: 'https://docs.sim.ai/integrations/okta',
   category: 'tools',
+  authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.Security,
   bgColor: '#191919',
   iconColor: '#007DC1',
@@ -248,6 +254,12 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         field: 'operation',
         value: ['okta_list_users', 'okta_list_groups', 'okta_list_group_rules'],
       },
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe who or what to search for',
+        prompt:
+          'Generate an Okta search expression. The grammar is SCIM-style: a property, an operator (eq, sw, co, gt, ge, lt, le), and a quoted value, combined with and/or and parentheses. User properties are prefixed with profile (profile.firstName, profile.email, profile.department) plus the top-level id, status, created, activated, statusChanged and lastUpdated. Group properties are type plus profile.name and profile.description. Example: profile.department eq "Engineering" and status eq "ACTIVE". Return ONLY the expression - no explanations, no extra text.',
+      },
     },
     {
       id: 'filter',
@@ -259,6 +271,12 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         value: ['okta_list_users', 'okta_list_groups', 'okta_list_apps', 'okta_get_logs'],
       },
       mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe how to narrow the results',
+        prompt:
+          'Generate an Okta filter expression. The grammar is SCIM-style: a property, an operator (eq, and for lastUpdated also gt, ge, lt, le), and a quoted value, combined with and/or. Each listing supports a limited property set. Users: status, lastUpdated, id, profile.login, profile.email, profile.firstName, profile.lastName. Groups: id, type, lastUpdated, lastMembershipUpdated. Applications: id, status, name. System Log: any event property, such as eventType, outcome.result, actor.alternateId or client.ipAddress. Example: eventType eq "user.session.start" and outcome.result eq "FAILURE". Return ONLY the expression - no explanations, no extra text.',
+      },
     },
     {
       id: 'q',
@@ -510,8 +528,9 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       required: { field: 'operation', value: 'okta_create_group_rule' },
       wandConfig: {
         enabled: true,
+        placeholder: 'Describe which users the rule should match',
         prompt:
-          'Generate an Okta expression language predicate that evaluates to a boolean over a user profile, for example user.department=="Engineering". Return ONLY the expression.',
+          'Generate an Okta Expression Language predicate that evaluates to a boolean over a user profile. Reference profile attributes as user.<attribute>, combine them with && and ||, and compare with == or !=. Example: user.department=="Engineering" && user.countryCode=="US". Return ONLY the expression - no explanations, no extra text.',
       },
     },
     {
@@ -785,7 +804,9 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       condition: { field: 'operation', value: 'okta_get_logs' },
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp string.',
+        placeholder: 'Describe the start of the time window',
+        prompt:
+          'Generate an ISO 8601 UTC timestamp for the start of a System Log query window, for example 2026-08-01T00:00:00.000Z. Return ONLY the timestamp - no explanations, no extra text.',
         generationType: 'timestamp',
       },
     },
@@ -797,7 +818,9 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       condition: { field: 'operation', value: 'okta_get_logs' },
       wandConfig: {
         enabled: true,
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp string.',
+        placeholder: 'Describe the end of the time window',
+        prompt:
+          'Generate an ISO 8601 UTC timestamp for the end of a System Log query window, for example 2026-08-15T00:00:00.000Z. Return ONLY the timestamp - no explanations, no extra text.',
         generationType: 'timestamp',
       },
     },
@@ -904,28 +927,30 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     ],
     config: {
       tool: (params) => params.operation as string,
+      /**
+       * Every param this block can send is assigned here, including the ones it
+       * decides to drop.
+       *
+       * The executor merges the result over the raw serialized inputs
+       * (`{ ...inputs, ...transformedParams }`), so a key this function *omits*
+       * keeps the raw subBlock string instead of being dropped. Assigning
+       * `undefined` is what actually removes it: otherwise a non-numeric `limit`
+       * would still reach Okta verbatim, and a blank field in a partial update
+       * (`update_user` is a POST merge) would overwrite the stored Okta value
+       * with an empty string rather than leaving it untouched.
+       */
       params: (params) => {
         const result: Record<string, unknown> = {
           apiKey: params.apiKey,
           domain: params.domain,
+          limit: toFiniteNumber(params.limit),
+          priority: toFiniteNumber(params.priority),
+          // Group-specific UI fields carry the tool's generic param names.
+          name: blankToUndefined(params.groupName),
+          description: blankToUndefined(params.groupDescription),
         }
 
-        const limit = toFiniteNumber(params.limit)
-        if (limit !== undefined) result.limit = limit
-
-        const priority = toFiniteNumber(params.priority)
-        if (priority !== undefined) result.priority = priority
-
-        // Map group-specific UI fields to tool param names
-        if (params.groupName) result.name = params.groupName
-        if (params.groupDescription !== undefined) result.description = params.groupDescription
-
-        // Pass through all other params, skipping empty values. Blank fields in a
-        // partial update (e.g. update_user, a POST merge) must be omitted so they
-        // leave the existing Okta value unchanged rather than overwriting it with
-        // an empty string. This mirrors the agent tool-call path, which already
-        // filters empty params before execution.
-        const skipKeys = new Set([
+        const mappedKeys = new Set([
           'operation',
           'apiKey',
           'domain',
@@ -935,9 +960,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'groupDescription',
         ])
         for (const [key, value] of Object.entries(params)) {
-          if (!skipKeys.has(key) && value !== undefined && value !== null && value !== '') {
-            result[key] = value
-          }
+          if (!mappedKeys.has(key)) result[key] = blankToUndefined(value)
         }
 
         return result
@@ -1040,6 +1063,24 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     name: { type: 'string', description: 'Group name' },
     description: { type: 'string', description: 'Group description' },
     type: { type: 'string', description: 'Group type' },
+    mobilePhone: { type: 'string', description: 'Mobile phone number' },
+    secondEmail: { type: 'string', description: 'Secondary email address' },
+    displayName: { type: 'string', description: 'Display name' },
+    title: { type: 'string', description: 'Job title' },
+    department: { type: 'string', description: 'Department' },
+    organization: { type: 'string', description: 'Organization' },
+    manager: { type: 'string', description: 'Manager name' },
+    managerId: { type: 'string', description: 'Manager ID' },
+    division: { type: 'string', description: 'Division' },
+    employeeNumber: { type: 'string', description: 'Employee number' },
+    userType: { type: 'string', description: 'User type' },
+    lastLogin: { type: 'string', description: 'Last sign-in timestamp' },
+    statusChanged: { type: 'string', description: 'Status change timestamp' },
+    passwordChanged: { type: 'string', description: 'Password change timestamp' },
+    lastMembershipUpdated: {
+      type: 'string',
+      description: 'Timestamp of the last group membership change',
+    },
     count: { type: 'number', description: 'Number of results' },
     added: { type: 'boolean', description: 'Whether user was added to group' },
     removed: { type: 'boolean', description: 'Whether user was removed from group' },
@@ -1090,12 +1131,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       description:
         'Array of group rules (id, name, type, status, expression, assignUserToGroupIds, excludedUserIds)',
     },
-    targets: { type: 'json', description: 'Entities a System Log event acted upon' },
     profile: { type: 'json', description: 'Factor, application, or app user profile attributes' },
     settings: { type: 'json', description: 'Application settings' },
     visibility: { type: 'json', description: 'Application visibility settings' },
     accessibility: { type: 'json', description: 'Application accessibility settings' },
-    debugData: { type: 'json', description: 'Free-form debug context from a System Log event' },
     assignUserToGroupIds: { type: 'json', description: 'Groups a rule assigns matching users to' },
     excludedUserIds: { type: 'json', description: 'Users excluded from a group rule' },
     excludedGroupIds: { type: 'json', description: 'Groups excluded from a group rule' },
@@ -1238,6 +1277,24 @@ export const OktaBlockMeta = {
       description: 'List Okta groups and their members to audit access for a security review.',
       content:
         '# Audit Group Membership\n\nReview who belongs to Okta groups, focusing on privileged access.\n\n## Steps\n1. Run List Groups to enumerate the groups, or Get Group for a specific one.\n2. For each group of interest, run List Group Members.\n3. Highlight privileged or admin groups and call out any unexpected members.\n\n## Output\nA per-group roster with member counts, and a short list of access concerns to review.',
+    },
+    {
+      name: 'reset-user-mfa',
+      description: 'Reset a locked-out user MFA enrollment so they can enroll a factor again.',
+      content:
+        '# Reset User MFA\n\nClear a stuck multifactor enrollment, the most common Okta help desk request.\n\n## Steps\n1. Run List Factors for the user to see which factors are enrolled and their status.\n2. Reset the narrowest thing that fixes it: Reset Factor for one factor id, or Reset All Factors when every enrollment must go.\n3. Note that resetting push also unenrolls the related Okta Verify factors, and that factors cannot be reset on a deactivated user.\n4. Run Clear User Sessions if the user must be signed out of existing sessions before re-enrolling.\n\n## Output\nName the factors that were reset and state that the user must re-enroll before they can complete MFA again. Both resets are irreversible, so confirm the target user before running either.',
+    },
+    {
+      name: 'investigate-sign-in-failures',
+      description: 'Query the Okta System Log for failed sign-ins and suspicious authentication.',
+      content:
+        '# Investigate Sign-In Failures\n\nUse the System Log to explain why a user cannot sign in, or to review suspicious authentication.\n\n## Steps\n1. Run Get System Log Events with a Since and Until that bracket the incident.\n2. Filter to the events that matter, for example eventType eq "user.session.start" and outcome.result eq "FAILURE" for failed sign-ins.\n3. Narrow to one person or origin by adding actor.alternateId or client.ipAddress to the filter, or use the keyword query for a free-text sweep.\n4. Read outcomeReason, clientIpAddress, and the client geography on each event to separate a wrong password from an unexpected location.\n5. Page with the returned cursor while hasMore is true when the window is wide.\n\n## Output\nA short timeline of the matching events with actor, time, outcome, reason, and source IP, plus a plain statement of the likely cause.',
+    },
+    {
+      name: 'review-app-access',
+      description: 'Audit who can reach an Okta application through direct and group assignments.',
+      content:
+        '# Review Application Access\n\nEstablish who has access to an application and how they got it.\n\n## Steps\n1. Run List Applications to resolve the application id, or Get Application when the id is known.\n2. Run List Application Users and read the scope on each assignment: USER means a direct grant, GROUP means it was inherited.\n3. Run List Application Groups to see which groups confer access, since every member of those groups reaches the app.\n4. Expand any group of interest with List Group Members to get the real roster.\n5. Revoke with Remove User from Application for a direct grant, or Remove Group from Application to cut the whole group.\n\n## Output\nA roster split into direct and group-inherited access, naming the groups that grant it, and a list of assignments that look unjustified.',
     },
     {
       name: 'reset-user-password',

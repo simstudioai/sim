@@ -48,7 +48,8 @@ export const oktaListGroupMembersTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of members to return per page (max: 1000)',
+      description:
+        'Maximum number of members to return per page (default: 1000, but Okta recommends 200)',
     },
   },
 
