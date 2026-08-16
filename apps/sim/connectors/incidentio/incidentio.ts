@@ -403,7 +403,17 @@ async function fetchIncidentUpdates(
 
       if (!response.ok) {
         logger.warn('Failed to fetch incident updates', { incidentId, status: response.status })
-        complete = false
+        /**
+         * 403 and 404 are settled answers, not transient faults: an API key without
+         * `incident_updates` read permission returns 403 for every incident on every
+         * sync, and 404 means there is nothing to fetch. Marking those incomplete
+         * would append `:partial` to a hash that then never matches the listing stub,
+         * so the incident would re-hydrate on every sync forever without converging.
+         * Only a genuinely transient failure may mark the content incomplete.
+         */
+        if (response.status !== 403 && response.status !== 404) {
+          complete = false
+        }
         break
       }
 
