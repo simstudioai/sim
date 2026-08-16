@@ -2408,9 +2408,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         if (result.purge_everything === 'true') result.purge_everything = true
         else if (result.purge_everything === 'false') result.purge_everything = false
 
-        if (result.type === '' && result.operation !== 'create_dns_record') {
-          result.type = undefined
-        }
+        if (result.type === '') result.type = undefined
         if (result.status === '') result.status = undefined
         if (result.order === '') result.order = undefined
         if (result.direction === '') result.direction = undefined
