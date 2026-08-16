@@ -179,11 +179,19 @@ export async function readSplunkJson(response: Response): Promise<unknown> {
 
 /**
  * The one XML body the reference documents: `<response><sid>...</sid></response>`,
- * optionally preceded by an XML declaration. Anchored to that root element so an
- * HTML interstitial (`<!DOCTYPE html>`, `<html>`) or any other XML document still
- * fails to parse rather than being read as an empty envelope.
+ * optionally preceded by an XML declaration, with the self-closing `<response/>`
+ * allowed for the job-control endpoints that return no value.
+ *
+ * The closing tag is part of the match, not just the opening one. Anchoring both
+ * ends is what makes a body that was cut off mid-transfer fail instead of reading
+ * as a complete envelope that simply carried nothing — which on a cancellation
+ * would report a truncated response as a successful cancel.
  */
-const SPLUNK_XML_RESPONSE_ROOT = /^(?:<\?xml[^>]*\?>\s*)?<response[\s/>]/i
+const SPLUNK_XML_RESPONSE =
+  /^(?:<\?xml[^>]*\?>\s*)?<response(?:\s[^>]*)?(?:\/>|>([\s\S]*)<\/response>)$/i
+
+/** The `sid` a dispatch envelope carries, when it carries one. */
+const SPLUNK_XML_SID = /<sid>([\s\S]*?)<\/sid>/i
 
 /**
  * Read a body from the dispatching and job-control endpoints, which may answer in
@@ -192,20 +200,31 @@ const SPLUNK_XML_RESPONSE_ROOT = /^(?:<\?xml[^>]*\?>\s*)?<response[\s/>]/i
  * `output_mode` does not appear in the documented parameter table for these
  * endpoints, so the XML `<response><sid>...</sid></response>` is the only response
  * the reference actually promises. Throwing on it would report a request that
- * succeeded server-side as a failure — cancelling a job really does cancel it —
- * and would pre-empt the specific error the caller raises when the envelope
- * carries no usable value. Returning `{}` lets {@link requireSplunkSid} name the
- * problem instead, and a JSON body (which these endpoints do return in practice
- * when `output_mode=json` is honored) still parses normally.
+ * succeeded server-side as a failure — the job really was dispatched, and
+ * cancelling a job really does cancel it.
  *
- * Only that exact root element is accepted. Anything else — including an HTML
- * error page served with a 2xx — falls through to `JSON.parse` and throws.
+ * The envelope is projected onto the same `{ sid }` shape `output_mode=json`
+ * produces rather than being discarded, so a dispatch that answered in XML still
+ * hands back the search ID of the job it just created instead of losing it and
+ * erroring after the remote work happened. A job-control response that carries no
+ * `sid` yields `{}`, which is what those endpoints document ("Returned values:
+ * None"). A JSON body still parses normally.
+ *
+ * Only that complete envelope is accepted. Anything else — an HTML error page
+ * served with a 2xx, another XML document, or a truncated envelope — falls through
+ * to `JSON.parse` and throws.
  */
 export async function readSplunkDispatchJson(response: Response): Promise<unknown> {
   if (response.status === 204) return {}
   const body = (await response.text()).trim()
   if (!body) return {}
-  if (SPLUNK_XML_RESPONSE_ROOT.test(body)) return {}
+
+  const envelope = SPLUNK_XML_RESPONSE.exec(body)
+  if (envelope) {
+    const sid = SPLUNK_XML_SID.exec(envelope[1] ?? '')?.[1]?.trim()
+    return sid ? { sid } : {}
+  }
+
   return JSON.parse(body)
 }
 
@@ -215,21 +234,21 @@ export async function readSplunkDispatchJson(response: Response): Promise<unknow
  * `sid`, which `output_mode=json` renders as a flat `{ "sid": "..." }`.
  *
  * `output_mode` is not in the documented parameter table for these endpoints, so the
- * XML form is the only response the reference actually promises. {@link readSplunkJson}
- * therefore hands this an empty envelope rather than throwing when the body is XML,
- * which is what lets the message below reach the caller instead of a `JSON.parse`
- * failure that names nothing.
+ * XML form is the only response the reference actually promises.
+ * {@link readSplunkDispatchJson} projects that envelope onto the same `{ sid }` shape,
+ * so an instance answering in XML reaches this function with a usable search ID
+ * rather than an empty object.
  *
- * A missing `sid` is never a successful dispatch — it means the request produced
- * something other than a job (for example `exec_mode=oneshot`, which the reference
- * says "Does not return the search ID"), or the instance answered in XML. Fail loudly
- * instead of handing the workflow a null sid that only breaks two blocks later.
+ * A missing `sid` is therefore never a successful dispatch — it means the request
+ * produced something other than a job, for example `exec_mode=oneshot`, which the
+ * reference says "Does not return the search ID". Fail loudly instead of handing the
+ * workflow a null sid that only breaks two blocks later.
  */
 export function requireSplunkSid(data: unknown): string {
   const sid = asString((data as { sid?: unknown })?.sid) ?? getEntryName(getSplunkEntries(data)[0])
   if (!sid) {
     throw new Error(
-      'Splunk did not return a search ID for this request. Verify the search dispatched successfully; exec_mode=oneshot returns results instead of a search ID, and an instance answering in XML rather than JSON produces the same empty envelope.'
+      'Splunk did not return a search ID for this request. Verify the search dispatched successfully; exec_mode=oneshot returns results instead of a search ID.'
     )
   }
   return sid

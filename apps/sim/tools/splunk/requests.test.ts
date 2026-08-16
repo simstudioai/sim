@@ -90,7 +90,8 @@ describe('getSearchResultsTool count bound', () => {
  * `output_mode` is absent from the documented parameter table for the dispatching
  * and job-control endpoints, whose only documented response is the XML
  * `<response><sid>...</sid></response>`. Parsing that as JSON threw, which reported
- * a cancel that really did cancel as a failure and pre-empted the sid error.
+ * a cancel that really did cancel as a failure and lost the search ID of a job
+ * that had already been created.
  */
 const SPLUNK_XML_SID = '<?xml version="1.0"?><response><sid>1457683115.100</sid></response>'
 
@@ -105,13 +106,35 @@ describe('POST tools tolerate an XML body', () => {
     expect(result?.output.sid).toBe('1457683115.100')
   })
 
+  /**
+   * The dispatch was accepted and the job exists, so the search ID is read out of
+   * the XML rather than discarded. Failing here would strand a job the caller can
+   * no longer poll or cancel.
+   */
   it.each([
     ['create_search_job', createSearchJobTool],
     ['dispatch_saved_search', dispatchSavedSearchTool],
-  ])('surfaces the search-ID error from %s rather than a parse error', async (_label, tool) => {
+  ])('keeps the search ID %s returned in XML', async (_label, tool) => {
+    const result = await tool.transformResponse?.(
+      new Response(SPLUNK_XML_SID, { status: 200 }),
+      BASE as never
+    )
+
+    expect(result?.success).toBe(true)
+    expect(result?.output.sid).toBe('1457683115.100')
+  })
+
+  /**
+   * A body cut off mid-transfer must not read as a complete envelope: on a cancel
+   * that would report a truncated response as a successful cancellation.
+   */
+  it('rejects a truncated envelope on cancel', async () => {
     await expect(
-      tool.transformResponse?.(new Response(SPLUNK_XML_SID, { status: 200 }), BASE as never)
-    ).rejects.toThrow(/did not return a search ID/)
+      cancelSearchJobTool.transformResponse?.(
+        new Response('<response><sid>145768311', { status: 200 }),
+        { ...BASE, sid: '1457683115.100' } as never
+      )
+    ).rejects.toThrow()
   })
 })
 

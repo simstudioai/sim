@@ -116,22 +116,39 @@ describe('readSplunkDispatchJson', () => {
   /**
    * `output_mode` is not in the documented parameter table for the dispatching and
    * job-control endpoints, and the only response the reference documents for them
-   * is XML. Throwing here reported a cancel that succeeded server-side as a
-   * failure, and pre-empted the error the caller raises for a missing value.
+   * is XML. The envelope is projected onto the same `{ sid }` shape JSON produces,
+   * so a dispatch that answered in XML keeps the search ID of the job it just
+   * created instead of erroring after the remote work already happened.
    */
-  it('returns an empty envelope for the documented XML response', async () => {
+  it('reads the search ID out of the documented XML response', async () => {
     await expect(
       readSplunkDispatchJson(new Response('<response><sid>1457683115.100</sid></response>'))
+    ).resolves.toEqual({ sid: '1457683115.100' })
+  })
+
+  it('accepts the XML declaration and attributes on the root', async () => {
+    await expect(
+      readSplunkDispatchJson(
+        new Response('<?xml version="1.0" encoding="UTF-8"?><response><sid>1.1</sid></response>')
+      )
+    ).resolves.toEqual({ sid: '1.1' })
+  })
+
+  /** Job control documents "Returned values: None", so there is no sid to find. */
+  it('returns an empty envelope for a job-control response with no sid', async () => {
+    await expect(readSplunkDispatchJson(new Response('<response/>'))).resolves.toEqual({})
+    await expect(
+      readSplunkDispatchJson(new Response('<response><messages/></response>'))
     ).resolves.toEqual({})
   })
 
-  it('accepts the XML declaration and the self-closing form', async () => {
-    await expect(
-      readSplunkDispatchJson(
-        new Response('<?xml version="1.0"?><response><sid>1.1</sid></response>')
-      )
-    ).resolves.toEqual({})
-    await expect(readSplunkDispatchJson(new Response('<response/>'))).resolves.toEqual({})
+  /**
+   * A body cut off mid-transfer still starts with the documented root. Matching the
+   * opening tag alone read it as a complete envelope that carried nothing, which on
+   * a cancellation reported a truncated response as a successful cancel.
+   */
+  it('throws on a truncated envelope rather than reporting a successful cancel', async () => {
+    await expect(readSplunkDispatchJson(new Response('<response><sid>145768311'))).rejects.toThrow()
   })
 
   it('still parses a JSON body', async () => {
