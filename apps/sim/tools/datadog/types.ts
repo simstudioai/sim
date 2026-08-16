@@ -768,7 +768,7 @@ export interface UpdateSyntheticsStatusParams extends DatadogBaseParams {
 
 interface UpdateSyntheticsStatusOutput {
   success: boolean
-  status: SyntheticsTestPauseStatus
+  status?: SyntheticsTestPauseStatus
 }
 
 export interface UpdateSyntheticsStatusResponse extends ToolResponse {

@@ -59,7 +59,7 @@ export const updateSyntheticsStatusTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params) => {
-    const status = params?.newStatus ?? 'live'
+    const status = params?.newStatus
 
     if (!response.ok) {
       return {

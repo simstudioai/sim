@@ -71,7 +71,7 @@ export const triggerSyntheticsTestsTool: ToolConfig<
     return {
       success: true,
       output: {
-        batchId: data.batch_id ?? null,
+        batchId: data.batch_id,
         triggeredCheckIds: data.triggered_check_ids ?? [],
         results: data.results ?? [],
         locations: data.locations ?? [],

@@ -368,7 +368,7 @@ List incidents for the organization. Requires the Incident Management `incident_
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `include` | string | No | Comma-separated related resources to include: "users" and/or "attachments" |
-| `pageSize` | number | No | Number of incidents to return per page \(e.g., 10\) |
+| `pageSize` | number | No | Number of incidents to return per page \(default: 10, max: 100\) |
 | `pageOffset` | number | No | Index of the first incident to return \(e.g., 0, 10, 20\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
@@ -1140,7 +1140,7 @@ List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` p
 | --------- | ---- | -------- | ----------- |
 | `query` | string | No | Search query filtering rules by attributes such as type, source, or tags \(e.g., "type:log_detection source:cloudtrail"\) |
 | `sort` | string | No | Sort attribute, prefix with "-" for descending: name, creation_date, update_date, enabled, type, highest_severity, or source |
-| `pageSize` | number | No | Number of rules per page \(e.g., 25\) |
+| `pageSize` | number | No | Number of rules per page \(default: 10, max: 100\) |
 | `pageNumber` | number | No | Page to retrieve, starting at zero |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
@@ -1210,7 +1210,7 @@ List service definitions from the Datadog Service Catalog. Requires the `apm_ser
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `pageSize` | number | No | Number of service definitions per page \(e.g., 25\) |
+| `pageSize` | number | No | Number of service definitions per page \(default: 10, max: 100\) |
 | `pageNumber` | number | No | Page to retrieve, starting at zero |
 | `schemaVersion` | string | No | Schema version to return \(e.g., "v2", "v2.1", "v2.2"\) |
 | `apiKey` | string | Yes | Datadog API key |

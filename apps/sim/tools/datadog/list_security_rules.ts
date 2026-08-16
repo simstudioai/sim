@@ -33,7 +33,7 @@ export const listSecurityRulesTool: ToolConfig<ListSecurityRulesParams, ListSecu
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of rules per page (e.g., 25)',
+        description: 'Number of rules per page (default: 10, max: 100)',
       },
       pageNumber: {
         type: 'number',

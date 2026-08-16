@@ -19,7 +19,7 @@ export const listServicesTool: ToolConfig<ListServicesParams, ListServicesRespon
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of service definitions per page (e.g., 25)',
+      description: 'Number of service definitions per page (default: 10, max: 100)',
     },
     pageNumber: {
       type: 'number',

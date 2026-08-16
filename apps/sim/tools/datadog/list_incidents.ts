@@ -30,7 +30,7 @@ export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsRes
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of incidents to return per page (e.g., 10)',
+      description: 'Number of incidents to return per page (default: 10, max: 100)',
     },
     pageOffset: {
       type: 'number',

@@ -784,6 +784,7 @@ Return ONLY the comma-separated tag list - no explanations, no extra text.`,
       title: 'Severity',
       type: 'dropdown',
       options: [
+        { label: 'SEV-0', id: 'SEV-0' },
         { label: 'SEV-1', id: 'SEV-1' },
         { label: 'SEV-2', id: 'SEV-2' },
         { label: 'SEV-3', id: 'SEV-3' },
