@@ -35,7 +35,7 @@ const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
   purge_cache: { tags: 'purgeTags' },
   create_ruleset: { name: 'rulesetName' },
   create_rate_limit_rule: { action: 'rateLimitAction' },
-  update_rate_limit_rule: { action: 'rateLimitAction' },
+  update_rate_limit_rule: { action: 'updateRateLimitAction' },
   create_access_application: { type: 'appType', tags: 'accessAppTags' },
   update_access_application: { type: 'appType', tags: 'accessAppTags' },
   list_access_applications: { name: 'listNameFilter', domain: 'accessAppDomainFilter' },
@@ -801,9 +801,8 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       title: 'Status Filter',
       type: 'dropdown',
       options: [
-        { label: 'All', id: 'all' },
-        { label: 'Active', id: 'active' },
-        { label: 'Pending', id: 'pending' },
+        { label: 'All statuses', id: 'all' },
+        { label: 'Active only', id: '' },
       ],
       value: () => 'all',
       condition: { field: 'operation', value: 'list_certificates' },
@@ -1346,10 +1345,27 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         { label: 'Log', id: 'log' },
       ],
       value: () => 'block',
-      condition: {
-        field: 'operation',
-        value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
-      },
+      condition: { field: 'operation', value: 'create_rate_limit_rule' },
+    },
+    {
+      /**
+       * The update endpoint replaces the rule, so a seeded action would rewrite
+       * whatever the rule currently does the moment anything else is edited.
+       * This control carries no default: the user has to state the action the
+       * replaced rule should end up with.
+       */
+      id: 'updateRateLimitAction',
+      title: 'Action',
+      type: 'dropdown',
+      options: [
+        { label: 'Block', id: 'block' },
+        { label: 'Managed Challenge', id: 'managed_challenge' },
+        { label: 'JS Challenge', id: 'js_challenge' },
+        { label: 'Interactive Challenge', id: 'challenge' },
+        { label: 'Log', id: 'log' },
+      ],
+      required: true,
+      condition: { field: 'operation', value: 'update_rate_limit_rule' },
     },
     {
       id: 'expression',
@@ -2510,6 +2526,10 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     rateLimitAction: {
       type: 'string',
       description: 'Action applied once a rate limit is exceeded',
+    },
+    updateRateLimitAction: {
+      type: 'string',
+      description: 'Action a replaced rate limiting rule ends up applying',
     },
     content: { type: 'string', description: 'DNS record content' },
     ttl: { type: 'number', description: 'Time to live in seconds' },

@@ -101,13 +101,28 @@ describe('subBlock ids that share a tool param keep their own default', () => {
     expect(mapped.action).toBeUndefined()
   })
 
-  it('keeps the block default on the rate limiting operations', () => {
+  it('keeps the block default when creating a rate limiting rule', () => {
     expect(mapFor('create_rate_limit_rule', { zoneId: 'zone1', rulesetId: 'rs1' }).action).toBe(
       'block'
     )
+  })
+
+  it('never seeds an action onto a rate limiting rule it is about to replace', () => {
+    // The update endpoint replaces the rule, so a seeded block would convert a
+    // live log or challenge rule into a hard block the moment anything else is
+    // edited. The user has to state the action instead.
     expect(
       mapFor('update_rate_limit_rule', { zoneId: 'zone1', rulesetId: 'rs1', ruleId: 'r1' }).action
-    ).toBe('block')
+    ).toBeUndefined()
+
+    expect(
+      mapFor('update_rate_limit_rule', {
+        zoneId: 'zone1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        updateRateLimitAction: 'log',
+      }).action
+    ).toBe('log')
   })
 
   it('strips the aliased control ids so they never reach a tool as params', () => {
@@ -119,6 +134,7 @@ describe('subBlock ids that share a tool param keep their own default', () => {
       'certificateStatus',
       'appType',
       'rateLimitAction',
+      'updateRateLimitAction',
       'rulesetName',
       'zoneNameFilter',
       'zoneType',
