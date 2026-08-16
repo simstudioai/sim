@@ -1267,7 +1267,7 @@ Query the Okta System Log for sign-ins, admin changes, and security events. Supp
 |     ↳ `displayName` | string | Target display name |
 |   ↳ `debugData` | json | Extra context whose keys depend on the event type. Okta states these keys and values can change between releases, so treat them as a debugging aid rather than a contract |
 | `count` | number | Number of events returned |
-| `nextCursor` | string | Cursor for the next page, or null on the last page |
+| `nextCursor` | string | Cursor to resume from, or null when Okta advertised no next link. On a polling query it stays set on an empty page so the next scheduled run resumes from here rather than replaying from the start |
 | `hasMore` | boolean | Whether more events are available. A query with no "until" is a polling query, which Okta always answers with a next link even when there are no new events, so this reports false once a page comes back empty |
 | `success` | boolean | Operation success status |
 

@@ -115,6 +115,12 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
      * if there are no new events", so `hasMore` would be permanently true and
      * any loop driven by it would never terminate. An empty page ends both
      * regimes, so emptiness is the terminating signal.
+     *
+     * `hasMore` and `nextCursor` answer different questions and so diverge on an
+     * empty polling page: `hasMore` is "fetch again now" and turns false, while
+     * `nextCursor` is the resume handle Okta tells callers to persist and re-poll
+     * later. Nulling the handle would make a scheduled workflow that hits one
+     * quiet interval restart from `since` and re-deliver events it already saw.
      */
     const moreAvailable = hasMore && data.length > 0
 
@@ -161,7 +167,7 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       output: {
         events,
         count: events.length,
-        nextCursor: moreAvailable ? nextCursor : null,
+        nextCursor,
         hasMore: moreAvailable,
         success: true,
       },
@@ -271,7 +277,8 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
     count: { type: 'number', description: 'Number of events returned' },
     nextCursor: {
       type: 'string',
-      description: 'Cursor for the next page, or null on the last page',
+      description:
+        'Cursor to resume from, or null when Okta advertised no next link. On a polling query it stays set on an empty page so the next scheduled run resumes from here rather than replaying from the start',
       optional: true,
     },
     hasMore: {

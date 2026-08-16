@@ -6,7 +6,12 @@ import { mssqlInsertContract } from '@/lib/api/contracts/tools/databases/mssql'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildInsertQuery, createMSSQLConnection, executeQuery } from '@/app/api/tools/mssql/utils'
+import {
+  buildInsertQuery,
+  createMSSQLConnection,
+  executeQuery,
+  toRowsResponseBody,
+} from '@/app/api/tools/mssql/utils'
 
 const logger = createLogger('MSSQLInsertAPI')
 
@@ -36,11 +41,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] Insert executed successfully, ${result.rowCount} row(s) inserted`)
 
-      return NextResponse.json({
-        message: `Data inserted successfully. ${result.rowCount} row(s) affected.`,
-        rows: result.rows,
-        rowCount: result.rowCount,
-      })
+      return NextResponse.json(
+        toRowsResponseBody(
+          result,
+          `Data inserted successfully. ${result.rowCount} row(s) affected.`
+        )
+      )
     } finally {
       await pool.close()
     }

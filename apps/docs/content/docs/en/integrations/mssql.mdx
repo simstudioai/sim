@@ -43,6 +43,8 @@ Execute a SELECT query on a Microsoft SQL Server database
 | `message` | string | Operation status message |
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
+| `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
+| `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
 ### Microsoft SQL Server Insert
 
@@ -70,6 +72,8 @@ Insert data into a Microsoft SQL Server table
 | `message` | string | Operation status message |
 | `rows` | array | Rows returned by the statement \(empty for a plain INSERT\) |
 | `rowCount` | number | Number of rows inserted |
+| `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
+| `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
 ### Microsoft SQL Server Update
 
@@ -98,6 +102,8 @@ Update rows in a Microsoft SQL Server table
 | `message` | string | Operation status message |
 | `rows` | array | Rows returned by the statement \(empty for a plain UPDATE\) |
 | `rowCount` | number | Number of rows updated |
+| `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
+| `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
 ### Microsoft SQL Server Delete
 
@@ -125,6 +131,8 @@ Delete rows from a Microsoft SQL Server table
 | `message` | string | Operation status message |
 | `rows` | array | Rows returned by the statement \(empty for a plain DELETE\) |
 | `rowCount` | number | Number of rows deleted |
+| `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
+| `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
 ### Microsoft SQL Server Execute
 
@@ -151,6 +159,8 @@ Execute a raw T-SQL statement on a Microsoft SQL Server database
 | `message` | string | Operation status message |
 | `rows` | array | Rows returned by the statement, when it returns a result set |
 | `rowCount` | number | Number of rows returned or affected |
+| `truncated` | boolean | Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete |
+| `truncationReason` | string | Which ceiling was hit and how to read the remaining rows |
 
 ### Microsoft SQL Server Introspect
 

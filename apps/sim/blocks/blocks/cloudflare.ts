@@ -1134,7 +1134,11 @@ Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder:
         'Comma-separated URLs (e.g., https://example.com/style.css, https://example.com/app.js)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate a comma-separated list of URLs to purge from Cloudflare's cache based on the user's description.
@@ -1154,7 +1158,11 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       title: 'Cache Tags',
       type: 'short-input',
       placeholder: 'Comma-separated cache tags (Enterprise only)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       mode: 'advanced',
     },
     {
@@ -1162,7 +1170,11 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       title: 'Hostnames',
       type: 'short-input',
       placeholder: 'Comma-separated hostnames (Enterprise only)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       mode: 'advanced',
     },
     {
@@ -1170,7 +1182,11 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       title: 'URL Prefixes',
       type: 'short-input',
       placeholder: 'Comma-separated URL prefixes (Enterprise only)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       mode: 'advanced',
     },
 

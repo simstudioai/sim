@@ -228,7 +228,18 @@ describe('okta get_logs pagination termination', () => {
 
     expect(output.count).toBe(0)
     expect(output.hasMore).toBe(false)
-    expect(output.nextCursor).toBeNull()
+  })
+
+  /**
+   * Terminating the loop must not cost the poll handle. Okta documents the next
+   * link on a polling query as the position to persist and re-poll, so a quiet
+   * interval that nulled it would restart the next run from `since` and
+   * re-deliver events the workflow already processed.
+   */
+  it('keeps the resume cursor on an empty polling page', async () => {
+    const output = await outputOf(logsResponse([]))
+
+    expect(output.nextCursor).toBe('cursor1')
   })
 
   it('still advertises the cursor while events are coming back', async () => {

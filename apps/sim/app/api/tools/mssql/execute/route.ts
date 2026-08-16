@@ -6,7 +6,12 @@ import { mssqlExecuteContract } from '@/lib/api/contracts/tools/databases/mssql'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createMSSQLConnection, executeQuery, validateQuery } from '@/app/api/tools/mssql/utils'
+import {
+  createMSSQLConnection,
+  executeQuery,
+  toRowsResponseBody,
+  validateQuery,
+} from '@/app/api/tools/mssql/utils'
 
 const logger = createLogger('MSSQLExecuteAPI')
 
@@ -44,11 +49,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] T-SQL executed successfully, ${result.rowCount} row(s) affected`)
 
-      return NextResponse.json({
-        message: `SQL executed successfully. ${result.rowCount} row(s) affected.`,
-        rows: result.rows,
-        rowCount: result.rowCount,
-      })
+      return NextResponse.json(
+        toRowsResponseBody(result, `SQL executed successfully. ${result.rowCount} row(s) affected.`)
+      )
     } finally {
       await pool.close()
     }

@@ -6,7 +6,12 @@ import { mssqlDeleteContract } from '@/lib/api/contracts/tools/databases/mssql'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildDeleteQuery, createMSSQLConnection, executeQuery } from '@/app/api/tools/mssql/utils'
+import {
+  buildDeleteQuery,
+  createMSSQLConnection,
+  executeQuery,
+  toRowsResponseBody,
+} from '@/app/api/tools/mssql/utils'
 
 const logger = createLogger('MSSQLDeleteAPI')
 
@@ -52,11 +57,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] Delete executed successfully, ${result.rowCount} row(s) deleted`)
 
-      return NextResponse.json({
-        message: `Data deleted successfully. ${result.rowCount} row(s) affected.`,
-        rows: result.rows,
-        rowCount: result.rowCount,
-      })
+      return NextResponse.json(
+        toRowsResponseBody(result, `Data deleted successfully. ${result.rowCount} row(s) affected.`)
+      )
     } finally {
       await pool.close()
     }

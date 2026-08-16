@@ -50,6 +50,12 @@ interface MSSQLBaseResponse extends ToolResponse {
     message: string
     rows: unknown[]
     rowCount: number
+    /**
+     * Present only when the route dropped rows to stay inside its row and byte
+     * ceilings. Absent means `rows` is the whole recordset.
+     */
+    truncated?: boolean
+    truncationReason?: string
   }
   error?: string
 }

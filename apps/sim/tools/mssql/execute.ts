@@ -99,6 +99,10 @@ export const executeTool: ToolConfig<MSSQLExecuteParams, MSSQLExecuteResponse> =
         message: data.message || 'SQL executed successfully',
         rows: data.rows || [],
         rowCount: data.rowCount || 0,
+        ...(data.truncated && {
+          truncated: true,
+          truncationReason: data.truncationReason,
+        }),
       },
       error: undefined,
     }
@@ -111,5 +115,14 @@ export const executeTool: ToolConfig<MSSQLExecuteParams, MSSQLExecuteResponse> =
       description: 'Rows returned by the statement, when it returns a result set',
     },
     rowCount: { type: 'number', description: 'Number of rows returned or affected' },
+    truncated: {
+      type: 'boolean',
+      description:
+        'Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete',
+    },
+    truncationReason: {
+      type: 'string',
+      description: 'Which ceiling was hit and how to read the remaining rows',
+    },
   },
 }

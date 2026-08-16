@@ -6,7 +6,12 @@ import { mssqlUpdateContract } from '@/lib/api/contracts/tools/databases/mssql'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildUpdateQuery, createMSSQLConnection, executeQuery } from '@/app/api/tools/mssql/utils'
+import {
+  buildUpdateQuery,
+  createMSSQLConnection,
+  executeQuery,
+  toRowsResponseBody,
+} from '@/app/api/tools/mssql/utils'
 
 const logger = createLogger('MSSQLUpdateAPI')
 
@@ -52,11 +57,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] Update executed successfully, ${result.rowCount} row(s) updated`)
 
-      return NextResponse.json({
-        message: `Data updated successfully. ${result.rowCount} row(s) affected.`,
-        rows: result.rows,
-        rowCount: result.rowCount,
-      })
+      return NextResponse.json(
+        toRowsResponseBody(result, `Data updated successfully. ${result.rowCount} row(s) affected.`)
+      )
     } finally {
       await pool.close()
     }

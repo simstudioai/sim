@@ -167,6 +167,13 @@ const MSSQL_MAX_RESULT_BYTES = 10 * 1024 * 1024
  * Measures with `JSON.stringify` on each row because that is what the route will
  * do anyway, so the number bounds the response the caller actually receives
  * rather than an in-memory estimate that does not correspond to it.
+ *
+ * A row is admitted only when it still fits, so a single row larger than the
+ * byte ceiling is dropped rather than admitted as a lone exception — otherwise
+ * `SELECT` of one `nvarchar(max)` value would serialize an unbounded body and
+ * the ceiling would bound everything except the case it exists for. The drop is
+ * disclosed through {@link MSSQLQueryResult.truncationReason}, so an empty
+ * recordset is never mistaken for an empty table.
  */
 function capRecordset(rows: unknown[]): { rows: unknown[]; truncated: boolean } {
   if (rows.length === 0) return { rows, truncated: false }
@@ -176,10 +183,10 @@ function capRecordset(rows: unknown[]): { rows: unknown[]; truncated: boolean } 
 
   for (const row of rows) {
     if (capped.length >= MSSQL_MAX_RESULT_ROWS) break
-    bytes += JSON.stringify(row)?.length ?? 0
-    if (bytes > MSSQL_MAX_RESULT_BYTES && capped.length > 0) break
+    const rowBytes = JSON.stringify(row)?.length ?? 0
+    if (bytes + rowBytes > MSSQL_MAX_RESULT_BYTES) break
+    bytes += rowBytes
     capped.push(row)
-    if (bytes > MSSQL_MAX_RESULT_BYTES) break
   }
 
   return { rows: capped, truncated: capped.length < rows.length }
@@ -215,7 +222,31 @@ export async function executeQuery(
     rowCount: rows.length > 0 ? rows.length : affected,
     ...(truncated && {
       truncated: true,
-      truncationReason: `Result truncated to ${rows.length} row(s): a single statement returns at most ${MSSQL_MAX_RESULT_ROWS} rows or ${MSSQL_MAX_RESULT_BYTES / (1024 * 1024)} MB. Page with OFFSET ... FETCH NEXT to read the rest.`,
+      truncationReason:
+        rows.length === 0
+          ? `No rows returned: the first row alone exceeds the ${MSSQL_MAX_RESULT_BYTES / (1024 * 1024)} MB response ceiling. Select fewer columns, or slice large values with SUBSTRING.`
+          : `Result truncated to ${rows.length} row(s): a single statement returns at most ${MSSQL_MAX_RESULT_ROWS} rows or ${MSSQL_MAX_RESULT_BYTES / (1024 * 1024)} MB. Page with OFFSET ... FETCH NEXT to read the rest.`,
+    }),
+  }
+}
+
+/**
+ * Builds the success body every statement route returns.
+ *
+ * A truncated recordset is disclosed twice on purpose: folded into `message`, so
+ * an agent that reads only the status line still learns rows were dropped, and
+ * as `truncated`/`truncationReason`, so a caller can branch on it without
+ * parsing prose. Without this the route reported a capped result as a complete
+ * one and paging looked unnecessary.
+ */
+export function toRowsResponseBody(result: MSSQLQueryResult, message: string) {
+  return {
+    message: result.truncationReason ? `${message} ${result.truncationReason}` : message,
+    rows: result.rows,
+    rowCount: result.rowCount,
+    ...(result.truncated && {
+      truncated: true,
+      truncationReason: result.truncationReason,
     }),
   }
 }

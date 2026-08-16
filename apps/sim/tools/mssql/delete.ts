@@ -106,6 +106,10 @@ export const deleteTool: ToolConfig<MSSQLDeleteParams, MSSQLDeleteResponse> = {
         message: data.message || 'Data deleted successfully',
         rows: data.rows || [],
         rowCount: data.rowCount || 0,
+        ...(data.truncated && {
+          truncated: true,
+          truncationReason: data.truncationReason,
+        }),
       },
       error: undefined,
     }
@@ -118,5 +122,14 @@ export const deleteTool: ToolConfig<MSSQLDeleteParams, MSSQLDeleteResponse> = {
       description: 'Rows returned by the statement (empty for a plain DELETE)',
     },
     rowCount: { type: 'number', description: 'Number of rows deleted' },
+    truncated: {
+      type: 'boolean',
+      description:
+        'Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete',
+    },
+    truncationReason: {
+      type: 'string',
+      description: 'Which ceiling was hit and how to read the remaining rows',
+    },
   },
 }

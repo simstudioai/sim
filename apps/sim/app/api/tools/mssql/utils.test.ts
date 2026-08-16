@@ -41,6 +41,7 @@ import {
   executeIntrospect,
   executeQuery,
   type MSSQLConnectionConfig,
+  toRowsResponseBody,
   validateQuery,
   validateReadOnlyQuery,
 } from '@/app/api/tools/mssql/utils'
@@ -482,6 +483,53 @@ describe('executeQuery result caps', () => {
     expect(result.rows).toEqual(rows)
     expect(result.truncated).toBeUndefined()
     expect(result.truncationReason).toBeUndefined()
+  })
+
+  it('never serializes past the byte ceiling', async () => {
+    const fat = Array.from({ length: 20 }, () => ({ blob: 'x'.repeat(1024 * 1024) }))
+    const result = await executeQuery(makeCapPool(fat), 'SELECT 1')
+
+    expect(JSON.stringify(result.rows).length).toBeLessThanOrEqual(10 * 1024 * 1024)
+  })
+
+  it('drops a lone row that is larger than the byte ceiling rather than admitting it', async () => {
+    const oversized = [{ blob: 'x'.repeat(11 * 1024 * 1024) }]
+    const result = await executeQuery(makeCapPool(oversized), 'SELECT 1')
+
+    expect(result.rows).toEqual([])
+    expect(result.truncated).toBe(true)
+    expect(result.truncationReason).toMatch(/exceeds the 10 MB response ceiling/)
+  })
+})
+
+describe('toRowsResponseBody truncation disclosure', () => {
+  it('discloses a truncated result in both the message and machine-readable fields', () => {
+    const body = toRowsResponseBody(
+      {
+        rows: [{ id: 1 }],
+        rowCount: 1,
+        truncated: true,
+        truncationReason: 'Result truncated to 1 row(s): page with OFFSET ... FETCH NEXT.',
+      },
+      'Query executed successfully. 1 row(s) returned.'
+    )
+
+    expect(body.truncated).toBe(true)
+    expect(body.truncationReason).toMatch(/OFFSET/)
+    expect(body.message).toBe(
+      'Query executed successfully. 1 row(s) returned. Result truncated to 1 row(s): page with OFFSET ... FETCH NEXT.'
+    )
+  })
+
+  it('leaves a complete result free of truncation fields', () => {
+    const body = toRowsResponseBody(
+      { rows: [{ id: 1 }], rowCount: 1 },
+      'Query executed successfully. 1 row(s) returned.'
+    )
+
+    expect(body.message).toBe('Query executed successfully. 1 row(s) returned.')
+    expect(body).not.toHaveProperty('truncated')
+    expect(body).not.toHaveProperty('truncationReason')
   })
 })
 

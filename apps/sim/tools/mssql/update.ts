@@ -113,6 +113,10 @@ export const updateTool: ToolConfig<MSSQLUpdateParams, MSSQLUpdateResponse> = {
         message: data.message || 'Data updated successfully',
         rows: data.rows || [],
         rowCount: data.rowCount || 0,
+        ...(data.truncated && {
+          truncated: true,
+          truncationReason: data.truncationReason,
+        }),
       },
       error: undefined,
     }
@@ -125,5 +129,14 @@ export const updateTool: ToolConfig<MSSQLUpdateParams, MSSQLUpdateResponse> = {
       description: 'Rows returned by the statement (empty for a plain UPDATE)',
     },
     rowCount: { type: 'number', description: 'Number of rows updated' },
+    truncated: {
+      type: 'boolean',
+      description:
+        'Present and true only when rows were dropped to stay inside the response ceilings. Absent means the recordset is complete',
+    },
+    truncationReason: {
+      type: 'string',
+      description: 'Which ceiling was hit and how to read the remaining rows',
+    },
   },
 }
