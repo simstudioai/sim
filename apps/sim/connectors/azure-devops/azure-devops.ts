@@ -246,10 +246,11 @@ interface GitRepository {
 }
 
 /**
- * Resolves the browsable base URL for a repository. `webUrl` is only present
- * when the repositories listing is requested with `includeAllUrls=true`;
- * `remoteUrl` is always returned and points at the same
- * `.../{project}/_git/{repo}` web route, so it is the fallback.
+ * Resolves the browsable base URL for a repository. `webUrl` is declared on
+ * GitRepository but absent from the documented sample responses, so it cannot be
+ * relied on; `remoteUrl` appears in every sample as
+ * `https://dev.azure.com/{org}/{project}/_git/{repo}`, which is the same web
+ * route, and serves as the fallback.
  */
 function repoBaseUrl(repo: GitRepository | undefined): string | undefined {
   return repo?.webUrl || repo?.remoteUrl
@@ -699,9 +700,10 @@ async function listRepositories(
   syncContext?: Record<string, unknown>
 ): Promise<GitRepository[]> {
   /**
-   * `includeAllUrls=true` is required for the response to carry `webUrl`; without
-   * it the listing returns only `url`/`remoteUrl` and every repository-file
-   * document would be indexed with no `sourceUrl`.
+   * `includeAllUrls=true` — "True to include all remote URLs. The default value
+   * is false." The docs do not say which of GitRepository's URL fields it gates,
+   * and the sample listing omits `webUrl`, so it is requested to maximise the
+   * chance of getting one; `repoBaseUrl` falls back to `remoteUrl` regardless.
    */
   const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/git/repositories?includeAllUrls=true&api-version=${GIT_API_VERSION}`
   const response = await fetchWithRetry(

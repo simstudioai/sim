@@ -56,12 +56,15 @@ function isGridSheet(sheet: SheetProperties): boolean {
 /**
  * A1 range covering every column of the first {@link MAX_ROWS} rows of a tab.
  *
- * A row-only range (`'Title'!1:1000`) is used deliberately instead of a
- * column-bounded one: Sheets allows up to 18,278 columns (column `ZZZ`), so a
- * hard-coded `A1:ZZ` ceiling (column 702) would silently drop every column past
- * it. Sheet names are wrapped in single quotes — "Single quotes are required for
- * sheet names with spaces or special characters" — and an embedded quote is
- * doubled, matching how Sheets itself renders such a reference.
+ * A row-only range is used deliberately instead of a column-bounded one — the A1
+ * guide documents `Sheet1!1:2` as "all the cells in the first two rows of Sheet1"
+ * — because a sheet may hold up to 18,278 columns (column `ZZZ`, per the Drive
+ * size-limits support article) and a hard-coded `A1:ZZ` ceiling (column 702)
+ * would silently drop every column past it. Sheet names are wrapped in single
+ * quotes: "Single quotes are required for sheet names with spaces or special
+ * characters." The `''` escape for an embedded apostrophe is carried over
+ * unchanged from the previous range builder; it matches the Sheets UI but is not
+ * documented, and the guide's own `'Jon's_Data'` example leaves it unescaped.
  */
 function sheetRowRange(sheetTitle: string): string {
   return `'${sheetTitle.replace(/'/g, "''")}'!1:${MAX_ROWS}`

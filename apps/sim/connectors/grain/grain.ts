@@ -115,12 +115,15 @@ function isParticipantScope(value: unknown): value is ParticipantScope {
  *
  * Supported keys (verified against the in-repo Grain list_recordings tool / Public API):
  * - `after_datetime` — derived from `lookbackDays`; recordings on/after the window start.
- *   Grain's reference describes this field as "recordings which `start_datetime` is
- *   *before* the selected date" and `before_datetime` as "*after* the selected date",
- *   which contradicts both field names and each other; the descriptions appear to be
- *   transposed upstream. The name-implied direction is used here. If a live Grain
- *   source ever returns the complement of the requested lookback window, swap to
- *   `before_datetime` rather than re-deriving the timestamp.
+ *   Grain's Recording Filter table documents this field as "Only return recordings
+ *   which `start_datetime` is *before* the selected date (inclusive)" and
+ *   `before_datetime` as "…is *after* the selected date (exclusive)". The two
+ *   descriptions are consistent with each other but inverted relative to the field
+ *   names, so the pair reads as transposed upstream; nothing else on the page
+ *   disambiguates and no example uses either key. The name-implied direction is used
+ *   here and the ambiguity is deliberately left unresolved rather than guessed. If a
+ *   live Grain source ever returns the complement of the requested lookback window,
+ *   swap to `before_datetime` rather than re-deriving the timestamp.
  * - `participant_scope` — `internal` or `external`
  * - `title_search` — substring match against recording titles
  * - `team` — recordings belonging to the given team UUID

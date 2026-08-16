@@ -313,7 +313,6 @@ async function fetchParticipants(
       { method: 'GET', headers: meetHeaders(accessToken) }
     )
     if (!response.ok) {
-      if (response.status === 404) break
       throw new Error(`Failed to list Google Meet participants: ${response.status}`)
     }
     const data = (await response.json()) as ParticipantsListResponse
@@ -399,10 +398,11 @@ function formatTranscriptContent(
 }
 
 /**
- * Browsable URL for a transcript's exported Google Doc. The Meet artifacts guide names
- * `exportUri` as the value to use "to fetch the content or to browse [it] in a browser",
- * so it is used verbatim. `document` is documented only as a `documentId` with no URL
- * template, so it is a fallback assembled into the standard Docs path.
+ * Browsable URL for a transcript's exported Google Doc. `DocsDestination.exportUri` is
+ * documented as "URI for the Google Docs transcript file", so it is used verbatim. The
+ * same field documents the fallback template used when only `document` is present: "Use
+ * `https://docs.google.com/document/d/{$DocumentId}/view` to browse the transcript in
+ * the browser."
  */
 function transcriptSourceUrl(transcripts: Transcript[]): string | undefined {
   const exportUri = transcripts.find((t) => t.docsDestination?.exportUri)?.docsDestination

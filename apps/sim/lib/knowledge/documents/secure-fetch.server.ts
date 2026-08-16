@@ -4,6 +4,7 @@ import {
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
 import {
+  attachRetryHeaders,
   type HTTPError,
   isRetryableError,
   type RetryOptions,
@@ -61,7 +62,7 @@ export async function secureFetchWithRetry(
       )
       error.status = response.status
       error.statusText = response.statusText
-      error.headers = response.headers
+      attachRetryHeaders(error, response.headers)
 
       const waitMs = resolveRetryDelayMs(response.headers)
       if (waitMs !== undefined) {

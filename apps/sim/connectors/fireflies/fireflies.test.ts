@@ -134,6 +134,30 @@ describe('fireflies listDocuments', () => {
     )
   })
 
+  it('throws rather than reporting an empty listing when a 200 body is unreadable', async () => {
+    mockFetchWithRetry.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON at position 0')
+      },
+      text: async () => '<html>gateway</html>',
+    } as unknown as Response)
+    const syncContext: Record<string, unknown> = {}
+
+    await expect(
+      firefliesConnector.listDocuments('key', {}, undefined, syncContext)
+    ).rejects.toThrow(/malformed/i)
+  })
+
+  it('throws rather than reporting an empty listing when a 200 carries no data', async () => {
+    mockGraphQL([{ body: {} }])
+
+    await expect(firefliesConnector.listDocuments('key', {}, undefined, {})).rejects.toThrow(
+      /malformed/i
+    )
+  })
+
   it('surfaces the errors[] message on a non-2xx response', async () => {
     mockGraphQL([
       { status: 403, body: { errors: [{ message: 'Upgrade required', code: 'paid_required' }] } },

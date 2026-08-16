@@ -5,7 +5,6 @@ import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   buildDriveParentsClause,
-  CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   joinTagArray,
   markSkipped,
@@ -19,11 +18,13 @@ const logger = createLogger('GoogleDocsConnector')
 
 /**
  * Ceiling for the raw `documents.get` JSON body, applied as a streaming memory
- * guard. The structured response is far larger than the plain text it yields
- * (every run carries its styling), so it is set well above the per-file content
- * cap rather than equal to it.
+ * guard. A Google Doc holds at most 1.02 million characters and the structured
+ * response inflates that with per-run styling, so this is an absolute bound
+ * rather than a multiple of `CONNECTOR_MAX_FILE_BYTES` — that cap is 100MB, and
+ * a multiple of it would both admit hundreds of megabytes into memory and sit so
+ * far above any reachable document that the guard could never fire.
  */
-const MAX_DOCS_RESPONSE_BYTES = 8 * CONNECTOR_MAX_FILE_BYTES
+const MAX_DOCS_RESPONSE_BYTES = 100 * 1024 * 1024
 
 /** Drive `files.list` page size. The API caps `pageSize` at 1000. */
 const PAGE_SIZE = 100

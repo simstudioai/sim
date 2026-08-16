@@ -201,7 +201,8 @@ export const webflowConnector: ConnectorConfig = {
      * `pagination.limit`, so a short page can never skip rows.
      */
     const reportedTotal = Number(data.pagination?.total)
-    const total = Number.isFinite(reportedTotal) ? reportedTotal : rawItems.length
+    const totalKnown = Number.isFinite(reportedTotal)
+    const total = totalKnown ? reportedTotal : rawItems.length
     const advance = rawItems.length
 
     const hasMoreInCollection = advance > 0 && cursorState.offset + advance < total
@@ -216,6 +217,14 @@ export const webflowConnector: ConnectorConfig = {
     const stalledMidCollection = advance === 0 && cursorState.offset < total
 
     /**
+     * A full page with no usable `pagination.total` to page against. The fallback
+     * total collapses to the row count, which ends the collection right here, so
+     * whether rows remain is unknowable — and guessing "exhausted" would hand
+     * every unread row to deletion reconciliation.
+     */
+    const unknownTotalOnFullPage = !totalKnown && advance >= pageSize
+
+    /**
      * A truncated listing must skip deletion reconciliation, or still-existing
      * documents that were never listed get hard-deleted. The cap truncates only
      * when rows remain beyond it: more pages in this collection, or more
@@ -224,7 +233,9 @@ export const webflowConnector: ConnectorConfig = {
      */
     if (
       syncContext &&
-      (stalledMidCollection || (hitMaxItems && (hasMoreInCollection || hasMoreCollections)))
+      (stalledMidCollection ||
+        unknownTotalOnFullPage ||
+        (hitMaxItems && (hasMoreInCollection || hasMoreCollections)))
     ) {
       syncContext.listingCapped = true
     }

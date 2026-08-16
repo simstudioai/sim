@@ -298,10 +298,14 @@ async function fetchWorksheets(
   if (url) truncated = true
 
   /**
-   * The `$orderby` above is honoured per page, but nothing guarantees a stable order
-   * once pages are concatenated, and both the `first` sheet filter and the
-   * `MAX_WORKSHEETS` cut pick by position. Re-sorting the assembled list is cheap and
-   * makes the order deterministic regardless.
+   * The `$orderby=position` above cannot be relied on. The worksheet-list reference
+   * only says the method "supports the OData Query Parameters" without itemizing
+   * which (https://learn.microsoft.com/en-us/graph/api/worksheet-list), and Graph
+   * documents that unsupported query parameters "fail silently"
+   * (https://learn.microsoft.com/en-us/graph/query-parameters — "Error handling for
+   * query parameters"). Both the `first` sheet filter and the `MAX_WORKSHEETS` cut
+   * pick by position, so the assembled list is re-sorted client-side to keep that
+   * choice deterministic whether or not Graph honoured the projection.
    */
   worksheets.sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 
@@ -637,10 +641,12 @@ export const microsoftExcelConnector: ConnectorConfig = {
       }
       /**
        * Everything reaching here is a transport or Graph failure that survived
-       * `fetchWithRetry`. Returning `null` would let the worksheet quietly go
-       * unindexed with no `failed` row; rethrowing lets the sync engine record it
-       * per-document (it hydrates deferred docs under `Promise.allSettled`, so one
-       * bad worksheet never aborts the run, and logs the rejection itself).
+       * `fetchWithRetry`. Returning `null` reads to the sync engine as "no content",
+       * which for a newly added worksheet is silent — no counter moves and nothing is
+       * logged. Rethrowing surfaces it instead: the engine hydrates deferred documents
+       * under `Promise.allSettled`, so one bad worksheet never aborts the run, and a
+       * rejection increments `docsFailed`, logs the externalId, and marks it as an
+       * unverified refresh so a tombstoned sheet is not resurrected on a failed fetch.
        */
       throw toError(error)
     }

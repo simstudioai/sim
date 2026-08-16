@@ -91,6 +91,26 @@ function readHeaders(error: RetryableError): HeaderReader | undefined {
 }
 
 /**
+ * Attaches response headers to a thrown error as a non-enumerable property, so
+ * the retry loop can re-evaluate rate-limit evidence without the header bag
+ * reaching a log line.
+ *
+ * `@sim/logger` copies an error's own *enumerable* properties into the formatted
+ * output, and `SecureFetchHeaders` keeps its `Set-Cookie` values in an ordinary
+ * array field, so a plain assignment prints the upstream response's cookies.
+ * `readHeaders` uses `in`, which sees non-enumerable properties, so the retry
+ * path is unaffected.
+ */
+export function attachRetryHeaders(error: HTTPError, headers: HeaderReader): void {
+  Object.defineProperty(error, 'headers', {
+    value: headers,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  })
+}
+
+/**
  * True when response headers positively identify a rate-limit rejection rather
  * than an authorization denial.
  *
@@ -344,7 +364,7 @@ export async function fetchWithRetry(
       error.statusText = response.statusText
       // The retry loop re-runs the retry condition against this error, so the
       // headers must travel with it or a rate-limit 403 would throw immediately.
-      error.headers = response.headers
+      attachRetryHeaders(error, response.headers)
 
       // Pass the server-stated wait to the retry loop so it replaces exponential
       // backoff. Falls back to the epoch-seconds reset header when the provider

@@ -12,11 +12,17 @@ const DEFAULT_HOST = 'sentry.io'
 const ISSUES_PER_PAGE = 100
 
 /**
- * Allowed `statsPeriod` values. On the issues list, `statsPeriod` selects the
- * timeline stats Sentry computes per issue, and the documented choices are `24h`
- * (the default) and `14d`, with an empty value disabling the stats window
- * entirely. Anything else is rejected during validation rather than sent and
- * silently reinterpreted.
+ * Allowed values for the per-issue stats window.
+ *
+ * On the organization issues endpoint the parameter that selects the timeline
+ * Sentry computes per issue is `groupStatsPeriod`, whose documented choices are
+ * `''`, `24h`, `14d`, and `auto`; anything else is rejected with
+ * `Invalid stats_period`. The similarly-named `statsPeriod` is a different
+ * parameter on this endpoint — it is the query's *date range* and would filter
+ * issues out of the listing entirely — so it is deliberately never sent.
+ *
+ * `auto` is not offered because it derives the window from an explicit date
+ * range this connector does not set.
  */
 const ALLOWED_STATS_PERIODS = new Set(['24h', '14d'])
 
@@ -398,10 +404,17 @@ export const sentryConnector: ConnectorConfig = {
      * `/api/0/organizations/{org}/issues/?project=<slug>`. Sentry marks the
      * project-scoped `/api/0/projects/{org}/{project}/issues/` deprecated and names this
      * endpoint as its replacement. `project` accepts project slugs as well as numeric ids
-     * ("The IDs or slugs of projects to filter by"), so the connector stays keyed on the
-     * human-readable slug, and `environment` is a documented parameter here. Issue detail
+     * (the docs' own examples include `?project=android&project=javascript-react`), so the
+     * connector stays keyed on the human-readable slug, and `environment` is a documented
+     * parameter here. `limit` is capped at 100, which {@link ISSUES_PER_PAGE} matches. Issue detail
      * and latest-event fetches already use organization-scoped paths, so the whole
      * connector now speaks one path style.
+     *
+     * Consequence of the migration: this endpoint always resolves a date range, and
+     * with no `statsPeriod`/`start`/`end` it defaults to the widest range it accepts
+     * (90 days). Issues last seen before that window are absent from the listing and
+     * are reconciled away, which is the same "aged out of the query window" semantic
+     * the default query already documents.
      */
     const url = new URL(`${apiBase}/organizations/${encodeURIComponent(organization)}/issues/`)
     url.searchParams.set('project', project)
@@ -416,7 +429,7 @@ export const sentryConnector: ConnectorConfig = {
      */
     url.searchParams.set('sort', 'new')
     url.searchParams.set('limit', String(Math.min(ISSUES_PER_PAGE, Math.max(1, remaining))))
-    if (statsPeriod) url.searchParams.set('statsPeriod', statsPeriod)
+    if (statsPeriod) url.searchParams.set('groupStatsPeriod', statsPeriod)
     if (environment) url.searchParams.set('environment', environment)
     if (cursor) url.searchParams.set('cursor', cursor)
 

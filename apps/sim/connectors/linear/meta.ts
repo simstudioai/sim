@@ -11,9 +11,10 @@ export const linearConnectorMeta: ConnectorMeta = {
   auth: { mode: 'oauth', provider: 'linear', requiredScopes: ['read'] },
 
   /**
-   * Linear's `IssueFilter.updatedAt` DateComparator lets a sync narrow to issues
-   * touched since the last run, which Linear explicitly recommends over walking
-   * the full dataset on every poll.
+   * `IssueFilter.updatedAt` is a `DateComparator`, so a sync can narrow to
+   * issues touched since the last run instead of walking the full dataset.
+   * Latent today: `knowledgeConnector.syncMode` defaults to `'full'` and
+   * nothing writes it, so `shouldRunIncrementalSync` never selects this path.
    */
   supportsIncrementalSync: true,
 

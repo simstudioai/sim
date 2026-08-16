@@ -156,14 +156,18 @@ export const airtableConnector: ConnectorConfig = {
     const maxRecords = readMaxRecords(sourceConfig)
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    /** Shrink the last page so a `maxRecords` cap never over-fetches past it. */
-    const pageSize =
-      maxRecords > 0 ? Math.max(1, Math.min(PAGE_SIZE, maxRecords - prevFetched)) : PAGE_SIZE
 
     const tableId = await resolveTableId(accessToken, baseId, tableIdOrName, syncContext)
 
+    /**
+     * `pageSize` is held at the documented maximum for every request of a sync.
+     * Airtable already stops pagination itself once `maxRecords` is reached, and
+     * its `offset` is an opaque iterator token whose validity across a changed
+     * `pageSize` is undocumented — so shrinking the last page would buy nothing
+     * and risk breaking iteration mid-sync.
+     */
     const params = new URLSearchParams()
-    params.append('pageSize', String(pageSize))
+    params.append('pageSize', String(PAGE_SIZE))
     if (viewId) params.append('view', viewId)
     if (maxRecords > 0) params.append('maxRecords', String(maxRecords))
 
@@ -217,10 +221,12 @@ export const airtableConnector: ConnectorConfig = {
     const nextOffset = data.offset
     const hitLimit = maxRecords > 0 && totalFetched >= maxRecords
     /**
-     * Airtable omits `offset` once `maxRecords` is reached, so an exhausted
-     * source and a capped one are indistinguishable. Flag conservatively: a
-     * capped listing must never let the engine hard-delete the records the cap
-     * hid.
+     * Airtable enforces `maxRecords` itself — "pagination will stop once you've
+     * reached this maximum" — but does not document whether it still returns an
+     * `offset` at that point, so an exhausted source and a capped one cannot be
+     * told apart here. Flagged conservatively: a capped listing must never let
+     * the engine hard-delete the records the cap hid. The cost is that deletion
+     * reconciliation only runs for a capped source on an explicit full resync.
      */
     if (hitLimit && syncContext) syncContext.listingCapped = true
 
@@ -239,7 +245,10 @@ export const airtableConnector: ConnectorConfig = {
   ): Promise<ExternalDocument | null> => {
     const baseId = readConfigString(sourceConfig, 'baseId')
     const tableIdOrName = readConfigString(sourceConfig, 'tableIdOrName')
-    if (!baseId || !tableIdOrName) return null
+    /** A broken config is not evidence the record is gone, so it must not read as absence. */
+    if (!baseId || !tableIdOrName) {
+      throw new Error('Airtable connector is missing baseId or tableIdOrName')
+    }
     const titleField = readConfigString(sourceConfig, 'titleField')
 
     const tableId = await resolveTableId(accessToken, baseId, tableIdOrName, syncContext)

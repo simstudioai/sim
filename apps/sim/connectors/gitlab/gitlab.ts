@@ -1031,8 +1031,9 @@ export const gitlabConnector: ConnectorConfig = {
       /**
        * Only the 404 checks above (and an unrecognized externalId prefix) mean the object
        * is genuinely gone. Every other failure is rethrown so the sync engine records a
-       * failed row and excludes the file from deletion reconciliation, instead of
-       * hard-deleting an already-indexed document on a transient GitLab fault.
+       * visible `docsFailed` row. Returning `null` instead would report a transient
+       * GitLab fault as success — an already-indexed document is silently counted as
+       * unchanged, and a new one vanishes from the run with nothing recorded.
        */
       logger.warn(`Failed to fetch GitLab document ${externalId}`, {
         error: toError(error).message,

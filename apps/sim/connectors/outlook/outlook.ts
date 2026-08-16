@@ -417,10 +417,11 @@ function escapeSearchValue(value: string): string {
 /**
  * Builds the initial Graph API URL for listing messages.
  *
- * `$search` and `$filter` are mutually exclusive on Outlook message
- * collections — Graph rejects a request carrying both — so when a search query
- * is configured no `$filter` is sent at all and the draft, focused-inbox, and
- * date-cutoff predicates are applied client-side instead.
+ * Graph documents combining `$search` with `$filter` only for directory
+ * objects; for Outlook message collections it documents neither the combination
+ * nor which `$filter` properties survive one. Rather than depend on
+ * undocumented behavior, a search-scoped listing sends no `$filter` at all and
+ * applies the draft, focused-inbox, and date-cutoff predicates client-side.
  */
 function buildInitialUrl(sourceConfig: Record<string, unknown>): string {
   const params = new URLSearchParams({
@@ -654,9 +655,9 @@ export const outlookConnector: ConnectorConfig = {
       const messages = (data.value || []) as OutlookMessage[]
 
       /**
-       * `$search` and `$filter` cannot both be sent on a message collection, so
-       * a search-scoped listing carries no server-side predicates and applies
-       * the draft, focused-inbox, and date-cutoff filters here instead.
+       * A search-scoped listing deliberately carries no `$filter` (see
+       * {@link buildInitialUrl}), so the draft, focused-inbox, and date-cutoff
+       * predicates are applied here instead.
        */
       const focusedOnly = sourceConfig.focusedOnly !== 'false'
       const hasSearch = Boolean(resolveSearchQuery(sourceConfig))

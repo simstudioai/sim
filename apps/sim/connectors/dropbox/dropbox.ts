@@ -90,9 +90,12 @@ function isDownloadableFile(entry: DropboxEntry): entry is DropboxFileMetadata {
 }
 
 /**
- * Normalizes a user-supplied folder path to what `/2/files/list_folder` expects:
- * the empty string for the Dropbox root, otherwise a leading slash and no trailing
- * slash (a trailing slash is rejected as `malformed_path`).
+ * Normalizes a user-supplied folder path to the `PathROrId` format
+ * `/2/files/list_folder` declares: the empty string for the Dropbox root (the
+ * leading-slash branch of the pattern is optional precisely so `""` matches),
+ * otherwise a leading slash. The trailing slash is stripped as defensive
+ * tidying of free-form input, not because Dropbox documents rejecting it.
+ * A path outside the format fails with `path/malformed_path`.
  */
 function normalizeFolderPath(raw: unknown): string {
   const trimmed = typeof raw === 'string' ? raw.trim() : ''

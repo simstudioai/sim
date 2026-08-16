@@ -16,10 +16,12 @@ const LIST_PAGE_SIZE = 100
 const SEARCH_PAGE_SIZE = 200
 
 /**
- * The CRM Search API is capped at 10,000 total results per query — paging past
- * it returns a 400. The list endpoint has no such ceiling, so search is only
- * used when the configured record cap fits inside it (to preserve
- * most-recently-modified-first ordering for capped syncs).
+ * The CRM Search API is capped at 10,000 total results per query — HubSpot
+ * documents that "attempting to page beyond 10,000 will result in a 400 error".
+ * No equivalent ceiling is documented for the list endpoint, so search is used
+ * only when the configured record cap provably fits inside the search ceiling
+ * (which buys most-recently-modified-first ordering for capped syncs); every
+ * uncapped sync pages the list endpoint instead.
  */
 const SEARCH_RESULT_CAP = 10_000
 

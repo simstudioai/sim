@@ -137,12 +137,10 @@ async function graphApiGet<T>(
  * Resolves the configured message budget, falling back to the default for
  * missing, non-numeric, or non-positive values.
  *
- * `validateConfig` rejects those inputs, but a config saved before validation
- * tightened (or edited out-of-band) would otherwise yield `NaN` here, which
- * makes every comparison false and every channel come back with zero messages.
- * An empty channel is dropped from the listing, and the sync engine
- * hard-deletes stored documents absent from a full listing — silently wiping
- * every indexed channel.
+ * `validateConfig` rejects those inputs on save, but a config written before
+ * validation tightened (or edited out-of-band) would otherwise yield `NaN`
+ * here, which makes every budget comparison false and returns every channel
+ * with zero messages — dropping it from the listing entirely.
  */
 function resolveMaxMessages(value: unknown): number {
   if (value === undefined || value === null || value === '') return DEFAULT_MAX_MESSAGES

@@ -14,6 +14,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 import { secureFetchWithRetry } from './secure-fetch.server'
 import {
   fetchWithRetry,
+  type HTTPError,
   hasRateLimitEvidence,
   isRetryableError,
   resolveRetryDelayMs,
@@ -448,6 +449,30 @@ describe('fetchWithRetry rate-limit handling', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     // Clamped by maxDelayMs, so the reset window never stalls the loop.
     expect(Date.now() - started).toBeLessThan(1000)
+  })
+
+  /**
+   * `@sim/logger` copies an error's own *enumerable* properties into its
+   * formatted output, and the retry loop logs `{ error }` on every failed
+   * attempt. `SecureFetchHeaders` keeps its `Set-Cookie` values in an ordinary
+   * array field, so an enumerable `headers` prints the upstream response's
+   * cookies. The retry path reads it via `in`, which sees it either way.
+   */
+  it('carries headers on the thrown error without exposing them to the logger', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(response(403, { 'retry-after': '0', 'x-ratelimit-remaining': '0' }))
+    globalThis.fetch = fetchMock
+
+    const error = await fetchWithRetry('https://api.github.com/repos', {}, FAST_RETRY).then(
+      () => undefined,
+      (e) => e as HTTPError
+    )
+
+    // Retried, so the headers really did reach the retry condition.
+    expect(fetchMock).toHaveBeenCalledTimes(FAST_RETRY.maxRetries + 1)
+    expect(error?.headers?.get('x-ratelimit-remaining')).toBe('0')
+    expect(Object.keys(error as object)).not.toContain('headers')
   })
 })
 

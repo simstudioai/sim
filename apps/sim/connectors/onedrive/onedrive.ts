@@ -47,13 +47,15 @@ const ITEM_SELECT = 'id,name,webUrl,size,file,folder,lastModifiedDateTime,create
 /**
  * Requested page size for a children collection, matching Graph's own default.
  *
- * No `$orderby` accompanies it: Graph documents `$orderby` on `/children`, but
- * OneDrive for Business and SharePoint-backed drives honour it only for `name`
- * and `url`, so a `lastModifiedDateTime` sort is silently ignored there. The
- * listing order is therefore whatever the drive returns, which matters only for
- * *which* files a `maxFiles` cap keeps.
+ * No `$orderby` accompanies it: `/children` accepts `$orderby` on `name`, `size`,
+ * and `lastModifiedDateTime`, but "in OneDrive for Business and SharePoint Server
+ * 2016, the orderby query string only works with name and url" — so a
+ * `lastModifiedDateTime` sort is silently ignored on exactly the drives this
+ * connector is most often pointed at. The listing order is therefore whatever the
+ * drive returns, which matters only for *which* files a `maxFiles` cap keeps.
  *
- * @see https://learn.microsoft.com/en-us/graph/api/driveitem-list-children
+ * @see https://learn.microsoft.com/en-us/graph/api/driveitem-list-children — 200-item default page size, `$orderby` support
+ * @see https://learn.microsoft.com/en-us/onedrive/developer/rest-api/concepts/optional-query-parameters — the name/url restriction
  */
 const PAGE_SIZE = 200
 

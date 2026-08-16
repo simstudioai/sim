@@ -555,11 +555,12 @@ export const jsmConnector: ConnectorConfig = {
     })
 
     /**
-     * Per the JSM REST docs, 404 is "the request does not exist or is not visible
-     * to the user" and 403 is "no permission to view this customer request" —
-     * both are absence from this credential's point of view. A 401 is an
-     * invalid/expired token: a whole-sync fault that must surface as a failed
-     * document rather than silently dropping every request in the run.
+     * The JSM REST docs document 404 as "Returned if the customer request does not
+     * exist" and 403 as "Returned if the user does not have permission to complete
+     * this request" — for a sync credential both amount to absence, since the
+     * connector can never widen its own visibility. A 401 ("Returned if the user is
+     * not logged in") is an invalid/expired token: a whole-sync fault that must
+     * surface as a failed document rather than silently dropping every request.
      */
     if (!response.ok) {
       if (response.status === 404) return null

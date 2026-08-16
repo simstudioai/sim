@@ -326,16 +326,12 @@ export const asanaConnector: ConnectorConfig = {
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     /**
-     * Last-page precision: once a `maxTasks` cap exists, never ask Asana for
-     * more rows than the cap still has room for.
+     * Held constant across every request of a sync. Asana's `offset` is an
+     * opaque token and the docs do not say it survives a changed `limit`, while
+     * `decideTaskCap` already trims the cap exactly — so varying the page size
+     * per call would buy nothing and risk invalidating a mid-project offset.
      */
-    const remaining = maxTasks > 0 ? Math.max(maxTasks - previouslyFetched, 0) : 0
-    if (maxTasks > 0 && remaining === 0) {
-      if (syncContext) syncContext.listingCapped = true
-      return { documents: [], nextCursor: undefined, hasMore: false }
-    }
-    const pageSize =
-      maxTasks > 0 ? Math.max(Math.min(remaining, ASANA_MAX_PAGE_SIZE), 1) : ASANA_MAX_PAGE_SIZE
+    const pageSize = maxTasks > 0 ? Math.min(maxTasks, ASANA_MAX_PAGE_SIZE) : ASANA_MAX_PAGE_SIZE
 
     /**
      * Cursor format:

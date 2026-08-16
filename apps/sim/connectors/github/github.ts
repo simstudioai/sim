@@ -176,10 +176,12 @@ async function fetchBlobContent(
     return buf.toString('utf8')
   }
   /**
-   * Per https://docs.github.com/en/rest/git/blobs the Blobs API only ever
-   * returns base64. Refuse to silently persist empty content for an
-   * unexpected encoding so a sync surfaces the error instead.
+   * https://docs.github.com/en/rest/git/blobs documents two encodings —
+   * "Currently, 'utf-8' and 'base64' are supported" — so a utf-8 body is already
+   * plain text and is used as written. Any other encoding would silently persist
+   * empty content, so it throws and surfaces as a failed document instead.
    */
+  if (encoding === 'utf-8') return content
   throw new Error(`Unexpected git blob encoding for ${sha}: ${encoding ?? 'undefined'}`)
 }
 
@@ -378,9 +380,11 @@ export const githubConnector: ConnectorConfig = {
         content = buf.toString('utf8')
       } else if (encoding === 'none' && data.sha && size > 0) {
         /**
-         * The Contents API returns `content: ""` with `encoding: "none"` for files
-         * over 1 MB (verified against a 2.3 MB blob). The Git Blobs API serves the
-         * same blob base64-encoded up to 100 MB.
+         * Per https://docs.github.com/en/rest/repos/contents, for files of 1-100 MB
+         * "the content field will be an empty string and the encoding field will be
+         * `none`". The Contents page points at the raw media type; the Git Blobs API
+         * is used instead because it returns the same blob as JSON and is documented
+         * to support blobs up to 100 MB.
          */
         const blobContent = await fetchBlobContent(accessToken, owner, repo, data.sha as string)
         if (blobContent === null) {

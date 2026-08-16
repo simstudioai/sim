@@ -62,6 +62,20 @@ describe('wordpress listDocuments', () => {
     expect(url.searchParams.get('fields')).toContain('modified')
   })
 
+  /**
+   * The API builds `meta.next_page` as `value=<sort column>&id=<ID>` and omits the
+   * handle entirely when that column is absent from `fields`. Ordering defaults to
+   * `date`, so dropping `date` from the projection silently disables the cursor and
+   * falls back to offset paging, which re-numbers whenever a post is published.
+   */
+  it('keeps the default sort column in the projection so page_handle is returned', async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ found: 0, posts: [] }))
+
+    await wordpressConnector.listDocuments(ACCESS_TOKEN, SITE_CONFIG)
+
+    expect(requestUrl().searchParams.get('fields')?.split(',')).toContain('date')
+  })
+
   it('normalizes a pasted site URL down to the bare host', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ found: 0, posts: [] }))
 

@@ -367,7 +367,23 @@ export const zoomConnector: ConnectorConfig = {
     const totalFetched = prevFetched + indexableCount
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = capReached
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+
+    /**
+     * `capReached` alone is not truncation. It is also true when the cap lands exactly on
+     * the last recording of the last window, where nothing was withheld — and
+     * `takeIndexableWithinCap` cannot distinguish the two, because it reports only that
+     * the budget ran out, not whether it stopped mid-page. Setting `listingCapped` there
+     * would suppress deletion reconciliation on every subsequent sync of a source that
+     * simply sits at its cap, so purged recordings would never leave the knowledge base.
+     *
+     * The listing is capped only when the cap actually withheld something: recordings
+     * dropped from this page, or a page/window left unread behind it.
+     */
+    const droppedFromPage = documents.length < allDocuments.length
+    const moreBehindCap = Boolean(nextPageToken) || state.windowIndex + 1 < numWindows
+    if (hitLimit && (droppedFromPage || moreBehindCap) && syncContext) {
+      syncContext.listingCapped = true
+    }
 
     let nextCursor: string | undefined
     let hasMore = false

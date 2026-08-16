@@ -227,9 +227,13 @@ function decodeBase64Url(data: string): string {
 }
 
 /**
- * True when a MIME part is an attachment rather than a body part. Gmail sets a
- * non-empty `filename` on attachment parts and an empty string on body parts, so a
- * `.txt` or `.html` attachment is never mistaken for the message body.
+ * True when a MIME part is an attachment rather than a body part, so a `.txt` or
+ * `.html` attachment is never mistaken for the message body.
+ *
+ * `MessagePart.filename` is documented as "the filename of the attachment. Only
+ * present if this message part represents an attachment" — i.e. absent on body
+ * parts. In practice Gmail also emits `""` there, so the truthiness test covers
+ * both the documented and the observed shape.
  */
 function isAttachmentPart(part: GmailMessagePart): boolean {
   return Boolean(part.filename)
@@ -508,10 +512,11 @@ export const gmailConnector: ConnectorConfig = {
     if (hitLimit && nextPageToken && syncContext) syncContext.listingCapped = true
 
     /**
-     * `nextPageToken` is the only exhaustion signal. Gmail applies `q` per page,
-     * so a page may come back with no `threads` and still carry a token; treating
-     * that as the end would report a complete-but-empty listing and the sync
-     * engine would hard-delete every previously stored thread.
+     * `nextPageToken` is the only exhaustion signal. `users.threads.list` documents
+     * the token as the way to reach the next page but never guarantees a non-empty
+     * `threads` array alongside one, so an empty page is not treated as the end:
+     * doing so would report a complete-but-empty listing and let the sync engine
+     * hard-delete every previously stored thread.
      */
     return {
       documents,

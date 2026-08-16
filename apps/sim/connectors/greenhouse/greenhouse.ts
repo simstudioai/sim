@@ -447,8 +447,15 @@ async function fetchActivityFeed(accessToken: string, id: string): Promise<Green
 /**
  * Fetches the scorecards for a single application.
  *
- * `complete` is false when a transient failure hid feedback that still exists; a
- * 404 (application removed) is a documented absence and stays complete.
+ * `complete` is false only when a transient failure hid feedback that still exists.
+ * Harvest's error table lists both `404 Not Found -- Resource not found` and
+ * `403 Forbidden -- You don't have access to that record`, and neither clears on a
+ * retry: the application is gone, or this API key is permanently not permitted to
+ * read its scorecards. Both are therefore a settled absence — marking them partial
+ * would re-hydrate the candidate on every sync forever without ever converging.
+ * A rate-limiting 403 never reaches here: `fetchWithRetry` only treats a 403 as
+ * retryable when the response headers prove a rate limit, and a retry exhaustion
+ * throws into the catch below as the transient failure it is.
  */
 async function fetchScorecardsForApplication(
   accessToken: string,
@@ -464,7 +471,9 @@ async function fetchScorecardsForApplication(
     )
 
     if (!response.ok) {
-      if (response.status === 404) return { scorecards: [], complete: true }
+      if (response.status === 404 || response.status === 403) {
+        return { scorecards: [], complete: true }
+      }
       throw new Error(`Failed to fetch Greenhouse scorecards: ${response.status}`)
     }
 

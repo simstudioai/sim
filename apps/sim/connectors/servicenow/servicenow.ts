@@ -196,10 +196,10 @@ function buildAuthHeader(accessToken: string, sourceConfig: Record<string, unkno
  * Coerces the user-supplied `maxItems` into a usable positive integer.
  *
  * A non-numeric value would otherwise make `maxItems` `NaN`, which poisons every
- * downstream comparison: `sysparm_limit` becomes `NaN`, `hasMore` becomes
- * `false`, and — worst — the `totalCount > maxItems` cap check also becomes
- * `false`, so `listingCapped` is never set and the sync engine hard-deletes
- * every document missing from the broken listing.
+ * downstream comparison: `sysparm_limit` becomes `NaN`, `resultCount >= limit`
+ * is `false` so `nextOffset` is never produced, and — worst — the cap check is
+ * gated on `nextOffset`, so `listingCapped` is never set and the sync engine
+ * hard-deletes every document missing from the broken listing.
  */
 function resolveMaxItems(value: unknown): number {
   const parsed = Math.floor(Number(value))
@@ -675,9 +675,17 @@ export const servicenowConnector: ConnectorConfig = {
      * A full page landing exactly on the cap is ambiguous: `nextOffset` is set
      * whenever a page comes back full, so it cannot distinguish "more rows
      * follow" from "the table ended on a page boundary". `X-Total-Count`
-     * resolves it when present; when the header is absent the ambiguity is
-     * resolved conservatively (assume truncated), since over-flagging only
-     * defers a purge whereas under-flagging deletes live documents.
+     * resolves it when present. The Table API documents that header only as
+     * "Total count of records returned by the query", without stating that it
+     * ignores `sysparm_limit`/`sysparm_offset`; sibling APIs on the same platform
+     * state the stronger semantic outright — the Case API describes it as "the
+     * total number of records matching the request when the `sysparm_limit` or
+     * `sysparm_offset` query parameters are specified". When the header is absent
+     * the ambiguity resolves conservatively (assume truncated), since
+     * over-flagging only defers a purge whereas under-flagging deletes live
+     * documents. Note the asymmetry: that fallback covers only an *absent*
+     * header. A page-scoped count would equal the page size, never exceed the
+     * cap, and so suppress the flag — the one way this check can under-flag.
      */
     if (nextOffset !== undefined && !hasMore && syncContext) {
       if (totalCount === undefined || totalCount > maxItems) {

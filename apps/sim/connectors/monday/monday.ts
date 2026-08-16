@@ -111,14 +111,18 @@ interface MondayGraphQLBody<T> {
 }
 
 /**
- * monday's throttling error codes: `Rate Limit Exceeded`,
- * `COMPLEXITY_BUDGET_EXHAUSTED`, `ComplexityException`, `maxConcurrencyExceeded`,
- * `Concurrency limit exceeded`, `DAILY_LIMIT_EXCEEDED`, `IP_RATE_LIMIT_EXCEEDED`,
- * and `Minute limit rate exceeded`.
+ * monday's throttling error codes, matched case-insensitively by substring.
  *
- * Most are documented as HTTP 429, which `fetchWithRetry` already retries off the
- * `Retry-After` header, but `ComplexityException` is listed with no status — so
- * the same family is matched on an HTTP 200 body and retried here.
+ * The errors page documents `Rate Limit Exceeded`, `COMPLEXITY_BUDGET_EXHAUSTED`
+ * and `maxConcurrencyExceeded` as HTTP 429 — which `fetchWithRetry` already
+ * retries off the `Retry-After` header — plus `API_TEMPORARILY_BLOCKED` on HTTP
+ * 200. The rate-limits page adds `ComplexityException`, `DAILY_LIMIT_EXCEEDED`,
+ * `IP_RATE_LIMIT_EXCEEDED`, `Concurrency limit exceeded` and `Minute limit rate
+ * exceeded`, none of which carry a documented status.
+ *
+ * The whole family is matched on an HTTP 200 body and retried here, since the
+ * codes without a documented 429 never reach `fetchWithRetry`'s retry path.
+ * @see https://developer.monday.com/api-reference/docs/errors
  * @see https://developer.monday.com/api-reference/docs/rate-limits
  */
 const MONDAY_THROTTLE_CODE =
@@ -237,11 +241,15 @@ async function mondayGraphQL<T>(
  *
  * `ColumnValue.text` is documented as "not every column supports the text
  * value": mirror, board_relation (connect boards), dependency, and formula
- * columns return `null` for both `text` and `value`, and expose their readable
- * content on `display_value` instead. Selecting only `text` silently drops
- * those columns from the indexed document, so each is pulled in via an inline
- * fragment.
+ * columns expose their readable content on `display_value` instead. Mirror and
+ * dependency return `null` for `text`; formula returns an empty string. Either
+ * way `columnValueText` falls through, but selecting only `text` would silently
+ * drop those columns from the indexed document, so each is pulled in via an
+ * inline fragment.
  * @see https://developer.monday.com/api-reference/reference/column-values-v2
+ * @see https://developer.monday.com/api-reference/reference/mirror
+ * @see https://developer.monday.com/api-reference/reference/formula
+ * @see https://developer.monday.com/api-reference/reference/dependency
  */
 const ITEM_FIELDS = `
   id

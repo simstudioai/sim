@@ -270,6 +270,17 @@ describe('greenhouseConnector.getDocument', () => {
     expect(doc?.contentHash).toBe(listed.documents[0].contentHash)
   })
 
+  it('treats a 403 scorecard list as settled, so a permission gap cannot re-hydrate forever', async () => {
+    mockFetch.mockResolvedValue(jsonResponse([candidateFixture(1)]))
+    const listed = await greenhouseConnector.listDocuments(ACCESS_TOKEN, {}, undefined, {})
+
+    mockFetch.mockReset()
+    mockHydration(jsonResponse({ error: 'no access' }, 403))
+    const doc = await greenhouseConnector.getDocument(ACCESS_TOKEN, {}, '1')
+
+    expect(doc?.contentHash).toBe(listed.documents[0].contentHash)
+  })
+
   it('returns null for a deleted candidate', async () => {
     mockFetch.mockResolvedValue(jsonResponse({}, 404))
 

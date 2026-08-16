@@ -445,7 +445,7 @@ describe('asanaConnector.listDocuments', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
-  it('shrinks the requested page size to the remaining cap on the last page', async () => {
+  it('holds the requested page size constant regardless of how much cap is left', async () => {
     mockFetch.mockImplementation(async (url) => {
       if (url.includes('/projects')) {
         return jsonResponse({ data: [{ gid: 'p1', name: 'Live' }], next_page: null })
@@ -460,7 +460,7 @@ describe('asanaConnector.listDocuments', () => {
       totalDocsFetched: 497,
     })
 
-    expect(requestedUrls().find((url) => url.includes('/tasks?'))).toContain('limit=3')
+    expect(requestedUrls().find((url) => url.includes('/tasks?'))).toContain('limit=100')
   })
 
   it('keeps syncing an explicitly pinned project without listing workspace projects', async () => {

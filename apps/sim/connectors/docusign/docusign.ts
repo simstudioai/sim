@@ -435,10 +435,14 @@ export const docusignConnector: ConnectorConfig = {
 
     /**
      * Remaining budget under `maxEnvelopes`. The last page requests only what is still
-     * needed instead of a full {@link MAX_PAGE_SIZE} page.
+     * needed instead of a full {@link MAX_PAGE_SIZE} page. Safe to shrink because
+     * `start_position` is an offset the next page resumes from, not a page number.
+     *
+     * Floored to a positive integer: `maxEnvelopes` is free-form user input that
+     * `validateConfig` only checks for sign, and DocuSign rejects a fractional `count`.
      */
     const remaining = maxEnvelopes > 0 ? maxEnvelopes - prevFetched : Number.POSITIVE_INFINITY
-    const pageSize = Math.min(MAX_PAGE_SIZE, remaining)
+    const pageSize = Math.max(1, Math.min(MAX_PAGE_SIZE, Math.floor(remaining)))
 
     const queryParams = new URLSearchParams({
       from_date: formatFromDate(fromDate),

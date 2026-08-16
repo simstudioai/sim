@@ -34,10 +34,15 @@ function normalizeSiteUrl(raw: string): string {
 const POSTS_PER_PAGE = 100
 
 /**
- * Post fields the connector actually reads. Requesting them explicitly keeps the
- * response off the full post payload (attachments, metadata, capabilities, …).
+ * Post fields the connector actually reads, plus `date`.
+ *
+ * `date` is requested even though nothing reads it: the API builds `meta.next_page`
+ * as `value=<sort column>&id=<ID>`, so it omits the handle entirely unless the
+ * column it orders by is inside the projection. Ordering defaults to `date`, so
+ * dropping it silently degrades every sync to offset paging — which re-numbers
+ * mid-run whenever a post is published, skipping posts.
  */
-const POST_FIELDS = 'ID,title,content,URL,modified,type,author,categories,tags'
+const POST_FIELDS = 'ID,title,content,URL,modified,type,author,categories,tags,date'
 
 interface WordPressPost {
   ID: number

@@ -56,8 +56,10 @@ function buildIssueContent(fields: Record<string, unknown>): string {
       if (text) parts.push(text)
     }
     /**
-     * `GET /rest/api/3/issue/{id}` returns at most the 5000 most recent comments
-     * inline, so an issue past that is indexed without its oldest comments.
+     * The `comment` field on `GET /rest/api/3/issue/{id}` is a paginated
+     * container: it reports `total` alongside the subset it actually inlines. No
+     * exact inline limit is documented, so the only reliable signal that an issue
+     * was indexed without part of its thread is `total` exceeding what arrived.
      */
     if (typeof comments.total === 'number' && comments.total > comments.comments.length) {
       logger.warn('Jira issue comments truncated by the API; indexing the returned subset', {

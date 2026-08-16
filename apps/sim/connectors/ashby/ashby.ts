@@ -50,11 +50,11 @@ interface AshbyEnvelope {
 }
 
 /**
- * Extracts a human-readable error message from an Ashby error envelope. Ashby documents
- * two shapes and uses both: `errorInfo.message`, and an `errors` array whose entries are
- * either plain strings or `{ message, parameter }` objects. An object entry stringifies
- * to `[object Object]` unless its message is read explicitly, which is the form a 403
- * for a missing module permission arrives in.
+ * Extracts a human-readable error message from an Ashby error envelope. The documented
+ * failure body is `{ success: false, errors: [{ message }] }`, but `errorInfo.message`
+ * and plain-string `errors` entries also occur, so all three are handled. Reading the
+ * object entry's `message` explicitly is what keeps it from stringifying to
+ * `[object Object]`.
  */
 function ashbyErrorMessage(data: AshbyEnvelope, fallback: string): string {
   if (data.errorInfo?.message) return data.errorInfo.message
@@ -550,9 +550,13 @@ export const ashbyConnector: ConnectorConfig = {
       return { documents: [], hasMore: false }
     }
 
-    /** Remaining budget under `maxCandidates`, so the last page requests only what is needed. */
+    /**
+     * `limit` is held constant for every request of a sync: Ashby's `cursor` is
+     * opaque and the docs do not say it survives a changed `limit`, and the cap
+     * is enforced below by trimming the page instead.
+     */
     const remaining = maxCandidates > 0 ? maxCandidates - prevFetched : Number.POSITIVE_INFINITY
-    const body: UnknownRecord = { limit: Math.min(CANDIDATES_PER_PAGE, remaining) }
+    const body: UnknownRecord = { limit: CANDIDATES_PER_PAGE }
     if (cursor) body.cursor = cursor
     if (createdAfterMs !== undefined) body.createdAfter = createdAfterMs
 
@@ -565,8 +569,10 @@ export const ashbyConnector: ConnectorConfig = {
     const results = Array.isArray(data.results) ? data.results : []
     const candidates = results.map(mapCandidate).filter((c) => c.id)
 
-    let documents = candidates.map(candidateToStub)
-    if (documents.length > remaining) documents = documents.slice(0, remaining)
+    const stubs = candidates.map(candidateToStub)
+    const documents = stubs.length > remaining ? stubs.slice(0, remaining) : stubs
+    /** True when the cap hid candidates Ashby already returned on this very page. */
+    const droppedInPage = documents.length < stubs.length
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalCandidatesFetched = totalFetched
@@ -576,11 +582,13 @@ export const ashbyConnector: ConnectorConfig = {
     const hitLimit = maxCandidates > 0 && totalFetched >= maxCandidates
     /**
      * `listingCapped` blocks the sync engine's deletion reconciliation, so it is set only
-     * when `maxCandidates` cut the listing short while Ashby still had more candidates —
-     * never when the cap coincides with genuine exhaustion, and never for the intentional
-     * `createdAfter` scope filter.
+     * when `maxCandidates` made the listing knowingly incomplete — candidates dropped from
+     * this page, or pages left unread behind the cap. Never when the cap coincides with
+     * genuine exhaustion, and never for the intentional `createdAfter` scope filter.
      */
-    if (syncContext && hitLimit && sourceHasMore) syncContext.listingCapped = true
+    if (syncContext && (droppedInPage || (hitLimit && sourceHasMore))) {
+      syncContext.listingCapped = true
+    }
 
     const hasMore = !hitLimit && sourceHasMore
 
@@ -616,19 +624,20 @@ export const ashbyConnector: ConnectorConfig = {
         })
       }
 
-      const settled = await Promise.allSettled(
-        applicationIds.map((applicationId) =>
-          fetchFeedbackForApplication(accessToken, applicationId)
-        )
-      )
-      for (let i = 0; i < settled.length; i++) {
-        const outcome = settled[i]
-        if (outcome.status === 'fulfilled') {
-          feedback.push(...outcome.value)
-        } else {
+      /**
+       * Sequential on purpose. The sync engine already hydrates SYNC_BATCH_SIZE
+       * candidates concurrently, so fanning these out would multiply that into
+       * a burst of up to `MAX_APPLICATIONS_FOR_FEEDBACK` × the batch size
+       * simultaneous Ashby requests. A per-application catch keeps one failing
+       * application from losing the rest of the candidate's feedback.
+       */
+      for (const applicationId of applicationIds) {
+        try {
+          feedback.push(...(await fetchFeedbackForApplication(accessToken, applicationId)))
+        } catch (error) {
           logger.warn('Failed to fetch Ashby feedback for application', {
-            applicationId: applicationIds[i],
-            error: toError(outcome.reason).message,
+            applicationId,
+            error: toError(error).message,
           })
         }
       }

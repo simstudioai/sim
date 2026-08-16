@@ -74,9 +74,15 @@ const OBJECT_FIELDS: Record<string, string[]> = {
 /**
  * SOQL WHERE clause additions per object type.
  *
- * KnowledgeArticleVersion is not freely queryable: Salesforce requires every
- * query to filter on `Id`, or on a single `Language` value in a top-level AND,
- * so the clause is mandatory rather than an optional narrowing.
+ * KnowledgeArticleVersion is not freely queryable: Salesforce requires article
+ * queries to "specify either the PublishStatus or the Id field in the WHERE
+ * clause", so `PublishStatus='Online'` is mandatory rather than an optional
+ * narrowing, and the docs further advise filtering on a single PublishStatus
+ * value. `Language` is only conditionally required from API v47.0 onward
+ * ("you can filter queries on Knowledge article versions with or without
+ * Language depending on what you are querying"), so it is kept — pinned to one
+ * user-selectable locale — rather than relying on that hedge holding for the
+ * abstract KnowledgeArticleVersion view.
  */
 function buildWhereClause(objectType: string, language: string): string {
   if (objectType !== 'KnowledgeArticleVersion') return ''
@@ -505,9 +511,9 @@ export const salesforceConnector: ConnectorConfig = {
       }
 
       /**
-       * The object's mandatory filter has to be present here too: an unfiltered
-       * `SELECT Id FROM KnowledgeArticleVersion` is rejected by Salesforce, which
-       * would fail validation for a correctly configured org.
+       * The object's mandatory `PublishStatus` filter has to be present here too:
+       * an unfiltered `SELECT Id FROM KnowledgeArticleVersion` is rejected by
+       * Salesforce, which would fail validation for a correctly configured org.
        */
       const soql = `SELECT Id FROM ${objectType}${buildWhereClause(objectType, language)} LIMIT 1`
       const queryUrl = `${restUrl}query?q=${encodeURIComponent(soql)}`

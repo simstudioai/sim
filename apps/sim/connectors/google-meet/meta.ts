@@ -31,7 +31,7 @@ export const googleMeetConnectorMeta: ConnectorMeta = {
       mode: 'advanced',
       placeholder: 'e.g. 30 (default: all available)',
       description:
-        'Only sync meetings from the last N days. Google deletes transcript entries 30 days after a conference ends, so meetings older than that have no transcript left to index.',
+        'Only sync meetings from the last N days. Google keeps transcript entry data for 30 days after a conference ends and deletes the conference record itself on the same schedule, so older meetings have nothing left to index.',
     },
     {
       id: 'includeParticipants',

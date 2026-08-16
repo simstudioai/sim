@@ -617,7 +617,16 @@ export const googleFormsConnector: ConnectorConfig = {
 
     try {
       const form = await fetchFormStructure(accessToken, file.id)
-      if (!form) return null
+      /**
+       * The Drive metadata read above already confirmed a live, untrashed form, so a
+       * Forms API 404 here is an inconsistent read (permission propagation, eventual
+       * consistency) rather than a deletion — the same conclusion `listDocuments`
+       * reaches. Genuine deletion is observed by the form leaving the Drive listing,
+       * which reconciliation handles; returning null here would hard-delete instead.
+       */
+      if (!form) {
+        throw new Error(`Form ${file.id} is listed in Drive but not readable via the Forms API`)
+      }
 
       const responseCap = resolveResponseCap(sourceConfig)
       const fetched =
@@ -639,10 +648,9 @@ export const googleFormsConnector: ConnectorConfig = {
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
       /**
-       * Absence is already covered above (404 metadata, trashed, non-form MIME type, and
-       * `fetchFormStructure` returning null on its own 404). Anything reaching here is
-       * transient and must propagate so the engine records a failed hydration instead of
-       * silently dropping a form that still exists.
+       * Absence is already covered above (404 Drive metadata, trashed, non-form MIME
+       * type). Anything reaching here is transient and must propagate so the engine
+       * records a failed hydration instead of silently dropping a form that still exists.
        */
       logger.warn(`Failed to fetch content for form: ${file.name} (${file.id})`, {
         error: toError(error).message,

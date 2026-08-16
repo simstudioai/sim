@@ -33,8 +33,9 @@ const MAX_CHILD_SITEMAPS = 20
  *
  * {@link INDEX_MAX_BYTES} caps each sitemap document individually, but a
  * `<sitemapindex>` multiplies that by {@link MAX_CHILD_SITEMAPS}, so the merged
- * location list is the only unbounded allocation on the discovery path. Hitting
- * this cap truncates the listing, so it reports `truncated`.
+ * location list is the largest allocation on the discovery path and the only one
+ * not bounded by a single document's size. Hitting this cap truncates the
+ * listing, so it reports `truncated`.
  */
 const MAX_SITEMAP_LOCATIONS = 50_000
 
@@ -54,10 +55,13 @@ const LLMS_TXT_MAX_CHARS = 100_000
 
 /**
  * Margin below {@link LLMS_TXT_MAX_CHARS} that still counts as truncated.
- * Mintlify cuts at a page-entry boundary before appending its note, so the
- * delivered body lands near — not exactly at — the cap. Erring wide costs a
- * complete-but-large index its deletion reconciliation; erring narrow would
- * hard-delete the pages a truncated index omitted, so the margin is generous.
+ *
+ * Mintlify publishes the cap but not where it cuts, so the delivered body is
+ * assumed to land near — not exactly at — 100,000 characters (a cut at an entry
+ * boundary, plus the appended note). The margin absorbs that unknown. Erring
+ * wide costs a complete-but-large index its deletion reconciliation, which a
+ * forced full sync can still override; erring narrow would hard-delete the pages
+ * a truncated index omitted, which nothing recovers. Hence the generous margin.
  */
 const LLMS_TXT_TRUNCATION_MARGIN = 5_000
 
@@ -613,8 +617,9 @@ export const mintlifyConnector: ConnectorConfig = {
      * does not (a non-Mintlify host that merely publishes an `llms.txt`, or a
      * page removed from the Markdown route) answers 404 there, so the rendered
      * HTML page is the fallback and gets stripped to text. Both routes 404ing is
-     * the only absence; every other failure propagates out of `fetchSiteText` so
-     * the sync engine records a visible failed document.
+     * the only *documented* absence; every transport, status, or size failure
+     * propagates out of `fetchSiteText` so the sync engine records a visible
+     * failed document rather than reading the page as deleted.
      */
     const result =
       (await fetchSiteText(

@@ -42,10 +42,12 @@ interface LinearGraphQLBody {
 const RATE_LIMIT_RESET_HEADER = 'X-RateLimit-Requests-Reset'
 
 /**
- * Largest reset wait honored. Linear's request budget refills hourly, so the
- * reset instant is usually far too distant to wait for inside a sync — past
- * this bound the retry falls back to ordinary backoff and, if that is not
- * enough, fails the sync so the next scheduled run picks it up.
+ * Largest reset wait honored. Linear's request budget refills on a one-hour
+ * leaky-bucket period, so the advertised reset instant is usually far too
+ * distant to wait for inside a sync. `backoffWithJitter` clamps the header
+ * value to this ceiling rather than sleeping until the real reset; if the
+ * budget has not recovered within the retry allowance the sync fails and the
+ * next scheduled run picks it up.
  */
 const MAX_RATE_LIMIT_WAIT_MS = 30_000
 
@@ -326,7 +328,16 @@ export const linearConnector: ConnectorConfig = {
       first: pageSize,
       after: cursor || undefined,
     })
-    const issuesConn = (data.issues || {}) as Record<string, unknown>
+    /**
+     * `issues` is declared `IssueConnection!`, so a missing connection means a
+     * malformed response, not an empty source. Defaulting it to `{}` would
+     * present an empty listing, which the sync engine reads as "every stored
+     * issue was deleted" — so this throws instead.
+     */
+    const issuesConn = data.issues as Record<string, unknown> | undefined
+    if (!issuesConn || typeof issuesConn !== 'object') {
+      throw new Error('Linear API returned no issues connection')
+    }
     const nodes = (issuesConn.nodes || []) as Record<string, unknown>[]
     const pageInfo = (issuesConn.pageInfo || {}) as Record<string, unknown>
 
@@ -367,9 +378,11 @@ export const linearConnector: ConnectorConfig = {
     const issue = data.issue as Record<string, unknown> | null
 
     /**
-     * Only a resolved-but-absent issue is `null`. Transport, auth, and GraphQL
-     * failures propagate out of `linearGraphQL` so the sync engine records a
-     * visible failed document rather than silently dropping the issue.
+     * `issue` is declared `Issue!`, so Linear reports a missing issue as a
+     * GraphQL error rather than a null node — this guard is defence against a
+     * malformed body only. Transport, auth, and GraphQL failures propagate out
+     * of `linearGraphQL` so the sync engine records a visible failed document
+     * rather than silently dropping the issue.
      */
     if (!issue) return null
 

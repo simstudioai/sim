@@ -91,7 +91,18 @@ async function firefliesGraphQL(
     throw new Error(`Fireflies API HTTP error: ${response.status}`)
   }
 
-  return data?.data ?? {}
+  /**
+   * A 2xx carrying neither `errors` nor a `data` object is unreadable — an
+   * unparseable body, a truncated response, a proxy interstitial. It must raise
+   * rather than degrade to an empty result: `listDocuments` would otherwise
+   * report a confident empty listing and the sync engine would reconcile every
+   * stored document as deleted.
+   */
+  if (!data || typeof data.data !== 'object' || data.data === null) {
+    throw new Error('Fireflies API returned a malformed response with no data')
+  }
+
+  return data.data
 }
 
 /**
@@ -287,7 +298,13 @@ export const firefliesConnector: ConnectorConfig = {
 
     return {
       documents,
-      nextCursor: hasMore ? String(skip + documents.length) : undefined,
+      /**
+       * `skip` is an offset over the raw API result set, so it must advance by the
+       * rows Fireflies returned — not by the stubs kept. Advancing by the kept
+       * count would re-request any row dropped for a missing `id`. `hasMore` is
+       * only ever true on the uncapped path, where nothing is sliced off.
+       */
+      nextCursor: hasMore ? String(skip + transcripts.length) : undefined,
       hasMore,
     }
   },

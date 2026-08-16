@@ -363,10 +363,10 @@ async function fetchExtensiveCalls(
   )
 
   /**
-   * Gong answers a filter that matches no calls with `404 No calls found
-   * corresponding to the provided filters` rather than an empty list. That is an
-   * ordinary outcome for a narrow incremental window, so it maps to an empty
-   * page instead of failing the sync.
+   * Gong answers a filter that matches no calls with `404 No calls found for the
+   * specified period` rather than an empty list — the documented 404 for
+   * `/v2/calls/extensive`. That is an ordinary outcome for a narrow incremental
+   * window, so it maps to an empty page instead of failing the sync.
    */
   if (response.status === 404) return { calls: [] }
 
@@ -581,10 +581,10 @@ export const gongConnector: ConnectorConfig = {
       )
 
       /**
-       * Gong answers a filter that matches no calls with `404 No calls found
-       * corresponding to the provided filters`. Most workspaces record nothing
-       * in any given hour, so a 404 here proves the credential authenticated and
-       * was allowed to query calls — a missing scope returns 401/403 instead.
+       * `GET /v2/calls` documents `404 No calls found for the specified period`
+       * for a range that matches nothing. Most workspaces record nothing in any
+       * given hour, so a 404 here proves the credential authenticated and was
+       * allowed to query calls — a missing scope returns 401/403 instead.
        */
       if (response.status === 404) return { valid: true }
 

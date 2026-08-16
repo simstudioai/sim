@@ -38,9 +38,14 @@ const POST_MORTEM_TYPE = 'incident_post_mortems'
  * Deterministic sort keys. Rootly paginates with `page[number]`, so an unsorted
  * listing can reorder between page requests and silently drop incidents — and a
  * full-sync listing that drops a document makes the sync engine hard-delete it.
- * Full syncs sort by `created_at` (immutable, so paging is stable); incremental
- * syncs sort by `updated_at` ascending so records touched mid-sync are appended
- * after the cursor instead of shifting onto an already-read page.
+ *
+ * Full syncs sort by `created_at`, which never changes, so page boundaries are
+ * fixed for the whole walk. Incremental syncs have no immutable key available —
+ * they are filtered on `updated_at`, the very column that moves — so they sort
+ * `updated_at` ascending, which pushes a record touched mid-sync ahead of the
+ * cursor rather than behind it. Its own update is therefore still seen; the
+ * residual risk is the one-position shift that displacement causes further down
+ * the listing, which page-number paging cannot fully avoid either way.
  */
 const FULL_SYNC_SORT = 'created_at'
 const INCREMENTAL_SORT = 'updated_at'
@@ -248,10 +253,10 @@ function buildSourceUrl(attrs: RootlyIncidentAttributes): string | undefined {
 /**
  * Determines whether another page exists.
  *
- * Rootly's JSON:API envelope declares `links.next` as always present, so its
- * truthiness is not a reliable end-of-listing signal. `meta.next_page` is the
- * documented per-page indicator and is null on the last page, so it wins when
- * present; `links.next` is only a fallback.
+ * `meta.next_page` is the documented per-page indicator — nullable, and null on
+ * the last page — so it decides whenever it is present. `links.next` (also
+ * documented nullable) is only consulted when the envelope carries no
+ * `meta.next_page` at all.
  */
 function hasNextPage(body: RootlyListResponse<unknown>, pageItemCount: number): boolean {
   if (pageItemCount === 0) return false
@@ -318,8 +323,9 @@ async function fetchTimelineEvents(
 
 /**
  * Extracts the retrospective body sideloaded via `include=incident_post_mortem`.
- * Rootly only serializes `content` for internal retrospectives, so a published
- * external-only retrospective contributes just its title.
+ * Both `title` and `content` are optional in the sideloaded resource, so a
+ * retrospective that carries only one of them still contributes it, and an
+ * incident without one contributes nothing.
  */
 function extractPostMortem(
   included: RootlyIncludedResource[] | undefined
