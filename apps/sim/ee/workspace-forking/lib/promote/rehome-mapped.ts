@@ -1,12 +1,20 @@
 import { knowledgeBase, userTableDefinitions, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
-import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
-import { getEdgeMappingRows } from '@/ee/workspace-forking/lib/mapping/mapping-store'
+import type { ForkMappingRow } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 
 const logger = createLogger('WorkspaceForkRehomeMapped')
+
+/**
+ * Identity rows arrive in one shot from the promote plan, but the resource lookups they drive are
+ * `IN (...)` filters whose length scales with the whole edge. Page them so a large fork can never
+ * approach the bind-parameter ceiling or hand the planner a pathological list; matches the paging
+ * the rest of the fork copy already uses.
+ */
+const REHOME_PAGE = 500
 
 /**
  * The families whose copies predate folder-structure transit. Workflows are absent on purpose:
@@ -15,11 +23,13 @@ const logger = createLogger('WorkspaceForkRehomeMapped')
  */
 const REHOMED_FAMILIES = ['file', 'table', 'knowledge_base'] as const
 
+type RehomedFamily = (typeof REHOMED_FAMILIES)[number]
+
 export interface RehomeMappedResult {
   /** source folder id -> target folder id for any subtree mirrored while re-homing. */
   folderIdMap: Map<string, string>
-  /** Rows re-homed per family, for the promote log line. */
-  rehomed: Record<(typeof REHOMED_FAMILIES)[number], number>
+  /** Rows actually moved per family, for the promote log line. */
+  rehomed: Record<RehomedFamily, number>
 }
 
 /**
@@ -32,12 +42,14 @@ export interface RehomeMappedResult {
  * target is never overwritten by a later sync. A resource that is legitimately at the source root
  * has nothing to map and stays put, so the pass converges to a no-op once healed.
  *
- * Runs inside the promote transaction, after the folder mapping for workflows, so a refusal from
- * the folder-ceiling check rolls the whole sync back rather than leaving a half-moved tree.
+ * Runs inside the promote transaction, after the sync-blocker gate, so a blocked sync moves
+ * nothing and a refusal from the folder-ceiling check rolls the whole sync back rather than
+ * leaving a half-moved tree.
  */
 export async function rehomeFlattenedForkResources(params: {
   tx: DbOrTx
-  edge: ForkEdge
+  /** The edge's identity rows, reused from the promote plan rather than re-read. */
+  mappingRows: readonly ForkMappingRow[]
   sourceWorkspaceId: string
   targetWorkspaceId: string
   direction: 'push' | 'pull'
@@ -45,11 +57,10 @@ export async function rehomeFlattenedForkResources(params: {
   now: Date
   requestId?: string
 }): Promise<RehomeMappedResult> {
-  const { tx, edge, sourceWorkspaceId, targetWorkspaceId, direction, userId, now } = params
+  const { tx, mappingRows, sourceWorkspaceId, targetWorkspaceId, direction, userId, now } = params
   const folderIdMap = new Map<string, string>()
-  const rehomed = { file: 0, table: 0, knowledge_base: 0 }
+  const rehomed: Record<RehomedFamily, number> = { file: 0, table: 0, knowledge_base: 0 }
 
-  const mappingRows = await getEdgeMappingRows(tx, edge.childWorkspaceId)
   // A pull copies parent -> child, so the parent side is the source; a push reverses it.
   const sourceIsParent = direction === 'pull'
 
@@ -91,7 +102,7 @@ export async function rehomeFlattenedForkResources(params: {
     })
     for (const [source, target] of familyFolderIdMap) folderIdMap.set(source, target)
 
-    // Group by destination so each folder is one UPDATE regardless of how many rows land in it.
+    // Group by destination so each folder costs one UPDATE regardless of how many rows land in it.
     const targetIdsByFolder = new Map<string, string[]>()
     for (const move of moves) {
       const targetFolderId = familyFolderIdMap.get(move.sourceFolderId)
@@ -102,25 +113,34 @@ export async function rehomeFlattenedForkResources(params: {
     }
 
     for (const [targetFolderId, targetIds] of targetIdsByFolder) {
-      if (family === 'file') {
-        await tx
-          .update(workspaceFiles)
-          .set({ folderId: targetFolderId })
-          .where(and(inArray(workspaceFiles.id, targetIds), isNull(workspaceFiles.folderId)))
-      } else if (family === 'table') {
-        await tx
-          .update(userTableDefinitions)
-          .set({ folderId: targetFolderId, updatedAt: now })
-          .where(
-            and(inArray(userTableDefinitions.id, targetIds), isNull(userTableDefinitions.folderId))
-          )
-      } else {
-        await tx
-          .update(knowledgeBase)
-          .set({ folderId: targetFolderId, updatedAt: now })
-          .where(and(inArray(knowledgeBase.id, targetIds), isNull(knowledgeBase.folderId)))
+      for (const page of chunkArray(targetIds, REHOME_PAGE)) {
+        // The `folder_id IS NULL` guard is re-asserted on the write: the read above is only a
+        // plan, and this keeps the move idempotent under a concurrent placement.
+        const moved =
+          family === 'file'
+            ? await tx
+                .update(workspaceFiles)
+                .set({ folderId: targetFolderId })
+                .where(and(inArray(workspaceFiles.id, page), isNull(workspaceFiles.folderId)))
+                .returning({ id: workspaceFiles.id })
+            : family === 'table'
+              ? await tx
+                  .update(userTableDefinitions)
+                  .set({ folderId: targetFolderId, updatedAt: now })
+                  .where(
+                    and(
+                      inArray(userTableDefinitions.id, page),
+                      isNull(userTableDefinitions.folderId)
+                    )
+                  )
+                  .returning({ id: userTableDefinitions.id })
+              : await tx
+                  .update(knowledgeBase)
+                  .set({ folderId: targetFolderId, updatedAt: now })
+                  .where(and(inArray(knowledgeBase.id, page), isNull(knowledgeBase.folderId)))
+                  .returning({ id: knowledgeBase.id })
+        rehomed[family] += moved.length
       }
-      rehomed[family] += targetIds.length
     }
   }
 
@@ -152,20 +172,23 @@ async function planFileRehome(
   targetWorkspaceId: string,
   sourceToTarget: Map<string, string>
 ): Promise<RehomeMove[]> {
-  const targetRows = await tx
-    .select({ id: workspaceFiles.id, key: workspaceFiles.key })
-    .from(workspaceFiles)
-    .where(
-      and(
-        inArray(workspaceFiles.key, Array.from(sourceToTarget.values())),
-        eq(workspaceFiles.workspaceId, targetWorkspaceId),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.folderId),
-        isNull(workspaceFiles.deletedAt)
+  const targetIdByKey = new Map<string, string>()
+  for (const page of chunkArray(Array.from(sourceToTarget.values()), REHOME_PAGE)) {
+    const rows = await tx
+      .select({ id: workspaceFiles.id, key: workspaceFiles.key })
+      .from(workspaceFiles)
+      .where(
+        and(
+          inArray(workspaceFiles.key, page),
+          eq(workspaceFiles.workspaceId, targetWorkspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.folderId),
+          isNull(workspaceFiles.deletedAt)
+        )
       )
-    )
-  if (targetRows.length === 0) return []
-  const targetIdByKey = new Map(targetRows.map((row) => [row.key, row.id]))
+    for (const row of rows) targetIdByKey.set(row.key, row.id)
+  }
+  if (targetIdByKey.size === 0) return []
 
   // Only the sources whose target is actually still flattened need their folder read.
   const wantedSourceKeys = Array.from(sourceToTarget)
@@ -173,24 +196,25 @@ async function planFileRehome(
     .map(([sourceKey]) => sourceKey)
   if (wantedSourceKeys.length === 0) return []
 
-  const sourceRows = await tx
-    .select({ key: workspaceFiles.key, folderId: workspaceFiles.folderId })
-    .from(workspaceFiles)
-    .where(
-      and(
-        inArray(workspaceFiles.key, wantedSourceKeys),
-        eq(workspaceFiles.workspaceId, sourceWorkspaceId),
-        eq(workspaceFiles.context, 'workspace'),
-        isNull(workspaceFiles.deletedAt)
-      )
-    )
-
   const moves: RehomeMove[] = []
-  for (const source of sourceRows) {
-    if (!source.folderId) continue
-    const targetKey = sourceToTarget.get(source.key)
-    const targetId = targetKey ? targetIdByKey.get(targetKey) : undefined
-    if (targetId) moves.push({ targetId, sourceFolderId: source.folderId })
+  for (const page of chunkArray(wantedSourceKeys, REHOME_PAGE)) {
+    const rows = await tx
+      .select({ key: workspaceFiles.key, folderId: workspaceFiles.folderId })
+      .from(workspaceFiles)
+      .where(
+        and(
+          inArray(workspaceFiles.key, page),
+          eq(workspaceFiles.workspaceId, sourceWorkspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+    for (const source of rows) {
+      if (!source.folderId) continue
+      const targetKey = sourceToTarget.get(source.key)
+      const targetId = targetKey ? targetIdByKey.get(targetKey) : undefined
+      if (targetId) moves.push({ targetId, sourceFolderId: source.folderId })
+    }
   }
   return moves
 }
@@ -203,67 +227,71 @@ async function planContainerRehome(
   targetWorkspaceId: string,
   sourceToTarget: Map<string, string>
 ): Promise<RehomeMove[]> {
-  const targetIds = Array.from(sourceToTarget.values())
-  const sourceIds = Array.from(sourceToTarget.keys())
-
-  const [targetRows, sourceRows] =
-    family === 'table'
-      ? await Promise.all([
-          tx
+  const flattenedTargetIds = new Set<string>()
+  for (const page of chunkArray(Array.from(sourceToTarget.values()), REHOME_PAGE)) {
+    const rows =
+      family === 'table'
+        ? await tx
             .select({ id: userTableDefinitions.id })
             .from(userTableDefinitions)
             .where(
               and(
-                inArray(userTableDefinitions.id, targetIds),
+                inArray(userTableDefinitions.id, page),
                 eq(userTableDefinitions.workspaceId, targetWorkspaceId),
                 isNull(userTableDefinitions.folderId),
                 isNull(userTableDefinitions.archivedAt)
               )
-            ),
-          tx
-            .select({ id: userTableDefinitions.id, folderId: userTableDefinitions.folderId })
-            .from(userTableDefinitions)
-            .where(
-              and(
-                inArray(userTableDefinitions.id, sourceIds),
-                eq(userTableDefinitions.workspaceId, sourceWorkspaceId),
-                isNull(userTableDefinitions.archivedAt)
-              )
-            ),
-        ])
-      : await Promise.all([
-          tx
+            )
+        : await tx
             .select({ id: knowledgeBase.id })
             .from(knowledgeBase)
             .where(
               and(
-                inArray(knowledgeBase.id, targetIds),
+                inArray(knowledgeBase.id, page),
                 eq(knowledgeBase.workspaceId, targetWorkspaceId),
                 isNull(knowledgeBase.folderId),
                 isNull(knowledgeBase.deletedAt)
               )
-            ),
-          tx
+            )
+    for (const row of rows) flattenedTargetIds.add(row.id)
+  }
+  if (flattenedTargetIds.size === 0) return []
+
+  const wantedSourceIds = Array.from(sourceToTarget)
+    .filter(([, targetId]) => flattenedTargetIds.has(targetId))
+    .map(([sourceId]) => sourceId)
+  if (wantedSourceIds.length === 0) return []
+
+  const moves: RehomeMove[] = []
+  for (const page of chunkArray(wantedSourceIds, REHOME_PAGE)) {
+    const rows =
+      family === 'table'
+        ? await tx
+            .select({ id: userTableDefinitions.id, folderId: userTableDefinitions.folderId })
+            .from(userTableDefinitions)
+            .where(
+              and(
+                inArray(userTableDefinitions.id, page),
+                eq(userTableDefinitions.workspaceId, sourceWorkspaceId),
+                isNull(userTableDefinitions.archivedAt)
+              )
+            )
+        : await tx
             .select({ id: knowledgeBase.id, folderId: knowledgeBase.folderId })
             .from(knowledgeBase)
             .where(
               and(
-                inArray(knowledgeBase.id, sourceIds),
+                inArray(knowledgeBase.id, page),
                 eq(knowledgeBase.workspaceId, sourceWorkspaceId),
                 isNull(knowledgeBase.deletedAt)
               )
-            ),
-        ])
-
-  const flattenedTargetIds = new Set(targetRows.map((row) => row.id))
-  if (flattenedTargetIds.size === 0) return []
-
-  const moves: RehomeMove[] = []
-  for (const source of sourceRows) {
-    if (!source.folderId) continue
-    const targetId = sourceToTarget.get(source.id)
-    if (targetId && flattenedTargetIds.has(targetId)) {
-      moves.push({ targetId, sourceFolderId: source.folderId })
+            )
+    for (const source of rows) {
+      if (!source.folderId) continue
+      const targetId = sourceToTarget.get(source.id)
+      if (targetId && flattenedTargetIds.has(targetId)) {
+        moves.push({ targetId, sourceFolderId: source.folderId })
+      }
     }
   }
   return moves

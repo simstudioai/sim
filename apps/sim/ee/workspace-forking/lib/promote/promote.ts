@@ -567,7 +567,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
     // no-op and never overrides a placement chosen in the target.
     const rehomeResult = await rehomeFlattenedForkResources({
       tx,
-      edge,
+      mappingRows: plan.mappingRows,
       sourceWorkspaceId,
       targetWorkspaceId,
       direction,

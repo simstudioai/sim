@@ -4,15 +4,7 @@
 import { folder as folderTable, knowledgeBase, workspaceFiles } from '@sim/db/schema'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
-
-const { mockGetEdgeMappingRows } = vi.hoisted(() => ({
-  mockGetEdgeMappingRows: vi.fn(),
-}))
-
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  getEdgeMappingRows: mockGetEdgeMappingRows,
-}))
-
+import type { ForkMappingRow } from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import { rehomeFlattenedForkResources } from '@/ee/workspace-forking/lib/promote/rehome-mapped'
 
 interface UpdateCall {
@@ -55,7 +47,9 @@ function makeTx(rows: {
       set: (values: Record<string, unknown>) => ({
         where: () => {
           updates.push({ table, values })
-          return Promise.resolve()
+          // The real update reports the rows it actually moved; echo one id back so the
+          // caller's tally reflects a genuine write rather than the planned batch size.
+          return { returning: () => Promise.resolve([{ id: 'moved' }]) }
         },
       }),
     }),
@@ -63,13 +57,28 @@ function makeTx(rows: {
   return { tx: tx as unknown as DbOrTx, updates, insertedFolders }
 }
 
-const edge = {
-  childWorkspaceId: 'child-ws',
-  parentWorkspaceId: 'parent-ws',
-} as Parameters<typeof rehomeFlattenedForkResources>[0]['edge']
+const fileMapping: ForkMappingRow[] = [
+  {
+    id: 'map-1',
+    childWorkspaceId: 'child-ws',
+    resourceType: 'file',
+    parentResourceId: 'workspace/parent-ws/a.png',
+    childResourceId: 'workspace/child-ws/a.png',
+  },
+]
+
+const kbMapping: ForkMappingRow[] = [
+  {
+    id: 'map-2',
+    childWorkspaceId: 'child-ws',
+    resourceType: 'knowledge_base',
+    parentResourceId: 'kb-target',
+    childResourceId: 'kb-source',
+  },
+]
 
 const baseParams = {
-  edge,
+  mappingRows: [] as ForkMappingRow[],
   sourceWorkspaceId: 'child-ws',
   targetWorkspaceId: 'parent-ws',
   direction: 'push' as const,
@@ -80,20 +89,10 @@ const baseParams = {
 describe('rehomeFlattenedForkResources', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetEdgeMappingRows.mockResolvedValue([])
   })
 
   it('mirrors the source folder and moves a root-flattened mapped file into it', async () => {
     // Push: the child is the source, so the mapping row's child side is the source key.
-    mockGetEdgeMappingRows.mockResolvedValue([
-      {
-        id: 'map-1',
-        childWorkspaceId: 'child-ws',
-        resourceType: 'file',
-        parentResourceId: 'workspace/parent-ws/a.png',
-        childResourceId: 'workspace/child-ws/a.png',
-      },
-    ])
     const { tx, updates, insertedFolders } = makeTx({
       // Both the target lookup (flattened row) and the source lookup read this table; the
       // rows carry the fields each phase needs.
@@ -113,7 +112,11 @@ describe('rehomeFlattenedForkResources', () => {
       ],
     })
 
-    const result = await rehomeFlattenedForkResources({ ...baseParams, tx })
+    const result = await rehomeFlattenedForkResources({
+      ...baseParams,
+      mappingRows: fileMapping,
+      tx,
+    })
 
     expect(insertedFolders).toHaveLength(1)
     expect(insertedFolders[0]).toMatchObject({
@@ -130,15 +133,6 @@ describe('rehomeFlattenedForkResources', () => {
   })
 
   it('leaves a resource alone when the source itself sits at the root', async () => {
-    mockGetEdgeMappingRows.mockResolvedValue([
-      {
-        id: 'map-1',
-        childWorkspaceId: 'child-ws',
-        resourceType: 'file',
-        parentResourceId: 'workspace/parent-ws/a.png',
-        childResourceId: 'workspace/child-ws/a.png',
-      },
-    ])
     const { tx, updates, insertedFolders } = makeTx({
       files: [
         { id: 'file-target', key: 'workspace/parent-ws/a.png', folderId: null },
@@ -146,7 +140,11 @@ describe('rehomeFlattenedForkResources', () => {
       ],
     })
 
-    const result = await rehomeFlattenedForkResources({ ...baseParams, tx })
+    const result = await rehomeFlattenedForkResources({
+      ...baseParams,
+      mappingRows: fileMapping,
+      tx,
+    })
 
     expect(insertedFolders).toHaveLength(0)
     expect(updates).toHaveLength(0)
@@ -154,15 +152,6 @@ describe('rehomeFlattenedForkResources', () => {
   })
 
   it('never touches a target already placed in a folder, so a deliberate move survives a re-sync', async () => {
-    mockGetEdgeMappingRows.mockResolvedValue([
-      {
-        id: 'map-1',
-        childWorkspaceId: 'child-ws',
-        resourceType: 'knowledge_base',
-        parentResourceId: 'kb-target',
-        childResourceId: 'kb-source',
-      },
-    ])
     // The target read filters on `folderId IS NULL`, so an already-placed row is simply absent.
     const { tx, updates } = makeTx({
       knowledgeBases: [],
@@ -178,7 +167,11 @@ describe('rehomeFlattenedForkResources', () => {
       ],
     })
 
-    const result = await rehomeFlattenedForkResources({ ...baseParams, tx })
+    const result = await rehomeFlattenedForkResources({
+      ...baseParams,
+      mappingRows: kbMapping,
+      tx,
+    })
 
     expect(updates).toHaveLength(0)
     expect(result.rehomed.knowledge_base).toBe(0)
@@ -195,15 +188,6 @@ describe('rehomeFlattenedForkResources', () => {
   })
 
   it('orients pull the other way: the parent side is the source', async () => {
-    mockGetEdgeMappingRows.mockResolvedValue([
-      {
-        id: 'map-1',
-        childWorkspaceId: 'child-ws',
-        resourceType: 'file',
-        parentResourceId: 'workspace/parent-ws/a.png',
-        childResourceId: 'workspace/child-ws/a.png',
-      },
-    ])
     const { tx, updates } = makeTx({
       files: [
         // On a pull the CHILD is the target, so its key is the one that must still be flattened.
@@ -224,6 +208,7 @@ describe('rehomeFlattenedForkResources', () => {
 
     const result = await rehomeFlattenedForkResources({
       ...baseParams,
+      mappingRows: fileMapping,
       tx,
       direction: 'pull',
       sourceWorkspaceId: 'parent-ws',
