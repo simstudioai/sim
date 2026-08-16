@@ -185,6 +185,18 @@ describe('block params mapping keeps per-operation defaults from colliding', () 
   }
 
   /**
+   * The block's mapping is merged over the raw inputs as
+   * `{ ...inputs, ...mapped }`, so a key the mapper leaves off is not dropped —
+   * it keeps whatever the subBlock store held. Assertions therefore have to be
+   * made against the merged result, not the mapper's return value.
+   */
+  function mergedParams(stored: Record<string, unknown>): Record<string, unknown> {
+    const inputs = { ...seededDefaults(), ...auth, ...stored }
+    const mapped = (mapParams?.(inputs as never) ?? {}) as Record<string, unknown>
+    return { ...inputs, ...mapped }
+  }
+
+  /**
    * Standing guard for the whole bug class: a subBlock id may legitimately be
    * reused across operations that feed the same tool param, but the definitions
    * must agree on the seeded value, since only the last one survives. An absent
@@ -275,6 +287,81 @@ describe('block params mapping keeps per-operation defaults from colliding', () 
   })
 })
 
+describe('one subBlock id never carries two different value spaces', () => {
+  const mapParams = ServiceNowBlock.tools.config?.params
+
+  function seededDefaults(): Record<string, unknown> {
+    const seeded: Record<string, unknown> = {}
+    for (const subBlock of ServiceNowBlock.subBlocks) {
+      if (typeof subBlock.value === 'function') {
+        seeded[subBlock.id] = (subBlock.value as (p: Record<string, never>) => unknown)({})
+      }
+    }
+    return seeded
+  }
+
+  function mergedParams(stored: Record<string, unknown>): Record<string, unknown> {
+    const inputs = { ...seededDefaults(), ...auth, ...stored }
+    const mapped = (mapParams?.(inputs as never) ?? {}) as Record<string, unknown>
+    return { ...inputs, ...mapped }
+  }
+
+  /**
+   * Subblock values are stored per block keyed by id, so switching operations
+   * leaves the previous operation's value in place. Where two operations mean
+   * different things by the same tool param — an incident state versus a change
+   * state, a close code from two different choice lists, a search phrase versus
+   * an encoded query — they must not share a subBlock id, or the stale value
+   * rides along and is written to the wrong record.
+   */
+  it.each([
+    ['incidentState', 'changeState', 'state', 'servicenow_update_change_request', '6', '-2'],
+    ['changeState', 'incidentState', 'state', 'servicenow_update_incident', '-2', '6'],
+    [
+      'resolutionCode',
+      'changeCloseCode',
+      'closeCode',
+      'servicenow_update_change_request',
+      'Solved (Permanently)',
+      'successful',
+    ],
+    [
+      'incidentComments',
+      'approvalComments',
+      'comments',
+      'servicenow_update_approval',
+      'visible to the caller',
+      'approved by change board',
+    ],
+    [
+      'query',
+      'knowledgeQuery',
+      'query',
+      'servicenow_search_knowledge',
+      'active=true^priority=1',
+      'vpn setup',
+    ],
+  ])(
+    'a stale %s never reaches %s of the wrong operation',
+    (staleId, ownId, param, operation, staleValue, ownValue) => {
+      const leaked = mergedParams({ operation, [staleId]: staleValue })
+      expect(leaked[param]).not.toBe(staleValue)
+
+      const kept = mergedParams({ operation, [staleId]: staleValue, [ownId]: ownValue })
+      expect(kept[param]).toBe(ownValue)
+    }
+  )
+
+  it('leaves the generic Table API operations without a semantic state', () => {
+    const merged = mergedParams({
+      operation: 'servicenow_read_record',
+      tableName: 'incident',
+      incidentState: '6',
+    })
+    expect(merged.state).toBeUndefined()
+  })
+})
+
 describe('every subBlock a tool reads is one the tool actually declares', () => {
   const toolsById = new Map(Object.values(servicenowTools).map((tool) => [tool.id, tool] as const))
 
@@ -323,14 +410,16 @@ describe('coded-value controls stay reachable on a customized instance', () => {
    * select-only.
    */
   it.each([
-    'state',
+    'incidentState',
+    'changeState',
     'targetState',
     'approvalState',
     'impact',
     'urgency',
     'priority',
     'type',
-    'closeCode',
+    'resolutionCode',
+    'changeCloseCode',
   ])('accepts a raw value for %s', (subBlockId) => {
     const matches = ServiceNowBlock.subBlocks.filter((subBlock) => subBlock.id === subBlockId)
     expect(matches.length).toBeGreaterThan(0)

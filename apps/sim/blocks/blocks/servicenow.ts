@@ -100,6 +100,29 @@ const SEMANTIC_DISPLAY_VALUE_OPS: ReadonlySet<string> = new Set([
   ...SEMANTIC_WRITE_OPS,
 ])
 
+/** Operations whose tool takes a `state`, from whichever control owns that state model. */
+const SEMANTIC_STATE_OPS: ReadonlySet<string> = new Set([
+  'servicenow_create_incident',
+  'servicenow_list_incidents',
+  'servicenow_update_incident',
+  'servicenow_list_change_requests',
+  'servicenow_update_change_request',
+  'servicenow_update_change_state',
+  'servicenow_list_approvals',
+])
+
+/** Operations whose `state` comes from the change model rather than the incident one. */
+const CHANGE_STATE_OPS: ReadonlySet<string> = new Set([
+  'servicenow_list_change_requests',
+  'servicenow_update_change_request',
+])
+
+/** Operations whose close code and notes are the change model's, not an incident's. */
+const CHANGE_CLOSE_OPS: ReadonlySet<string> = new Set([
+  'servicenow_update_change_request',
+  'servicenow_update_change_state',
+])
+
 const OPTIONAL_CHOICE = { label: 'Any (not set)', id: '' } as const
 
 const optionalChoices = <T extends { label: string; id: string }>(options: readonly T[]) => [
@@ -771,7 +794,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     },
     // State dropdowns — one per state model
     {
-      id: 'state',
+      id: 'incidentState',
       title: 'Incident State',
       type: 'combobox',
       options: optionalChoices(INCIDENT_STATE_OPTIONS),
@@ -788,7 +811,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         'Base-system incident states. Instances with a customized state model can use different coded values. Moving to On Hold also needs an On hold reason (Awaiting Caller, Awaiting Change, Awaiting Problem, or Awaiting Vendor), which you set through Additional Fields; Awaiting Caller additionally requires Additional Comments.',
     },
     {
-      id: 'state',
+      id: 'changeState',
       title: 'Change State',
       type: 'combobox',
       options: optionalChoices(CHANGE_STATE_OPTIONS),
@@ -1027,7 +1050,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       mode: 'advanced',
     },
     {
-      id: 'comments',
+      id: 'incidentComments',
       title: 'Additional Comments',
       type: 'long-input',
       placeholder: 'Customer-visible comment',
@@ -1038,7 +1061,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       mode: 'advanced',
     },
     {
-      id: 'comments',
+      id: 'approvalComments',
       title: 'Approval Comments',
       type: 'long-input',
       placeholder: 'Reason for the decision',
@@ -1062,7 +1085,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     },
     // Resolution and closure
     {
-      id: 'closeCode',
+      id: 'resolutionCode',
       title: 'Resolution Code',
       type: 'short-input',
       placeholder: 'A close_code choice configured on your instance',
@@ -1074,7 +1097,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       description: 'The incident close_code choice list is configured per instance.',
     },
     {
-      id: 'closeCode',
+      id: 'changeCloseCode',
       title: 'Close Code',
       type: 'combobox',
       options: optionalChoices(CHANGE_CLOSE_CODE_OPTIONS),
@@ -1086,7 +1109,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       description: 'Required when moving a change request to Closed.',
     },
     {
-      id: 'closeNotes',
+      id: 'resolutionNotes',
       title: 'Resolution Notes',
       type: 'long-input',
       placeholder: 'How the record was resolved',
@@ -1097,7 +1120,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       required: true,
     },
     {
-      id: 'closeNotes',
+      id: 'changeCloseNotes',
       title: 'Close Notes',
       type: 'long-input',
       placeholder: 'Outcome of the change',
@@ -1378,7 +1401,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     },
     // Knowledge
     {
-      id: 'query',
+      id: 'knowledgeQuery',
       title: 'Search Text',
       type: 'short-input',
       placeholder: 'vpn setup',
@@ -1554,6 +1577,15 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
           semanticDisplayValue,
           targetState,
           approvalState,
+          incidentState,
+          changeState,
+          incidentComments,
+          approvalComments,
+          resolutionCode,
+          changeCloseCode,
+          resolutionNotes,
+          changeCloseNotes,
+          knowledgeQuery,
           ...rest
         } = params
         const isCreateOrUpdate =
@@ -1562,8 +1594,31 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         if (SEMANTIC_DISPLAY_VALUE_OPS.has(operation)) {
           rest.displayValue = semanticDisplayValue
         }
-        if (operation === 'servicenow_update_change_state') rest.state = targetState
-        if (operation === 'servicenow_list_approvals') rest.state = approvalState
+
+        /**
+         * Subblock values are stored per block keyed by subblock id, so an id
+         * reused across operations carries one value between them. Each of these
+         * tool params has more than one value space — an incident `state` is not
+         * a change `state`, and a knowledge search phrase is not an encoded
+         * query — so each gets its own subblock and is republished here for the
+         * operations that own it. Assign explicitly rather than conditionally:
+         * `finalInputs` merges this result over the raw inputs, so a key left
+         * off is not dropped, it keeps whatever the raw input held.
+         */
+        const stateSource =
+          operation === 'servicenow_update_change_state'
+            ? targetState
+            : operation === 'servicenow_list_approvals'
+              ? approvalState
+              : CHANGE_STATE_OPS.has(operation)
+                ? changeState
+                : incidentState
+        rest.state = SEMANTIC_STATE_OPS.has(operation) ? stateSource : undefined
+        rest.comments =
+          operation === 'servicenow_update_approval' ? approvalComments : incidentComments
+        rest.closeCode = CHANGE_CLOSE_OPS.has(operation) ? changeCloseCode : resolutionCode
+        rest.closeNotes = CHANGE_CLOSE_OPS.has(operation) ? changeCloseNotes : resolutionNotes
+        if (operation === 'servicenow_search_knowledge') rest.query = knowledgeQuery
 
         if (attachmentLimit != null && attachmentLimit !== '') rest.limit = Number(attachmentLimit)
         if (rest.limit != null && rest.limit !== '') rest.limit = Number(rest.limit)
@@ -1645,6 +1700,15 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     state: { type: 'string', description: 'State coded value' },
     targetState: { type: 'string', description: 'Target state for a change request transition' },
     approvalState: { type: 'string', description: 'Approval state filter' },
+    incidentState: { type: 'string', description: 'Incident state coded value' },
+    changeState: { type: 'string', description: 'Change request state coded value' },
+    incidentComments: { type: 'string', description: 'Customer-visible incident comment' },
+    approvalComments: { type: 'string', description: 'Comment recorded with an approval decision' },
+    resolutionCode: { type: 'string', description: 'Incident resolution (close) code' },
+    changeCloseCode: { type: 'string', description: 'Change request close code' },
+    resolutionNotes: { type: 'string', description: 'Incident resolution notes' },
+    changeCloseNotes: { type: 'string', description: 'Change request close notes' },
+    knowledgeQuery: { type: 'string', description: 'Knowledge article search text' },
     impact: { type: 'string', description: 'Impact coded value' },
     urgency: { type: 'string', description: 'Urgency coded value' },
     priority: { type: 'string', description: 'Priority coded value' },
