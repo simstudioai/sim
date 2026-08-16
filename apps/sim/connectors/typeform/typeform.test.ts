@@ -55,12 +55,17 @@ describe('typeform listDocuments', () => {
     expect(requestUrl(1).searchParams.get('response_type')).toBe('completed')
   })
 
-  it('requests all three response types for the "all" choice', async () => {
+  /**
+   * Typeform documents only `partial` and `completed` as `response_type` members,
+   * so `all` must not send an undocumented `started`: an unknown enum member risks
+   * a 400 that fails the entire sync.
+   */
+  it('requests only the documented response types for the "all" choice', async () => {
     mockFormThenResponses({ items: [] })
 
     await typeformConnector.listDocuments(ACCESS_TOKEN, { ...FORM_CONFIG, responseType: 'all' })
 
-    expect(requestUrl(1).searchParams.get('response_type')).toBe('started,partial,completed')
+    expect(requestUrl(1).searchParams.get('response_type')).toBe('partial,completed')
   })
 
   it('derives an incremental since filter at the second precision the API documents', async () => {

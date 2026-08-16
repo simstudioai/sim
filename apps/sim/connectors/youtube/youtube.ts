@@ -140,10 +140,10 @@ async function lookupUploadsPlaylist(
  * Resolves a channel reference to its "uploads" playlist ID via `channels.list`.
  *
  * A value shaped like a channel ID is looked up with `id` first. That shape is only a
- * heuristic for ordering the attempts, never a rejection: Google documents the ID as
- * "a string that begins with the letters `UC`, though its format is subject to change"
- * and never specifies a length or character set, so the test stays deliberately loose
- * and a miss simply falls through.
+ * heuristic for ordering the attempts, never a rejection: Google does not document a
+ * channel-ID format at all — the `UC` prefix is an observation from the example IDs in
+ * the channel-ID guide, not a documented guarantee — so the test stays deliberately
+ * loose and a miss simply falls through.
  *
  * Anything else — and a `UC…`-shaped value that matched no channel — is tried as a
  * handle: `channels.list` documents that the `forHandle` value "can be prepended with an

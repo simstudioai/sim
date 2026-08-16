@@ -95,6 +95,27 @@ function decodeCharacterReference(raw: string, code: number): string {
 }
 
 /**
+ * Anchored to a tag-name allowlist rather than the looser `<[a-z!/]` shape,
+ * because {@link htmlToPlainText} both strips tags and collapses all whitespace.
+ * A false positive therefore does not merely pass text through untouched — it
+ * deletes the bracketed span and flattens the document's line structure. Plain
+ * text routinely contains angle brackets that are not markup: an email address
+ * (`Reply from John <john@acme.com>`), a markdown autolink
+ * (`<https://acme.com>`), or a placeholder (`<redacted>`).
+ */
+const HTML_TAG_PATTERN =
+  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
+
+/**
+ * Reports whether a value carries real HTML markup and is therefore worth routing
+ * through {@link htmlToPlainText}. Use this instead of a hand-rolled tag test so
+ * connectors cannot drift apart on what counts as markup.
+ */
+export function looksLikeHtml(value: string): boolean {
+  return HTML_TAG_PATTERN.test(value)
+}
+
+/**
  * Strips HTML tags from content and decodes HTML entities, including numeric
  * character references in decimal (`&#8217;`) and hex (`&#x2019;`) form.
  *

@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { hubspotConnectorMeta } from '@/connectors/hubspot/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, looksLikeHtml, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('HubSpotConnector')
 
@@ -177,9 +177,14 @@ function buildRecordTitle(objectType: string, properties: Record<string, string 
 /**
  * HubSpot rich-text properties (ticket `content`, company `description`, custom
  * rich-text fields) come back as raw HTML, so they are stripped before indexing.
+ *
+ * The detection is deliberately the shared anchored one: CRM free text regularly
+ * carries angle brackets that are not markup (`Reply from John <john@acme.com>`),
+ * and a false positive here does not pass the value through — `htmlToPlainText`
+ * would delete the bracketed span and collapse the value's line structure.
  */
 function toPlainTextValue(value: string): string {
-  return /<[a-z!/][^>]*>/i.test(value) ? htmlToPlainText(value) : value
+  return looksLikeHtml(value) ? htmlToPlainText(value) : value
 }
 
 /**

@@ -384,7 +384,17 @@ async function fetchFormValues(
         },
       }
     )
-    if (!response.ok) return []
+    /**
+     * Only a 404 means the envelope carries no form data. Swallowing every other
+     * status would bake a permanently incomplete document: `buildContentHash` is
+     * metadata-only, so the next sync computes the identical hash, classifies the
+     * document `unchanged`, and the missing form-data section is never recovered
+     * until the envelope's status changes again.
+     */
+    if (response.status === 404) return []
+    if (!response.ok) {
+      throw new Error(`Failed to fetch DocuSign form data: ${response.status}`)
+    }
     const data = (await response.json()) as DocuSignFormData
     const values: DocuSignFormValue[] = []
     if (Array.isArray(data.formData)) values.push(...data.formData)

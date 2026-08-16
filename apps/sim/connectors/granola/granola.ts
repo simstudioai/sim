@@ -3,7 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { granolaConnectorMeta } from '@/connectors/granola/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, looksLikeHtml, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GranolaConnector')
 
@@ -136,24 +136,6 @@ function parseDateFilter(sourceConfig: Record<string, unknown>, key: string): st
   if (!trimmed) return undefined
   const parsed = new Date(trimmed)
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
-}
-
-/**
- * Matches a real HTML tag, anchored to a known tag name rather than any
- * `<word…>` run. Markdown autolinks (`<https://acme.com>`, `<jane@acme.com>`)
- * and angle-bracketed prose (`<redacted>`) are common in meeting summaries, and
- * a looser pattern would route the whole markdown document through
- * `htmlToPlainText`, which collapses every newline and destroys its structure.
- */
-const HTML_TAG_PATTERN =
-  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
-
-/**
- * Detects HTML markup in a summary. Granola documents `summary_markdown` as
- * markdown, so this only guards against the API ever emitting HTML instead.
- */
-function looksLikeHtml(value: string): boolean {
-  return HTML_TAG_PATTERN.test(value)
 }
 
 /**

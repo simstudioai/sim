@@ -605,12 +605,24 @@ export const ashbyConnector: ConnectorConfig = {
     externalId: string
   ): Promise<ExternalDocument | null> => {
     try {
-      if (!externalId) return null
+      /**
+       * These are API-shape faults, not absence: `candidate.info` answered
+       * `success: true` with an unusable payload. Returning `null` would read as
+       * documented absence, and on an `add` the engine's `Promise.allSettled`
+       * hydration treats a fulfilled `null` as neither success nor failure — no
+       * `docsFailed`, no `failedExternalIds`, no log — so the candidate would
+       * vanish silently. Ashby sets `contentDeferred`, so this path is live.
+       */
+      if (!externalId) throw new Error('Ashby getDocument called without a candidate id')
 
       const infoData = await ashbyPost(accessToken, 'candidate.info', { id: externalId })
-      if (!infoData.results) return null
+      if (!infoData.results) {
+        throw new Error(`Ashby candidate.info returned no results for candidate ${externalId}`)
+      }
       const candidate = mapCandidate(infoData.results)
-      if (!candidate.id) return null
+      if (!candidate.id) {
+        throw new Error(`Ashby candidate.info returned a candidate with no id for ${externalId}`)
+      }
 
       const notes = await fetchAllNotes(accessToken, candidate.id)
 

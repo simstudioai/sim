@@ -39,7 +39,7 @@ export const typeformConnectorMeta: ConnectorMeta = {
       options: [
         { label: 'Completed only', id: 'completed' },
         { label: 'Partial & completed', id: 'partial' },
-        { label: 'All (started, partial & completed)', id: 'all' },
+        { label: 'All available (partial & completed)', id: 'all' },
       ],
       description: 'Which responses to sync by completion status. Defaults to completed only.',
     },

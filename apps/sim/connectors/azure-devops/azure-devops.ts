@@ -1079,9 +1079,15 @@ async function getFileDocument(
     branchOverride,
     syncContext
   )
+  /**
+   * A branch that will not resolve is a lookup failure, not an absent file — the
+   * file only reached hydration because the listing already resolved its repo.
+   * Returning `null` reads as documented absence, and on an `add` the engine's
+   * `Promise.allSettled` hydration counts a fulfilled `null` as neither success
+   * nor failure, so the file would vanish with no `docsFailed` and no log.
+   */
   if (!branch) {
-    logger.warn('Cannot resolve branch for Azure DevOps file', { externalId })
-    return null
+    throw new Error(`Cannot resolve branch for Azure DevOps file ${externalId}`)
   }
 
   const metadataParams = new URLSearchParams({

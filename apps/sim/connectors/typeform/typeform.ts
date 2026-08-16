@@ -124,16 +124,22 @@ function getResponseTypeChoice(sourceConfig: Record<string, unknown>): ResponseT
 /**
  * Appends the `response_type` filter for a given choice. Omitting the parameter
  * would fall back to the API default of `completed` only, so every choice is sent
- * explicitly. `partial` requests both partial and completed so partially-answered
- * submissions are included alongside finished ones; `all` additionally requests
- * `started`, the third response type (the documented `sort` default names all
- * three: `submitted_at` for completed, `staged_at` for partial, `landed_at` for
- * started).
+ * explicitly.
+ *
+ * Typeform documents exactly two members: "It is expected to be passed as a comma
+ * separated list of values, e.g. `response_type=partial,completed`", defaulting to
+ * `completed`. There is no documented `started` member — the `sort` docs imply a
+ * started *state* exists (ordering falls back to `landed_at`), but that does not
+ * make it a valid filter value, and sending an undocumented member risks a 400
+ * that fails the entire sync. `all` therefore requests the widest documented set,
+ * which is the same as `partial`.
  */
 function appendResponseType(params: URLSearchParams, choice: ResponseTypeChoice): void {
-  if (choice === 'partial') params.append('response_type', 'partial,completed')
-  else if (choice === 'all') params.append('response_type', 'started,partial,completed')
-  else params.append('response_type', 'completed')
+  if (choice === 'partial' || choice === 'all') {
+    params.append('response_type', 'partial,completed')
+  } else {
+    params.append('response_type', 'completed')
+  }
 }
 
 /**

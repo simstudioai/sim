@@ -289,13 +289,22 @@ export const dropboxConnector: ConnectorConfig = {
     })
 
     /**
-     * Dropbox reports endpoint-specific errors — including `path/not_found` — as 409,
-     * the only status that means the file is genuinely gone. Every other failure
-     * (429, 5xx, network faults) propagates so the sync engine records a failed row
-     * and keeps the already-indexed file out of deletion reconciliation.
+     * Dropbox reports every endpoint-specific error as 409, so the status alone
+     * does not mean the file is gone. For `get_metadata` the error union is
+     * `path: LookupError`, whose variants include `restricted_content` and
+     * `locked` — the file still exists in both. Only `not_found` is absence, and
+     * only that returns `null`; anything else propagates so the sync engine
+     * records a failed row instead of silently dropping the document.
      */
     if (!response.ok) {
-      if (response.status === 409) return null
+      if (response.status === 409) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: { '.tag'?: string; path?: { '.tag'?: string } }
+        } | null
+        if (body?.error?.['.tag'] === 'path' && body.error.path?.['.tag'] === 'not_found') {
+          return null
+        }
+      }
       throw new Error(`Failed to get metadata: ${response.status}`)
     }
 
