@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
+import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   buildSelectorContextFromBlock,
   SELECTOR_CONTEXT_FIELDS,
@@ -14,6 +15,7 @@ import {
   isNonEmptyValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { resolveToolParamRequired } from '@/lib/workflows/tool-input/param-visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
@@ -21,10 +23,10 @@ import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block
 import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
 import {
   createCanonicalModeGates,
-  isSubBlockRequired,
   scanWorkflowReferences,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { ParameterVisibility } from '@/tools/types'
 
 const isSelectorContextKey = (
   key: string
@@ -84,6 +86,18 @@ interface EmitAnchoredParams {
    * credential-anchored field).
    */
   chaining: boolean
+  /**
+   * Present ONLY for the nested `tool-input` pass: each param's resolved
+   * {@link ParameterVisibility}, keyed by sub-block id and by canonical param id. Its presence
+   * is what marks a dependent as a tool param rather than a block sub-block, so `required`
+   * can apply the tool-row rule (see {@link resolveToolParamRequired}).
+   *
+   * Two cases fall back to the block-level `required`, failing closed: a param absent from
+   * the map (custom-tool / MCP generic fallback, or an unresolvable tool id), and a param
+   * present with an `undefined` value — the resolver's `buildToolInputSearchConfig` branch
+   * does not copy `paramVisibility`, so an authoritative entry can still carry none.
+   */
+  paramVisibilityById?: Map<string, ParameterVisibility | undefined>
   out: ForkDependentReconfig[]
 }
 
@@ -107,6 +121,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     makeTitle,
     toolName,
     chaining,
+    paramVisibilityById,
     out,
   } = params
   const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks, {
@@ -198,6 +213,21 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
             ? values[dependent.canonicalParamId]
             : undefined)
         const rawSourceValue = typeof rawDependentValue === 'string' ? rawDependentValue : ''
+        // Two independent invariants decide whether this row GATES the sync (it is always
+        // offered either way - see the comment above the `condition` skip):
+        //
+        // 1. A sync carries the source's configuration across; it never invents configuration
+        //    the source never had. A field the source left blank has nothing to carry, so it
+        //    cannot block. A genuinely missing value is still caught by the block's own
+        //    required-field validation at run/deploy time.
+        // 2. Inside a `tool-input`, only a `user-only` param is the user's to supply; a
+        //    `user-or-llm` / `llm-only` param is filled by the model at runtime, so a blank
+        //    one is intentional. Applies to the nested pass only, where visibility is known.
+        //
+        // Testing `rawSourceValue` directly is sound: the dormant guard above has already
+        // returned for any pair in advanced mode, so the pair is basic-active here and
+        // `rawSourceValue` IS the group's active canonical value.
+        const configuredRequired = resolveToolParamRequired(dependent, values, paramVisibilityById)
         out.push({
           parentKind: anchor.parentKind,
           parentSourceId,
@@ -213,7 +243,11 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           // The diff route overlays the stored/target-draft value onto `currentValue`;
           // `sourceValue` stays the raw source reference (the copy-resolved parent's seed).
           currentValue: rawSourceValue,
-          required: isSubBlockRequired(dependent.required, values),
+          // Ask the emptiness question of the RAW value, not the string-coerced one:
+          // `rawSourceValue` flattens every non-string (a multi-select selector stores an
+          // array) to `''`, which would report a populated field as blank and silently
+          // un-gate it. `isNonEmptyValue` handles arrays and non-strings on purpose.
+          required: configuredRequired && isNonEmptyValue(rawDependentValue),
           providesContextKey,
           consumesContextKeys,
           context: dependentContext,
@@ -315,6 +349,28 @@ export function collectForkDependentReconfigs(
             typeof tool.title === 'string' && tool.title ? tool.title : toolConfig.name
           const toolInputKey = cfg.id
           const toolIndex = index
+          // Resolved `ParameterVisibility` per param, from the same resolver the tool-row UI
+          // and the rest of fork remapping use - so "is this the user's to fill?" is answered
+          // identically in the editor and in the sync gate. Keyed by both the sub-block id and
+          // its canonical param id, since a nested tool stores picks under either.
+          const paramVisibilityById = new Map<string, ParameterVisibility | undefined>()
+          for (const resolved of getToolInputParamConfigs({
+            tool: { ...tool, type: tool.type, params: toolParams },
+            toolIndex,
+            parentCanonicalModes: block.data?.canonicalModes,
+          })) {
+            if (!resolved.authoritative) continue
+            const visibility = resolved.config.paramVisibility
+            paramVisibilityById.set(resolved.paramId, visibility)
+            // The canonical id is an ALIAS, so it must never clobber a param that owns that
+            // key as its own `paramId` - first (own-id) write wins.
+            if (
+              resolved.config.canonicalParamId &&
+              !paramVisibilityById.has(resolved.config.canonicalParamId)
+            ) {
+              paramVisibilityById.set(resolved.config.canonicalParamId, visibility)
+            }
+          }
           emitAnchoredDependents({
             config: toolConfig,
             values: toolValues,
@@ -332,6 +388,7 @@ export function collectForkDependentReconfigs(
             makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
             toolName: toolLabel,
             chaining: false,
+            paramVisibilityById,
             out,
           })
         }
