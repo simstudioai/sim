@@ -34,6 +34,8 @@ declare global {
       root: Node
       observer: MutationObserver
       revision: number
+      /** Roots already passed to observe(), so re-observing stays cheap. */
+      observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
   }
@@ -2008,6 +2010,23 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
     if (allElements.length >= stateNodeCap) break
   }
 
+  const mutationOptions: MutationObserverInit = {
+    subtree: true,
+    childList: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: [
+      'aria-activedescendant',
+      'aria-expanded',
+      'aria-hidden',
+      'aria-selected',
+      'checked',
+      'disabled',
+      'hidden',
+      'open',
+      'selected',
+    ],
+  }
   const mutationStates = (window.__simAgentMutationStates ??= [])
   let mutationState = observationRoot
     ? mutationStates.find((state) => state.root === observationRoot)
@@ -2017,32 +2036,28 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
       root: observationRoot,
       observer: null as unknown as MutationObserver,
       revision: 0,
+      observedRoots: new WeakSet<ParentNode>(),
     }
     const state = mutationState
     state.observer = new MutationObserver((records) => {
       state.revision += records.length
     })
-    for (const root of roots) {
-      state.observer.observe(root, {
-        subtree: true,
-        childList: true,
-        characterData: true,
-        attributes: true,
-        attributeFilter: [
-          'aria-activedescendant',
-          'aria-expanded',
-          'aria-hidden',
-          'aria-selected',
-          'checked',
-          'disabled',
-          'hidden',
-          'open',
-          'selected',
-        ],
-      })
-    }
     mutationStates.push(state)
     if (mutationStates.length > 10) mutationStates.shift()?.observer.disconnect()
+  }
+  // Observe on EVERY call, not only the first. The roots list is rebuilt each
+  // time and grows as shadow roots mount, so attaching once left every
+  // component that appeared later unobserved — its DOM changes raised no
+  // revision, and an action that mounted UI inside one reported no effect at
+  // all. `observe` on an already-observed root with the same options is a
+  // documented no-op, and observedRoots keeps the common case cheap.
+  if (mutationState) {
+    const state = mutationState
+    for (const root of roots) {
+      if (state.observedRoots.has(root)) continue
+      state.observer.observe(root as Node, mutationOptions)
+      state.observedRoots.add(root)
+    }
   }
   if (resetMutationRevision) {
     mutationState?.observer.takeRecords()
@@ -2116,8 +2131,18 @@ export function readPageActionState(resetMutationRevision = false, elementId?: n
         .replace(/[\uD800-\uDBFF]$/, '')
     )
 
+  // Roles an app uses for something that APPEARS over the page. The first three
+  // were the whole list, which missed the most common hover affordance there
+  // is: a row's action bar (Slack's message shortcuts is role="toolbar"/"group"
+  // with an aria-label). A hover that mounted one produced no popup change, no
+  // target change, and so no observed effect at all — the agent concluded its
+  // hover had failed and escalated to clicking pixels.
   const visiblePopupLabels = allElements
-    .filter((element) => element.matches('[role="tooltip"], [role="menu"], [role="listbox"]'))
+    .filter((element) =>
+      element.matches(
+        '[role="tooltip"], [role="menu"], [role="listbox"], [role="toolbar"], [role="menubar"], [role="group"][aria-label], [popover]'
+      )
+    )
     .filter((element) => {
       const rect = element.getBoundingClientRect()
       const view = element.ownerDocument.defaultView

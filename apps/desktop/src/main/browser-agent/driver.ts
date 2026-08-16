@@ -3002,16 +3002,29 @@ async function executeToolInner(
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
-      const beforePage = await pageActionState(target, true, elementId)
-      const beforeElement = await activeElementState(target)
-      const beforeTopPage = targetFrame ? await pageActionState(contents, true) : beforePage
-      const beforeTopElement = targetFrame ? await activeElementState(contents) : beforeElement
+      let beforePage = await pageActionState(target, true, elementId)
+      let beforeElement = await activeElementState(target)
+      let beforeTopPage = targetFrame ? await pageActionState(contents, true) : beforePage
+      let beforeTopElement = targetFrame ? await activeElementState(contents) : beforeElement
+      // Preparing the surface scrolls the element into view, so a baseline
+      // taken before it always reports scrollChanged — the tool's own probe,
+      // not the hover's effect. That pinned every unproductive hover to
+      // "background churn" instead of the honest "nothing happened", and hid
+      // real scrolling caused by the hover itself. Re-baseline once the scroll
+      // has settled and before the pointer moves.
+      const rebaseline = async (): Promise<void> => {
+        beforePage = await pageActionState(target, true, elementId)
+        beforeElement = await activeElementState(target)
+        beforeTopPage = targetFrame ? await pageActionState(contents, true) : beforePage
+        beforeTopElement = targetFrame ? await activeElementState(contents) : beforeElement
+      }
       let trusted = false
       let result: unknown
       if (!targetFrame) {
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
         let prepared = await prepareElementSurface(target, elementId, executionDeadline, true)
+        await rebaseline()
         let stable = false
         for (let attempt = 0; attempt < 2; attempt++) {
           assertCurrentExecution()
@@ -3035,6 +3048,7 @@ async function executeToolInner(
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
         let surface = await prepareElementSurface(target, elementId, executionDeadline, true)
+        await rebaseline()
         assertCurrentExecution()
         assertElementActionCurrent(contents, elementId, target)
         let embedding = await assertFrameEmbeddingVisible(
@@ -3135,9 +3149,17 @@ async function executeToolInner(
         effectObserved,
         ...(!effectObserved
           ? {
-              note: possibleEffectObserved
-                ? 'Only background DOM/title churn followed the hover; a tooltip/menu was not confirmed.'
-                : 'No tooltip, menu, focus, or other strong hover effect was observed.',
+              // A capped scan cannot claim nothing appeared: overlays are
+              // commonly portalled to the END of <body>, which is exactly the
+              // part a truncated walk misses. Say so instead of reporting a
+              // partial look with full confidence.
+              note:
+                afterPage.observationTruncated === true ||
+                afterTopPage.observationTruncated === true
+                  ? 'This page is too large to scan completely, so a tooltip or menu that opened may not have been seen. Confirm with browser_snapshot or browser_screenshot before concluding the hover did nothing.'
+                  : possibleEffectObserved
+                    ? 'Only background DOM/title churn followed the hover; a tooltip/menu was not confirmed.'
+                    : 'No tooltip, menu, focus, or other strong hover effect was observed.',
             }
           : {}),
       }

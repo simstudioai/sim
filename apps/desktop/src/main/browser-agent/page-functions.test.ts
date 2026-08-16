@@ -860,6 +860,28 @@ describe('collectSnapshot', () => {
     expect(clickElement(secondRef)).toMatchObject({ dispatched: true })
   })
 
+  // The exact shape of the reported failure: hovering a Slack message mounts an
+  // action bar, but it is a role="toolbar"/"group" — none of the three roles the
+  // popup scan used to match. The hover therefore observed no popup change, no
+  // target change, and so no effect at all, and the agent concluded hovering
+  // did not work and fell back to clicking pixels off screenshots.
+  it('sees a row action bar that mounts on hover', () => {
+    document.body.innerHTML = '<div data-testid="message">Hello</div>'
+    visible(document.querySelector('[data-testid="message"]') as HTMLElement)
+
+    const before = readPageActionState(true) as { popups: string[] }
+    expect(before.popups).toEqual([])
+
+    const toolbar = visible(document.createElement('div'))
+    toolbar.setAttribute('role', 'toolbar')
+    toolbar.setAttribute('aria-label', 'Message shortcuts')
+    document.body.append(toolbar)
+
+    const after = readPageActionState(false) as { popups: string[] }
+    expect(after.popups).toEqual(['Message shortcuts'])
+    expect(after.popups).not.toEqual(before.popups)
+  })
+
   it('reports a targeted control semantic disappearance after its panel closes', () => {
     document.body.innerHTML = `
       <aside aria-label="Thread panel"><button data-testid="close-thread">Close thread</button></aside>
