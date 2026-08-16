@@ -9,35 +9,52 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
 
 /**
- * Tab order is the reading order we want: the main docs, then the two reference
- * surfaces, then Academy. `Documentation` matches by exclusion, so every section
- * that owns a tab has to be listed in its matcher or two tabs light up at once.
+ * Sections that own a tab, in reading order: the main docs, then the two
+ * reference surfaces, then Academy. `Documentation` matches by exclusion, so
+ * every section listed here is one it must not claim.
  */
-const SECTION_TABS = ['/api-reference', '/academy', '/cli'] as const
+const SECTION_TABS = ['api-reference', 'academy', 'cli'] as const
+
+/**
+ * Whether a pathname is inside a section, matched by whole path segment.
+ *
+ * A substring test is wrong: `/integrations/clickup` and
+ * `/integrations/clickhouse` both contain `/cli`, which lit the CLI tab and
+ * unlit Documentation on two existing integration pages. Anchoring to the start
+ * is also wrong, because a non-default locale prefixes the path (`/ja/cli`), so
+ * the segment can sit anywhere.
+ */
+function isInSection(pathname: string, section: string): boolean {
+  return (
+    pathname === `/${section}` ||
+    pathname.endsWith(`/${section}`) ||
+    pathname.includes(`/${section}/`)
+  )
+}
 
 const NAV_TABS = [
   {
     label: 'Documentation',
     href: '/introduction',
-    match: (p: string) => !SECTION_TABS.some((section) => p.includes(section)),
+    match: (p: string) => !SECTION_TABS.some((section) => isInSection(p, section)),
     external: false,
   },
   {
     label: 'API Reference',
     href: '/api-reference/getting-started',
-    match: (p: string) => p.includes('/api-reference'),
+    match: (p: string) => isInSection(p, 'api-reference'),
     external: false,
   },
   {
     label: 'CLI',
     href: '/cli',
-    match: (p: string) => p.includes('/cli'),
+    match: (p: string) => isInSection(p, 'cli'),
     external: false,
   },
   {
     label: 'Academy',
     href: '/academy',
-    match: (p: string) => p.includes('/academy'),
+    match: (p: string) => isInSection(p, 'academy'),
     external: false,
   },
 ] as const

@@ -100,7 +100,22 @@ function collectLeaves(command: Command, prefix: string[]): DocumentedCommand[] 
  * the row filter help both contain one.
  */
 function code(value: string): string {
-  return `\`${value.replace(/\|/g, '\\|')}\``
+  return `\`${escapeTablePipes(value)}\``
+}
+
+/**
+ * Escapes a value so a Markdown table row cannot be split by its content.
+ *
+ * A backslash has to be doubled before pipes are escaped, or an input already
+ * ending in one turns `a\` + `|` into `a\\|`: the table parser reads `\\` as an
+ * escaped backslash, leaving the pipe unescaped, and the cell splits early.
+ *
+ * The doubling is correct inside a code span too, even though code spans do not
+ * process backslash escapes — the table layer consumes one level of escaping
+ * before inline parsing runs, so `a\\\|` arrives at the code span as `a\|`.
+ */
+function escapeTablePipes(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
 }
 
 /**
@@ -111,7 +126,7 @@ function code(value: string): string {
  * that embeds JSON examples.
  */
 function escapeCell(value: string): string {
-  return escapeProse(value).replace(/\|/g, '\\|')
+  return escapeTablePipes(escapeProse(value))
 }
 
 /** Escapes MDX-significant characters in body prose. */
@@ -376,11 +391,14 @@ function renderReferencePage(
     '## Global options',
     '',
     'These apply to every command, and may be written before or after it.',
-    ...sizedTable([
-      '| Option | Description |',
-      '| --- | --- |',
-      ...program.options.map((option) => `| ${code(option.flags)} | ${describeOption(option)} |`),
-    ]),
+    // Deliberately unwrapped, like the same table on the overview page:
+    // `CommandTable` sizes its second column for the `Required` cell of the
+    // three-column tables, which on this two-column one would crush the
+    // description into 5.5rem.
+    '',
+    '| Option | Description |',
+    '| --- | --- |',
+    ...program.options.map((option) => `| ${code(option.flags)} | ${describeOption(option)} |`),
     '',
   ]
 
