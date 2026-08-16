@@ -62,6 +62,7 @@
     "tool-metadata:generate": "bun run scripts/sync-tool-metadata.ts",
     "tool-metadata:check": "bun run scripts/sync-tool-metadata.ts --check",
     "integration-catalog:check": "bun run scripts/check-integration-catalog.ts",
+    "docs:check": "bun run scripts/generate-docs.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
     "mship-tools:check": "bun run scripts/sync-tool-catalog.ts --check",
     "trace-spans-contract:generate": "bun run scripts/sync-trace-spans-contract.ts",
