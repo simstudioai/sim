@@ -37,7 +37,8 @@ const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
   create_rate_limit_rule: { action: 'rateLimitAction' },
   update_rate_limit_rule: { action: 'updateRateLimitAction' },
   create_access_application: { type: 'appType', tags: 'accessAppTags' },
-  update_access_application: { type: 'appType', tags: 'accessAppTags' },
+  update_access_application: { type: 'updateAppType', tags: 'accessAppTags' },
+  update_access_policy: { decision: 'updatePolicyDecision' },
   list_access_applications: { name: 'listNameFilter', domain: 'accessAppDomainFilter' },
   list_access_groups: { name: 'listNameFilter' },
   list_access_service_tokens: { name: 'listNameFilter' },
@@ -184,7 +185,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         update_access_policy: [
           { text: 'Update Access policy', field: 'policyId', core: true },
-          { text: 'to', field: 'decision' },
+          { text: 'to', field: 'updatePolicyDecision' },
           { text: 'on application', field: 'appId' },
         ],
         delete_access_policy: [
@@ -1696,10 +1697,35 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       ],
       value: () => 'self_hosted',
       required: true,
-      condition: {
-        field: 'operation',
-        value: ['create_access_application', 'update_access_application'],
-      },
+      condition: { field: 'operation', value: 'create_access_application' },
+    },
+    {
+      /**
+       * Updating an Access application replaces it, so a seeded type would
+       * rewrite what a live application IS as soon as anything else is edited.
+       * No default: the caller states the type the replaced application keeps.
+       */
+      id: 'updateAppType',
+      title: 'Application Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Self-Hosted', id: 'self_hosted' },
+        { label: 'SaaS', id: 'saas' },
+        { label: 'SSH', id: 'ssh' },
+        { label: 'VNC', id: 'vnc' },
+        { label: 'App Launcher', id: 'app_launcher' },
+        { label: 'WARP', id: 'warp' },
+        { label: 'Browser Isolation', id: 'biso' },
+        { label: 'Bookmark', id: 'bookmark' },
+        { label: 'Dashboard SSO', id: 'dash_sso' },
+        { label: 'Infrastructure', id: 'infrastructure' },
+        { label: 'RDP', id: 'rdp' },
+        { label: 'MCP', id: 'mcp' },
+        { label: 'MCP Portal', id: 'mcp_portal' },
+        { label: 'Proxy Endpoint', id: 'proxy_endpoint' },
+      ],
+      required: true,
+      condition: { field: 'operation', value: 'update_access_application' },
     },
     {
       id: 'domain',
@@ -1927,10 +1953,25 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       ],
       value: () => 'allow',
       required: true,
-      condition: {
-        field: 'operation',
-        value: ['create_access_policy', 'update_access_policy'],
-      },
+      condition: { field: 'operation', value: 'create_access_policy' },
+    },
+    {
+      /**
+       * Updating a policy replaces it, so a seeded allow would silently widen a
+       * live deny, bypass, or non_identity policy the moment its rules are
+       * edited. No default: the caller states the decision.
+       */
+      id: 'updatePolicyDecision',
+      title: 'Decision',
+      type: 'dropdown',
+      options: [
+        { label: 'Allow', id: 'allow' },
+        { label: 'Deny', id: 'deny' },
+        { label: 'Non-Identity (service tokens)', id: 'non_identity' },
+        { label: 'Bypass (skip Access entirely)', id: 'bypass' },
+      ],
+      required: true,
+      condition: { field: 'operation', value: 'update_access_policy' },
     },
     {
       id: 'include',
@@ -2523,6 +2564,14 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     tunnelStatus: { type: 'string', description: 'Status filter when listing tunnels' },
 
     appType: { type: 'string', description: 'Access application type' },
+    updateAppType: {
+      type: 'string',
+      description: 'Access application type a replaced application ends up with',
+    },
+    updatePolicyDecision: {
+      type: 'string',
+      description: 'Decision a replaced Access policy ends up applying',
+    },
     rateLimitAction: {
       type: 'string',
       description: 'Action applied once a rate limit is exceeded',

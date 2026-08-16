@@ -58,11 +58,33 @@ describe('subBlock ids that share a tool param keep their own default', () => {
     expect(mapped.type).not.toBe('self_hosted')
   })
 
-  it('keeps the Access application type on the Access operations', () => {
+  it('keeps the Access application type when creating an application', () => {
     expect(mapFor('create_access_application', { accountId: 'acct1' }).type).toBe('self_hosted')
-    expect(mapFor('update_access_application', { accountId: 'acct1', appId: 'app1' }).type).toBe(
-      'self_hosted'
-    )
+  })
+
+  it('never seeds a type or decision onto an Access resource it is about to replace', () => {
+    // Both Access updates are full replacements, so a seeded value rewrites what
+    // the live resource IS as soon as anything else is edited — a policy would
+    // flip from deny to allow, an application from saas to self_hosted.
+    const app = mapFor('update_access_application', { accountId: 'acct1', appId: 'app1' })
+    expect(app.type).toBeUndefined()
+    expect(
+      mapFor('update_access_application', {
+        accountId: 'acct1',
+        appId: 'app1',
+        updateAppType: 'saas',
+      }).type
+    ).toBe('saas')
+
+    const policy = mapFor('update_access_policy', { accountId: 'acct1', policyId: 'p1' })
+    expect(policy.decision).toBeUndefined()
+    expect(
+      mapFor('update_access_policy', {
+        accountId: 'acct1',
+        policyId: 'p1',
+        updatePolicyDecision: 'deny',
+      }).decision
+    ).toBe('deny')
   })
 
   it('leaves the DNS record type unset on the filter operations', () => {
@@ -133,6 +155,8 @@ describe('subBlock ids that share a tool param keep their own default', () => {
       'recordProxied',
       'certificateStatus',
       'appType',
+      'updateAppType',
+      'updatePolicyDecision',
       'rateLimitAction',
       'updateRateLimitAction',
       'rulesetName',
