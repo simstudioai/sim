@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SplunkGetSearchResultsParams,
   SplunkSearchResultsResponse,
@@ -7,7 +8,6 @@ import {
   buildSplunkUrl,
   mapSearchResultsPayload,
   readSplunkJson,
-  SEARCH_RESULTS_OUTPUTS,
   SPLUNK_CONNECTION_PARAMS,
   splunkPathSegment,
 } from '@/tools/splunk/utils'
@@ -114,5 +114,39 @@ export const getSearchResultsTool: ToolConfig<
     return { success: true, output: mapSearchResultsPayload(data) }
   },
 
-  outputs: SEARCH_RESULTS_OUTPUTS,
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
+
+  /** Inline by necessity — see the note on `runSearchTool.outputs`. */
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Result rows. Each row holds the fields produced by the search.',
+      items: { type: 'object' },
+    },
+    resultCount: {
+      type: 'number',
+      description: 'Number of result rows returned in this response',
+    },
+    preview: {
+      type: 'boolean',
+      description: 'Whether these are preview results from a still-running job',
+      optional: true,
+    },
+    initOffset: {
+      type: 'number',
+      description: 'Offset of the first returned row within the full result set',
+      optional: true,
+    },
+    messages: {
+      type: 'array',
+      description: 'Search messages returned alongside the results',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', description: 'Message severity' },
+          text: { type: 'string', description: 'Message text' },
+        },
+      },
+    },
+  },
 }

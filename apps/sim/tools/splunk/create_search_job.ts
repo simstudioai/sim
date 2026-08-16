@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SplunkCreateSearchJobParams,
   SplunkCreateSearchJobResponse,
@@ -154,6 +155,8 @@ export const createSearchJobTool: ToolConfig<
     const data = await readSplunkDispatchJson(response)
     return { success: true, output: { sid: requireSplunkSid(data) } }
   },
+
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
 
   outputs: {
     sid: {

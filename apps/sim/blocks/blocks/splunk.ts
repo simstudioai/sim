@@ -620,12 +620,12 @@ Examples:
     earliestTime: { type: 'string', description: 'Earliest time bound of the job' },
     latestTime: { type: 'string', description: 'Latest time bound of the job' },
     searchEarliestTime: {
-      type: 'string',
-      description: 'Earliest time as specified in the search command',
+      type: 'number',
+      description: 'Earliest time as specified in the search command, as an epoch timestamp',
     },
     searchLatestTime: {
-      type: 'string',
-      description: 'Latest time as specified in the search command',
+      type: 'number',
+      description: 'Latest time as specified in the search command, as an epoch timestamp',
     },
     savedSearches: {
       type: 'json',
@@ -681,6 +681,50 @@ Examples:
 export const SplunkBlockMeta = {
   tags: ['monitoring', 'data-analytics'],
   url: 'https://www.splunk.com',
+  skills: [
+    {
+      name: 'search-splunk-logs',
+      description: 'Answer a question about production behavior by running an SPL search.',
+      content:
+        '# Search Splunk Logs\n\nTurn a question about production into an SPL search and answer from the rows.\n\n## Steps\n1. Write a single SPL search scoped to one index and a bounded time range (for example `index=main error earliest=-1h`).\n2. Run the run search operation, which executes the search synchronously and returns the rows in one call.\n3. Read resultCount and results to gather the evidence.\n4. Summarize what the rows show, quoting the fields that matter.\n\n## Notes\nRun search stores at most 1000 rows by default. For a larger result set, create a search job and page through get search results with offset instead of raising the limit.\n\n## Output\nReturn the SPL that was run, the row count, and a short answer to the question.',
+    },
+    {
+      name: 'long-running-search-job',
+      description: 'Dispatch a long Splunk search, poll it to completion, then page the results.',
+      content:
+        '# Long-Running Search Job\n\nRun a search that is too slow for a synchronous call.\n\n## Steps\n1. Create a search job with the SPL and time range. Keep the returned sid.\n2. Poll get search job with that sid until dispatchState is DONE. Check isFailed and isZombie on each poll and stop if either is true.\n3. Fetch results with get search results, paging with count and offset until the rows are exhausted.\n4. Cancel the job when abandoning it early so the result cache is released.\n\n## Output\nReport the sid, the final dispatch state, the number of rows fetched, and the summarized findings.',
+    },
+    {
+      name: 'triage-fired-alerts',
+      description: 'Pull currently firing Splunk alerts and turn them into a triage summary.',
+      content:
+        '# Triage Fired Alerts\n\nTurn unexpired Splunk alerts into an actionable summary.\n\n## Steps\n1. List fired alerts to get every saved search with triggered alerts and its trigger count.\n2. For the noisiest saved searches, get fired alerts by name to read the individual instances with their severity, sid, and trigger time.\n3. Group the instances by saved search and severity, and rank by trigger count.\n4. Have an agent write a short triage note naming what is firing, how often, and what to look at first.\n\n## Output\nReturn the ranked alert list with trigger counts and the triage note.',
+    },
+    {
+      name: 'run-saved-search',
+      description: 'Dispatch an existing Splunk saved search and report its results.',
+      content:
+        '# Run Saved Search\n\nExecute a saved search that already encodes the right SPL.\n\n## Steps\n1. List saved searches, or get one by name, to confirm the search exists and read its SPL and schedule.\n2. Dispatch the saved search. Set trigger actions only when the alert actions should really fire.\n3. Poll get search job with the returned sid until the job is done.\n4. Fetch and summarize the results.\n\n## Output\nReturn the saved search name, the sid of the dispatched job, and a summary of the rows it produced.',
+    },
+    {
+      name: 'index-capacity-report',
+      description: 'Report on Splunk index size, retention, and event volume.',
+      content:
+        '# Index Capacity Report\n\nCheck which indexes are close to their limits.\n\n## Steps\n1. List indexes to read name, datatype, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, and frozenTimePeriodInSecs.\n2. Compute how full each index is against its maximum data size.\n3. Flag indexes above a threshold, and any whose retention window is shorter than the team expects.\n4. Page with count and offset when the instance has more indexes than one page returns.\n\n## Output\nReturn a table of indexes with size, usage percentage, and retention, plus the flagged entries.',
+    },
+    {
+      name: 'audit-saved-search-hygiene',
+      description: 'Inventory Splunk saved searches and flag disabled or stale scheduled ones.',
+      content:
+        '# Audit Saved Search Hygiene\n\nFind saved searches that no longer earn their schedule.\n\n## Steps\n1. List saved searches, paging with count and offset until total is covered.\n2. Read disabled, isScheduled, cronSchedule, and nextScheduledTime on each entry.\n3. Flag scheduled searches that are disabled, searches with no next scheduled time, and duplicate SPL across entries.\n4. Write the cleanup candidates somewhere durable, such as a table or a file.\n\n## Output\nReturn the counts by category and the list of cleanup candidates with the reason each was flagged.',
+    },
+    {
+      name: 'app-inventory-check',
+      description: 'Inventory the apps installed on a Splunk instance and flag disabled ones.',
+      content:
+        '# App Inventory Check\n\nRecord what is installed on the Splunk instance.\n\n## Steps\n1. List apps to read name, label, version, author, disabled, and configured.\n2. Flag apps that are installed but disabled, and apps that are not configured.\n3. Compare the versions against the versions the team expects to be running.\n\n## Output\nReturn the app inventory with versions and the list of disabled or unconfigured apps.',
+    },
+  ],
   templates: [
     {
       icon: SplunkIcon,

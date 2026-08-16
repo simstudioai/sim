@@ -7,7 +7,7 @@ vi.mock('@/triggers', () => ({
   getTrigger: () => ({ subBlocks: [] }),
 }))
 
-import { SplunkBlock } from '@/blocks/blocks/splunk'
+import { SplunkBlock, SplunkBlockMeta } from '@/blocks/blocks/splunk'
 
 const toParams = SplunkBlock.tools.config?.params
 
@@ -228,5 +228,33 @@ describe('SplunkBlock outputs', () => {
   it('declares the paging total and offset the list tools now project', () => {
     expect(SplunkBlock.outputs).toHaveProperty('total')
     expect(SplunkBlock.outputs).toHaveProperty('offset')
+  })
+
+  /**
+   * The job entry documents this pair as bare numbers, unlike the ISO-string
+   * `earliestTime`/`latestTime`, and the block's union output must agree with the
+   * tool or the workflow is promised the wrong type.
+   */
+  it('types the epoch search time bounds as numbers', () => {
+    expect(SplunkBlock.outputs.searchEarliestTime).toMatchObject({ type: 'number' })
+    expect(SplunkBlock.outputs.searchLatestTime).toMatchObject({ type: 'number' })
+  })
+})
+
+describe('SplunkBlockMeta skills', () => {
+  it('suggests skills grounded in the operations the block exposes', () => {
+    const skills = SplunkBlockMeta.skills
+
+    expect(skills?.length).toBeGreaterThanOrEqual(3)
+    for (const skill of skills ?? []) {
+      expect(skill.name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
+      expect(skill.description.trim()).not.toBe('')
+      expect(skill.content.trim()).not.toBe('')
+    }
+  })
+
+  it('gives every skill a distinct name', () => {
+    const names = (SplunkBlockMeta.skills ?? []).map((skill) => skill.name)
+    expect(new Set(names).size).toBe(names.length)
   })
 })

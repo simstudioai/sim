@@ -157,6 +157,58 @@ describe('readSplunkDispatchJson', () => {
     })
   })
 
+  /**
+   * `POST search/jobs/{sid}/control` documents "Returned values: None" and answers
+   * in XML, so the `<messages>` block is the entire payload it produces — the one
+   * signal that the cancel took effect. Dropping it left `cancel_search_job`
+   * reporting an empty `messages` array on every call.
+   */
+  it('projects the messages block of a job-control response', async () => {
+    await expect(
+      readSplunkDispatchJson(
+        new Response(
+          '<response><messages><msg type="INFO">Search job cancelled.</msg></messages></response>'
+        )
+      )
+    ).resolves.toEqual({ messages: [{ type: 'INFO', text: 'Search job cancelled.' }] })
+  })
+
+  it('keeps every message and its severity', async () => {
+    await expect(
+      readSplunkDispatchJson(
+        new Response(
+          '<response><messages><msg type="WARN">Partial results.</msg><msg type="ERROR">Peer down.</msg></messages></response>'
+        )
+      )
+    ).resolves.toEqual({
+      messages: [
+        { type: 'WARN', text: 'Partial results.' },
+        { type: 'ERROR', text: 'Peer down.' },
+      ],
+    })
+  })
+
+  /** A message routinely quotes the search string, so entities reach this path. */
+  it('decodes named and numeric XML entities in the message text', async () => {
+    await expect(
+      readSplunkDispatchJson(
+        new Response(
+          '<response><messages><msg type="ERROR">Unknown index &quot;a&amp;b&quot; &#60;&#x3e;</msg></messages></response>'
+        )
+      )
+    ).resolves.toEqual({ messages: [{ type: 'ERROR', text: 'Unknown index "a&b" <>' }] })
+  })
+
+  it('keeps the search ID and the messages when the envelope carries both', async () => {
+    await expect(
+      readSplunkDispatchJson(
+        new Response(
+          '<response><sid>1.1</sid><messages><msg type="INFO">Dispatched.</msg></messages></response>'
+        )
+      )
+    ).resolves.toEqual({ sid: '1.1', messages: [{ type: 'INFO', text: 'Dispatched.' }] })
+  })
+
   it('returns an empty envelope for 204 and for an empty body', async () => {
     await expect(readSplunkDispatchJson(new Response(null, { status: 204 }))).resolves.toEqual({})
     await expect(readSplunkDispatchJson(new Response('  '))).resolves.toEqual({})

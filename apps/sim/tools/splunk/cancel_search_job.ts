@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SplunkCancelSearchJobParams,
   SplunkCancelSearchJobResponse,
@@ -9,7 +10,6 @@ import {
   mapSplunkMessages,
   readSplunkDispatchJson,
   SPLUNK_CONNECTION_PARAMS,
-  SPLUNK_MESSAGES_OUTPUT,
   splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -53,8 +53,21 @@ export const cancelSearchJobTool: ToolConfig<
     }
   },
 
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
+
+  /** Inline by necessity — see the note on `runSearchTool.outputs`. */
   outputs: {
     sid: { type: 'string', description: 'Search ID of the cancelled job' },
-    messages: SPLUNK_MESSAGES_OUTPUT,
+    messages: {
+      type: 'array',
+      description: 'Informational, warning, and error messages returned with the response',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', description: 'Message severity (INFO, WARN, ERROR, DEBUG)' },
+          text: { type: 'string', description: 'Message text' },
+        },
+      },
+    },
   },
 }

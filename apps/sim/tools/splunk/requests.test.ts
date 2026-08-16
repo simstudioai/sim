@@ -6,11 +6,13 @@ import { cancelSearchJobTool } from '@/tools/splunk/cancel_search_job'
 import { createSearchJobTool } from '@/tools/splunk/create_search_job'
 import { dispatchSavedSearchTool } from '@/tools/splunk/dispatch_saved_search'
 import { getFiredAlertsTool } from '@/tools/splunk/get_fired_alerts'
+import { getSearchJobTool } from '@/tools/splunk/get_search_job'
 import { getSearchResultsTool } from '@/tools/splunk/get_search_results'
 import { listAppsTool } from '@/tools/splunk/list_apps'
 import { listFiredAlertsTool } from '@/tools/splunk/list_fired_alerts'
 import { listIndexesTool } from '@/tools/splunk/list_indexes'
 import { listSavedSearchesTool } from '@/tools/splunk/list_saved_searches'
+import { runSearchTool } from '@/tools/splunk/run_search'
 
 const BASE = { baseUrl: 'https://splunk.example.com:8089' }
 
@@ -168,5 +170,131 @@ describe('list tools project the paging envelope', () => {
   ])('%s declares total and offset as outputs', (_label, tool) => {
     expect(tool.outputs).toHaveProperty('total')
     expect(tool.outputs).toHaveProperty('offset')
+  })
+})
+
+/**
+ * The reference renders the job entry's `earliestTime` as an ISO string but
+ * `searchEarliestTime` as a bare number (`1308589800.000000000`). Reading it with
+ * `asString` returned `null` for every JSON response, which is what
+ * `output_mode=json` always produces.
+ */
+describe('getSearchJobTool time bounds', () => {
+  const JOB_BODY = JSON.stringify({
+    entry: [
+      {
+        name: '1457683115.100',
+        content: {
+          sid: '1457683115.100',
+          earliestTime: '2011-06-20T09:30:00.000-07:00',
+          latestTime: '2011-06-20T10:30:00.000-07:00',
+          searchEarliestTime: 1308589800.0,
+          searchLatestTime: 1308593400.0,
+        },
+      },
+    ],
+  })
+
+  it('reads the epoch search time bounds instead of dropping them', async () => {
+    const result = await getSearchJobTool.transformResponse?.(new Response(JOB_BODY), BASE as never)
+
+    expect(result?.output.searchEarliestTime).toBe(1308589800)
+    expect(result?.output.searchLatestTime).toBe(1308593400)
+  })
+
+  it('declares them as numbers', () => {
+    expect(getSearchJobTool.outputs?.searchEarliestTime).toMatchObject({ type: 'number' })
+    expect(getSearchJobTool.outputs?.searchLatestTime).toMatchObject({ type: 'number' })
+  })
+
+  /**
+   * Every one of these is `| null` in the transform, so declaring them required
+   * promises the workflow a value a queued or failed job does not carry.
+   */
+  it.each([
+    'sid',
+    'dispatchState',
+    'isDone',
+    'isFailed',
+    'isFinalized',
+    'isPaused',
+    'isZombie',
+    'isSaved',
+    'isSavedSearch',
+    'isRealTimeSearch',
+    'eventCount',
+    'resultCount',
+    'scanCount',
+  ])('declares the nullable output %s as optional', (key) => {
+    expect(getSearchJobTool.outputs?.[key]).toMatchObject({ optional: true })
+  })
+})
+
+/**
+ * A oneshot search has no paging escape hatch — `max_count` is its only bound, and
+ * Splunk defaults it to 10000 rows returned in a single buffered response.
+ */
+describe('runSearchTool max_count', () => {
+  it('applies a modest default when the caller leaves it unset', () => {
+    expect(buildBody(runSearchTool, { ...BASE, search: 'index=main' })).toContain('max_count=1000')
+  })
+
+  it.each([
+    ['null', null],
+    ['empty string', ''],
+    ['a non-numeric string', 'lots'],
+  ])('treats %s as unset rather than sending it', (_label, maxCount) => {
+    const body = buildBody(runSearchTool, { ...BASE, search: 'index=main', maxCount })
+
+    expect(body).toContain('max_count=1000')
+    expect(body).not.toContain('max_count=null')
+  })
+
+  it('honors an explicit bound', () => {
+    expect(buildBody(runSearchTool, { ...BASE, search: 'index=main', maxCount: 50 })).toContain(
+      'max_count=50'
+    )
+  })
+})
+
+/**
+ * `scripts/generate-docs.ts` parses tool source text and resolves an `outputs`
+ * const only from the family's `types.ts`, so a shared const anywhere else makes
+ * the published table fall back to the block's union of every operation's outputs.
+ * These fields must stay written out inline.
+ */
+describe('result-returning tools declare their outputs inline', () => {
+  it.each([
+    ['run_search', runSearchTool],
+    ['get_search_results', getSearchResultsTool],
+  ])('%s types results as an array of rows', (_label, tool) => {
+    expect(tool.outputs?.results).toMatchObject({ type: 'array', items: { type: 'object' } })
+    expect(tool.outputs?.messages).toMatchObject({ type: 'array' })
+    expect(tool.outputs).not.toHaveProperty('savedSearches')
+    expect(tool.outputs).not.toHaveProperty('firedAlerts')
+    expect(tool.outputs).not.toHaveProperty('indexes')
+    expect(tool.outputs).not.toHaveProperty('apps')
+  })
+})
+
+/**
+ * The only documented response for `POST search/jobs/{sid}/control` is XML, so
+ * reading `data.messages` off a JSON body left this array empty on every cancel.
+ */
+describe('cancelSearchJobTool messages', () => {
+  it('reports the messages the job-control response carried', async () => {
+    const result = await cancelSearchJobTool.transformResponse?.(
+      new Response(
+        '<response><messages><msg type="INFO">Search job cancelled.</msg></messages></response>',
+        { status: 200 }
+      ),
+      { ...BASE, sid: '1457683115.100' } as never
+    )
+
+    expect(result?.output.messages).toEqual([{ type: 'INFO', text: 'Search job cancelled.' }])
+  })
+
+  it('declares messages as an output', () => {
+    expect(cancelSearchJobTool.outputs?.messages).toMatchObject({ type: 'array' })
   })
 })

@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   SAVED_SEARCH_OUTPUT_FIELDS,
   type SplunkListSavedSearchesParams,
@@ -10,8 +11,6 @@ import {
   getSplunkPaging,
   mapSavedSearchEntry,
   SPLUNK_CONNECTION_PARAMS,
-  SPLUNK_OFFSET_OUTPUT,
-  SPLUNK_TOTAL_OUTPUT,
   savedSearchFieldQuery,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -73,13 +72,26 @@ export const listSavedSearchesTool: ToolConfig<
     }
   },
 
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
+
+  /** `total`/`offset` inline by necessity — see the note on `runSearchTool.outputs`. */
   outputs: {
     savedSearches: {
       type: 'array',
       description: 'Saved searches configured in Splunk',
       items: { type: 'object', properties: SAVED_SEARCH_OUTPUT_FIELDS },
     },
-    total: SPLUNK_TOTAL_OUTPUT,
-    offset: SPLUNK_OFFSET_OUTPUT,
+    total: {
+      type: 'number',
+      description:
+        'Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains.',
+      optional: true,
+    },
+    offset: {
+      type: 'number',
+      description:
+        'Offset of the first entry in this page, echoed from the response paging envelope',
+      optional: true,
+    },
   },
 }

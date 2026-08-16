@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SplunkGetFiredAlertsParams, SplunkGetFiredAlertsResponse } from '@/tools/splunk/types'
 import {
   asNumber,
@@ -73,6 +74,8 @@ export const getFiredAlertsTool: ToolConfig<
       },
     }
   },
+
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
 
   outputs: {
     firedAlerts: {

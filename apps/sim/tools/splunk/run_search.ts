@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SplunkRunSearchParams, SplunkSearchResultsResponse } from '@/tools/splunk/types'
 import {
   buildSplunkFormBody,
@@ -5,10 +6,32 @@ import {
   buildSplunkUrl,
   mapSearchResultsPayload,
   normalizeSearchQuery,
-  SEARCH_RESULTS_OUTPUTS,
   SPLUNK_CONNECTION_PARAMS,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Bound applied when the caller leaves `maxCount` unset.
+ *
+ * Splunk's own default is 10000, and a oneshot search has no paging escape
+ * hatch — the whole response is buffered and materialized in one call, unlike
+ * `get_search_results`, which defaults to 100 and pages with `offset`. A modest
+ * default keeps an exploratory search from returning ten thousand rows; callers
+ * who want more raise it deliberately.
+ */
+const RUN_SEARCH_DEFAULT_MAX_COUNT = 1000
+
+/**
+ * Resolve the caller-supplied `maxCount`. An untouched subBlock arrives as
+ * `null` or `''` rather than `undefined`, and either would otherwise be sent as
+ * a literal that Splunk rejects or ignores, so anything that is not a finite
+ * number counts as unset.
+ */
+function resolveMaxCount(value: unknown): number {
+  if (value === null || value === undefined || value === '') return RUN_SEARCH_DEFAULT_MAX_COUNT
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : RUN_SEARCH_DEFAULT_MAX_COUNT
+}
 
 /**
  * Runs SPL with `exec_mode=oneshot`, the documented synchronous mode in which
@@ -61,7 +84,7 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum number of results the search stores and returns. Defaults to 10000. Lower it to bound large oneshot responses.',
+        'Maximum number of results the search stores and returns. Defaults to 1000 here; Splunk itself defaults to 10000, which a oneshot search returns in a single unbounded response. Raise it deliberately.',
     },
   },
 
@@ -78,7 +101,7 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
         latest_time: params.latestTime,
         adhoc_search_level: params.adhocSearchLevel,
         auto_cancel: params.autoCancel,
-        max_count: params.maxCount,
+        max_count: resolveMaxCount(params.maxCount),
       }),
   },
 
@@ -87,5 +110,51 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
     return { success: true, output: mapSearchResultsPayload(data) }
   },
 
-  outputs: SEARCH_RESULTS_OUTPUTS,
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
+
+  /**
+   * These fields are written out in full rather than shared with
+   * `get_search_results`, which returns the same envelope.
+   *
+   * `scripts/generate-docs.ts` builds the published output table by parsing tool
+   * source text, and resolves an `outputs` const reference only from the tool
+   * family's `types.ts`. A shared const declared anywhere else is invisible to
+   * it: the whole table falls back to the block's union of every operation's
+   * outputs, and unresolved keys inside an inline object are dropped entirely.
+   * Moving the const would only relocate that trap, so the duplication is
+   * deliberate — keep this literal and the one in `get_search_results.ts` in
+   * step by hand.
+   */
+  outputs: {
+    results: {
+      type: 'array',
+      description: 'Result rows. Each row holds the fields produced by the search.',
+      items: { type: 'object' },
+    },
+    resultCount: {
+      type: 'number',
+      description: 'Number of result rows returned in this response',
+    },
+    preview: {
+      type: 'boolean',
+      description: 'Whether these are preview results from a still-running job',
+      optional: true,
+    },
+    initOffset: {
+      type: 'number',
+      description: 'Offset of the first returned row within the full result set',
+      optional: true,
+    },
+    messages: {
+      type: 'array',
+      description: 'Search messages returned alongside the results',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', description: 'Message severity' },
+          text: { type: 'string', description: 'Message text' },
+        },
+      },
+    },
+  },
 }
