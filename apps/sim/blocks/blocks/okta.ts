@@ -294,10 +294,12 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       },
     },
     {
-      // Group rules take a plain keyword on `search`, not the SCIM-style
-      // expression the Search field's wand generates, so they get their own
-      // field rather than sharing one that would produce a silently
-      // non-matching query.
+      /**
+       * Group rules take a plain keyword on `search`, not the SCIM-style
+       * expression the Search field's wand generates, so they get their own
+       * field rather than sharing one that would produce a silently
+       * non-matching query.
+       */
       id: 'ruleSearch',
       title: 'Search',
       type: 'short-input',
@@ -485,7 +487,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       placeholder: 'Description for the group',
       condition: { field: 'operation', value: ['okta_create_group', 'okta_update_group'] },
     },
-    /*
+    /**
      * Okta's `sendEmail` default is not uniform: activation and password reset
      * default to sending, deactivation and removal default to not sending. One
      * shared switch could only be seeded for one of those, so the two groups get
@@ -684,8 +686,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       id: 'forgetDevices',
       title: 'Forget Devices',
       type: 'switch',
-      // Okta defaults this to true, so an unseeded switch would render off while
-      // remembered factors were in fact being cleared.
+      /**
+       * Okta defaults this to true, so an unseeded switch would render off while
+       * remembered factors were in fact being cleared.
+       */
       value: () => 'true',
       condition: { field: 'operation', value: 'okta_clear_user_sessions' },
       mode: 'advanced',
@@ -974,15 +978,15 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           domain: params.domain,
           limit: toFiniteNumber(params.limit),
           priority: toFiniteNumber(params.priority),
-          // Group-specific UI fields carry the tool's generic param names.
+          /** Group-specific UI fields carry the tool's generic param names. */
           name: blankToUndefined(params.groupName),
           description: blankToUndefined(params.groupDescription),
-          // Group rules get their own keyword field but the same wire param.
+          /** Group rules get their own keyword field but the same wire param. */
           search:
             params.operation === 'okta_list_group_rules'
               ? blankToUndefined(params.ruleSearch)
               : blankToUndefined(params.search),
-          /*
+          /**
            * Keyed off the operation rather than `??`: both switches are advanced,
            * and `shouldSerializeSubBlock` skips `condition` for advanced fields,
            * so a stale value from a previously selected operation can still be
