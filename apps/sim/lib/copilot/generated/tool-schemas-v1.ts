@@ -1103,26 +1103,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
     },
   },
-  browser_request_takeover: {
-    parameters: {
-      type: 'object',
-      properties: {
-        purpose: {
-          type: 'string',
-          description:
-            'Why takeover is needed. Set sign_in for a login/password flow so the desktop can remember a privacy-preserving session hint after the user finishes.',
-          enum: ['sign_in', 'captcha', 'payment', 'sensitive_confirmation', 'other'],
-        },
-        reason: {
-          type: 'string',
-          description:
-            "Short explanation shown to the user of what they need to do (e.g. 'Sign in to Notion').",
-        },
-      },
-      required: ['reason'],
-    },
-    resultSchema: undefined,
-  },
   browser_screenshot: {
     parameters: {
       type: 'object',

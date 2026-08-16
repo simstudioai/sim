@@ -15,7 +15,6 @@ import {
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { BrowserRequestTakeover } from '@/lib/copilot/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
@@ -46,6 +45,7 @@ import type {
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName, resolveWorkflowToolTargetId } from '@/lib/copilot/tools/workflow-tools'
@@ -807,7 +807,7 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const waitsForHuman = toolName === BrowserRequestTakeover.id
+    const waitsForHuman = toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
     const timeoutMs = waitsForHuman ? null : options.timeout || STREAM_TIMEOUT_MS
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,

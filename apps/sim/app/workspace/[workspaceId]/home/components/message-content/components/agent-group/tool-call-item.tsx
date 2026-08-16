@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
 import { ShimmerText } from '@/components/ui'
 import {
-  BrowserRequestTakeover,
   CallIntegrationTool,
   PrepareFileEdit,
   Read as ReadTool,
@@ -10,6 +9,7 @@ import {
   Wait as WaitTool,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
 import { getBareIconStyle } from '@/blocks/brand-icon-style'
@@ -168,7 +168,7 @@ export function ToolCallItem({
 
   const displayState = resolveToolDisplayState(status)
   const isExecuting = displayState === 'spinner'
-  const isBrowserTakeover = toolName === BrowserRequestTakeover.id
+  const isBrowserTakeover = toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
 
   const isCountingDown = toolName === WaitTool.id && isExecuting
   const elapsedMs = useElapsedMs(isCountingDown, startedAt)

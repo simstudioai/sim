@@ -26,7 +26,6 @@ export interface ToolCatalogEntry {
     | 'browser_open_url'
     | 'browser_press_key'
     | 'browser_read_text'
-    | 'browser_request_takeover'
     | 'browser_screenshot'
     | 'browser_scroll'
     | 'browser_select_option'
@@ -154,7 +153,6 @@ export interface ToolCatalogEntry {
     | 'browser_open_url'
     | 'browser_press_key'
     | 'browser_read_text'
-    | 'browser_request_takeover'
     | 'browser_screenshot'
     | 'browser_scroll'
     | 'browser_select_option'
@@ -1219,31 +1217,6 @@ export const BrowserReadText: ToolCatalogEntry = {
       },
       url: { type: 'string', description: 'Top-page URL.' },
     },
-  },
-  clientExecutable: true,
-}
-
-export const BrowserRequestTakeover: ToolCatalogEntry = {
-  id: 'browser_request_takeover',
-  name: 'browser_request_takeover',
-  route: 'client',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      purpose: {
-        type: 'string',
-        description:
-          'Why takeover is needed. Set sign_in for a login/password flow so the desktop can remember a privacy-preserving session hint after the user finishes.',
-        enum: ['sign_in', 'captcha', 'payment', 'sensitive_confirmation', 'other'],
-      },
-      reason: {
-        type: 'string',
-        description:
-          "Short explanation shown to the user of what they need to do (e.g. 'Sign in to Notion').",
-      },
-    },
-    required: ['reason'],
   },
   clientExecutable: true,
 }
@@ -7186,7 +7159,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [BrowserOpenUrl.id]: BrowserOpenUrl,
   [BrowserPressKey.id]: BrowserPressKey,
   [BrowserReadText.id]: BrowserReadText,
-  [BrowserRequestTakeover.id]: BrowserRequestTakeover,
   [BrowserScreenshot.id]: BrowserScreenshot,
   [BrowserScroll.id]: BrowserScroll,
   [BrowserSelectOption.id]: BrowserSelectOption,

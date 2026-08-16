@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
 import { ShimmerText } from '@/components/ui'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
-import { BrowserRequestTakeover } from '@/lib/copilot/generated/tool-catalog-v1'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { type ToolCallData, ToolCallStatus } from '../../../../types'
 import { getAgentIcon, isToolDone } from '../../utils'
@@ -63,7 +63,7 @@ function getActiveBrowserTakeover(items: AgentGroupItem[]): ActiveBrowserTakeove
     const item = items[index]
     if (item.type !== 'tool') continue
     if (
-      item.data.toolName === BrowserRequestTakeover.id &&
+      item.data.toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID &&
       item.data.status === ToolCallStatus.executing
     ) {
       const reason = item.data.params?.reason

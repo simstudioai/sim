@@ -21,7 +21,6 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   ApplyFileEdit,
-  BrowserRequestTakeover,
   CreateEmptyFile,
   CreateWorkflow,
   DeployAsApi,
@@ -78,6 +77,7 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
@@ -259,7 +259,7 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
 export function pendingToolWaitBudgetMs(
   toolCall: Pick<ToolCallState, 'name' | 'status'> | undefined
 ): number | null {
-  if (toolCall?.name === BrowserRequestTakeover.id && toolCall.status === 'executing') {
+  if (toolCall?.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && toolCall?.status === 'executing') {
     return null
   }
   if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS

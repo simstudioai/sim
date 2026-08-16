@@ -15,12 +15,12 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { BrowserRequestTakeover } from '@/lib/copilot/generated/tool-catalog-v1'
 import type {
   ContentBlock,
   LocalToolCallStatus,
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
@@ -152,7 +152,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
     if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
     const output = result.output
     const userInstruction =
-      toolCall.name === BrowserRequestTakeover.id && isPlainRecord(output)
+      toolCall.name === RETIRED_BROWSER_REQUEST_TAKEOVER_ID && isPlainRecord(output)
         ? output.userInstruction
         : undefined
     const normalizedInstruction = typeof userInstruction === 'string' ? userInstruction.trim() : ''
