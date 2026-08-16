@@ -1,5 +1,5 @@
 ---
-title: Sim for Terminal
+title: Sim CLI
 description: Drive workflows, tables, files, knowledge bases, and logs from your shell
 ---
 
@@ -42,16 +42,6 @@ The CLI needs **Node.js 20 or newer**. Verify the install:
 ```bash
 sim --version
 ```
-
-<Callout type="info">
-Prerelease channels track the corresponding Sim environments, so you can test a
-change before it reaches production:
-
-```bash
-npm install --global sim@staging
-npm install --global sim@dev
-```
-</Callout>
 
 Prefer using Sim as a library? See the [TypeScript](/api-reference/typescript)
 and [Python](/api-reference/python) SDKs, or call the
@@ -145,19 +135,19 @@ sim tables rows query --help
 
 | Group | What it covers |
 | --- | --- |
-| [`workflows`](/cli/commands/workflows) | Run, deploy, roll back, import, export, and organize workflows |
-| [`logs`](/cli/commands/logs) | Read run diagnostics, including the full trace tree |
-| [`tables`](/cli/commands/tables) | Query, insert, update, and import rows; manage columns and views |
-| [`files`](/cli/commands/files) | Upload, download, share, and organize workspace files |
-| [`knowledge`](/cli/commands/knowledge) | Search knowledge bases and manage their documents and tags |
-| [`skills`](/cli/commands/skills) | Manage agent skills |
-| [`mcp-servers`](/cli/commands/mcp-servers) | Manage MCP server connections and their tools |
-| [`custom-tools`](/cli/commands/custom-tools) | Manage custom tool definitions |
-| [`credentials`](/cli/commands/credentials) | Connect, reconnect, and disconnect integration credentials |
-| [`secrets`](/cli/commands/secrets) | Set and remove workspace secrets |
-| [`billing`](/cli/commands/billing) | Check plan status and credit usage |
-| [`audit-logs`](/cli/commands/audit-logs) | Read organization audit logs |
-| [`workspaces`](/cli/commands/workspaces) | Inspect the active workspace and its members |
+| [`workflows`](/cli/workflows) | Run, deploy, roll back, import, export, and organize workflows |
+| [`logs`](/cli/logs) | Read run diagnostics, including the full trace tree |
+| [`tables`](/cli/tables) | Query, insert, update, and import rows; manage columns and views |
+| [`files`](/cli/files) | Upload, download, share, and organize workspace files |
+| [`knowledge`](/cli/knowledge) | Search knowledge bases and manage their documents and tags |
+| [`skills`](/cli/skills) | Manage agent skills |
+| [`mcp-servers`](/cli/mcp-servers) | Manage MCP server connections and their tools |
+| [`custom-tools`](/cli/custom-tools) | Manage custom tool definitions |
+| [`credentials`](/cli/credentials) | Connect, reconnect, and disconnect integration credentials |
+| [`secrets`](/cli/secrets) | Set and remove workspace secrets |
+| [`billing`](/cli/billing) | Check plan status and credit usage |
+| [`audit-logs`](/cli/audit-logs) | Read organization audit logs |
+| [`workspaces`](/cli/workspaces) | Inspect the active workspace and its members |
 
 The [command reference](/cli/commands) documents every subcommand, argument, and
 flag, and is generated from the CLI itself.
@@ -168,4 +158,5 @@ flag, and is generated from the CLI itself.
 - [Configuration](/cli/configuration) — profiles, config files, environment variables, and precedence
 - [Output formats](/cli/output) — `table`, `json`, `yaml`, and `text`, and when to use each
 - [Scripting](/cli/scripting) — piping, file inputs, exit codes, and automation recipes
+- [Troubleshooting](/cli/troubleshooting) — what each error means, and how to resolve it
 - [Command reference](/cli/commands) — every command, argument, and flag

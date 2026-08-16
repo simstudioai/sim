@@ -2,13 +2,28 @@
   "title": "CLI",
   "root": true,
   "pages": [
-    "---Sim for Terminal---",
+    "---Sim CLI---",
     "index",
     "authentication",
     "configuration",
     "output",
     "scripting",
-    "---Reference---",
-    "commands"
+    "troubleshooting",
+    "---Commands---",
+    "commands",
+    "audit-logs",
+    "billing",
+    "credentials",
+    "custom-tools",
+    "files",
+    "knowledge",
+    "logs",
+    "mcp-servers",
+    "secrets",
+    "skills",
+    "tables",
+    "workflows",
+    "workspaces",
+    "reference"
   ]
 }

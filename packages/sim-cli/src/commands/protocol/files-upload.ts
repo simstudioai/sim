@@ -8,7 +8,8 @@ import { printProtocolResult } from './result'
 
 export function attachFileUpload(files: Command): void {
   files
-    .command('upload <path>')
+    .command('upload')
+    .argument('<path>', 'Local file to upload')
     .description('Upload a file to the workspace')
     .option('--folder <path>', 'Destination folder path (defaults to /)')
     .option('--name <name>', 'Store it under a different name')

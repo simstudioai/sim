@@ -3,11 +3,11 @@ title: Billing
 description: Manage billing — every subcommand, argument, and flag
 ---
 
+import { CommandTable } from '@/components/ui/command-table'
+
 Every command below also accepts the [global options](/cli/commands#global-options).
 
-## sim billing status
-
-Show billing status and current-period credit usage
+## Show billing status and current-period credit usage
 
 ```bash
 sim billing status [options]
@@ -15,19 +15,23 @@ sim billing status [options]
 
 **Options**
 
+<CommandTable>
+
 | Option | Required | Description |
 | --- | --- | --- |
 | `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
 
-## sim billing logs
+</CommandTable>
 
-List credit usage events
+## List credit usage events
 
 ```bash
 sim billing logs [options]
 ```
 
 **Options**
+
+<CommandTable>
 
 | Option | Required | Description |
 | --- | --- | --- |
@@ -37,3 +41,5 @@ sim billing logs [options]
 | `--end-date <value>` | No | Custom period end (ISO 8601). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |
+
+</CommandTable>

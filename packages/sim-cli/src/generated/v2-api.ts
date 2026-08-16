@@ -5744,44 +5744,71 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/files/uploads/[uploadId]',
     pathParams: ['uploadId'] as const,
+    pathParamDocs: { uploadId: 'Upload session identifier.' },
     responseMode: 'json',
     summary: 'Abort File Upload',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the upload session.',
+      },
     },
   },
   abortKnowledgeDocumentUpload: {
     method: 'DELETE',
     path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]',
     pathParams: ['id', 'uploadId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      uploadId: 'Upload session identifier returned when the upload was created.',
+    },
     responseMode: 'json',
     summary: 'Abort Document Upload',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   addTableColumn: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Add Column',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      column: { kind: 'object', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      column: { kind: 'object', required: true, describe: 'Column definition to add.' },
     },
   },
   addWorkflowGroup: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Add Workflow Group',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      group: { kind: 'object', required: true },
-      outputColumns: { kind: 'array', required: true },
-      autoRun: { kind: 'boolean', default: false },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      group: {
+        kind: 'object',
+        required: true,
+        describe: 'Workflow or enrichment producer definition.',
+      },
+      outputColumns: {
+        kind: 'array',
+        required: true,
+        describe: 'Columns created for producer outputs.',
+      },
+      autoRun: {
+        kind: 'boolean',
+        default: false,
+        describe: 'Whether to schedule existing rows after group creation.',
+      },
     },
   },
   bulkDeleteFiles: {
@@ -5791,62 +5818,101 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Delete Files',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      fileIds: { kind: 'array', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
+      fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
     },
   },
   bulkUpdateKnowledgeDocuments: {
     method: 'PATCH',
     path: '/api/v2/knowledge/[id]/documents',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Bulk Enable or Disable Documents',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      operation: { kind: 'enum', required: true, values: ['enable', 'disable'] as const },
-      documentIds: { kind: 'array' },
-      selectAll: { kind: 'boolean' },
-      enabledFilter: { kind: 'enum', values: ['all', 'enabled', 'disabled'] as const },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      operation: {
+        kind: 'enum',
+        required: true,
+        values: ['enable', 'disable'] as const,
+        describe: 'Whether the selected documents become enabled or disabled for search.',
+      },
+      documentIds: { kind: 'array', describe: 'Documents to update, by identifier.' },
+      selectAll: {
+        kind: 'boolean',
+        describe:
+          'Update every document in the knowledge base instead of an explicit list, narrowed by `enabledFilter`.',
+      },
+      enabledFilter: {
+        kind: 'enum',
+        values: ['all', 'enabled', 'disabled'] as const,
+        describe: 'With `selectAll`, restrict the update to documents in this state.',
+      },
     },
   },
   cancelTableExport: {
     method: 'DELETE',
     path: '/api/v2/tables/exports/[exportId]',
     pathParams: ['exportId'] as const,
+    pathParamDocs: { exportId: 'Unique table-export identifier.' },
     responseMode: 'json',
     summary: 'Cancel Table Export',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
   },
   cancelTableImport: {
     method: 'DELETE',
     path: '/api/v2/tables/imports/[importId]',
     pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
     summary: 'Cancel Table Import',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
   },
   cancelTableRuns: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/cancel-runs',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Cancel Column Runs',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      scope: { kind: 'enum', required: true, values: ['all', 'row'] as const },
-      rowId: { kind: 'string' },
-      filter: { kind: 'unknown' },
-      excludeRowIds: { kind: 'array' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      scope: {
+        kind: 'enum',
+        required: true,
+        values: ['all', 'row'] as const,
+        describe: 'Whether to cancel across the table or one row.',
+      },
+      rowId: { kind: 'string', describe: 'Row whose runs should be canceled for row scope.' },
+      filter: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      excludeRowIds: { kind: 'array', describe: 'Rows excluded from an all-scope cancellation.' },
     },
   },
   cancelWorkflowRun: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
     pathParams: ['id', 'runId'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Cancel Workflow Run',
   },
@@ -5854,30 +5920,48 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/files/uploads/[uploadId]/complete',
     pathParams: ['uploadId'] as const,
+    pathParamDocs: { uploadId: 'Upload session identifier.' },
     responseMode: 'json',
     summary: 'Complete File Upload',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the upload session.',
+      },
     },
   },
   completeKnowledgeDocumentUpload: {
     method: 'POST',
     path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete',
     pathParams: ['id', 'uploadId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      uploadId: 'Upload session identifier returned when the upload was created.',
+    },
     responseMode: 'json',
     summary: 'Complete Document Upload',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   completeTableImport: {
     method: 'POST',
     path: '/api/v2/tables/imports/[importId]/complete',
     pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
     summary: 'Complete Table Import Upload',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
   },
   createCredentialConnection: {
@@ -5887,7 +5971,11 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Credential Connection',
     body: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that will own the credential.',
+      },
     },
     opaqueBody: true,
   },
@@ -5898,10 +5986,26 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Custom Tool',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      title: { kind: 'string', required: true },
-      schema: { kind: 'object', required: true },
-      code: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the custom tool.',
+      },
+      title: {
+        kind: 'string',
+        required: true,
+        describe: 'Display title, unique within the workspace.',
+      },
+      schema: {
+        kind: 'object',
+        required: true,
+        describe: 'OpenAI-style function declaration describing the callable tool surface.',
+      },
+      code: {
+        kind: 'string',
+        required: true,
+        describe: 'Tool implementation executed in the sandboxed function runtime.',
+      },
     },
   },
   createFile: {
@@ -5911,12 +6015,37 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create File',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      contentType: { kind: 'string' },
-      folderPath: { kind: 'string' },
-      content: { kind: 'string', default: '' },
-      encoding: { kind: 'enum', values: ['utf-8', 'base64'] as const, default: 'utf-8' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the file.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe:
+          'File name, including its extension. Path separators and dot segments are rejected.',
+      },
+      contentType: {
+        kind: 'string',
+        describe: 'MIME type. When omitted, it is inferred from the file extension.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: 'Canonical containing-folder path. Omit for the workspace root.',
+      },
+      content: {
+        kind: 'string',
+        default: '',
+        describe:
+          'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.',
+      },
+      encoding: {
+        kind: 'enum',
+        values: ['utf-8', 'base64'] as const,
+        default: 'utf-8',
+        describe: 'Encoding of the content field.',
+      },
     },
   },
   createFileFolder: {
@@ -5926,8 +6055,12 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the folder.',
+      },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
   createFileUpload: {
@@ -5937,24 +6070,40 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create File Upload',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      contentType: { kind: 'string', required: true },
-      size: { kind: 'integer', required: true },
-      folderPath: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which the file will be registered.',
+      },
+      name: { kind: 'string', required: true, describe: 'File name, including its extension.' },
+      contentType: { kind: 'string', required: true, describe: 'MIME type of the uploaded file.' },
+      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      folderPath: {
+        kind: 'string',
+        describe: 'Canonical destination folder path. Omit for the workspace root.',
+      },
     },
   },
   createFileUploadPartUrls: {
     method: 'POST',
     path: '/api/v2/files/uploads/[uploadId]/parts',
     pathParams: ['uploadId'] as const,
+    pathParamDocs: { uploadId: 'Upload session identifier.' },
     responseMode: 'json',
     summary: 'Create File Upload Part URLs',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the upload session.',
+      },
     },
     body: {
-      partNumbers: { kind: 'array', required: true },
+      partNumbers: {
+        kind: 'array',
+        required: true,
+        describe: 'Multipart part numbers for which signed URLs should be created.',
+      },
     },
   },
   createKnowledgeBase: {
@@ -5964,45 +6113,80 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Knowledge Base',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      description: { kind: 'string' },
-      chunkingConfig: { kind: 'object' },
-      folderPath: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the knowledge base.',
+      },
+      name: { kind: 'string', required: true, describe: 'Human-readable knowledge base name.' },
+      description: { kind: 'string', describe: 'Optional knowledge base description.' },
+      chunkingConfig: {
+        kind: 'object',
+        describe: 'Chunking configuration; defaults are applied when omitted.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: 'Containing folder path; omission creates the knowledge base at the root.',
+      },
     },
   },
   createKnowledgeDocumentUpload: {
     method: 'POST',
     path: '/api/v2/knowledge/[id]/documents/uploads',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Create Document Upload',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      contentType: { kind: 'string', required: true },
-      size: { kind: 'integer', required: true },
-      tag1: { kind: 'string' },
-      tag2: { kind: 'string' },
-      tag3: { kind: 'string' },
-      tag4: { kind: 'string' },
-      tag5: { kind: 'string' },
-      tag6: { kind: 'string' },
-      tag7: { kind: 'string' },
-      processingOptions: { kind: 'object' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe: 'Filename recorded on the knowledge document.',
+      },
+      contentType: {
+        kind: 'string',
+        required: true,
+        describe: 'Supported MIME type for the document.',
+      },
+      size: { kind: 'integer', required: true, describe: 'Exact file size in bytes.' },
+      tag1: { kind: 'string', describe: 'Value for tag slot 1.' },
+      tag2: { kind: 'string', describe: 'Value for tag slot 2.' },
+      tag3: { kind: 'string', describe: 'Value for tag slot 3.' },
+      tag4: { kind: 'string', describe: 'Value for tag slot 4.' },
+      tag5: { kind: 'string', describe: 'Value for tag slot 5.' },
+      tag6: { kind: 'string', describe: 'Value for tag slot 6.' },
+      tag7: { kind: 'string', describe: 'Value for tag slot 7.' },
+      processingOptions: { kind: 'object', describe: 'Optional processing recipe and language.' },
     },
   },
   createKnowledgeDocumentUploadPartUrls: {
     method: 'POST',
     path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts',
     pathParams: ['id', 'uploadId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      uploadId: 'Upload session identifier returned when the upload was created.',
+    },
     responseMode: 'json',
     summary: 'Create Document Upload Part URLs',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
     body: {
-      partNumbers: { kind: 'array', required: true },
+      partNumbers: {
+        kind: 'array',
+        required: true,
+        describe: 'Multipart part numbers for which signed URLs should be created.',
+      },
     },
   },
   createKnowledgeFolder: {
@@ -6012,8 +6196,12 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the folder.',
+      },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
   createMcpServer: {
@@ -6023,18 +6211,64 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create MCP Server',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      description: { kind: 'string' },
-      transport: { kind: 'enum', values: ['streamable-http'] as const, default: 'streamable-http' },
-      url: { kind: 'string', required: true },
-      authType: { kind: 'enum', values: ['none', 'headers', 'oauth'] as const },
-      headers: { kind: 'object' },
-      timeout: { kind: 'integer', default: 30000 },
-      retries: { kind: 'integer', default: 3 },
-      enabled: { kind: 'boolean', default: true },
-      oauthClientId: { kind: 'string' },
-      oauthClientSecret: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to register the server.',
+      },
+      name: { kind: 'string', required: true, describe: 'Server display name.' },
+      description: { kind: 'string', describe: 'Optional server description.' },
+      transport: {
+        kind: 'enum',
+        values: ['streamable-http'] as const,
+        default: 'streamable-http',
+        describe:
+          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+      },
+      url: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references. It determines server identity and is immutable: delete and recreate the server to change endpoints.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['none', 'headers', 'oauth'] as const,
+        describe:
+          'Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.',
+      },
+      headers: {
+        kind: 'object',
+        describe:
+          'Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat.',
+      },
+      timeout: {
+        kind: 'integer',
+        default: 30000,
+        describe:
+          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+      },
+      retries: {
+        kind: 'integer',
+        default: 3,
+        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+      },
+      enabled: {
+        kind: 'boolean',
+        default: true,
+        describe:
+          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+      },
+      oauthClientId: {
+        kind: 'string',
+        describe:
+          'Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.',
+      },
+      oauthClientSecret: {
+        kind: 'string',
+        describe:
+          'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.',
+      },
     },
   },
   createServiceAccountCredential: {
@@ -6044,25 +6278,46 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Service-Account Credential',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      type: { kind: 'string', required: true },
-      providerId: { kind: 'string', required: true },
-      displayName: { kind: 'string' },
-      description: { kind: 'string' },
-      id: { kind: 'string' },
-      serviceAccountJson: { kind: 'string' },
-      apiToken: { kind: 'string' },
-      domain: { kind: 'string' },
-      signingSecret: { kind: 'string' },
-      botToken: { kind: 'string' },
-      clientId: { kind: 'string' },
-      clientSecret: { kind: 'string' },
-      certificateId: { kind: 'string' },
-      orgId: { kind: 'string' },
-      dataCenter: { kind: 'string' },
-      authMethod: { kind: 'string' },
-      privateKey: { kind: 'string' },
-      username: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that will own the credential.',
+      },
+      type: {
+        kind: 'string',
+        required: true,
+        describe: 'Service-account credential discriminator.',
+      },
+      providerId: {
+        kind: 'string',
+        required: true,
+        describe: 'Exact service-account provider ID returned by provider discovery.',
+      },
+      displayName: {
+        kind: 'string',
+        describe: 'Optional name; providers may derive one from the verified account identity.',
+      },
+      description: { kind: 'string', describe: 'Optional credential description.' },
+      id: {
+        kind: 'string',
+        describe: 'Required only when provider discovery requests a client-generated ID.',
+      },
+      serviceAccountJson: {
+        kind: 'string',
+        describe: 'Write-only Google service-account JSON key.',
+      },
+      apiToken: { kind: 'string', describe: 'Write-only provider API token.' },
+      domain: { kind: 'string', describe: 'Provider account domain.' },
+      signingSecret: { kind: 'string', describe: 'Write-only webhook signing secret.' },
+      botToken: { kind: 'string', describe: 'Write-only bot token.' },
+      clientId: { kind: 'string', describe: 'OAuth client identifier.' },
+      clientSecret: { kind: 'string', describe: 'Write-only OAuth client secret.' },
+      certificateId: { kind: 'string', describe: 'Provider certificate mapping identifier.' },
+      orgId: { kind: 'string', describe: 'Provider organization ID.' },
+      dataCenter: { kind: 'string', describe: 'Provider data center.' },
+      authMethod: { kind: 'string', describe: 'Provider authentication method.' },
+      privateKey: { kind: 'string', describe: 'Write-only PEM private key.' },
+      username: { kind: 'string', describe: 'Provider run-as username.' },
     },
   },
   createSkill: {
@@ -6072,10 +6327,27 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Skill',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      description: { kind: 'string', required: true },
-      content: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the skill.',
+      },
+      name: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Kebab-case name, unique within the workspace and not reserved by a built-in skill.',
+      },
+      description: {
+        kind: 'string',
+        required: true,
+        describe: 'One-line summary of when the skill applies.',
+      },
+      content: {
+        kind: 'string',
+        required: true,
+        describe: 'Skill body containing the instructions given to the agent.',
+      },
     },
   },
   createTable: {
@@ -6085,22 +6357,28 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Table',
     body: {
-      name: { kind: 'string', required: true },
-      description: { kind: 'string' },
-      workspaceId: { kind: 'string', required: true },
-      schema: { kind: 'object', required: true },
-      folderPath: { kind: 'string' },
+      name: { kind: 'string', required: true, describe: 'Table name.' },
+      description: { kind: 'string', describe: 'Optional table description.' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      schema: { kind: 'object', required: true, describe: 'Initial table column definitions.' },
+      folderPath: { kind: 'string', describe: 'Folder in which to create the table.' },
     },
   },
   createTableExport: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/exports',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Create Table Export',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      format: { kind: 'enum', values: ['csv', 'json'] as const, default: 'csv' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      format: {
+        kind: 'enum',
+        values: ['csv', 'json'] as const,
+        default: 'csv',
+        describe: 'Export file format.',
+      },
     },
   },
   createTableFolder: {
@@ -6110,8 +6388,12 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the folder.',
+      },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
   createTableImport: {
@@ -6121,35 +6403,48 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Table Import',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      source: { kind: 'unknown', required: true },
-      target: { kind: 'unknown', required: true },
-      mapping: { kind: 'object' },
-      createColumns: { kind: 'array' },
-      timezone: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      source: { kind: 'unknown', required: true, describe: 'CSV source for the import.' },
+      target: { kind: 'unknown', required: true, describe: 'New or existing table import target.' },
+      mapping: { kind: 'object', describe: 'CSV headers mapped to existing table columns.' },
+      createColumns: {
+        kind: 'array',
+        describe: 'CSV headers for which new columns should be created.',
+      },
+      timezone: { kind: 'string', describe: 'IANA timezone used to interpret local date values.' },
     },
   },
   createTableImportPartUrls: {
     method: 'POST',
     path: '/api/v2/tables/imports/[importId]/parts',
     pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
     summary: 'Create Table Import Part URLs',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
     body: {
-      partNumbers: { kind: 'array', required: true },
+      partNumbers: {
+        kind: 'array',
+        required: true,
+        describe: 'Multipart part numbers for which signed URLs should be created.',
+      },
     },
   },
   createTableRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Create Rows',
     body: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
     opaqueBody: true,
   },
@@ -6157,12 +6452,17 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Create View',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      config: { kind: 'object', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      name: { kind: 'string', required: true, describe: 'Saved-view display name.' },
+      config: {
+        kind: 'object',
+        required: true,
+        describe: 'Saved filter, sort, and column-layout configuration.',
+      },
     },
   },
   createWorkflow: {
@@ -6172,10 +6472,18 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Workflow',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
-      description: { kind: 'string' },
-      folderPath: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the workflow.',
+      },
+      name: { kind: 'string', required: true, describe: 'Workflow name.' },
+      description: { kind: 'string', describe: 'Optional workflow description.' },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as "New folder" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.',
+      },
     },
   },
   createWorkflowFolder: {
@@ -6185,38 +6493,53 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Create Workflow Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to create the folder.',
+      },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to create.' },
     },
   },
   deleteCredential: {
     method: 'DELETE',
     path: '/api/v2/credentials/[credentialId]',
     pathParams: ['credentialId'] as const,
+    pathParamDocs: { credentialId: 'Credential to disconnect.' },
     responseMode: 'json',
     summary: 'Disconnect Credential',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the credential.',
+      },
     },
   },
   deleteCustomTool: {
     method: 'DELETE',
     path: '/api/v2/custom-tools/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Delete Custom Tool',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the custom tool.',
+      },
     },
   },
   deleteFile: {
     method: 'DELETE',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Delete File',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
   deleteFileFolder: {
@@ -6226,8 +6549,8 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Delete Folder',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
       recursive: {
         kind: 'enum',
         values: [
@@ -6245,6 +6568,8 @@ export const V2_OPERATIONS = {
           'disabled',
         ] as const,
         default: 'false',
+        describe:
+          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
       },
     },
   },
@@ -6252,20 +6577,33 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/knowledge/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Delete Knowledge Base',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   deleteKnowledgeDocument: {
     method: 'DELETE',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
     pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
     responseMode: 'json',
     summary: 'Delete Document',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   deleteKnowledgeFolder: {
@@ -6275,8 +6613,8 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Delete Folder',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
       recursive: {
         kind: 'enum',
         values: [
@@ -6294,6 +6632,8 @@ export const V2_OPERATIONS = {
           'disabled',
         ] as const,
         default: 'false',
+        describe:
+          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
       },
     },
   },
@@ -6301,52 +6641,74 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/mcp-servers/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Delete MCP Server',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the MCP server.',
+      },
     },
   },
   deleteSecret: {
     method: 'DELETE',
     path: '/api/v2/secrets/[name]',
     pathParams: ['name'] as const,
+    pathParamDocs: { name: 'Secret to create, replace, or delete.' },
     responseMode: 'json',
     summary: 'Delete Secret',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      scope: { kind: 'enum', required: true, values: ['workspace', 'personal'] as const },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces.',
+      },
+      scope: {
+        kind: 'enum',
+        required: true,
+        values: ['workspace', 'personal'] as const,
+        describe:
+          'Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace.',
+      },
     },
   },
   deleteSkill: {
     method: 'DELETE',
     path: '/api/v2/skills/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: {
+      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
     responseMode: 'json',
     summary: 'Delete Skill',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
   },
   deleteTable: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Delete Table',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   deleteTableColumn: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Delete Column',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      columnName: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      columnName: { kind: 'string', required: true, describe: 'Name of the column to delete.' },
     },
   },
   deleteTableFolder: {
@@ -6356,8 +6718,8 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Delete Folder',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
       recursive: {
         kind: 'enum',
         values: [
@@ -6375,6 +6737,8 @@ export const V2_OPERATIONS = {
           'disabled',
         ] as const,
         default: 'false',
+        describe:
+          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
       },
     },
   },
@@ -6382,39 +6746,47 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
     responseMode: 'json',
     summary: 'Delete Row',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   deleteTableRows: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Delete Rows',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      filter: { kind: 'unknown' },
-      limit: { kind: 'integer' },
-      rowIds: { kind: 'array' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      filter: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      limit: { kind: 'integer', describe: 'Maximum matching rows to delete.' },
+      rowIds: { kind: 'array', describe: 'Explicit row identifiers to delete.' },
     },
   },
   deleteTableView: {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
     responseMode: 'json',
     summary: 'Delete View',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   deleteWorkflow: {
     method: 'DELETE',
     path: '/api/v2/workflows/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow',
   },
@@ -6425,8 +6797,8 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Delete Workflow Folder',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
       recursive: {
         kind: 'enum',
         values: [
@@ -6444,6 +6816,8 @@ export const V2_OPERATIONS = {
           'disabled',
         ] as const,
         default: 'false',
+        describe:
+          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
       },
     },
   },
@@ -6451,56 +6825,102 @@ export const V2_OPERATIONS = {
     method: 'DELETE',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Delete Workflow Group',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      groupId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      groupId: { kind: 'string', required: true, describe: 'Workflow group to delete.' },
     },
   },
   deployWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/deploy',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Deploy Workflow',
     body: {
-      name: { kind: 'string' },
-      description: { kind: 'string' },
+      name: { kind: 'string', describe: 'Optional label for the deployment version.' },
+      description: {
+        kind: 'string',
+        describe: 'Optional release note for the deployment version.',
+      },
     },
   },
   downloadFile: {
     method: 'GET',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'binary',
     summary: 'Download File',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
   executeWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/execute',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Execute Workflow',
     body: {
-      input: { kind: 'object' },
-      async: { kind: 'boolean', default: false },
-      executionTimeoutSeconds: { kind: 'integer' },
-      stream: { kind: 'boolean', default: false },
-      selectedOutputs: { kind: 'array' },
-      includeThinking: { kind: 'boolean', default: false },
-      includeToolCalls: { kind: 'boolean', default: false },
-      includeFileBase64: { kind: 'boolean' },
-      base64MaxBytes: { kind: 'integer' },
+      input: {
+        kind: 'object',
+        describe: 'Workflow input keyed by deployed trigger input-field name.',
+      },
+      async: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Queue the run and return a 202 receipt when true. Requires an API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).',
+      },
+      executionTimeoutSeconds: {
+        kind: 'integer',
+        describe:
+          "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true.",
+      },
+      stream: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Return Server-Sent Events instead of JSON when true. Cannot be combined with `async`.',
+      },
+      selectedOutputs: {
+        kind: 'array',
+        describe:
+          'Block output references to include in a streamed response. Rejected when `async` is true.',
+      },
+      includeThinking: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Include model reasoning events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.',
+      },
+      includeToolCalls: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Include tool-call events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.',
+      },
+      includeFileBase64: {
+        kind: 'boolean',
+        describe: 'Inline eligible output files as base64 content. Rejected when `async` is true.',
+      },
+      base64MaxBytes: {
+        kind: 'integer',
+        describe:
+          'Maximum total bytes of file content to inline as base64. Rejected when `async` is true.',
+      },
     },
   },
   exportWorkflow: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/export',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Export Workflow',
   },
@@ -6508,23 +6928,33 @@ export const V2_OPERATIONS = {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/find',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Find Rows',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      q: { kind: 'string', required: true },
-      predicate: { kind: 'unknown' },
-      sort: { kind: 'array' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      q: { kind: 'string', required: true, describe: 'Case-insensitive cell substring to find.' },
+      predicate: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
     },
   },
   getAuditLog: {
     method: 'GET',
     path: '/api/v2/audit-logs/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Audit-log entry identifier.' },
     responseMode: 'json',
     summary: 'Get Audit Log',
     query: {
-      organizationId: { kind: 'string', required: true },
+      organizationId: {
+        kind: 'string',
+        required: true,
+        describe: 'Organization whose audit-log entry should be returned.',
+      },
     },
   },
   getBillingStatus: {
@@ -6534,64 +6964,95 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Billing Status',
     query: {
-      workspaceId: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        describe:
+          'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.',
+      },
     },
   },
   getCustomTool: {
     method: 'GET',
     path: '/api/v2/custom-tools/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Get Custom Tool',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the custom tool.',
+      },
     },
   },
   getFile: {
     method: 'GET',
     path: '/api/v2/files/[fileId]/metadata',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Get File Metadata',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.',
+      },
     },
   },
   getFileShare: {
     method: 'GET',
     path: '/api/v2/files/[fileId]/share',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Get File Share',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
   getKnowledgeBase: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Get Knowledge Base',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   getKnowledgeDocument: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
     pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
     responseMode: 'json',
     summary: 'Get Document',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   getLog: {
     method: 'GET',
     path: '/api/v2/logs/[runId]',
     pathParams: ['runId'] as const,
+    pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Log',
   },
@@ -6599,76 +7060,98 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/mcp-servers/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Get MCP Server',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the MCP server.',
+      },
     },
   },
   getSkill: {
     method: 'GET',
     path: '/api/v2/skills/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: {
+      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
     responseMode: 'json',
     summary: 'Get Skill',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
   },
   getTable: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Get Table',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   getTableExport: {
     method: 'GET',
     path: '/api/v2/tables/exports/[exportId]',
     pathParams: ['exportId'] as const,
+    pathParamDocs: { exportId: 'Unique table-export identifier.' },
     responseMode: 'json',
     summary: 'Get Table Export',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
   },
   getTableImport: {
     method: 'GET',
     path: '/api/v2/tables/imports/[importId]',
     pathParams: ['importId'] as const,
+    pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
     summary: 'Get Table Import',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
   },
   getTableRow: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
     responseMode: 'json',
     summary: 'Get Row',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   getTableView: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
     responseMode: 'json',
     summary: 'Get View',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   getWorkflow: {
     method: 'GET',
     path: '/api/v2/workflows/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow',
   },
@@ -6676,6 +7159,7 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/workflows/[id]/deployment',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow Deployment',
   },
@@ -6683,17 +7167,27 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/workflows/[id]/runs/[runId]',
     pathParams: ['id', 'runId'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Workflow Run',
     query: {
-      includeOutput: { kind: 'boolean' },
-      selectedOutputs: { kind: 'string' },
+      includeOutput: {
+        kind: 'boolean',
+        describe:
+          'Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.',
+      },
+      selectedOutputs: {
+        kind: 'string',
+        describe:
+          'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.',
+      },
     },
   },
   getWorkflowVersion: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/versions/[version]',
     pathParams: ['id', 'version'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.', version: 'Numeric deployment version.' },
     responseMode: 'json',
     summary: 'Get Workflow Version',
   },
@@ -6701,6 +7195,7 @@ export const V2_OPERATIONS = {
     method: 'GET',
     path: '/api/v2/workspaces/[workspaceId]',
     pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to retrieve.' },
     responseMode: 'json',
     summary: 'Get Workspace',
   },
@@ -6711,11 +7206,23 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Import Workflow',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      workflow: { kind: 'unknown', required: true },
-      folderPath: { kind: 'string' },
-      name: { kind: 'string' },
-      description: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to import the workflow.',
+      },
+      workflow: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Workflow export object, bare workflow state, or JSON string containing either form.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: 'Destination folder path; omit for the workspace root.',
+      },
+      name: { kind: 'string', describe: 'Override for the imported workflow name.' },
+      description: { kind: 'string', describe: 'Override for the imported workflow description.' },
     },
   },
   listAuditLogs: {
@@ -6725,17 +7232,45 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Audit Logs',
     query: {
-      action: { kind: 'string' },
-      resourceType: { kind: 'string' },
-      resourceId: { kind: 'string' },
-      workspaceId: { kind: 'string' },
-      startDate: { kind: 'string' },
-      endDate: { kind: 'string' },
-      includeDeparted: { kind: 'boolean' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
-      organizationId: { kind: 'string', required: true },
-      actorEmail: { kind: 'string' },
+      action: { kind: 'string', describe: 'Filter by exact action name.' },
+      resourceType: {
+        kind: 'string',
+        describe:
+          'Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor.',
+      },
+      resourceId: { kind: 'string', describe: 'Filter by exact resource identifier.' },
+      workspaceId: { kind: 'string', describe: 'Filter to actions in one workspace.' },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      includeDeparted: {
+        kind: 'boolean',
+        describe: 'Include actions by users who have left the organization.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum audit entries to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      organizationId: {
+        kind: 'string',
+        required: true,
+        describe: 'Organization whose audit trail should be queried.',
+      },
+      actorEmail: { kind: 'string', describe: 'Filter by actor email address.' },
     },
   },
   listBillingLogs: {
@@ -6758,17 +7293,40 @@ export const V2_OPERATIONS = {
           'enrichment',
           'voice-output',
         ] as const,
+        describe: 'Restrict results to one usage source.',
       },
-      workspaceId: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        describe: 'Restrict results to one workspace whose payer the caller can inspect.',
+      },
       period: {
         kind: 'enum',
         values: ['1d', '7d', '30d', 'all', 'custom'] as const,
         default: '30d',
+        describe:
+          'Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.',
       },
-      startDate: { kind: 'string' },
-      endDate: { kind: 'string' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listCredentialProviders: {
@@ -6778,8 +7336,16 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Credential Providers',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace used to evaluate credential-provider availability and integration policy.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the credential provider name.',
+      },
     },
   },
   listCredentials: {
@@ -6789,18 +7355,47 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Credentials',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      type: { kind: 'enum', values: ['oauth', 'service_account'] as const },
-      providerId: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose credentials should be listed.',
+      },
+      type: {
+        kind: 'enum',
+        values: ['oauth', 'service_account'] as const,
+        describe: 'Restrict results to this credential type.',
+      },
+      providerId: {
+        kind: 'string',
+        describe: 'Restrict results to credentials for this integration provider.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the credential display name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['displayName', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
+        describe: 'Field used to sort the result.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum credentials to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listCustomTools: {
@@ -6810,16 +7405,38 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Custom Tools',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the custom tool.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the tool title.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['title', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
+        describe: 'Field used to sort the result.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum custom tools to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listFileFolders: {
@@ -6829,15 +7446,32 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Folders',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      parentPath: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose folders should be listed.',
+      },
+      parentPath: {
+        kind: 'string',
+        describe: 'Restrict results to direct children of this parent path.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the folder name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
     },
   },
   listFiles: {
@@ -6847,18 +7481,51 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Files',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      folderPath: { kind: 'string' },
-      scope: { kind: 'enum', values: ['active', 'archived'] as const, default: 'active' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose files should be listed.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the file name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'size', 'uploadedAt', 'updatedAt'] as const,
         default: 'uploadedAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
-      limit: { kind: 'integer', default: 100 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 100,
+        describe:
+          'Maximum files per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listKnowledgeBases: {
@@ -6868,33 +7535,74 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Knowledge Bases',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      folderPath: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose knowledge bases should be listed.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the resource name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum knowledge bases to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listKnowledgeDocuments: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/documents',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Documents',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      limit: { kind: 'integer', default: 50 },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the document filename.',
+      },
       enabledFilter: {
         kind: 'enum',
         values: ['all', 'enabled', 'disabled'] as const,
         default: 'all',
+        describe: 'Filter by whether documents are enabled for search.',
       },
       sortBy: {
         kind: 'enum',
@@ -6908,10 +7616,25 @@ export const V2_OPERATIONS = {
           'enabled',
         ] as const,
         default: 'uploadedAt',
+        describe:
+          'Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
-      cursor: { kind: 'string' },
-      tagFilters: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      tagFilters: {
+        kind: 'string',
+        describe:
+          'A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{"tagName":"category","operator":"eq","value":"billing"}]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored.',
+      },
     },
   },
   listKnowledgeFolders: {
@@ -6921,25 +7644,47 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Folders',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      parentPath: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose folders should be listed.',
+      },
+      parentPath: {
+        kind: 'string',
+        describe: 'Restrict results to direct children of this parent path.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the folder name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
     },
   },
   listKnowledgeTags: {
     method: 'GET',
     path: '/api/v2/knowledge/[id]/tags',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'List Tags',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   listLogs: {
@@ -6949,25 +7694,97 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Logs',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      workflowIds: { kind: 'string' },
-      triggers: { kind: 'string' },
-      level: { kind: 'enum', values: ['info', 'error'] as const },
-      startDate: { kind: 'string' },
-      endDate: { kind: 'string' },
-      minDurationMs: { kind: 'integer' },
-      maxDurationMs: { kind: 'integer' },
-      minCost: { kind: 'number' },
-      maxCost: { kind: 'number' },
-      model: { kind: 'string' },
-      details: { kind: 'enum', values: ['basic', 'full'] as const, default: 'basic' },
-      includeTraceSpans: { kind: 'boolean' },
-      includeFinalOutput: { kind: 'boolean' },
-      limit: { kind: 'integer', default: 100 },
-      cursor: { kind: 'string' },
-      order: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
-      runId: { kind: 'string' },
-      folderPaths: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose execution logs should be returned.',
+      },
+      workflowIds: {
+        kind: 'string',
+        describe: 'Comma-separated workflow identifiers to include. An empty entry is rejected.',
+      },
+      triggers: {
+        kind: 'string',
+        describe:
+          'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.',
+      },
+      level: {
+        kind: 'enum',
+        values: ['info', 'error'] as const,
+        describe: 'Severity level to include.',
+      },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      minDurationMs: {
+        kind: 'integer',
+        describe:
+          'Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
+      },
+      maxDurationMs: {
+        kind: 'integer',
+        describe:
+          'Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.',
+      },
+      minCost: {
+        kind: 'number',
+        describe:
+          'Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
+      },
+      maxCost: {
+        kind: 'number',
+        describe:
+          'Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.',
+      },
+      model: { kind: 'string', describe: 'AI model used during execution.' },
+      details: {
+        kind: 'enum',
+        values: ['basic', 'full'] as const,
+        default: 'basic',
+        describe:
+          'Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.',
+      },
+      includeTraceSpans: {
+        kind: 'boolean',
+        describe:
+          'Whether to include block-level trace spans. Implies `details=full`. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.',
+      },
+      includeFinalOutput: {
+        kind: 'boolean',
+        describe:
+          'Whether to include the final workflow output. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 100,
+        describe:
+          'Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      order: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe:
+          'Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.',
+      },
+      runId: { kind: 'string', describe: 'Exact run identifier to match.' },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
     },
   },
   listMcpServers: {
@@ -6977,27 +7794,59 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List MCP Servers',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the MCP server.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the server name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum MCP servers to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listMcpServerTools: {
     method: 'GET',
     path: '/api/v2/mcp-servers/[id]/tools',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'List MCP Server Tools',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      refresh: { kind: 'boolean' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the MCP server.',
+      },
+      refresh: {
+        kind: 'boolean',
+        describe:
+          'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.',
+      },
     },
   },
   listSecrets: {
@@ -7007,17 +7856,44 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Secrets',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      scope: { kind: 'enum', values: ['workspace', 'personal'] as const },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose secret metadata should be listed.',
+      },
+      scope: {
+        kind: 'enum',
+        values: ['workspace', 'personal'] as const,
+        describe: 'Restrict results to one ownership scope.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the secret name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum secrets to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listSkills: {
@@ -7027,16 +7903,35 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Skills',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      search: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the skill name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum skills to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listTableFolders: {
@@ -7046,27 +7941,54 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Folders',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      parentPath: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose folders should be listed.',
+      },
+      parentPath: {
+        kind: 'string',
+        describe: 'Restrict results to direct children of this parent path.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the folder name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
     },
   },
   listTableRows: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'List Rows',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      limit: { kind: 'integer', default: 100 },
-      cursor: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      limit: {
+        kind: 'integer',
+        default: 100,
+        describe:
+          'Maximum rows to return per page. Must be a whole number from 1 to 1000. Defaults to 100.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listTables: {
@@ -7076,27 +7998,55 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Tables',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      folderPath: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose tables should be listed.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the resource name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
-      limit: { kind: 'integer', default: 100 },
-      cursor: { kind: 'string' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 100,
+        describe:
+          'Maximum tables to return per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listTableViews: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/views',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'List Views',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   listWorkflowFolders: {
@@ -7106,44 +8056,87 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Workflow Folders',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      parentPath: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose folders should be listed.',
+      },
+      parentPath: {
+        kind: 'string',
+        describe: 'Restrict results to direct children of this parent path.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the folder name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
     },
   },
   listWorkflowGroups: {
     method: 'GET',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'List Workflow Groups',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
   },
   listWorkflowRuns: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/runs',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'List Workflow Runs',
     query: {
       status: {
         kind: 'enum',
         values: ['pending', 'running', 'completed', 'failed', 'cancelled', 'paused'] as const,
+        describe: 'Filter by run status.',
       },
-      trigger: { kind: 'string' },
-      startDate: { kind: 'string' },
-      endDate: { kind: 'string' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
-      order: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
+      trigger: { kind: 'string', describe: 'Filter by trigger type.' },
+      startDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      endDate: {
+        kind: 'string',
+        describe:
+          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workflow runs to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      order: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'desc',
+        describe:
+          'Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.',
+      },
     },
   },
   listWorkflows: {
@@ -7153,40 +8146,90 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'List Workflows',
     query: {
-      workspaceId: { kind: 'string', required: true },
-      folderPath: { kind: 'string' },
-      deployedOnly: { kind: 'boolean' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
-      search: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace whose workflows should be listed.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      deployedOnly: {
+        kind: 'boolean',
+        describe: 'Return only workflows with an active deployment when true.',
+      },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum workflows to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
+      search: {
+        kind: 'string',
+        describe: 'Case-insensitive substring match against the resource name.',
+      },
       sortBy: {
         kind: 'enum',
         values: ['position', 'name', 'createdAt', 'updatedAt', 'runCount'] as const,
         default: 'position',
+        describe:
+          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
       },
-      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
+      sortOrder: {
+        kind: 'enum',
+        values: ['asc', 'desc'] as const,
+        default: 'asc',
+        describe: 'Sort direction.',
+      },
     },
   },
   listWorkflowVersions: {
     method: 'GET',
     path: '/api/v2/workflows/[id]/versions',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'List Workflow Versions',
     query: {
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum deployment versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   listWorkspaceMembers: {
     method: 'GET',
     path: '/api/v2/workspaces/[workspaceId]/members',
     pathParams: ['workspaceId'] as const,
+    pathParamDocs: { workspaceId: 'Workspace to retrieve.' },
     responseMode: 'json',
     summary: 'List Workspace Members',
     query: {
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
+      limit: {
+        kind: 'integer',
+        default: 50,
+        describe:
+          'Maximum members to return per page. Must be a whole number from 1 to 100. Defaults to 50.',
+      },
+      cursor: {
+        kind: 'string',
+        describe:
+          'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
+      },
     },
   },
   moveFileItems: {
@@ -7196,34 +8239,50 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Move Files',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      fileIds: { kind: 'array', required: true },
-      targetFolderPath: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
+      fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
+      targetFolderPath: {
+        kind: 'string',
+        describe: 'Destination folder path. Omit to move files to the workspace root.',
+      },
     },
   },
   queryRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Query Rows',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      predicate: { kind: 'unknown' },
-      sort: { kind: 'array' },
-      limit: { kind: 'integer' },
-      cursor: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      predicate: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
+      limit: {
+        kind: 'integer',
+        describe: 'Maximum rows to return; zero requests an unbounded result.',
+      },
+      cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
     },
   },
   queryRowsCount: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/query/count',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Count Rows',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      predicate: { kind: 'unknown' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      predicate: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
     },
   },
   relocateFileFolder: {
@@ -7233,9 +8292,13 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Rename or Move Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
-      destinationPath: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Current folder path.' },
+      destinationPath: {
+        kind: 'string',
+        required: true,
+        describe: 'New full path for the folder and its descendants.',
+      },
     },
   },
   relocateKnowledgeFolder: {
@@ -7245,9 +8308,13 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Rename or Move Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
-      destinationPath: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Current folder path.' },
+      destinationPath: {
+        kind: 'string',
+        required: true,
+        describe: 'New full path for the folder and its descendants.',
+      },
     },
   },
   relocateTableFolder: {
@@ -7257,9 +8324,13 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Rename or Move Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
-      destinationPath: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Current folder path.' },
+      destinationPath: {
+        kind: 'string',
+        required: true,
+        describe: 'New full path for the folder and its descendants.',
+      },
     },
   },
   relocateWorkflowFolder: {
@@ -7269,77 +8340,115 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Rename or Move Workflow Folder',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      path: { kind: 'string', required: true },
-      destinationPath: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
+      path: { kind: 'string', required: true, describe: 'Current folder path.' },
+      destinationPath: {
+        kind: 'string',
+        required: true,
+        describe: 'New full path for the folder and its descendants.',
+      },
     },
   },
   renameFile: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Rename File',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
     },
   },
   restoreFile: {
     method: 'POST',
     path: '/api/v2/files/[fileId]/restore',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Restore File',
     body: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the archived file.',
+      },
     },
   },
   resumeWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/runs/[runId]/resume',
     pathParams: ['id', 'runId'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.', runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Resume Workflow Run',
     body: {
-      contextId: { kind: 'string', required: true },
-      input: { kind: 'unknown' },
+      contextId: {
+        kind: 'string',
+        required: true,
+        describe: 'Human-in-the-loop pause-context identifier.',
+      },
+      input: { kind: 'unknown', describe: 'Input supplied to the paused workflow block.' },
     },
   },
   rollbackWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/rollback',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Rollback Workflow',
     body: {
-      version: { kind: 'integer' },
+      version: {
+        kind: 'integer',
+        describe: 'Deployment version to reactivate. Omit to select the previous active version.',
+      },
     },
   },
   runRowEnrichment: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
     pathParams: ['tableId', 'rowId', 'groupId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      rowId: 'Unique table row identifier.',
+      groupId: 'Workflow or enrichment group to run.',
+    },
     responseMode: 'json',
     summary: 'Run Enrichment For One Row',
     body: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
   },
   runTableColumn: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/columns/run',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Run Column Groups',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      groupIds: { kind: 'array', required: true },
-      runMode: { kind: 'enum', values: ['all', 'incomplete'] as const, default: 'all' },
-      rowIds: { kind: 'array' },
-      filter: { kind: 'unknown' },
-      excludeRowIds: { kind: 'array' },
-      limit: { kind: 'object' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      groupIds: {
+        kind: 'array',
+        required: true,
+        describe: 'Workflow or enrichment groups to run.',
+      },
+      runMode: {
+        kind: 'enum',
+        values: ['all', 'incomplete'] as const,
+        default: 'all',
+        describe: 'Whether to run all or only incomplete cells.',
+      },
+      rowIds: { kind: 'array', describe: 'Explicit row subset to run.' },
+      filter: {
+        kind: 'unknown',
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      excludeRowIds: { kind: 'array', describe: 'Rows excluded from a select-all run scope.' },
+      limit: { kind: 'object', describe: 'Optional cap on eligible rows to run.' },
     },
   },
   searchKnowledge: {
@@ -7349,47 +8458,105 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Search Knowledge',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      knowledgeBaseIds: { kind: 'unknown', required: true },
-      query: { kind: 'string' },
-      topK: { kind: 'number', default: 10 },
-      tagFilters: { kind: 'array' },
-      searchMode: { kind: 'enum', default: 'vector' },
-      rerankerEnabled: { kind: 'boolean' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge bases.',
+      },
+      knowledgeBaseIds: {
+        kind: 'unknown',
+        required: true,
+        describe: 'One knowledge base identifier or an array of up to 20 identifiers.',
+      },
+      query: {
+        kind: 'string',
+        describe:
+          "Natural-language query; required when tag filters are omitted. At most 32768 characters — longer text exceeds the embedding model's per-input token ceiling and would be truncated before the billed search ran.",
+      },
+      topK: {
+        kind: 'number',
+        default: 10,
+        describe:
+          'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.',
+      },
+      tagFilters: {
+        kind: 'array',
+        describe:
+          'Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{id}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.',
+      },
+      searchMode: {
+        kind: 'enum',
+        default: 'vector',
+        describe:
+          'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.',
+      },
+      rerankerEnabled: {
+        kind: 'boolean',
+        describe:
+          'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.',
+      },
       rerankerModel: {
         kind: 'enum',
         values: ['rerank-v4.0-pro', 'rerank-v4.0-fast', 'rerank-v3.5'] as const,
         default: 'rerank-v4.0-fast',
+        describe:
+          'Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`.',
       },
-      rerankerInputCount: { kind: 'integer' },
+      rerankerInputCount: {
+        kind: 'integer',
+        describe:
+          'How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from.',
+      },
     },
   },
   setSecret: {
     method: 'PUT',
     path: '/api/v2/secrets/[name]',
     pathParams: ['name'] as const,
+    pathParamDocs: { name: 'Secret to create, replace, or delete.' },
     responseMode: 'json',
     summary: 'Set Secret',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      scope: { kind: 'enum', required: true, values: ['workspace', 'personal'] as const },
-      value: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Workspace the request is authorized against. A workspace secret is written to it; a personal secret is written to the caller and is available in all of their workspaces.',
+      },
+      scope: {
+        kind: 'enum',
+        required: true,
+        values: ['workspace', 'personal'] as const,
+        describe:
+          'Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace.',
+      },
+      value: {
+        kind: 'string',
+        required: true,
+        describe: 'Write-only secret value. It is never returned.',
+      },
     },
   },
   tableExportDownload: {
     method: 'GET',
     path: '/api/v2/tables/exports/[exportId]/download',
     pathParams: ['exportId'] as const,
+    pathParamDocs: { exportId: 'Unique table-export identifier.' },
     responseMode: 'json',
     summary: 'Download Table Export',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
   },
   undeployWorkflow: {
     method: 'DELETE',
     path: '/api/v2/workflows/[id]/deploy',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Undeploy Workflow',
   },
@@ -7397,235 +8564,402 @@ export const V2_OPERATIONS = {
     method: 'PATCH',
     path: '/api/v2/custom-tools/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique custom tool identifier.' },
     responseMode: 'json',
     summary: 'Update Custom Tool',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      title: { kind: 'string' },
-      schema: { kind: 'object' },
-      code: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the custom tool.',
+      },
+      title: { kind: 'string', describe: 'New display title for the tool.' },
+      schema: { kind: 'object', describe: 'Replacement function declaration.' },
+      code: { kind: 'string', describe: 'Replacement tool implementation.' },
     },
   },
   updateFileContent: {
     method: 'PUT',
     path: '/api/v2/files/[fileId]/content',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Replace File Content',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      content: { kind: 'string', required: true },
-      encoding: { kind: 'enum', values: ['utf-8', 'base64'] as const, default: 'utf-8' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      content: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.',
+      },
+      encoding: {
+        kind: 'enum',
+        values: ['utf-8', 'base64'] as const,
+        default: 'utf-8',
+        describe: 'Encoding of the content field.',
+      },
     },
   },
   updateKnowledgeBase: {
     method: 'PATCH',
     path: '/api/v2/knowledge/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Update Knowledge Base',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string' },
-      description: { kind: 'string' },
-      chunkingConfig: { kind: 'object' },
-      folderPath: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      name: { kind: 'string', describe: 'New knowledge base name.' },
+      description: { kind: 'string', describe: 'New knowledge base description.' },
+      chunkingConfig: { kind: 'object', describe: 'New document chunking configuration.' },
+      folderPath: { kind: 'string', describe: 'New containing-folder path.' },
     },
   },
   updateKnowledgeDocument: {
     method: 'PATCH',
     path: '/api/v2/knowledge/[id]/documents/[documentId]',
     pathParams: ['id', 'documentId'] as const,
+    pathParamDocs: {
+      id: 'Unique knowledge base identifier.',
+      documentId: 'Unique knowledge document identifier.',
+    },
     responseMode: 'json',
     summary: 'Update Document',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      filename: { kind: 'string' },
-      enabled: { kind: 'boolean' },
-      tag1: { kind: 'string' },
-      tag2: { kind: 'string' },
-      tag3: { kind: 'string' },
-      tag4: { kind: 'string' },
-      tag5: { kind: 'string' },
-      tag6: { kind: 'string' },
-      tag7: { kind: 'string' },
-      number1: { kind: 'number' },
-      number2: { kind: 'number' },
-      number3: { kind: 'number' },
-      number4: { kind: 'number' },
-      number5: { kind: 'number' },
-      date1: { kind: 'string' },
-      date2: { kind: 'string' },
-      boolean1: { kind: 'boolean' },
-      boolean2: { kind: 'boolean' },
-      boolean3: { kind: 'boolean' },
-      retryProcessing: { kind: 'boolean' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
+      filename: { kind: 'string', describe: 'New filename for the document.' },
+      enabled: {
+        kind: 'boolean',
+        describe: 'Whether the document participates in search. Disabling keeps it indexed.',
+      },
+      tag1: { kind: 'string', describe: 'New value for tag slot 1.' },
+      tag2: { kind: 'string', describe: 'New value for tag slot 2.' },
+      tag3: { kind: 'string', describe: 'New value for tag slot 3.' },
+      tag4: { kind: 'string', describe: 'New value for tag slot 4.' },
+      tag5: { kind: 'string', describe: 'New value for tag slot 5.' },
+      tag6: { kind: 'string', describe: 'New value for tag slot 6.' },
+      tag7: { kind: 'string', describe: 'New value for tag slot 7.' },
+      number1: { kind: 'number', describe: 'New value for number tag slot 1.' },
+      number2: { kind: 'number', describe: 'New value for number tag slot 2.' },
+      number3: { kind: 'number', describe: 'New value for number tag slot 3.' },
+      number4: { kind: 'number', describe: 'New value for number tag slot 4.' },
+      number5: { kind: 'number', describe: 'New value for number tag slot 5.' },
+      date1: { kind: 'string', describe: 'New value for date tag slot 1, formatted YYYY-MM-DD.' },
+      date2: { kind: 'string', describe: 'New value for date tag slot 2, formatted YYYY-MM-DD.' },
+      boolean1: { kind: 'boolean', describe: 'New value for boolean tag slot 1.' },
+      boolean2: { kind: 'boolean', describe: 'New value for boolean tag slot 2.' },
+      boolean3: { kind: 'boolean', describe: 'New value for boolean tag slot 3.' },
+      retryProcessing: {
+        kind: 'boolean',
+        describe:
+          'Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document.',
+      },
     },
   },
   updateMcpServer: {
     method: 'PATCH',
     path: '/api/v2/mcp-servers/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique MCP server identifier.' },
     responseMode: 'json',
     summary: 'Update MCP Server',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string' },
-      description: { kind: 'string' },
-      transport: { kind: 'enum', values: ['streamable-http'] as const, default: 'streamable-http' },
-      url: { kind: 'string' },
-      authType: { kind: 'enum', values: ['none', 'headers', 'oauth'] as const },
-      headers: { kind: 'object' },
-      timeout: { kind: 'integer', default: 30000 },
-      retries: { kind: 'integer', default: 3 },
-      enabled: { kind: 'boolean', default: true },
-      oauthClientId: { kind: 'string' },
-      oauthClientSecret: { kind: 'string' },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the MCP server.',
+      },
+      name: { kind: 'string', describe: 'Server display name.' },
+      description: { kind: 'string', describe: 'Optional server description.' },
+      transport: {
+        kind: 'enum',
+        values: ['streamable-http'] as const,
+        default: 'streamable-http',
+        describe:
+          'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.',
+      },
+      url: {
+        kind: 'string',
+        describe:
+          'Immutable server URL. When provided, it must equal the current URL; use delete and create to change endpoints.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['none', 'headers', 'oauth'] as const,
+        describe:
+          'Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.',
+      },
+      headers: {
+        kind: 'object',
+        describe:
+          'Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat.',
+      },
+      timeout: {
+        kind: 'integer',
+        default: 30000,
+        describe:
+          'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.',
+      },
+      retries: {
+        kind: 'integer',
+        default: 3,
+        describe: 'Number of retries per request. Applied server-side as 3 when omitted on create.',
+      },
+      enabled: {
+        kind: 'boolean',
+        default: true,
+        describe:
+          'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.',
+      },
+      oauthClientId: {
+        kind: 'string',
+        describe:
+          'Pre-registered OAuth client identifier. Changing it on update revokes the stored OAuth grant and forces reauthorization.',
+      },
+      oauthClientSecret: {
+        kind: 'string',
+        describe:
+          'Write-only pre-registered OAuth client secret. Sending it on update as null or a new value revokes the stored OAuth grant and forces reauthorization, as does switching away from OAuth authentication.',
+      },
     },
   },
   updateRowsByFilter: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Update Rows by Filter',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      filter: { kind: 'unknown', required: true },
-      data: { kind: 'object', required: true },
-      limit: { kind: 'integer' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      filter: {
+        kind: 'unknown',
+        required: true,
+        describe:
+          'Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+      },
+      data: {
+        kind: 'object',
+        required: true,
+        describe: 'Row-data patch applied to every matching row.',
+      },
+      limit: { kind: 'integer', describe: 'Maximum matching rows to update.' },
     },
   },
   updateSkill: {
     method: 'PATCH',
     path: '/api/v2/skills/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: {
+      id: 'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
+    },
     responseMode: 'json',
     summary: 'Update Skill',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string' },
-      description: { kind: 'string' },
-      content: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
+      name: { kind: 'string', describe: 'New kebab-case skill name.' },
+      description: { kind: 'string', describe: 'New one-line summary of when the skill applies.' },
+      content: { kind: 'string', describe: 'Replacement skill body.' },
     },
   },
   updateTable: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Update Table',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string' },
-      description: { kind: 'string' },
-      folderPath: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      name: { kind: 'string', describe: 'Replacement table name.' },
+      description: {
+        kind: 'string',
+        describe: 'Replacement table description, or null to clear it.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe:
+          'Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as "New folder" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.',
+      },
     },
   },
   updateTableColumn: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/columns',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Update Column',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      columnName: { kind: 'string', required: true },
-      updates: { kind: 'object', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      columnName: {
+        kind: 'string',
+        required: true,
+        describe: 'Current name of the column to update.',
+      },
+      updates: { kind: 'object', required: true, describe: 'Mutable column fields.' },
     },
   },
   updateTableRow: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/rows/[rowId]',
     pathParams: ['tableId', 'rowId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
     responseMode: 'json',
     summary: 'Update Row',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      data: { kind: 'object', required: true },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      data: {
+        kind: 'object',
+        required: true,
+        describe: 'Partial row-data patch keyed by column name.',
+      },
     },
   },
   updateTableView: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/views/[viewId]',
     pathParams: ['tableId', 'viewId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
     responseMode: 'json',
     summary: 'Update View',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      name: { kind: 'string' },
-      config: { kind: 'object' },
-      configPatch: { kind: 'object' },
-      isDefault: { kind: 'boolean' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      name: { kind: 'string', describe: 'Replacement saved-view display name.' },
+      config: { kind: 'object', describe: 'Complete replacement saved-view configuration.' },
+      configPatch: {
+        kind: 'object',
+        describe: 'Saved-view configuration fields to shallow-merge.',
+      },
+      isDefault: {
+        kind: 'boolean',
+        describe: 'Whether to promote this view to the table default.',
+      },
     },
   },
   updateWorkflow: {
     method: 'PATCH',
     path: '/api/v2/workflows/[id]',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow',
     body: {
-      name: { kind: 'string' },
-      description: { kind: 'string' },
-      folderPath: { kind: 'string' },
+      name: { kind: 'string', describe: 'Replacement workflow name.' },
+      description: {
+        kind: 'string',
+        describe: 'Replacement workflow description; null clears it.',
+      },
+      folderPath: {
+        kind: 'string',
+        describe: 'Destination folder path; `/` moves the workflow to the workspace root.',
+      },
     },
   },
   updateWorkflowGroup: {
     method: 'PATCH',
     path: '/api/v2/tables/[tableId]/groups',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Update Workflow Group',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      groupId: { kind: 'string', required: true },
-      workflowId: { kind: 'string' },
-      name: { kind: 'string' },
-      dependencies: { kind: 'object' },
-      outputs: { kind: 'array' },
-      newOutputColumns: { kind: 'array' },
-      mappingUpdates: { kind: 'array' },
-      inputMappings: { kind: 'array' },
-      deploymentMode: { kind: 'enum', values: ['live', 'deployed'] as const },
-      type: { kind: 'enum', values: ['manual', 'enrichment'] as const },
-      autoRun: { kind: 'boolean' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      groupId: { kind: 'string', required: true, describe: 'Workflow group to update.' },
+      workflowId: { kind: 'string', describe: 'Replacement backing workflow identifier.' },
+      name: { kind: 'string', describe: 'Replacement workflow-group display name.' },
+      dependencies: { kind: 'object', describe: 'Replacement input dependencies.' },
+      outputs: { kind: 'array', describe: 'Replacement producer outputs.' },
+      newOutputColumns: { kind: 'array', describe: 'Columns to add for new outputs.' },
+      mappingUpdates: { kind: 'array', describe: 'Existing output-column mapping changes.' },
+      inputMappings: { kind: 'array', describe: 'Replacement workflow input mappings.' },
+      deploymentMode: {
+        kind: 'enum',
+        values: ['live', 'deployed'] as const,
+        describe: 'Replacement workflow execution mode.',
+      },
+      type: {
+        kind: 'enum',
+        values: ['manual', 'enrichment'] as const,
+        describe:
+          "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation.",
+      },
+      autoRun: { kind: 'boolean', describe: 'Replacement automatic-run setting.' },
     },
   },
   uploadKnowledgeDocument: {
     method: 'POST',
     path: '/api/v2/knowledge/[id]/documents',
     pathParams: ['id'] as const,
+    pathParamDocs: { id: 'Unique knowledge base identifier.' },
     responseMode: 'json',
     summary: 'Upload Document',
     query: {
-      workspaceId: { kind: 'string', required: true },
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the knowledge base.',
+      },
     },
   },
   upsertFileShare: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]/share',
     pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
     summary: 'Enable or Disable File Share',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      isActive: { kind: 'boolean', required: true },
-      authType: { kind: 'enum', values: ['public', 'password', 'email', 'sso'] as const },
-      password: { kind: 'string' },
-      allowedEmails: { kind: 'array' },
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      isActive: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        describe:
+          'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe:
+          'Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.',
+      },
     },
   },
   upsertTableRow: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/upsert',
     pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
     summary: 'Upsert Row',
     body: {
-      workspaceId: { kind: 'string', required: true },
-      data: { kind: 'object', required: true },
-      conflictTarget: { kind: 'string' },
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
+      data: {
+        kind: 'object',
+        required: true,
+        describe:
+          'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.',
+      },
+      conflictTarget: { kind: 'string', describe: 'Unique column used to detect a conflict.' },
     },
   },
 } as const

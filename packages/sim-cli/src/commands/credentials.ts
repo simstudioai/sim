@@ -162,7 +162,8 @@ export function attachCredentialCommands(program: Command): void {
   if (!credentials) throw new Error('The generated credentials command group is missing')
 
   credentials
-    .command('create <providerId>')
+    .command('create')
+    .argument('<providerId>', 'Service-account provider to create a credential for')
     .description('Create a service-account credential using its discovered provider schema')
     .requiredOption('--name <displayName>', 'Name shown for the credential in Sim')
     .requiredOption(
@@ -179,7 +180,8 @@ export function attachCredentialCommands(program: Command): void {
     )
 
   credentials
-    .command('connect <providerId>')
+    .command('connect')
+    .argument('<providerId>', 'OAuth provider to connect')
     .description('Create a short-lived link for connecting an OAuth provider')
     .requiredOption('--name <displayName>', 'Name shown for the new credential in Sim')
     .action(async (providerId: string, options: { name: string }, command: Command) =>
@@ -187,7 +189,8 @@ export function attachCredentialCommands(program: Command): void {
     )
 
   credentials
-    .command('reconnect <credentialId>')
+    .command('reconnect')
+    .argument('<credentialId>', 'Existing OAuth credential to re-authorize')
     .description('Create a short-lived link for reconnecting an OAuth credential')
     .action((credentialId: string, _options: unknown, command: Command) =>
       createConnectionLink(command, { credentialId })

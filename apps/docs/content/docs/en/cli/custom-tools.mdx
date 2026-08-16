@@ -3,13 +3,13 @@ title: Custom Tools
 description: Manage custom tools — every subcommand, argument, and flag
 ---
 
+import { CommandTable } from '@/components/ui/command-table'
+
 `sim custom-tools` is also spelled `sim custom-tool`.
 
 Every command below also accepts the [global options](/cli/commands#global-options).
 
-## sim custom-tools create
-
-Create Custom Tool
+## Create custom tool
 
 ```bash
 sim custom-tools create [options]
@@ -17,15 +17,17 @@ sim custom-tools create [options]
 
 **Options**
 
+<CommandTable>
+
 | Option | Required | Description |
 | --- | --- | --- |
-| `--title <value>` | Yes | Set title. |
+| `--title <value>` | Yes | Display title, unique within the workspace. |
 | `--schema <json\|@file>` | Yes | OpenAI function schema: &#123;"type":"function","function":&#123;"name":"...","parameters":&#123;"type":"object","properties":&#123;&#125;&#125;&#125;&#125; (JSON, or @path / @- to read a file or stdin). |
-| `--code <value>` | Yes | Set code. |
+| `--code <value>` | Yes | Tool implementation executed in the sandboxed function runtime. |
 
-## sim custom-tools delete
+</CommandTable>
 
-Delete Custom Tool
+## Delete custom tool
 
 ```bash
 sim custom-tools delete <id> [options]
@@ -33,19 +35,25 @@ sim custom-tools delete <id> [options]
 
 **Arguments**
 
-| Argument | Required |
-| --- | --- |
-| `id` | Yes |
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
 
 **Options**
+
+<CommandTable>
 
 | Option | Required | Description |
 | --- | --- | --- |
 | `-y, --yes` | No | Skip the confirmation. |
 
-## sim custom-tools get
+</CommandTable>
 
-Get Custom Tool
+## Get custom tool
 
 ```bash
 sim custom-tools get <id>
@@ -53,13 +61,15 @@ sim custom-tools get <id>
 
 **Arguments**
 
-| Argument | Required |
-| --- | --- |
-| `id` | Yes |
+<CommandTable>
 
-## sim custom-tools list
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique custom tool identifier. |
 
-List Custom Tools
+</CommandTable>
+
+## List custom tools
 
 ```bash
 sim custom-tools list [options]
@@ -67,16 +77,18 @@ sim custom-tools list [options]
 
 **Options**
 
+<CommandTable>
+
 | Option | Required | Description |
 | --- | --- | --- |
-| `--search <value>` | No | Set search. |
-| `--sort-by <value>` | No | Set sort by. Accepted values: `title`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+| `--search <value>` | No | Case-insensitive substring match against the tool title. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `title`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 
-## sim custom-tools update
+</CommandTable>
 
-Update Custom Tool
+## Update custom tool
 
 ```bash
 sim custom-tools update <id> [options]
@@ -84,14 +96,22 @@ sim custom-tools update <id> [options]
 
 **Arguments**
 
-| Argument | Required |
-| --- | --- |
-| `id` | Yes |
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `id` | Yes | Unique custom tool identifier. |
+
+</CommandTable>
 
 **Options**
 
+<CommandTable>
+
 | Option | Required | Description |
 | --- | --- | --- |
-| `--title <value>` | No | Set title. |
+| `--title <value>` | No | New display title for the tool. |
 | `--schema <json\|@file>` | No | OpenAI function schema: &#123;"type":"function","function":&#123;"name":"...","parameters":&#123;"type":"object","properties":&#123;&#125;&#125;&#125;&#125; (JSON, or @path / @- to read a file or stdin). |
-| `--code <value>` | No | Set code. |
+| `--code <value>` | No | Replacement tool implementation. |
+
+</CommandTable>

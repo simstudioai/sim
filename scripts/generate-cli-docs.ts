@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 
 /**
- * Generates the CLI command reference under `apps/docs/content/docs/en/cli/commands`.
+ * Generates the CLI command reference into `apps/docs/content/docs/en/cli`,
+ * alongside that section's hand-written guides, and owns the section's
+ * `meta.json` because the sidebar lists one entry per command group.
  *
  * The source of truth is the command tree the terminal itself parses —
  * `buildProgram()` from `packages/sim-cli` — not the CLI contract and not the
@@ -18,13 +20,38 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Command } from 'commander'
+import { V2_OPERATIONS } from '../packages/sim-cli/src/generated/v2-api'
 import { buildProgram } from '../packages/sim-cli/src/program'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/en/cli/commands')
+const OUTPUT_DIR = path.join(ROOT, 'apps/docs/content/docs/en/cli')
 
 /** Commander's synthetic help command is not part of the documented surface. */
 const HELP_COMMAND = 'help'
+
+/**
+ * Hand-written pages in `OUTPUT_DIR`, in sidebar order.
+ *
+ * Generated pages sit beside them rather than in a subfolder so each command
+ * group is a root-level entry under the Commands heading instead of a nested
+ * folder the reader has to open. That means the stale-file sweep would delete
+ * these, so they are listed — the same guard `scripts/generate-docs.ts` uses for
+ * its hand-authored integration pages.
+ */
+const GUIDE_PAGES = [
+  'index',
+  'authentication',
+  'configuration',
+  'output',
+  'scripting',
+  'troubleshooting',
+] as const
+
+/** Generated page holding the global options and the commands that take no resource. */
+const OVERVIEW_PAGE = 'commands'
+
+/** Generated page carrying every command at once, for search and for agents. */
+const REFERENCE_PAGE = 'reference'
 
 /**
  * Sidebar titles for groups whose command name does not title-case cleanly.
@@ -134,6 +161,16 @@ function describeOption(option: Command['options'][number]): string {
   return description || '—'
 }
 
+/**
+ * Wraps a Markdown table so `CommandTable` can size its columns.
+ *
+ * The blank lines are load-bearing: without them MDX treats the table as raw
+ * JSX children and stops parsing it as Markdown.
+ */
+function sizedTable(rows: string[]): string[] {
+  return ['', '<CommandTable>', '', ...rows, '', '</CommandTable>']
+}
+
 function renderArguments(entry: DocumentedCommand): string[] {
   const args = entry.command.registeredArguments
   if (args.length === 0) return []
@@ -152,7 +189,7 @@ function renderArguments(entry: DocumentedCommand): string[] {
 
   const header = described ? '| Argument | Required | Description |' : '| Argument | Required |'
   const divider = described ? '| --- | --- | --- |' : '| --- | --- |'
-  return ['', '**Arguments**', '', header, divider, ...rows]
+  return ['', '**Arguments**', ...sizedTable([header, divider, ...rows])]
 }
 
 function renderOptions(entry: DocumentedCommand): string[] {
@@ -167,21 +204,95 @@ function renderOptions(entry: DocumentedCommand): string[] {
   return [
     '',
     '**Options**',
-    '',
-    '| Option | Required | Description |',
-    '| --- | --- | --- |',
-    ...rows,
+    ...sizedTable(['| Option | Required | Description |', '| --- | --- | --- |', ...rows]),
   ]
 }
 
-function renderCommand(entry: DocumentedCommand): string[] {
-  const heading = `sim ${entry.path.join(' ')}`
-  const description = entry.command.description()
-  const aliases = entry.command.aliases()
+/**
+ * Words that must keep their casing when a heading is sentence-cased.
+ *
+ * The test for "this word was capitalized only because the summary is Title
+ * Case" cannot tell `Documents` from `JSON`, and lowercasing the latter is the
+ * more visible mistake.
+ */
+const ACRONYMS = new Set([
+  'API',
+  'APIs',
+  'CSV',
+  'ID',
+  'IDs',
+  'JSON',
+  'MCP',
+  'OAuth',
+  'SSE',
+  'SSO',
+  'URL',
+  'YAML',
+])
 
-  const lines = [`## ${heading}`, '']
-  if (description) lines.push(escapeProse(description), '')
+/**
+ * The command's one-line description, as a heading.
+ *
+ * The command itself is the obvious heading and is the wrong one: every entry
+ * on a page shares the same `sim <group>` prefix, so the table of contents
+ * became a column of "sim knowledge documents …" that has to be read to the
+ * last word to tell two entries apart. The description distinguishes them at
+ * the first word instead, and the exact invocation is still directly below in
+ * the code block.
+ *
+ * A trailing parenthetical is dropped — those qualify behavior ("(requested
+ * outputs are included in JSON or YAML output)") and belong in the body, not in
+ * a sidebar entry.
+ */
+function headingFor(entry: DocumentedCommand): string {
+  const description = entry.command.description()
+  if (!description) return `sim ${entry.path.join(' ')}`
+
+  return description
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .trim()
+    .split(' ')
+    .map((word, index) => {
+      if (ACRONYMS.has(word)) return word
+      if (index === 0) return word.charAt(0).toUpperCase() + word.slice(1)
+      // Only fold words that look Title-Cased; `--tag` or `blockName` stay put.
+      return /^[A-Z][a-z]+$/.test(word) ? word.toLowerCase() : word
+    })
+    .join(' ')
+}
+
+interface RenderOptions {
+  /** Markdown heading depth, so the master page can nest commands under groups. */
+  level?: number
+  /**
+   * Use the invocation as the heading instead of the description.
+   *
+   * Correct on the master page for two reasons: descriptions are only unique
+   * within a group, so "Delete folder" would collide four ways across one page;
+   * and a reader — human or agent — arriving at a page of every command is
+   * looking one up by name, not browsing by task.
+   */
+  commandHeadings?: boolean
+}
+
+function renderCommand(entry: DocumentedCommand, options: RenderOptions = {}): string[] {
+  const { level = 2, commandHeadings = false } = options
+  const aliases = entry.command.aliases()
+  const heading = commandHeadings ? `sim ${entry.path.join(' ')}` : headingFor(entry)
+  const description = entry.command.description()
+
+  const lines = [`${'#'.repeat(level)} ${escapeProse(heading)}`, '']
+  if (commandHeadings && description) lines.push(escapeProse(description), '')
   lines.push('```bash', usageLine(entry), '```')
+  // Only when the heading dropped something — otherwise this restates it.
+  if (
+    !commandHeadings &&
+    description &&
+    description !== heading &&
+    description.trimEnd().endsWith(')')
+  ) {
+    lines.push('', escapeProse(description))
+  }
   if (aliases.length > 0) {
     const spelled = aliases.map(
       (alias) => `\`sim ${[...entry.path.slice(0, -1), alias].join(' ')}\``
@@ -192,14 +303,109 @@ function renderCommand(entry: DocumentedCommand): string[] {
   return lines
 }
 
-function frontmatter(title: string, description: string): string[] {
-  return ['---', `title: ${title}`, `description: ${description}`, '---', '']
+function frontmatter(title: string, description: string, imports: string[] = []): string[] {
+  return [
+    '---',
+    `title: ${title}`,
+    `description: ${description}`,
+    '---',
+    '',
+    "import { CommandTable } from '@/components/ui/command-table'",
+    ...imports,
+    '',
+  ]
+}
+
+/**
+ * Fails when two commands on one page reduce to the same heading.
+ *
+ * Headings are descriptions now, and descriptions are not guaranteed unique the
+ * way command paths are. Two identical `## ` headings would collide on the same
+ * anchor, so one table-of-contents entry would scroll to the other command. The
+ * fix is a distinguishing `describe` in the CLI contract.
+ */
+function assertDistinctHeadings(page: string, entries: DocumentedCommand[]): void {
+  const byHeading = new Map<string, string[]>()
+  for (const entry of entries) {
+    const heading = headingFor(entry)
+    byHeading.set(heading, [...(byHeading.get(heading) ?? []), `sim ${entry.path.join(' ')}`])
+  }
+
+  const collisions = [...byHeading].filter(([, commands]) => commands.length > 1)
+  if (collisions.length === 0) return
+
+  for (const [heading, commands] of collisions) {
+    console.error(`${page}: "${heading}" is the heading for ${commands.join(' and ')}`)
+  }
+  console.error(
+    '\nTwo commands on a page share a heading, so they share an anchor.\n' +
+      'Give one a distinct `describe` in packages/sim-cli/src/contract/commands.ts.'
+  )
+  process.exit(1)
+}
+
+/**
+ * Every command on one page.
+ *
+ * A reference split across fourteen pages is fine to browse and bad to consult:
+ * an agent, or anyone using in-page search, has to guess which page holds a
+ * command before it can read it. This is the single fetch that answers any
+ * question about the surface — the same shape as Claude Code's own
+ * `cli-reference`, and the page `/cli/reference.mdx` serves as raw Markdown.
+ */
+function renderReferencePage(
+  program: Command,
+  groups: Command[],
+  globals: DocumentedCommand[]
+): string {
+  const lines = [
+    ...frontmatter('Complete reference', 'Every sim command, argument, and flag on a single page', [
+      "import { Callout } from 'fumadocs-ui/components/callout'",
+    ]),
+    'Every command the CLI exposes, on one page, generated from the CLI itself.',
+    'For a guided tour start at the [overview](/cli/commands); this page exists to',
+    'be searched, bookmarked, and fed to tools.',
+    '',
+    '<Callout type="info">',
+    'Append `.mdx` to any page in these docs to get its raw Markdown —',
+    '[`/cli/reference.mdx`](/cli/reference.mdx) is this page as plain text. The whole',
+    'documentation set is also published as [`/llms.txt`](/llms.txt) and',
+    '[`/llms-full.txt`](/llms-full.txt) for coding agents.',
+    '</Callout>',
+    '',
+    '## Global options',
+    '',
+    'These apply to every command, and may be written before or after it.',
+    ...sizedTable([
+      '| Option | Description |',
+      '| --- | --- |',
+      ...program.options.map((option) => `| ${code(option.flags)} | ${describeOption(option)} |`),
+    ]),
+    '',
+  ]
+
+  for (const leaf of globals) lines.push(...renderCommand(leaf, { commandHeadings: true }))
+
+  for (const group of groups) {
+    lines.push(`## sim ${group.name()}`, '')
+    const aliases = group.aliases()
+    if (aliases.length > 0) {
+      lines.push(`Also spelled ${aliases.map((alias) => `\`sim ${alias}\``).join(', ')}.`, '')
+    }
+    for (const leaf of collectLeaves(group, [group.name()])) {
+      lines.push(...renderCommand(leaf, { level: 3, commandHeadings: true }))
+    }
+  }
+
+  return `${lines.join('\n').trimEnd()}\n`
 }
 
 function renderGroupPage(group: Command): string {
   const name = group.name()
   const leaves = collectLeaves(group, [name])
   const aliases = group.aliases()
+
+  assertDistinctHeadings(`${name}.mdx`, leaves)
 
   const lines = [
     ...frontmatter(
@@ -231,7 +437,7 @@ function renderIndexPage(
   globals: DocumentedCommand[]
 ): string {
   const lines = [
-    ...frontmatter('Overview', 'Every sim command, with its arguments and flags'),
+    ...frontmatter('Overview', 'Global options, and every sim command group'),
     'Every `sim` command follows the same shape:',
     '',
     '```bash',
@@ -256,7 +462,7 @@ function renderIndexPage(
     '| --- | --- |',
     ...groups.map(
       (group) =>
-        `| [${code(`sim ${group.name()}`)}](/cli/commands/${group.name()}) | ${escapeCell(group.description()) || '—'} |`
+        `| [${code(`sim ${group.name()}`)}](/cli/${group.name()}) | ${escapeCell(group.description()) || '—'} |`
     ),
     '',
   ]
@@ -266,12 +472,27 @@ function renderIndexPage(
   return `${lines.join('\n').trimEnd()}\n`
 }
 
+/**
+ * The section's sidebar.
+ *
+ * Generated because the command-group entries are, and a hand-maintained copy
+ * would drift the moment a group is added. The hand-written guides stay in
+ * `GUIDE_PAGES` so adding one is an edit here rather than a change to how the
+ * pages are produced.
+ */
 function renderMeta(groups: Command[]): string {
   return `${JSON.stringify(
     {
-      title: 'Commands',
-      defaultOpen: true,
-      pages: ['index', ...groups.map((group) => group.name())],
+      title: 'CLI',
+      root: true,
+      pages: [
+        '---Sim CLI---',
+        ...GUIDE_PAGES,
+        '---Commands---',
+        OVERVIEW_PAGE,
+        ...groups.map((group) => group.name()),
+        REFERENCE_PAGE,
+      ],
     },
     null,
     2
@@ -307,7 +528,61 @@ function assertNoDuplicatePaths(leaves: DocumentedCommand[]): void {
   process.exit(1)
 }
 
+/**
+ * Fails on a request field that documents itself nowhere.
+ *
+ * Without a `.describe()` on the route contract, the CLI can only fall back to
+ * restating the flag name — `--sort-by  Set sort by` — and that fallback lands
+ * verbatim in `--help` and in these pages. It reads like documentation while
+ * telling the reader nothing, which is worse than an obvious hole.
+ *
+ * The contract is the right place to fix it because the same prose feeds the
+ * OpenAPI specs and the API reference, so one `.describe()` documents the
+ * field everywhere it appears.
+ *
+ * `workspaceId` and `cursor` are exempt: neither is ever a flag — the profile
+ * supplies one and pagination consumes the other.
+ */
+function assertEveryFieldDocumented(): void {
+  const undocumented: string[] = []
+
+  for (const [operation, spec] of Object.entries(V2_OPERATIONS)) {
+    for (const slot of ['query', 'body'] as const) {
+      const fields = (spec as Record<string, unknown>)[slot]
+      if (!fields || typeof fields !== 'object') continue
+      for (const [field, descriptor] of Object.entries(fields)) {
+        if (field === 'workspaceId' || field === 'cursor') continue
+        const described = (descriptor as { describe?: unknown }).describe
+        if (typeof described !== 'string' || !described.trim()) {
+          undocumented.push(`${operation}.${slot}.${field}`)
+        }
+      }
+    }
+  }
+
+  if (undocumented.length === 0) return
+  for (const field of undocumented) console.error(`undocumented request field: ${field}`)
+  console.error(
+    `\n${undocumented.length} field(s) would render as "Set <name>" in --help and in the docs.\n` +
+      'Add a `.describe()` in apps/sim/lib/api/contracts/v2, then run:\n' +
+      '  bun run generate:cli-api && bun run generate:cli-docs'
+  )
+  process.exit(1)
+}
+
+/** The sidebar names every guide, so a renamed or deleted one must not fail silently. */
+function assertGuidesExist(): void {
+  const missing = GUIDE_PAGES.filter((page) => !fs.existsSync(path.join(OUTPUT_DIR, `${page}.mdx`)))
+  if (missing.length === 0) return
+  for (const page of missing) console.error(`missing hand-written guide: cli/${page}.mdx`)
+  console.error('\nCreate it, or drop it from GUIDE_PAGES in scripts/generate-cli-docs.ts.')
+  process.exit(1)
+}
+
 function build(): Map<string, string> {
+  assertEveryFieldDocumented()
+  assertGuidesExist()
+
   const program = buildProgram({ version: false })
   const top = subcommands(program)
   const groups = top.filter((command) => subcommands(command).length > 0)
@@ -322,16 +597,23 @@ function build(): Map<string, string> {
 
   const files = new Map<string, string>()
   files.set('meta.json', renderMeta(groups))
-  files.set('index.mdx', renderIndexPage(program, groups, globals))
+  files.set(`${OVERVIEW_PAGE}.mdx`, renderIndexPage(program, groups, globals))
+  files.set(`${REFERENCE_PAGE}.mdx`, renderReferencePage(program, groups, globals))
   for (const group of groups) files.set(`${group.name()}.mdx`, renderGroupPage(group))
   return files
 }
 
+/** Generated pages already on disk. Hand-written guides are not the sweep's to remove. */
 function currentFiles(): Map<string, string> {
   if (!fs.existsSync(OUTPUT_DIR)) return new Map()
-  const entries = fs.readdirSync(OUTPUT_DIR)
+  const guides = new Set<string>(GUIDE_PAGES.map((page) => `${page}.mdx`))
   return new Map(
-    entries.map((name) => [name, fs.readFileSync(path.join(OUTPUT_DIR, name), 'utf8')] as const)
+    fs
+      .readdirSync(OUTPUT_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && !guides.has(entry.name))
+      .map(
+        (entry) => [entry.name, fs.readFileSync(path.join(OUTPUT_DIR, entry.name), 'utf8')] as const
+      )
   )
 }
 

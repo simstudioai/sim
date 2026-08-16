@@ -10,13 +10,6 @@ sim workflows list
 
 Full documentation: **https://docs.sim.ai/cli**
 
-Prerelease channels track the corresponding Sim environments:
-
-```bash
-npm install --global sim@staging # staging
-npm install --global sim@dev     # dev
-```
-
 ## Profiles
 
 Profiles work like the AWS CLI: one identity and one set of defaults per named
