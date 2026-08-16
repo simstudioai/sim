@@ -145,6 +145,29 @@ describe('buildUpdateQuery / buildDeleteQuery WHERE screening', () => {
     expect(() => buildDeleteQuery('dbo.users', `[a"] = 1 OR 1=1`)).toThrow(/bracketed identifier/)
   })
 
+  /**
+   * The shared guard sees `OR 1` but not a parenthesised or negated constant.
+   * These are the specific forms it documents as undetected; the class as a
+   * whole is not lexically decidable, so this narrows rather than closes it.
+   */
+  it.each([
+    'id = 1 OR (1)',
+    'id = 1 OR ((1))',
+    'id = 1 OR NOT 0',
+    'id = 1 OR NOT (0)',
+    'id = 1 OR (TRUE)',
+  ])('rejects the constant tautology %s', (where) => {
+    expect(() => buildDeleteQuery('dbo.users', where)).toThrow()
+  })
+
+  it.each([
+    'id = 1 OR (priority = 2)',
+    'id = 1 OR (1 = priority)',
+    "status = 'open' OR (retries < 3)",
+  ])('still accepts the real disjunct %s', (where) => {
+    expect(() => buildDeleteQuery('dbo.users', where)).not.toThrow()
+  })
+
   it.each([
     ['a semicolon-less batch', "id = 1 DBCC SHRINKDATABASE('app')"],
     ['an appended SELECT', 'id = 1 SELECT secret FROM dbo.credentials'],

@@ -420,6 +420,26 @@ const MSSQL_WHERE_SELECT = /\bselect\b/i
  * views still reachable as `master..sysobjects`.
  * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/catalog-views-transact-sql
  */
+/**
+ * Constant tautologies the shared guard's `OR <literal>` rule cannot see because
+ * a parenthesis or a `NOT` sits between the operator and the constant —
+ * `OR (1)`, `OR ((1))`, `OR NOT 0`, `OR NOT (FALSE)`.
+ *
+ * Both patterns require the constant to be the *whole* parenthesised term, so a
+ * real disjunct is untouched: `OR (1 = priority)` does not match, because a
+ * closing paren does not follow the digit.
+ *
+ * This narrows the gap; it does not close it, and it is not meant to. An
+ * always-true expression cannot be recognised lexically in general —
+ * `OR 2 > 1`, `OR LEN(x) >= 0`, and `OR id IS NOT NULL` all survive any pattern
+ * list — which is why {@link validateWhereClause} is documented as
+ * defense-in-depth rather than a boundary.
+ */
+const MSSQL_WHERE_CONSTANT_TAUTOLOGY: readonly RegExp[] = [
+  /\bor\s+(?:not\s+)*\(+\s*(?:\d+(?:\.\d+)?|true|false)\s*\)+/i,
+  /\bor\s+not\s+(?:\d+(?:\.\d+)?|true|false)\b/i,
+]
+
 const MSSQL_CATALOG_PATTERNS: readonly RegExp[] = [
   /information_schema/i,
   /\bsys\./i,
@@ -469,6 +489,7 @@ function validateWhereClause(where: string): void {
     MSSQL_STATEMENT_KEYWORDS.test(masked) ||
     MSSQL_PROCEDURE_PATTERN.test(masked) ||
     MSSQL_WHERE_SELECT.test(masked) ||
+    MSSQL_WHERE_CONSTANT_TAUTOLOGY.some((pattern) => pattern.test(masked)) ||
     MSSQL_CATALOG_PATTERNS.some((pattern) => pattern.test(masked))
   ) {
     throw new Error('WHERE clause contains potentially dangerous operation')
