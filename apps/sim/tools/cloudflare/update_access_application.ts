@@ -9,6 +9,7 @@ import {
   mapAccessApplication,
   parseCsvParam,
   parseJsonArrayParam,
+  parseJsonObjectParam,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -40,14 +41,14 @@ export const updateAccessApplicationTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, dash_sso, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint',
+        'Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint. dash_sso has no request variant and cannot be written through the API',
     },
     domain: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The primary hostname and path secured by Access. Required for the self_hosted, ssh, vnc, rdp, and bookmark types; the saas, app_launcher, warp, biso, dash_sso, infrastructure, mcp, mcp_portal, and proxy_endpoint types do not accept it',
+        'The primary hostname and path secured by Access. Required for the self_hosted, ssh, vnc, and rdp types; optional for bookmark and mcp_portal; read-only for app_launcher, warp, biso, and proxy_endpoint; and absent from the saas, infrastructure, and mcp variants',
     },
     name: {
       type: 'string',
@@ -103,6 +104,20 @@ export const updateAccessApplicationTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comma-separated tag names categorizing the application',
     },
+    saasApp: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. {"auth_type":"saml","consumer_service_url":"https://example.com/acs","sp_entity_id":"https://example.com"}; OIDC, e.g. {"auth_type":"oidc","client_id":"...","redirect_uris":["https://example.com/callback"]}',
+    },
+    targetCriteria: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. [{"port":22,"protocol":"SSH","target_attributes":{"hostname":["production"]}}]',
+    },
     policies: {
       type: 'string',
       required: false,
@@ -126,10 +141,11 @@ export const updateAccessApplicationTool: ToolConfig<
     body: (params) => {
       const body: Record<string, unknown> = { type: params.type }
       /**
-       * `domain` exists only on the self_hosted, ssh, vnc, rdp, and bookmark
-       * request variants; the saas, app_launcher, warp, biso, dash_sso,
-       * infrastructure, mcp, mcp_portal, and proxy_endpoint variants have no
-       * such field, so sending a blank one makes those app types unbuildable.
+       * `domain` is writable only on the self_hosted, ssh, vnc, rdp, bookmark,
+       * and mcp_portal request variants — required on the first four — read-only
+       * on app_launcher, warp, biso, and proxy_endpoint, and absent from saas,
+       * infrastructure, and mcp. Sending a blank one makes those types
+       * unbuildable, so it is only forwarded when set.
        */
       if (params.domain) body.domain = params.domain
       if (params.name) body.name = params.name
@@ -153,6 +169,12 @@ export const updateAccessApplicationTool: ToolConfig<
 
       const policies = parseJsonArrayParam(params.policies, 'Policies')
       if (policies) body.policies = policies
+
+      const saasApp = parseJsonObjectParam(params.saasApp, 'SaaS Application')
+      if (saasApp) body.saas_app = saasApp
+
+      const targetCriteria = parseJsonArrayParam(params.targetCriteria, 'Target Criteria')
+      if (targetCriteria) body.target_criteria = targetCriteria
 
       return body
     },

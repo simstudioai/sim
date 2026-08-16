@@ -67,9 +67,9 @@ function normalizeBaseUrl(baseUrl: string): string {
  *
  * When only one node is supplied the other is filled with the documented wildcard
  * `-` — "To indicate all users, all apps, or resources shared by all users, use the
- * wildcard dash (-) symbol". `nobody` is NOT a neutral filler: it names the
- * shared-application owner, so using it would silently hide every user-private
- * object in the requested app.
+ * wildcard dash (-) symbol". `nobody` is not an equivalent filler: the reference
+ * documents it as the owner name for objects shared at the app level, so it names
+ * one specific owner where `-` names every owner.
  */
 function namespacePrefix(params: SplunkBaseParams): string {
   const owner = params.owner?.trim()
@@ -152,17 +152,33 @@ export function buildSplunkFormBody(
 }
 
 /**
- * Read a Splunk JSON body, tolerating an empty one. The results endpoint answers
- * `204 No Content` with no body while a job has not produced results yet, and the job
- * control endpoint documents "Returned values: None". `Response.json()` throws on an
- * empty body, so a caller that polled a still-running job would surface
- * `Unexpected end of JSON input` instead of an empty result set.
+ * Read a Splunk JSON body, tolerating a body that is empty or is not JSON at all.
+ *
+ * The results endpoint answers `204 No Content` with no body while a job has not
+ * produced results yet, and the job control endpoint documents "Returned values:
+ * None". `Response.json()` throws on an empty body, so a caller that polled a
+ * still-running job would surface `Unexpected end of JSON input` instead of an
+ * empty result set.
+ *
+ * A non-JSON body is tolerated the same way because `output_mode` does not appear
+ * in the documented parameter table for the dispatching and job-control endpoints,
+ * and the only response the reference documents for them is the XML
+ * `<response><sid>...</sid></response>`. Throwing on that XML would report a
+ * request that succeeded server-side as a failure — cancelling a job really does
+ * cancel it — and would pre-empt the specific error the caller raises when the
+ * envelope carries no usable value. Returning `{}` lets that error surface
+ * instead, and a JSON body (which these endpoints do return in practice when
+ * `output_mode=json` is honored) still parses normally.
  */
 export async function readSplunkJson(response: Response): Promise<unknown> {
   if (response.status === 204) return {}
   const text = await response.text()
   if (!text.trim()) return {}
-  return JSON.parse(text)
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
 }
 
 /**
@@ -170,16 +186,22 @@ export async function readSplunkJson(response: Response): Promise<unknown> {
  * the response as `<response><sid>...</sid></response>` with a single returned value,
  * `sid`, which `output_mode=json` renders as a flat `{ "sid": "..." }`.
  *
+ * `output_mode` is not in the documented parameter table for these endpoints, so the
+ * XML form is the only response the reference actually promises. {@link readSplunkJson}
+ * therefore hands this an empty envelope rather than throwing when the body is XML,
+ * which is what lets the message below reach the caller instead of a `JSON.parse`
+ * failure that names nothing.
+ *
  * A missing `sid` is never a successful dispatch — it means the request produced
  * something other than a job (for example `exec_mode=oneshot`, which the reference
- * says "Does not return the search ID"). Fail loudly instead of handing the workflow
- * a null sid that only breaks two blocks later.
+ * says "Does not return the search ID"), or the instance answered in XML. Fail loudly
+ * instead of handing the workflow a null sid that only breaks two blocks later.
  */
 export function requireSplunkSid(data: unknown): string {
   const sid = asString((data as { sid?: unknown })?.sid) ?? getEntryName(getSplunkEntries(data)[0])
   if (!sid) {
     throw new Error(
-      'Splunk did not return a search ID for this request. Verify the search dispatched successfully; exec_mode=oneshot returns results instead of a search ID.'
+      'Splunk did not return a search ID for this request. Verify the search dispatched successfully; exec_mode=oneshot returns results instead of a search ID, and an instance answering in XML rather than JSON produces the same empty envelope.'
     )
   }
   return sid
@@ -220,6 +242,39 @@ export function getSplunkEntries(data: unknown): SplunkAtomEntry[] {
       ? root.feed.entry
       : []
   return entries as SplunkAtomEntry[]
+}
+
+/**
+ * Project the `paging` envelope every Splunk collection response carries
+ * (`{ total, perPage, offset }`) so a caller paging with `offset` can tell how
+ * many entries exist in total. Without it a full page and the last page look
+ * identical and there is no way to know whether to ask for another.
+ *
+ * `total` is the count of entries matching the request, not the size of the page
+ * that was returned — `entry.length` is already that.
+ */
+export function getSplunkPaging(data: unknown): { total: number | null; offset: number | null } {
+  const root = (data ?? {}) as { paging?: unknown; feed?: { paging?: unknown } }
+  const paging = (root.paging ?? root.feed?.paging ?? {}) as {
+    total?: unknown
+    offset?: unknown
+  }
+  return { total: asNumber(paging.total), offset: asNumber(paging.offset) }
+}
+
+/** Shared output schema for the `paging.total` projection on collection endpoints. */
+export const SPLUNK_TOTAL_OUTPUT = {
+  type: 'number' as const,
+  description:
+    'Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains.',
+  optional: true,
+}
+
+/** Shared output schema for the `paging.offset` projection on collection endpoints. */
+export const SPLUNK_OFFSET_OUTPUT = {
+  type: 'number' as const,
+  description: 'Offset of the first entry in this page, echoed from the response paging envelope',
+  optional: true,
 }
 
 /** The per-entry property dictionary, or an empty object when the entry has none. */

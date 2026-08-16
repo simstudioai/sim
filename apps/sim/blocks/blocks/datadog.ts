@@ -514,6 +514,22 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'datadog_list_monitors' },
       mode: 'advanced',
     },
+    {
+      id: 'listMonitorPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '50',
+      condition: { field: 'operation', value: 'datadog_list_monitors' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listMonitorPage',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_monitors' },
+      mode: 'advanced',
+    },
 
     // Mute / Unmute Monitor inputs
     {
@@ -1989,6 +2005,14 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               name: params.listMonitorName || undefined,
               tags: params.listMonitorTags || undefined,
+              /**
+               * `monitorTags` belongs to Create Monitor but serializes for every operation, and
+               * the block merges these params over the raw inputs. Without an explicit clear, a
+               * leftover value would filter this list while presenting it as complete.
+               */
+              monitorTags: undefined,
+              pageSize: params.listMonitorPageSize ? Number(params.listMonitorPageSize) : undefined,
+              page: params.listMonitorPage ? Number(params.listMonitorPage) : undefined,
             }
 
           case 'datadog_mute_monitor':
@@ -2352,6 +2376,8 @@ Return ONLY the search query string - no explanations.`,
     downtimeId: { type: 'string', description: 'Downtime ID to cancel' },
     listMonitorName: { type: 'string', description: 'Filter monitors by name' },
     listMonitorTags: { type: 'string', description: 'Filter monitors by tags' },
+    listMonitorPageSize: { type: 'number', description: 'Monitors to return per page' },
+    listMonitorPage: { type: 'number', description: 'Monitor page number (0-indexed)' },
     // Incidents
     incidentId: { type: 'string', description: 'Incident UUID' },
     incidentTitle: { type: 'string', description: 'Incident title' },
@@ -2452,12 +2478,15 @@ Return ONLY the search query string - no explanations.`,
     // Metrics
     series: { type: 'json', description: 'Timeseries data' },
     status: { type: 'string', description: 'Query status' },
+    errors: { type: 'json', description: 'Metric series rejected during submission' },
     // Events
     event: { type: 'json', description: 'Event data' },
-    events: { type: 'json', description: 'List of events' },
     // Monitors
     monitor: { type: 'json', description: 'Monitor data' },
     monitors: { type: 'json', description: 'List of monitors' },
+    monitorId: { type: 'number', description: 'ID of the muted or unmuted monitor' },
+    name: { type: 'string', description: 'Name of the muted or unmuted monitor' },
+    overallState: { type: 'string', description: 'Monitor state after muting or unmuting' },
     // Logs
     logs: { type: 'json', description: 'Log entries' },
     nextLogId: { type: 'string', description: 'Pagination cursor for logs' },

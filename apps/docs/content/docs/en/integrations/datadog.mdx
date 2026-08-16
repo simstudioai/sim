@@ -366,7 +366,7 @@ List all scheduled downtimes in Datadog.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `currentOnly` | boolean | No | Only return currently active downtimes |
-| `limit` | number | No | Number of downtimes to return per page \(default: 30, max: 100\) |
+| `limit` | number | No | Number of downtimes to return per page. Datadog defaults to 30 and declares no maximum; keep this at 100 or below to stay within the bound Sim recommends. |
 | `offset` | number | No | Index of the first downtime to return \(e.g., 0, 30, 60\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |

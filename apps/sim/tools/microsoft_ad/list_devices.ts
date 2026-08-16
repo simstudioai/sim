@@ -42,8 +42,7 @@ export const listDevicesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'OData filter expression. Example: "accountEnabled eq false" or "operatingSystem eq \'Windows\'".',
+      description: `OData filter expression. Example: "accountEnabled eq false" or "operatingSystem eq 'Windows'".`,
     },
     search: {
       type: 'string',
@@ -56,7 +55,7 @@ export const listDevicesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+        "Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results",
     },
   },
   request: {

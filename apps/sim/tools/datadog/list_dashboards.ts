@@ -55,12 +55,14 @@ export const listDashboardsTool: ToolConfig<ListDashboardsParams, ListDashboards
   },
 
   request: {
+    /**
+     * Datadog treats `filter[shared]` and `filter[deleted]` as incompatible, so each is sent
+     * only when the caller turned it on rather than sending both as `false`.
+     */
     url: (params) => {
       const queryParams = new URLSearchParams()
-      if (params.filterShared !== undefined)
-        queryParams.set('filter[shared]', String(params.filterShared))
-      if (params.filterDeleted !== undefined)
-        queryParams.set('filter[deleted]', String(params.filterDeleted))
+      if (params.filterShared) queryParams.set('filter[shared]', 'true')
+      if (params.filterDeleted) queryParams.set('filter[deleted]', 'true')
       if (params.count !== undefined) queryParams.set('count', String(params.count))
       if (params.start !== undefined) queryParams.set('start', String(params.start))
       const queryString = queryParams.toString()

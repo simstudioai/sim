@@ -189,6 +189,14 @@ export async function executeQuery(
  * `SET`/`BEGIN`/`COMMIT`/`ROLLBACK` because session and transaction state are
  * changed the same way (`SET IDENTITY_INSERT`, `SET ANSI_NULLS`).
  *
+ * The text statements `UPDATETEXT`, `WRITETEXT`, and `READTEXT` are listed in
+ * their own right rather than left to `update`: there is no word boundary after
+ * `update` in `UPDATETEXT`, so `\bupdate\b` never matches it and
+ * `SELECT 1 UPDATETEXT dbo.t.col @ptr 0 NULL 'x'` would otherwise pass every
+ * screen on the advertised read-only path. `READTEXT` reads rather than writes,
+ * but it introduces a second statement in exactly the same semicolon-less way,
+ * which is what this list exists to reject.
+ *
  * `FETCH` is deliberately **absent**: `OFFSET … FETCH NEXT` is the standard
  * T-SQL paging clause, so screening it would reject the ordinary paged SELECT
  * this operation exists to run. Word boundaries keep the additions off ordinary
@@ -196,7 +204,7 @@ export async function executeQuery(
  * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/statements
  */
 const MSSQL_STATEMENT_KEYWORDS =
-  /\b(?:insert|update|delete|merge|drop|create|alter|truncate|disable|enable|set|begin|commit|rollback|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into)\b/i
+  /\b(?:insert|update|updatetext|writetext|readtext|delete|merge|drop|create|alter|truncate|disable|enable|set|begin|commit|rollback|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into)\b/i
 
 /** Extended, OLE-automation, and system stored procedures, called with or without `EXEC`. */
 const MSSQL_PROCEDURE_PATTERN = /\b(?:xp_|sp_)\w+/i

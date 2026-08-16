@@ -494,7 +494,7 @@ Gets DNS analytics report for a zone including query counts and trends.
 | `zoneId` | string | Yes | The zone ID to get DNS analytics for |
 | `since` | string | No | Start date for analytics \(ISO 8601, e.g., "2024-01-01T00:00:00Z"\) or relative \(e.g., "-6h"\) |
 | `until` | string | No | End date for analytics \(ISO 8601, e.g., "2024-01-31T23:59:59Z"\) or relative \(e.g., "now"\) |
-| `metrics` | string | Yes | Comma-separated metrics to retrieve \(e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"\) |
+| `metrics` | string | No | Comma-separated metrics to retrieve \(e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"\). Optional — Cloudflare returns its default metric set when it is omitted |
 | `dimensions` | string | No | Comma-separated dimensions to group by \(e.g., "queryName,queryType,responseCode,responseCached,coloName,origin,dayOfWeek,tcp,ipVersion,querySizeBucket,responseSizeBucket"\) |
 | `filters` | string | No | Filters to apply to the data \(e.g., "queryType==A"\) |
 | `sort` | string | No | Sort order for the result set. Fields must be included in metrics or dimensions \(e.g., "+queryCount" or "-responseTimeAvg"\) |
@@ -678,7 +678,7 @@ Creates a zone ruleset for a phase, optionally seeded with its first rules. Use 
 | `zoneId` | string | Yes | The zone ID to create the ruleset in |
 | `name` | string | Yes | Human-readable name for the ruleset |
 | `phase` | string | Yes | The ruleset phase, e.g. http_ratelimit, http_request_firewall_custom, http_request_firewall_managed, http_request_transform, http_request_dynamic_redirect |
-| `kind` | string | No | Ruleset kind: zone, custom, managed, or root. Use zone to create a phase entry point ruleset. Defaults to zone |
+| `kind` | string | No | Ruleset kind: zone or custom. Use zone to create a phase entry point ruleset and custom for a ruleset an execute rule deploys. Defaults to zone. "root" is the account-level phase entry point and "managed" is Cloudflare-owned, so neither can be created on this zone-scoped endpoint |
 | `description` | string | No | Description of the ruleset |
 | `rules` | json | No | JSON array of rules to seed the ruleset with, in evaluation order. Each rule takes action, expression, and optionally description, enabled, action_parameters, and ratelimit |
 | `apiKey` | string | Yes | Cloudflare API Token |
@@ -767,8 +767,8 @@ Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather
 | `expression` | string | Yes | Cloudflare filter expression selecting matching requests. Required because this endpoint replaces the rule definition — omitting it resets the stored expression |
 | `description` | string | No | Human-readable description of the rule |
 | `enabled` | boolean | No | Whether the rule is enabled |
-| `ref` | string | No | Reference tag that stays stable across rule updates |
-| `actionParameters` | string | No | JSON object of action-specific parameters, e.g. \{"id":"&lt;MANAGED_RULESET_ID&gt;","overrides":\{"rules":\[\{"id":"&lt;RULE_ID&gt;","action":"log","enabled":true,"score_threshold":40\}\]\}\} |
+| `ref` | string | No | Reference tag that stays stable across rule updates. Because the update replaces the rule, omitting it resets the tag to the rule ID and breaks anything matching on the old value |
+| `actionParameters` | string | No | JSON object of action-specific parameters, e.g. \{"id":"&lt;MANAGED_RULESET_ID&gt;","overrides":\{"rules":\[\{"id":"&lt;RULE_ID&gt;","action":"log","enabled":true,"score_threshold":40\}\]\}\}. Required on an execute rule and must be sent on every update: the endpoint replaces the rule, so omitting it resets action_parameters to \{\} — which unbinds the managed ruleset the rule deploys and every override under it |
 | `ratelimit` | string | No | JSON rate limiting configuration to preserve on a rule in the http_ratelimit phase, e.g. \{"characteristics":\["cf.colo.id","ip.src"\],"period":60,"requests_per_period":100\}. Because the update replaces the rule, omitting this on a rate limiting rule stops it rate limiting |
 | `logging` | string | No | JSON logging configuration to preserve, e.g. \{"enabled":true\}. Omitting it on a rule that had logging configured resets it to the default |
 | `apiKey` | string | Yes | Cloudflare API Token |
@@ -1075,8 +1075,8 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Access applications are account-scoped |
-| `type` | string | Yes | Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, dash_sso, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint |
-| `domain` | string | No | The primary hostname and path secured by Access, e.g. internal.example.com or example.com/admin. Required for the self_hosted, ssh, vnc, rdp, and bookmark types; the saas, app_launcher, warp, biso, dash_sso, infrastructure, mcp, mcp_portal, and proxy_endpoint types do not accept it |
+| `type` | string | Yes | Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint. dash_sso has no request variant and cannot be created through the API |
+| `domain` | string | No | The primary hostname and path secured by Access, e.g. internal.example.com or example.com/admin. Required for the self_hosted, ssh, vnc, and rdp types; optional for bookmark and mcp_portal; read-only for app_launcher, warp, biso, and proxy_endpoint; and absent from the saas, infrastructure, and mcp variants |
 | `name` | string | No | Friendly name shown in the dashboard and App Launcher |
 | `sessionDuration` | string | No | How long an Access session stays valid, e.g. 24h or 30m |
 | `allowedIdps` | string | No | Comma-separated identity provider IDs users may authenticate with. Leave empty to allow all configured providers |
@@ -1087,6 +1087,8 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 | `logoUrl` | string | No | Logo image URL shown in the dashboard and App Launcher |
 | `tags` | string | No | Comma-separated tag names categorizing the application |
 | `policies` | string | No | JSON array of policies to attach. Entries may be reusable policy IDs or inline policy objects, e.g. \["&lt;POLICY_ID&gt;"\] |
+| `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{"auth_type":"saml","consumer_service_url":"https://example.com/acs","sp_entity_id":"https://example.com"\}; OIDC, e.g. \{"auth_type":"oidc","client_id":"...","redirect_uris":\["https://example.com/callback"\]\} |
+| `targetCriteria` | string | No | JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. \[\{"port":22,"protocol":"SSH","target_attributes":\{"hostname":\["production"\]\}\}\] |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -1120,8 +1122,8 @@ Updates a Cloudflare Access (Zero Trust) application. This replaces the applicat
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Access applications are account-scoped |
 | `appId` | string | Yes | The Access application ID to update |
-| `type` | string | Yes | Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, dash_sso, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint |
-| `domain` | string | No | The primary hostname and path secured by Access. Required for the self_hosted, ssh, vnc, rdp, and bookmark types; the saas, app_launcher, warp, biso, dash_sso, infrastructure, mcp, mcp_portal, and proxy_endpoint types do not accept it |
+| `type` | string | Yes | Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint. dash_sso has no request variant and cannot be written through the API |
+| `domain` | string | No | The primary hostname and path secured by Access. Required for the self_hosted, ssh, vnc, and rdp types; optional for bookmark and mcp_portal; read-only for app_launcher, warp, biso, and proxy_endpoint; and absent from the saas, infrastructure, and mcp variants |
 | `name` | string | No | Friendly name shown in the dashboard and App Launcher |
 | `sessionDuration` | string | No | How long an Access session stays valid, e.g. 24h or 30m |
 | `allowedIdps` | string | No | Comma-separated identity provider IDs users may authenticate with |
@@ -1131,6 +1133,8 @@ Updates a Cloudflare Access (Zero Trust) application. This replaces the applicat
 | `customDenyUrl` | string | No | URL denied users are redirected to |
 | `logoUrl` | string | No | Logo image URL shown in the dashboard and App Launcher |
 | `tags` | string | No | Comma-separated tag names categorizing the application |
+| `saasApp` | string | No | JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. \{"auth_type":"saml","consumer_service_url":"https://example.com/acs","sp_entity_id":"https://example.com"\}; OIDC, e.g. \{"auth_type":"oidc","client_id":"...","redirect_uris":\["https://example.com/callback"\]\} |
+| `targetCriteria` | string | No | JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. \[\{"port":22,"protocol":"SSH","target_attributes":\{"hostname":\["production"\]\}\}\] |
 | `policies` | string | No | JSON array of policies to attach. Entries may be reusable policy IDs or inline policy objects |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
@@ -1224,7 +1228,7 @@ Creates a Cloudflare Access (Zero Trust) policy on an application, deciding who 
 | `exclude` | string | No | JSON array of Access rules evaluated with NOT logic — matching any one rejects the request |
 | `require` | string | No | JSON array of Access rules evaluated with AND logic — all of them must match |
 | `precedence` | number | No | Evaluation order of the policy within the application |
-| `sessionDuration` | string | No | How long a session granted by this policy stays valid, e.g. 24h |
+| `sessionDuration` | string | No | How long a session granted by this policy stays valid, e.g. 24h. Leave it unset on a policy attached to an infrastructure-typed application — Cloudflare rejects those with error 12130 |
 | `approvalRequired` | boolean | No | Whether an approver must grant each access request |
 | `isolationRequired` | boolean | No | Whether the session must run in a remote isolated browser |
 | `purposeJustificationRequired` | boolean | No | Whether users must state a reason for access |
@@ -1267,7 +1271,7 @@ Updates a Cloudflare Access (Zero Trust) policy on an application. This replaces
 | `exclude` | string | No | JSON array of Access rules evaluated with NOT logic |
 | `require` | string | No | JSON array of Access rules evaluated with AND logic |
 | `precedence` | number | No | Evaluation order of the policy within the application |
-| `sessionDuration` | string | No | How long a session granted by this policy stays valid, e.g. 24h |
+| `sessionDuration` | string | No | How long a session granted by this policy stays valid, e.g. 24h. Leave it unset on a policy attached to an infrastructure-typed application — Cloudflare rejects those with error 12130 |
 | `approvalRequired` | boolean | No | Whether an approver must grant each access request |
 | `isolationRequired` | boolean | No | Whether the session must run in a remote isolated browser |
 | `purposeJustificationRequired` | boolean | No | Whether users must state a reason for access |

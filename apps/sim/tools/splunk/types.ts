@@ -146,6 +146,8 @@ export interface SplunkListSavedSearchesParams extends SplunkBaseParams {
 export interface SplunkListSavedSearchesResponse extends ToolResponse {
   output: {
     savedSearches: SplunkSavedSearch[]
+    total: number | null
+    offset: number | null
   }
 }
 
@@ -187,6 +189,8 @@ export interface SplunkListFiredAlertsResponse extends ToolResponse {
       updated: string | null
       triggeredAlertCount: number | null
     }[]
+    total: number | null
+    offset: number | null
   }
 }
 
@@ -238,6 +242,8 @@ export interface SplunkListIndexesResponse extends ToolResponse {
       coldPath: string | null
       thawedPath: string | null
     }[]
+    total: number | null
+    offset: number | null
   }
 }
 
@@ -263,6 +269,8 @@ export interface SplunkListAppsResponse extends ToolResponse {
       checkForUpdates: boolean | null
       stateChangeRequiresRestart: boolean | null
     }[]
+    total: number | null
+    offset: number | null
   }
 }
 

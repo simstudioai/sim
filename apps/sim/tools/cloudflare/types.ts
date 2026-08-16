@@ -971,6 +971,8 @@ export interface CloudflareCreateAccessApplicationParams extends CloudflareBaseP
   logoUrl?: string
   tags?: string
   policies?: string
+  saasApp?: string
+  targetCriteria?: string
 }
 
 export interface CloudflareUpdateAccessApplicationParams

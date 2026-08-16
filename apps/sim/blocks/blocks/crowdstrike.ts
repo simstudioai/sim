@@ -355,6 +355,12 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
       },
       mode: 'advanced',
     },
+    /**
+     * Falcon has two sort spellings. Alerts, IOC Management, Spotlight, and Cases
+     * document `field|direction`; Host Groups and Identity Protection sensors
+     * document `field.direction`. One placeholder cannot show both, so the field
+     * is declared twice under the same id with mutually exclusive conditions.
+     */
     {
       id: 'sort',
       title: 'Sort',
@@ -363,13 +369,22 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
       condition: {
         field: 'operation',
         value: [
-          'crowdstrike_query_sensors',
           'crowdstrike_query_alerts',
-          'crowdstrike_query_host_groups',
           'crowdstrike_query_indicators',
           'crowdstrike_query_vulnerabilities',
           'crowdstrike_query_cases',
         ],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'sort',
+      title: 'Sort',
+      type: 'short-input',
+      placeholder: 'name.asc',
+      condition: {
+        field: 'operation',
+        value: ['crowdstrike_query_sensors', 'crowdstrike_query_host_groups'],
       },
       mode: 'advanced',
     },
@@ -695,12 +710,14 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         { label: 'getsid (Windows, macOS)', id: 'getsid' },
         { label: 'help', id: 'help' },
         { label: 'history', id: 'history' },
+        { label: 'ifconfig (macOS, Linux)', id: 'ifconfig' },
         { label: 'ipconfig', id: 'ipconfig' },
         { label: 'ls', id: 'ls' },
         { label: 'mount', id: 'mount' },
         { label: 'netstat', id: 'netstat' },
         { label: 'ps', id: 'ps' },
-        { label: 'reg (Windows)', id: 'reg' },
+        { label: 'reg (Windows, query only)', id: 'reg' },
+        { label: 'users (Windows)', id: 'users' },
       ],
       value: () => 'ls',
       condition: { field: 'operation', value: 'crowdstrike_execute_rtr_command' },

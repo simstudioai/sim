@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeactivateUserParams, OktaDeactivateUserResponse } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeactivateUser')
@@ -46,7 +46,7 @@ export const oktaDeactivateUserTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const sendEmail = params.sendEmail === true
+      const sendEmail = isOktaFlagEnabled(params.sendEmail)
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/deactivate?sendEmail=${sendEmail}`
     },
     method: 'POST',

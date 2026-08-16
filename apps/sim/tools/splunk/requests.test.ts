@@ -2,8 +2,14 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { cancelSearchJobTool } from '@/tools/splunk/cancel_search_job'
 import { createSearchJobTool } from '@/tools/splunk/create_search_job'
+import { dispatchSavedSearchTool } from '@/tools/splunk/dispatch_saved_search'
 import { getFiredAlertsTool } from '@/tools/splunk/get_fired_alerts'
+import { getSearchResultsTool } from '@/tools/splunk/get_search_results'
+import { listAppsTool } from '@/tools/splunk/list_apps'
+import { listFiredAlertsTool } from '@/tools/splunk/list_fired_alerts'
+import { listIndexesTool } from '@/tools/splunk/list_indexes'
 import { listSavedSearchesTool } from '@/tools/splunk/list_saved_searches'
 
 const BASE = { baseUrl: 'https://splunk.example.com:8089' }
@@ -50,5 +56,94 @@ describe('getFiredAlertsTool', () => {
     )
     expect(url).not.toContain('count=')
     expect(url).not.toContain('offset=')
+  })
+})
+
+describe('getSearchResultsTool count bound', () => {
+  /**
+   * Splunk documents `count=0` as "return all available results" and nothing
+   * downstream bounds it — the whole body is buffered with a single
+   * `response.text()` and every row is materialized. The sid may name a scheduled
+   * job whose `dispatch.max_count` defaults to 500000.
+   */
+  it.each([0, '0'])('rejects count=%s rather than issuing an unbounded read', (count) => {
+    expect(() => getSearchResultsTool.request.url({ ...BASE, sid: '1.1', count } as never)).toThrow(
+      /unbounded/
+    )
+  })
+
+  it('still sends a positive count, and omits an untouched one', () => {
+    expect(
+      getSearchResultsTool.request.url({ ...BASE, sid: '1.1', count: 500 } as never)
+    ).toContain('count=500')
+
+    const untouched = getSearchResultsTool.request.url({
+      ...BASE,
+      sid: '1.1',
+      count: null,
+    } as never)
+    expect(untouched).not.toContain('count=')
+  })
+})
+
+/**
+ * `output_mode` is absent from the documented parameter table for the dispatching
+ * and job-control endpoints, whose only documented response is the XML
+ * `<response><sid>...</sid></response>`. Parsing that as JSON threw, which reported
+ * a cancel that really did cancel as a failure and pre-empted the sid error.
+ */
+const SPLUNK_XML_SID = '<?xml version="1.0"?><response><sid>1457683115.100</sid></response>'
+
+describe('POST tools tolerate an XML body', () => {
+  it('reports a successful cancel instead of a JSON parse failure', async () => {
+    const result = await cancelSearchJobTool.transformResponse?.(
+      new Response(SPLUNK_XML_SID, { status: 200 }),
+      { ...BASE, sid: '1457683115.100' } as never
+    )
+
+    expect(result?.success).toBe(true)
+    expect(result?.output.sid).toBe('1457683115.100')
+  })
+
+  it.each([
+    ['create_search_job', createSearchJobTool],
+    ['dispatch_saved_search', dispatchSavedSearchTool],
+  ])('surfaces the search-ID error from %s rather than a parse error', async (_label, tool) => {
+    await expect(
+      tool.transformResponse?.(new Response(SPLUNK_XML_SID, { status: 200 }), BASE as never)
+    ).rejects.toThrow(/did not return a search ID/)
+  })
+})
+
+/**
+ * Splunk answers every collection endpoint with a `paging` envelope. Without
+ * projecting `total`, a full page and the last page are indistinguishable, so
+ * `offset` is unusable as a pagination control.
+ */
+describe('list tools project the paging envelope', () => {
+  const PAGING_BODY = JSON.stringify({
+    entry: [{ name: 'one', content: {} }],
+    paging: { total: 412, perPage: 30, offset: 30 },
+  })
+
+  it.each([
+    ['list_saved_searches', listSavedSearchesTool],
+    ['list_apps', listAppsTool],
+    ['list_indexes', listIndexesTool],
+    ['list_fired_alerts', listFiredAlertsTool],
+  ])('%s reports total and offset', async (_label, tool) => {
+    const result = await tool.transformResponse?.(new Response(PAGING_BODY), BASE as never)
+
+    expect(result?.output).toMatchObject({ total: 412, offset: 30 })
+  })
+
+  it.each([
+    ['list_saved_searches', listSavedSearchesTool],
+    ['list_apps', listAppsTool],
+    ['list_indexes', listIndexesTool],
+    ['list_fired_alerts', listFiredAlertsTool],
+  ])('%s declares total and offset as outputs', (_label, tool) => {
+    expect(tool.outputs).toHaveProperty('total')
+    expect(tool.outputs).toHaveProperty('offset')
   })
 })

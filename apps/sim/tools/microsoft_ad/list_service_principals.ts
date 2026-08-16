@@ -48,8 +48,7 @@ export const listServicePrincipalsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'OData filter expression. Example: "servicePrincipalType eq \'Application\'" or "startsWith(displayName, \'Salesforce\')".',
+      description: `OData filter expression. Example: "servicePrincipalType eq 'Application'" or "startsWith(displayName, 'Salesforce')".`,
     },
     search: {
       type: 'string',
@@ -62,7 +61,7 @@ export const listServicePrincipalsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+        "Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results",
     },
   },
   request: {

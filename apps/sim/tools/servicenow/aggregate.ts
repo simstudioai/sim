@@ -87,7 +87,8 @@ export const aggregateTool: ToolConfig<ServiceNowAggregateParams, ServiceNowAggr
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter on aggregate results (e.g., "count>5")',
+      description:
+        'Filter on aggregate results, written as aggregate^field^operator^value and comma-separated for more than one (e.g., "count^priority^>^3" or "count^state^=^1,avg^priority^>^3")',
     },
     displayValue: {
       type: 'string',

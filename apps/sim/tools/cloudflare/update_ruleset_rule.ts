@@ -70,14 +70,15 @@ export const updateRulesetRuleTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Reference tag that stays stable across rule updates',
+      description:
+        'Reference tag that stays stable across rule updates. Because the update replaces the rule, omitting it resets the tag to the rule ID and breaks anything matching on the old value',
     },
     actionParameters: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON object of action-specific parameters, e.g. {"id":"<MANAGED_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","action":"log","enabled":true,"score_threshold":40}]}}',
+        'JSON object of action-specific parameters, e.g. {"id":"<MANAGED_RULESET_ID>","overrides":{"rules":[{"id":"<RULE_ID>","action":"log","enabled":true,"score_threshold":40}]}}. Required on an execute rule and must be sent on every update: the endpoint replaces the rule, so omitting it resets action_parameters to {} — which unbinds the managed ruleset the rule deploys and every override under it',
     },
     ratelimit: {
       type: 'string',
@@ -117,6 +118,16 @@ export const updateRulesetRuleTool: ToolConfig<
 
       const actionParameters = parseJsonObjectParam(params.actionParameters, 'Action Parameters')
       if (actionParameters) body.action_parameters = actionParameters
+      /**
+       * PATCH replaces the rule, so an omitted action_parameters falls back to
+       * the schema default of {}. On an execute rule that drops the managed
+       * ruleset ID, unbinding the WAF managed ruleset and every override under
+       * it. Refuse rather than silently tear the rule down.
+       */ else if (params.action === 'execute') {
+        throw new Error(
+          'Action Parameters is required when the action is "execute". This endpoint replaces the rule, so omitting it would reset action_parameters and unbind the managed ruleset. Read the rule with "Get Ruleset" and resend its action_parameters.'
+        )
+      }
 
       const ratelimit = parseJsonObjectParam(params.ratelimit, 'Rate Limiting Configuration')
       if (ratelimit) body.ratelimit = ratelimit

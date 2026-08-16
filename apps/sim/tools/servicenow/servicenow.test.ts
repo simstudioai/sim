@@ -282,9 +282,45 @@ describe('block params mapping keeps per-operation defaults from colliding', () 
       ...auth,
       operation: 'servicenow_update_change_state',
       sysId: 'chg1',
+      targetState: '3',
     } as never) as Record<string, unknown>
 
-    expect(mapped.state).toBe('-5')
+    expect(mapped.state).toBe('3')
+  })
+
+  /**
+   * Both controls are `required: true` and visible, so a seeded value is a
+   * consequential answer the caller never gave: Move Change State would PATCH
+   * the change backwards to New, and Approve or Reject would approve.
+   */
+  it.each([
+    ['targetState', 'servicenow_update_change_state'],
+    ['decision', 'servicenow_update_approval'],
+  ])('leaves the required %s control unseeded', (subBlockId) => {
+    const subBlock = ServiceNowBlock.subBlocks.find((candidate) => candidate.id === subBlockId)
+
+    expect(subBlock?.required).toBe(true)
+    expect(subBlock?.value).toBeUndefined()
+  })
+
+  it('sends no state for a change transition until one is chosen', () => {
+    const mapped = mapParams?.({
+      ...seededDefaults(),
+      ...auth,
+      operation: 'servicenow_update_change_state',
+      sysId: 'chg1',
+    } as never) as Record<string, unknown>
+
+    expect(mapped.state).toBeFalsy()
+  })
+
+  it('sends no approval decision until one is chosen', () => {
+    const merged = mergedParams({
+      operation: 'servicenow_update_approval',
+      approvalSysId: 'apr1',
+    })
+
+    expect(merged.decision).toBeFalsy()
   })
 })
 
@@ -354,11 +390,25 @@ describe('one subBlock id never carries two different value spaces', () => {
   )
 
   /**
-   * `fields` carries a JSON body on Create/Update Record and a comma-separated
-   * projection everywhere else. The shipped ids keep the original `fields`
-   * subblock, so the split is one-directional: no operation added since can put
-   * a projection where a JSON body is parsed, or a body where a projection goes.
+   * The `fields` tool param carries a JSON body on Create/Update Record and a
+   * comma-separated projection everywhere else, so no subBlock id may serve
+   * both. These assertions store the value under the id the *projection*
+   * control really writes to, which is the whole point: sharing `fields`
+   * between Read Records and the two JSON bodies left one stored value
+   * straddling both value spaces.
    */
+  const readProjectionId = ServiceNowBlock.subBlocks.find(
+    (subBlock) =>
+      subBlock.title === 'Fields to Return' &&
+      subBlock.condition &&
+      'value' in subBlock.condition &&
+      subBlock.condition.value === 'servicenow_read_record'
+  )?.id
+
+  it('gives Read Records a projection control of its own', () => {
+    expect(readProjectionId).toBeDefined()
+  })
+
   it('never sends a JSON body as a field projection', () => {
     const merged = mergedParams({
       operation: 'servicenow_list_incidents',
@@ -368,15 +418,82 @@ describe('one subBlock id never carries two different value spaces', () => {
     expect(merged.fields).toBe('number,short_description')
   })
 
-  it('never parses a field projection as a create body', () => {
+  it('never sends a stale create body as the Read Records projection', () => {
     const merged = mergedParams({
-      operation: 'servicenow_create_record',
+      operation: 'servicenow_read_record',
       tableName: 'incident',
       fields: '{"short_description":"x"}',
-      returnFields: 'number,short_description',
     })
-    expect(merged.fields).toEqual({ short_description: 'x' })
+
+    expect(merged.fields).toBeUndefined()
   })
+
+  it('never parses a field projection as a create body', () => {
+    expect(() =>
+      mergedParams({
+        operation: 'servicenow_create_record',
+        tableName: 'incident',
+        [readProjectionId as string]: 'number,short_description',
+      })
+    ).not.toThrow()
+  })
+
+  it('never lets one subBlock id carry both a JSON body and a plain projection', () => {
+    const typesById = new Map<string, Set<string>>()
+    for (const subBlock of ServiceNowBlock.subBlocks) {
+      const types = typesById.get(subBlock.id) ?? new Set<string>()
+      types.add(subBlock.type)
+      typesById.set(subBlock.id, types)
+    }
+
+    const straddling = [...typesById.entries()]
+      .filter(([, types]) => types.has('code') && types.has('short-input'))
+      .map(([id]) => id)
+
+    expect(straddling).toEqual([])
+  })
+
+  /**
+   * `tools.config.params` runs unguarded, so a bare `JSON.parse` escaped as
+   * `JSON Parse error: Expected '}'` with nothing naming the control to fix.
+   */
+  it.each([
+    ['additionalFields', 'servicenow_update_incident', 'Additional Fields must be a JSON object'],
+    ['variables', 'servicenow_order_catalog_item', 'Item Variables must be a JSON object'],
+    ['fields', 'servicenow_create_record', 'Fields must be a JSON object'],
+  ])('names the %s control when its JSON is malformed', (subBlockId, operation, message) => {
+    expect(() =>
+      mergedParams({ operation, tableName: 'incident', sysId: 'x', [subBlockId]: '{"a": }' })
+    ).toThrow(message)
+  })
+
+  /**
+   * `update_approval` spreads the same `writeParams` as the other semantic
+   * writes but addresses its record by `approvalSysId`, so it sat outside
+   * `SEMANTIC_WRITE_OPS` and was the one operation where a stale advanced
+   * `displayValue`/`returnFields` reached the wire with no control surfacing it.
+   */
+  it('surfaces the semantic display-value default on update_approval', () => {
+    const merged = mergedParams({
+      operation: 'servicenow_update_approval',
+      approvalSysId: 'apr1',
+      decision: 'approved',
+    })
+
+    expect(merged.displayValue).toBe(DEFAULT_DISPLAY_VALUE)
+  })
+
+  it.each(['semanticDisplayValue', 'returnFields', 'inputDisplayValue'])(
+    'offers the %s control on update_approval',
+    (subBlockId) => {
+      const subBlock = ServiceNowBlock.subBlocks.find((candidate) => candidate.id === subBlockId)
+      const conditionValue =
+        subBlock?.condition && 'value' in subBlock.condition ? subBlock.condition.value : undefined
+      const ops = Array.isArray(conditionValue) ? conditionValue : [conditionValue]
+
+      expect(ops).toContain('servicenow_update_approval')
+    }
+  )
 
   it('leaves the generic Table API operations without a semantic state', () => {
     const merged = mergedParams({
@@ -616,5 +733,25 @@ describe('get_change_next_states', () => {
         undefined as never
       )
     ).rejects.toThrow('No Record found')
+  })
+})
+
+describe('ServiceNow aggregate having syntax', () => {
+  /**
+   * `sysparm_having` takes `aggregate^field^operator^value`, comma-separated for
+   * more than one clause. The documented `count>5` form is not valid syntax, so
+   * anyone following it got an empty or unfiltered result.
+   */
+  it('documents the encoded aggregate^field^operator^value form', () => {
+    const description = aggregateTool.params.having?.description ?? ''
+
+    expect(description).toContain('aggregate^field^operator^value')
+    expect(description).not.toContain('count>5')
+  })
+
+  it('shows the same form in the block placeholder', () => {
+    const having = ServiceNowBlock.subBlocks.find((subBlock) => subBlock.id === 'having')
+
+    expect(having?.placeholder).toBe('count^priority^>^3')
   })
 })

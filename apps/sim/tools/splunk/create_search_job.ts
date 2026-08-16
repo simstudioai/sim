@@ -7,6 +7,7 @@ import {
   buildSplunkFormHeaders,
   buildSplunkUrl,
   normalizeSearchQuery,
+  readSplunkJson,
   requireSplunkSid,
   SPLUNK_CONNECTION_PARAMS,
 } from '@/tools/splunk/utils'
@@ -150,7 +151,7 @@ export const createSearchJobTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readSplunkJson(response)
     return { success: true, output: { sid: requireSplunkSid(data) } }
   },
 

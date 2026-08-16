@@ -46,9 +46,9 @@ List users in Azure AD (Microsoft Entra ID)
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `top` | number | No | Maximum number of users to return \(default 100, max 999\) |
-| `filter` | string | No | OData filter expression \(e.g., "department eq \'Sales\'"\) |
+| `filter` | string | No | OData filter expression \(e.g., "department eq 'Sales'"\) |
 | `search` | string | No | Search string to filter users by displayName or mail |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -175,7 +175,7 @@ List groups in Azure AD (Microsoft Entra ID)
 | `top` | number | No | Maximum number of groups to return \(default 100, max 999\) |
 | `filter` | string | No | OData filter expression \(e.g., "securityEnabled eq true"\) |
 | `search` | string | No | Search string to filter groups by displayName or description |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -291,7 +291,7 @@ List members of a group in Azure AD (Microsoft Entra ID)
 | --------- | ---- | -------- | ----------- |
 | `groupId` | string | No | Group ID. Not needed when Next Page is provided to fetch a later page. |
 | `top` | number | No | Maximum number of members to return \(default 100, max 999\) |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -479,7 +479,7 @@ List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requ
 | --------- | ---- | -------- | ----------- |
 | `top` | number | No | Maximum number of sign-ins to return \(default and maximum page size is 1000\) |
 | `filter` | string | No | OData filter expression. Filterable fields include userPrincipalName, userId, appId, appDisplayName, ipAddress, createdDateTime, conditionalAccessStatus, riskState and status/errorCode. Example: "createdDateTime ge 2024-01-01T00:00:00Z and status/errorCode ne 0". |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -499,7 +499,7 @@ List directory audit records showing who changed what in Microsoft Entra ID, suc
 | --------- | ---- | -------- | ----------- |
 | `top` | number | No | Maximum number of audit records to return |
 | `filter` | string | No | OData filter expression. Filterable fields include activityDateTime, activityDisplayName, correlationId, loggedByService, initiatedBy and targetResources. Example: "activityDateTime ge 2024-01-01T00:00:00Z". |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -520,7 +520,7 @@ List the application role assignments granted to a user, including assignments t
 | `userId` | string | No | User ID or user principal name. Not needed when Next Page is provided to fetch a later page. |
 | `top` | number | No | Maximum number of assignments to return |
 | `filter` | string | No | OData filter expression. Filterable fields include id, resourceId and principalDisplayName. Example: "resourceId eq 8e881353-1735-45af-af21-ee1344582a4d". |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -584,9 +584,9 @@ List the enterprise applications and service principals in the tenant, including
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `top` | number | No | Maximum number of service principals to return \(default and maximum page size is 100\) |
-| `filter` | string | No | OData filter expression. Example: "servicePrincipalType eq \'Application\'" or "startsWith\(displayName, \'Salesforce\'\)". |
+| `filter` | string | No | OData filter expression. Example: "servicePrincipalType eq 'Application'" or "startsWith\(displayName, 'Salesforce'\)". |
 | `search` | string | No | Search string matched against the service principal display name |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -605,8 +605,8 @@ List every user, group, and service principal assigned to an application, by rea
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `servicePrincipalId` | string | No | Object ID of the service principal. Use List Service Principals to find it. Not needed when Next Page is provided to fetch a later page. |
-| `filter` | string | No | OData filter expression supporting eq and startswith. Example: "principalType eq \'User\'". |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `filter` | string | No | OData filter expression supporting eq and startswith. Example: "principalType eq 'User'". |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -696,9 +696,9 @@ List the devices registered in Microsoft Entra ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `top` | number | No | Maximum number of devices to return |
-| `filter` | string | No | OData filter expression. Example: "accountEnabled eq false" or "operatingSystem eq \'Windows\'". |
+| `filter` | string | No | OData filter expression. Example: "accountEnabled eq false" or "operatingSystem eq 'Windows'". |
 | `search` | string | No | Search string matched against the device display name |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -749,7 +749,7 @@ List the devices a user has registered or owns. Devices the caller cannot read a
 | `userId` | string | No | User ID or user principal name. Not needed when Next Page is provided to fetch a later page. |
 | `deviceRelationship` | string | No | Which devices to list: "registered" for devices the user registered, or "owned" for devices the user owns. Defaults to "registered". |
 | `top` | number | No | Maximum number of devices to return |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 
@@ -768,8 +768,8 @@ List the conditional access policies configured in the tenant, including their s
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `top` | number | No | Maximum number of policies to return |
-| `filter` | string | No | OData filter expression. Example: "state eq \'enabled\'". |
-| `nextLink` | string | No | Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results |
+| `filter` | string | No | OData filter expression. Example: "state eq 'enabled'". |
+| `nextLink` | string | No | Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results |
 
 #### Output
 

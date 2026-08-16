@@ -2,12 +2,16 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cancelDowntimeTool } from '@/tools/datadog/cancel_downtime'
 import { createDowntimeTool } from '@/tools/datadog/create_downtime'
 import { createEventTool } from '@/tools/datadog/create_event'
 import { createMonitorTool } from '@/tools/datadog/create_monitor'
 import { getIncidentTool } from '@/tools/datadog/get_incident'
+import { getMonitorTool } from '@/tools/datadog/get_monitor'
+import { listDashboardsTool } from '@/tools/datadog/list_dashboards'
 import { listDowntimesTool } from '@/tools/datadog/list_downtimes'
 import { listIncidentsTool } from '@/tools/datadog/list_incidents'
+import { listMonitorsTool } from '@/tools/datadog/list_monitors'
 import { muteMonitorTool } from '@/tools/datadog/mute_monitor'
 import { queryLogsTool } from '@/tools/datadog/query_logs'
 import { queryTimeseriesTool } from '@/tools/datadog/query_timeseries'
@@ -446,6 +450,79 @@ describe('splitCommaList input tolerance', () => {
     expect(splitCommaList([1, 2])).toEqual(['1', '2'])
     expect(splitCommaList(undefined)).toBeUndefined()
     expect(splitCommaList('')).toBeUndefined()
+  })
+})
+
+describe('path parameter encoding', () => {
+  /** A pasted id often carries surrounding whitespace, which would 404 as `%20123`. */
+  it('trims and encodes the monitor id in get_monitor', () => {
+    const url = callUrl(getMonitorTool, { ...auth, monitorId: ' 12 3 ' } as any)
+    expect(url).toContain('/api/v1/monitor/12%203')
+    expect(url).not.toContain('/monitor/ 12')
+  })
+
+  it('trims and encodes the downtime id in cancel_downtime', () => {
+    const url = callUrl(cancelDowntimeTool, { ...auth, downtimeId: ' a/b ' } as any)
+    expect(url).toContain('/api/v2/downtime/a%2Fb')
+    expect(url).not.toContain('/downtime/ a')
+  })
+})
+
+describe('list_downtimes limit description', () => {
+  /**
+   * The Datadog v2 spec declares `default: 30` and `example: 100` but no `maximum`, so the
+   * description must not present 100 as a vendor-enforced ceiling.
+   */
+  it('does not claim a vendor maximum', () => {
+    const description = listDowntimesTool.params.limit.description ?? ''
+    expect(description).not.toMatch(/max:\s*100/)
+    expect(description).toMatch(/declares no maximum/)
+  })
+})
+
+describe('list_monitors pagination', () => {
+  /**
+   * Datadog returns every monitor when `page` is absent, so both page params have to reach
+   * the request for the page size to have any effect.
+   */
+  it('sends page and page_size', () => {
+    const url = callUrl(listMonitorsTool, { ...auth, page: 2, pageSize: 50 } as any)
+    expect(url).toContain('page=2')
+    expect(url).toContain('page_size=50')
+  })
+})
+
+describe('list_dashboards filters', () => {
+  /** `filter[shared]` and `filter[deleted]` are incompatible, so an off toggle sends nothing. */
+  it('omits both filters when neither is enabled', () => {
+    const url = callUrl(listDashboardsTool, { ...auth, filterShared: false, filterDeleted: false })
+    expect(url).not.toContain('filter%5Bshared%5D')
+    expect(url).not.toContain('filter%5Bdeleted%5D')
+  })
+
+  it('sends only the filter that is enabled', () => {
+    const url = callUrl(listDashboardsTool, { ...auth, filterShared: true, filterDeleted: false })
+    expect(url).toContain('filter%5Bshared%5D=true')
+    expect(url).not.toContain('filter%5Bdeleted%5D')
+  })
+})
+
+describe('submit_metrics errors output', () => {
+  /** `errors` is the only signal that Datadog rejected part of an accepted submission. */
+  it('reports errors on the success path', async () => {
+    const result = await submitMetricsTool.transformResponse!(
+      jsonResponse({ errors: ['metric name too long'] })
+    )
+    expect(result.success).toBe(true)
+    expect(result.output.errors).toEqual(['metric name too long'])
+  })
+
+  it('reports errors on the failure path', async () => {
+    const result = await submitMetricsTool.transformResponse!(
+      jsonResponse({ errors: ['bad payload'] }, { status: 400 })
+    )
+    expect(result.success).toBe(false)
+    expect(result.output.errors).toEqual(['bad payload'])
   })
 })
 

@@ -408,7 +408,7 @@ export interface OktaCreateGroupResponse extends ToolResponse {
 // Update Group
 export interface OktaUpdateGroupParams extends OktaBaseParams {
   groupId: string
-  name: string
+  name?: string
   description?: string
 }
 

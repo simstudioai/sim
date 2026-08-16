@@ -38,10 +38,10 @@ export const dnsAnalyticsTool: ToolConfig<
     },
     metrics: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated metrics to retrieve (e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th")',
+        'Comma-separated metrics to retrieve (e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"). Optional — Cloudflare returns its default metric set when it is omitted',
     },
     dimensions: {
       type: 'string',

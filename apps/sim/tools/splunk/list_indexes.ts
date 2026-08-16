@@ -8,7 +8,10 @@ import {
   getEntryContent,
   getEntryName,
   getSplunkEntries,
+  getSplunkPaging,
   SPLUNK_CONNECTION_PARAMS,
+  SPLUNK_OFFSET_OUTPUT,
+  SPLUNK_TOTAL_OUTPUT,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -55,6 +58,7 @@ export const listIndexesTool: ToolConfig<SplunkListIndexesParams, SplunkListInde
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const paging = getSplunkPaging(data)
     return {
       success: true,
       output: {
@@ -78,6 +82,8 @@ export const listIndexesTool: ToolConfig<SplunkListIndexesParams, SplunkListInde
             thawedPath: asString(content.thawedPath),
           }
         }),
+        total: paging.total,
+        offset: paging.offset,
       },
     }
   },
@@ -113,5 +119,7 @@ export const listIndexesTool: ToolConfig<SplunkListIndexesParams, SplunkListInde
         },
       },
     },
+    total: SPLUNK_TOTAL_OUTPUT,
+    offset: SPLUNK_OFFSET_OUTPUT,
   },
 }

@@ -22,6 +22,23 @@ const SEND_EMAIL_DEFAULT_ON_OPERATIONS = ['okta_activate_user', 'okta_reset_pass
 
 const SEND_EMAIL_DEFAULT_ON = new Set(SEND_EMAIL_DEFAULT_ON_OPERATIONS)
 
+/**
+ * The cursor subBlock each paginated operation reads.
+ *
+ * Okta's `after` cursor is opaque and scoped to the endpoint that minted it, so
+ * every operation carries its own field rather than sharing one.
+ */
+const CURSOR_FIELD_BY_OPERATION: Record<string, string> = {
+  okta_list_users: 'after',
+  okta_list_groups: 'groupsAfter',
+  okta_list_group_members: 'groupMembersAfter',
+  okta_get_logs: 'logsAfter',
+  okta_list_apps: 'appsAfter',
+  okta_list_app_users: 'appUsersAfter',
+  okta_list_app_groups: 'appGroupsAfter',
+  okta_list_group_rules: 'groupRulesAfter',
+}
+
 /** Treats a blank subBlock value as absent. */
 function blankToUndefined(value: unknown): unknown {
   return value === null || value === '' ? undefined : value
@@ -464,11 +481,27 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       condition: { field: 'operation', value: ['okta_create_user', 'okta_update_user'] },
       mode: 'advanced',
     },
+    /**
+     * Okta's `activate` default is inverted between the two operations that take
+     * it: creating a user activates unless told otherwise, enrolling a factor
+     * does not. One shared switch could only be seeded for one of them, and
+     * because it is advanced `shouldSerializeSubBlock` skips its condition, so
+     * the other operation inherited the wrong answer. Each gets its own field
+     * and the params mapper picks by operation.
+     */
     {
       id: 'activate',
       title: 'Activate Immediately',
       type: 'switch',
-      condition: { field: 'operation', value: ['okta_create_user', 'okta_enroll_factor'] },
+      value: () => 'true',
+      condition: { field: 'operation', value: 'okta_create_user' },
+      mode: 'advanced',
+    },
+    {
+      id: 'activateFactor',
+      title: 'Activate Immediately',
+      type: 'switch',
+      condition: { field: 'operation', value: 'okta_enroll_factor' },
       mode: 'advanced',
     },
     // Group name (for create/update group)
@@ -889,24 +922,77 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       },
       mode: 'advanced',
     },
+    /**
+     * One cursor field per operation.
+     *
+     * Okta mints `after` per endpoint and rejects a cursor issued by another
+     * one, so a single shared field carried a `list_users` cursor straight into
+     * `list_groups`. Being advanced, `shouldSerializeSubBlock` skips its
+     * condition, so the stale value reached the wire unseen; the params mapper
+     * publishes only the field belonging to the selected operation.
+     */
     {
       id: 'after',
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'nextCursor from a previous run',
-      condition: {
-        field: 'operation',
-        value: [
-          'okta_list_users',
-          'okta_list_groups',
-          'okta_list_group_members',
-          'okta_get_logs',
-          'okta_list_apps',
-          'okta_list_app_users',
-          'okta_list_app_groups',
-          'okta_list_group_rules',
-        ],
-      },
+      condition: { field: 'operation', value: 'okta_list_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'groupsAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_groups' },
+      mode: 'advanced',
+    },
+    {
+      id: 'groupMembersAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_group_members' },
+      mode: 'advanced',
+    },
+    {
+      id: 'logsAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_get_logs' },
+      mode: 'advanced',
+    },
+    {
+      id: 'appsAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_apps' },
+      mode: 'advanced',
+    },
+    {
+      id: 'appUsersAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_app_users' },
+      mode: 'advanced',
+    },
+    {
+      id: 'appGroupsAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_app_groups' },
+      mode: 'advanced',
+    },
+    {
+      id: 'groupRulesAfter',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from a previous run',
+      condition: { field: 'operation', value: 'okta_list_group_rules' },
       mode: 'advanced',
     },
   ],
@@ -973,6 +1059,9 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
        * with an empty string rather than leaving it untouched.
        */
       params: (params) => {
+        const operation = String(params.operation)
+        const cursorField = CURSOR_FIELD_BY_OPERATION[operation]
+
         const result: Record<string, unknown> = {
           apiKey: params.apiKey,
           domain: params.domain,
@@ -992,9 +1081,16 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
            * so a stale value from a previously selected operation can still be
            * present here.
            */
-          sendEmail: SEND_EMAIL_DEFAULT_ON.has(String(params.operation))
+          sendEmail: SEND_EMAIL_DEFAULT_ON.has(operation)
             ? blankToUndefined(params.sendEmail)
             : blankToUndefined(params.sendDeactivationEmail),
+          /** Same stale-advanced-value hazard: pick the toggle for this operation. */
+          activate:
+            operation === 'okta_enroll_factor'
+              ? blankToUndefined(params.activateFactor)
+              : blankToUndefined(params.activate),
+          /** A cursor is only valid on the endpoint that minted it. */
+          after: cursorField ? blankToUndefined(params[cursorField]) : undefined,
         }
 
         const mappedKeys = new Set([
@@ -1009,6 +1105,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'ruleSearch',
           'sendEmail',
           'sendDeactivationEmail',
+          'activate',
+          'activateFactor',
+          'after',
+          ...Object.values(CURSOR_FIELD_BY_OPERATION),
         ])
         for (const [key, value] of Object.entries(params)) {
           if (!mappedKeys.has(key)) result[key] = blankToUndefined(value)
@@ -1038,6 +1138,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     title: { type: 'string', description: 'Job title' },
     department: { type: 'string', description: 'Department' },
     activate: { type: 'boolean', description: 'Activate user immediately on creation' },
+    activateFactor: {
+      type: 'boolean',
+      description: 'Activate the MFA factor immediately on enrollment',
+    },
     groupName: { type: 'string', description: 'Group name' },
     groupDescription: { type: 'string', description: 'Group description' },
     sendEmail: { type: 'boolean', description: 'Whether to send email notification' },
@@ -1046,7 +1150,20 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       description: 'Whether to send the deactivation or removal email notification',
     },
     q: { type: 'string', description: 'Keyword search query' },
-    after: { type: 'string', description: 'Cursor for the next page of results' },
+    after: { type: 'string', description: 'Cursor for the next page of users' },
+    groupsAfter: { type: 'string', description: 'Cursor for the next page of groups' },
+    groupMembersAfter: { type: 'string', description: 'Cursor for the next page of group members' },
+    logsAfter: { type: 'string', description: 'Cursor for the next page of System Log events' },
+    appsAfter: { type: 'string', description: 'Cursor for the next page of applications' },
+    appUsersAfter: {
+      type: 'string',
+      description: 'Cursor for the next page of application users',
+    },
+    appGroupsAfter: {
+      type: 'string',
+      description: 'Cursor for the next page of application groups',
+    },
+    groupRulesAfter: { type: 'string', description: 'Cursor for the next page of group rules' },
     since: { type: 'string', description: 'Start of the System Log time window' },
     until: { type: 'string', description: 'End of the System Log time window' },
     sortOrder: { type: 'string', description: 'System Log sort order' },
@@ -1143,7 +1260,11 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     deactivated: { type: 'boolean', description: 'Whether user was deactivated' },
     suspended: { type: 'boolean', description: 'Whether user was suspended' },
     unsuspended: { type: 'boolean', description: 'Whether user was unsuspended' },
-    activated: { type: 'boolean', description: 'Whether user was activated' },
+    activated: {
+      type: 'string',
+      description:
+        'Activation timestamp on a user read. Activate User reports `true` here instead.',
+    },
     deleted: { type: 'boolean', description: 'Whether resource was deleted' },
     activationUrl: { type: 'string', description: 'Activation URL (when sendEmail is false)' },
     activationToken: { type: 'string', description: 'Activation token (when sendEmail is false)' },

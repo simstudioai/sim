@@ -179,6 +179,16 @@ export const crowdstrikeGetSensorDetailsTool: ToolConfig<
       type: 'number',
       description: 'Number of sensors returned',
     },
+    pagination: {
+      type: 'json',
+      description: 'Pagination metadata (limit, offset, total)',
+      optional: true,
+      properties: {
+        limit: { type: 'number', description: 'Page size used for the query', optional: true },
+        offset: { type: 'number', description: 'Offset returned by CrowdStrike', optional: true },
+        total: { type: 'number', description: 'Total records available', optional: true },
+      },
+    },
     errors: {
       type: 'array',
       description: 'Errors CrowdStrike returned alongside a partially successful response',

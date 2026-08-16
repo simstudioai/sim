@@ -11,7 +11,7 @@ export const crowdstrikeUpdateIndicatorsTool: ToolConfig<
   id: 'crowdstrike_update_indicators',
   name: 'CrowdStrike Update Indicators',
   description:
-    'Update custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). DESTRUCTIVE: CrowdStrike blanks out any field you omit, so read each indicator with crowdstrike_get_indicator_details first and resend its full field set with your edits applied. Changing action or scope changes prevention behavior fleet-wide. type and value are immutable. Requires the "IOC Management: Write" API scope.',
+    'Update custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). DESTRUCTIVE: omitted fields may be cleared, so read each indicator with crowdstrike_get_indicator_details first and resend its full field set with your edits applied. Changing action or scope changes prevention behavior fleet-wide. type and value are immutable. Requires the "IOC Management: Write" API scope.',
   version: '1.0.0',
 
   params: {
@@ -38,7 +38,7 @@ export const crowdstrikeUpdateIndicatorsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of indicators to update. Each entry requires id, and must also repeat every field it wants to keep: CrowdStrike blanks out any updatable field the entry omits. Updatable fields: action, severity, description, source, tags (array), platforms (array), applied_globally (boolean), host_groups (array), expiration (ISO 8601), mobile_action, metadata ({ filename }). type and value cannot be changed.',
+        'JSON array of indicators to update. Each entry requires id, and should also repeat every field it wants to keep: an updatable field the entry omits may be cleared. Updatable fields: action, severity, description, source, tags (array), platforms (array), applied_globally (boolean), host_groups (array), expiration (ISO 8601), mobile_action, metadata ({ filename }). type and value cannot be changed.',
     },
     comment: {
       type: 'string',

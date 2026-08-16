@@ -6,6 +6,7 @@ import {
   buildSplunkFormBody,
   buildSplunkHeaders,
   buildSplunkUrl,
+  getSplunkPaging,
   normalizeSearchQuery,
   readSplunkJson,
   requireSplunkSid,
@@ -82,6 +83,35 @@ describe('readSplunkJson', () => {
 
   it('still parses a real body', async () => {
     await expect(readSplunkJson(new Response('{"results":[]}'))).resolves.toEqual({ results: [] })
+  })
+
+  /**
+   * `output_mode` is not in the documented parameter table for the dispatching and
+   * job-control endpoints, and the only response the reference documents for them
+   * is XML. Throwing here reported a cancel that succeeded server-side as a
+   * failure, and pre-empted the error the caller raises for a missing value.
+   */
+  it('returns an empty envelope for an XML body instead of throwing', async () => {
+    await expect(
+      readSplunkJson(new Response('<response><sid>1457683115.100</sid></response>'))
+    ).resolves.toEqual({})
+  })
+})
+
+describe('getSplunkPaging', () => {
+  it('projects total and offset from the collection paging envelope', () => {
+    expect(getSplunkPaging({ paging: { total: 412, perPage: 30, offset: 30 } })).toEqual({
+      total: 412,
+      offset: 30,
+    })
+  })
+
+  it('reads the Atom-nested form and tolerates a response with no envelope', () => {
+    expect(getSplunkPaging({ feed: { paging: { total: 7, offset: 0 } } })).toEqual({
+      total: 7,
+      offset: 0,
+    })
+    expect(getSplunkPaging({ entry: [] })).toEqual({ total: null, offset: null })
   })
 })
 

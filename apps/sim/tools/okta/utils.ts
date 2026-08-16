@@ -36,6 +36,17 @@ export async function throwOktaError(
   throw new Error(error.errorSummary || fallbackMessage)
 }
 
+/**
+ * Reads a boolean flag that may have arrived as a string.
+ *
+ * A flag reaches a tool as text whenever it comes from an LLM tool call, a
+ * `<Block.output>` reference, or an API-triggered run, so a strict `=== true`
+ * check silently turns "send the email" into `sendEmail=false`.
+ */
+export function isOktaFlagEnabled(value: unknown): boolean {
+  return value === true || value === 'true'
+}
+
 const NEXT_LINK_PATTERN = /<([^>]+)>\s*;\s*rel="next"/i
 
 /**
@@ -73,14 +84,19 @@ export function parseOktaPagination(response: Response): {
  * description on a rename, and every org-defined custom attribute on any
  * update. Merging over the current profile is what makes an omitted field mean
  * "leave it alone" instead of "delete it".
+ *
+ * `name` is applied only when it is truthy. A model routinely emits `""` for a
+ * field it has nothing to say about, and the group profile declares no required
+ * attributes, so Okta would happily persist the blank over the stored name.
+ * The read-modify-write already carries the stored name through.
  */
 export function mergeOktaGroupProfile(
   existing: OktaGroupProfile | undefined,
-  updates: { name: string; description?: string }
+  updates: { name?: string; description?: string }
 ): Record<string, unknown> {
   return {
     ...existing,
-    name: updates.name,
+    ...(updates.name ? { name: updates.name } : {}),
     ...(updates.description === undefined ? {} : { description: updates.description }),
   }
 }

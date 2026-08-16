@@ -334,7 +334,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'openid',
           'profile',
           'email',
-          'User.Read.All',
           'User.ReadWrite.All',
           'Group.ReadWrite.All',
           'GroupMember.ReadWrite.All',
