@@ -19034,6 +19034,73 @@
       "tags": ["data-warehouse", "data-analytics", "cloud"]
     },
     {
+      "type": "splunk",
+      "slug": "splunk",
+      "name": "Splunk",
+      "description": "Run SPL searches and manage saved searches and alerts in Splunk",
+      "longDescription": "Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SplunkIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/splunk",
+      "operations": [
+        {
+          "name": "Run Search",
+          "description": "Run an SPL search synchronously and return its results in a single call (oneshot mode). Use for short searches; use Create Search Job for long-running ones."
+        },
+        {
+          "name": "Create Search Job",
+          "description": "Start a Splunk search job and return its search ID (sid). The search runs asynchronously — poll its status and fetch results separately."
+        },
+        {
+          "name": "Get Search Job",
+          "description": "Get the status and progress of a Splunk search job by search ID, including dispatch state, completion progress, and event/result counts."
+        },
+        {
+          "name": "Get Search Results",
+          "description": "Fetch the transformed results of a completed Splunk search job by search ID, with pagination."
+        },
+        {
+          "name": "Cancel Search Job",
+          "description": "Cancel a running Splunk search job and delete its result cache."
+        },
+        {
+          "name": "List Saved Searches",
+          "description": "List saved searches and reports configured in Splunk, including their SPL, schedule, and alert configuration."
+        },
+        {
+          "name": "Get Saved Search",
+          "description": "Get the configuration of a single Splunk saved search by name, including its SPL, schedule, and alert settings."
+        },
+        {
+          "name": "Dispatch Saved Search",
+          "description": "Run a Splunk saved search immediately and return the search ID (sid) of the dispatched job."
+        },
+        {
+          "name": "List Fired Alerts",
+          "description": "List the saved searches with currently triggered (unexpired) Splunk alerts and how many times each has fired."
+        },
+        {
+          "name": "Get Fired Alerts",
+          "description": "List the unexpired triggered instances of a Splunk alert by saved search name, including severity, trigger time, and the search ID of each firing."
+        },
+        {
+          "name": "List Indexes",
+          "description": "List the indexes configured on the Splunk instance with their size, event count, and retention settings."
+        },
+        {
+          "name": "List Apps",
+          "description": "List the apps installed on the Splunk instance with their label, version, author, and enabled state."
+        }
+      ],
+      "operationCount": 12,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "data-analytics"]
+    },
+    {
       "type": "sportmonks",
       "slug": "sportmonks",
       "name": "Sportmonks",

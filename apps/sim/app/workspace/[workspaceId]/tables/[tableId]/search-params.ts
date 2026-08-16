@@ -17,6 +17,15 @@ export const DEFAULT_TABLE_DETAIL_SORT_DIRECTION = 'asc'
  * recursive, arbitrarily-nested object (`$or`/`$and` combinators, per-column
  * operator objects); serializing it would put a large structured blob in the
  * URL, which the URL-state doctrine forbids. It stays in local `useState`.
+ *
+ * The in-grid `find` (Cmd+F) is likewise absent, for a different reason: it is
+ * a viewport cursor, not a destination. Two things rule it out. It is not one
+ * value but a cluster — the term, the match cursor, and the cell the user was
+ * on before opening find — and only the term is serializable; closing restores
+ * that pre-find cell from an in-memory ref, so a term that survived a reload
+ * would arrive with no origin to return to. And the search runs on every
+ * debounced keystroke rather than on submit, which is the write frequency this
+ * doctrine keeps out of the URL. Same call the browser's own Cmd+F makes.
  */
 export const tableDetailParsers = {
   sort: parseAsString,
