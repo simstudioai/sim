@@ -1715,6 +1715,21 @@ describe('browser-agent session', () => {
     expect(contents.loadURL).not.toHaveBeenCalled()
   })
 
+  it('brings an agent-opened working tab into view, unless the user claimed the visible one', () => {
+    // browser_open_tab is the agent choosing a page to work in — the panel
+    // follows it so the work is visible, which a popup deliberately does not.
+    const first = session.ensureTab()
+    const working = session.addAutomationTab({ reveal: true })
+    expect(session.activeTab()).toBe(working)
+    expect(working.id).not.toBe(first.id)
+
+    // Once the user claims what they are looking at, the next agent tab opens
+    // behind it rather than yanking the page out from under them.
+    session.claimActiveTabForUser()
+    const background = session.addAutomationTab({ reveal: true })
+    expect(session.activeTab()).not.toBe(background)
+  })
+
   it('keeps agent popups in the background and context-menu links user-owned', () => {
     const onTabCreated = vi.fn()
     session = freshSession(win, { onTabCreated })

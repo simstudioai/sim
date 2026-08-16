@@ -1910,7 +1910,8 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      const tab = session.addAutomationTab()
+      // The agent chose to open this page to work in, so the panel follows it.
+      const tab = session.addAutomationTab({ reveal: true })
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()

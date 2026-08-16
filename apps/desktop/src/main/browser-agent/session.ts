@@ -1590,10 +1590,24 @@ export function addTab(): AgentTab {
   return addTabInternal()
 }
 
-/** Opens a tab for agent work without replacing the page the user is viewing. */
-export function addAutomationTab(): AgentTab {
+/**
+ * Opens a tab for agent work.
+ *
+ * `reveal` is for the agent deliberately opening a page to work in
+ * (`browser_open_tab`): the panel follows it, so the user watches the work
+ * instead of staring at a page where nothing is happening. It is NOT set when a
+ * page spawns a tab on its own (popups, `target="_blank"`) — that is the site
+ * grabbing the view, not the agent choosing a workspace.
+ *
+ * Even with `reveal`, a tab the user claimed themselves wins: pulling the view
+ * off the page they are reading is the same interruption as a window stealing
+ * focus mid-sentence. The work still starts, just in the background, and the
+ * tab strip shows it arriving.
+ */
+export function addAutomationTab({ reveal = false }: { reveal?: boolean } = {}): AgentTab {
   restoreBrowserSession()
-  const tab = addTabInternal({ activate: false, notify: false })
+  const followTheWork = reveal && !currentScope.visibleTabUserSelected
+  const tab = addTabInternal({ activate: followTheWork, notify: false })
   currentScope.automationTabId = tab.id
   applyActiveTabThrottling()
   persistBrowserSession()
