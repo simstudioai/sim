@@ -688,6 +688,15 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         field: 'operation',
         value: 'list_service_principal_app_role_assignments',
       },
+      /**
+       * The continuation URL already addresses the service principal, so the ID is only
+       * required for the first page. An empty operation list matches nothing, which is how
+       * the function form of `required` expresses "not required".
+       */
+      required: (values) =>
+        values?.nextLink
+          ? { field: 'operation', value: [] }
+          : { field: 'operation', value: 'list_service_principal_app_role_assignments' },
     },
     {
       id: 'servicePrincipalSearch',
