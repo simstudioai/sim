@@ -3,8 +3,11 @@ import type {
   MicrosoftAdListDirectoryAuditsResponse,
 } from '@/tools/microsoft_ad/types'
 import { DIRECTORY_AUDIT_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { buildGraphCollectionUrl } from '@/tools/microsoft_ad/utils'
-import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import {
+  assertGraphNextPageUrlForCollection,
+  buildGraphCollectionUrl,
+} from '@/tools/microsoft_ad/utils'
+import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDirectoryAuditsTool: ToolConfig<
@@ -51,7 +54,8 @@ export const listDirectoryAuditsTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
+      if (params.nextLink)
+        return assertGraphNextPageUrlForCollection(params.nextLink, ['directoryAudits'])
       return buildGraphCollectionUrl('auditLogs/directoryAudits', {
         top: params.top,
         filter: params.filter,

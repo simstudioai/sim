@@ -3,8 +3,13 @@ import type {
   MicrosoftAdListDevicesResponse,
 } from '@/tools/microsoft_ad/types'
 import { DEVICE_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { buildGraphCollectionUrl, DEVICE_SELECT, mapDevice } from '@/tools/microsoft_ad/utils'
-import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import {
+  assertGraphNextPageUrlForCollection,
+  buildGraphCollectionUrl,
+  DEVICE_SELECT,
+  mapDevice,
+} from '@/tools/microsoft_ad/utils'
+import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDevicesTool: ToolConfig<
@@ -56,7 +61,7 @@ export const listDevicesTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
+      if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, ['devices'])
       const search = params.search?.trim()
       return buildGraphCollectionUrl('devices', {
         select: DEVICE_SELECT,

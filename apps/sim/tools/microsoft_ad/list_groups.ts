@@ -3,7 +3,8 @@ import type {
   MicrosoftAdListGroupsResponse,
 } from '@/tools/microsoft_ad/types'
 import { GROUP_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { assertGraphNextPageUrlForCollection } from '@/tools/microsoft_ad/utils'
+import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listGroupsTool: ToolConfig<
@@ -54,7 +55,7 @@ export const listGroupsTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
+      if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, ['groups'])
       const queryParts: string[] = []
       queryParts.push(
         '$select=id,displayName,description,mail,mailEnabled,mailNickname,securityEnabled,groupTypes,visibility,createdDateTime'

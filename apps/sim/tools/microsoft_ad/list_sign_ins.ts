@@ -3,8 +3,11 @@ import type {
   MicrosoftAdListSignInsResponse,
 } from '@/tools/microsoft_ad/types'
 import { SIGN_IN_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { buildGraphCollectionUrl } from '@/tools/microsoft_ad/utils'
-import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import {
+  assertGraphNextPageUrlForCollection,
+  buildGraphCollectionUrl,
+} from '@/tools/microsoft_ad/utils'
+import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSignInsTool: ToolConfig<
@@ -51,7 +54,7 @@ export const listSignInsTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
+      if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, ['signIns'])
       return buildGraphCollectionUrl('auditLogs/signIns', {
         top: params.top,
         filter: params.filter,

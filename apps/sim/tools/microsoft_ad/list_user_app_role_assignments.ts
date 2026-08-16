@@ -3,7 +3,8 @@ import type {
   MicrosoftAdListUserAppRoleAssignmentsParams,
 } from '@/tools/microsoft_ad/types'
 import { APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { assertGraphNextPageUrlForCollection } from '@/tools/microsoft_ad/utils'
+import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUserAppRoleAssignmentsTool: ToolConfig<
@@ -57,7 +58,8 @@ export const listUserAppRoleAssignmentsTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
+      if (params.nextLink)
+        return assertGraphNextPageUrlForCollection(params.nextLink, ['appRoleAssignments'])
       const userId = params.userId?.trim()
       if (!userId) throw new Error('User ID is required')
       const queryParts = ['$count=true']

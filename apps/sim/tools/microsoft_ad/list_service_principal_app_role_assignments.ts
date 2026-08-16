@@ -3,7 +3,8 @@ import type {
   MicrosoftAdListServicePrincipalAppRoleAssignmentsParams,
 } from '@/tools/microsoft_ad/types'
 import { APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { assertGraphNextPageUrlForCollection } from '@/tools/microsoft_ad/utils'
+import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listServicePrincipalAppRoleAssignmentsTool: ToolConfig<
@@ -51,7 +52,8 @@ export const listServicePrincipalAppRoleAssignmentsTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
+      if (params.nextLink)
+        return assertGraphNextPageUrlForCollection(params.nextLink, ['appRoleAssignedTo'])
       const servicePrincipalId = params.servicePrincipalId?.trim()
       if (!servicePrincipalId) throw new Error('Service principal ID is required')
       const base = `https://graph.microsoft.com/v1.0/servicePrincipals/${encodeURIComponent(servicePrincipalId)}/appRoleAssignedTo`
