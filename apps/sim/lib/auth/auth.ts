@@ -1169,14 +1169,24 @@ export const auth = betterAuth({
       ? [
           sso({
             /**
-             * Honor the IdP's `email_verified` claim so the local account is
-             * verified rather than forced to false.
+             * MUST stay false. Better Auth's link gate is
+             * `!isTrustedProvider && !userInfo.emailVerified`, so a true
+             * `email_verified` claim substitutes for the domain binding
+             * entirely: an IdP could assert any address — including one from a
+             * domain it does not own — and auto-link into that user's existing
+             * account. Since a provider row can be registered by any Enterprise
+             * org admin (and by any signed-in user when self-hosted), trusting
+             * the claim makes every account reachable from any tenant's IdP.
              *
-             * This is not what enables linking — Entra omits the claim entirely,
-             * and SAML ignores it without an explicit `mapping.emailVerified`.
-             * `domainVerification` below establishes linking trust.
+             * Turning it on only ever set `emailVerified` on the local row; it
+             * was never what made linking work. Entra omits the claim, and SAML
+             * ignores it without an explicit `mapping.emailVerified` that the
+             * register contract does not accept — so SSO users are created
+             * unverified either way, and `domainVerification` below is the sole
+             * linking trust source, which is what `trustProviderByName: false`
+             * already assumes.
              */
-            trustEmailVerified: true,
+            trustEmailVerified: false,
             /**
              * Marks a provider authoritative for its domain, which is what lets an
              * SSO sign-in auto-link to an existing same-email account. Without it
@@ -1187,9 +1197,10 @@ export const auth = betterAuth({
              * proven by the `sso_domain` flow before registration, and the register
              * route mirrors that decision onto this flag.
              *
-             * It narrows nothing on its own — an IdP asserting `email_verified`
-             * links regardless of domain (see `trustEmailVerified` above). It
-             * exists so linking survives IdPs that omit the claim.
+             * With `trustEmailVerified` off this is the only path to linking, and
+             * it is domain-scoped: `isTrustedProvider` additionally requires
+             * `validateEmailDomain(userInfo.email, provider.domain)`, so a
+             * provider can only ever claim identities inside the domain it proved.
              */
             domainVerification: { enabled: true },
             organizationProvisioning: {

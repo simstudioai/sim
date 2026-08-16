@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type {
-  OktaApiError,
   OktaListGroupMembersParams,
   OktaListGroupMembersResponse,
   OktaUser,
 } from '@/tools/okta/types'
+import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListGroupMembers')
@@ -38,11 +38,18 @@ export const oktaListGroupMembersTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Group ID to list members for',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque pagination cursor returned as nextCursor by a previous call',
+    },
     limit: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of members to return (default: 1000, max: 1000)',
+      description:
+        'Maximum number of members to return per page (default: 1000, but Okta recommends 200)',
     },
   },
 
@@ -51,6 +58,7 @@ export const oktaListGroupMembersTool: ToolConfig<
       const domain = validateOktaDomain(params.domain)
       const queryParams = new URLSearchParams()
 
+      if (params.after) queryParams.append('after', params.after)
       if (params.limit) queryParams.append('limit', params.limit.toString())
 
       const queryString = queryParams.toString()
@@ -58,25 +66,15 @@ export const oktaListGroupMembersTool: ToolConfig<
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to list group members from Okta')
+      await throwOktaError(response, logger, 'Failed to list group members from Okta')
     }
 
+    const { nextCursor, hasMore } = parseOktaPagination(response)
     const data: OktaUser[] = await response.json()
 
     const members = data.map((user) => ({
@@ -101,6 +99,8 @@ export const oktaListGroupMembersTool: ToolConfig<
       output: {
         members,
         count: members.length,
+        nextCursor,
+        hasMore,
         success: true,
       },
     }
@@ -135,6 +135,12 @@ export const oktaListGroupMembersTool: ToolConfig<
       },
     },
     count: { type: 'number', description: 'Number of members returned' },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for the next page, or null on the last page',
+      optional: true,
+    },
+    hasMore: { type: 'boolean', description: 'Whether more members are available' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

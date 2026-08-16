@@ -26,7 +26,7 @@ import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/bi
 import {
   type ActiveKnowledgeBaseContext,
   type KnowledgeWorkspaceContext,
-  resolveActiveKnowledgeBaseContext,
+  resolveActiveKnowledgeBaseInWorkspace,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -119,7 +119,7 @@ async function resolveBulkKnowledgeContext(
  */
 async function runKnowledgeItems(
   knowledgeBaseIds: readonly string[],
-  workspaceId: string,
+  workspace: KnowledgeWorkspaceContext,
   covered: ReadonlySet<string>,
   authorize: (canonical: ActiveKnowledgeBaseContext) => Promise<void>,
   apply: (canonical: ActiveKnowledgeBaseContext) => Promise<string>,
@@ -129,10 +129,7 @@ async function runKnowledgeItems(
   for (const knowledgeBaseId of knowledgeBaseIds) {
     let knowledgeBaseName = knowledgeBaseId
     try {
-      const canonical = await resolveActiveKnowledgeBaseContext({
-        knowledgeBaseId,
-        assertedWorkspaceId: workspaceId,
-      })
+      const canonical = await resolveActiveKnowledgeBaseInWorkspace(knowledgeBaseId, workspace)
       knowledgeBaseName = canonical.knowledgeBase.name
       const folderId = canonical.knowledgeBase.folderId
       if (folderId && covered.has(folderId)) {
@@ -221,7 +218,7 @@ export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
 
     const terminalError = await runKnowledgeItems(
       context.knowledgeBaseIds,
-      context.workspaceId,
+      context,
       plan.covered,
       (canonical) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkMoveItems, canonical, {
@@ -323,7 +320,7 @@ export const bulkDeleteKnowledgeItems = defineAuthorizedKnowledgeUseCase({
 
     const terminalError = await runKnowledgeItems(
       context.knowledgeBaseIds,
-      context.workspaceId,
+      context,
       plan.covered,
       (canonical) =>
         authorizeWorkspaceOperation(principal, knowledgeOperations.bulkDeleteItems, canonical, {
