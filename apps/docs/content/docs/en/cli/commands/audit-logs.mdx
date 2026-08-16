@@ -1,0 +1,52 @@
+---
+title: Audit Logs
+description: Manage audit logs — every subcommand, argument, and flag
+---
+
+`sim audit-logs` is also spelled `sim audit-log`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## sim audit-logs get
+
+Get Audit Log
+
+```bash
+sim audit-logs get <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization ID (personal API key required). |
+
+## sim audit-logs list
+
+List Audit Logs
+
+```bash
+sim audit-logs list [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--action <value>` | No | Set action. |
+| `--resource-type <value>` | No | Set resource type. |
+| `--resource-id <value>` | No | Set resource id. |
+| `--start-date <value>` | No | Set start date. |
+| `--end-date <value>` | No | Set end date. |
+| `--include-departed` | No | Set includeDeparted. |
+| `--no-include-departed` | No | Set includeDeparted to false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--organization <value>` | Yes | Organization ID (personal API key required). |
+| `--actor-email <value>` | No | Set actor email. |
+| `--all-workspaces` | No | Do not filter to the configured workspace (personal API key required for account-wide access). |

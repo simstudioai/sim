@@ -1,0 +1,357 @@
+---
+title: Files
+description: Manage files — every subcommand, argument, and flag
+---
+
+`sim files` is also spelled `sim file`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## sim files batch-delete
+
+Delete several files at once
+
+```bash
+sim files batch-delete [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | Set file ids (space-separated, or @path / @- with one value per line). |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim files create
+
+Create File
+
+```bash
+sim files create [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Set name. |
+| `--content-type <value>` | No | Set content type. |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--content <value>` | No | Set content. |
+| `--encoding <value>` | No | Set encoding. Accepted values: `utf-8`, `base64`. |
+
+## sim files folders create
+
+Create a file folder at a path
+
+```bash
+sim files folders create <path>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+
+## sim files folders delete
+
+Delete Folder
+
+```bash
+sim files folders delete <path> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim files folders list
+
+List Folders
+
+```bash
+sim files folders list [options]
+```
+
+Also available as `sim files folders ls`.
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Set search. |
+| `--sort-by <value>` | No | Set sort by. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+
+## sim files folders move
+
+Rename or move a file folder
+
+```bash
+sim files folders move <path> <destination>
+```
+
+Also available as `sim files folders mv`.
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+| `destination` | Yes |
+
+## sim files delete
+
+Delete File
+
+```bash
+sim files delete <fileId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim files describe
+
+Show file metadata and sharing status
+
+```bash
+sim files describe <fileId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <value>` | No | Set scope. Accepted values: `active`, `archived`. |
+
+## sim files share get
+
+Show a file’s share settings
+
+```bash
+sim files share get <fileId>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+## sim files share set
+
+Enable or disable sharing for a file
+
+```bash
+sim files share set <fileId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--is-active <true\|false>` | Yes | Set isActive. Accepted values: `true`, `false`. |
+| `--auth-type <value>` | No | Set auth type. Accepted values: `public`, `password`, `email`, `sso`. |
+| `--password <value>` | No | Set password. |
+| `--allowed-emails <value...>` | No | Set allowed emails (space-separated, or @path / @- with one value per line). |
+
+## sim files list
+
+List Files
+
+```bash
+sim files list [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--scope <value>` | No | Set scope. Accepted values: `active`, `archived`. |
+| `--search <value>` | No | Set search. |
+| `--sort-by <value>` | No | Set sort by. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+## sim files move
+
+Move files into another folder
+
+```bash
+sim files move [options]
+```
+
+Also available as `sim files mv`.
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | Yes | Set file ids (space-separated, or @path / @- with one value per line). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+## sim files rename
+
+Rename a file
+
+```bash
+sim files rename <fileId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Set name. |
+
+## sim files restore create
+
+Restore File
+
+```bash
+sim files restore create <fileId>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+## sim files set-content
+
+Replace a file’s contents
+
+```bash
+sim files set-content <fileId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Set content. |
+| `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
+
+## sim files upload
+
+Upload a file to the workspace
+
+```bash
+sim files upload <path> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <path>` | No | Destination folder path (defaults to /). |
+| `--name <name>` | No | Store it under a different name. |
+
+## sim files get
+
+Get a file’s content
+
+```bash
+sim files get <fileId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `fileId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+## sim files ls
+
+List file resources and child folders together
+
+```bash
+sim files ls [path] [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | No |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+## sim files mkdir
+
+Create a file directory at a path
+
+```bash
+sim files mkdir <path>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |

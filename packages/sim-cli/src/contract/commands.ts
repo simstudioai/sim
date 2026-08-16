@@ -115,6 +115,20 @@ export const CLI_CONTRACT: CliContract = {
     },
     confirm: 'This updates every matching row and cannot be undone.',
   },
+  // Same overload one level down: PATCH `/documents` is the bulk form of PATCH
+  // `/documents/[documentId]`. Both derived to `knowledge documents update`, and
+  // because commander resolves a duplicate name to the first registered match,
+  // the bulk form silently shadowed the single-document one — its flags were
+  // unreachable from the terminal.
+  bulkUpdateKnowledgeDocuments: {
+    command: 'knowledge documents batch-update',
+    describe: 'Enable or disable every matching document',
+    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
+    flags: {
+      documentIds: { name: 'document', list: true },
+      selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
+    },
+  },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
     command: 'workflows undeploy',

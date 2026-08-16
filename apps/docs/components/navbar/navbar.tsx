@@ -8,23 +8,36 @@ import { SimWordmark } from '@/components/ui/sim-logo'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { cn } from '@/lib/utils'
 
+/**
+ * Tab order is the reading order we want: the main docs, then the two reference
+ * surfaces, then Academy. `Documentation` matches by exclusion, so every section
+ * that owns a tab has to be listed in its matcher or two tabs light up at once.
+ */
+const SECTION_TABS = ['/api-reference', '/academy', '/cli'] as const
+
 const NAV_TABS = [
   {
     label: 'Documentation',
     href: '/introduction',
-    match: (p: string) => !p.includes('/api-reference') && !p.includes('/academy'),
-    external: false,
-  },
-  {
-    label: 'Academy',
-    href: '/academy',
-    match: (p: string) => p.includes('/academy'),
+    match: (p: string) => !SECTION_TABS.some((section) => p.includes(section)),
     external: false,
   },
   {
     label: 'API Reference',
     href: '/api-reference/getting-started',
     match: (p: string) => p.includes('/api-reference'),
+    external: false,
+  },
+  {
+    label: 'CLI',
+    href: '/cli',
+    match: (p: string) => p.includes('/cli'),
+    external: false,
+  },
+  {
+    label: 'Academy',
+    href: '/academy',
+    match: (p: string) => p.includes('/academy'),
     external: false,
   },
 ] as const

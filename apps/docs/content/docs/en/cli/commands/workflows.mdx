@@ -1,0 +1,466 @@
+---
+title: Workflows
+description: Manage workflows — every subcommand, argument, and flag
+---
+
+`sim workflows` is also spelled `sim workflow`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## sim workflows runs cancel
+
+Cancel a running workflow run
+
+```bash
+sim workflows runs cancel <runId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `runId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+
+## sim workflows runs get
+
+Show run status (requested outputs are included in JSON or YAML output)
+
+```bash
+sim workflows runs get <runId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `runId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--include-output` | No | Include the final output in JSON or YAML output. |
+| `--select-output <value...>` | No | Include blockName.field values in JSON or YAML output (e.g. agent_1.content) (space-separated, or @path / @- with one value per line). |
+
+## sim workflows runs list
+
+List runs for a workflow
+
+```bash
+sim workflows runs list [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--status <value>` | No | Set status. Accepted values: `pending`, `running`, `completed`, `failed`, `cancelled`, `paused`. |
+| `--trigger <value>` | No | Set trigger. |
+| `--start-date <value>` | No | Set start date. |
+| `--end-date <value>` | No | Set end date. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--order <value>` | No | Set order. Accepted values: `asc`, `desc`. |
+
+## sim workflows runs resume
+
+Resume a paused run (output is included in JSON or YAML output)
+
+```bash
+sim workflows runs resume <runId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `runId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--context <value>` | Yes | Pause context ID returned by run status. |
+| `--input <json\|@file>` | No | Resume input as JSON (JSON, or @path / @- to read a file or stdin). |
+
+## sim workflows create
+
+Create Workflow
+
+```bash
+sim workflows create [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Set name. |
+| `--description <value>` | No | Set description. |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+
+## sim workflows folders create
+
+Create a workflow folder at a path
+
+```bash
+sim workflows folders create <path>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+
+## sim workflows folders delete
+
+Delete Workflow Folder
+
+```bash
+sim workflows folders delete <path> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim workflows folders list
+
+List Workflow Folders
+
+```bash
+sim workflows folders list [options]
+```
+
+Also available as `sim workflows folders ls`.
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Set search. |
+| `--sort-by <value>` | No | Set sort by. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+
+## sim workflows folders move
+
+Rename or move a workflow folder
+
+```bash
+sim workflows folders move <path> <destination>
+```
+
+Also available as `sim workflows folders mv`.
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+| `destination` | Yes |
+
+## sim workflows delete
+
+Delete Workflow
+
+```bash
+sim workflows delete <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim workflows deploy
+
+Deploy Workflow
+
+```bash
+sim workflows deploy <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Set name. |
+| `--description <value>` | No | Set description. |
+
+## sim workflows run
+
+Run a deployed workflow
+
+```bash
+sim workflows run <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
+| `--async` | No | Queue the run and return immediately. |
+| `--execution-timeout-seconds <value>` | No | Set execution timeout seconds. |
+| `--select-output <value...>` | No | Return blockName.field values (e.g. agent_1.content); missing fields are omitted (space-separated, or @path / @- with one value per line). |
+| `--include-file-base64` | No | Set includeFileBase64. |
+| `--no-include-file-base64` | No | Set includeFileBase64 to false. |
+| `--base64-max-bytes <value>` | No | Set base64 max bytes. |
+
+## sim workflows export
+
+Print a workflow as a portable JSON document
+
+```bash
+sim workflows export <id>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+## sim workflows get
+
+Get Workflow
+
+```bash
+sim workflows get <id>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+## sim workflows deployment list
+
+Get Workflow Deployment
+
+```bash
+sim workflows deployment list <id>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+## sim workflows versions get
+
+Get Workflow Version
+
+```bash
+sim workflows versions get <id> <version>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+| `version` | Yes |
+
+## sim workflows versions list
+
+List Workflow Versions
+
+```bash
+sim workflows versions list <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+## sim workflows import
+
+Import Workflow
+
+```bash
+sim workflows import [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <json\|@file>` | Yes | Set workflow (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--name <value>` | No | Set name. |
+| `--description <value>` | No | Set description. |
+
+## sim workflows list
+
+List Workflows
+
+```bash
+sim workflows list [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--deployed-only` | No | Set deployedOnly. |
+| `--no-deployed-only` | No | Set deployedOnly to false. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--search <value>` | No | Set search. |
+| `--sort-by <value>` | No | Set sort by. Accepted values: `position`, `name`, `createdAt`, `updatedAt`, `runCount`. |
+| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+
+## sim workflows rollback
+
+Rollback Workflow
+
+```bash
+sim workflows rollback <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--version <value>` | No | Set version. |
+
+## sim workflows undeploy
+
+Take a workflow out of deployment
+
+```bash
+sim workflows undeploy <id>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+## sim workflows update
+
+Update Workflow
+
+```bash
+sim workflows update <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Set name. |
+| `--description <value>` | No | Set description. |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+
+## sim workflows mv
+
+Move a workflow to a folder
+
+```bash
+sim workflows mv <id> <folder>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+| `folder` | Yes |
+
+## sim workflows ls
+
+List workflow resources and child folders together
+
+```bash
+sim workflows ls [path] [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | No |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+## sim workflows mkdir
+
+Create a workflow directory at a path
+
+```bash
+sim workflows mkdir <path>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |

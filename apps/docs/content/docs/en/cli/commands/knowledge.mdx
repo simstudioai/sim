@@ -1,0 +1,410 @@
+---
+title: Knowledge
+description: Manage knowledge — every subcommand, argument, and flag
+---
+
+`sim knowledge` is also spelled `sim kb`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## sim knowledge documents batch-update
+
+Enable or disable every matching document
+
+```bash
+sim knowledge documents batch-update <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `knowledgeBaseId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--operation <value>` | Yes | Set operation. Accepted values: `enable`, `disable`. |
+| `--document <value...>` | No | Set document (space-separated, or @path / @- with one value per line). |
+| `--select-all` | No | Apply to every document in the knowledge base. |
+| `--enabled-filter <value>` | No | Set enabled filter. Accepted values: `all`, `enabled`, `disabled`. |
+
+## sim knowledge documents delete
+
+Delete Document
+
+```bash
+sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `knowledgeBaseId` | Yes |
+| `documentId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim knowledge documents get
+
+Get Document
+
+```bash
+sim knowledge documents get <knowledgeBaseId> <documentId>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `knowledgeBaseId` | Yes |
+| `documentId` | Yes |
+
+## sim knowledge documents list
+
+List Documents
+
+```bash
+sim knowledge documents list <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `knowledgeBaseId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--search <value>` | No | Set search. |
+| `--enabled-filter <value>` | No | Set enabled filter. Accepted values: `all`, `enabled`, `disabled`. |
+| `--sort-by <value>` | No | Set sort by. Accepted values: `filename`, `fileSize`, `tokenCount`, `chunkCount`, `uploadedAt`, `processingStatus`, `enabled`. |
+| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+| `--tag-filters <value>` | No | Set tag filters. |
+
+## sim knowledge documents update
+
+Update Document
+
+```bash
+sim knowledge documents update <id> <documentId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+| `documentId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filename <value>` | No | Set filename. |
+| `--enabled` | No | Set enabled. |
+| `--no-enabled` | No | Set enabled to false. |
+| `--tag1 <value>` | No | Set tag1. |
+| `--tag2 <value>` | No | Set tag2. |
+| `--tag3 <value>` | No | Set tag3. |
+| `--tag4 <value>` | No | Set tag4. |
+| `--tag5 <value>` | No | Set tag5. |
+| `--tag6 <value>` | No | Set tag6. |
+| `--tag7 <value>` | No | Set tag7. |
+| `--number1 <value>` | No | Set number1. |
+| `--number2 <value>` | No | Set number2. |
+| `--number3 <value>` | No | Set number3. |
+| `--number4 <value>` | No | Set number4. |
+| `--number5 <value>` | No | Set number5. |
+| `--date1 <value>` | No | Set date1. |
+| `--date2 <value>` | No | Set date2. |
+| `--boolean1` | No | Set boolean1. |
+| `--no-boolean1` | No | Set boolean1 to false. |
+| `--boolean2` | No | Set boolean2. |
+| `--no-boolean2` | No | Set boolean2 to false. |
+| `--boolean3` | No | Set boolean3. |
+| `--no-boolean3` | No | Set boolean3 to false. |
+| `--retry-processing` | No | Set retryProcessing. |
+| `--no-retry-processing` | No | Set retryProcessing to false. |
+
+## sim knowledge documents upload
+
+Upload a document to a knowledge base
+
+```bash
+sim knowledge documents upload <knowledgeBaseId> <path> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `knowledgeBaseId` | Yes |
+| `path` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <name>` | No | Store it under a different name. |
+| `--tag <value...>` | No | Document tags, in tag1 through tag7 order. |
+| `--recipe <name>` | No | Document processing recipe. |
+| `--lang <code>` | No | Document language code. |
+
+## sim knowledge create
+
+Create Knowledge Base
+
+```bash
+sim knowledge create [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Set name. |
+| `--description <value>` | No | Set description. |
+| `--chunking-config <json\|@file>` | No | Set chunking config (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+
+## sim knowledge folders create
+
+Create a knowledge folder at a path
+
+```bash
+sim knowledge folders create <path>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+
+## sim knowledge folders delete
+
+Delete Folder
+
+```bash
+sim knowledge folders delete <path> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--recursive` | No | Delete the folder and its descendants. |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim knowledge folders list
+
+List Folders
+
+```bash
+sim knowledge folders list [options]
+```
+
+Also available as `sim knowledge folders ls`.
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--parent <value>` | No | Direct parent folder path. |
+| `--search <value>` | No | Set search. |
+| `--sort-by <value>` | No | Set sort by. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+
+## sim knowledge folders move
+
+Rename or move a knowledge folder
+
+```bash
+sim knowledge folders move <path> <destination>
+```
+
+Also available as `sim knowledge folders mv`.
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |
+| `destination` | Yes |
+
+## sim knowledge delete
+
+Delete Knowledge Base
+
+```bash
+sim knowledge delete <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | No | Skip the confirmation. |
+
+## sim knowledge get
+
+Get Knowledge Base
+
+```bash
+sim knowledge get <id>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+## sim knowledge list
+
+List Knowledge Bases
+
+```bash
+sim knowledge list [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--search <value>` | No | Set search. |
+| `--sort-by <value>` | No | Set sort by. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Set sort order. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+## sim knowledge tags list
+
+List Tags
+
+```bash
+sim knowledge tags list <id>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+## sim knowledge search
+
+Search Knowledge
+
+```bash
+sim knowledge search [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--kb <value...>` | Yes | Knowledge base ID (repeatable) (space-separated, or @path / @- with one value per line). |
+| `--query <value>` | No | Text to search for. |
+| `--top-k <value>` | No | Set top k. |
+| `--tag-filters <json\|@file>` | No | Tag filters as [&#123;"tagName":"...","operator":"...","value":"..."&#125;] (JSON, or @path / @- to read a file or stdin). |
+| `--search-mode <value>` | No | Search algorithm. Accepted values: `vector`, `hybrid`. |
+| `--reranker-enabled` | No | Set rerankerEnabled. |
+| `--no-reranker-enabled` | No | Set rerankerEnabled to false. |
+| `--reranker-model <value>` | No | Set reranker model. Accepted values: `rerank-v4.0-pro`, `rerank-v4.0-fast`, `rerank-v3.5`. |
+| `--reranker-input-count <value>` | No | Set reranker input count. |
+
+## sim knowledge update
+
+Update Knowledge Base
+
+```bash
+sim knowledge update <id> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Set name. |
+| `--description <value>` | No | Set description. |
+| `--chunking-config <json\|@file>` | No | Set chunking config (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path; the leading / is optional. |
+
+## sim knowledge mv
+
+Move a knowledge base to a folder
+
+```bash
+sim knowledge mv <id> <folder>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `id` | Yes |
+| `folder` | Yes |
+
+## sim knowledge ls
+
+List knowledge resources and child folders together
+
+```bash
+sim knowledge ls [path] [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | No |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <text>` | No | Filter folders and resources by name. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+
+## sim knowledge mkdir
+
+Create a knowledge directory at a path
+
+```bash
+sim knowledge mkdir <path>
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `path` | Yes |

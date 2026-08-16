@@ -1,0 +1,108 @@
+---
+title: Overview
+description: Every sim command, with its arguments and flags
+---
+
+Every `sim` command follows the same shape:
+
+```bash
+sim <resource> [sub-resource] <verb> [arguments] [options]
+```
+
+Resource groups are plural, and each one also accepts its singular spelling —
+`sim workflow get` and `sim workflows get` are the same command. `knowledge`
+additionally answers to `kb`.
+
+## Global options
+
+These apply to every command, and may be written before or after it.
+
+| Option | Description |
+| --- | --- |
+| `-P, --profile <name>` | Profile to use (env: SIM_PROFILE). |
+| `--endpoint <url>` | Sim deployment to talk to (env: SIM_ENDPOINT). |
+| `-w, --workspace <id>` | Workspace to target (env: SIM_WORKSPACE). |
+| `--output <format>` | Output format for this command. Accepted values: `table`, `json`, `yaml`, `text`. |
+
+## Command groups
+
+| Group | Description |
+| --- | --- |
+| [`sim audit-logs`](/cli/commands/audit-logs) | Manage audit logs |
+| [`sim billing`](/cli/commands/billing) | Manage billing |
+| [`sim credentials`](/cli/commands/credentials) | Manage credentials |
+| [`sim custom-tools`](/cli/commands/custom-tools) | Manage custom tools |
+| [`sim files`](/cli/commands/files) | Manage files |
+| [`sim knowledge`](/cli/commands/knowledge) | Manage knowledge |
+| [`sim logs`](/cli/commands/logs) | Manage logs |
+| [`sim mcp-servers`](/cli/commands/mcp-servers) | Manage mcp servers |
+| [`sim secrets`](/cli/commands/secrets) | Manage secrets |
+| [`sim skills`](/cli/commands/skills) | Manage skills |
+| [`sim tables`](/cli/commands/tables) | Manage tables |
+| [`sim workflows`](/cli/commands/workflows) | Manage workflows |
+| [`sim workspaces`](/cli/commands/workspaces) | Manage workspaces |
+
+## sim login
+
+Authorize this terminal and store an API key for the profile
+
+```bash
+sim login [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--scope <scope>` | No | Key space to mint from: platform or copilot. Defaults to `platform`. |
+| `--no-browser` | No | Print the URL instead of opening a browser. |
+| `-y, --yes` | No | Overwrite an existing profile without prompting. |
+
+## sim logout
+
+Remove the profile's stored API key
+
+```bash
+sim logout [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--all` | No | Remove the profile entirely, including its settings. |
+
+## sim whoami
+
+Show the resolved profile and where each setting came from
+
+```bash
+sim whoami
+```
+
+## sim profiles
+
+List the profiles defined in the config and credentials files
+
+```bash
+sim profiles
+```
+
+Also available as `sim profile`.
+
+## sim configure
+
+Set a profile's endpoint, default workspace, or output format
+
+```bash
+sim configure [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--set-endpoint <url>` | No | Sim deployment to talk to. |
+| `--set-workspace <id>` | No | Default workspace for workspace-scoped commands. |
+| `--set-output <format>` | No | Default output format (table \| json \| yaml \| text). |
+| `--unset <key...>` | No | Remove settings (endpoint, workspace, output). |

@@ -1,0 +1,58 @@
+---
+title: Logs
+description: Manage logs — every subcommand, argument, and flag
+---
+
+`sim logs` is also spelled `sim log`.
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## sim logs get
+
+Show run diagnostics
+
+```bash
+sim logs get <runId> [options]
+```
+
+**Arguments**
+
+| Argument | Required |
+| --- | --- |
+| `runId` | Yes |
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--trace` | No | Show expanded trace spans with inputs, outputs, errors, timing, and cost. |
+
+## sim logs list
+
+List Logs
+
+```bash
+sim logs list [options]
+```
+
+**Options**
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | No | Set workflow (space-separated, or @path / @- with one value per line). |
+| `--trigger <value...>` | No | Set trigger (space-separated, or @path / @- with one value per line). |
+| `--level <value>` | No | Set level. Accepted values: `info`, `error`. |
+| `--start-date <value>` | No | Set start date. |
+| `--end-date <value>` | No | Set end date. |
+| `--min-duration-ms <value>` | No | Set min duration ms. |
+| `--max-duration-ms <value>` | No | Set max duration ms. |
+| `--min-cost <value>` | No | Set min cost. |
+| `--max-cost <value>` | No | Set max cost. |
+| `--model <value>` | No | Set model. |
+| `--details <value>` | No | Response detail level. Accepted values: `basic`, `full`. |
+| `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
+| `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--order <value>` | No | Set order. Accepted values: `asc`, `desc`. |
+| `--run-id <value>` | No | Set run id. |
+| `--folder <value...>` | No | Folder path; the leading / is optional (space-separated, or @path / @- with one value per line). |

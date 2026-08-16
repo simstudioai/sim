@@ -1,0 +1,14 @@
+{
+  "title": "CLI",
+  "root": true,
+  "pages": [
+    "---Sim for Terminal---",
+    "index",
+    "authentication",
+    "configuration",
+    "output",
+    "scripting",
+    "---Reference---",
+    "commands"
+  ]
+}
