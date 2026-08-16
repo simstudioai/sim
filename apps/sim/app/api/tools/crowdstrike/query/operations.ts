@@ -1,0 +1,626 @@
+import type { CrowdstrikeQueryBody } from '@/lib/api/contracts/tools/crowdstrike'
+import {
+  type CrowdStrikeCallResult,
+  callCrowdStrike,
+  getBoolean,
+  getCursorPagination,
+  getEnvelopeErrors,
+  getFalconErrorMessage,
+  getFirstRecordResource,
+  getNumber,
+  getPagination,
+  getRecordResources,
+  getSpotlightPagination,
+  getString,
+  getStringResources,
+} from '@/app/api/tools/crowdstrike/query/falcon'
+import {
+  normalizeAffectedEntity,
+  normalizeAlert,
+  normalizeCase,
+  normalizeHostGroup,
+  normalizeIndicator,
+  normalizeVulnerability,
+} from '@/app/api/tools/crowdstrike/query/normalize'
+import type { CrowdStrikeActionParameter } from '@/tools/crowdstrike/types'
+
+type ExtendedOperation = Exclude<
+  CrowdstrikeQueryBody['operation'],
+  | 'crowdstrike_query_sensors'
+  | 'crowdstrike_get_sensor_details'
+  | 'crowdstrike_get_sensor_aggregates'
+>
+
+type ExtendedBody = Extract<CrowdstrikeQueryBody, { operation: ExtendedOperation }>
+
+export interface OperationFailure {
+  ok: false
+  status: number
+  error: string
+}
+
+export interface OperationSuccess {
+  ok: true
+  output: Record<string, unknown>
+}
+
+export type OperationResult = OperationSuccess | OperationFailure
+
+/**
+ * CrowdStrike can answer 200 while the envelope carries only errors. Reporting
+ * that as HTTP 200 would read as a success, so fall back to the per-item error
+ * code the envelope supplies, and to 502 when it supplies none.
+ */
+export function failureStatus(result: CrowdStrikeCallResult): number {
+  if (!result.ok) {
+    return result.status
+  }
+
+  const envelopeCode = getEnvelopeErrors(result.data)[0]?.code
+  if (envelopeCode != null && envelopeCode >= 400 && envelopeCode <= 599) {
+    return envelopeCode
+  }
+
+  return 502
+}
+
+function fail(result: CrowdStrikeCallResult, fallback: string): OperationFailure {
+  return {
+    ok: false,
+    status: failureStatus(result),
+    error: getFalconErrorMessage(result.data, fallback),
+  }
+}
+
+/**
+ * CrowdStrike answers 200 with a populated `errors` array when only some IDs
+ * fail. Treat that as an outright failure only when nothing came back at all.
+ */
+export function failedWithoutResources(
+  result: CrowdStrikeCallResult,
+  resourceCount: number
+): boolean {
+  return resourceCount === 0 && getEnvelopeErrors(result.data).length > 0
+}
+
+function buildAlertActionParameters(
+  body: Extract<ExtendedBody, { operation: 'crowdstrike_update_alerts' }>
+) {
+  const parameters: CrowdStrikeActionParameter[] = []
+
+  const push = (name: string, value: string | undefined) => {
+    if (value !== undefined) {
+      parameters.push({ name, value })
+    }
+  }
+
+  push('update_status', body.updateStatus)
+  push('assign_to_uuid', body.assignToUuid)
+  push('assign_to_user_id', body.assignToUserId)
+  push('assign_to_name', body.assignToName)
+  push('append_comment', body.appendComment)
+  push('add_tag', body.addTag)
+  push('remove_tag', body.removeTag)
+  push('remove_tags_by_prefix', body.removeTagsByPrefix)
+
+  if (body.unassign === true) {
+    parameters.push({ name: 'unassign', value: '' })
+  }
+
+  if (body.showInUi !== undefined) {
+    parameters.push({ name: 'show_in_ui', value: String(body.showInUi) })
+  }
+
+  for (const parameter of body.actionParameters ?? []) {
+    parameters.push({ name: parameter.name, value: parameter.value })
+  }
+
+  return parameters
+}
+
+/**
+ * CrowdStrike's host-group action endpoint selects the hosts to add or remove
+ * with an FQL `device_id` filter rather than an ID list.
+ */
+function buildDeviceIdFilter(deviceIds: string[]): string {
+  const values = deviceIds.map((id) => `'${id.replaceAll("'", "\\'")}'`).join(',')
+  return `(device_id:[${values}])`
+}
+
+export async function executeCrowdStrikeOperation(
+  body: ExtendedBody,
+  baseUrl: string,
+  accessToken: string
+): Promise<OperationResult> {
+  switch (body.operation) {
+    case 'crowdstrike_query_alerts': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/alerts/queries/alerts/v2',
+        query: {
+          filter: body.filter,
+          include_hidden: body.includeHidden,
+          limit: body.limit,
+          offset: body.offset,
+          q: body.q,
+          sort: body.sort,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to query CrowdStrike alerts')
+
+      const alertIds = getStringResources(result.data)
+      if (failedWithoutResources(result, alertIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike alerts')
+      }
+
+      return {
+        ok: true,
+        output: { alertIds, count: alertIds.length, pagination: getPagination(result.data) },
+      }
+    }
+
+    case 'crowdstrike_get_alert_details': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/alerts/entities/alerts/v2',
+        query: { include_hidden: body.includeHidden },
+        body: { composite_ids: body.compositeIds },
+      })
+      if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike alert details')
+
+      const alerts = getRecordResources(result.data).map(normalizeAlert)
+      if (failedWithoutResources(result, alerts.length)) {
+        return fail(result, 'Failed to fetch CrowdStrike alert details')
+      }
+
+      return {
+        ok: true,
+        output: { alerts, count: alerts.length, errors: getEnvelopeErrors(result.data) },
+      }
+    }
+
+    case 'crowdstrike_update_alerts': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'PATCH',
+        path: '/alerts/entities/alerts/v3',
+        query: { include_hidden: body.includeHidden },
+        body: {
+          action_parameters: buildAlertActionParameters(body),
+          composite_ids: body.compositeIds,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to update CrowdStrike alerts')
+
+      const errors = getEnvelopeErrors(result.data)
+      if (errors.length > 0) {
+        return fail(result, 'Failed to update CrowdStrike alerts')
+      }
+
+      return {
+        ok: true,
+        output: { updatedIds: body.compositeIds, count: body.compositeIds.length, errors },
+      }
+    }
+
+    case 'crowdstrike_perform_host_action': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/devices/entities/devices-actions/v2',
+        query: { action_name: body.actionName },
+        body: { ids: body.deviceIds },
+      })
+      if (!result.ok) return fail(result, 'Failed to perform CrowdStrike host action')
+
+      const affected = getRecordResources(result.data).map(normalizeAffectedEntity)
+      if (failedWithoutResources(result, affected.length)) {
+        return fail(result, 'Failed to perform CrowdStrike host action')
+      }
+
+      return {
+        ok: true,
+        output: { affected, count: affected.length, errors: getEnvelopeErrors(result.data) },
+      }
+    }
+
+    case 'crowdstrike_query_host_groups': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/devices/queries/host-groups/v1',
+        query: {
+          filter: body.filter,
+          limit: body.limit,
+          offset: body.offset,
+          sort: body.sort,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to query CrowdStrike host groups')
+
+      const hostGroupIds = getStringResources(result.data)
+      if (failedWithoutResources(result, hostGroupIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike host groups')
+      }
+
+      return {
+        ok: true,
+        output: {
+          hostGroupIds,
+          count: hostGroupIds.length,
+          pagination: getPagination(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_get_host_group_details': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/devices/entities/host-groups/v1',
+        repeatedQuery: { ids: body.hostGroupIds },
+      })
+      if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike host group details')
+
+      const hostGroups = getRecordResources(result.data).map(normalizeHostGroup)
+      if (failedWithoutResources(result, hostGroups.length)) {
+        return fail(result, 'Failed to fetch CrowdStrike host group details')
+      }
+
+      return {
+        ok: true,
+        output: {
+          hostGroups,
+          count: hostGroups.length,
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_perform_host_group_action': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/devices/entities/host-group-actions/v1',
+        query: { action_name: body.actionName },
+        body: {
+          action_parameters: [{ name: 'filter', value: buildDeviceIdFilter(body.deviceIds) }],
+          ids: [body.hostGroupId],
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to perform CrowdStrike host group action')
+
+      const hostGroups = getRecordResources(result.data).map(normalizeHostGroup)
+      if (failedWithoutResources(result, hostGroups.length)) {
+        return fail(result, 'Failed to perform CrowdStrike host group action')
+      }
+
+      return {
+        ok: true,
+        output: {
+          hostGroups,
+          count: hostGroups.length,
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_query_indicators': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/iocs/queries/indicators/v1',
+        query: {
+          after: body.after,
+          filter: body.filter,
+          limit: body.limit,
+          offset: body.offset,
+          sort: body.sort,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to query CrowdStrike indicators')
+
+      const indicatorIds = getStringResources(result.data)
+      if (failedWithoutResources(result, indicatorIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike indicators')
+      }
+
+      return {
+        ok: true,
+        output: {
+          indicatorIds,
+          count: indicatorIds.length,
+          pagination: getCursorPagination(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_get_indicator_details': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/iocs/entities/indicators/v1',
+        repeatedQuery: { ids: body.indicatorIds },
+      })
+      if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike indicator details')
+
+      const indicators = getRecordResources(result.data).map(normalizeIndicator)
+      if (failedWithoutResources(result, indicators.length)) {
+        return fail(result, 'Failed to fetch CrowdStrike indicator details')
+      }
+
+      return {
+        ok: true,
+        output: {
+          indicators,
+          count: indicators.length,
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_create_indicators':
+    case 'crowdstrike_update_indicators': {
+      const isCreate = body.operation === 'crowdstrike_create_indicators'
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: isCreate ? 'POST' : 'PATCH',
+        path: '/iocs/entities/indicators/v1',
+        query: {
+          ignore_warnings: body.ignoreWarnings,
+          retrodetects: body.retrodetects,
+        },
+        body: {
+          comment: body.comment,
+          indicators: body.indicators,
+        },
+      })
+      if (!result.ok) {
+        return fail(
+          result,
+          isCreate
+            ? 'Failed to create CrowdStrike indicators'
+            : 'Failed to update CrowdStrike indicators'
+        )
+      }
+
+      const indicators = getRecordResources(result.data).map(normalizeIndicator)
+      if (failedWithoutResources(result, indicators.length)) {
+        return fail(
+          result,
+          isCreate
+            ? 'Failed to create CrowdStrike indicators'
+            : 'Failed to update CrowdStrike indicators'
+        )
+      }
+
+      return {
+        ok: true,
+        output: {
+          indicators,
+          count: indicators.length,
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_delete_indicators': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'DELETE',
+        path: '/iocs/entities/indicators/v1',
+        query: { comment: body.comment, filter: body.filter },
+        repeatedQuery: { ids: body.filter ? undefined : body.indicatorIds },
+      })
+      if (!result.ok) return fail(result, 'Failed to delete CrowdStrike indicators')
+
+      const deletedIds = getStringResources(result.data)
+      if (failedWithoutResources(result, deletedIds.length)) {
+        return fail(result, 'Failed to delete CrowdStrike indicators')
+      }
+
+      return {
+        ok: true,
+        output: {
+          deletedIds,
+          count: deletedIds.length,
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_query_vulnerabilities': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/spotlight/queries/vulnerabilities/v1',
+        query: {
+          after: body.after,
+          filter: body.filter,
+          limit: body.limit,
+          sort: body.sort,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to query CrowdStrike vulnerabilities')
+
+      const vulnerabilityIds = getStringResources(result.data)
+      if (failedWithoutResources(result, vulnerabilityIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike vulnerabilities')
+      }
+
+      return {
+        ok: true,
+        output: {
+          vulnerabilityIds,
+          count: vulnerabilityIds.length,
+          pagination: getSpotlightPagination(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_get_vulnerability_details': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/spotlight/entities/vulnerabilities/v2',
+        repeatedQuery: { ids: body.vulnerabilityIds },
+      })
+      if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike vulnerability details')
+
+      const vulnerabilities = getRecordResources(result.data).map(normalizeVulnerability)
+      if (failedWithoutResources(result, vulnerabilities.length)) {
+        return fail(result, 'Failed to fetch CrowdStrike vulnerability details')
+      }
+
+      return {
+        ok: true,
+        output: {
+          vulnerabilities,
+          count: vulnerabilities.length,
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_init_rtr_session': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/real-time-response/entities/sessions/v1',
+        body: {
+          device_id: body.deviceId,
+          origin: body.origin,
+          queue_offline: body.queueOffline,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to initialize CrowdStrike RTR session')
+
+      const session = getFirstRecordResource(result.data)
+      if (!session) return fail(result, 'CrowdStrike did not return an RTR session')
+
+      return {
+        ok: true,
+        output: {
+          sessionId: getString(session.session_id),
+          deviceId: getString(session.device_id),
+          platform: getString(session.platform),
+          pwd: getString(session.pwd),
+          offlineQueued: getBoolean(session.offline_queued),
+          existingAidSessions: getNumber(session.existing_aid_sessions),
+          createdAt: getString(session.created_at),
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_execute_rtr_command': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/real-time-response/entities/command/v1',
+        body: {
+          base_command: body.baseCommand,
+          command_string: body.commandString,
+          session_id: body.sessionId,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to execute CrowdStrike RTR command')
+
+      const command = getFirstRecordResource(result.data)
+      if (!command) return fail(result, 'CrowdStrike did not return an RTR command result')
+
+      return {
+        ok: true,
+        output: {
+          cloudRequestId: getString(command.cloud_request_id),
+          sessionId: getString(command.session_id),
+          queuedCommandOffline: getBoolean(command.queued_command_offline),
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_get_rtr_command_status': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/real-time-response/entities/command/v1',
+        query: {
+          cloud_request_id: body.cloudRequestId,
+          sequence_id: body.sequenceId ?? 0,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike RTR command status')
+
+      const status = getFirstRecordResource(result.data)
+      if (!status) return fail(result, 'CrowdStrike did not return an RTR command status')
+
+      return {
+        ok: true,
+        output: {
+          complete: getBoolean(status.complete),
+          stdout: getString(status.stdout),
+          stderr: getString(status.stderr),
+          baseCommand: getString(status.base_command),
+          sessionId: getString(status.session_id),
+          taskId: getString(status.task_id),
+          sequenceId: getNumber(status.sequence_id),
+          errors: getEnvelopeErrors(result.data),
+        },
+      }
+    }
+
+    case 'crowdstrike_delete_rtr_session': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'DELETE',
+        path: '/real-time-response/entities/sessions/v1',
+        query: { session_id: body.sessionId },
+      })
+      if (!result.ok) return fail(result, 'Failed to delete CrowdStrike RTR session')
+
+      const deleteErrors = getEnvelopeErrors(result.data)
+      if (deleteErrors.length > 0) {
+        return fail(result, 'Failed to delete CrowdStrike RTR session')
+      }
+
+      return {
+        ok: true,
+        output: {
+          sessionId: body.sessionId,
+          deleted: true,
+          errors: deleteErrors,
+        },
+      }
+    }
+
+    case 'crowdstrike_query_cases': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'GET',
+        path: '/cases/queries/cases/v1',
+        query: {
+          filter: body.filter,
+          limit: body.limit,
+          offset: body.offset,
+          q: body.q,
+          sort: body.sort,
+        },
+      })
+      if (!result.ok) return fail(result, 'Failed to query CrowdStrike cases')
+
+      const caseIds = getStringResources(result.data)
+      if (failedWithoutResources(result, caseIds.length)) {
+        return fail(result, 'Failed to query CrowdStrike cases')
+      }
+
+      return {
+        ok: true,
+        output: { caseIds, count: caseIds.length, pagination: getPagination(result.data) },
+      }
+    }
+
+    case 'crowdstrike_get_case_details': {
+      const result = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/cases/entities/cases/v2',
+        body: { ids: body.caseIds },
+      })
+      if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike case details')
+
+      const cases = getRecordResources(result.data).map(normalizeCase)
+      if (failedWithoutResources(result, cases.length)) {
+        return fail(result, 'Failed to fetch CrowdStrike case details')
+      }
+
+      return {
+        ok: true,
+        output: { cases, count: cases.length, errors: getEnvelopeErrors(result.data) },
+      }
+    }
+  }
+}
