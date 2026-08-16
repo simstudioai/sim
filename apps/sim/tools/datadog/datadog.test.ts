@@ -7,10 +7,12 @@ import { createMonitorTool } from '@/tools/datadog/create_monitor'
 import { getIncidentTool } from '@/tools/datadog/get_incident'
 import { listDowntimesTool } from '@/tools/datadog/list_downtimes'
 import { listIncidentsTool } from '@/tools/datadog/list_incidents'
+import { muteMonitorTool } from '@/tools/datadog/mute_monitor'
 import { queryLogsTool } from '@/tools/datadog/query_logs'
 import { queryTimeseriesTool } from '@/tools/datadog/query_timeseries'
 import { sendLogsTool } from '@/tools/datadog/send_logs'
 import { submitMetricsTool } from '@/tools/datadog/submit_metrics'
+import { unmuteMonitorTool } from '@/tools/datadog/unmute_monitor'
 import { updateIncidentTool } from '@/tools/datadog/update_incident'
 import { updateSloTool } from '@/tools/datadog/update_slo'
 import { buildSloPayload, datadogErrorMessage, mergeSloUpdatePayload } from '@/tools/datadog/utils'
@@ -336,13 +338,41 @@ describe('pagination wiring', () => {
   })
 })
 
-describe('registry surface', () => {
-  /** `/api/v1/monitor/{id}/mute` is absent from the published v1 spec. */
-  it('does not ship a mute monitor tool', async () => {
-    const datadogTools = await import('@/tools/datadog/index')
-    expect(Object.keys(datadogTools)).not.toContain('datadogMuteMonitorTool')
+describe('monitor mute and unmute', () => {
+  it('mutes with the scope and end datadogpy documents', () => {
+    const body = callBody(muteMonitorTool, {
+      ...auth,
+      monitorId: '123',
+      scope: 'host:web-1',
+      end: 1705323600,
+    } as any)
+    expect(body).toEqual({ scope: 'host:web-1', end: 1705323600 })
+    expect(callUrl(muteMonitorTool, { ...auth, monitorId: '123' } as any)).toContain(
+      '/api/v1/monitor/123/mute'
+    )
   })
 
+  /** An indefinite mute sends no `end`, so the monitor stays muted until unmuted. */
+  it('omits end when the caller wants an indefinite mute', () => {
+    const body = callBody(muteMonitorTool, { ...auth, monitorId: '123' } as any)
+    expect(body).not.toHaveProperty('end')
+  })
+
+  /** Muting is only safe to ship because it can be reversed from Sim. */
+  it('ships an unmute counterpart that can clear every scope', () => {
+    const body = callBody(unmuteMonitorTool, {
+      ...auth,
+      monitorId: '123',
+      allScopes: true,
+    } as any)
+    expect(body).toEqual({ all_scopes: true })
+    expect(callUrl(unmuteMonitorTool, { ...auth, monitorId: '123' } as any)).toContain(
+      '/api/v1/monitor/123/unmute'
+    )
+  })
+})
+
+describe('registry surface', () => {
   it('keeps create_event on api-key-only auth', () => {
     expect(createEventTool.params.applicationKey).toBeUndefined()
   })

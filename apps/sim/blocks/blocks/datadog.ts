@@ -51,6 +51,15 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
           { text: ', named like', field: 'listMonitorName' },
           { text: ', tagged', field: 'listMonitorTags' },
         ],
+        datadog_mute_monitor: [
+          { text: 'Mute monitor', field: 'muteMonitorId', core: true },
+          { text: ', for scope', field: 'muteScope' },
+          { text: ', until', field: 'muteEnd' },
+        ],
+        datadog_unmute_monitor: [
+          { text: 'Unmute monitor', field: 'muteMonitorId', core: true },
+          { text: ', for scope', field: 'muteScope' },
+        ],
         datadog_query_logs: [
           { text: 'Search logs matching', field: 'logQuery', core: true },
           { text: ', since', field: 'logFrom' },
@@ -159,6 +168,8 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
         { label: 'Create Monitor', id: 'datadog_create_monitor' },
         { label: 'Get Monitor', id: 'datadog_get_monitor' },
         { label: 'List Monitors', id: 'datadog_list_monitors' },
+        { label: 'Mute Monitor', id: 'datadog_mute_monitor' },
+        { label: 'Unmute Monitor', id: 'datadog_unmute_monitor' },
         { label: 'Query Logs', id: 'datadog_query_logs' },
         { label: 'Send Logs', id: 'datadog_send_logs' },
         { label: 'Create Downtime', id: 'datadog_create_downtime' },
@@ -501,6 +512,45 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       type: 'short-input',
       placeholder: 'env:production',
       condition: { field: 'operation', value: 'datadog_list_monitors' },
+      mode: 'advanced',
+    },
+
+    // Mute / Unmute Monitor inputs
+    {
+      id: 'muteMonitorId',
+      title: 'Monitor ID',
+      type: 'short-input',
+      placeholder: '12345678',
+      condition: {
+        field: 'operation',
+        value: ['datadog_mute_monitor', 'datadog_unmute_monitor'],
+      },
+      required: { field: 'operation', value: ['datadog_mute_monitor', 'datadog_unmute_monitor'] },
+    },
+    {
+      id: 'muteScope',
+      title: 'Scope',
+      type: 'short-input',
+      placeholder: 'host:myhost (leave blank for all scopes)',
+      condition: {
+        field: 'operation',
+        value: ['datadog_mute_monitor', 'datadog_unmute_monitor'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'muteEnd',
+      title: 'Mute Until (Unix Timestamp)',
+      type: 'short-input',
+      placeholder: 'Leave empty to mute until unmuted',
+      condition: { field: 'operation', value: 'datadog_mute_monitor' },
+      mode: 'advanced',
+    },
+    {
+      id: 'unmuteAllScopes',
+      title: 'Clear All Scopes',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_unmute_monitor' },
       mode: 'advanced',
     },
 
@@ -1771,6 +1821,8 @@ Return ONLY the search query string - no explanations.`,
           'datadog_create_monitor',
           'datadog_get_monitor',
           'datadog_list_monitors',
+          'datadog_mute_monitor',
+          'datadog_unmute_monitor',
           'datadog_query_logs',
           'datadog_create_downtime',
           'datadog_list_downtimes',
@@ -1834,6 +1886,8 @@ Return ONLY the search query string - no explanations.`,
       'datadog_create_monitor',
       'datadog_get_monitor',
       'datadog_list_monitors',
+      'datadog_mute_monitor',
+      'datadog_unmute_monitor',
       'datadog_query_logs',
       'datadog_send_logs',
       'datadog_create_downtime',
@@ -1919,6 +1973,22 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               name: params.listMonitorName || undefined,
               tags: params.listMonitorTags || undefined,
+            }
+
+          case 'datadog_mute_monitor':
+            return {
+              ...baseParams,
+              monitorId: params.muteMonitorId,
+              scope: params.muteScope || undefined,
+              end: params.muteEnd ? Number(params.muteEnd) : undefined,
+            }
+
+          case 'datadog_unmute_monitor':
+            return {
+              ...baseParams,
+              monitorId: params.muteMonitorId,
+              scope: params.muteScope || undefined,
+              allScopes: toSwitchBoolean(params.unmuteAllScopes),
             }
 
           case 'datadog_query_logs':
@@ -2231,6 +2301,10 @@ Return ONLY the search query string - no explanations.`,
     options: { type: 'json', description: 'Monitor options' },
     monitorId: { type: 'string', description: 'Monitor ID' },
     // Logs
+    muteMonitorId: { type: 'string', description: 'Monitor ID to mute or unmute' },
+    muteScope: { type: 'string', description: 'Scope to mute or unmute' },
+    muteEnd: { type: 'number', description: 'Unix timestamp when the mute ends' },
+    unmuteAllScopes: { type: 'boolean', description: 'Clear mute settings for every scope' },
     logQuery: { type: 'string', description: 'Log search query' },
     logFrom: { type: 'string', description: 'Log start time' },
     logTo: { type: 'string', description: 'Log end time' },

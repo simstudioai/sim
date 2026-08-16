@@ -4852,6 +4852,14 @@
           "description": "List all monitors in Datadog with optional filtering by name, tags, or state."
         },
         {
+          "name": "Mute Monitor",
+          "description": "Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window."
+        },
+        {
+          "name": "Unmute Monitor",
+          "description": "Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once."
+        },
+        {
           "name": "Query Logs",
           "description": "Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring."
         },
@@ -4984,7 +4992,7 @@
           "description": "List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission."
         }
       ],
-      "operationCount": 39,
+      "operationCount": 41,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

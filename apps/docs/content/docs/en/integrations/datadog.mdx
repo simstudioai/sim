@@ -221,6 +221,54 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 |   ↳ `modified` | string | Last modification timestamp |
 |   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
+### Datadog Mute Monitor
+
+Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Yes | The ID of the monitor to mute \(e.g., "12345678"\) |
+| `scope` | string | No | Scope to mute \(e.g., "host:myhost", "env:prod"\). If not specified, mutes all scopes. |
+| `end` | number | No | Unix timestamp in seconds when the mute should end \(e.g., 1705323600\). If not specified, the monitor stays muted until it is unmuted. |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the monitor was successfully muted |
+| `monitorId` | number | ID of the muted monitor |
+| `name` | string | Name of the muted monitor |
+| `overallState` | string | Monitor state after muting |
+
+### Datadog Unmute Monitor
+
+Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `monitorId` | string | Yes | The ID of the monitor to unmute \(e.g., "12345678"\) |
+| `scope` | string | No | Scope to unmute \(e.g., "host:myhost"\). Leave blank to unmute the monitor itself rather than a single scope. |
+| `allScopes` | boolean | No | Clear the mute settings for every scope on this monitor |
+| `apiKey` | string | Yes | Datadog API key |
+| `applicationKey` | string | Yes | Datadog Application key |
+| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the monitor was successfully unmuted |
+| `monitorId` | number | ID of the unmuted monitor |
+| `name` | string | Name of the unmuted monitor |
+| `overallState` | string | Monitor state after unmuting |
+
 ### Datadog Query Logs
 
 Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.

@@ -254,6 +254,39 @@ export interface ListMonitorsResponse extends ToolResponse {
   output: ListMonitorsOutput
 }
 
+/**
+ * Mute/unmute monitor are served by `POST /api/v1/monitor/{monitor_id}/mute` and
+ * `/unmute`. They are absent from the datadog-api-client-go generator spec but are
+ * still implemented by Datadog's official Python client (`datadogpy` Monitor.mute /
+ * Monitor.unmute), which is the source for these request shapes.
+ */
+export interface MuteMonitorParams extends DatadogBaseParams {
+  monitorId: string
+  scope?: string
+  end?: number
+}
+
+export interface UnmuteMonitorParams extends DatadogBaseParams {
+  monitorId: string
+  scope?: string
+  allScopes?: boolean
+}
+
+interface MonitorMuteOutput {
+  success: boolean
+  monitorId?: number
+  name?: string
+  overallState?: string
+}
+
+export interface MuteMonitorResponse extends ToolResponse {
+  output: MonitorMuteOutput
+}
+
+export interface UnmuteMonitorResponse extends ToolResponse {
+  output: MonitorMuteOutput
+}
+
 // LOGS TYPES
 
 /**
@@ -1123,6 +1156,8 @@ export type DatadogResponse =
   | CreateMonitorResponse
   | GetMonitorResponse
   | ListMonitorsResponse
+  | MuteMonitorResponse
+  | UnmuteMonitorResponse
   | SendLogsResponse
   | QueryLogsResponse
   | CreateDowntimeResponse

@@ -26,12 +26,14 @@ import { listSecuritySignalsTool } from '@/tools/datadog/list_security_signals'
 import { listServicesTool } from '@/tools/datadog/list_services'
 import { listSlosTool } from '@/tools/datadog/list_slos'
 import { listSyntheticsTestsTool } from '@/tools/datadog/list_synthetics_tests'
+import { muteMonitorTool } from '@/tools/datadog/mute_monitor'
 import { queryLogsTool } from '@/tools/datadog/query_logs'
 import { queryTimeseriesTool } from '@/tools/datadog/query_timeseries'
 import { searchSpansTool } from '@/tools/datadog/search_spans'
 import { sendLogsTool } from '@/tools/datadog/send_logs'
 import { submitMetricsTool } from '@/tools/datadog/submit_metrics'
 import { triggerSyntheticsTestsTool } from '@/tools/datadog/trigger_synthetics_tests'
+import { unmuteMonitorTool } from '@/tools/datadog/unmute_monitor'
 import { updateIncidentTool } from '@/tools/datadog/update_incident'
 import { updateSecuritySignalAssigneeTool } from '@/tools/datadog/update_security_signal_assignee'
 import { updateSecuritySignalStateTool } from '@/tools/datadog/update_security_signal_state'
@@ -44,6 +46,8 @@ export const datadogCreateEventTool = createEventTool
 export const datadogCreateMonitorTool = createMonitorTool
 export const datadogGetMonitorTool = getMonitorTool
 export const datadogListMonitorsTool = listMonitorsTool
+export const datadogMuteMonitorTool = muteMonitorTool
+export const datadogUnmuteMonitorTool = unmuteMonitorTool
 export const datadogQueryLogsTool = queryLogsTool
 export const datadogSendLogsTool = sendLogsTool
 export const datadogCreateDowntimeTool = createDowntimeTool
