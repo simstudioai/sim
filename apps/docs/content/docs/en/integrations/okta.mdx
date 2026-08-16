@@ -1219,7 +1219,7 @@ Query the Okta System Log for sign-ins, admin changes, and security events. Supp
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
-| `since` | string | No | Start of the query time window as an ISO 8601 timestamp \(default: 7 days before "until"\) |
+| `since` | string | No | Start of the query time window as an ISO 8601 timestamp \(default: 7 days before "until"\). Ignored when a cursor is supplied in "after", which already encodes the resume position |
 | `until` | string | No | End of the query time window as an ISO 8601 timestamp \(default: now\) |
 | `filter` | string | No | SCIM filter expression \(e.g., eventType eq "user.session.start" or outcome.result eq "FAILURE"\) |
 | `q` | string | No | Keyword search across the event payload \(max 40 characters per keyword, max 10 keywords\) |
