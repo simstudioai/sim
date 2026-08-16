@@ -13,6 +13,46 @@ const PROJECT_FIELD = ['projectId', 'manualProjectId'] as const
 /** Canonical `files` pair: upload (basic) and file reference (advanced). */
 const ATTACHMENT_FIELD = ['attachmentFiles', 'files'] as const
 
+/**
+ * Operations whose Jira endpoint consumes a project: `jira_write` posts to it,
+ * `jira_bulk_read` resolves it into a `project = "KEY"` JQL clause, and
+ * `jira_get_project` addresses it directly.
+ */
+const PROJECT_PARAM_OPERATIONS = ['write', 'read-bulk', 'get_project'] as const
+
+/**
+ * Operations that address a single issue. The endpoint takes only the issue key,
+ * but the project still scopes the issue picker, so both must stay visible.
+ */
+const ISSUE_KEY_OPERATIONS = [
+  'read',
+  'update',
+  'delete',
+  'assign',
+  'transition',
+  'add_comment',
+  'get_comments',
+  'update_comment',
+  'delete_comment',
+  'get_attachments',
+  'add_attachment',
+  'add_worklog',
+  'get_worklogs',
+  'update_worklog',
+  'delete_worklog',
+  'add_watcher',
+  'remove_watcher',
+  'get_transitions',
+] as const
+
+/**
+ * Every operation that shows the project selector: those that send a project and
+ * those whose issue picker it scopes. The rest (issue/user search, site-wide
+ * lookups, issue links, attachment delete) accept no project parameter and have
+ * no dependent selector, so the field would only invite a hardcoded project id.
+ */
+const PROJECT_SCOPED_OPERATIONS = [...PROJECT_PARAM_OPERATIONS, ...ISSUE_KEY_OPERATIONS] as const
+
 export const JiraBlock: BlockConfig<JiraResponse> = {
   type: 'jira',
   name: 'Jira',
@@ -38,8 +78,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
     sentences: {
       byOperation: {
-        read: [{ text: 'Read issue', field: ISSUE_FIELD, core: true }],
-        'read-bulk': [{ text: 'Read all issues in', field: PROJECT_FIELD, core: true }],
+        read: [{ text: 'Get issue', field: ISSUE_FIELD, core: true }],
+        'read-bulk': [{ text: 'Get all issues in', field: PROJECT_FIELD, core: true }],
         update: [
           { text: 'Update issue', field: ISSUE_FIELD, core: true },
           { text: ', setting summary to', field: 'summary' },
@@ -140,8 +180,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'Read Issue', id: 'read' },
-        { label: 'Read Bulk Issues', id: 'read-bulk' },
+        { label: 'Get Issue', id: 'read' },
+        { label: 'Get Bulk Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
         { label: 'Delete Issue', id: 'delete' },
@@ -211,7 +251,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
-      required: { field: 'operation', value: ['write', 'read-bulk', 'get_project'] },
+      condition: { field: 'operation', value: [...PROJECT_SCOPED_OPERATIONS] },
+      required: { field: 'operation', value: [...PROJECT_PARAM_OPERATIONS] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -222,7 +263,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
-      required: { field: 'operation', value: ['write', 'read-bulk', 'get_project'] },
+      condition: { field: 'operation', value: [...PROJECT_SCOPED_OPERATIONS] },
+      required: { field: 'operation', value: [...PROJECT_PARAM_OPERATIONS] },
     },
     // Issue selector (basic mode)
     {
@@ -234,52 +276,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       selectorKey: 'jira.issues',
       placeholder: 'Select Jira issue',
       dependsOn: ['credential', 'domain', 'projectId'],
-      condition: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'assign',
-          'transition',
-          'add_comment',
-          'get_comments',
-          'update_comment',
-          'delete_comment',
-          'get_attachments',
-          'add_attachment',
-          'add_worklog',
-          'get_worklogs',
-          'update_worklog',
-          'delete_worklog',
-          'add_watcher',
-          'remove_watcher',
-          'get_transitions',
-        ],
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'assign',
-          'transition',
-          'add_comment',
-          'get_comments',
-          'update_comment',
-          'delete_comment',
-          'get_attachments',
-          'add_attachment',
-          'add_worklog',
-          'get_worklogs',
-          'update_worklog',
-          'delete_worklog',
-          'add_watcher',
-          'remove_watcher',
-          'get_transitions',
-        ],
-      },
+      condition: { field: 'operation', value: [...ISSUE_KEY_OPERATIONS] },
+      required: { field: 'operation', value: [...ISSUE_KEY_OPERATIONS] },
       mode: 'basic',
     },
     // Manual issue key input (advanced mode)
@@ -290,52 +288,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       canonicalParamId: 'issueKey',
       placeholder: 'Enter Jira issue key',
       dependsOn: ['credential', 'domain', 'projectId'],
-      condition: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'assign',
-          'transition',
-          'add_comment',
-          'get_comments',
-          'update_comment',
-          'delete_comment',
-          'get_attachments',
-          'add_attachment',
-          'add_worklog',
-          'get_worklogs',
-          'update_worklog',
-          'delete_worklog',
-          'add_watcher',
-          'remove_watcher',
-          'get_transitions',
-        ],
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'assign',
-          'transition',
-          'add_comment',
-          'get_comments',
-          'update_comment',
-          'delete_comment',
-          'get_attachments',
-          'add_attachment',
-          'add_worklog',
-          'get_worklogs',
-          'update_worklog',
-          'delete_worklog',
-          'add_watcher',
-          'remove_watcher',
-          'get_transitions',
-        ],
-      },
+      condition: { field: 'operation', value: [...ISSUE_KEY_OPERATIONS] },
+      required: { field: 'operation', value: [...ISSUE_KEY_OPERATIONS] },
       mode: 'advanced',
     },
     {
