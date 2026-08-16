@@ -19,11 +19,11 @@ import {
   COMPARISON_OPERATORS,
   MULTI_SELECT_FILTER_OPERATORS,
   SINGLE_SELECT_FILTER_OPERATORS,
-  VALUELESS_OPERATORS,
 } from '@/lib/table/query-builder/constants'
 import {
   filterRulesToPredicate,
   predicateToFilterRules,
+  VALUELESS_OPS,
 } from '@/lib/table/query-builder/converters'
 
 const SINGLE_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
@@ -37,6 +37,17 @@ export const FILTER_DEBOUNCE_MS = 250
 
 function selectFilterOperators(column: ColumnDefinition | undefined): Set<string> {
   return column?.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
+}
+
+/** The predicate the panel's current rows amount to — blank rows contribute nothing. */
+function toAppliedPredicate(
+  rules: FilterRule[],
+  columns: ColumnDefinition[]
+): TablePredicate | null {
+  const validRules = rules.filter(
+    (rule) => rule.column && (rule.value || VALUELESS_OPS.has(rule.operator))
+  )
+  return filterRulesToPredicate(validRules, columns)
 }
 
 interface TableFilterProps {
@@ -58,17 +69,21 @@ export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(funct
   { columns, filter, onChange },
   ref
 ) {
-  const lastAppliedFilterRef = useRef(JSON.stringify(filter))
+  const lastAppliedFilterRef = useRef<string | undefined>(undefined)
   const onChangeRef = useRef(onChange)
   const pendingFilterRef = useRef<PendingFilter | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [rules, setRules] = useState<FilterRule[]>(() => {
-    const fromFilter = predicateToFilterRules(filter).map((rule) => ({
-      ...rule,
-      logicalOperator: 'and' as const,
-    }))
+    const fromFilter = predicateToFilterRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
   })
+  // Seed the "already applied" signature from the rules the panel actually
+  // renders, not the raw prop: a saved tree the flat builder cannot express
+  // (deeply nested groups, wire key order) round-trips differently, and seeding
+  // from the prop would schedule an unedited autosave of that lossy form the
+  // moment the panel opens. The normalized form persists only once the user
+  // really edits a rule.
+  lastAppliedFilterRef.current ??= JSON.stringify(toAppliedPredicate(rules, columns))
   onChangeRef.current = onChange
 
   // `value` is the filter field key (column id); `label` is what the user sees.
@@ -98,6 +113,14 @@ export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(funct
 
   const handleUpdate = useCallback((id: string, field: keyof FilterRule, value: string) => {
     setRules((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
+  }, [])
+
+  const handleToggleLogical = useCallback((id: string) => {
+    setRules((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, logicalOperator: r.logicalOperator === 'and' ? 'or' : 'and' } : r
+      )
+    )
   }, [])
 
   // Switching a rule's column across the select boundary changes what values and
@@ -140,10 +163,7 @@ export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(funct
   useImperativeHandle(ref, () => ({ flush }), [flush])
 
   useEffect(() => {
-    const validRules = rules.filter(
-      (rule) => rule.column && (rule.value || VALUELESS_OPERATORS.has(rule.operator))
-    )
-    const nextFilter = filterRulesToPredicate(validRules, columns)
+    const nextFilter = toAppliedPredicate(rules, columns)
     const signature = JSON.stringify(nextFilter)
     if (signature === lastAppliedFilterRef.current) {
       pendingFilterRef.current = null
@@ -178,6 +198,7 @@ export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(funct
             onUpdate={handleUpdate}
             onColumnChange={handleColumnChange}
             onRemove={handleRemove}
+            onToggleLogical={handleToggleLogical}
           />
         ))}
 
@@ -205,6 +226,7 @@ interface FilterRuleRowProps {
   onUpdate: (id: string, field: keyof FilterRule, value: string) => void
   onColumnChange: (id: string, columnId: string) => void
   onRemove: (id: string) => void
+  onToggleLogical: (id: string) => void
 }
 
 const FilterRuleRow = memo(function FilterRuleRow({
@@ -215,6 +237,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
   onUpdate,
   onColumnChange,
   onRemove,
+  onToggleLogical,
 }: FilterRuleRowProps) {
   // Keep a stale column id selectable/visible (e.g. after the column was
   // removed) instead of falling back to the placeholder while the rule still
@@ -247,9 +270,12 @@ const FilterRuleRow = memo(function FilterRuleRow({
       {isFirst ? (
         <span className='w-[42px] shrink-0 text-right text-[var(--text-muted)] text-xs'>Where</span>
       ) : (
-        <span className='w-[42px] shrink-0 rounded-full py-0.5 text-right text-[10px] text-[var(--text-muted)] uppercase tracking-wide transition-colors hover:text-[var(--text-secondary)]'>
-          and
-        </span>
+        <button
+          onClick={() => onToggleLogical(rule.id)}
+          className='w-[42px] shrink-0 rounded-full py-0.5 text-right text-[10px] text-[var(--text-muted)] uppercase tracking-wide transition-colors hover:text-[var(--text-secondary)]'
+        >
+          {rule.logicalOperator}
+        </button>
       )}
 
       <ChipDropdown
@@ -272,7 +298,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
         className='min-w-[90px]'
       />
 
-      {VALUELESS_OPERATORS.has(rule.operator) ? (
+      {VALUELESS_OPS.has(rule.operator) ? (
         <div className='h-[30px] flex-1' />
       ) : isSelect ? (
         <ChipDropdown

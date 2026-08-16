@@ -62,7 +62,7 @@ describe('TableFilter', () => {
     })
   })
 
-  it('uses fixed AND conjunctions without apply or clear actions', () => {
+  it('offers a toggleable conjunction without apply or clear actions', () => {
     renderFilter(vi.fn())
     const addFilter = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Add filter')
@@ -70,11 +70,14 @@ describe('TableFilter', () => {
 
     act(() => addFilter?.click())
 
-    const conjunction = Array.from(container.querySelectorAll('*')).find(
-      (element) => element.textContent?.trim() === 'and'
+    const conjunction = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'and'
     )
     expect(conjunction).toBeDefined()
-    expect(conjunction?.closest('button')).toBeNull()
+
+    act(() => conjunction?.click())
+    expect(conjunction?.textContent?.trim()).toBe('or')
+
     expect(container.textContent).not.toContain('Apply filter')
     expect(container.textContent).not.toContain('Clear filters')
   })
@@ -141,7 +144,16 @@ describe('TableFilter', () => {
     ).toBe('')
   })
 
-  it('normalizes a previously saved OR filter to AND', () => {
+  it('preserves saved isNull conditions instead of dropping them', () => {
+    const onChange = vi.fn()
+    renderFilter(onChange, { all: [{ field: 'col-name', op: 'isNull' }] })
+
+    act(() => vi.advanceTimersByTime(FILTER_DEBOUNCE_MS))
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('loads a saved OR filter verbatim without an unsolicited autosave', () => {
     const onChange = vi.fn()
     renderFilter(onChange, {
       any: [
@@ -150,6 +162,28 @@ describe('TableFilter', () => {
       ],
     })
 
+    const orToggle = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'or'
+    )
+    expect(orToggle).toBeDefined()
+
+    act(() => vi.advanceTimersByTime(FILTER_DEBOUNCE_MS))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('merges the OR groups when the conjunction is toggled back to and', () => {
+    const onChange = vi.fn()
+    renderFilter(onChange, {
+      any: [
+        { all: [{ field: 'col-name', op: 'eq', value: 'Ada' }] },
+        { all: [{ field: 'col-name', op: 'eq', value: 'Grace' }] },
+      ],
+    })
+
+    const orToggle = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'or'
+    )
+    act(() => orToggle?.click())
     act(() => vi.advanceTimersByTime(FILTER_DEBOUNCE_MS))
 
     expect(onChange).toHaveBeenCalledWith({
