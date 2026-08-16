@@ -3,7 +3,8 @@ import type {
   MicrosoftAdListGroupMembersResponse,
 } from '@/tools/microsoft_ad/types'
 import { MEMBER_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { assertGraphNextPageUrlForCollection } from '@/tools/microsoft_ad/utils'
+import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listGroupMembersTool: ToolConfig<
@@ -48,7 +49,7 @@ export const listGroupMembersTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      if (params.nextLink) return assertGraphNextPageUrl(params.nextLink)
+      if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, ['members'])
       const groupId = params.groupId?.trim()
       if (!groupId) throw new Error('Group ID is required')
       const queryParts = ['$select=id,displayName,mail']
