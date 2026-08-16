@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-15",
+  "updatedAt": "2026-08-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -13338,6 +13338,49 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "microsoft-365"]
+    },
+    {
+      "type": "mssql",
+      "slug": "microsoft-sql-server",
+      "name": "Microsoft SQL Server",
+      "description": "Connect to Microsoft SQL Server database",
+      "longDescription": "Integrate Microsoft SQL Server into the workflow. Can query, insert, update, delete, execute raw T-SQL, and introspect schemas.",
+      "bgColor": "#FFFFFF",
+      "iconName": "MicrosoftSqlIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mssql",
+      "operations": [
+        {
+          "name": "Query (SELECT)",
+          "description": "Execute a SELECT query on a Microsoft SQL Server database"
+        },
+        {
+          "name": "Insert Data",
+          "description": "Insert data into a Microsoft SQL Server table"
+        },
+        {
+          "name": "Update Data",
+          "description": "Update rows in a Microsoft SQL Server table"
+        },
+        {
+          "name": "Delete Data",
+          "description": "Delete rows from a Microsoft SQL Server table"
+        },
+        {
+          "name": "Execute Raw SQL",
+          "description": "Execute a raw T-SQL statement on a Microsoft SQL Server database"
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes. Results only cover objects the login can see, so a low-privilege account returns a partial schema rather than an error"
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "none",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
     },
     {
       "type": "microsoft_teams",

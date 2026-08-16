@@ -221,6 +221,7 @@ import {
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
+import { MSSQLBlock, MSSQLBlockMeta } from '@/blocks/blocks/mssql'
 import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
 import { NetSuiteBlock, NetSuiteBlockMeta } from '@/blocks/blocks/netsuite'
@@ -553,6 +554,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
+  mssql: MSSQLBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
   netsuite: NetSuiteBlock,
@@ -860,6 +862,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mistral_parse: MistralParseBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,
+  mssql: MSSQLBlockMeta,
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
   netsuite: NetSuiteBlockMeta,

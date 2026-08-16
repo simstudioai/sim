@@ -284,7 +284,7 @@ const SQL_WHERE_RAW_PATTERNS: readonly RegExp[] = [
  * scans do not treat data inside quotes as SQL. Comments are intentionally left
  * intact so comment-injection sequences are still detected.
  */
-function maskSqlStringLiterals(sql: string): string {
+export function maskSqlStringLiterals(sql: string): string {
   let out = ''
   let i = 0
   while (i < sql.length) {
