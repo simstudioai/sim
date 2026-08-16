@@ -20,7 +20,7 @@
  *   bun run scripts/sync-skills.ts --check   # fail (exit 1) if any projection is stale
  */
 import { lstat, mkdir, readdir, readFile, readlink, rm, rmdir, symlink } from 'node:fs/promises'
-import { dirname, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -73,6 +73,36 @@ async function loadCanonicalSkills(): Promise<Skill[]> {
   return skills
 }
 
+/** Find generated Claude links whose canonical skill no longer exists. */
+async function findOrphanedClaudeLinks(expectedPaths: ReadonlySet<string>): Promise<string[]> {
+  const entries = await readdir(CLAUDE_SKILLS_DIR, { withFileTypes: true }).catch(
+    (error: unknown) => {
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+      if (code === 'ENOENT') return []
+      throw error
+    }
+  )
+  const orphaned: string[] = []
+
+  for (const entry of entries) {
+    if (!entry.isSymbolicLink()) continue
+    const path = resolve(CLAUDE_SKILLS_DIR, entry.name)
+    if (expectedPaths.has(path)) continue
+
+    const target = resolve(dirname(path), await readlink(path))
+    const canonicalRelative = relative(CANONICAL_DIR, target)
+    const targetsCanonicalSkills =
+      canonicalRelative === '' ||
+      (!isAbsolute(canonicalRelative) &&
+        canonicalRelative !== '..' &&
+        !canonicalRelative.startsWith(`..${sep}`))
+    if (targetsCanonicalSkills) orphaned.push(path)
+  }
+
+  return orphaned
+}
+
 async function main() {
   const check = process.argv.includes('--check')
   const skills = await loadCanonicalSkills()
@@ -90,6 +120,7 @@ async function main() {
   ])
 
   const stale: string[] = []
+  const expectedClaudePaths = new Set(claudeLinks.map(({ path }) => path))
   for (const { path, target } of claudeLinks) {
     const current = await readlink(path).catch(() => null)
     if (current === target) continue
@@ -104,6 +135,12 @@ async function main() {
       await mkdir(dirname(path), { recursive: true })
       await symlink(target, path, 'dir')
     }
+  }
+
+  const orphanedClaudeLinks = await findOrphanedClaudeLinks(expectedClaudePaths)
+  for (const path of orphanedClaudeLinks) {
+    stale.push(`${path.replace(`${ROOT}/`, '')} (orphaned)`)
+    if (!check) await rm(path)
   }
 
   for (const path of deprecatedTargets) {
