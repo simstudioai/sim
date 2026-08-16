@@ -97,7 +97,8 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import {
-  loadOAuthCredentialDraftBinding,
+  captureOAuthCredentialDraftBinding,
+  consumeOAuthCredentialDraftBinding,
   processCredentialDraft,
 } from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -404,8 +405,21 @@ export const auth = betterAuth({
     },
     account: {
       create: {
-        before: async (account) => {
+        before: async (account, context) => {
           const modifiedAccount = { ...account }
+
+          if (context?.path.startsWith('/oauth2/callback/')) {
+            try {
+              await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
+            } catch (error) {
+              logger.error('[account.create.before] Failed to read OAuth credential draft state', {
+                userId: account.userId,
+                providerId: account.providerId,
+                error,
+              })
+              throw error
+            }
+          }
 
           if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
             const instanceUrl = await fetchSalesforceInstanceUrl(
@@ -433,7 +447,7 @@ export const auth = betterAuth({
 
           return { data: modifiedAccount }
         },
-        after: async (account) => {
+        after: async (account, context) => {
           /**
            * Migrate credentials from stale account rows to the newly created one.
            *
@@ -526,18 +540,18 @@ export const auth = betterAuth({
             }
           }
 
-          const credentialDraftBinding = await loadOAuthCredentialDraftBinding(() =>
-            getOAuthState()
-          )
-          if (credentialDraftBinding.status === 'unavailable') {
-            logger.error('[account.create.after] Failed to read OAuth credential draft state', {
-              userId: account.userId,
-              providerId: account.providerId,
-              error: credentialDraftBinding.error,
-            })
+          const isOAuth2Callback = context?.path.startsWith('/oauth2/callback/') === true
+          const credentialDraftBinding = context
+            ? consumeOAuthCredentialDraftBinding(context)
+            : undefined
+
+          if (isOAuth2Callback && !credentialDraftBinding) {
+            throw new Error(
+              'OAuth credential draft binding was not captured before account creation'
+            )
           }
 
-          if (credentialDraftBinding.status === 'available') {
+          if (credentialDraftBinding) {
             try {
               await processCredentialDraft({
                 draftId: credentialDraftBinding.draftId,

@@ -256,6 +256,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     setSubmitError(null)
     try {
       let connectorType: string | undefined
+      let draftId: string | undefined
 
       if (isConnect) {
         const trimmed = displayName.trim()
@@ -264,12 +265,13 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           return
         }
 
-        await createDraft.mutateAsync({
+        const draft = await createDraft.mutateAsync({
           workspaceId,
           providerId,
           displayName: trimmed,
           description: description.trim() || undefined,
         })
+        draftId = draft.draftId
 
         const preCount = credentials.filter(
           (c) => c.type === 'oauth' && c.providerId === providerId
@@ -279,6 +281,15 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
           displayName: trimmed,
           providerId,
           preCount,
+          baselineCredentials: credentials
+            .filter(
+              (credential) => credential.type === 'oauth' && credential.providerId === providerId
+            )
+            .map((credential) => ({
+              id: credential.id,
+              accountId: credential.accountId,
+              updatedAt: credential.updatedAt,
+            })),
           workspaceId,
           requestedAt: Date.now(),
         }
@@ -319,6 +330,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       await connectOAuthService.mutateAsync({
         providerId,
         callbackURL: callbackURL.toString(),
+        draftId,
       })
       handleClose()
     } catch (err: unknown) {

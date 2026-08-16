@@ -572,6 +572,7 @@ const WorkflowContent = React.memo(
           providerId: detail.providerId,
           preCount: 0,
           workspaceId,
+          reconnect: true,
           requestedAt: Date.now(),
         })
 

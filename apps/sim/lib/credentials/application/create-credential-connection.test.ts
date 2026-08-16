@@ -97,7 +97,6 @@ describe('createCredentialConnection', () => {
       providerId: 'google-email',
       credentialId: undefined,
       displayName: 'Work Gmail',
-      displayNameDefinesIntent: true,
     })
     expect(result).toEqual({
       authorizationUrl: 'https://sim.ai/api/auth/oauth2/authorize?draftId=draft-1',
@@ -127,7 +126,6 @@ describe('createCredentialConnection', () => {
       providerId: 'google-email',
       credentialId: 'credential-1',
       displayName: 'Existing Gmail',
-      displayNameDefinesIntent: false,
     })
   })
 })

@@ -2,8 +2,7 @@ import { db } from '@sim/db'
 import { credential, pendingCredentialDraft, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, gt, isNull, lt } from 'drizzle-orm'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { and, eq, gt, lt } from 'drizzle-orm'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
 import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
 import { credentialProviderMatchesService, getAllOAuthServices } from '@/lib/oauth/utils'
@@ -30,8 +29,6 @@ export async function createConnectDraft(params: {
   /** Reconnect only: the credential's actual name, so audit records stay accurate. */
   displayName?: string
   description?: string
-  /** Whether an explicitly requested name distinguishes this new-connection intent. */
-  displayNameDefinesIntent?: boolean
 }): Promise<CreatedConnectDraft> {
   const { userId, workspaceId, providerId, credentialId } = params
 
@@ -70,12 +67,6 @@ export async function createConnectDraft(params: {
       and(eq(pendingCredentialDraft.userId, userId), lt(pendingCredentialDraft.expiresAt, now))
     )
   const id = generateId()
-  const sameTarget = credentialId
-    ? eq(pendingCredentialDraft.credentialId, credentialId)
-    : isNull(pendingCredentialDraft.credentialId)
-  const sameIntent = params.displayNameDefinesIntent
-    ? and(sameTarget, eq(pendingCredentialDraft.displayName, displayName))
-    : sameTarget
   const [draft] = await db
     .insert(pendingCredentialDraft)
     .values({
@@ -95,16 +86,24 @@ export async function createConnectDraft(params: {
         pendingCredentialDraft.providerId,
         pendingCredentialDraft.workspaceId,
       ],
-      set: { expiresAt, createdAt: now },
-      setWhere: sameIntent,
+      /**
+       * A new launch supersedes an abandoned or failed launch for this provider.
+       * Rotating the primary key invalidates the earlier callback's exact draft
+       * binding, so only the newest OAuth flow can materialize its intent.
+       */
+      set: {
+        id,
+        displayName,
+        description: params.description?.trim() || null,
+        credentialId: credentialId ?? null,
+        expiresAt,
+        createdAt: now,
+      },
     })
     .returning({ id: pendingCredentialDraft.id, expiresAt: pendingCredentialDraft.expiresAt })
 
   if (!draft) {
-    throw new OrchestrationError(
-      'conflict',
-      'A different OAuth connection flow is already active for this provider'
-    )
+    throw new Error('Failed to create OAuth credential draft')
   }
 
   logger.info('Created OAuth connect credential draft', {
