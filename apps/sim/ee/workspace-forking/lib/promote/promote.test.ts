@@ -107,6 +107,14 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
   deleteWorkflowIdentityByIds: vi.fn(),
   upsertEdgeMappings: vi.fn(),
 }))
+// Re-homing has its own suite (`rehome-mapped.test.ts`); stub it here so these promote
+// orchestration tests are not coupled to its queries.
+vi.mock('@/ee/workspace-forking/lib/promote/rehome-mapped', () => ({
+  rehomeFlattenedForkResources: vi.fn(async () => ({
+    folderIdMap: new Map(),
+    rehomed: { file: 0, table: 0, knowledge_base: 0 },
+  })),
+}))
 vi.mock('@/ee/workspace-forking/lib/promote/cleared-refs', () => ({
   collectForkSyncBlockers: mockCollectBlockers,
   verifyForkDropAcknowledgments: mockVerifyDrops,

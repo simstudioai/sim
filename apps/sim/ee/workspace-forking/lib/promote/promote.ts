@@ -82,6 +82,7 @@ import {
   type PromoteRunWorkflowSnapshot,
   upsertPromoteRun,
 } from '@/ee/workspace-forking/lib/promote/promote-run-store'
+import { rehomeFlattenedForkResources } from '@/ee/workspace-forking/lib/promote/rehome-mapped'
 import {
   buildForkTriggerPlan,
   type ForkTriggerMappingInput,
@@ -557,8 +558,24 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       targetWorkspaceId,
       userId,
       now,
+      resourceType: 'workflow',
       contentFolderIds: plan.items.map((item) => item.sourceMeta.folderId),
     })
+
+    // Heal earlier syncs that landed mapped files/tables/KBs at the target root before folder
+    // structure transited a fork edge. Touches only still-flattened rows, so it converges to a
+    // no-op and never overrides a placement chosen in the target.
+    const rehomeResult = await rehomeFlattenedForkResources({
+      tx,
+      edge,
+      sourceWorkspaceId,
+      targetWorkspaceId,
+      direction,
+      userId,
+      now,
+      requestId,
+    })
+    for (const [source, target] of rehomeResult.folderIdMap) folderIdMap.set(source, target)
 
     let resolver = plan.resolver
     let copyContentPlan: ForkContentPlan | null = null
