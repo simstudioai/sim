@@ -746,7 +746,10 @@ const HOST_GROUP_ACTIONS = ['add-hosts', 'remove-hosts'] as const
  * and it accepts only these base commands. Subcommands ride in `command_string`
  * (`eventlog view ...`, `reg query ...`), never in `base_command`; the write-tier
  * variants such as `eventlog backup` belong to `/entities/active-responder-command/v1`
- * and would fail here on scope.
+ * and would fail here on scope. `reg` is read-tier only as `reg query` — `reg set`
+ * and `reg delete` are Active Responder commands on that same write-tier endpoint.
+ * `ifconfig` and `users` are the macOS/Linux counterparts to `ipconfig` and are
+ * read-tier on this endpoint.
  */
 export const RTR_READ_ONLY_BASE_COMMANDS = [
   'cat',
@@ -759,12 +762,14 @@ export const RTR_READ_ONLY_BASE_COMMANDS = [
   'getsid',
   'help',
   'history',
+  'ifconfig',
   'ipconfig',
   'ls',
   'mount',
   'netstat',
   'ps',
   'reg',
+  'users',
 ] as const
 
 const performHostGroupActionSchema = baseRequestSchema.extend({
@@ -814,10 +819,10 @@ const getIndicatorDetailsSchema = baseRequestSchema.extend({
  * constrained here. Unknown keys pass through so newly documented IOC fields keep
  * working without a contract change.
  *
- * This guards blanks only. CrowdStrike separately documents that *omitting* a
- * field on PATCH also overwrites it with a blank value, and no schema can detect
- * an absent key — that hazard is carried in the `crowdstrike_update_indicators`
- * tool and parameter descriptions instead.
+ * This guards blanks only. Omitted fields have also been observed to come back
+ * cleared after a PATCH — CrowdStrike publishes no statement either way — and no
+ * schema can detect an absent key, so that hazard is carried in the
+ * `crowdstrike_update_indicators` tool and parameter descriptions instead.
  */
 const indicatorPayloadSchema = z
   .object({
@@ -878,7 +883,10 @@ const createIndicatorsSchema = baseRequestSchema.extend({
   indicators: z
     .array(createIndicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
-    .max(200, 'CrowdStrike accepts at most 200 indicators per request'),
+    .max(
+      200,
+      'Sim caps this request at 200 indicators; CrowdStrike publishes no limit for this endpoint'
+    ),
   comment: nonBlankQuerySchema('Comment'),
   retrodetects: z.boolean().optional(),
   ignoreWarnings: z.boolean().optional(),
@@ -889,7 +897,10 @@ const updateIndicatorsSchema = baseRequestSchema.extend({
   indicators: z
     .array(updateIndicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
-    .max(200, 'CrowdStrike accepts at most 200 indicators per request'),
+    .max(
+      200,
+      'Sim caps this request at 200 indicators; CrowdStrike publishes no limit for this endpoint'
+    ),
   comment: nonBlankQuerySchema('Comment'),
   retrodetects: z.boolean().optional(),
   ignoreWarnings: z.boolean().optional(),

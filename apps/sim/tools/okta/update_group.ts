@@ -56,9 +56,9 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
     },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Updated group name',
+      description: 'Updated group name. Leave blank to keep the stored name',
     },
     description: {
       type: 'string',

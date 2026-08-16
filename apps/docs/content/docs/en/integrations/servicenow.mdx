@@ -142,7 +142,7 @@ Compute aggregate statistics (count, sum, average, min, max, group by) over a Se
 | `sumFields` | string | No | Comma-separated numeric fields to sum |
 | `minFields` | string | No | Comma-separated fields to compute the minimum of |
 | `maxFields` | string | No | Comma-separated fields to compute the maximum of |
-| `having` | string | No | Filter on aggregate results \(e.g., "count&gt;5"\) |
+| `having` | string | No | Filter on aggregate results, written as aggregate^field^operator^value and comma-separated for more than one \(e.g., "count^priority^&gt;^3" or "count^state^=^1,avg^priority^&gt;^3"\) |
 | `displayValue` | string | No | Return display values for grouped reference fields: "true", "false", or "all" |
 
 #### Output

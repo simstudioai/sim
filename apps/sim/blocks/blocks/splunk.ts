@@ -16,6 +16,26 @@ function toSplunkToggle(value: unknown): boolean | undefined {
   return value !== 'false' && value !== '0'
 }
 
+/**
+ * Assign a numeric Splunk field, dropping anything that is not a finite number.
+ *
+ * A bare `Number()` turns a typo like `abc` into `NaN`, which serializes into the
+ * query string or form body as the literal `NaN` — Splunk then rejects the whole
+ * request with an error that names the field but not the cause. Omitting the field
+ * instead lets Splunk apply its own documented default, which is what an unusable
+ * value should fall back to.
+ *
+ * An untouched subBlock resolves to `null` and an empty one to `''`; both are
+ * omissions rather than zeros, so neither may reach `Number()` (which reads both
+ * as `0`).
+ */
+function assignSplunkNumber(target: Record<string, unknown>, key: string, value: unknown): void {
+  if (value == null || value === '') return
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return
+  target[key] = parsed
+}
+
 export const SplunkBlock: BlockConfig<SplunkResponse> = {
   type: 'splunk',
   name: 'Splunk',
@@ -133,7 +153,7 @@ export const SplunkBlock: BlockConfig<SplunkResponse> = {
       id: 'owner',
       title: 'Namespace Owner',
       type: 'short-input',
-      placeholder: 'nobody',
+      placeholder: '-',
       mode: 'advanced',
     },
     {
@@ -405,11 +425,20 @@ Examples:
       condition: { field: 'operation', value: 'splunk_list_indexes' },
     },
 
+    /**
+     * One Max Results field serves five operations whose defaults differ (30 for
+     * the four collection endpoints, 100 for search results) and whose handling of
+     * `count=0` differs too — the collections read it as "every entry", while
+     * search results reject it because nothing downstream bounds that read. This
+     * block keeps subBlock ids unique, so rather than state one group's rule as if
+     * it were shared, the placeholder states neither and the per-operation detail
+     * lives in the `count` input description.
+     */
     {
       id: 'count',
       title: 'Max Results',
       type: 'short-input',
-      placeholder: '100 (0 returns all)',
+      placeholder: 'Leave empty for the Splunk default',
       condition: {
         field: 'operation',
         value: [
@@ -460,17 +489,17 @@ Examples:
       params: (params) => {
         const result: Record<string, unknown> = {}
 
-        if (params.count != null && params.count !== '') result.count = Number(params.count)
-        if (params.offset != null && params.offset !== '') result.offset = Number(params.offset)
+        assignSplunkNumber(result, 'count', params.count)
+        assignSplunkNumber(result, 'offset', params.offset)
 
         switch (params.operation) {
           case 'splunk_run_search':
-            if (params.autoCancel) result.autoCancel = Number(params.autoCancel)
-            if (params.maxCount) result.maxCount = Number(params.maxCount)
+            assignSplunkNumber(result, 'autoCancel', params.autoCancel)
+            assignSplunkNumber(result, 'maxCount', params.maxCount)
             break
           case 'splunk_create_search_job':
-            if (params.autoCancel) result.autoCancel = Number(params.autoCancel)
-            if (params.maxCount) result.maxCount = Number(params.maxCount)
+            assignSplunkNumber(result, 'autoCancel', params.autoCancel)
+            assignSplunkNumber(result, 'maxCount', params.maxCount)
             result.enableLookups = toSplunkToggle(params.enableLookups)
             result.allowPartialResults = toSplunkToggle(params.allowPartialResults)
             break
@@ -485,9 +514,9 @@ Examples:
             result.name = params.savedSearchName
             result.triggerActions = toSplunkToggle(params.triggerActions)
             result.forceDispatch = toSplunkToggle(params.forceDispatch)
-            if (params.dispatchMaxCount) result.dispatchMaxCount = Number(params.dispatchMaxCount)
-            if (params.dispatchMaxTime) result.dispatchMaxTime = Number(params.dispatchMaxTime)
-            if (params.dispatchTtl) result.dispatchTtl = Number(params.dispatchTtl)
+            assignSplunkNumber(result, 'dispatchMaxCount', params.dispatchMaxCount)
+            assignSplunkNumber(result, 'dispatchMaxTime', params.dispatchMaxTime)
+            assignSplunkNumber(result, 'dispatchTtl', params.dispatchTtl)
             break
           case 'splunk_get_fired_alerts':
             result.name = params.alertName
@@ -552,7 +581,11 @@ Examples:
       description: 'Whether to dispatch even when the saved search is already running',
     },
     datatype: { type: 'string', description: 'Index type filter: all, event, or metric' },
-    count: { type: 'number', description: 'Maximum number of entries to return' },
+    count: {
+      type: 'number',
+      description:
+        'Maximum number of entries to return. The Splunk default is 30 for the collection endpoints and 100 for search results. The collection endpoints read 0 as "return every entry"; search results reject it, since a completed job can hold hundreds of thousands of rows.',
+    },
     offset: { type: 'number', description: 'Index of the first entry to return' },
   },
 
@@ -632,6 +665,15 @@ Examples:
     apps: {
       type: 'json',
       description: 'Apps installed on the instance (name, label, version, author, disabled)',
+    },
+    total: {
+      type: 'number',
+      description:
+        'Total number of entries matching a list request, from the response paging envelope. Compare with offset to decide whether another page remains.',
+    },
+    offset: {
+      type: 'number',
+      description: 'Offset of the first entry in the returned page, from the paging envelope',
     },
   },
 }

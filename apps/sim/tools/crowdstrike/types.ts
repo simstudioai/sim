@@ -101,6 +101,7 @@ interface CrowdStrikeSensor {
 export interface CrowdStrikeQuerySensorsResponse extends ToolResponse {
   output: {
     count: number
+    errors: CrowdStrikeApiError[]
     pagination: CrowdStrikePagination | null
     sensors: CrowdStrikeSensor[]
   }
@@ -109,6 +110,7 @@ export interface CrowdStrikeQuerySensorsResponse extends ToolResponse {
 export interface CrowdStrikeGetSensorDetailsResponse extends ToolResponse {
   output: {
     count: number
+    errors: CrowdStrikeApiError[]
     pagination: CrowdStrikePagination | null
     sensors: CrowdStrikeSensor[]
   }
@@ -138,6 +140,7 @@ export interface CrowdStrikeGetSensorAggregatesResponse extends ToolResponse {
   output: {
     aggregates: CrowdStrikeSensorAggregateResult[]
     count: number
+    errors: CrowdStrikeApiError[]
   }
 }
 

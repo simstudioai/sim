@@ -8,6 +8,7 @@ const { fetchMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
 }))
 
+import { MAX_ID_URL_BYTES } from '@/app/api/tools/crowdstrike/query/operations'
 import { POST } from '@/app/api/tools/crowdstrike/query/route'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -932,5 +933,280 @@ describe('CrowdStrike extended operations', () => {
     expect(new URL(fetchMock.mock.calls[1][0]).searchParams.get('action_name')).toBe(
       'detection_suppress'
     )
+  })
+
+  describe('by-ids URL byte budget', () => {
+    /** Long enough that the contract maxima would generate a URL past any proxy limit. */
+    function longIds(count: number, prefix: string): string[] {
+      return Array.from({ length: count }, (_, index) =>
+        `${prefix}-${String(index).padStart(4, '0')}`.padEnd(64, 'x')
+      )
+    }
+
+    function idsFromUrl(rawUrl: string): string[] {
+      return new URL(rawUrl).searchParams.getAll('ids')
+    }
+
+    /** The 8 KB request line + header cap common to proxies and load balancers. */
+    const PROXY_REQUEST_LINE_LIMIT = 8192
+
+    it('keeps the budget under the request-line limit proxies enforce', () => {
+      expect(MAX_ID_URL_BYTES).toBeLessThanOrEqual(PROXY_REQUEST_LINE_LIMIT)
+    })
+
+    it('splits an oversized indicator lookup into batches that each stay under the URL budget', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+
+      fetchMock.mockImplementation((rawUrl: string) =>
+        Promise.resolve(
+          jsonResponse({
+            meta: { pagination: { limit: 1, offset: 0, total: 300 } },
+            resources: idsFromUrl(rawUrl).map((id) => ({ id, type: 'sha256', value: id })),
+          })
+        )
+      )
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_get_indicator_details', indicatorIds })
+      )
+      const data = await response.json()
+
+      const lookupUrls = fetchMock.mock.calls.slice(1).map((call) => String(call[0]))
+      expect(lookupUrls.length).toBeGreaterThan(1)
+      for (const url of lookupUrls) {
+        expect(url.length).toBeLessThanOrEqual(MAX_ID_URL_BYTES)
+      }
+
+      expect(response.status).toBe(200)
+      expect(data.output.count).toBe(300)
+      expect(data.output.indicators.map((indicator: { id: string }) => indicator.id)).toEqual(
+        indicatorIds
+      )
+      expect(lookupUrls.flatMap(idsFromUrl)).toEqual(indicatorIds)
+    })
+
+    it('merges the envelope errors every batch reported', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        const ids = idsFromUrl(rawUrl)
+        return Promise.resolve(
+          jsonResponse({
+            resources: ids.slice(1).map((id) => ({ id, type: 'sha256', value: id })),
+            errors: [{ code: 404, id: ids[0], message: 'Indicator not found' }],
+          })
+        )
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_get_indicator_details', indicatorIds })
+      )
+      const data = await response.json()
+
+      const batchCount = fetchMock.mock.calls.length - 1
+      expect(batchCount).toBeGreaterThan(1)
+      expect(data.output.errors).toHaveLength(batchCount)
+    })
+
+    it('surfaces an upstream failure raised by a later batch instead of swallowing it', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+      let lookupCall = 0
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        lookupCall += 1
+        if (lookupCall === 2) {
+          return Promise.resolve(
+            jsonResponse({ errors: [{ code: 429, message: 'Rate limit exceeded' }] }, 429)
+          )
+        }
+        return Promise.resolve(
+          jsonResponse({
+            resources: idsFromUrl(rawUrl).map((id) => ({ id, type: 'sha256', value: id })),
+          })
+        )
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_get_indicator_details', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(429)
+      expect(data.success).toBe(false)
+      expect(data.error).toBe('Rate limit exceeded')
+    })
+
+    /**
+     * A batched delete has no rollback: every batch that answered `ok` really removed
+     * its indicators. Reporting only the failing batch's message would leave the
+     * caller unable to tell what is already gone, and a blind retry would re-target
+     * IDs that no longer exist.
+     */
+    it('names the indicators earlier batches already deleted when a later batch fails', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+      let deleteCall = 0
+      const deletedByFirstBatch: string[] = []
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        deleteCall += 1
+        if (deleteCall === 2) {
+          return Promise.resolve(
+            jsonResponse({ errors: [{ code: 429, message: 'Rate limit exceeded' }] }, 429)
+          )
+        }
+        const ids = idsFromUrl(rawUrl)
+        deletedByFirstBatch.push(...ids)
+        return Promise.resolve(jsonResponse({ resources: ids }))
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(429)
+      expect(data.success).toBe(false)
+      expect(deletedByFirstBatch.length).toBeGreaterThan(0)
+      expect(data.error).toContain('Rate limit exceeded')
+      expect(data.error).toContain(`${deletedByFirstBatch.length} ID(s) were already deleted`)
+      expect(data.error).toContain(deletedByFirstBatch[0])
+    })
+
+    /**
+     * A batch can answer 200 while reporting per-ID failures in `errors`. Recording
+     * the requested chunk would name indicators that are still live and tell the
+     * caller to drop them from the retry, so only the IDs Falcon echoed in
+     * `resources` count as committed.
+     */
+    it('reports only the IDs Falcon confirmed, not every ID in a partly-failed batch', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+      let deleteCall = 0
+      let skipped = ''
+      const confirmed: string[] = []
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        deleteCall += 1
+        if (deleteCall === 2) {
+          return Promise.resolve(
+            jsonResponse({ errors: [{ code: 429, message: 'Rate limit exceeded' }] }, 429)
+          )
+        }
+        const ids = idsFromUrl(rawUrl)
+        skipped = ids[0]
+        confirmed.push(...ids.slice(1))
+        return Promise.resolve(
+          jsonResponse({
+            resources: ids.slice(1),
+            errors: [{ code: 404, id: ids[0], message: 'Indicator not found' }],
+          })
+        )
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(429)
+      expect(confirmed.length).toBeGreaterThan(0)
+      expect(data.error).toContain(`${confirmed.length} ID(s) were already deleted`)
+      expect(data.error).not.toContain(skipped)
+    })
+
+    /**
+     * A 2xx envelope carrying per-ID errors is a partial success, not a failure —
+     * `failedWithoutResources` only fails the operation when nothing came back at
+     * all. The batched path must report it exactly as a single request would:
+     * `deletedIds` names what Falcon confirmed and `errors` names what it refused,
+     * which is stricter reconciliation than the prose message the transport-failure
+     * path has to fall back on. A retry excludes `deletedIds`.
+     */
+    it('reports a 2xx per-ID delete failure as partial success, matching an unbatched request', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+      let deleteCall = 0
+      let refused = ''
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        deleteCall += 1
+        const ids = idsFromUrl(rawUrl)
+        if (deleteCall === 2) {
+          refused = ids[0]
+          return Promise.resolve(
+            jsonResponse({
+              resources: ids.slice(1),
+              errors: [{ code: 404, id: ids[0], message: 'Indicator not found' }],
+            })
+          )
+        }
+        return Promise.resolve(jsonResponse({ resources: ids }))
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(refused).not.toBe('')
+      expect(data.output.deletedIds).not.toContain(refused)
+      expect(data.output.count).toBe(indicatorIds.length - 1)
+      expect(data.output.errors).toContainEqual(expect.objectContaining({ id: refused, code: 404 }))
+    })
+
+    it('leaves a first-batch delete failure unannotated — nothing was committed', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(jsonResponse({ errors: [{ code: 403, message: 'Access denied' }] }, 403))
+      )
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data.error).toBe('Access denied')
+    })
+
+    it('splits an oversized vulnerability lookup at the Spotlight cap', async () => {
+      const vulnerabilityIds = longIds(400, 'vuln')
+
+      fetchMock.mockImplementation((rawUrl: string) =>
+        Promise.resolve(
+          jsonResponse({
+            resources: idsFromUrl(rawUrl).map((id) => ({ id })),
+          })
+        )
+      )
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_get_vulnerability_details', vulnerabilityIds })
+      )
+      const data = await response.json()
+
+      const lookupUrls = fetchMock.mock.calls.slice(1).map((call) => String(call[0]))
+      expect(lookupUrls.length).toBeGreaterThan(1)
+      for (const url of lookupUrls) {
+        expect(url.length).toBeLessThanOrEqual(MAX_ID_URL_BYTES)
+      }
+      expect(data.output.count).toBe(400)
+    })
+
+    it('keeps a filter-only delete on a single request', async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ resources: ['ioc-1'] }))
+
+      const response = await POST(
+        requestFor({
+          operation: 'crowdstrike_delete_indicators',
+          filter: "source:'automation'",
+          comment: 'cleanup',
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
   })
 })

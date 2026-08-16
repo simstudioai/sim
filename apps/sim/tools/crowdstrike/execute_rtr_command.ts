@@ -11,7 +11,7 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
   id: 'crowdstrike_execute_rtr_command',
   name: 'CrowdStrike Execute RTR Command',
   description:
-    'Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). baseCommand names the family only (cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, reg); subcommands go in commandString. Host-modifying commands need the Active Responder or Admin endpoints. Requires the "Real time response: Read" API scope.',
+    'Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). baseCommand names the family only (cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg, users); subcommands go in commandString. Host-modifying commands need the Active Responder or Admin endpoints. Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
 
   params: {
@@ -44,7 +44,7 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Read-only RTR base command family, one of: cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, reg. Subcommands belong in commandString, not here.',
+        'Read-only RTR base command family, one of: cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg, users. Subcommands belong in commandString, not here — and only reg query is read-tier, since reg set and reg delete are Active Responder commands.',
     },
     commandString: {
       type: 'string',

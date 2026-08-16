@@ -82,7 +82,8 @@ export const updateAccessPolicyTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'How long a session granted by this policy stays valid, e.g. 24h',
+      description:
+        'How long a session granted by this policy stays valid, e.g. 24h. Leave it unset on a policy attached to an infrastructure-typed application — Cloudflare rejects those with error 12130',
     },
     approvalRequired: {
       type: 'boolean',

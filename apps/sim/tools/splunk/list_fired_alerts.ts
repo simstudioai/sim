@@ -10,7 +10,10 @@ import {
   getEntryContent,
   getEntryName,
   getSplunkEntries,
+  getSplunkPaging,
   SPLUNK_CONNECTION_PARAMS,
+  SPLUNK_OFFSET_OUTPUT,
+  SPLUNK_TOTAL_OUTPUT,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -56,6 +59,7 @@ export const listFiredAlertsTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const paging = getSplunkPaging(data)
     return {
       success: true,
       output: {
@@ -68,6 +72,8 @@ export const listFiredAlertsTool: ToolConfig<
             triggeredAlertCount: asNumber(content.triggered_alert_count),
           }
         }),
+        total: paging.total,
+        offset: paging.offset,
       },
     }
   },
@@ -86,5 +92,7 @@ export const listFiredAlertsTool: ToolConfig<
         },
       },
     },
+    total: SPLUNK_TOTAL_OUTPUT,
+    offset: SPLUNK_OFFSET_OUTPUT,
   },
 }

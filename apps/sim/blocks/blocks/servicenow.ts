@@ -21,6 +21,26 @@ const FILE_FIELD = ['uploadFile', 'fileReference'] as const
 
 const RECORD_MATCH_FIELD = ['sysId', 'number', 'query'] as const
 
+/** JSON-valued subblocks, paired with the control label to name in a parse error. */
+const JSON_SUBBLOCKS = [
+  ['additionalFields', 'Additional Fields'],
+  ['variables', 'Item Variables'],
+] as const
+
+/**
+ * Parses a JSON-valued subblock, naming the control the typo is in.
+ *
+ * `tools.config.params` runs unguarded, so a bare `JSON.parse` escapes as
+ * `JSON Parse error: Expected '}'` with nothing pointing at the field to fix.
+ */
+function parseJsonSubBlock(value: string, label: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    throw new Error(`${label} must be a JSON object`)
+  }
+}
+
 /** Generic Table API operations, which address an arbitrary table by name. */
 const GENERIC_TABLE_OPS = [
   'servicenow_create_record',
@@ -71,6 +91,17 @@ const SEMANTIC_UPDATE_OPS = [
 const SEMANTIC_WRITE_OPS = [...SEMANTIC_CREATE_OPS, ...SEMANTIC_UPDATE_OPS] as const
 
 /**
+ * Every operation whose tool spreads `writeParams` — `fields`, `displayValue`,
+ * and `inputDisplayValue`.
+ *
+ * `update_approval` addresses its record by `approvalSysId` rather than the
+ * shared `sysId`, so it stays out of `SEMANTIC_UPDATE_OPS`, but it declares the
+ * same write params. Leaving it out of these controls made it the one operation
+ * where a stale advanced `displayValue`/`returnFields` reached the wire unseen.
+ */
+const SEMANTIC_WRITE_PARAM_OPS = [...SEMANTIC_WRITE_OPS, 'servicenow_update_approval'] as const
+
+/**
  * Write operations that accept the raw `additionalFields` escape hatch. Excludes
  * `add_incident_comment`, whose body is exactly one journal field, so a value
  * entered there would be silently discarded.
@@ -97,7 +128,7 @@ const PAGINATED_OPS = [
  */
 const SEMANTIC_DISPLAY_VALUE_OPS: ReadonlySet<string> = new Set([
   ...SEMANTIC_READ_OPS,
-  ...SEMANTIC_WRITE_OPS,
+  ...SEMANTIC_WRITE_PARAM_OPS,
 ])
 
 /** Operations whose tool takes a `state`, from whichever control owns that state model. */
@@ -519,14 +550,22 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       value: () => 'all',
       condition: {
         field: 'operation',
-        value: [...SEMANTIC_READ_OPS, ...SEMANTIC_WRITE_OPS],
+        value: [...SEMANTIC_READ_OPS, ...SEMANTIC_WRITE_PARAM_OPS],
       },
       description:
         'How reference and choice fields come back. "all" (the default) returns both the sys_id and the label as {value, display_value}.',
       mode: 'advanced',
     },
+    /**
+     * Read Records keeps its projection on its own id.
+     *
+     * Sharing `fields` with the Create/Update Record JSON bodies meant one
+     * stored value served two value spaces: a projection selected into Create
+     * Record threw an uncaught `SyntaxError`, and a JSON body selected into
+     * Read Records went out as `sysparm_fields=[object Object]`.
+     */
     {
-      id: 'fields',
+      id: 'readFields',
       title: 'Fields to Return',
       type: 'short-input',
       placeholder: 'number,short_description,priority',
@@ -545,7 +584,7 @@ Output: {"short_description": "Network outage", "description": "Network connecti
           'servicenow_search_knowledge',
           'servicenow_get_knowledge_article',
           ...SEMANTIC_READ_OPS,
-          ...SEMANTIC_WRITE_OPS,
+          ...SEMANTIC_WRITE_PARAM_OPS,
         ],
       },
       description: 'Comma-separated list of fields',
@@ -662,9 +701,10 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       id: 'having',
       title: 'Having',
       type: 'short-input',
-      placeholder: 'count>5',
+      placeholder: 'count^priority^>^3',
       condition: { field: 'operation', value: 'servicenow_aggregate' },
-      description: 'Filter on aggregate results',
+      description:
+        'Filter on aggregate results, written as aggregate^field^operator^value and comma-separated for more than one',
       mode: 'advanced',
     },
     // Attachment record sys_id (list + upload)
@@ -836,7 +876,11 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       title: 'Target State',
       type: 'combobox',
       options: [...CHANGE_STATE_OPTIONS],
-      value: () => CHANGE_STATE_OPTIONS[0].id,
+      /**
+       * Deliberately unseeded. A seeded first option ("New") meant running the
+       * operation untouched moved the change backwards; `required` now forces an
+       * explicit choice instead.
+       */
       condition: { field: 'operation', value: 'servicenow_update_change_state' },
       required: true,
       description:
@@ -1350,7 +1394,10 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       title: 'Decision',
       type: 'dropdown',
       options: [...APPROVAL_DECISION_OPTIONS],
-      value: () => APPROVAL_DECISION_OPTIONS[0].id,
+      /**
+       * Deliberately unseeded. Seeding the first option defaulted the operation
+       * to Approve, so `required` forces the caller to pick a decision.
+       */
       condition: { field: 'operation', value: 'servicenow_update_approval' },
       required: true,
     },
@@ -1525,7 +1572,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         { label: 'Yes — resolve display names to sys_ids', id: 'true' },
       ],
       value: () => 'false',
-      condition: { field: 'operation', value: [...SEMANTIC_WRITE_OPS] },
+      condition: { field: 'operation', value: [...SEMANTIC_WRITE_PARAM_OPS] },
       description:
         'Sets sysparm_input_display_value, letting you write "Beth Anglin" into assigned_to instead of a sys_id. Also reinterprets date and time values in your timezone rather than GMT.',
       mode: 'advanced',
@@ -1580,6 +1627,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         const {
           operation,
           fields,
+          readFields,
           returnFields,
           file,
           attachmentLimit,
@@ -1642,11 +1690,11 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
           rest.updateView = rest.updateView === true || rest.updateView === 'true'
         }
 
-        for (const key of ['additionalFields', 'variables'] as const) {
+        for (const [key, label] of JSON_SUBBLOCKS) {
           const value = rest[key]
           if (typeof value === 'string') {
             const trimmed = value.trim()
-            rest[key] = trimmed ? JSON.parse(trimmed) : undefined
+            rest[key] = trimmed ? parseJsonSubBlock(trimmed, label) : undefined
           }
         }
 
@@ -1660,20 +1708,21 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         }
 
         /**
-         * `fields` means two different things: a JSON body on Create/Update
-         * Record, and a comma-separated projection everywhere else. The generic
-         * Table API tools keep the original `fields` subblock id, since renaming
-         * it would orphan the stored value of every workflow already using them;
-         * every operation added since reads `returnFields` instead, so a JSON
-         * body can never arrive as a projection or the reverse.
+         * The `fields` tool param means two different things: a JSON body on
+         * Create/Update Record, and a comma-separated projection everywhere
+         * else. Every subblock therefore owns exactly one of those value
+         * spaces — `fields` is the Create/Update body, `readFields` is Read
+         * Records' projection, `returnFields` is every other operation's — so a
+         * JSON body can never arrive as a projection or the reverse.
          */
         if (isCreateOrUpdate) {
           if (!fields) return { ...rest, fields: undefined }
-          const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
+          const parsedFields =
+            typeof fields === 'string' ? parseJsonSubBlock(fields, 'Fields') : fields
           return { ...rest, fields: parsedFields }
         }
 
-        const projection = operation === 'servicenow_read_record' ? fields : returnFields
+        const projection = operation === 'servicenow_read_record' ? readFields : returnFields
         return { ...rest, fields: projection || undefined }
       },
     },
@@ -1694,6 +1743,10 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     },
     offset: { type: 'number', description: 'Pagination offset' },
     fields: { type: 'json', description: 'Fields object or JSON string' },
+    readFields: {
+      type: 'string',
+      description: 'Comma-separated fields to return (Read Records)',
+    },
     displayValue: { type: 'string', description: 'Display value mode for reference fields' },
     semanticDisplayValue: {
       type: 'string',

@@ -33,6 +33,28 @@ const ALWAYS_USER_ID_OPERATIONS = USER_ID_OPERATIONS.filter(
   (operation) => !PAGED_USER_ID_OPERATIONS.includes(operation)
 )
 
+/** Operations that act on a single group and therefore require the Group ID field. */
+const GROUP_ID_OPERATIONS = [
+  'get_group',
+  'update_group',
+  'delete_group',
+  'list_group_members',
+  'add_group_member',
+  'remove_group_member',
+]
+
+/**
+ * Group operations that page through an `@odata.nextLink`. The continuation URL already
+ * addresses the group, so these are the only group operations that can run without a Group ID,
+ * and only when continuing from a previous page.
+ */
+const PAGED_GROUP_ID_OPERATIONS = ['list_group_members']
+
+/** Group operations that always require a Group ID, whichever page is being fetched. */
+const ALWAYS_GROUP_ID_OPERATIONS = GROUP_ID_OPERATIONS.filter(
+  (operation) => !PAGED_GROUP_ID_OPERATIONS.includes(operation)
+)
+
 /** Collection operations that accept a page size and an @odata.nextLink continuation URL. */
 const PAGED_OPERATIONS = [
   'list_users',
@@ -433,27 +455,16 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       title: 'Group ID',
       type: 'short-input',
       placeholder: 'Group ID (GUID)',
-      condition: {
-        field: 'operation',
-        value: [
-          'get_group',
-          'update_group',
-          'delete_group',
-          'list_group_members',
-          'add_group_member',
-          'remove_group_member',
-        ],
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'get_group',
-          'update_group',
-          'delete_group',
-          'add_group_member',
-          'remove_group_member',
-        ],
-      },
+      condition: { field: 'operation', value: GROUP_ID_OPERATIONS },
+      /**
+       * `list_group_members` pages through an `@odata.nextLink` that already addresses the
+       * group, so it is the only member of this set that can run without a Group ID, and only
+       * when continuing from a previous page.
+       */
+      required: (values) =>
+        values?.nextLink
+          ? { field: 'operation', value: ALWAYS_GROUP_ID_OPERATIONS }
+          : { field: 'operation', value: GROUP_ID_OPERATIONS },
     },
     // Create group fields
     {
@@ -817,7 +828,8 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       tool: (params) => `microsoft_ad_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.top) result.top = Number(params.top)
+        const top = Number(params.top)
+        result.top = params.top && Number.isFinite(top) ? top : undefined
         if (params.nextLink) result.nextLink = params.nextLink
         const values = params as Record<string, unknown>
         result.filter = values[FILTER_FIELD_BY_OPERATION[params.operation]] || undefined
@@ -829,10 +841,13 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
             : undefined
         }
         if (params.operation === 'update_user') {
-          if (params.accountEnabled) result.accountEnabled = params.accountEnabled === 'true'
+          result.accountEnabled = params.accountEnabled
+            ? params.accountEnabled === 'true'
+            : undefined
         } else if (params.operation === 'create_user') {
-          if (params.accountEnabledCreate)
-            result.accountEnabled = params.accountEnabledCreate === 'true'
+          result.accountEnabled = params.accountEnabledCreate
+            ? params.accountEnabledCreate === 'true'
+            : undefined
         }
         if (params.mailEnabled !== undefined) result.mailEnabled = params.mailEnabled === 'true'
         if (params.securityEnabled !== undefined)
@@ -843,9 +858,9 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         if (params.groupDescription) result.description = params.groupDescription
         if (params.groupTypes !== undefined) result.groupTypes = params.groupTypes
         if (params.operation === 'update_group') {
-          if (params.visibility) result.visibility = params.visibility
+          result.visibility = params.visibility || undefined
         } else if (params.operation === 'create_group') {
-          if (params.visibilityCreate) result.visibility = params.visibilityCreate
+          result.visibility = params.visibilityCreate || undefined
         }
         return result
       },

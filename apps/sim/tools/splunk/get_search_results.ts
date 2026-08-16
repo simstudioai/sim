@@ -14,6 +14,27 @@ import {
 import type { ToolConfig } from '@/tools/types'
 
 /**
+ * Refuses the `count=0` that Splunk documents as "return all available results".
+ *
+ * Nothing downstream bounds that read: {@link readSplunkJson} buffers the whole
+ * body with a single `response.text()` and every row is then materialized into
+ * the block output. The sid is not necessarily a job this workflow dispatched —
+ * a scheduled saved search carries `dispatch.max_count`, which defaults to
+ * 500000 — so "all" is a number the caller has no way to know in advance.
+ *
+ * Paging with `offset` reaches the same rows with a bounded response per call,
+ * which is what the parameter description directs callers to do.
+ */
+function assertBoundedResultCount(count: number | undefined): void {
+  if (count == null || (count as unknown) === '') return
+  if (Number(count) === 0) {
+    throw new Error(
+      'Splunk reads count=0 as "return every result row", which is unbounded — a scheduled job can hold hundreds of thousands of rows. Set a positive count and page through the results with offset.'
+    )
+  }
+}
+
+/**
  * Reads transformed results from `search/v2/jobs/{sid}/results`. The v1 instance of
  * this endpoint is deprecated and turned off by default from Splunk Enterprise 9.0.1
  * and Splunk Cloud 9.0.2208 onward; both versions return the same JSON envelope
@@ -42,7 +63,7 @@ export const getSearchResultsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum number of result rows to return. Defaults to 100. Page through larger result sets with offset rather than raising this — a completed job can hold millions of rows.',
+        'Maximum number of result rows to return. Defaults to 100. Page through larger result sets with offset rather than raising this — a completed job can hold millions of rows. 0 is rejected here even though Splunk reads it as "every row".',
     },
     offset: {
       type: 'number',
@@ -67,6 +88,7 @@ export const getSearchResultsTool: ToolConfig<
 
   request: {
     url: (params) => {
+      assertBoundedResultCount(params.count)
       const url = buildSplunkUrl(
         params,
         `/search/v2/jobs/${splunkPathSegment(params.sid)}/results`,

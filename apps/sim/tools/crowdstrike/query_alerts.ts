@@ -11,7 +11,7 @@ export const crowdstrikeQueryAlertsTool: ToolConfig<
   id: 'crowdstrike_query_alerts',
   name: 'CrowdStrike Query Alerts',
   description:
-    'Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2), which supersedes the deprecated Detects API. Requires the "Alerts: Read" API scope.',
+    'Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2), which replaced the Detects API decommissioned on September 30, 2025. Requires the "Alerts: Read" API scope.',
   version: '1.0.0',
 
   params: {

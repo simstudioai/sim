@@ -151,28 +151,31 @@ describe('subBlock ids that share a tool param keep their own default', () => {
     const mapped = mapFor('create_dns_record', { zoneId: 'zone1' })
 
     for (const alias of [
+      'zoneType',
       'recordType',
       'recordProxied',
+      'recordTags',
+      'updateRecordType',
+      'updateRecordName',
+      'updateRecordContent',
+      'updateRecordProxied',
+      'updateRecordTags',
+      'dnsOrder',
       'certificateStatus',
-      'appType',
-      'updateAppType',
-      'updatePolicyDecision',
+      'rulesetName',
+      'updateRuleEnabled',
       'rateLimitAction',
       'updateRateLimitAction',
-      'rulesetName',
-      'zoneNameFilter',
-      'zoneType',
-      'dnsTypeFilter',
-      'dnsNameFilter',
-      'dnsContentFilter',
-      'dnsOrder',
-      'dnsProxiedFilter',
-      'purgeTags',
-      'workerTagFilter',
+      'appType',
+      'updateAppType',
       'accessAppTags',
+      'updatePolicyDecision',
       'listNameFilter',
       'accessAppDomainFilter',
+      'workerTagFilter',
       'tunnelStatus',
+      'r2Cursor',
+      'rulesetCursor',
     ]) {
       expect(mapped[alias], `alias ${alias} reached the tool`).toBeUndefined()
     }
@@ -222,6 +225,15 @@ describe('a shared subBlock id means the same thing everywhere', () => {
     'rulesetId',
   ])
 
+  /**
+   * Ids a read filter and a written value share on purpose. Both sides render a
+   * control the user can see and edit for their own operation, so a carried-over
+   * value is visible rather than hidden — and these are the ids shipped
+   * workflows already store, which a rename would strand (see
+   * `the ids shipped workflows already store are still live`).
+   */
+  const SHARED_VISIBLE_IDS = new Set(['name', 'content'])
+
   const WRITE_PREFIXES = ['create_', 'update_', 'delete_', 'purge_', 'revoke_']
 
   function operationsFor(subBlock: (typeof CloudflareBlock.subBlocks)[number]): string[] {
@@ -236,7 +248,7 @@ describe('a shared subBlock id means the same thing everywhere', () => {
     const kindsById = new Map<string, Set<string>>()
 
     for (const subBlock of CloudflareBlock.subBlocks) {
-      if (ADDRESSING_IDS.has(subBlock.id)) continue
+      if (ADDRESSING_IDS.has(subBlock.id) || SHARED_VISIBLE_IDS.has(subBlock.id)) continue
       for (const operation of operationsFor(subBlock)) {
         const kind = WRITE_PREFIXES.some((prefix) => operation.startsWith(prefix))
           ? 'write'
@@ -328,5 +340,293 @@ describe('no hidden advanced control feeds an operation that cannot show it', ()
     }
 
     expect(leaks).toEqual([])
+  })
+})
+
+/**
+ * Block state is never migrated, and `extractBlockParams` (`serializer/index.ts`)
+ * drops a stored value whose id matches no subBlock config — for a non-custom
+ * block that is a deleted input. So renaming a control strands whatever shipped
+ * workflows stored under the old id, and no mapper-level fallback can recover
+ * it: the value is gone before `tools.config.params` runs.
+ *
+ * That decides which side of an id collision may be renamed. A read filter that
+ * loses its value returns the whole zone with `success: true` — which a
+ * downstream `delete_dns_record` then fans out over — so filters keep the ids
+ * shipped workflows already hold. A write control that loses its value just
+ * omits the field from a PATCH, so the new id goes there.
+ */
+describe('the ids shipped workflows already store are still live', () => {
+  function operationsFor(id: string): string[] {
+    return CloudflareBlock.subBlocks.flatMap((subBlock) => {
+      if (subBlock.id !== id) return []
+      const condition = subBlock.condition
+      if (!condition || typeof condition !== 'object' || !('field' in condition)) return []
+      if (condition.field !== 'operation') return []
+      const value = condition.value
+      return Array.isArray(value) ? value.map(String) : [String(value)]
+    })
+  }
+
+  it.each([
+    ['list_dns_records', 'type'],
+    ['list_dns_records', 'name'],
+    ['list_dns_records', 'content'],
+    ['list_dns_records', 'proxied'],
+    ['list_dns_records', 'search'],
+    ['list_zones', 'name'],
+    ['list_zones', 'status'],
+    ['purge_cache', 'tags'],
+  ])('%s still reads its %s filter from the id it shipped with', (operation, id) => {
+    expect(operationsFor(id)).toContain(operation)
+  })
+
+  it('still passes each of those filters through to the tool', () => {
+    const records = mapFor('list_dns_records', {
+      zoneId: 'zone1',
+      type: 'A',
+      name: 'www.example.com',
+      content: '203.0.113.10',
+      proxied: 'true',
+      search: 'legacy',
+    })
+    expect(records.type).toBe('A')
+    expect(records.name).toBe('www.example.com')
+    expect(records.content).toBe('203.0.113.10')
+    expect(records.proxied).toBe(true)
+    expect(records.search).toBe('legacy')
+
+    expect(mapFor('list_zones', { name: 'example.com', status: 'active' })).toMatchObject({
+      name: 'example.com',
+      status: 'active',
+    })
+    expect(mapFor('purge_cache', { zoneId: 'z1', tags: 'a,b' }).tags).toBe('a,b')
+  })
+})
+
+describe('the rule enable switch is split between creating and updating', () => {
+  it('never carries a create-time enabled onto a rule update', () => {
+    // `enabled` is advanced, so it serializes on stored value alone, before its
+    // condition runs. Shared, a `false` chosen while drafting a new rule would
+    // disable a live WAF or rate limiting rule on a later update.
+    for (const operation of ['update_ruleset_rule', 'update_rate_limit_rule']) {
+      const mapped = mapFor(operation, {
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        enabled: 'false',
+      })
+      expect(mapped.enabled, `${operation} took a create-time enabled`).toBeUndefined()
+    }
+  })
+
+  it('sends the update control when the caller sets it', () => {
+    expect(
+      mapFor('update_ruleset_rule', {
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        updateRuleEnabled: 'false',
+      }).enabled
+    ).toBe(false)
+  })
+
+  it('still sends the create control on the create operations', () => {
+    expect(
+      mapFor('create_ruleset_rule', { zoneId: 'z1', rulesetId: 'rs1', enabled: 'false' }).enabled
+    ).toBe(false)
+  })
+})
+
+describe('a DNS record rename cannot be inherited from another operation', () => {
+  it('ignores a name typed under any other operation', () => {
+    // `name` is shared by zone, Access application, policy, and service token
+    // creation. The update control is advanced, so a shared id let any of those
+    // reach the PATCH and rename the live record.
+    expect(
+      mapFor('update_dns_record', { zoneId: 'z1', recordId: 'rec1', name: 'ci-pipeline' }).name
+    ).toBeUndefined()
+  })
+
+  it('renames only when the record-name control is set', () => {
+    expect(
+      mapFor('update_dns_record', {
+        zoneId: 'z1',
+        recordId: 'rec1',
+        updateRecordName: 'www.example.com',
+      }).name
+    ).toBe('www.example.com')
+  })
+})
+
+describe('Access application types the API can actually build', () => {
+  const appTypeOptions = (id: string) => {
+    const subBlock = CloudflareBlock.subBlocks.find((sub) => sub.id === id)
+    const options = subBlock?.options
+    return (Array.isArray(options) ? options : []).map((option) =>
+      typeof option === 'string' ? option : ((option as { id?: string }).id ?? '')
+    )
+  }
+
+  it('drops dash_sso, which has no request variant at all', () => {
+    expect(appTypeOptions('appType')).not.toContain('dash_sso')
+    expect(appTypeOptions('updateAppType')).not.toContain('dash_sso')
+  })
+
+  it('requires a domain exactly for the types whose request schema demands one', () => {
+    const domain = CloudflareBlock.subBlocks.find((sub) => sub.id === 'domain')
+    const required = domain?.required
+    expect(typeof required).toBe('function')
+    const resolve = required as (values?: Record<string, unknown>) => {
+      field: string
+      value: string | number | boolean | Array<string | number | boolean>
+    }
+
+    const onCreate = resolve({ operation: 'create_access_application' })
+    expect(onCreate.field).toBe('appType')
+    expect(onCreate.value).toEqual(['self_hosted', 'ssh', 'vnc', 'rdp'])
+
+    const onUpdate = resolve({ operation: 'update_access_application' })
+    expect(onUpdate.field).toBe('updateAppType')
+    expect(onUpdate.value).toEqual(['self_hosted', 'ssh', 'vnc', 'rdp'])
+  })
+
+  it('carries the fields saas, infrastructure, and rdp applications cannot be created without', () => {
+    for (const tool of [
+      cloudflareTools.cloudflareCreateAccessApplicationTool,
+      cloudflareTools.cloudflareUpdateAccessApplicationTool,
+    ]) {
+      const body = tool.request.body?.({
+        accountId: 'acct1',
+        appId: 'app1',
+        apiKey,
+        type: 'saas',
+        saasApp: '{"auth_type":"saml"}',
+        targetCriteria: '[{"port":22,"protocol":"SSH"}]',
+      } as never) as Record<string, unknown>
+
+      expect(body.saas_app).toEqual({ auth_type: 'saml' })
+      expect(body.target_criteria).toEqual([{ port: 22, protocol: 'SSH' }])
+    }
+  })
+})
+
+describe('the ruleset kind offered matches the endpoint', () => {
+  it('does not offer root, which only exists at the account level', () => {
+    const kind = CloudflareBlock.subBlocks.find((sub) => sub.id === 'kind')
+    const options = (Array.isArray(kind?.options) ? kind.options : []).map(
+      (option) => (option as { id?: string }).id ?? ''
+    )
+
+    expect(options).not.toContain('root')
+    expect(options).toContain('zone')
+  })
+})
+
+describe('an update that would tear down the rule it edits is refused', () => {
+  const updateRule = cloudflareTools.cloudflareUpdateRulesetRuleTool
+
+  it('refuses an execute rule with no action parameters', () => {
+    // PATCH replaces the rule, so omitting action_parameters resets it to {} and
+    // unbinds the managed ruleset the rule deploys, plus every override under it.
+    expect(() =>
+      updateRule.request.body?.({
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        apiKey,
+        action: 'execute',
+        expression: 'true',
+      } as never)
+    ).toThrow(/Action Parameters is required/)
+  })
+
+  /**
+   * An explicit `{}` is the same payload Cloudflare's schema default produces, so
+   * it does the same damage as omitting the field. Checking presence rather than
+   * emptiness let it through the guard.
+   */
+  it('refuses an execute rule whose action parameters are an empty object', () => {
+    expect(() =>
+      updateRule.request.body?.({
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        apiKey,
+        action: 'execute',
+        expression: 'true',
+        actionParameters: '{}',
+      } as never)
+    ).toThrow(/Action Parameters is required/)
+  })
+
+  it('leaves an empty action parameters object alone on a non-execute action', () => {
+    const body = updateRule.request.body?.({
+      zoneId: 'z1',
+      rulesetId: 'rs1',
+      ruleId: 'r1',
+      apiKey,
+      action: 'block',
+      expression: 'true',
+      actionParameters: '{}',
+    } as never) as Record<string, unknown>
+
+    expect(body.action_parameters).toEqual({})
+  })
+
+  it('accepts an execute rule that resends its action parameters', () => {
+    const body = updateRule.request.body?.({
+      zoneId: 'z1',
+      rulesetId: 'rs1',
+      ruleId: 'r1',
+      apiKey,
+      action: 'execute',
+      expression: 'true',
+      actionParameters: '{"id":"managed-1"}',
+    } as never) as Record<string, unknown>
+
+    expect(body.action_parameters).toEqual({ id: 'managed-1' })
+  })
+
+  it('leaves non-execute actions alone', () => {
+    expect(() =>
+      updateRule.request.body?.({
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        apiKey,
+        action: 'block',
+        expression: 'true',
+      } as never)
+    ).not.toThrow()
+  })
+
+  it('warns in both descriptions that omission resets the field', () => {
+    expect(updateRule.params.actionParameters.description).toMatch(/resets action_parameters/)
+    expect(updateRule.params.ref.description).toMatch(/omitting it resets/)
+  })
+
+  it('requires action parameters in the block whenever the action is execute', () => {
+    const actionParameters = CloudflareBlock.subBlocks.find((sub) => sub.id === 'actionParameters')
+    expect(actionParameters?.required).toEqual({ field: 'action', value: 'execute' })
+  })
+})
+
+describe('optional and per-API pagination params', () => {
+  it('does not force a metrics list the DNS analytics API treats as optional', () => {
+    expect(cloudflareTools.cloudflareDnsAnalyticsTool.params.metrics.required).toBe(false)
+  })
+
+  it('keeps the R2 and ruleset cursors apart', () => {
+    // R2 answers with result_info.cursor and the Rulesets API with
+    // result_info.cursors.after, so a cursor carried across the two 400s.
+    expect(
+      mapFor('list_r2_buckets', { accountId: 'a1', rulesetCursor: 'ruleset-1' }).cursor
+    ).toBeUndefined()
+    expect(mapFor('list_rulesets', { zoneId: 'z1', r2Cursor: 'r2-1' }).cursor).toBeUndefined()
+    expect(mapFor('list_r2_buckets', { accountId: 'a1', r2Cursor: 'r2-1' }).cursor).toBe('r2-1')
+    expect(mapFor('list_rulesets', { zoneId: 'z1', rulesetCursor: 'ruleset-1' }).cursor).toBe(
+      'ruleset-1'
+    )
   })
 })

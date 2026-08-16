@@ -7,7 +7,10 @@ import {
   getEntryContent,
   getEntryName,
   getSplunkEntries,
+  getSplunkPaging,
   SPLUNK_CONNECTION_PARAMS,
+  SPLUNK_OFFSET_OUTPUT,
+  SPLUNK_TOTAL_OUTPUT,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,6 +51,7 @@ export const listAppsTool: ToolConfig<SplunkListAppsParams, SplunkListAppsRespon
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const paging = getSplunkPaging(data)
     return {
       success: true,
       output: {
@@ -69,6 +73,8 @@ export const listAppsTool: ToolConfig<SplunkListAppsParams, SplunkListAppsRespon
             stateChangeRequiresRestart: asBoolean(content.state_change_requires_restart),
           }
         }),
+        total: paging.total,
+        offset: paging.offset,
       },
     }
   },
@@ -115,5 +121,7 @@ export const listAppsTool: ToolConfig<SplunkListAppsParams, SplunkListAppsRespon
         },
       },
     },
+    total: SPLUNK_TOTAL_OUTPUT,
+    offset: SPLUNK_OFFSET_OUTPUT,
   },
 }

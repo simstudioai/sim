@@ -38,7 +38,8 @@ export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntime
   request: {
     url: (params) => {
       const site = params.site || 'datadoghq.com'
-      return `https://api.${site}/api/v2/downtime/${params.downtimeId}`
+      const downtimeId = encodeURIComponent(String(params.downtimeId).trim())
+      return `https://api.${site}/api/v2/downtime/${downtimeId}`
     },
     method: 'DELETE',
     headers: (params) => ({

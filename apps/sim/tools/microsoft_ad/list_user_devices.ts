@@ -58,21 +58,22 @@ export const listUserDevicesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+        "Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results",
     },
   },
   request: {
     url: (params) => {
-      if (params.nextLink)
-        return assertGraphNextPageUrlForCollection(params.nextLink, [
-          'registeredDevices',
-          'ownedDevices',
-        ])
-      const userId = params.userId?.trim()
-      if (!userId) throw new Error('User ID is required')
       const relationship = params.deviceRelationship?.trim() || 'registered'
       const path = RELATIONSHIP_PATHS[relationship]
       if (!path) throw new Error('Device relationship must be "registered" or "owned"')
+      /**
+       * Assert against the currently selected relationship only. Accepting both would let a
+       * continuation URL for `registeredDevices` keep paging that collection after the Device
+       * Link dropdown was flipped to `ownedDevices`, silently returning the other relationship.
+       */
+      if (params.nextLink) return assertGraphNextPageUrlForCollection(params.nextLink, [path])
+      const userId = params.userId?.trim()
+      if (!userId) throw new Error('User ID is required')
       const base = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userId)}/${path}`
       return params.top ? `${base}?$top=${params.top}` : base
     },

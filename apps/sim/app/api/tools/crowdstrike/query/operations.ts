@@ -1,5 +1,8 @@
+import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type { CrowdstrikeQueryBody } from '@/lib/api/contracts/tools/crowdstrike'
 import {
+  buildUrl,
   type CrowdStrikeCallResult,
   callCrowdStrike,
   getBoolean,
@@ -9,7 +12,9 @@ import {
   getFirstRecordResource,
   getNumber,
   getPagination,
+  getRecordArray,
   getRecordResources,
+  getResourcesArray,
   getSpotlightPagination,
   getString,
   getStringResources,
@@ -81,6 +86,170 @@ export function failedWithoutResources(
   resourceCount: number
 ): boolean {
   return resourceCount === 0 && getEnvelopeErrors(result.data).length > 0
+}
+
+/**
+ * Falcon's by-ids lookups carry every ID in the query string, so a request at the
+ * contract maxima (1000 indicator IDs at ~68 bytes each) would generate a ~68 KB
+ * URL. Proxies and load balancers commonly cap the request line plus headers at
+ * 8 KB, so batches are sized to keep each generated URL at or under half of that,
+ * leaving the rest of the budget for headers.
+ */
+export const MAX_ID_URL_BYTES = 4096
+
+/**
+ * Batches by cumulative encoded length rather than by a fixed count: Falcon IDs
+ * range from 32-character AIDs to long composite alert IDs, so a count-based cap
+ * would either waste the budget or blow past it. A single ID longer than the
+ * budget still gets its own batch — truncating the list would silently drop it.
+ */
+export function chunkIdsByUrlBudget(ids: string[], budget: number): string[][] {
+  const chunks: string[][] = []
+  let current: string[] = []
+  let used = 0
+
+  for (const id of ids) {
+    const cost = `&ids=${encodeURIComponent(id)}`.length
+    if (current.length > 0 && used + cost > budget) {
+      chunks.push(current)
+      current = []
+      used = 0
+    }
+    current.push(id)
+    used += cost
+  }
+
+  if (current.length > 0) {
+    chunks.push(current)
+  }
+
+  return chunks
+}
+
+/**
+ * Caps how much of the already-committed ID list is spelled out in a partial-failure
+ * message. A by-ids delete can carry 1000 IDs at ~68 bytes each, so the full list
+ * would bury the actual failure under ~68 KB of text.
+ */
+const MAX_COMMITTED_IDS_IN_MESSAGE = 400
+
+/**
+ * Rewrites a failed batch's envelope so the reported error names the deletions the
+ * earlier batches already committed.
+ *
+ * Batches run sequentially and Falcon has no way to roll back a deletion it already
+ * performed. Short-circuiting on a later batch would therefore report a bare failure
+ * over work that already happened, and a blind retry would target IDs that no longer
+ * exist. Only the message survives to the caller ({@link fail} keeps `status` and the
+ * message, not `data`), so the committed list is written onto `errors[0].message`,
+ * which is the first thing {@link getFalconErrorMessage} reads.
+ *
+ * `committed` holds the IDs Falcon echoed in `resources`, never the IDs that were
+ * requested, so an ID that failed inside an otherwise-200 batch is not reported as
+ * deleted.
+ */
+function withCommittedIds(
+  result: CrowdStrikeCallResult,
+  committed: string[]
+): CrowdStrikeCallResult {
+  if (committed.length === 0) return result
+
+  const envelope = isRecordLike(result.data) ? result.data : {}
+  const existing = getRecordArray(envelope.errors)
+  const reason = getFalconErrorMessage(result.data, 'CrowdStrike rejected a later batch.')
+  const message =
+    `${reason} This request was split into batches and ${committed.length} ID(s) were already deleted ` +
+    `before the failing batch; they were not rolled back, so retry only the remainder. ` +
+    `Deleted: ${truncate(committed.join(', '), MAX_COMMITTED_IDS_IN_MESSAGE)}`
+
+  return {
+    ...result,
+    data: { ...envelope, errors: [{ ...(existing[0] ?? {}), message }, ...existing.slice(1)] },
+  }
+}
+
+interface ByIdsRequestOptions {
+  method: 'GET' | 'DELETE'
+  path: string
+  ids: string[] | undefined
+  query?: Record<string, string | number | boolean | undefined>
+}
+
+/**
+ * Issues a by-ids lookup as however many requests it takes to stay under
+ * `MAX_ID_URL_BYTES`, then presents the batches as one `{ meta, resources, errors }`
+ * envelope so callers read the same shape a single request returns.
+ *
+ * Batches run sequentially: resource order matches the caller's ID order, the
+ * endpoint's rate limit only ever sees one request at a time, and a failing batch
+ * short-circuits with its own status instead of being merged away. A `DELETE` that
+ * fails partway also carries the IDs its earlier batches already removed — see
+ * {@link withCommittedIds}. `meta` comes
+ * from the first batch — pagination is meaningless for a lookup that names every
+ * ID it wants, and no by-ids operation here reads it.
+ */
+async function callCrowdStrikeByIds(
+  baseUrl: string,
+  accessToken: string,
+  options: ByIdsRequestOptions
+): Promise<CrowdStrikeCallResult> {
+  const prefix = buildUrl(baseUrl, {
+    method: options.method,
+    path: options.path,
+    query: options.query,
+  })
+  const chunks = chunkIdsByUrlBudget(
+    options.ids ?? [],
+    Math.max(MAX_ID_URL_BYTES - prefix.length, 1)
+  )
+
+  if (chunks.length <= 1) {
+    return callCrowdStrike(baseUrl, accessToken, {
+      method: options.method,
+      path: options.path,
+      query: options.query,
+      repeatedQuery: { ids: options.ids },
+    })
+  }
+
+  const resources: unknown[] = []
+  const errors: unknown[] = []
+  const committed: string[] = []
+  let meta: unknown
+  let status = 200
+
+  for (const [index, chunk] of chunks.entries()) {
+    const result = await callCrowdStrike(baseUrl, accessToken, {
+      method: options.method,
+      path: options.path,
+      query: options.query,
+      repeatedQuery: { ids: chunk },
+    })
+
+    if (!result.ok) {
+      return options.method === 'DELETE' ? withCommittedIds(result, committed) : result
+    }
+
+    /**
+     * Only the IDs Falcon echoed in `resources` were actually deleted. A batch can
+     * answer 200 while reporting per-ID failures in `errors`, so recording the
+     * requested chunk would name indicators that are still live and tell the
+     * caller to drop them from the retry.
+     */
+    if (options.method === 'DELETE') {
+      committed.push(...getStringResources(result.data))
+    }
+
+    if (index === 0) {
+      status = result.status
+      meta = isRecordLike(result.data) ? result.data.meta : undefined
+    }
+
+    resources.push(...getResourcesArray(result.data))
+    errors.push(...getRecordArray(isRecordLike(result.data) ? result.data.errors : undefined))
+  }
+
+  return { ok: true, status, data: { meta, resources, errors } }
 }
 
 function buildAlertActionParameters(
@@ -251,10 +420,10 @@ export async function executeCrowdStrikeOperation(
     }
 
     case 'crowdstrike_get_host_group_details': {
-      const result = await callCrowdStrike(baseUrl, accessToken, {
+      const result = await callCrowdStrikeByIds(baseUrl, accessToken, {
         method: 'GET',
         path: '/devices/entities/host-groups/v1',
-        repeatedQuery: { ids: body.hostGroupIds },
+        ids: body.hostGroupIds,
       })
       if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike host group details')
 
@@ -330,10 +499,10 @@ export async function executeCrowdStrikeOperation(
     }
 
     case 'crowdstrike_get_indicator_details': {
-      const result = await callCrowdStrike(baseUrl, accessToken, {
+      const result = await callCrowdStrikeByIds(baseUrl, accessToken, {
         method: 'GET',
         path: '/iocs/entities/indicators/v1',
-        repeatedQuery: { ids: body.indicatorIds },
+        ids: body.indicatorIds,
       })
       if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike indicator details')
 
@@ -397,11 +566,11 @@ export async function executeCrowdStrikeOperation(
     }
 
     case 'crowdstrike_delete_indicators': {
-      const result = await callCrowdStrike(baseUrl, accessToken, {
+      const result = await callCrowdStrikeByIds(baseUrl, accessToken, {
         method: 'DELETE',
         path: '/iocs/entities/indicators/v1',
         query: { comment: body.comment, filter: body.filter },
-        repeatedQuery: { ids: body.filter ? undefined : body.indicatorIds },
+        ids: body.filter ? undefined : body.indicatorIds,
       })
       if (!result.ok) return fail(result, 'Failed to delete CrowdStrike indicators')
 
@@ -449,10 +618,10 @@ export async function executeCrowdStrikeOperation(
     }
 
     case 'crowdstrike_get_vulnerability_details': {
-      const result = await callCrowdStrike(baseUrl, accessToken, {
+      const result = await callCrowdStrikeByIds(baseUrl, accessToken, {
         method: 'GET',
         path: '/spotlight/entities/vulnerabilities/v2',
-        repeatedQuery: { ids: body.vulnerabilityIds },
+        ids: body.vulnerabilityIds,
       })
       if (!result.ok) return fail(result, 'Failed to fetch CrowdStrike vulnerability details')
 

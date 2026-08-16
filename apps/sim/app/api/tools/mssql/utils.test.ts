@@ -132,6 +132,27 @@ describe('validateReadOnlyQuery', () => {
   })
 
   /**
+   * `\bupdate\b` cannot match `UPDATETEXT` — there is no word boundary after
+   * `update` — so each text statement has to be screened in its own right.
+   */
+  it.each([
+    "SELECT 1 UPDATETEXT dbo.t.col @ptr 0 NULL 'x'",
+    "SELECT 1 WRITETEXT dbo.t.col @ptr 'x'",
+    'SELECT 1 READTEXT dbo.t.col @ptr 0 16',
+  ])('rejects the text statement batch %s', (query) => {
+    expect(validateReadOnlyQuery(query).isValid).toBe(false)
+  })
+
+  /** The same statements reached through the WHERE screen, which shares the list. */
+  it.each([
+    "id = 1 UPDATETEXT dbo.t.col @ptr 0 NULL 'x'",
+    "id = 1 WRITETEXT dbo.t.col @ptr 'x'",
+    'id = 1 READTEXT dbo.t.col @ptr 0 16',
+  ])('rejects the text statement %s in a WHERE clause', (where) => {
+    expect(() => buildDeleteQuery('dbo.users', where)).toThrow()
+  })
+
+  /**
    * The guard against over-screening. `FETCH` is excluded from the keyword list
    * because `OFFSET … FETCH NEXT` is the standard paging clause, and the added
    * keywords must not catch ordinary identifiers that merely contain them.
@@ -140,6 +161,7 @@ describe('validateReadOnlyQuery', () => {
     'SELECT * FROM dbo.users ORDER BY id OFFSET 10 ROWS FETCH NEXT 20 ROWS ONLY',
     'WITH p AS (SELECT id FROM dbo.o) SELECT * FROM p ORDER BY id OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY',
     'SELECT settled, offset_value, begin_date FROM dbo.t',
+    'SELECT updatetext_id, writetext_flag, readtext_offset FROM dbo.t',
     'SELECT TOP (100) id, name FROM dbo.users WHERE is_active = 1',
   ])('still accepts the legitimate read %s', (query) => {
     expect(validateReadOnlyQuery(query).isValid).toBe(true)

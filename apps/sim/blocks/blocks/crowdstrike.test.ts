@@ -4,6 +4,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { RTR_READ_ONLY_BASE_COMMANDS } from '@/lib/api/contracts/tools/crowdstrike'
 import { CrowdStrikeBlock } from '@/blocks/blocks/crowdstrike'
 
 /**
@@ -154,28 +155,18 @@ describe('CrowdStrike block params', () => {
     ).toThrow(/500/)
   })
 
-  it('offers only the documented read-tier RTR base command families', () => {
+  /**
+   * Asserted against the contract constant rather than a second hand-maintained
+   * literal: the route validates `base_command` with `RTR_READ_ONLY_BASE_COMMANDS`,
+   * so a dropdown that drifts from it either hides a command the API accepts or
+   * offers one the API rejects. Duplicating the list here would just move the
+   * drift into the test.
+   */
+  it('offers exactly the read-tier RTR base command families the contract accepts', () => {
     const baseCommand = CrowdStrikeBlock.subBlocks.find((subBlock) => subBlock.id === 'baseCommand')
     const ids = (baseCommand?.options as { id: string }[] | undefined)?.map((option) => option.id)
 
-    expect(ids).toEqual([
-      'cat',
-      'cd',
-      'clear',
-      'csrutil',
-      'env',
-      'eventlog',
-      'filehash',
-      'getsid',
-      'help',
-      'history',
-      'ipconfig',
-      'ls',
-      'mount',
-      'netstat',
-      'ps',
-      'reg',
-    ])
+    expect(ids).toEqual([...RTR_READ_ONLY_BASE_COMMANDS])
   })
 
   it('offers no write-tier RTR base command under the read-scoped tool', () => {

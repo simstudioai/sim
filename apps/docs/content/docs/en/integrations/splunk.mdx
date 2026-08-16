@@ -91,6 +91,8 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 | `firedAlerts` | json | Triggered instances of an alert \(\[\{name, savedSearchName, alertType, severity, sid, triggerTime\}\]\) |
 | `indexes` | json | Indexes configured on the instance \(\[\{name, datatype, disabled, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, minTime, maxTime\}\]\) |
 | `apps` | json | Apps installed on the instance \(name, label, version, author, disabled\) |
+| `total` | number | Total number of entries matching a list request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in the returned page, from the paging envelope |
 
 ### Splunk Create Search Job
 
@@ -186,7 +188,7 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 | `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
 | `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
 | `sid` | string | Yes | Search ID of the job whose results to fetch \(e.g. 1457683115.100\) |
-| `count` | number | No | Maximum number of result rows to return. Defaults to 100. Page through larger result sets with offset rather than raising this — a completed job can hold millions of rows. |
+| `count` | number | No | Maximum number of result rows to return. Defaults to 100. Page through larger result sets with offset rather than raising this — a completed job can hold millions of rows. 0 is rejected here even though Splunk reads it as "every row". |
 | `offset` | number | No | First result row \(0-indexed\) from which to begin returning data |
 | `fields` | string | No | Comma-separated list of fields to return for each row \(e.g. _time,host,source\). Returns all fields when omitted. |
 | `addSummaryToMetadata` | boolean | No | Include field summary statistics in the response |
@@ -243,6 +245,8 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 | `firedAlerts` | json | Triggered instances of an alert \(\[\{name, savedSearchName, alertType, severity, sid, triggerTime\}\]\) |
 | `indexes` | json | Indexes configured on the instance \(\[\{name, datatype, disabled, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, minTime, maxTime\}\]\) |
 | `apps` | json | Apps installed on the instance \(name, label, version, author, disabled\) |
+| `total` | number | Total number of entries matching a list request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in the returned page, from the paging envelope |
 
 ### Splunk Cancel Search Job
 

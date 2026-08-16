@@ -56,8 +56,9 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
       if (params.groupStates) queryParams.set('group_states', params.groupStates)
       if (params.withDowntimes) queryParams.set('with_downtimes', 'true')
 
+      const monitorId = encodeURIComponent(String(params.monitorId).trim())
       const queryString = queryParams.toString()
-      return `https://api.${site}/api/v1/monitor/${params.monitorId}${queryString ? `?${queryString}` : ''}`
+      return `https://api.${site}/api/v1/monitor/${monitorId}${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({

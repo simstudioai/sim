@@ -15,6 +15,20 @@ function toSwitchBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
+/**
+ * Coerce a List Monitors pagination input, dropping anything that is not a finite
+ * number. These are advanced free-text fields, so they can carry a typo or an
+ * unresolved reference, and a bare `Number()` would put the literal `NaN` in the
+ * query string instead of omitting the parameter. An untouched subBlock resolves
+ * to `null` and an empty one to `''`; both are omissions rather than zeros, while
+ * an explicit `0` is Datadog's own first page and is kept.
+ */
+function datadogPageNumber(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export const DatadogBlock: BlockConfig<DatadogResponse> = {
   type: 'datadog',
   name: 'Datadog',
@@ -511,6 +525,22 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'Filter by Tags',
       type: 'short-input',
       placeholder: 'env:production',
+      condition: { field: 'operation', value: 'datadog_list_monitors' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listMonitorPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '50',
+      condition: { field: 'operation', value: 'datadog_list_monitors' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listMonitorPage',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '0',
       condition: { field: 'operation', value: 'datadog_list_monitors' },
       mode: 'advanced',
     },
@@ -1989,6 +2019,14 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               name: params.listMonitorName || undefined,
               tags: params.listMonitorTags || undefined,
+              /**
+               * `monitorTags` belongs to Create Monitor but serializes for every operation, and
+               * the block merges these params over the raw inputs. Without an explicit clear, a
+               * leftover value would filter this list while presenting it as complete.
+               */
+              monitorTags: undefined,
+              pageSize: datadogPageNumber(params.listMonitorPageSize),
+              page: datadogPageNumber(params.listMonitorPage),
             }
 
           case 'datadog_mute_monitor':
@@ -2352,6 +2390,8 @@ Return ONLY the search query string - no explanations.`,
     downtimeId: { type: 'string', description: 'Downtime ID to cancel' },
     listMonitorName: { type: 'string', description: 'Filter monitors by name' },
     listMonitorTags: { type: 'string', description: 'Filter monitors by tags' },
+    listMonitorPageSize: { type: 'number', description: 'Monitors to return per page' },
+    listMonitorPage: { type: 'number', description: 'Monitor page number (0-indexed)' },
     // Incidents
     incidentId: { type: 'string', description: 'Incident UUID' },
     incidentTitle: { type: 'string', description: 'Incident title' },
@@ -2452,12 +2492,15 @@ Return ONLY the search query string - no explanations.`,
     // Metrics
     series: { type: 'json', description: 'Timeseries data' },
     status: { type: 'string', description: 'Query status' },
+    errors: { type: 'json', description: 'Metric series rejected during submission' },
     // Events
     event: { type: 'json', description: 'Event data' },
-    events: { type: 'json', description: 'List of events' },
     // Monitors
     monitor: { type: 'json', description: 'Monitor data' },
     monitors: { type: 'json', description: 'List of monitors' },
+    monitorId: { type: 'number', description: 'ID of the muted or unmuted monitor' },
+    name: { type: 'string', description: 'Name of the muted or unmuted monitor' },
+    overallState: { type: 'string', description: 'Monitor state after muting or unmuting' },
     // Logs
     logs: { type: 'json', description: 'Log entries' },
     nextLogId: { type: 'string', description: 'Pagination cursor for logs' },

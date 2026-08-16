@@ -34,7 +34,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'OData filter expression (e.g., "department eq \'Sales\'")',
+      description: `OData filter expression (e.g., "department eq 'Sales'")`,
     },
     search: {
       type: 'string',
@@ -47,7 +47,7 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Continuation URL from a previous response\'s "nextLink" output, used to fetch the next page of results',
+        "Continuation URL from a previous response's 'nextLink' output, used to fetch the next page of results",
     },
   },
   request: {

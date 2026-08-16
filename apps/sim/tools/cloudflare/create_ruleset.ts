@@ -46,7 +46,7 @@ export const createRulesetTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Ruleset kind: zone, custom, managed, or root. Use zone to create a phase entry point ruleset. Defaults to zone',
+        'Ruleset kind: zone or custom. Use zone to create a phase entry point ruleset and custom for a ruleset an execute rule deploys. Defaults to zone. "root" is the account-level phase entry point and "managed" is Cloudflare-owned, so neither can be created on this zone-scoped endpoint',
     },
     description: {
       type: 'string',

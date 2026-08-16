@@ -24,7 +24,8 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of downtimes to return per page (default: 30, max: 100)',
+      description:
+        'Number of downtimes to return per page. Datadog defaults to 30 and declares no maximum; keep this at 100 or below to stay within the bound Sim recommends.',
     },
     offset: {
       type: 'number',

@@ -19,23 +19,31 @@ import type { CloudflareResponse } from '@/tools/cloudflare/types'
  *
  * Every such control therefore carries its own id and is republished here under
  * the tool's param name, before any coercion in the mapper reads it.
+ *
+ * Which side of a collision gets the new id is not a free choice. Block state
+ * is never migrated, and `extractBlockParams` (`serializer/index.ts`) drops a
+ * stored value whose id matches no subBlock config — a deleted input — so the
+ * renamed side silently loses whatever shipped workflows stored. The read
+ * filters therefore keep their original ids, where losing a value means
+ * returning the whole zone under `success: true`, and the write controls take
+ * the new ones, where losing a value means a PATCH simply omits the field.
  */
 const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
   create_zone: { type: 'zoneType' },
-  list_zones: { name: 'zoneNameFilter' },
-  create_dns_record: { type: 'recordType', proxied: 'recordProxied' },
-  list_dns_records: {
-    type: 'dnsTypeFilter',
-    name: 'dnsNameFilter',
-    content: 'dnsContentFilter',
-    order: 'dnsOrder',
-    proxied: 'dnsProxiedFilter',
+  create_dns_record: { type: 'recordType', proxied: 'recordProxied', tags: 'recordTags' },
+  update_dns_record: {
+    type: 'updateRecordType',
+    name: 'updateRecordName',
+    content: 'updateRecordContent',
+    proxied: 'updateRecordProxied',
+    tags: 'updateRecordTags',
   },
+  list_dns_records: { order: 'dnsOrder' },
   list_certificates: { status: 'certificateStatus' },
-  purge_cache: { tags: 'purgeTags' },
   create_ruleset: { name: 'rulesetName' },
+  update_ruleset_rule: { enabled: 'updateRuleEnabled' },
   create_rate_limit_rule: { action: 'rateLimitAction' },
-  update_rate_limit_rule: { action: 'updateRateLimitAction' },
+  update_rate_limit_rule: { action: 'updateRateLimitAction', enabled: 'updateRuleEnabled' },
   create_access_application: { type: 'appType', tags: 'accessAppTags' },
   update_access_application: { type: 'updateAppType', tags: 'accessAppTags' },
   update_access_policy: { decision: 'updatePolicyDecision' },
@@ -44,7 +52,19 @@ const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
   list_access_service_tokens: { name: 'listNameFilter' },
   list_worker_scripts: { tags: 'workerTagFilter' },
   list_tunnels: { status: 'tunnelStatus', name: 'listNameFilter' },
+  list_r2_buckets: { cursor: 'r2Cursor' },
+  list_rulesets: { cursor: 'rulesetCursor' },
 }
+
+/**
+ * Access application types whose request schema makes `domain` mandatory.
+ *
+ * `access_app_request` is an `anyOf` over per-type variants: `domain` is
+ * required on the self_hosted, ssh, vnc, and rdp variants, optional and
+ * writable on bookmark and mcp_portal, read-only on app_launcher, warp, biso,
+ * and proxy_endpoint, and absent from saas, infrastructure, and mcp.
+ */
+const DOMAIN_REQUIRED_APP_TYPES = ['self_hosted', 'ssh', 'vnc', 'rdp'] as const
 
 /** Every alias subBlock id, so none of them can reach a tool as a param. */
 const ALIASED_SUBBLOCK_IDS = [
@@ -69,7 +89,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       byOperation: {
         list_zones: [
           'List zones',
-          { text: 'named', field: 'zoneNameFilter' },
+          { text: 'named', field: 'name' },
           { text: ', with status', field: 'status' },
         ],
         get_zone: [{ text: 'Read details of zone', field: 'zoneId', core: true }],
@@ -80,8 +100,8 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         delete_zone: [{ text: 'Delete zone', field: 'zoneId', core: true }],
         list_dns_records: [
           { text: 'List DNS records in zone', field: 'zoneId', core: true },
-          { text: ', of type', field: 'dnsTypeFilter' },
-          { text: ', named', field: 'dnsNameFilter' },
+          { text: ', of type', field: 'type' },
+          { text: ', named', field: 'name' },
         ],
         create_dns_record: [
           { text: 'Add DNS record', field: 'name', core: true },
@@ -90,7 +110,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         update_dns_record: [
           { text: 'Update DNS record', field: 'recordId', core: true },
-          { text: ', pointing it at', field: 'content' },
+          { text: ', pointing it at', field: 'updateRecordContent' },
           { text: ', with TTL', field: 'ttl' },
         ],
         delete_dns_record: [
@@ -114,7 +134,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         purge_cache: [
           { text: 'Purge cache for zone', field: 'zoneId', core: true },
-          { text: ', limited to', field: ['files', 'prefixes', 'hosts', 'purgeTags'] },
+          { text: ', limited to', field: ['files', 'prefixes', 'hosts', 'tags'] },
         ],
         list_rulesets: [{ text: 'List rulesets in zone', field: 'zoneId', core: true }],
         get_ruleset: [
@@ -296,7 +316,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
 
     // List Zones inputs
     {
-      id: 'zoneNameFilter',
+      id: 'name',
       title: 'Domain Name',
       type: 'short-input',
       placeholder: 'Filter by domain (e.g., example.com)',
@@ -445,7 +465,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       condition: { field: 'operation', value: 'list_dns_records' },
     },
     {
-      id: 'dnsTypeFilter',
+      id: 'type',
       title: 'Record Type',
       type: 'dropdown',
       options: [
@@ -463,7 +483,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'dnsNameFilter',
+      id: 'name',
       title: 'Name Filter',
       type: 'short-input',
       placeholder: 'Filter by record name (exact match)',
@@ -471,7 +491,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'dnsContentFilter',
+      id: 'content',
       title: 'Content Filter',
       type: 'short-input',
       placeholder: 'Filter by record content (exact match)',
@@ -521,7 +541,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'dnsProxiedFilter',
+      id: 'proxied',
       title: 'Proxied Filter',
       type: 'dropdown',
       options: [
@@ -665,7 +685,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'tags',
+      id: 'recordTags',
       title: 'Tags',
       type: 'short-input',
       placeholder: 'Comma-separated tags (e.g., production,web)',
@@ -691,7 +711,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       condition: { field: 'operation', value: 'update_dns_record' },
     },
     {
-      id: 'type',
+      id: 'updateRecordType',
       title: 'Record Type',
       type: 'dropdown',
       options: [
@@ -709,7 +729,12 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'name',
+      /**
+       * Renaming a live DNS record is a write, and this control is advanced, so
+       * sharing the bare `name` id let a name typed under any other operation
+       * reach the PATCH and rename the record.
+       */
+      id: 'updateRecordName',
       title: 'Record Name',
       type: 'short-input',
       placeholder: 'e.g., example.com or sub.example.com',
@@ -717,7 +742,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'content',
+      id: 'updateRecordContent',
       title: 'New Content',
       type: 'short-input',
       placeholder: 'e.g., 192.0.2.1',
@@ -733,7 +758,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'proxied',
+      id: 'updateRecordProxied',
       title: 'Proxied',
       type: 'dropdown',
       options: [
@@ -762,7 +787,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'tags',
+      id: 'updateRecordTags',
       title: 'Tags',
       type: 'short-input',
       placeholder: 'Comma-separated tags (e.g., production,web)',
@@ -1126,7 +1151,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       },
     },
     {
-      id: 'purgeTags',
+      id: 'tags',
       title: 'Cache Tags',
       type: 'short-input',
       placeholder: 'Comma-separated cache tags (Enterprise only)',
@@ -1252,7 +1277,6 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       options: [
         { label: 'Zone (phase entry point)', id: 'zone' },
         { label: 'Custom', id: 'custom' },
-        { label: 'Root', id: 'root' },
       ],
       value: () => 'zone',
       condition: { field: 'operation', value: 'create_ruleset' },
@@ -1444,12 +1468,31 @@ Return ONLY the expression - no explanations, no quotes around the whole express
       value: () => '',
       condition: {
         field: 'operation',
-        value: [
-          'create_ruleset_rule',
-          'update_ruleset_rule',
-          'create_rate_limit_rule',
-          'update_rate_limit_rule',
-        ],
+        value: ['create_ruleset_rule', 'create_rate_limit_rule'],
+      },
+      mode: 'advanced',
+    },
+    {
+      /**
+       * The update endpoints replace the rule, so `enabled` is a live on/off
+       * switch for WAF and rate limiting there rather than a starting state.
+       * Sharing the create control's id let a `false` chosen while drafting a
+       * new rule reach a later update and disable an enforcing rule — from a
+       * field the operation does not render in basic mode, since an advanced
+       * control serializes on stored value alone, before its `condition` runs.
+       */
+      id: 'updateRuleEnabled',
+      title: 'Enabled',
+      type: 'dropdown',
+      options: [
+        { label: 'Leave unchanged (Cloudflare re-enables the rule)', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: {
+        field: 'operation',
+        value: ['update_ruleset_rule', 'update_rate_limit_rule'],
       },
       mode: 'advanced',
     },
@@ -1485,6 +1528,12 @@ Return ONLY the expression - no explanations, no quotes around the whole express
       id: 'actionParameters',
       title: 'Action Parameters',
       type: 'long-input',
+      /**
+       * An `execute` rule carries the managed ruleset it deploys here, and the
+       * update endpoint replaces the rule — so leaving this blank resets
+       * action_parameters to {} and unbinds that ruleset.
+       */
+      required: { field: 'action', value: 'execute' },
       placeholder: '{"id":"<MANAGED_RULESET_ID>","overrides":{"action":"log"}}',
       condition: {
         field: 'operation',
@@ -1688,7 +1737,6 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
         { label: 'WARP', id: 'warp' },
         { label: 'Browser Isolation', id: 'biso' },
         { label: 'Bookmark', id: 'bookmark' },
-        { label: 'Dashboard SSO', id: 'dash_sso' },
         { label: 'Infrastructure', id: 'infrastructure' },
         { label: 'RDP', id: 'rdp' },
         { label: 'MCP', id: 'mcp' },
@@ -1717,7 +1765,6 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
         { label: 'WARP', id: 'warp' },
         { label: 'Browser Isolation', id: 'biso' },
         { label: 'Bookmark', id: 'bookmark' },
-        { label: 'Dashboard SSO', id: 'dash_sso' },
         { label: 'Infrastructure', id: 'infrastructure' },
         { label: 'RDP', id: 'rdp' },
         { label: 'MCP', id: 'mcp' },
@@ -1731,11 +1778,55 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
-      placeholder: 'Required for self_hosted, ssh, vnc, rdp, and bookmark apps',
+      placeholder: 'e.g., internal.example.com — required for self_hosted, ssh, vnc, and rdp apps',
+      required: (values) =>
+        values?.operation === 'update_access_application'
+          ? { field: 'updateAppType', value: [...DOMAIN_REQUIRED_APP_TYPES] }
+          : { field: 'appType', value: [...DOMAIN_REQUIRED_APP_TYPES] },
       condition: {
         field: 'operation',
         value: ['create_access_application', 'update_access_application'],
       },
+    },
+    {
+      /** `saas_app` is required on the saas request variant and rejected elsewhere. */
+      id: 'saasApp',
+      title: 'SaaS Application',
+      type: 'long-input',
+      required: true,
+      placeholder: '{"auth_type":"saml","consumer_service_url":"https://example.com/acs"}',
+      condition: (values) =>
+        values?.operation === 'update_access_application'
+          ? {
+              field: 'updateAppType',
+              value: 'saas',
+              and: { field: 'operation', value: 'update_access_application' },
+            }
+          : {
+              field: 'appType',
+              value: 'saas',
+              and: { field: 'operation', value: 'create_access_application' },
+            },
+    },
+    {
+      /** `target_criteria` is required on the infrastructure and rdp variants. */
+      id: 'targetCriteria',
+      title: 'Target Criteria',
+      type: 'long-input',
+      required: true,
+      placeholder: '[{"port":22,"protocol":"ssh","target_attributes":{"hostname":["app"]}}]',
+      condition: (values) =>
+        values?.operation === 'update_access_application'
+          ? {
+              field: 'updateAppType',
+              value: ['infrastructure', 'rdp'],
+              and: { field: 'operation', value: 'update_access_application' },
+            }
+          : {
+              field: 'appType',
+              value: ['infrastructure', 'rdp'],
+              and: { field: 'operation', value: 'create_access_application' },
+            },
     },
     {
       id: 'accessAppDomainFilter',
@@ -2208,11 +2299,24 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       mode: 'advanced',
     },
     {
-      id: 'cursor',
+      /**
+       * R2 returns its cursor at `result_info.cursor` and the Rulesets API at
+       * `result_info.cursors.after`. The two are not interchangeable, so a
+       * cursor carried across from the other list 400s.
+       */
+      id: 'r2Cursor',
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Pagination cursor from a previous call',
-      condition: { field: 'operation', value: ['list_r2_buckets', 'list_rulesets'] },
+      condition: { field: 'operation', value: 'list_r2_buckets' },
+      mode: 'advanced',
+    },
+    {
+      id: 'rulesetCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Pagination cursor from a previous call',
+      condition: { field: 'operation', value: 'list_rulesets' },
       mode: 'advanced',
     },
     {
@@ -2543,13 +2647,31 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       description: 'Whether the created DNS record is proxied through Cloudflare',
     },
     certificateStatus: { type: 'string', description: 'Certificate pack status filter' },
-    zoneNameFilter: { type: 'string', description: 'Domain name filter when listing zones' },
-    dnsTypeFilter: { type: 'string', description: 'DNS record type filter when listing records' },
-    dnsNameFilter: { type: 'string', description: 'Record name filter when listing records' },
-    dnsContentFilter: { type: 'string', description: 'Record content filter when listing records' },
     dnsOrder: { type: 'string', description: 'Sort field when listing DNS records' },
-    dnsProxiedFilter: { type: 'string', description: 'Proxied filter when listing DNS records' },
-    purgeTags: { type: 'string', description: 'Comma-separated cache tags to purge' },
+    recordTags: { type: 'string', description: 'Tags applied to a created DNS record' },
+    updateRecordType: {
+      type: 'string',
+      description: 'Record type a replaced DNS record ends up with',
+    },
+    updateRecordName: {
+      type: 'string',
+      description: 'Record name a replaced DNS record ends up with',
+    },
+    updateRecordContent: {
+      type: 'string',
+      description: 'Content a replaced DNS record ends up with',
+    },
+    updateRecordProxied: {
+      type: 'string',
+      description: 'Whether a replaced DNS record ends up proxied through Cloudflare',
+    },
+    updateRecordTags: { type: 'string', description: 'Tags a replaced DNS record ends up with' },
+    updateRuleEnabled: {
+      type: 'string',
+      description: 'Whether a replaced WAF or rate limiting rule ends up enabled',
+    },
+    r2Cursor: { type: 'string', description: 'Pagination cursor when listing R2 buckets' },
+    rulesetCursor: { type: 'string', description: 'Pagination cursor when listing rulesets' },
     workerTagFilter: { type: 'string', description: 'Tag filter when listing Worker scripts' },
     accessAppTags: { type: 'string', description: 'Tag names applied to an Access application' },
     listNameFilter: {
@@ -2675,6 +2797,14 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     customDenyUrl: { type: 'string', description: 'URL denied users are redirected to' },
     logoUrl: { type: 'string', description: 'Application logo URL' },
     policies: { type: 'string', description: 'JSON array of policies to attach' },
+    saasApp: {
+      type: 'string',
+      description: 'JSON SaaS configuration for a saas-typed Access application',
+    },
+    targetCriteria: {
+      type: 'string',
+      description: 'JSON target criteria for an infrastructure- or rdp-typed Access application',
+    },
     decision: { type: 'string', description: 'Access policy decision' },
     include: { type: 'string', description: 'JSON array of Access rules evaluated with OR logic' },
     exclude: { type: 'string', description: 'JSON array of Access rules evaluated with NOT logic' },
@@ -2894,6 +3024,22 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
   },
 }
 
+/**
+ * Tool param names an alias may safely read a stored value back from.
+ *
+ * A value sitting under the bare param name is a workflow saved before that
+ * control was renamed — unless a control still claims the name and could have
+ * put the value there itself. Two claims disqualify a name:
+ *
+ * - a `mode: 'advanced'` control, because `shouldSerializeSubBlock` serializes
+ *   one on stored value alone, before its `condition` runs, so the value may be
+ *   another operation's hidden field bleeding across;
+ * - a control with a seeded default, because block state is seeded by subBlock
+ *   id whatever the selected operation, so the value may be a default nobody
+ *   chose (`decision` reads back as `allow` from the create-policy control).
+ *
+ * Excluding both keeps the legacy read from re-opening what the aliases closed.
+ */
 export const CloudflareBlockMeta = {
   tags: ['cloud', 'monitoring'],
   url: 'https://www.cloudflare.com',

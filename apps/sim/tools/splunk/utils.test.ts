@@ -6,7 +6,9 @@ import {
   buildSplunkFormBody,
   buildSplunkHeaders,
   buildSplunkUrl,
+  getSplunkPaging,
   normalizeSearchQuery,
+  readSplunkDispatchJson,
   readSplunkJson,
   requireSplunkSid,
   savedSearchFieldQuery,
@@ -82,6 +84,116 @@ describe('readSplunkJson', () => {
 
   it('still parses a real body', async () => {
     await expect(readSplunkJson(new Response('{"results":[]}'))).resolves.toEqual({ results: [] })
+  })
+
+  /**
+   * The results path must never turn an unparseable body into an empty result set:
+   * that reports a lost result set as a search that legitimately matched nothing.
+   * The XML dispatch tolerance is deliberately not reachable from here.
+   */
+  it('throws on a truncated JSON body rather than reporting an empty result set', async () => {
+    await expect(readSplunkJson(new Response('{"results":[{"_raw":"partial'))).rejects.toThrow()
+  })
+
+  it('throws on a non-JSON body', async () => {
+    await expect(readSplunkJson(new Response('upstream connect error'))).rejects.toThrow()
+  })
+
+  it('throws on a 2xx HTML interstitial instead of reporting zero events', async () => {
+    await expect(
+      readSplunkJson(new Response('<!DOCTYPE html><html><body>Sign in</body></html>'))
+    ).rejects.toThrow()
+  })
+
+  it('throws even on the dispatch XML envelope — results are always JSON', async () => {
+    await expect(
+      readSplunkJson(new Response('<response><sid>1457683115.100</sid></response>'))
+    ).rejects.toThrow()
+  })
+})
+
+describe('readSplunkDispatchJson', () => {
+  /**
+   * `output_mode` is not in the documented parameter table for the dispatching and
+   * job-control endpoints, and the only response the reference documents for them
+   * is XML. The envelope is projected onto the same `{ sid }` shape JSON produces,
+   * so a dispatch that answered in XML keeps the search ID of the job it just
+   * created instead of erroring after the remote work already happened.
+   */
+  it('reads the search ID out of the documented XML response', async () => {
+    await expect(
+      readSplunkDispatchJson(new Response('<response><sid>1457683115.100</sid></response>'))
+    ).resolves.toEqual({ sid: '1457683115.100' })
+  })
+
+  it('accepts the XML declaration and attributes on the root', async () => {
+    await expect(
+      readSplunkDispatchJson(
+        new Response('<?xml version="1.0" encoding="UTF-8"?><response><sid>1.1</sid></response>')
+      )
+    ).resolves.toEqual({ sid: '1.1' })
+  })
+
+  /** Job control documents "Returned values: None", so there is no sid to find. */
+  it('returns an empty envelope for a job-control response with no sid', async () => {
+    await expect(readSplunkDispatchJson(new Response('<response/>'))).resolves.toEqual({})
+    await expect(
+      readSplunkDispatchJson(new Response('<response><messages/></response>'))
+    ).resolves.toEqual({})
+  })
+
+  /**
+   * A body cut off mid-transfer still starts with the documented root. Matching the
+   * opening tag alone read it as a complete envelope that carried nothing, which on
+   * a cancellation reported a truncated response as a successful cancel.
+   */
+  it('throws on a truncated envelope rather than reporting a successful cancel', async () => {
+    await expect(readSplunkDispatchJson(new Response('<response><sid>145768311'))).rejects.toThrow()
+  })
+
+  it('still parses a JSON body', async () => {
+    await expect(readSplunkDispatchJson(new Response('{"sid":"1.1"}'))).resolves.toEqual({
+      sid: '1.1',
+    })
+  })
+
+  it('returns an empty envelope for 204 and for an empty body', async () => {
+    await expect(readSplunkDispatchJson(new Response(null, { status: 204 }))).resolves.toEqual({})
+    await expect(readSplunkDispatchJson(new Response('  '))).resolves.toEqual({})
+  })
+
+  /**
+   * The tolerance is anchored to the one documented root element. A proxy error
+   * page or an SSO interstitial served with a 2xx is not a successful dispatch, and
+   * reading it as an empty envelope would hide it behind the missing-sid message.
+   */
+  it('throws on a 2xx HTML interstitial rather than reading it as an empty envelope', async () => {
+    await expect(
+      readSplunkDispatchJson(new Response('<!DOCTYPE html><html><body>Sign in</body></html>'))
+    ).rejects.toThrow()
+  })
+
+  it('throws on some other XML document', async () => {
+    await expect(
+      readSplunkDispatchJson(new Response('<error><message>Gateway timeout</message></error>'))
+    ).rejects.toThrow()
+  })
+})
+
+describe('getSplunkPaging', () => {
+  it('projects total and offset from the collection paging envelope', () => {
+    expect(getSplunkPaging({ paging: { total: 412, perPage: 30, offset: 30 } })).toEqual({
+      total: 412,
+      offset: 30,
+    })
+  })
+
+  it('reads the Atom-nested form and tolerates a response with no envelope', () => {
+    expect(getSplunkPaging({ feed: { paging: { total: 7, offset: 0 } } })).toEqual({
+      total: 7,
+      offset: 0,
+    })
+    expect(getSplunkPaging({ entry: [] })).toEqual({ total: null, offset: null })
   })
 })
 

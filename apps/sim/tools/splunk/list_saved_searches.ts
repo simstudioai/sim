@@ -7,8 +7,11 @@ import {
   buildSplunkHeaders,
   buildSplunkUrl,
   getSplunkEntries,
+  getSplunkPaging,
   mapSavedSearchEntry,
   SPLUNK_CONNECTION_PARAMS,
+  SPLUNK_OFFSET_OUTPUT,
+  SPLUNK_TOTAL_OUTPUT,
   savedSearchFieldQuery,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -59,9 +62,14 @@ export const listSavedSearchesTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    const paging = getSplunkPaging(data)
     return {
       success: true,
-      output: { savedSearches: getSplunkEntries(data).map(mapSavedSearchEntry) },
+      output: {
+        savedSearches: getSplunkEntries(data).map(mapSavedSearchEntry),
+        total: paging.total,
+        offset: paging.offset,
+      },
     }
   },
 
@@ -71,5 +79,7 @@ export const listSavedSearchesTool: ToolConfig<
       description: 'Saved searches configured in Splunk',
       items: { type: 'object', properties: SAVED_SEARCH_OUTPUT_FIELDS },
     },
+    total: SPLUNK_TOTAL_OUTPUT,
+    offset: SPLUNK_OFFSET_OUTPUT,
   },
 }
