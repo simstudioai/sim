@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
+import { dependentFieldNoun } from '@/ee/workspace-forking/components/fork-sync/dependent-field-noun'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import { useSelectorOptions } from '@/hooks/selectors/use-selector-query'
 
@@ -46,10 +47,7 @@ export function DependentFieldSelector({
     [options]
   )
 
-  // A field title is a label, and some already read as an instruction ("Select Issue",
-  // "Select Project"). Composing those directly produced "Select select issue", so strip a
-  // leading verb to get the bare noun the surrounding copy supplies its own verb for.
-  const noun = title.replace(/^select\s+/i, '').toLowerCase()
+  const noun = dependentFieldNoun(title)
 
   if (isLoading && enabled) {
     return (

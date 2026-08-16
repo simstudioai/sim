@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetToolInputParamConfigs } = vi.hoisted(() => ({
   mockGetToolInputParamConfigs: vi.fn(() => [] as unknown[]),
@@ -59,6 +59,14 @@ const replaceItem = {
 // No persisted block map in these unit tests, so the resolver derives - matching the
 // `deriveForkBlockId(...)` ids the expectations assert.
 const resolve = buildForkBlockIdResolver(true, EMPTY_FORK_BLOCK_MAP)
+
+// The indexer mock is module-scoped, so a `mockReturnValue` from one test would otherwise
+// leak into the next and make these order-dependent. Reset to the empty (no authoritative
+// visibility) default before each.
+beforeEach(() => {
+  mockGetToolInputParamConfigs.mockReset()
+  mockGetToolInputParamConfigs.mockReturnValue([])
+})
 
 describe('collectForkDependentReconfigs', () => {
   it("emits the active operation's credential-dependent selector (condition-gated)", () => {
@@ -837,6 +845,41 @@ describe('collectForkDependentReconfigs — blank source values never gate', () 
     expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: true })
   })
 
+  it('still gates a dependent whose source value is a non-string', () => {
+    // A multi-select selector (e.g. zoho-desk `departmentIds`) stores an array. The wire
+    // `sourceValue` coerces non-strings to '' - if the emptiness check read that coerced
+    // value, a populated multi-select would report blank and silently stop gating.
+    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('jira', {
+          credential: { value: 'cred-src' },
+          operation: { value: 'write' },
+          projectId: { value: ['PROJ-1'] as unknown as string },
+        }),
+      ],
+    ])
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+    expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: true })
+  })
+
+  it('does not gate a dependent whose source value is an empty array', () => {
+    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('jira', {
+          credential: { value: 'cred-src' },
+          operation: { value: 'write' },
+          projectId: { value: [] as unknown as string },
+        }),
+      ],
+    ])
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+    expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: false })
+  })
+
   it('reaches the same verdict in basic and advanced canonical mode', () => {
     vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
     const blankSubBlocks = {
@@ -861,10 +904,13 @@ describe('collectForkDependentReconfigs — blank source values never gate', () 
       new Map([['wf-src', advanced as unknown as WorkflowState]]),
       resolve
     )
-    // Advanced drops the row entirely (dormant member); basic keeps it but non-blocking.
-    // Neither may produce a required row from the same blank pair.
-    expect(basicResult.every((f) => !f.required)).toBe(true)
-    expect(advancedResult.every((f) => !f.required)).toBe(true)
+    // Advanced drops the row entirely (the dormant-member guard), basic keeps it but
+    // non-blocking. Pin BOTH shapes, not just `.every(...)`: over an empty array `.every`
+    // is vacuously true, so an advanced path that regressed to emitting a required row
+    // would still pass.
+    expect(basicResult).toHaveLength(1)
+    expect(basicResult[0]).toMatchObject({ subBlockKey: 'projectId', required: false })
+    expect(advancedResult).toHaveLength(0)
   })
 })
 
@@ -981,6 +1027,121 @@ describe('collectForkDependentReconfigs — nested tool params follow ParameterV
     )
     const issue = result.find((f) => f.subBlockKey === 'tools[0].issueKey')
     expect(issue).toMatchObject({ required: true })
+  })
+
+  it('ignores a non-authoritative visibility rather than trusting it to un-gate', () => {
+    // A generic/inferred entry carries no reliable annotation, so it must not be able to
+    // turn a gating field into a non-gating one.
+    agentWithJiraTool()
+    mockGetToolInputParamConfigs.mockReturnValue([
+      {
+        paramId: 'issueKey',
+        authoritative: false,
+        config: { id: 'issueKey', type: 'short-input', paramVisibility: 'user-or-llm' },
+        value: undefined,
+      },
+    ])
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      stateWithIssueKey('ACME-999'),
+      resolve
+    )
+    expect(result.find((f) => f.subBlockKey === 'tools[0].issueKey')).toMatchObject({
+      required: true,
+    })
+  })
+
+  it('fails closed when an authoritative entry carries no visibility', () => {
+    // The real resolver's `uncoveredParams` branch builds its config via
+    // `buildToolInputSearchConfig`, which does NOT copy `paramVisibility` - so the map holds
+    // the key with an `undefined` value. That must fall back to the block-level `required`,
+    // not be read as "not user-only".
+    agentWithJiraTool()
+    mockGetToolInputParamConfigs.mockReturnValue([
+      {
+        paramId: 'issueKey',
+        authoritative: true,
+        config: { id: 'issueKey', type: 'short-input' },
+        value: undefined,
+      },
+    ])
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      stateWithIssueKey('ACME-999'),
+      resolve
+    )
+    expect(result.find((f) => f.subBlockKey === 'tools[0].issueKey')).toMatchObject({
+      required: true,
+    })
+  })
+
+  it('resolves visibility through the canonical param id when the sub-block id differs', () => {
+    // The resolver keys by its own paramId; a canonical pair's sub-block id can differ, so the
+    // map is double-keyed and the lookup falls back to `canonicalParamId`.
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'jira')
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'issueKeySelector',
+            title: 'Select Issue',
+            type: 'file-selector',
+            canonicalParamId: 'issueKey',
+            selectorKey: 'jira.issues',
+            dependsOn: ['credential'],
+            required: true,
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    mockGetToolInputParamConfigs.mockReturnValue([
+      {
+        paramId: 'issueKey',
+        authoritative: true,
+        config: { id: 'issueKey', type: 'file-selector', paramVisibility: 'user-or-llm' },
+        value: undefined,
+      },
+    ])
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      stateWithIssueKey('ACME-999'),
+      resolve
+    )
+    // Found via canonicalParamId -> user-or-llm -> not the user's to fill.
+    expect(result.find((f) => f.subBlockKey === 'tools[0].issueKeySelector')).toMatchObject({
+      required: false,
+    })
+  })
+
+  it('does not gate a blank user-only nested param', () => {
+    // Both invariants fire at once: user-only (so visibility would gate) but blank in the
+    // source (so there is nothing to carry across).
+    agentWithJiraTool()
+    mockGetToolInputParamConfigs.mockReturnValue(
+      resolvedParams({ issueKey: 'user-or-llm', domain: 'user-only' })
+    )
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('agent', {
+          tools: {
+            value: [
+              {
+                type: 'jira',
+                title: 'Jira',
+                operation: 'read',
+                params: { credential: 'cred-src', domain: '', issueKey: '' },
+              },
+            ],
+          },
+        }),
+      ],
+    ])
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+    expect(result.find((f) => f.subBlockKey === 'tools[0].domain')).toMatchObject({
+      required: false,
+    })
   })
 })
 

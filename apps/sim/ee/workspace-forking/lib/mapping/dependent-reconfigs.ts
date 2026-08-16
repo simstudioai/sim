@@ -93,9 +93,12 @@ interface EmitAnchoredParams {
    * Present ONLY for the nested `tool-input` pass: each param's resolved
    * {@link ParameterVisibility}, keyed by sub-block id and by canonical param id. Its presence
    * is what marks a dependent as a tool param rather than a block sub-block, so `required`
-   * can apply the tool-row rule (see {@link isToolParamUserRequired}). A param missing from
-   * the map has no authoritative visibility (custom-tool / MCP generic fallback, or an
-   * unresolvable tool id) and falls back to the block-level `required`, failing closed.
+   * can apply the tool-row rule (see {@link isToolParamUserRequired}).
+   *
+   * Two cases fall back to the block-level `required`, failing closed: a param absent from
+   * the map (custom-tool / MCP generic fallback, or an unresolvable tool id), and a param
+   * present with an `undefined` value — the resolver's `buildToolInputSearchConfig` branch
+   * does not copy `paramVisibility`, so an authoritative entry can still carry none.
    */
   paramVisibilityById?: Map<string, ParameterVisibility | undefined>
   out: ForkDependentReconfig[]
@@ -234,7 +237,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
               : undefined))
           : undefined
         const configuredRequired =
-          paramVisibilityById && paramVisibility !== undefined
+          paramVisibility !== undefined
             ? isToolParamUserRequired({ required: dependent.required, paramVisibility }, values)
             : isSubBlockRequired(dependent.required, values)
         out.push({
@@ -252,7 +255,11 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           // The diff route overlays the stored/target-draft value onto `currentValue`;
           // `sourceValue` stays the raw source reference (the copy-resolved parent's seed).
           currentValue: rawSourceValue,
-          required: configuredRequired && isNonEmptyValue(rawSourceValue),
+          // Ask the emptiness question of the RAW value, not the string-coerced one:
+          // `rawSourceValue` flattens every non-string (a multi-select selector stores an
+          // array) to `''`, which would report a populated field as blank and silently
+          // un-gate it. `isNonEmptyValue` handles arrays and non-strings on purpose.
+          required: configuredRequired && isNonEmptyValue(rawDependentValue),
           providesContextKey,
           consumesContextKeys,
           context: dependentContext,
@@ -367,7 +374,12 @@ export function collectForkDependentReconfigs(
             if (!resolved.authoritative) continue
             const visibility = resolved.config.paramVisibility
             paramVisibilityById.set(resolved.paramId, visibility)
-            if (resolved.config.canonicalParamId) {
+            // The canonical id is an ALIAS, so it must never clobber a param that owns that
+            // key as its own `paramId` - first (own-id) write wins.
+            if (
+              resolved.config.canonicalParamId &&
+              !paramVisibilityById.has(resolved.config.canonicalParamId)
+            ) {
               paramVisibilityById.set(resolved.config.canonicalParamId, visibility)
             }
           }
