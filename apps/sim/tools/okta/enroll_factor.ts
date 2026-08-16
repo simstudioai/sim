@@ -5,7 +5,7 @@ import type {
   OktaEnrollFactorResponse,
   OktaFactor,
 } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaEnrollFactor')
@@ -89,7 +89,9 @@ export const oktaEnrollFactorTool: ToolConfig<OktaEnrollFactorParams, OktaEnroll
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/factors`
-      return params.activate === undefined ? base : `${base}?activate=${params.activate}`
+      return params.activate === undefined
+        ? base
+        : `${base}?activate=${isOktaFlagEnabled(params.activate)}`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

@@ -4,10 +4,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OktaBlock } from '@/blocks/blocks/okta'
 import { oktaActivateUserTool } from '@/tools/okta/activate_user'
+import { oktaClearUserSessionsTool } from '@/tools/okta/clear_user_sessions'
+import { oktaCreateUserTool } from '@/tools/okta/create_user'
 import { oktaDeactivateUserTool } from '@/tools/okta/deactivate_user'
+import { oktaDeleteGroupRuleTool } from '@/tools/okta/delete_group_rule'
 import { oktaDeleteUserTool } from '@/tools/okta/delete_user'
+import { oktaEnrollFactorTool } from '@/tools/okta/enroll_factor'
 import { oktaGetLogsTool } from '@/tools/okta/get_logs'
 import { oktaGetUserTool } from '@/tools/okta/get_user'
+import { oktaListAppsTool } from '@/tools/okta/list_apps'
+import { oktaRemoveUserFromAppTool } from '@/tools/okta/remove_user_from_app'
+import { oktaResetFactorTool } from '@/tools/okta/reset_factor'
 import { oktaResetPasswordTool } from '@/tools/okta/reset_password'
 import { oktaUpdateGroupTool } from '@/tools/okta/update_group'
 import { oktaUpdateUserTool } from '@/tools/okta/update_user'
@@ -201,6 +208,32 @@ describe('okta get_logs query building', () => {
     const url = oktaGetLogsTool.request.url({ ...AUTH })
     expect(url).not.toContain('limit=')
   })
+
+  /**
+   * Okta documents `since` and `after` as mutually exclusive, and a scheduled
+   * poll that persists the cursor normally also has a start time configured —
+   * so the resume request would otherwise be one Okta rejects.
+   */
+  it('drops since when a cursor is supplied', () => {
+    const url = builtUrl(oktaGetLogsTool.request.url, {
+      ...AUTH,
+      since: '2026-08-01T00:00:00.000Z',
+      after: 'CURSOR123',
+    })
+
+    expect(url).toContain('after=CURSOR123')
+    expect(url).not.toContain('since=')
+  })
+
+  it('still sends since when no cursor is supplied', () => {
+    const url = builtUrl(oktaGetLogsTool.request.url, {
+      ...AUTH,
+      since: '2026-08-01T00:00:00.000Z',
+    })
+
+    expect(url).toContain('since=2026-08-01T00%3A00%3A00.000Z')
+    expect(url).not.toContain('after=')
+  })
 })
 
 describe('okta get_logs pagination termination', () => {
@@ -299,6 +332,92 @@ describe('okta lifecycle flags are coerced rather than interpolated raw', () => 
     expect(tool.request.url({ ...AUTH, userId: '00u1' } as never)).toContain('sendEmail=false')
     expect(tool.request.url({ ...AUTH, userId: '00u1', sendEmail: 'yes' } as never)).toContain(
       'sendEmail=true'
+    )
+  })
+})
+
+describe('okta query-string flags are coerced rather than interpolated raw', () => {
+  /**
+   * Every one of these is `visibility: 'user-or-llm'` and typed `boolean` in
+   * Okta's spec, so a direct or agent tool call can deliver `"yes"` for any of
+   * them. Omission must still leave the parameter off entirely so Okta applies
+   * its own documented default.
+   */
+  const CASES: Array<{
+    name: string
+    build: (params: Record<string, unknown>) => string
+    param: string
+    base: Record<string, unknown>
+  }> = [
+    {
+      name: 'remove_user_from_app.sendEmail',
+      build: (params) => builtUrl(oktaRemoveUserFromAppTool.request.url, params),
+      param: 'sendEmail',
+      base: { ...AUTH, appId: '0oa1', userId: '00u1' },
+    },
+    {
+      name: 'enroll_factor.activate',
+      build: (params) => builtUrl(oktaEnrollFactorTool.request.url, params),
+      param: 'activate',
+      base: { ...AUTH, userId: '00u1', factorType: 'sms', provider: 'OKTA' },
+    },
+    {
+      name: 'reset_factor.removeRecoveryEnrollment',
+      build: (params) => builtUrl(oktaResetFactorTool.request.url, params),
+      param: 'removeRecoveryEnrollment',
+      base: { ...AUTH, userId: '00u1', factorId: 'fac1' },
+    },
+    {
+      name: 'delete_group_rule.removeUsers',
+      build: (params) => builtUrl(oktaDeleteGroupRuleTool.request.url, params),
+      param: 'removeUsers',
+      base: { ...AUTH, groupRuleId: '0pr1' },
+    },
+    {
+      name: 'clear_user_sessions.oauthTokens',
+      build: (params) => builtUrl(oktaClearUserSessionsTool.request.url, params),
+      param: 'oauthTokens',
+      base: { ...AUTH, userId: '00u1' },
+    },
+    {
+      name: 'clear_user_sessions.forgetDevices',
+      build: (params) => builtUrl(oktaClearUserSessionsTool.request.url, params),
+      param: 'forgetDevices',
+      base: { ...AUTH, userId: '00u1' },
+    },
+    {
+      name: 'list_apps.includeNonDeleted',
+      build: (params) => builtUrl(oktaListAppsTool.request.url, params),
+      param: 'includeNonDeleted',
+      base: { ...AUTH },
+    },
+  ]
+
+  it.each(CASES)('$name coerces a stringy truthy to true', ({ build, param, base }) => {
+    expect(build({ ...base, [param]: 'yes' })).toContain(`${param}=true`)
+  })
+
+  it.each(CASES)('$name coerces a stringy falsy to false', ({ build, param, base }) => {
+    expect(build({ ...base, [param]: 'false' })).toContain(`${param}=false`)
+  })
+
+  it.each(CASES)('$name omits the param when undefined', ({ build, param, base }) => {
+    expect(build(base)).not.toContain(`${param}=`)
+  })
+
+  /**
+   * `create_user.activate` is the one flag Okta itself defaults to `true`, so
+   * omission must keep sending `true` rather than fall through the coercion.
+   */
+  it('create_user.activate coerces a stringy value and still defaults to true', () => {
+    const base = { ...AUTH, firstName: 'A', lastName: 'B', email: 'a@b.com' }
+
+    expect(builtUrl(oktaCreateUserTool.request.url, base)).toContain('activate=true')
+    expect(builtUrl(oktaCreateUserTool.request.url, { ...base, activate: 'yes' })).toContain(
+      'activate=true'
+    )
+    expect(builtUrl(oktaCreateUserTool.request.url, { ...base, activate: 'false' })).toContain(
+      'activate=false'
     )
   })
 })

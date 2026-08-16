@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaResetFactorParams, OktaResetFactorResponse } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaResetFactor')
@@ -53,7 +53,7 @@ export const oktaResetFactorTool: ToolConfig<OktaResetFactorParams, OktaResetFac
       const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/factors/${encodeURIComponent(params.factorId.trim())}`
       return params.removeRecoveryEnrollment === undefined
         ? base
-        : `${base}?removeRecoveryEnrollment=${params.removeRecoveryEnrollment}`
+        : `${base}?removeRecoveryEnrollment=${isOktaFlagEnabled(params.removeRecoveryEnrollment)}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),

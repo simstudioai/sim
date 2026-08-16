@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeleteGroupRuleParams, OktaDeleteGroupRuleResponse } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeleteGroupRule')
@@ -48,7 +48,9 @@ export const oktaDeleteGroupRuleTool: ToolConfig<
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const base = `https://${domain}/api/v1/groups/rules/${encodeURIComponent(params.groupRuleId.trim())}`
-      return params.removeUsers === undefined ? base : `${base}?removeUsers=${params.removeUsers}`
+      return params.removeUsers === undefined
+        ? base
+        : `${base}?removeUsers=${isOktaFlagEnabled(params.removeUsers)}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),

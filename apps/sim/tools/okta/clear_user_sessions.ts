@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaClearUserSessionsParams, OktaClearUserSessionsResponse } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaClearUserSessions')
@@ -56,10 +56,10 @@ export const oktaClearUserSessionsTool: ToolConfig<
       const queryParams = new URLSearchParams()
 
       if (params.oauthTokens !== undefined) {
-        queryParams.append('oauthTokens', String(params.oauthTokens))
+        queryParams.append('oauthTokens', String(isOktaFlagEnabled(params.oauthTokens)))
       }
       if (params.forgetDevices !== undefined) {
-        queryParams.append('forgetDevices', String(params.forgetDevices))
+        queryParams.append('forgetDevices', String(isOktaFlagEnabled(params.forgetDevices)))
       }
 
       const queryString = queryParams.toString()

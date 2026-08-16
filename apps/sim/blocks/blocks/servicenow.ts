@@ -1683,11 +1683,19 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         if (operation === 'servicenow_list_attachments') {
           rest.limit =
             attachmentLimit != null && attachmentLimit !== '' ? Number(attachmentLimit) : undefined
-        } else if (rest.limit != null && rest.limit !== '') {
-          rest.limit = Number(rest.limit)
+        } else if (rest.limit != null) {
+          rest.limit = rest.limit === '' ? undefined : Number(rest.limit)
         }
-        if (rest.offset != null && rest.offset !== '') rest.offset = Number(rest.offset)
-        if (rest.quantity != null && rest.quantity !== '') rest.quantity = Number(rest.quantity)
+        /**
+         * A short-input stores `''` once a user types a value and clears it
+         * again, so a blank must resolve to `undefined` rather than stay in
+         * place — the tools only skip a param that is absent, and a retained
+         * `''` reaches ServiceNow as `sysparm_limit=`.
+         */
+        if (rest.offset != null) rest.offset = rest.offset === '' ? undefined : Number(rest.offset)
+        if (rest.quantity != null) {
+          rest.quantity = rest.quantity === '' ? undefined : Number(rest.quantity)
+        }
 
         if (rest.inputDisplayValue != null) {
           rest.inputDisplayValue =

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaRemoveUserFromAppParams, OktaRemoveUserFromAppResponse } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaRemoveUserFromApp')
@@ -53,7 +53,9 @@ export const oktaRemoveUserFromAppTool: ToolConfig<
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const base = `https://${domain}/api/v1/apps/${encodeURIComponent(params.appId.trim())}/users/${encodeURIComponent(params.userId.trim())}`
-      return params.sendEmail === undefined ? base : `${base}?sendEmail=${params.sendEmail}`
+      return params.sendEmail === undefined
+        ? base
+        : `${base}?sendEmail=${isOktaFlagEnabled(params.sendEmail)}`
     },
     method: 'DELETE',
     headers: (params) => oktaHeaders(params.apiKey),

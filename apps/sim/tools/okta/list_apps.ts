@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaApplication, OktaListAppsParams, OktaListAppsResponse } from '@/tools/okta/types'
-import { oktaHeaders, parseOktaPagination, throwOktaError } from '@/tools/okta/utils'
+import {
+  isOktaFlagEnabled,
+  oktaHeaders,
+  parseOktaPagination,
+  throwOktaError,
+} from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaListApps')
@@ -67,7 +72,7 @@ export const oktaListAppsTool: ToolConfig<OktaListAppsParams, OktaListAppsRespon
       if (params.q) queryParams.append('q', params.q)
       if (params.filter) queryParams.append('filter', params.filter)
       if (params.includeNonDeleted !== undefined) {
-        queryParams.append('includeNonDeleted', String(params.includeNonDeleted))
+        queryParams.append('includeNonDeleted', String(isOktaFlagEnabled(params.includeNonDeleted)))
       }
       if (params.after) queryParams.append('after', params.after)
       if (params.limit) queryParams.append('limit', params.limit.toString())

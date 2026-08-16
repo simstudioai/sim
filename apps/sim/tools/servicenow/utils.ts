@@ -67,8 +67,17 @@ export function appendReadParams(
   const { query, limit, offset, fields, displayValue, defaultDisplayValue } = options
 
   if (query) searchParams.append('sysparm_query', query)
-  if (limit !== undefined && limit !== null) searchParams.append('sysparm_limit', String(limit))
-  if (offset !== undefined && offset !== null) searchParams.append('sysparm_offset', String(offset))
+  /**
+   * `0` is meaningful on both of these, so emptiness rather than falsiness is
+   * the test — a cleared field arrives as `''` and must be omitted, not sent as
+   * a valueless `sysparm_limit=`.
+   */
+  if (limit !== undefined && limit !== null && String(limit) !== '') {
+    searchParams.append('sysparm_limit', String(limit))
+  }
+  if (offset !== undefined && offset !== null && String(offset) !== '') {
+    searchParams.append('sysparm_offset', String(offset))
+  }
   if (fields) searchParams.append('sysparm_fields', fields)
 
   const resolvedDisplayValue = displayValue || defaultDisplayValue

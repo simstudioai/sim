@@ -31,7 +31,7 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Start of the query time window as an ISO 8601 timestamp (default: 7 days before "until")',
+        'Start of the query time window as an ISO 8601 timestamp (default: 7 days before "until"). Ignored when a cursor is supplied in "after", which already encodes the resume position',
     },
     until: {
       type: 'string',
@@ -78,12 +78,18 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       const domain = validateOktaDomain(params.domain)
       const queryParams = new URLSearchParams()
 
-      if (params.since) queryParams.append('since', params.since)
+      /**
+       * Okta documents `since` and `after` as mutually exclusive. A cursor
+       * already encodes the position it resumes from, so it wins over the
+       * window start whenever both are supplied — otherwise a scheduled poll
+       * that has both configured would send a request Okta rejects.
+       */
+      if (params.after) queryParams.append('after', params.after)
+      else if (params.since) queryParams.append('since', params.since)
       if (params.until) queryParams.append('until', params.until)
       if (params.filter) queryParams.append('filter', params.filter)
       if (params.q) queryParams.append('q', params.q)
       if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder)
-      if (params.after) queryParams.append('after', params.after)
       /** `0` is a documented limit on this endpoint, so it must not read as absent. */
       if (params.limit !== undefined && params.limit !== null) {
         queryParams.append('limit', params.limit.toString())

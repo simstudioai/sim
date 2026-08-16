@@ -935,3 +935,57 @@ describe('the legacy generic tools are hardened like the semantic ones', () => {
     ).rejects.toThrowError(new Error('Insufficient rights'))
   })
 })
+
+describe('a cleared numeric field never reaches the instance as a blank param', () => {
+  const mapParams = ServiceNowBlock.tools.config?.params
+
+  /**
+   * A short-input stores `''` once a user types a value and clears it again —
+   * an untouched field stores `null` instead. The mapper's result is merged
+   * over the raw inputs, so a blank left in place survives the merge and is
+   * appended as a valueless `sysparm_limit=`.
+   */
+  function mergedParams(stored: Record<string, unknown>): Record<string, unknown> {
+    const inputs = { ...auth, ...stored }
+    const mapped = (mapParams?.(inputs as never) ?? {}) as Record<string, unknown>
+    return { ...inputs, ...mapped }
+  }
+
+  it.each(['limit', 'offset', 'quantity'])(
+    'resolves a cleared %s to undefined rather than leaving the blank in place',
+    (param) => {
+      const merged = mergedParams({
+        operation: 'servicenow_read_record',
+        tableName: 'incident',
+        [param]: '',
+      })
+
+      expect(merged[param]).toBeUndefined()
+    }
+  )
+
+  it('keeps a real numeric value through the mapper', () => {
+    const merged = mergedParams({
+      operation: 'servicenow_read_record',
+      tableName: 'incident',
+      limit: '25',
+      offset: '10',
+    })
+
+    expect(merged.limit).toBe(25)
+    expect(merged.offset).toBe(10)
+  })
+
+  it('omits sysparm_limit and sysparm_offset when the tools receive a blank', () => {
+    const url = urlOf(listIncidentsTool, { ...auth, limit: '', offset: '' })
+
+    expect(url.searchParams.has('sysparm_limit')).toBe(false)
+    expect(url.searchParams.has('sysparm_offset')).toBe(false)
+  })
+
+  it('omits sysparm_offset on read_record when the offset is blank', () => {
+    const url = urlOf(readRecordTool, { ...auth, tableName: 'incident', offset: '' })
+
+    expect(url.searchParams.has('sysparm_offset')).toBe(false)
+  })
+})
