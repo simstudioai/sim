@@ -5,6 +5,7 @@ import {
   CREDENTIAL_GROUP_PROVIDER_IDS,
   CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
 } from '@/lib/credential-groups/providers'
+import { CREDENTIAL_GROUP_ENROLLMENT_CURSOR_MAX_LENGTH } from '@/lib/credential-groups/types'
 
 export const credentialGroupProviderSchema = z.enum(CREDENTIAL_GROUP_PROVIDER_IDS)
 export const credentialGroupStatusSchema = z.enum(['active', 'disabled'])
@@ -169,7 +170,11 @@ export const slackCredentialGroupConfigurationCallbackQuerySchema =
   credentialGroupOAuthCallbackQuerySchema
 
 export const credentialGroupEnrollmentListQuerySchema = z.object({
-  cursor: z.string().min(1, 'Enrollment cursor cannot be empty').max(128).optional(),
+  cursor: z
+    .string()
+    .min(1, 'Enrollment cursor cannot be empty')
+    .max(CREDENTIAL_GROUP_ENROLLMENT_CURSOR_MAX_LENGTH)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 })
 

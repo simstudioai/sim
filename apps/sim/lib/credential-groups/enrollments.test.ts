@@ -4,6 +4,7 @@
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { credentialGroupEnrollmentListQuerySchema } from '@/lib/api/contracts/credential-groups'
 
 const { adapter } = vi.hoisted(() => ({
   adapter: {
@@ -151,6 +152,9 @@ describe('listCredentialGroupEnrollments', () => {
       statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'],
     })
     if (!firstPage.nextCursor) throw new Error('Expected a next enrollment cursor')
+    expect(
+      credentialGroupEnrollmentListQuerySchema.parse({ cursor: firstPage.nextCursor }).cursor
+    ).toBe(firstPage.nextCursor)
     const result = await listCredentialGroupEnrollments(
       'workspace-1',
       'group-1',
@@ -169,6 +173,70 @@ describe('listCredentialGroupEnrollments', () => {
       'completed',
       'delivery_failed',
     ])
+  })
+
+  it('rejects a cursor replayed against another credential group or filter', async () => {
+    const remainingEnrollment = {
+      ...ENROLLMENT,
+      id: 'enrollment-2',
+      invitedAt: new Date('2026-08-10T12:00:00.000Z'),
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ enrollment: ENROLLMENT }, { enrollment: remainingEnrollment }])
+      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ options: [] }])
+
+    const filters = { statuses: ['invited' as const, 'completed' as const] }
+    const firstPage = await listCredentialGroupEnrollments(
+      'workspace-1',
+      'group-1',
+      1,
+      undefined,
+      filters
+    )
+    if (!firstPage.nextCursor) throw new Error('Expected a next enrollment cursor')
+
+    await expect(
+      listCredentialGroupEnrollments('workspace-1', 'group-2', 50, firstPage.nextCursor, filters)
+    ).rejects.toMatchObject({ message: 'Enrollment cursor is invalid', status: 400 })
+    await expect(
+      listCredentialGroupEnrollments('workspace-1', 'group-1', 50, firstPage.nextCursor, {
+        statuses: ['completed'],
+      })
+    ).rejects.toMatchObject({ message: 'Enrollment cursor is invalid', status: 400 })
+  })
+
+  it('rejects a cursor whose signed boundary was modified', async () => {
+    const remainingEnrollment = {
+      ...ENROLLMENT,
+      id: 'enrollment-2',
+      invitedAt: new Date('2026-08-10T12:00:00.000Z'),
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ options: [] }])
+      .mockResolvedValueOnce([{ enrollment: ENROLLMENT }, { enrollment: remainingEnrollment }])
+      .mockResolvedValueOnce([{ options: [] }])
+
+    const firstPage = await listCredentialGroupEnrollments('workspace-1', 'group-1', 1)
+    if (!firstPage.nextCursor) throw new Error('Expected a next enrollment cursor')
+    const [encoded, signature] = firstPage.nextCursor.split('.')
+    if (!encoded || !signature) throw new Error('Expected a signed enrollment cursor')
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >
+    payload.id = 'fabricated-boundary'
+    const modifiedEncoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+
+    await expect(
+      listCredentialGroupEnrollments(
+        'workspace-1',
+        'group-1',
+        50,
+        `${modifiedEncoded}.${signature}`
+      )
+    ).rejects.toMatchObject({ message: 'Enrollment cursor is invalid', status: 400 })
   })
 
   it('rejects a malformed enrollment cursor', async () => {
