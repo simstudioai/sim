@@ -137,6 +137,44 @@ describe('useUpdateTableView autosave ordering', () => {
       promoted,
     ])
   })
+
+  it('ignores a stale promotion response instead of demoting the newer default', () => {
+    const newerDefault: TableViewWire = {
+      id: 'view-newer-default',
+      tableId: TABLE_ID,
+      name: 'Newer default',
+      config: {},
+      isDefault: true,
+      createdBy: 'user-1',
+      createdAt: new Date('2026-08-15T01:00:00.000Z'),
+      updatedAt: new Date('2026-08-15T03:00:00.000Z'),
+    }
+    const stalePromotion: TableViewWire = {
+      ...newerDefault,
+      id: 'view-stale',
+      name: 'Stale view',
+      updatedAt: new Date('2026-08-15T01:00:00.000Z'),
+    }
+    const cachedStaleRow: TableViewWire = {
+      ...stalePromotion,
+      isDefault: false,
+      updatedAt: new Date('2026-08-15T02:00:00.000Z'),
+    }
+    setCache(tableKeys.views(TABLE_ID), [newerDefault, cachedStaleRow])
+
+    const hook = useUpdateTableView({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    hook.onSuccess?.(
+      stalePromotion,
+      { viewId: stalePromotion.id, isDefault: true },
+      undefined,
+      undefined
+    )
+
+    expect(getCache<TableViewWire[]>(tableKeys.views(TABLE_ID))).toEqual([
+      newerDefault,
+      cachedStaleRow,
+    ])
+  })
 })
 
 describe('useDeleteColumn optimistic update', () => {

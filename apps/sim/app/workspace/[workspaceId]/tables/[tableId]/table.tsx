@@ -1208,7 +1208,9 @@ export function Table({
    * "Filter by cell value" from the grid's cell context menu. Narrows the
    * PRUNED filter, so a condition the current schema already invalidated is not
    * resurrected, and opens the panel — a silently narrowed table would leave the
-   * user no way to see what was applied.
+   * user no way to see what was applied. Persists explicitly: the reseeded
+   * panel starts signature-matched to this filter, so its debounce alone would
+   * never save it.
    */
   const handleFilterByCellValue = (conditions: readonly Predicate[]) => {
     const next = withCellValueFilter(effectiveFilter, conditions)
@@ -1434,8 +1436,9 @@ export function Table({
   // a one-line query forward.
   const { data: executionLog } = useLogByExecutionId(workspaceId, executionId)
 
-  // Stable identity so the memoized Resource.Options can bail — an inline
-  // object literal (with an inline arrow) would defeat its memo every render.
+  // Identity only changes with filterOpen (the flush targets the open panel),
+  // so unrelated parent re-renders still let the memoized Resource.Options
+  // bail; filterConfig below re-memoizes on filterOpen anyway.
   const handleToggleFilter = useCallback(() => {
     if (filterOpen) tableFilterRef.current?.flush()
     setFilterOpen(!filterOpen)
