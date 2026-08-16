@@ -3,7 +3,6 @@ import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
-import Script from 'next/script'
 import { ThemeProvider } from 'next-themes'
 import {
   SidebarFolder,
@@ -92,10 +91,9 @@ export default async function Layout({ children, params }: LayoutProps) {
       suppressHydrationWarning
     >
       <head>
-        <Script
+        <script
           id='website-json-ld'
           type='application/ld+json'
-          strategy='beforeInteractive'
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
         />
       </head>

@@ -3,7 +3,6 @@ title: Sim CLI
 description: Drive workflows, tables, files, knowledge bases, and logs from your shell
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
@@ -14,38 +13,31 @@ CI pipelines, and any other tool you already use.
 
 ## Install
 
-<Tabs items={['npm', 'pnpm', 'bun', 'yarn']}>
+<Tabs items={['npm', 'pnpm', 'bun']}>
   <Tab value="npm">
     ```bash
-    npm install --global sim
+    npm install -g sim
     ```
   </Tab>
   <Tab value="pnpm">
     ```bash
-    pnpm add --global sim
+    pnpm add -g sim
     ```
   </Tab>
   <Tab value="bun">
     ```bash
-    bun add --global sim
-    ```
-  </Tab>
-  <Tab value="yarn">
-    ```bash
-    yarn global add sim
+    bun add -g sim
     ```
   </Tab>
 </Tabs>
 
-The CLI needs **Node.js 20 or newer**. Verify the install:
+Requires Node.js 20 or newer. Verify with `sim --version`.
 
-```bash
-sim --version
-```
+To run it without installing, use `npx sim <command>`.
 
-Prefer using Sim as a library? See the [TypeScript](/api-reference/typescript)
-and [Python](/api-reference/python) SDKs, or call the
-[HTTP API](/api-reference/getting-started) directly.
+Using Sim as a library instead? See the [TypeScript](/api-reference/typescript)
+and [Python](/api-reference/python) SDKs, or the
+[HTTP API](/api-reference/getting-started).
 
 ## Your first command
 
@@ -58,10 +50,9 @@ and [Python](/api-reference/python) SDKs, or call the
 sim login
 ```
 
-The terminal prints a pairing code and a URL. Approve it in the browser, pick a
-workspace, and the key comes back over the CLI's own connection. Nothing
-redeemable crosses the browser leg and there is no loopback listener, so this
-works over SSH and inside containers.
+The terminal prints a pairing code and a URL. Approve it in the browser and pick
+a workspace. There is no loopback listener, so this works over SSH and in
+containers.
 
 See [Authentication](/cli/authentication) for CI keys, multiple accounts, and
 self-hosted deployments.
