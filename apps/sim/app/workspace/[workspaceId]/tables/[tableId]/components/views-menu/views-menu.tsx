@@ -23,6 +23,11 @@ export const ALL_ROWS_VIEW_LABEL = 'All'
 /** Matches the breadcrumb location popover's hover-intent grace period. */
 const POPOVER_CLOSE_DELAY_MS = 120
 
+/** Rendered width of one action button (`p-1` + `size-3` glyph) plus its `gap-0.5`.
+ *  The row reserves `actionCount` of these, so keep it in step with the button
+ *  classes below — the overlay is absolutely positioned and can't size the spacer. */
+const VIEW_ACTION_SLOT_PX = 22
+
 interface ViewsMenuProps {
   views: TableViewWire[]
   /** `null` selects the legacy "All" state while a table awaits backfill. */
@@ -239,7 +244,8 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
         {actionCount > 0 && (
           <span
             aria-hidden
-            className={cn('shrink-0', actionCount === 1 ? 'w-[22px]' : 'w-[66px]')}
+            className='shrink-0'
+            style={{ width: actionCount * VIEW_ACTION_SLOT_PX }}
           />
         )}
       </PopoverItem>

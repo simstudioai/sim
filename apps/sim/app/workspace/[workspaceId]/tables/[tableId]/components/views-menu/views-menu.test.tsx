@@ -103,6 +103,10 @@ describe('ViewsMenu', () => {
     expect(onSetDefault).toHaveBeenCalledWith(SECOND_VIEW.id)
     expect(document.body).toHaveTextContent('New view')
 
+    expect(defaultPin).toBeDisabled()
+    act(() => defaultPin?.click())
+    expect(onSetDefault).toHaveBeenCalledTimes(1)
+
     act(() => root.unmount())
     container.remove()
   })
