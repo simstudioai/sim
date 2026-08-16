@@ -1229,6 +1229,15 @@ export function TableGrid({
   const findOpenRef = useRef(findOpen)
   findOpenRef.current = findOpen
 
+  /**
+   * Whether `match` is still in the live result set. Both the paging await and
+   * the deferred reveal can outlast a refetch that removed it, and revealing a
+   * cell that no longer matches would select a non-hit and mark the cursor as
+   * sitting on a result.
+   */
+  const isStillAMatch = (match: TableFindMatch) =>
+    findMatchesRef.current.some((m) => m.rowId === match.rowId && m.column === match.column)
+
   /** Loads the row containing match `index` (wrapping), then queues the cell reveal. */
   const goToMatch = useCallback(async (index: number) => {
     const matches = findMatchesRef.current
@@ -1256,10 +1265,7 @@ export function TableGrid({
     // revealing it would select a cell that no longer matches and mark the
     // cursor as sitting on a result, which then makes the next step skip the
     // match that replaced it.
-    const stillMatches = findMatchesRef.current.some(
-      (m) => m.rowId === match.rowId && m.column === match.column
-    )
-    if (!stillMatches) {
+    if (!isStillAMatch(match)) {
       activeMatchRef.current = null
       cursorIsOnMatchRef.current = false
       return
@@ -1304,6 +1310,23 @@ export function TableGrid({
   useEffect(() => {
     const match = pendingMatchRef.current
     if (!match) return
+    // Last gate before the selection moves: the queue-to-reveal hop is another
+    // commit the result set can change under, so re-check here too rather than
+    // trusting the check `goToMatch` made before its await.
+    if (!isStillAMatch(match)) {
+      pendingMatchRef.current = null
+      // Release the cursor only if this reveal still owns it. A pending reveal
+      // waits here for its row to load, and the user can start a newer jump in
+      // that window — which has already claimed the ref. Clearing it blindly
+      // would strand that newer jump with no identity to re-point from, which
+      // is the skip-on-next failure this guard exists to prevent.
+      const active = activeMatchRef.current
+      if (active && active.rowId === match.rowId && active.column === match.column) {
+        activeMatchRef.current = null
+        cursorIsOnMatchRef.current = false
+      }
+      return
+    }
     const rowIndex = rows.findIndex((r) => r.id === match.rowId)
     if (rowIndex === -1) return
     const colIndex = displayColumns.findIndex((c) => c.key === match.column)
