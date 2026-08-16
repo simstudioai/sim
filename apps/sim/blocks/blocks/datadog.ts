@@ -53,12 +53,12 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
         ],
         datadog_mute_monitor: [
           { text: 'Mute monitor', field: 'muteMonitorId', core: true },
-          { text: ', for scope', field: 'muteScope' },
-          { text: ', until', field: 'muteEnd' },
+          { text: ', for scope', field: 'scope' },
+          { text: ', until', field: 'end' },
         ],
         datadog_unmute_monitor: [
           { text: 'Unmute monitor', field: 'muteMonitorId', core: true },
-          { text: ', for scope', field: 'muteScope' },
+          { text: ', for scope', field: 'scope' },
         ],
         datadog_query_logs: [
           { text: 'Search logs matching', field: 'logQuery', core: true },
@@ -528,7 +528,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       required: { field: 'operation', value: ['datadog_mute_monitor', 'datadog_unmute_monitor'] },
     },
     {
-      id: 'muteScope',
+      id: 'scope',
       title: 'Scope',
       type: 'short-input',
       placeholder: 'host:myhost (leave blank for all scopes)',
@@ -539,7 +539,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
     {
-      id: 'muteEnd',
+      id: 'end',
       title: 'Mute Until (Unix Timestamp)',
       type: 'short-input',
       placeholder: 'Leave empty to mute until unmuted',
@@ -1995,15 +1995,15 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               monitorId: params.muteMonitorId,
-              scope: params.muteScope || undefined,
-              end: params.muteEnd ? Number(params.muteEnd) : undefined,
+              scope: params.scope || undefined,
+              end: params.end ? Number(params.end) : undefined,
             }
 
           case 'datadog_unmute_monitor':
             return {
               ...baseParams,
               monitorId: params.muteMonitorId,
-              scope: params.muteScope || undefined,
+              scope: params.scope || undefined,
               allScopes: toSwitchBoolean(params.unmuteAllScopes),
             }
 
@@ -2323,8 +2323,8 @@ Return ONLY the search query string - no explanations.`,
     monitorId: { type: 'string', description: 'Monitor ID' },
     // Logs
     muteMonitorId: { type: 'string', description: 'Monitor ID to mute or unmute' },
-    muteScope: { type: 'string', description: 'Scope to mute or unmute' },
-    muteEnd: { type: 'number', description: 'Unix timestamp when the mute ends' },
+    scope: { type: 'string', description: 'Scope to mute or unmute' },
+    end: { type: 'number', description: 'Unix timestamp when the mute ends' },
     unmuteAllScopes: { type: 'boolean', description: 'Clear mute settings for every scope' },
     logQuery: { type: 'string', description: 'Log search query' },
     logFrom: { type: 'string', description: 'Log start time' },

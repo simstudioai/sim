@@ -62,12 +62,17 @@ export async function datadogErrorMessage(response: Response): Promise<string> {
   return messages.length > 0 ? messages.join('; ') : fallback
 }
 
-/** Splits a comma-separated user input into a trimmed, non-empty list. */
-export function splitCommaList(value: string | undefined): string[] | undefined {
-  if (!value) return undefined
-  const items = value
-    .split(',')
-    .map((item) => item.trim())
+/**
+ * Splits a comma-separated user input into a trimmed, non-empty list.
+ *
+ * Accepts `unknown` because a `<Block.output>` reference can resolve to a non-string:
+ * a monitor ID read from `get_monitor` arrives as a number, and an LLM tool call can
+ * pass an array. Calling `.split` on those would throw before the request is built.
+ */
+export function splitCommaList(value: unknown): string[] | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const items = (Array.isArray(value) ? value : String(value).split(','))
+    .map((item) => String(item).trim())
     .filter((item) => item.length > 0)
   return items.length > 0 ? items : undefined
 }
@@ -92,7 +97,7 @@ export function parseJsonParam<T>(value: unknown, fieldName: string): T | undefi
  * `Number('abc')` yields `NaN`, which `JSON.stringify` writes as `null` and Datadog
  * rejects with a message that names nothing the user typed, so bad input is rejected here.
  */
-export function parseMonitorIds(value: string | undefined): number[] | undefined {
+export function parseMonitorIds(value: unknown): number[] | undefined {
   const items = splitCommaList(value)
   if (!items) return undefined
   return items.map((id) => {

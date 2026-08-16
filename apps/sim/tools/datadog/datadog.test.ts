@@ -16,7 +16,12 @@ import { submitMetricsTool } from '@/tools/datadog/submit_metrics'
 import { unmuteMonitorTool } from '@/tools/datadog/unmute_monitor'
 import { updateIncidentTool } from '@/tools/datadog/update_incident'
 import { updateSloTool } from '@/tools/datadog/update_slo'
-import { buildSloPayload, datadogErrorMessage, mergeSloUpdatePayload } from '@/tools/datadog/utils'
+import {
+  buildSloPayload,
+  datadogErrorMessage,
+  mergeSloUpdatePayload,
+  splitCommaList,
+} from '@/tools/datadog/utils'
 
 const auth = { apiKey: 'key', applicationKey: 'app-key' } as const
 
@@ -400,6 +405,36 @@ describe('create_downtime monitor targeting', () => {
   it('targets a single monitor by numeric id', () => {
     const body = callBody(createDowntimeTool, { ...auth, scope: '*', monitorId: '123' } as any)
     expect(body.data.attributes.monitor_identifier).toEqual({ monitor_id: 123 })
+  })
+
+  /**
+   * A `<Block.output>` reference to get_monitor resolves to a number, and an LLM tool
+   * call can pass one too, so the parser must not assume a string.
+   */
+  it('accepts a monitor id that arrives as a number', () => {
+    const body = callBody(createDowntimeTool, { ...auth, scope: '*', monitorId: 123 } as any)
+    expect(body.data.attributes.monitor_identifier).toEqual({ monitor_id: 123 })
+  })
+
+  it('accepts monitor tags that arrive as an array', () => {
+    const body = callBody(createDowntimeTool, {
+      ...auth,
+      scope: '*',
+      monitorTags: ['team:backend', 'priority:high'],
+    } as any)
+    expect(body.data.attributes.monitor_identifier).toEqual({
+      monitor_tags: ['team:backend', 'priority:high'],
+    })
+  })
+})
+
+describe('splitCommaList input tolerance', () => {
+  it('handles strings, numbers, and arrays without throwing', () => {
+    expect(splitCommaList('a, b')).toEqual(['a', 'b'])
+    expect(splitCommaList(123)).toEqual(['123'])
+    expect(splitCommaList([1, 2])).toEqual(['1', '2'])
+    expect(splitCommaList(undefined)).toBeUndefined()
+    expect(splitCommaList('')).toBeUndefined()
   })
 })
 
