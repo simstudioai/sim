@@ -68,7 +68,7 @@ interface MSSQLTableColumn {
   default: string | null
   isPrimaryKey: boolean
   isForeignKey: boolean
-  references?: { table: string; column: string }
+  references?: { schema: string; table: string; column: string }
 }
 
 interface MSSQLTableSchema {
@@ -76,7 +76,12 @@ interface MSSQLTableSchema {
   schema: string
   columns: MSSQLTableColumn[]
   primaryKey: string[]
-  foreignKeys: Array<{ column: string; referencesTable: string; referencesColumn: string }>
+  foreignKeys: Array<{
+    column: string
+    referencesSchema: string
+    referencesTable: string
+    referencesColumn: string
+  }>
   indexes: Array<{ name: string; columns: string[]; unique: boolean }>
 }
 

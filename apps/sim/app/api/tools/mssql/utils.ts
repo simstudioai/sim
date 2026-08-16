@@ -59,6 +59,19 @@ function connectToPinnedAddress(address: string, port: number, timeoutMs: number
  * connector, and node-mssql deletes `port` whenever `instanceName` is set, so
  * there is no configuration in which a named instance stays pinned. Connect to
  * a named instance by giving it a static TCP port instead.
+ *
+ * An Azure SQL `Redirect` routing response is unsupported for the same reason
+ * and fails the same safe way. tedious reconnects on a LOGIN7 routing envchange,
+ * but a zero-argument connector ignores the redirect target and reconnects to
+ * the pinned address — which is the behavior we want, since the redirect target
+ * is chosen by the server and honoring it would be the rebinding the pin exists
+ * to stop. Reach Azure SQL through a `Proxy`-policy connection.
+ *
+ * `requestTimeout` intentionally tracks `connectionTimeout` off the single knob
+ * the block exposes, which the field labels as covering both. tedious governs
+ * the whole login handshake (prelogin, TLS, LOGIN7) with `connectTimeout`
+ * regardless of the connector, so the socket's own timeout is cleared once it is
+ * connected rather than left to fire during a slow login.
  * @see https://tediousjs.github.io/tedious/api-connection.html
  * @see https://github.com/tediousjs/node-mssql#general-same-for-all-drivers
  */
@@ -102,6 +115,25 @@ export interface MSSQLQueryResult {
 }
 
 /**
+ * Prepares a JSON-sourced value for `request.input()`.
+ *
+ * With no explicit type, node-mssql infers one from the value — and its object
+ * branch only recognises `String`, `Number`, `Boolean`, `Date`, `Buffer`, and
+ * `Table`. Anything else (a nested object, an array) is inferred as `NVarChar`
+ * while staying an object, and tedious's `NVarChar.validate` then throws a bare
+ * `Invalid string.` with nothing naming the column. Since `data` arrives as
+ * arbitrary JSON, serializing those to JSON text is both the only sound binding
+ * and what a caller writing into an `nvarchar`/JSON column means.
+ * @see https://github.com/tediousjs/node-mssql#data-types
+ */
+function toBindableValue(value: unknown): unknown {
+  if (value === null || value === undefined) return value
+  if (typeof value !== 'object') return value
+  if (value instanceof Date || Buffer.isBuffer(value)) return value
+  return JSON.stringify(value)
+}
+
+/**
  * Runs a statement with positional values bound as `@param1`, `@param2`, … .
  *
  * `recordset` holds the first result set and `rowsAffected` holds one count per
@@ -116,7 +148,7 @@ export async function executeQuery(
 ): Promise<MSSQLQueryResult> {
   const request = pool.request()
   values.forEach((value, index) => {
-    request.input(`param${index + 1}`, value)
+    request.input(`param${index + 1}`, toBindableValue(value))
   })
 
   const result = await request.query(query)
@@ -173,6 +205,59 @@ const MSSQL_STACKED_STATEMENT = /;\s*\S/
 const MSSQL_COMMENT = /--|\/\*|\*\//
 
 /**
+ * A quote character {@link maskSqlStringLiterals} treats as opening a literal.
+ * Backtick is included because the masker honours it even though T-SQL does not.
+ */
+const MSSQL_MASKER_QUOTES = ["'", '"', '`'] as const
+
+/** A backslash directly before one of {@link MSSQL_MASKER_QUOTES}. */
+const MSSQL_BACKSLASH_ESCAPED_QUOTE = /\\['"`]/
+
+/** Any quote character inside a bracket-quoted identifier. */
+const MSSQL_QUOTE_IN_BRACKETS = /\[[^\]]*['"`]/
+
+/**
+ * Rejects input whose quoting would make literal masking unreliable.
+ *
+ * Every screen below runs over {@link maskSqlStringLiterals} output, so anything
+ * the masker hides is invisible to all of them — and the masker is written for
+ * the ANSI/MySQL dialect, not T-SQL. Three ways to desynchronise it, each of
+ * which lets real SQL hide inside what the masker believes is a string:
+ *
+ * 1. **An unpaired quote.** The masker runs to the end of the input looking for
+ *    a partner, masking everything on the way.
+ * 2. **A quote inside a bracketed identifier.** Brackets are SQL Server's other
+ *    quoting form and the masker does not track them, so `[a"] = 1 OR 1=1`
+ *    reads as one unterminated literal.
+ * 3. **A backslash before a quote.** The masker treats `\` as an escape and
+ *    swallows the quote that follows — but **T-SQL has no backslash escape**, so
+ *    the server closes the literal there and executes the rest as code. This is
+ *    the dangerous one, because it survives an even quote count:
+ *    `a='x\' DELETE FROM dbo.t WHERE b='y'` holds four quotes and masks to
+ *    `a=          y`, hiding the DELETE from the keyword screen entirely.
+ *
+ * All three are rejected rather than modelled. T-SQL escapes a quote by doubling
+ * it and has no use for a backslash escape or a backtick, so nothing correct is
+ * turned away except a value ending in a literal backslash (`'C:\'`) — which the
+ * Execute Raw SQL operation still accepts. Failing closed here is what lets
+ * every screen below trust that what the mask left visible is all the code there
+ * is.
+ * @see https://learn.microsoft.com/en-us/sql/relational-databases/databases/database-identifiers
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/data-types/constants-transact-sql
+ */
+function hasUnreliableQuoting(value: string): boolean {
+  for (const quote of MSSQL_MASKER_QUOTES) {
+    let count = 0
+    for (const char of value) {
+      if (char === quote) count++
+    }
+    if (count % 2 !== 0) return true
+  }
+
+  return MSSQL_BACKSLASH_ESCAPED_QUOTE.test(value) || MSSQL_QUOTE_IN_BRACKETS.test(value)
+}
+
+/**
  * Restricts the Query operation to statements that only read.
  *
  * The block label, the tool description, and the docs all present this
@@ -203,6 +288,14 @@ export function validateReadOnlyQuery(query: string): { isValid: boolean; error?
       isValid: false,
       error:
         'The Query operation only accepts SELECT statements, optionally led by a WITH clause. Use the Execute Raw SQL operation to run anything else.',
+    }
+  }
+
+  if (hasUnreliableQuoting(trimmedQuery)) {
+    return {
+      isValid: false,
+      error:
+        'The Query operation could not read this statement reliably: it has an unpaired quote, a quote inside a bracketed identifier, or a backslash before a quote. T-SQL escapes a quote by doubling it.',
     }
   }
 
@@ -286,6 +379,22 @@ export function buildDeleteQuery(table: string, where: string) {
 }
 
 /**
+ * Rejects `SELECT` inside an update or delete WHERE clause.
+ *
+ * `SELECT` cannot live in the shared {@link MSSQL_STATEMENT_KEYWORDS} list, since
+ * the read-only query screen exists to *permit* it — but appended to a WHERE it
+ * is an exfiltration channel: `id = 1 SELECT secret FROM dbo.credentials` runs
+ * as a second statement and the route hands back its recordset as though it were
+ * the mutation's result.
+ *
+ * The cost is that a subquery condition (`id IN (SELECT ...)`) is refused here.
+ * That is a deliberate trade — the WHERE text is interpolated rather than bound,
+ * so the screen cannot tell a subquery from an appended statement, and the
+ * Execute Raw SQL operation covers a subquery-driven update.
+ */
+const MSSQL_WHERE_SELECT = /\bselect\b/i
+
+/**
  * SQL Server catalog surfaces a WHERE clause has no business reading: the
  * information schema, the `sys.*` catalog views, and the legacy compatibility
  * views still reachable as `master..sysobjects`.
@@ -324,6 +433,12 @@ const MSSQL_CATALOG_PATTERNS: readonly RegExp[] = [
  * @throws {Error} If the WHERE clause matches any screened pattern
  */
 function validateWhereClause(where: string): void {
+  if (hasUnreliableQuoting(where)) {
+    throw new Error(
+      'WHERE clause has an unpaired quote, a quote inside a bracketed identifier, or a backslash before a quote. T-SQL escapes a quote by doubling it.'
+    )
+  }
+
   const shared = validateSqlWhereClause(where, 'WHERE clause')
   if (!shared.isValid) {
     throw new Error(shared.error)
@@ -333,6 +448,7 @@ function validateWhereClause(where: string): void {
   if (
     MSSQL_STATEMENT_KEYWORDS.test(masked) ||
     MSSQL_PROCEDURE_PATTERN.test(masked) ||
+    MSSQL_WHERE_SELECT.test(masked) ||
     MSSQL_CATALOG_PATTERNS.some((pattern) => pattern.test(masked))
   ) {
     throw new Error('WHERE clause contains potentially dangerous operation')
@@ -372,6 +488,7 @@ export interface MSSQLIntrospectionResult {
       isPrimaryKey: boolean
       isForeignKey: boolean
       references?: {
+        schema: string
         table: string
         column: string
       }
@@ -379,6 +496,7 @@ export interface MSSQLIntrospectionResult {
     primaryKey: string[]
     foreignKeys: Array<{
       column: string
+      referencesSchema: string
       referencesTable: string
       referencesColumn: string
     }>
@@ -413,6 +531,7 @@ interface KeyColumnRow {
 
 interface ForeignKeyRow {
   COLUMN_NAME: string
+  REFERENCED_TABLE_SCHEMA: string
   REFERENCED_TABLE_NAME: string
   REFERENCED_COLUMN_NAME: string
 }
@@ -513,6 +632,7 @@ export async function executeIntrospect(
          */
         `SELECT
            pc.name AS COLUMN_NAME,
+           rs.name AS REFERENCED_TABLE_SCHEMA,
            rt.name AS REFERENCED_TABLE_NAME,
            rc.name AS REFERENCED_COLUMN_NAME
          FROM sys.foreign_keys fk
@@ -522,6 +642,7 @@ export async function executeIntrospect(
          JOIN sys.columns pc
            ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
          JOIN sys.tables rt ON rt.object_id = fkc.referenced_object_id
+         JOIN sys.schemas rs ON rs.schema_id = rt.schema_id
          JOIN sys.columns rc
            ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
          WHERE ps.name = @schema AND pt.name = @table
@@ -530,6 +651,7 @@ export async function executeIntrospect(
 
     const foreignKeys = fkResult.recordset.map((row: ForeignKeyRow) => ({
       column: row.COLUMN_NAME,
+      referencesSchema: row.REFERENCED_TABLE_SCHEMA,
       referencesTable: row.REFERENCED_TABLE_NAME,
       referencesColumn: row.REFERENCED_COLUMN_NAME,
     }))
@@ -545,12 +667,26 @@ export async function executeIntrospect(
       .input('table', tableName)
       .query<IndexRow>(
         /**
-         * `key_ordinal > 0` is what restricts the result to key columns: it is
-         * the "ordinal (1-based) within set of key-columns", and `0` marks both
-         * INCLUDEd non-key columns and partitioning columns — the latter of
-         * which also report `is_included_column = 0`, so that flag alone would
-         * let them through.
+         * `key_ordinal > 0` restricts the result to key columns: it is the
+         * "ordinal (1-based) within set of key-columns", and `0` marks INCLUDEd
+         * non-key columns, partitioning columns, **and every column of an XML,
+         * spatial, columnstore, or JSON index**. The partitioning columns are
+         * why `is_included_column` alone is not enough — those report `0` for it
+         * too. The index families are the cost of the filter: they contribute no
+         * key column, so they are absent from the result rather than listed with
+         * an empty column set. Rowstore keys, which is what a query planner
+         * reader is after, are reported in full.
+         *
+         * `is_hypothetical = 0` drops the statistics-only indexes the Database
+         * Engine Tuning Advisor leaves behind ("can't be used directly as a data
+         * access path"), and `is_disabled = 0` drops indexes that exist but are
+         * not maintained. Reporting either as a live index misleads.
+         *
+         * `is_primary_key = 0` keeps the primary key out, since `primaryKey`
+         * carries it already. A UNIQUE *constraint* is deliberately left in: it
+         * is a unique index and nothing else in the result reports it.
          * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-index-columns-transact-sql
+         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-indexes-transact-sql
          */
         `SELECT i.name AS INDEX_NAME, c.name AS COLUMN_NAME, i.is_unique AS IS_UNIQUE
          FROM sys.indexes i
@@ -563,6 +699,8 @@ export async function executeIntrospect(
          WHERE s.name = @schema
            AND t.name = @table
            AND i.is_primary_key = 0
+           AND i.is_hypothetical = 0
+           AND i.is_disabled = 0
            AND i.name IS NOT NULL
            AND ic.key_ordinal > 0
          ORDER BY i.name, ic.key_ordinal`
@@ -593,6 +731,7 @@ export async function executeIntrospect(
         isForeignKey: fk !== undefined,
         ...(fk && {
           references: {
+            schema: fk.referencesSchema,
             table: fk.referencesTable,
             column: fk.referencesColumn,
           },

@@ -31,8 +31,8 @@ Execute a SELECT query on a Microsoft SQL Server database
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `query` | string | Yes | T-SQL SELECT query to execute, optionally led by a WITH clause. Statements that modify data or schema are rejected — use the Execute Raw SQL operation for those. |
 
@@ -57,8 +57,8 @@ Insert data into a Microsoft SQL Server table
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to insert data into |
 | `data` | object | Yes | Data object to insert \(key-value pairs\) |
@@ -84,8 +84,8 @@ Update rows in a Microsoft SQL Server table
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to update |
 | `data` | object | Yes | Data object with the columns to set \(key-value pairs\) |
@@ -112,8 +112,8 @@ Delete rows from a Microsoft SQL Server table
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `table` | string | Yes | Table name to delete rows from |
 | `where` | string | Yes | WHERE condition identifying the rows to delete |
@@ -139,8 +139,8 @@ Execute a raw T-SQL statement on a Microsoft SQL Server database
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `query` | string | Yes | T-SQL statement to execute |
 
@@ -165,8 +165,8 @@ Introspect a Microsoft SQL Server schema to retrieve table structures, columns, 
 | `database` | string | Yes | Database name to connect to |
 | `username` | string | Yes | Database username |
 | `password` | string | Yes | Database password |
-| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled |
-| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled |
+| `encrypt` | string | No | Encrypt the connection with TLS \(enabled, disabled\). Defaults to enabled. Disabling sends the login packet and every row in cleartext |
+| `trustServerCertificate` | string | No | Trust a self-signed server certificate \(enabled, disabled\). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle |
 | `connectionTimeout` | number | No | Connection and request timeout in milliseconds \(default: 15000\) |
 | `schema` | string | No | Schema to introspect \(default: dbo\) |
 

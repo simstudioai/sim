@@ -43,14 +43,15 @@ export const updateTool: ToolConfig<MSSQLUpdateParams, MSSQLUpdateResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Encrypt the connection with TLS (enabled, disabled). Defaults to enabled',
+      description:
+        'Encrypt the connection with TLS (enabled, disabled). Defaults to enabled. Disabling sends the login packet and every row in cleartext',
     },
     trustServerCertificate: {
       type: 'string',
       required: false,
       visibility: 'user-only',
       description:
-        'Trust a self-signed server certificate (enabled, disabled). Defaults to disabled',
+        'Trust a self-signed server certificate (enabled, disabled). Defaults to disabled. Enabling skips certificate validation, so the connection is open to a machine-in-the-middle',
     },
     connectionTimeout: {
       type: 'number',
