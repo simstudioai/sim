@@ -4338,7 +4338,7 @@
       "docsUrl": "https://docs.sim.ai/integrations/confluence",
       "operations": [
         {
-          "name": "Read Page",
+          "name": "Get Page",
           "description": "Retrieve content from Confluence pages using the Confluence API."
         },
         {
