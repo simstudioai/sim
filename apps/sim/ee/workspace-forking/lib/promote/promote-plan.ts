@@ -8,7 +8,6 @@ import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
 import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'
 import {
   buildForkResolver,
-  type ForkMappingRow,
   getEdgeMappingRows,
   resourceTypeToForkKind,
 } from '@/ee/workspace-forking/lib/mapping/mapping-store'
@@ -90,12 +89,6 @@ export interface ForkPromotePlan {
   willUpdate: number
   willCreate: number
   willArchive: number
-  /**
-   * The edge's persisted identity rows, already read to build {@link ForkPromotePlan.resolver}.
-   * Exposed so later stages of the same transaction reuse them instead of re-reading the whole
-   * edge mapping, which for a large fork is a second full load of the same rows.
-   */
-  mappingRows: ForkMappingRow[]
 }
 
 /**
@@ -558,6 +551,5 @@ export async function computeForkPromotePlan(params: {
     willUpdate,
     willCreate,
     willArchive: archivedTargetIds.length,
-    mappingRows,
   }
 }
