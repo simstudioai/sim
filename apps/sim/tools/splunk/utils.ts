@@ -274,10 +274,14 @@ export function mapSplunkMessages(value: unknown): SplunkMessage[] {
 
 /**
  * The `content` keys `mapSavedSearchEntry` reads, in the `f` filtering-parameter form
- * the reference prescribes for this endpoint: "This endpoint returns an unusually high
- * number of values. To limit the number of returned values, specify the f filtering
- * parameter." A saved search otherwise carries well over a hundred `content` keys
- * (`action.email.*` alone runs to dozens) of which only these are projected.
+ * the reference prescribes for the `saved/searches` collection: "This endpoint returns
+ * an unusually high number of values. To limit the number of returned values, specify
+ * the f filtering parameter." A saved search otherwise carries well over a hundred
+ * `content` keys (`action.email.*` alone runs to dozens) of which only these are
+ * projected, so a `count=0` listing pays for all of them on every entry.
+ *
+ * Only the collection endpoint documents this; the single-entity endpoint returns one
+ * entry, so it is left unfiltered rather than assuming `f` is honored there too.
  */
 const SAVED_SEARCH_CONTENT_FIELDS = [
   'search',

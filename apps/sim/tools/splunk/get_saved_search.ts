@@ -9,7 +9,6 @@ import {
   getSplunkEntries,
   mapSavedSearchEntry,
   SPLUNK_CONNECTION_PARAMS,
-  savedSearchFieldQuery,
   splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -35,8 +34,7 @@ export const getSavedSearchTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${buildSplunkUrl(params, `/saved/searches/${splunkPathSegment(params.name)}`)}&${savedSearchFieldQuery()}`,
+    url: (params) => buildSplunkUrl(params, `/saved/searches/${splunkPathSegment(params.name)}`),
     method: 'GET',
     headers: (params) => buildSplunkHeaders(params),
   },
