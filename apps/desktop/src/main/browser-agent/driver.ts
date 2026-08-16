@@ -886,6 +886,12 @@ function unwrapPageResult(result: unknown): unknown {
         `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
       )
     }
+    if (code === 'nested-control') {
+      const blocker = String((result as { blocker?: unknown }).blocker || 'a nested control')
+      throw new ToolError(
+        `The point you targeted lands on ${blocker}, which is its own control inside that element — nothing is covering it. Take a fresh browser_snapshot and use the id of the control you actually want.`
+      )
+    }
     if (code === 'suggestions-open') {
       throw new ToolError(
         'That editable field is already focused and covered by its own suggestions popup. Use browser_type on the same element; do not dismiss the popup first.'
@@ -1298,6 +1304,29 @@ async function pageActionState(
   return toRecord(state)
 }
 
+/**
+ * Which signals each tool accepts as proof its action reached the page.
+ *
+ * The tools deliberately do NOT share one predicate — the differences are real,
+ * and flattening them would make every tool wrong in a different direction:
+ *
+ * - `browser_drag` is the only tool that trusts `domChanged`, because a drop
+ *   that reorders a list may change nothing else observable. Everywhere else
+ *   background churn (Slack, Gmail) would forge success for an ignored action.
+ * - `browser_hover` ignores `fieldChanged` and `focusChanged`: hovering does not
+ *   type or focus, so those would only ever be someone else's effect.
+ * - `browser_click` / `browser_click_at` count `focusChanged` only when the
+ *   target was editable — otherwise a click that merely moved focus reads as
+ *   success.
+ * - `targetChanged` requires a `targetState`, which `pageActionState` captures
+ *   only when given an `elementId`. Tools without one (click_at, insert_text,
+ *   drag, press_key) cannot use it; listing it there read as coverage they did
+ *   not have, and it was silently always false.
+ *
+ * What IS shared is this function: every signal is computed here once, so a
+ * tool's formula is a statement about which evidence it trusts, not a private
+ * re-derivation of what changed.
+ */
 function pageEffect(
   beforePage: Record<string, unknown>,
   afterPage: Record<string, unknown>,
@@ -3207,11 +3236,13 @@ async function executeToolInner(
       const observation = pageEffect(beforePage, afterPage, beforeElement, afterElement)
       const activeTab = session.automationTab()
       const tabChanged = activeTab?.id !== clickedTab.id
+      // targetChanged is deliberately absent: this tool has no elementId, so
+      // pageActionState captures no targetState and the term could only ever
+      // be false. Listing it read as coverage this tool does not have.
       const effectObserved =
         observation.effect.urlChanged ||
         observation.effect.dialogChanged ||
         observation.effect.popupChanged ||
-        observation.effect.targetChanged ||
         (pointTarget.editable === true && observation.effect.focusChanged) ||
         tabChanged
       const dialogs = Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : []
@@ -3330,11 +3361,13 @@ async function executeToolInner(
       const topObservation = insertInFrame
         ? pageEffect(beforeTopPage, await pageActionState(contents, true), beforeElement, state)
         : observation
+      // targetChanged is deliberately absent: this tool has no elementId, so
+      // pageActionState captures no targetState and the term could only ever
+      // be false. Listing it read as coverage this tool does not have.
       const effectObserved =
         observation.effect.fieldChanged ||
         observation.effect.urlChanged ||
         observation.effect.dialogChanged ||
-        observation.effect.targetChanged ||
         topObservation.effect.urlChanged ||
         topObservation.effect.dialogChanged
       return {
@@ -3448,11 +3481,14 @@ async function executeToolInner(
       const afterElement = await activeElementState(contents)
       const afterPage = await pageActionState(contents)
       const observation = pageEffect(beforePage, afterPage, beforeElement, afterElement)
+      // targetChanged is deliberately absent: this tool has no elementId, so
+      // pageActionState captures no targetState and the term could only ever be
+      // false. domChanged IS trusted here — unlike every other tool — because a
+      // drop that reorders a list may change nothing else observable.
       const effectObserved =
         observation.effect.domChanged ||
         observation.effect.urlChanged ||
         observation.effect.dialogChanged ||
-        observation.effect.targetChanged ||
         observation.effect.scrollChanged
       const dialogs = Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : []
       return {

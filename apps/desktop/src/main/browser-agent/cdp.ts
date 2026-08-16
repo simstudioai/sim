@@ -11,7 +11,7 @@
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
-import type { WebContents, WebFrameMain } from 'electron'
+import { nativeImage, type WebContents, type WebFrameMain } from 'electron'
 
 const logger = createLogger('BrowserAgentCdp')
 
@@ -370,6 +370,14 @@ export async function evaluateInIsolatedFrame(
  */
 const MAX_SCREENSHOT_EDGE = 1024
 const SCREENSHOT_QUALITY = 70
+/**
+ * Quality of the intermediate capture, before the in-process downscale
+ * re-encodes at {@link SCREENSHOT_QUALITY}. Higher than the final quality so
+ * the two lossy passes together land near where one pass did — the model reads
+ * text out of these frames, and compression artifacts on glyphs cost more than
+ * the transient bytes do.
+ */
+const SCREENSHOT_CAPTURE_QUALITY = 90
 
 interface CdpViewport {
   clientWidth: number
@@ -379,11 +387,19 @@ interface CdpViewport {
 /**
  * Screenshot via CDP (works while the view is hidden), bounded in resolution.
  *
- * `clip.scale` is relative to CSS pixels, so passing the CSS viewport with a
- * scale of 1 already sidesteps the device pixel ratio — an unclipped capture
- * on a 2x display returns a 2x image. Scaling further down keeps the longest
- * edge within {@link MAX_SCREENSHOT_EDGE}. Falls back to an unclipped capture
- * when layout metrics are unavailable.
+ * The capture is deliberately UNCLIPPED. Chromium implements `clip` by applying
+ * device-emulation parameters (viewport offset and scale) to the widget and
+ * synchronizing visual properties, then restoring them. On a headless target
+ * that is invisible; against the live, composited WebContentsView the Sim
+ * resource panel shows, it is a real visual-properties round-trip, and the page
+ * visibly rescales and snaps back — the screenshot flash. `panel.ts`'s own
+ * snapshot capture refuses to scale a visible surface for the same reason.
+ *
+ * Bounding resolution therefore happens here instead, on the returned image.
+ * The output keeps the dimensions the clipped capture produced, so `scale`
+ * still maps image pixels back to CSS pixels for the coordinate tools
+ * (cssX = imageX / scale) — including on a 2x display, where an unclipped
+ * capture arrives at device resolution and this is what brings it back down.
  */
 export async function captureScreenshot(
   contents: WebContents
@@ -398,23 +414,32 @@ export async function captureScreenshot(
   const height = viewport?.clientHeight ?? 0
   const scale =
     width > 0 && height > 0 ? Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(width, height)) : 1
-  const clip =
-    width > 0 && height > 0
-      ? {
-          x: 0,
-          y: 0,
-          width,
-          height,
-          scale,
-        }
-      : undefined
 
   const result = await send<{ data: string }>(contents, 'Page.captureScreenshot', {
     format: 'jpeg',
-    quality: SCREENSHOT_QUALITY,
-    ...(clip ? { clip } : {}),
+    quality: SCREENSHOT_CAPTURE_QUALITY,
   })
-  return { dataUrl: `data:image/jpeg;base64,${result.data}`, scale }
+  const captured = `data:image/jpeg;base64,${result.data}`
+
+  const targetWidth = Math.round(width * scale)
+  const targetHeight = Math.round(height * scale)
+  // Without layout metrics there is no CSS frame of reference to resize
+  // against, so the raw capture is the honest answer — the same fallback the
+  // clipped path took.
+  if (targetWidth <= 0 || targetHeight <= 0) return { dataUrl: captured, scale }
+
+  const image = nativeImage.createFromBuffer(Buffer.from(result.data, 'base64'))
+  const size = image.isEmpty() ? { width: 0, height: 0 } : image.getSize()
+  if (size.width === 0 || size.height === 0) return { dataUrl: captured, scale }
+  if (size.width === targetWidth && size.height === targetHeight) {
+    return { dataUrl: captured, scale }
+  }
+
+  const resized = image.resize({ width: targetWidth, height: targetHeight, quality: 'good' })
+  return {
+    dataUrl: `data:image/jpeg;base64,${resized.toJPEG(SCREENSHOT_QUALITY).toString('base64')}`,
+    scale,
+  }
 }
 
 /** One half of a trusted key press (`Input.dispatchKeyEvent` params). */

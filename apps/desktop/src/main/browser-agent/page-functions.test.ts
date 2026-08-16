@@ -601,8 +601,11 @@ describe('collectSnapshot', () => {
     })
 
     expect(card.contains(nestedButton)).toBe(true)
+    // Nothing is covering the card — its own button owns the point. Reporting
+    // this as an obstruction told the agent to close an overlay that does not
+    // exist; the recovery is to target the nested control instead.
     expect(clickElement(ref, false)).toEqual({
-      error: 'obstructed',
+      error: 'nested-control',
       blocker: 'Delete channel',
     })
   })

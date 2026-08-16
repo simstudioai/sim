@@ -724,6 +724,29 @@ export function collectSnapshot(startingElementId = 0): unknown {
       if (isCurrentlyVisible(current)) return { element: current, recovered: false }
     }
 
+    // Past this point the original node is gone or hidden, so anything returned
+    // is a DIFFERENT node adopted by structural resemblance. Identity matching
+    // compares origins only — deliberately, so a pushState between snapshot and
+    // act does not kill every ref — but that same leniency let a ref to "More
+    // actions" on a row in one view rebind to the identical control in another
+    // view the app had since navigated to, and act on the wrong thing with no
+    // signal beyond `recovered: true`.
+    //
+    // A same-document path change means the view was swapped, so resemblance is
+    // no longer evidence of sameness. Refuse to adopt and report the ref stale:
+    // the caller re-snapshots, which is cheap and always correct. Revalidating
+    // the still-connected node above stays lenient — it is literally the node
+    // the model chose.
+    const pathOf = (url: string): string => {
+      try {
+        const parsed = new URL(url)
+        return `${parsed.origin}${parsed.pathname}`
+      } catch {
+        return url
+      }
+    }
+    if (pathOf(window.location.href) !== pathOf(locator.url)) return null
+
     const reachable: Element[] = []
     let candidateCount = 0
     const collect = (root: ParentNode, depth = 0): void => {
@@ -1102,6 +1125,22 @@ export function clickElement(
     }
     if (suggestionsCoverFocusedEditable()) {
       return { error: 'suggestions-open', blocker: blockerLabel(blocker) }
+    }
+    // A hit INSIDE the requested element is not an overlay — it is the ref
+    // wrapping its own control (a row containing a button, a card containing a
+    // link). hitBelongsToTarget rejects both cases identically, so this was
+    // reported as "covered by X, close or move the overlay", advice that cannot
+    // be followed because there is nothing to close. Name it for what it is so
+    // the agent retargets instead of hunting a phantom overlay.
+    let nested = false
+    for (let current = blocker; current; current = composedParent(current)) {
+      if (current === el) {
+        nested = true
+        break
+      }
+    }
+    if (nested) {
+      return { error: 'nested-control', blocker: blockerLabel(blocker) }
     }
     return { error: 'obstructed', blocker: blockerLabel(blocker) }
   }

@@ -1664,6 +1664,39 @@ describe('credential protection', () => {
   // navigation it survived — reporting it made every SPA route change under a
   // persistent role=dialog (cookie banner, side drawer, picker) read as a
   // failed click. Only a dialog that arrives with the navigation obstructs it.
+  // targetChanged can only fire when pageActionState was given an elementId.
+  // Tools without one listed it in their effect formula for a long time, where
+  // it was silently always false — coverage that read as real. This pins the
+  // dependency so the next tool that adds the term has to earn it.
+  it('cannot observe a target change for a tool that passes no elementId', async () => {
+    const contents = await openPage()
+    let actionReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        actionReads++
+        // No targetState in either sample: that is what a call without an
+        // elementId returns.
+        return Promise.resolve({
+          url: 'https://example.com/a',
+          title: 'A',
+          focus: 'body',
+          mutationRevision: actionReads === 1 ? 0 : 3,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Enter' })
+
+    expect(result).toMatchObject({ ok: true })
+    const effect = (result as { result?: { effect?: Record<string, boolean> } }).result?.effect
+    expect(effect?.targetChanged).toBe(false)
+  })
+
   it('ignores a dialog that was already open before the click', async () => {
     const contents = await openPage()
     let actionReads = 0
