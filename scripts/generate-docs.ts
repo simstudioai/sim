@@ -2032,10 +2032,79 @@ function resolveFactorySource(fileContent: string, toolFilePath: string, rootDir
   return ''
 }
 
+/**
+ * Reads the module a symbol is imported from, so a spread of a shared const
+ * declared in a sibling module can be followed. Returns an empty string when
+ * the symbol is not imported or the module cannot be located on disk.
+ */
+function readImportedModuleSource(
+  fileContent: string,
+  symbol: string,
+  toolFilePath: string,
+  rootDir: string
+): string {
+  const importMatch = fileContent.match(
+    new RegExp(`import\\s*(?:type\\s*)?\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s*from\\s*['"]([^'"]+)['"]`)
+  )
+  if (!importMatch) return ''
+
+  const specifier = importMatch[1]
+  const resolved = specifier.startsWith('@/')
+    ? path.join(rootDir, 'apps/sim', specifier.slice(2))
+    : specifier.startsWith('.')
+      ? path.resolve(path.dirname(toolFilePath), specifier)
+      : ''
+  if (!resolved) return ''
+
+  for (const candidate of [`${resolved}.ts`, path.join(resolved, 'index.ts')]) {
+    if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8')
+  }
+  return ''
+}
+
+/**
+ * Inlines `...sharedConst` spreads inside a `params:` or `outputs:` object body.
+ *
+ * Tools increasingly hoist their repeated auth/paging/output declarations into a
+ * sibling `params.ts`. This generator reads tool *source* rather than importing
+ * it, so an unresolved spread silently drops every one of those rows from the
+ * published table. Follows same-file declarations first, then the module the
+ * symbol is imported from, and recurses so a shared const may itself spread.
+ */
+function expandSpreadConsts(
+  objectBody: string,
+  fileContent: string,
+  toolFilePath: string,
+  rootDir: string,
+  seen: Set<string> = new Set()
+): string {
+  return objectBody.replace(/\.\.\.(\w+)\s*,?/g, (whole, symbol: string) => {
+    if (seen.has(symbol)) return ''
+    const declRegex = new RegExp(`(?:export\\s+)?const\\s+${symbol}(?=[^a-zA-Z0-9_])[^=]*=\\s*\\{`)
+
+    for (const source of [
+      fileContent,
+      readImportedModuleSource(fileContent, symbol, toolFilePath, rootDir),
+    ]) {
+      if (!source) continue
+      const declMatch = source.match(declRegex)
+      if (!declMatch || declMatch.index === undefined) continue
+      const open = declMatch.index + declMatch[0].length - 1
+      const close = findMatchingClose(source, open)
+      if (close === -1) continue
+      const body = source.substring(open + 1, close - 1)
+      return `${expandSpreadConsts(body, source, toolFilePath, rootDir, new Set([...seen, symbol]))},`
+    }
+    return whole
+  })
+}
+
 function extractToolInfo(
   toolName: string,
   fileContent: string,
-  factorySource = ''
+  factorySource = '',
+  toolFilePath = '',
+  rootDir = ''
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -2129,7 +2198,12 @@ function extractToolInfo(
     const params: Array<{ name: string; type: string; required: boolean; description: string }> = []
 
     if (toolConfigMatch) {
-      const paramsContent = toolConfigMatch[1]
+      const paramsContent = expandSpreadConsts(
+        toolConfigMatch[1],
+        fileContent,
+        toolFilePath,
+        rootDir
+      )
 
       const paramBlocksRegex = /(\w+)\s*:\s*{/g
       let paramMatch
@@ -2923,7 +2997,9 @@ async function getToolInfo(toolName: string): Promise<{
     return extractToolInfo(
       toolName,
       toolFileContent,
-      resolveFactorySource(toolFileContent, foundFile, rootDir)
+      resolveFactorySource(toolFileContent, foundFile, rootDir),
+      foundFile,
+      rootDir
     )
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)

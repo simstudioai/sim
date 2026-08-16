@@ -18151,6 +18151,114 @@
       "docsUrl": "https://docs.sim.ai/integrations/servicenow",
       "operations": [
         {
+          "name": "Create Incident",
+          "description": "Create an incident in ServiceNow. Reference fields (caller, assignment group, assigned to, configuration item) take sys_ids unless input display value is enabled."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Reference fields are returned with both their sys_id and their label by default."
+        },
+        {
+          "name": "List Incidents",
+          "description": "Search ServiceNow incidents by state, priority, assignment, caller, or text. All filters are ANDed together."
+        },
+        {
+          "name": "Update Incident",
+          "description": "Update fields on an existing ServiceNow incident. Only the fields you supply are changed. Reference fields take sys_ids unless input display value is enabled."
+        },
+        {
+          "name": "Resolve Incident",
+          "description": "Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes."
+        },
+        {
+          "name": "Close Incident",
+          "description": "Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Which roles may close an incident is instance-configurable, so the credential may need elevated rights."
+        },
+        {
+          "name": "Add Incident Comment",
+          "description": "Append an internal work note or a customer-visible additional comment to a ServiceNow incident. Both are journal fields, so the text is appended rather than replacing earlier entries."
+        },
+        {
+          "name": "Create Change Request",
+          "description": "Create a change request in ServiceNow. Reference fields (assignment group, assigned to, requested by, configuration item) take sys_ids unless input display value is enabled."
+        },
+        {
+          "name": "Get Change Request",
+          "description": "Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_id. Reference fields are returned with both their sys_id and their label by default."
+        },
+        {
+          "name": "List Change Requests",
+          "description": "Search ServiceNow change requests by state, type, risk, assignment, or text. All filters are ANDed together."
+        },
+        {
+          "name": "Update Change Request",
+          "description": "Update fields on an existing ServiceNow change request. Only the fields you supply are changed. Use Move ServiceNow Change State for state transitions."
+        },
+        {
+          "name": "Move Change State",
+          "description": "Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met."
+        },
+        {
+          "name": "List Change Tasks",
+          "description": "List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as {value, display_value}, so a reference field carries both its sys_id and its label. This endpoint is not the Table API: the shape is fixed with no display-value option, and the results come back under `tasks` rather than the `records` the other list operations use."
+        },
+        {
+          "name": "Get Change Next States",
+          "description": "Read the states a ServiceNow change request can actually move to next, with the instance's own state-to-label map and the conditions each transition still has to meet. Use this instead of assuming the base-system state codes, which a customized change model can change."
+        },
+        {
+          "name": "List Catalog Items",
+          "description": "Browse or search the ServiceNow service catalog. Returns each item with its sys_id, name, description, type, category, and catalogs, which is what Order ServiceNow Catalog Item needs."
+        },
+        {
+          "name": "Order Catalog Item",
+          "description": "Submit a service catalog request for a catalog item using the Service Catalog API order_now endpoint. Returns the generated request number and sys_id."
+        },
+        {
+          "name": "List Requested Items",
+          "description": "List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a parent request or a catalog item. To scope by requester, pass an encoded query against the parent request, for example \"request.requested_for=<sys_id>\"."
+        },
+        {
+          "name": "Get Requested Item",
+          "description": "Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001) or sys_id from the Requested Item [sc_req_item] table."
+        },
+        {
+          "name": "List Approvals",
+          "description": "List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the \"requested\" state, which is what a user's pending approvals look like."
+        },
+        {
+          "name": "Approve or Reject",
+          "description": "Approve or reject a ServiceNow approval record by setting its state on the Approval [sysapproval_approver] table."
+        },
+        {
+          "name": "Search Configuration Items",
+          "description": "Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server."
+        },
+        {
+          "name": "Get Configuration Item",
+          "description": "Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type."
+        },
+        {
+          "name": "List CI Relationships",
+          "description": "List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item. Each row carries the parent CI, the child CI, and the relationship type."
+        },
+        {
+          "name": "Search Knowledge",
+          "description": "Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body."
+        },
+        {
+          "name": "Get Knowledge Article",
+          "description": "Retrieve the full content of a ServiceNow knowledge article by sys_id or KB number through the Knowledge Management API."
+        },
+        {
+          "name": "Find User",
+          "description": "Look up ServiceNow users by email, user name, or display name. Use this to resolve the sys_id needed by reference fields such as caller_id, assigned_to, and approver."
+        },
+        {
+          "name": "List Group Members",
+          "description": "List the members of a ServiceNow group from the Group Member [sys_user_grmember] table. Each row links a user to a group, so use it to find who can be assigned work for an assignment group."
+        },
+        {
           "name": "Create Record",
           "description": "Create a new record in a ServiceNow table"
         },
@@ -18183,7 +18291,7 @@
           "description": "Attach a file to a ServiceNow record"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 35,
       "triggers": [
         {
           "id": "servicenow_incident_created",
