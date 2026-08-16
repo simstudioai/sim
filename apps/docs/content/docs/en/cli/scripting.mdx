@@ -5,8 +5,7 @@ description: File and stdin inputs, list flags, pagination, exit codes, and auto
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-The CLI is built to be driven by other programs. Everything below applies to
-every command.
+Everything below applies to every command.
 
 ## Reading input from files and stdin
 
@@ -19,9 +18,6 @@ sim tables rows query tbl_123 --filter @filter.json
 cat wf.json | sim workflows import --workflow @-
 ```
 
-This keeps large payloads out of your shell history and out of the argument
-length limit.
-
 ## List flags
 
 Primitive lists take space-separated values. With `@`, the file supplies one
@@ -33,14 +29,12 @@ sim files mv --file-ids @file-ids.txt --to Archive
 printf 'file_1\nfile_2\n' | sim files mv --file-ids @- --to Archive
 ```
 
-Arrays of objects stay JSON inputs, because they cannot be flattened to a list
-without losing structure.
+Arrays of objects stay JSON.
 
 ## Filtering table rows
 
 `--filter` takes the same predicate tree the API uses: `all` (AND) or `any` (OR)
-groups of `{field, op, value}` conditions, nestable. It is JSON because the
-grammar is a tree, and there is no honest flag encoding for one.
+groups of `{field, op, value}` conditions, nestable.
 
 ```bash
 sim tables rows query tbl_123 \
@@ -58,9 +52,6 @@ Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`,
 ```bash
 sim tables rows query tbl_123 --sort '[{"field":"createdAt","direction":"desc"}]'
 ```
-
-Row columns are discovered at runtime from the returned data, unioned across the
-page, so a sparse row does not hide a column.
 
 ## Pagination
 
@@ -84,8 +75,9 @@ sim files delete file_123 --yes
 Without `--yes` the command explains what it would have destroyed and stops.
 
 <Callout type="warn">
-`batch-delete` and `batch-update` also carry the standard `--limit` default of
-`100`. Set `--limit 0` when you intend to affect every matching row.
+`batch-delete` and `batch-update` carry the default `--limit` of `100`, so a
+filter matching more rows than that silently affects only the first 100. Pass
+`--limit 0` to affect every matching row.
 </Callout>
 
 ## Exit codes
@@ -105,11 +97,8 @@ if ! sim workflows run wf_7Yb2 --output json > result.json; then
 fi
 ```
 
-<Callout type="info">
-An unexpected error keeps its stack trace on purpose — that is a bug in the CLI,
-and hiding it behind a friendly message would make it unreportable. Please
-[open an issue](https://github.com/simstudioai/sim/issues) if you see one.
-</Callout>
+An unexpected error prints a stack trace — that is a bug in the CLI, so please
+[open an issue](https://github.com/simstudioai/sim/issues).
 
 ## Selecting workflow output
 
@@ -135,8 +124,8 @@ done
 sim logs get "$run_id" --trace
 ```
 
-`workflows runs get` is the lightweight status resource; `logs get` is the full
-diagnostic one. For a paused run, the status includes the context ID that
+`workflows runs get` is the lightweight status check; `logs get` is the full
+diagnostic. For a paused run, the status includes the context ID that
 `sim workflows runs resume` needs.
 
 ## Working with folders
@@ -151,13 +140,9 @@ sim tables folders mv Reports/Quarterly Archive/Quarterly
 sim tables folders delete Archive --recursive --yes
 ```
 
-`ls` is a directory view: it combines the resources at its path with that
-folder's direct child folders, and never includes deeper descendants. Its `ref`
-column is the resource ID or canonical folder path to pass to the next command.
-Use `list` when you want resources only, or `folders ls` for folders only.
-
-The leading `/` is optional on input; the API returns the canonical
-leading-slash form.
+`ls` lists the resources at a path plus that folder's direct children, never
+deeper. Its `ref` column is the value to pass to the next command. Use `list` for
+resources only, or `folders ls` for folders only. A leading `/` is optional.
 
 ## A nightly job, end to end
 

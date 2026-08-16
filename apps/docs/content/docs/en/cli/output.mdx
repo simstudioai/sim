@@ -3,11 +3,7 @@ title: Output formats
 description: table, json, yaml, and text — what each is for, and how to select one
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-
-Every command renders through the same four formats. Pick one per command with
-`--output`, save a profile default with `sim configure --set-output`, or set
-`SIM_OUTPUT` ambiently for CI.
+Every command renders through the same four formats.
 
 | Format | For |
 | --- | --- |
@@ -16,57 +12,26 @@ Every command renders through the same four formats. Pick one per command with
 | `yaml` | piping into anything that reads YAML |
 | `text` | shell loops — tab-separated, no header, no colour |
 
-```bash
-sim --output json tables get tbl_123      # before the command
-sim tables get tbl_123 --output json      # or after; both work
-sim configure --set-output json           # for this profile, from now on
-SIM_OUTPUT=yaml sim logs list > logs.yaml # for one invocation or a whole job
-```
-
-## Raw values versus rendered cells
-
-`json` and `yaml` emit the API's **raw** values, not the table's formatting — a
-duration stays `1500`, not `"1.5s"`. Switching format never changes the data,
-only how it is displayed.
-
-`text` uses the rendered cells, because it exists for shell plumbing rather than
-parsing.
-
-<Callout type="info">
-An absent value prints as an em-dash (`—`) in `table` and as an **empty field**
-in `text`, so emptiness tests downstream behave as you would expect.
-</Callout>
-
-## table
-
-The default. Uppercase dim headers, one row per record, values formatted for
-reading — timestamps without milliseconds, sizes as `4.2 MB`, booleans as
-`yes`/`no`, costs as `$0.0142`.
-
-Long cells are clipped so rows stay on one line. When you need the untruncated
-value, switch to `json`.
+Select one per command, save it to the profile, or set it in the environment:
 
 ```bash
-sim files list
+sim tables get tbl_123 --output json
+sim configure --set-output json
+SIM_OUTPUT=yaml sim logs list > logs.yaml
 ```
 
-## json
+`--output` works before or after the command.
 
-```bash
-sim logs list --level error --output json | jq -r '.[].runId'
-sim tables rows query tbl_123 --output json | jq '.[] | select(.score > 10)'
-```
+## What each format emits
 
-## yaml
+`json` and `yaml` emit the API's raw values, not the table's formatting — a
+duration stays `1500`, not `"1.5s"`.
 
-```bash
-sim workflows get wf_123 --output yaml
-sim logs get run_123 --output yaml > run.yaml
-```
+`table` formats for reading: timestamps without milliseconds, sizes as `4.2 MB`,
+booleans as `yes`/`no`, costs as `$0.0142`. Long cells are clipped to keep rows
+on one line; switch to `json` for the full value.
 
-## text
-
-Tab-separated, no header, no colour — built for `read` loops:
+`text` uses the rendered cells, tab-separated, with no header or colour:
 
 ```bash
 SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name folder size type uploader uploaded; do
@@ -74,31 +39,31 @@ SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name folder size typ
 done
 ```
 
+An absent value is an em-dash in `table` and an empty field in `text`.
+
 ## Reading a run in detail
 
-`sim logs get` keeps its default human output concise. Add `--trace` for the
-expanded recursive trace — span inputs, outputs, errors, timing, and cost:
+`sim logs get` prints a concise summary. Add `--trace` for the recursive trace
+with span inputs, outputs, errors, timing, and cost:
 
 ```bash
 sim logs get run_123 --trace
 ```
 
-`json` and `yaml` always carry the complete structured response, so `--trace` is
-a no-op there — the data is already present:
+`json` and `yaml` always carry the complete response, so `--trace` is a no-op
+there:
 
 ```bash
 sim logs get run_123 --output json | jq '.traceSpans'
-sim logs list --include-trace-spans --output json
 ```
 
-## Commands that ignore the format
+## Exceptions
 
-`sim profiles` and `sim configure`'s listing mode always print for humans — they
-report on your local configuration rather than on API data.
+`sim profiles` and `sim configure` always print for humans — they report local
+configuration, not API data.
 
-`sim workflows export` is the opposite case: it emits a document rather than a
-record to look at, so it prints raw JSON — or YAML when the profile says so —
-whatever the display format is. That is what makes it round-trip:
+`sim workflows export` always emits raw JSON, or YAML when the profile says so,
+so that it round-trips through `import`:
 
 ```bash
 sim workflows export wf_123 > wf.json

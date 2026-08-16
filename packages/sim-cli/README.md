@@ -3,7 +3,7 @@
 Talk to the [Sim](https://sim.ai) API from your terminal.
 
 ```bash
-npm install --global sim
+npm install -g sim
 sim login
 sim workflows list
 ```

@@ -5,9 +5,8 @@ description: Sign in from the terminal, authenticate CI with an API key, and kee
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-The CLI authenticates with a Sim API key. On a workstation, `sim login` mints and
-stores one for you. In CI, you supply one through the environment and nothing
-touches the filesystem.
+The CLI authenticates with a Sim API key. `sim login` mints and stores one; in CI
+you supply one through the environment instead.
 
 ## Signing in
 
@@ -28,13 +27,11 @@ Waiting for approval…
   Personal key, defaulting to ws_abc123. Override per command with --workspace.
 ```
 
-This is the same browser handoff shape as `gh auth login`. Nothing redeemable
-crosses the browser leg, and there is no loopback listener — so it works over
-SSH and inside containers.
+There is no loopback listener, so this works over SSH and inside containers.
 
 <Callout type="warn">
-Confirm the pairing code in your terminal matches the one the browser shows
-before you approve. That check is what binds the approval to *your* terminal.
+Confirm the pairing code in the browser matches the one in your terminal before
+approving. That check is what binds the approval to your terminal.
 </Callout>
 
 | Option | What it does |
@@ -45,10 +42,7 @@ before you approve. That check is what binds the approval to *your* terminal.
 
 ### Picking a workspace
 
-The approval page is where you choose the workspace — the terminal has no key
-yet, so it cannot list them for you.
-
-`sim login` issues a **personal** key. The workspace you pick becomes the
+You choose the workspace on the approval page. `sim login` issues a **personal** key. The workspace you pick becomes the
 profile's default `workspace`; it does **not** restrict the key to that
 workspace. Target another workspace the key can reach with `--workspace`:
 
@@ -65,9 +59,8 @@ re-logging into an existing profile preselects the one already configured.
 sim whoami
 ```
 
-This prints the resolved endpoint, workspace, output format, and account — and
-which source each value came from. Reach for it first whenever a command targets
-something you did not expect.
+Prints the resolved endpoint, workspace, output format, and account, and which
+source each value came from.
 
 ## Signing out
 
@@ -83,8 +76,8 @@ Sim under **Settings → API keys**.
 
 ## Authenticating CI
 
-Skip `sim login` entirely. Set the key and workspace in the environment and the
-CLI never reads or writes a config file:
+Set the key and workspace in the environment; the CLI never reads or writes a
+config file:
 
 ```bash
 export SIM_API_KEY="sim_…"
@@ -96,10 +89,8 @@ sim workflows run wf_7Yb2 --input '{"source":"nightly"}' --output json
 Create the key in Sim under **Settings → API keys**. Store it as a secret in your
 CI provider — never commit it.
 
-<Callout type="info">
-`SIM_CONFIG_DIR` relocates both files if you do need them somewhere other than
-`~/.sim` — a container image, or a runner with no writable home directory.
-</Callout>
+`SIM_CONFIG_DIR` relocates both files if you need them somewhere other than
+`~/.sim`, such as a runner with no writable home directory.
 
 ### GitHub Actions
 
@@ -111,7 +102,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm install --global sim
+      - run: npm install -g sim
       - run: sim workflows run wf_7Yb2 --output json
         env:
           SIM_API_KEY: ${{ secrets.SIM_API_KEY }}
@@ -120,8 +111,7 @@ jobs:
 
 ## Several accounts at once
 
-Each profile holds one identity and one set of defaults, so a production account
-and a local stack can coexist without re-authenticating:
+Each profile holds one identity and one set of defaults:
 
 ```bash
 sim login --profile dev --endpoint http://localhost:3000
@@ -135,13 +125,13 @@ See [Configuration](/cli/configuration) for how profiles are stored and resolved
 
 ## Self-hosted and non-production deployments
 
-Point the CLI at any Sim deployment with `--endpoint`, then sign in against it:
+Point the CLI at any deployment with `--endpoint`, then sign in against it:
 
 ```bash
 sim login --profile local --endpoint http://localhost:3000
 ```
 
-Save it so you do not have to repeat the flag:
+Save it to avoid repeating the flag:
 
 ```bash
 sim configure --set-endpoint http://localhost:3000 --profile local
@@ -149,9 +139,9 @@ sim configure --set-endpoint http://localhost:3000 --profile local
 
 ## Where the key is stored
 
-Keys live in `~/.sim/credentials`, written with `0600` permissions, kept apart
-from the non-secret `~/.sim/config` so the two can be handled differently — you
-can commit `config` to a dotfiles repo, and never `credentials`.
+Keys live in `~/.sim/credentials`, written `0600`, separate from the non-secret
+`~/.sim/config`. Commit `config` to a dotfiles repo if you like; never
+`credentials`.
 
 ```ini title="~/.sim/credentials"
 [default]

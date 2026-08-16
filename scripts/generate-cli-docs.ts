@@ -374,19 +374,14 @@ function renderReferencePage(
   globals: DocumentedCommand[]
 ): string {
   const lines = [
-    ...frontmatter('Complete reference', 'Every sim command, argument, and flag on a single page', [
-      "import { Callout } from 'fumadocs-ui/components/callout'",
-    ]),
-    'Every command the CLI exposes, on one page, generated from the CLI itself.',
-    'For a guided tour start at the [overview](/cli/commands); this page exists to',
-    'be searched, bookmarked, and fed to tools.',
+    ...frontmatter('Complete reference', 'Every sim command, argument, and flag on a single page'),
+    'Every command on one page, generated from the CLI itself. Start at the',
+    '[overview](/cli/commands) to browse; this page is for searching and for tools.',
     '',
-    '<Callout type="info">',
-    'Append `.mdx` to any page in these docs to get its raw Markdown —',
-    '[`/cli/reference.mdx`](/cli/reference.mdx) is this page as plain text. The whole',
-    'documentation set is also published as [`/llms.txt`](/llms.txt) and',
-    '[`/llms-full.txt`](/llms-full.txt) for coding agents.',
-    '</Callout>',
+    'Append `.mdx` to any page for its raw Markdown —',
+    '[`/cli/reference.mdx`](/cli/reference.mdx) is this page as plain text. The docs',
+    'are also published as [`/llms.txt`](/llms.txt) and',
+    '[`/llms-full.txt`](/llms-full.txt).',
     '',
     '## Global options',
     '',
