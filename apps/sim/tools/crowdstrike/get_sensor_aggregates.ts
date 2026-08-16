@@ -11,7 +11,7 @@ export const crowdstrikeGetSensorAggregatesTool: ToolConfig<
   id: 'crowdstrike_get_sensor_aggregates',
   name: 'CrowdStrike Get Sensor Aggregates',
   description:
-    'Get documented CrowdStrike Identity Protection sensor aggregates from a JSON aggregate query body',
+    'Aggregate CrowdStrike Identity Protection sensors from a JSON aggregate query body (POST /identity-protection/aggregates/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the "Identity Protection Entities: Read" API scope.',
   version: '1.0.0',
 
   params: {

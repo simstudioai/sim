@@ -4649,15 +4649,15 @@
         },
         {
           "name": "Query Sensors",
-          "description": "Search CrowdStrike identity protection sensors by hostname, IP, or related fields"
+          "description": "Search CrowdStrike Identity Protection sensors -- the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors -- and return their device IDs (GET /identity-protection/queries/devices/v1). Sort uses the dot form, for example status.desc. Requires the \"Identity Protection Entities: Read\" API scope, a separate entitlement from Hosts and Alerts."
         },
         {
           "name": "Get Sensor Details",
-          "description": "Get documented CrowdStrike Identity Protection sensor details for one or more device IDs"
+          "description": "Get CrowdStrike Identity Protection sensor details for one or more device IDs (POST /identity-protection/entities/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the \"Identity Protection Entities: Read\" API scope."
         },
         {
           "name": "Get Sensor Aggregates",
-          "description": "Get documented CrowdStrike Identity Protection sensor aggregates from a JSON aggregate query body"
+          "description": "Aggregate CrowdStrike Identity Protection sensors from a JSON aggregate query body (POST /identity-protection/aggregates/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the \"Identity Protection Entities: Read\" API scope."
         }
       ],
       "operationCount": 23,
