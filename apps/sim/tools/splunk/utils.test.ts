@@ -2,7 +2,15 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { buildSplunkFormBody, buildSplunkUrl, normalizeSearchQuery } from '@/tools/splunk/utils'
+import {
+  buildSplunkFormBody,
+  buildSplunkHeaders,
+  buildSplunkUrl,
+  normalizeSearchQuery,
+  readSplunkJson,
+  requireSplunkSid,
+  savedSearchFieldQuery,
+} from '@/tools/splunk/utils'
 
 const BASE = { baseUrl: 'https://splunk.example.com:8089' }
 
@@ -31,9 +39,68 @@ describe('buildSplunkUrl', () => {
   })
 
   it('uses the namespace prefix only when an owner or app is supplied', () => {
-    expect(buildSplunkUrl({ ...BASE, app: 'search' }, '/saved/searches')).toContain(
-      '/servicesNS/nobody/search/saved/searches'
+    expect(buildSplunkUrl(BASE, '/saved/searches')).toContain('/services/saved/searches')
+    expect(buildSplunkUrl({ ...BASE, owner: 'admin', app: 'search' }, '/saved/searches')).toContain(
+      '/servicesNS/admin/search/saved/searches'
     )
+  })
+
+  it('fills a half-specified namespace with the - wildcard, never nobody or search', () => {
+    const appOnly = buildSplunkUrl({ ...BASE, app: 'myapp' }, '/saved/searches')
+    expect(appOnly).toContain('/servicesNS/-/myapp/saved/searches')
+    expect(appOnly).not.toContain('nobody')
+
+    const ownerOnly = buildSplunkUrl({ ...BASE, owner: 'admin' }, '/saved/searches')
+    expect(ownerOnly).toContain('/servicesNS/admin/-/saved/searches')
+  })
+})
+
+describe('buildSplunkHeaders', () => {
+  it('prefers the bearer token over basic credentials', () => {
+    const headers = buildSplunkHeaders({ ...BASE, authToken: 'tok', username: 'u', password: 'p' })
+    expect(headers.Authorization).toBe('Bearer tok')
+  })
+
+  it('falls back to basic authentication', () => {
+    const headers = buildSplunkHeaders({ ...BASE, username: 'u', password: 'p' })
+    expect(headers.Authorization).toBe(`Basic ${Buffer.from('u:p').toString('base64')}`)
+  })
+
+  it('throws when neither credential form is supplied', () => {
+    expect(() => buildSplunkHeaders(BASE)).toThrow(/authentication token or a username/)
+  })
+})
+
+describe('readSplunkJson', () => {
+  it('returns an empty envelope for 204 No Content instead of throwing', async () => {
+    await expect(readSplunkJson(new Response(null, { status: 204 }))).resolves.toEqual({})
+  })
+
+  it('returns an empty envelope for a 200 with an empty body', async () => {
+    await expect(readSplunkJson(new Response('   ', { status: 200 }))).resolves.toEqual({})
+  })
+
+  it('still parses a real body', async () => {
+    await expect(readSplunkJson(new Response('{"results":[]}'))).resolves.toEqual({ results: [] })
+  })
+})
+
+describe('requireSplunkSid', () => {
+  it('reads the flat sid envelope', () => {
+    expect(requireSplunkSid({ sid: '1457683115.100' })).toBe('1457683115.100')
+  })
+
+  it('throws rather than reporting success with no search ID', () => {
+    expect(() => requireSplunkSid({})).toThrow(/did not return a search ID/)
+  })
+})
+
+describe('savedSearchFieldQuery', () => {
+  it('requests only the projected fields, with dotted keys encoded', () => {
+    const query = savedSearchFieldQuery()
+    expect(query).toContain('f=qualifiedSearch')
+    expect(query).toContain(`f=${encodeURIComponent('dispatch.earliest_time')}`)
+    expect(query).not.toContain('action.email')
   })
 })
 

@@ -97,7 +97,7 @@ Start a Splunk search job and return its search ID (sid). The search runs asynch
 | `search` | string | Yes | SPL search string \(e.g. index=main sourcetype=access_combined \| timechart count\). The leading "search" command is added automatically when omitted. |
 | `earliestTime` | string | No | Earliest \(inclusive\) time bound — relative \(e.g. -24h\) or absolute time |
 | `latestTime` | string | No | Latest \(exclusive\) time bound — relative \(e.g. now\) or absolute time |
-| `execMode` | string | No | Execution mode: normal \(returns the sid immediately\) or blocking \(returns the sid once the job completes\). Defaults to normal. |
+| `execMode` | string | No | Execution mode: normal \(returns the sid immediately\) or blocking \(returns the sid once the job completes\). Defaults to normal. oneshot is rejected here because it returns results instead of a sid — use Splunk Run Search for that. |
 | `adhocSearchLevel` | string | No | Search mode: verbose, fast, or smart. Defaults to fast. |
 | `searchId` | string | No | Custom search ID to assign to the job. A random ID is generated when omitted. |
 | `indexEarliest` | string | No | Earliest \(inclusive\) time bound based on index time rather than event time |
@@ -105,7 +105,7 @@ Start a Splunk search job and return its search ID (sid). The search runs asynch
 | `enableLookups` | boolean | No | Whether lookups are applied to events. Defaults to true. |
 | `allowPartialResults` | boolean | No | Whether the job may return partial results when a search peer fails. Defaults to true. |
 | `autoCancel` | number | No | Cancel the job after this many seconds of inactivity \(e.g. 300\). 0 never auto-cancels. |
-| `maxCount` | number | No | Maximum number of results the job stores in transforming mode. Defaults to 10000. |
+| `maxCount` | number | No | Number of events accessible in any given status bucket, and in transforming mode the maximum number of results to store. Defaults to 10000. |
 
 #### Output
 
@@ -162,7 +162,7 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `sid` | string | Yes | Search ID of the job whose results to fetch \(e.g. 1457683115.100\) |
-| `count` | number | No | Maximum number of result rows to return. Defaults to 100. 0 returns every available row. |
+| `count` | number | No | Maximum number of result rows to return. Defaults to 100. Page through larger result sets with offset rather than raising this — a completed job can hold millions of rows. |
 | `offset` | number | No | First result row \(0-indexed\) from which to begin returning data |
 | `fields` | string | No | Comma-separated list of fields to return for each row \(e.g. _time,host,source\). Returns all fields when omitted. |
 | `addSummaryToMetadata` | boolean | No | Include field summary statistics in the response |
@@ -244,7 +244,7 @@ List saved searches and reports configured in Splunk, including their SPL, sched
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `search` | string | No | Filter expression matched against saved search field values \(e.g. name=Errors*, is_scheduled=1\) |
+| `search` | string | No | Filter saved searches. A bare term matches as a substring across fields \(e.g. Errors\); field_name=field_value matches one field \(e.g. is_scheduled=1\). |
 | `count` | number | No | Maximum number of saved searches to return \(e.g. 50\). 0 returns all. |
 | `offset` | number | No | Index of the first saved search to return, for pagination |
 
@@ -352,8 +352,6 @@ List the unexpired triggered instances of a Splunk alert by saved search name, i
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Name of the alerting saved search \(e.g. Errors in the last 24 hours\). Use - to return the fired alerts of every saved search. |
-| `count` | number | No | Maximum number of fired alert instances to return \(e.g. 50\). 0 returns all. |
-| `offset` | number | No | Index of the first instance to return, for pagination |
 
 #### Output
 

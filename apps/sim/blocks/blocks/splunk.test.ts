@@ -16,6 +16,16 @@ function mapParams(params: Record<string, unknown>) {
   return toParams(params as Parameters<typeof toParams>[0])
 }
 
+/**
+ * What the tool actually receives. The generic handler merges the mapper's return
+ * over the raw serialized subBlock values (`{ ...inputs, ...transformedParams }`), so a
+ * key the mapper only assigns conditionally leaves the raw subBlock string in place.
+ * Assertions about dropping a value are only meaningful against this merged result.
+ */
+function mergedInputs(params: Record<string, unknown>) {
+  return { ...params, ...mapParams(params) }
+}
+
 describe('SplunkBlock tools.config.params', () => {
   describe('search-job toggles', () => {
     it('preserves a typed boolean false from a variable or agent tool call', () => {
@@ -66,6 +76,39 @@ describe('SplunkBlock tools.config.params', () => {
       expect(mapParams({ operation: 'splunk_list_indexes', count: '0' })).toMatchObject({
         count: 0,
       })
+    })
+  })
+
+  describe('switch-typed toggles', () => {
+    it('converts the switch string form so the tool sees a real boolean', () => {
+      expect(
+        mergedInputs({
+          operation: 'splunk_dispatch_saved_search',
+          savedSearchName: 'Errors',
+          triggerActions: 'true',
+          forceDispatch: 'false',
+        })
+      ).toMatchObject({ triggerActions: true, forceDispatch: false })
+
+      expect(
+        mergedInputs({
+          operation: 'splunk_get_search_results',
+          sid: '1.1',
+          addSummaryToMetadata: 'false',
+        })
+      ).toMatchObject({ addSummaryToMetadata: false })
+    })
+
+    it('drops an untouched switch from the merged inputs, not just from the mapper', () => {
+      const merged = mergedInputs({
+        operation: 'splunk_dispatch_saved_search',
+        savedSearchName: 'Errors',
+        triggerActions: null,
+        forceDispatch: null,
+      })
+
+      expect(merged.triggerActions).toBeUndefined()
+      expect(merged.forceDispatch).toBeUndefined()
     })
   })
 

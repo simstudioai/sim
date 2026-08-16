@@ -33,13 +33,14 @@ export const SPLUNK_CONNECTION_PARAMS: ToolConfig['params'] = {
     required: false,
     visibility: 'user-only',
     description:
-      'Namespace owner for /servicesNS requests (e.g. nobody, admin). Defaults to the authenticated user context.',
+      'Namespace owner for /servicesNS requests (e.g. admin, or nobody for app-shared objects). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard.',
   },
   app: {
     type: 'string',
     required: false,
     visibility: 'user-only',
-    description: 'Namespace app context for /servicesNS requests (e.g. search)',
+    description:
+      'Namespace app context for /servicesNS requests (e.g. search). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard.',
   },
 }
 
@@ -60,14 +61,21 @@ function normalizeBaseUrl(baseUrl: string): string {
 
 /**
  * Build the namespace prefix for a REST path. Splunk exposes every configuration
- * endpoint both at `/services/...` (the authenticated user's default namespace) and
- * at `/servicesNS/{owner}/{app}/...` when an explicit owner/app context is needed.
+ * endpoint both at `/services/...`, where "the system processes the request using
+ * the active user user/app context", and at `/servicesNS/{owner}/{app}/...` when an
+ * explicit context is needed.
+ *
+ * When only one node is supplied the other is filled with the documented wildcard
+ * `-` — "To indicate all users, all apps, or resources shared by all users, use the
+ * wildcard dash (-) symbol". `nobody` is NOT a neutral filler: it names the
+ * shared-application owner, so using it would silently hide every user-private
+ * object in the requested app.
  */
 function namespacePrefix(params: SplunkBaseParams): string {
   const owner = params.owner?.trim()
   const app = params.app?.trim()
   if (!owner && !app) return '/services'
-  return `/servicesNS/${encodeURIComponent(owner || 'nobody')}/${encodeURIComponent(app || 'search')}`
+  return `/servicesNS/${encodeURIComponent(owner || '-')}/${encodeURIComponent(app || '-')}`
 }
 
 /**
@@ -94,8 +102,10 @@ export function splunkPathSegment(value: string): string {
 }
 
 /**
- * Build auth headers. Splunk supports a bearer authentication token (8.x+) and
- * RFC 1945 basic authentication; the token is preferred when both are supplied.
+ * Build auth headers. Splunk supports a bearer authentication token ("In version 7.3
+ * and higher of the Splunk platform, you can also use Splunk authentication tokens to
+ * access REST endpoints") and basic authentication; the token is preferred when both
+ * are supplied.
  */
 export function buildSplunkHeaders(
   params: SplunkBaseParams,
@@ -139,6 +149,40 @@ export function buildSplunkFormBody(
     body.set(key, typeof value === 'boolean' ? (value ? '1' : '0') : String(value))
   }
   return body.toString()
+}
+
+/**
+ * Read a Splunk JSON body, tolerating an empty one. The results endpoint answers
+ * `204 No Content` with no body while a job has not produced results yet, and the job
+ * control endpoint documents "Returned values: None". `Response.json()` throws on an
+ * empty body, so a caller that polled a still-running job would surface
+ * `Unexpected end of JSON input` instead of an empty result set.
+ */
+export async function readSplunkJson(response: Response): Promise<unknown> {
+  if (response.status === 204) return {}
+  const text = await response.text()
+  if (!text.trim()) return {}
+  return JSON.parse(text)
+}
+
+/**
+ * Resolve the search ID a dispatching endpoint returns. The REST reference documents
+ * the response as `<response><sid>...</sid></response>` with a single returned value,
+ * `sid`, which `output_mode=json` renders as a flat `{ "sid": "..." }`.
+ *
+ * A missing `sid` is never a successful dispatch — it means the request produced
+ * something other than a job (for example `exec_mode=oneshot`, which the reference
+ * says "Does not return the search ID"). Fail loudly instead of handing the workflow
+ * a null sid that only breaks two blocks later.
+ */
+export function requireSplunkSid(data: unknown): string {
+  const sid = asString((data as { sid?: unknown })?.sid) ?? getEntryName(getSplunkEntries(data)[0])
+  if (!sid) {
+    throw new Error(
+      'Splunk did not return a search ID for this request. Verify the search dispatched successfully; exec_mode=oneshot returns results instead of a search ID.'
+    )
+  }
+  return sid
 }
 
 /**
@@ -226,6 +270,32 @@ export function mapSplunkMessages(value: unknown): SplunkMessage[] {
     const record = (message ?? {}) as Record<string, unknown>
     return { type: asString(record.type), text: asString(record.text) }
   })
+}
+
+/**
+ * The `content` keys `mapSavedSearchEntry` reads, in the `f` filtering-parameter form
+ * the reference prescribes for this endpoint: "This endpoint returns an unusually high
+ * number of values. To limit the number of returned values, specify the f filtering
+ * parameter." A saved search otherwise carries well over a hundred `content` keys
+ * (`action.email.*` alone runs to dozens) of which only these are projected.
+ */
+const SAVED_SEARCH_CONTENT_FIELDS = [
+  'search',
+  'qualifiedSearch',
+  'description',
+  'disabled',
+  'is_scheduled',
+  'is_visible',
+  'cron_schedule',
+  'next_scheduled_time',
+  'alert_type',
+  'dispatch.earliest_time',
+  'dispatch.latest_time',
+] as const
+
+/** Repeated `f=` arguments selecting only the saved-search fields Sim projects. */
+export function savedSearchFieldQuery(): string {
+  return SAVED_SEARCH_CONTENT_FIELDS.map((field) => `f=${encodeURIComponent(field)}`).join('&')
 }
 
 /** Project one `saved/searches` Atom entry into the canonical saved-search shape. */

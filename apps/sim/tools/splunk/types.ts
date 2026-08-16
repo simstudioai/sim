@@ -62,7 +62,7 @@ export interface SplunkCreateSearchJobParams extends SplunkBaseParams {
 
 export interface SplunkCreateSearchJobResponse extends ToolResponse {
   output: {
-    sid: string | null
+    sid: string
   }
 }
 
@@ -170,7 +170,7 @@ export interface SplunkDispatchSavedSearchParams extends SplunkBaseParams {
 
 export interface SplunkDispatchSavedSearchResponse extends ToolResponse {
   output: {
-    sid: string | null
+    sid: string
   }
 }
 
@@ -192,8 +192,6 @@ export interface SplunkListFiredAlertsResponse extends ToolResponse {
 
 export interface SplunkGetFiredAlertsParams extends SplunkBaseParams {
   name: string
-  count?: number
-  offset?: number
 }
 
 export interface SplunkGetFiredAlertsResponse extends ToolResponse {

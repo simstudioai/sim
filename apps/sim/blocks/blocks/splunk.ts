@@ -68,7 +68,6 @@ export const SplunkBlock: BlockConfig<SplunkResponse> = {
         ],
         splunk_get_fired_alerts: [
           { text: 'Fetch fired alerts for', field: 'alertName', core: true },
-          { text: ', returning at most', field: 'count' },
         ],
         splunk_list_indexes: [
           'List indexes',
@@ -417,7 +416,6 @@ Examples:
           'splunk_get_search_results',
           'splunk_list_saved_searches',
           'splunk_list_fired_alerts',
-          'splunk_get_fired_alerts',
           'splunk_list_indexes',
           'splunk_list_apps',
         ],
@@ -435,7 +433,6 @@ Examples:
           'splunk_get_search_results',
           'splunk_list_saved_searches',
           'splunk_list_fired_alerts',
-          'splunk_get_fired_alerts',
           'splunk_list_indexes',
           'splunk_list_apps',
         ],
@@ -477,12 +474,17 @@ Examples:
             result.enableLookups = toSplunkToggle(params.enableLookups)
             result.allowPartialResults = toSplunkToggle(params.allowPartialResults)
             break
+          case 'splunk_get_search_results':
+            result.addSummaryToMetadata = toSplunkToggle(params.addSummaryToMetadata)
+            break
           case 'splunk_list_saved_searches':
             result.search = params.savedSearchFilter ?? ''
             break
           case 'splunk_get_saved_search':
           case 'splunk_dispatch_saved_search':
             result.name = params.savedSearchName
+            result.triggerActions = toSplunkToggle(params.triggerActions)
+            result.forceDispatch = toSplunkToggle(params.forceDispatch)
             if (params.dispatchMaxCount) result.dispatchMaxCount = Number(params.dispatchMaxCount)
             if (params.dispatchMaxTime) result.dispatchMaxTime = Number(params.dispatchMaxTime)
             if (params.dispatchTtl) result.dispatchTtl = Number(params.dispatchTtl)

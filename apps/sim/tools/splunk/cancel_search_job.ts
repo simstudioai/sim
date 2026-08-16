@@ -7,6 +7,7 @@ import {
   buildSplunkFormHeaders,
   buildSplunkUrl,
   mapSplunkMessages,
+  readSplunkJson,
   SPLUNK_CONNECTION_PARAMS,
   SPLUNK_MESSAGES_OUTPUT,
   splunkPathSegment,
@@ -38,11 +39,11 @@ export const cancelSearchJobTool: ToolConfig<
       buildSplunkUrl(params, `/search/jobs/${splunkPathSegment(params.sid)}/control`),
     method: 'POST',
     headers: (params) => buildSplunkFormHeaders(params),
-    body: () => buildSplunkFormBody({ action: 'cancel', output_mode: 'json' }),
+    body: () => buildSplunkFormBody({ action: 'cancel' }),
   },
 
   transformResponse: async (response: Response, params) => {
-    const data = await response.json()
+    const data = await readSplunkJson(response)
     return {
       success: true,
       output: {

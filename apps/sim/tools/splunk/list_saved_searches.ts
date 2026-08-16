@@ -9,6 +9,7 @@ import {
   getSplunkEntries,
   mapSavedSearchEntry,
   SPLUNK_CONNECTION_PARAMS,
+  savedSearchFieldQuery,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -29,7 +30,7 @@ export const listSavedSearchesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Filter expression matched against saved search field values (e.g. name=Errors*, is_scheduled=1)',
+        'Filter saved searches. A bare term matches as a substring across fields (e.g. Errors); field_name=field_value matches one field (e.g. is_scheduled=1).',
     },
     count: {
       type: 'number',
@@ -47,11 +48,11 @@ export const listSavedSearchesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      buildSplunkUrl(params, '/saved/searches', {
+      `${buildSplunkUrl(params, '/saved/searches', {
         search: params.search,
         count: params.count,
         offset: params.offset,
-      }),
+      })}&${savedSearchFieldQuery()}`,
     method: 'GET',
     headers: (params) => buildSplunkHeaders(params),
   },

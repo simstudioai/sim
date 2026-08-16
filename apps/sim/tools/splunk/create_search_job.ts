@@ -3,16 +3,34 @@ import type {
   SplunkCreateSearchJobResponse,
 } from '@/tools/splunk/types'
 import {
-  asString,
   buildSplunkFormBody,
   buildSplunkFormHeaders,
   buildSplunkUrl,
-  getEntryName,
-  getSplunkEntries,
   normalizeSearchQuery,
+  requireSplunkSid,
   SPLUNK_CONNECTION_PARAMS,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * `exec_mode` accepts `blocking | oneshot | normal`, but of those only the two that
+ * return a search ID belong on this tool — the reference says oneshot "returns results
+ * in the same call" and "Does not return the search ID". Reject it before the search
+ * runs rather than letting Splunk execute it and returning a null sid.
+ */
+function resolveExecMode(execMode: string | undefined): string {
+  const mode = execMode?.trim().toLowerCase()
+  if (!mode) return 'normal'
+  if (mode === 'oneshot') {
+    throw new Error(
+      'Splunk Create Search Job cannot use exec_mode=oneshot because that mode returns results instead of a search ID. Use the Splunk Run Search operation instead.'
+    )
+  }
+  if (mode !== 'normal' && mode !== 'blocking') {
+    throw new Error(`Invalid Splunk execution mode "${execMode}". Use normal or blocking.`)
+  }
+  return mode
+}
 
 /**
  * Starts an asynchronous search job and returns its search ID (sid). Poll the job
@@ -54,7 +72,7 @@ export const createSearchJobTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Execution mode: normal (returns the sid immediately) or blocking (returns the sid once the job completes). Defaults to normal.',
+        'Execution mode: normal (returns the sid immediately) or blocking (returns the sid once the job completes). Defaults to normal. oneshot is rejected here because it returns results instead of a sid — use Splunk Run Search for that.',
     },
     adhocSearchLevel: {
       type: 'string',
@@ -105,7 +123,7 @@ export const createSearchJobTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum number of results the job stores in transforming mode. Defaults to 10000.',
+        'Number of events accessible in any given status bucket, and in transforming mode the maximum number of results to store. Defaults to 10000.',
     },
   },
 
@@ -117,7 +135,7 @@ export const createSearchJobTool: ToolConfig<
       buildSplunkFormBody({
         search: normalizeSearchQuery(params.search),
         output_mode: 'json',
-        exec_mode: params.execMode || 'normal',
+        exec_mode: resolveExecMode(params.execMode),
         earliest_time: params.earliestTime,
         latest_time: params.latestTime,
         adhoc_search_level: params.adhocSearchLevel,
@@ -133,10 +151,7 @@ export const createSearchJobTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    const sid =
-      asString((data as { sid?: unknown })?.sid) ?? getEntryName(getSplunkEntries(data)[0])
-
-    return { success: true, output: { sid: sid ?? null } }
+    return { success: true, output: { sid: requireSplunkSid(data) } }
   },
 
   outputs: {

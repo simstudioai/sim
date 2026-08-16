@@ -3,12 +3,10 @@ import type {
   SplunkDispatchSavedSearchResponse,
 } from '@/tools/splunk/types'
 import {
-  asString,
   buildSplunkFormBody,
   buildSplunkFormHeaders,
   buildSplunkUrl,
-  getEntryName,
-  getSplunkEntries,
+  requireSplunkSid,
   SPLUNK_CONNECTION_PARAMS,
   splunkPathSegment,
 } from '@/tools/splunk/utils'
@@ -17,9 +15,11 @@ import type { ToolConfig } from '@/tools/types'
 /**
  * Runs a saved search immediately. Like any dispatched search this is asynchronous:
  * the endpoint returns the new job's search ID, which Get Search Job and Get Search
- * Results then consume. The REST reference documents the response as
- * `<response><sid>...</sid></response>`, which `output_mode=json` renders as a flat
- * `{ "sid": "..." }` — the same envelope `POST search/jobs` returns.
+ * Results then consume. The REST reference documents the response only in its XML form,
+ * `<response><sid>...</sid></response>`; that `output_mode=json` renders it as a flat
+ * `{ "sid": "..." }`, matching `POST search/jobs`, is an inference the reference does not
+ * state outright. `requireSplunkSid` therefore fails loudly rather than reporting success
+ * with a null sid if the body arrives in some other shape.
  */
 export const dispatchSavedSearchTool: ToolConfig<
   SplunkDispatchSavedSearchParams,
@@ -107,10 +107,7 @@ export const dispatchSavedSearchTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
-    const sid =
-      asString((data as { sid?: unknown })?.sid) ?? getEntryName(getSplunkEntries(data)[0])
-
-    return { success: true, output: { sid: sid ?? null } }
+    return { success: true, output: { sid: requireSplunkSid(data) } }
   },
 
   outputs: {

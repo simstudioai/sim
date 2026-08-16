@@ -6,6 +6,7 @@ import {
   buildSplunkHeaders,
   buildSplunkUrl,
   mapSearchResultsPayload,
+  readSplunkJson,
   SEARCH_RESULTS_OUTPUTS,
   SPLUNK_CONNECTION_PARAMS,
   splunkPathSegment,
@@ -41,7 +42,7 @@ export const getSearchResultsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum number of result rows to return. Defaults to 100. 0 returns every available row.',
+        'Maximum number of result rows to return. Defaults to 100. Page through larger result sets with offset rather than raising this — a completed job can hold millions of rows.',
     },
     offset: {
       type: 'number',
@@ -87,7 +88,7 @@ export const getSearchResultsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readSplunkJson(response)
     return { success: true, output: mapSearchResultsPayload(data) }
   },
 

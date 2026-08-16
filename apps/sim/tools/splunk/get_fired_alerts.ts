@@ -15,11 +15,10 @@ import type { ToolConfig } from '@/tools/types'
 /**
  * Lists the unexpired triggered instances of one alert, by saved search name.
  *
- * The entity reference for `alerts/fired_alerts/{name}` states "Request parameters:
- * None", while the sibling collection endpoint `alerts/fired_alerts` documents
- * `count`/`offset`. Both are exposed here on the assumption that the shared Atom
- * collection pagination applies; an instance that ignores them simply returns the
- * full set, and the caller can still page client-side.
+ * The reference for `alerts/fired_alerts/{name}` states "Request parameters: None" and,
+ * unlike its sibling collection endpoint, does not carry the "Pagination and filtering
+ * parameters can be used with this method" note. No `count`/`offset` is sent, because a
+ * Splunk handler may reject an unsupported argument outright rather than ignore it.
  */
 export const getFiredAlertsTool: ToolConfig<
   SplunkGetFiredAlertsParams,
@@ -40,26 +39,11 @@ export const getFiredAlertsTool: ToolConfig<
       description:
         'Name of the alerting saved search (e.g. Errors in the last 24 hours). Use - to return the fired alerts of every saved search.',
     },
-    count: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum number of fired alert instances to return (e.g. 50). 0 returns all.',
-    },
-    offset: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Index of the first instance to return, for pagination',
-    },
   },
 
   request: {
     url: (params) =>
-      buildSplunkUrl(params, `/alerts/fired_alerts/${splunkPathSegment(params.name)}`, {
-        count: params.count,
-        offset: params.offset,
-      }),
+      buildSplunkUrl(params, `/alerts/fired_alerts/${splunkPathSegment(params.name)}`),
     method: 'GET',
     headers: (params) => buildSplunkHeaders(params),
   },

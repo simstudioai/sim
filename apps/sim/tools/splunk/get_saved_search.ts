@@ -9,6 +9,7 @@ import {
   getSplunkEntries,
   mapSavedSearchEntry,
   SPLUNK_CONNECTION_PARAMS,
+  savedSearchFieldQuery,
   splunkPathSegment,
 } from '@/tools/splunk/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -34,14 +35,21 @@ export const getSavedSearchTool: ToolConfig<
   },
 
   request: {
-    url: (params) => buildSplunkUrl(params, `/saved/searches/${splunkPathSegment(params.name)}`),
+    url: (params) =>
+      `${buildSplunkUrl(params, `/saved/searches/${splunkPathSegment(params.name)}`)}&${savedSearchFieldQuery()}`,
     method: 'GET',
     headers: (params) => buildSplunkHeaders(params),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
-    return { success: true, output: mapSavedSearchEntry(getSplunkEntries(data)[0]) }
+    const entry = getSplunkEntries(data)[0]
+    if (!entry) {
+      throw new Error(
+        `Splunk returned no saved search named "${params?.name ?? ''}". Check the name and, if it is a private search, the namespace owner and app.`
+      )
+    }
+    return { success: true, output: mapSavedSearchEntry(entry) }
   },
 
   outputs: SAVED_SEARCH_OUTPUT_FIELDS,
