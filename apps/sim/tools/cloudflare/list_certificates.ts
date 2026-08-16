@@ -26,7 +26,8 @@ export const listCertificatesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter certificate packs by status (e.g., "all", "active", "pending")',
+      description:
+        'Set to "all" to include every certificate pack regardless of status. Cloudflare documents no other value for this filter; omitting it returns only active packs',
     },
     page: {
       type: 'number',

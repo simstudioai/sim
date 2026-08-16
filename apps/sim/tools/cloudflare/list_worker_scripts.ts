@@ -32,7 +32,8 @@ export const listWorkerScriptsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: "Filter scripts by tag, using Cloudflare's tag filter syntax",
+      description:
+        'Filter scripts by tag. Cloudflare expects a comma-separated list of tag:allowed pairs where allowed is yes or no, e.g. team:core:yes,deprecated:no',
     },
     apiKey: {
       type: 'string',

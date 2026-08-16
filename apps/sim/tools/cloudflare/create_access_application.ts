@@ -34,14 +34,14 @@ export const createAccessApplicationTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Application type, e.g. self_hosted, saas, ssh, vnc, app_launcher, warp, or bookmark',
+        'Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, dash_sso, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint',
     },
     domain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'The primary hostname and path secured by Access, e.g. internal.example.com or example.com/admin',
+        'The primary hostname and path secured by Access, e.g. internal.example.com or example.com/admin. Required for the self_hosted, ssh, vnc, rdp, and bookmark types; the saas, app_launcher, warp, biso, dash_sso, infrastructure, mcp, mcp_portal, and proxy_endpoint types do not accept it',
     },
     name: {
       type: 'string',
@@ -119,10 +119,14 @@ export const createAccessApplicationTool: ToolConfig<
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
-      const body: Record<string, unknown> = {
-        type: params.type,
-        domain: params.domain,
-      }
+      const body: Record<string, unknown> = { type: params.type }
+      /**
+       * `domain` exists only on the self_hosted, ssh, vnc, rdp, and bookmark
+       * request variants; the saas, app_launcher, warp, biso, dash_sso,
+       * infrastructure, mcp, mcp_portal, and proxy_endpoint variants have no
+       * such field, so sending a blank one makes those app types unbuildable.
+       */
+      if (params.domain) body.domain = params.domain
       if (params.name) body.name = params.name
       if (params.sessionDuration) body.session_duration = params.sessionDuration
 

@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
+import * as cloudflareTools from '@/tools/cloudflare'
 
 const apiKey = 'cf-token'
 
@@ -31,13 +32,16 @@ function seededDefaults(): Record<string, unknown> {
   return seeded
 }
 
+/**
+ * Returns what the tool actually receives. The executor merges the mapper's
+ * output OVER the raw inputs (`finalInputs = { ...inputs, ...transformedParams }`
+ * in `executor/handlers/generic/generic-handler.ts`), so a key the mapper merely
+ * omits survives as its raw subBlock string. Asserting on the mapper's return
+ * alone would let an alias or a stale filter through unnoticed.
+ */
 function mapFor(operation: string, extra: Record<string, unknown> = {}) {
-  return mapParams?.({
-    ...seededDefaults(),
-    apiKey,
-    operation,
-    ...extra,
-  } as never) as Record<string, unknown>
+  const inputs = { ...seededDefaults(), apiKey, operation, ...extra }
+  return { ...inputs, ...(mapParams?.(inputs as never) as Record<string, unknown>) }
 }
 
 describe('subBlock ids that share a tool param keep their own default', () => {
@@ -116,8 +120,21 @@ describe('subBlock ids that share a tool param keep their own default', () => {
       'appType',
       'rateLimitAction',
       'rulesetName',
+      'zoneNameFilter',
+      'zoneType',
+      'dnsTypeFilter',
+      'dnsNameFilter',
+      'dnsContentFilter',
+      'dnsOrder',
+      'dnsProxiedFilter',
+      'purgeTags',
+      'workerTagFilter',
+      'accessAppTags',
+      'listNameFilter',
+      'accessAppDomainFilter',
+      'tunnelStatus',
     ]) {
-      expect(mapped).not.toHaveProperty(alias)
+      expect(mapped[alias], `alias ${alias} reached the tool`).toBeUndefined()
     }
   })
 
@@ -129,42 +146,147 @@ describe('subBlock ids that share a tool param keep their own default', () => {
     })
 
     expect(mapped.name).toBe('Zone rate limiting ruleset')
-    expect(mapped).not.toHaveProperty('rulesetName')
+    expect(mapped.rulesetName).toBeUndefined()
   })
 })
 
-describe('array-valued wand fields generate arrays', () => {
-  it('never asks the wand for an object where the tool parses a JSON array', () => {
-    const arrayParsedIds = new Set(['include', 'exclude', 'require', 'policies', 'rules'])
+/**
+ * `shouldSerializeSubBlock` (serializer/index.ts) short-circuits on
+ * `mode: 'advanced'` BEFORE evaluating `condition`, so an advanced control whose
+ * stored value is non-empty is serialized even when the selected operation does
+ * not render it. That is harmless while every operation that consumes the id
+ * also exposes a control for it — the user can see and change the value — and it
+ * is a silent cross-operation write when it does not.
+ */
+/**
+ * Two mechanical guards on subBlock id reuse. Block state is keyed by subBlock
+ * id, so controls sharing an id share one stored value — fine when they mean the
+ * same thing, a silent cross-operation bug when they do not. These encode the
+ * two shapes that divergence takes here.
+ */
+describe('a shared subBlock id means the same thing everywhere', () => {
+  /**
+   * Ids that legitimately span reads and writes because they address the
+   * resource rather than carry payload: credentials, account/zone scope, the
+   * R2 jurisdiction routing header, the ruleset phase, and resource ids.
+   */
+  const ADDRESSING_IDS = new Set([
+    'apiKey',
+    'operation',
+    'accountId',
+    'zoneId',
+    'jurisdiction',
+    'phase',
+    'appId',
+    'bucketName',
+    'rulesetId',
+  ])
 
-    const wrong = CloudflareBlock.subBlocks.filter(
-      (subBlock) =>
-        arrayParsedIds.has(subBlock.id) && subBlock.wandConfig?.generationType === 'json-object'
-    )
+  const WRITE_PREFIXES = ['create_', 'update_', 'delete_', 'purge_', 'revoke_']
 
-    expect(wrong.map((subBlock) => subBlock.id)).toEqual([])
-  })
-})
+  function operationsFor(subBlock: (typeof CloudflareBlock.subBlocks)[number]): string[] {
+    const condition = subBlock.condition
+    if (!condition || typeof condition !== 'object' || !('field' in condition)) return []
+    if (condition.field !== 'operation') return []
+    const value = condition.value
+    return Array.isArray(value) ? value.map(String) : [String(value)]
+  }
 
-describe('no subBlock id carries two different defaults', () => {
-  it('every duplicated id agrees on its seeded value', () => {
-    const byId = new Map<string, Set<string>>()
+  it('never shares an id between a read filter and a written value', () => {
+    const kindsById = new Map<string, Set<string>>()
 
     for (const subBlock of CloudflareBlock.subBlocks) {
-      const value =
-        typeof subBlock.value === 'function'
-          ? (subBlock.value as (p: Record<string, never>) => unknown)({})
-          : (subBlock.defaultValue ?? null)
-
-      const seen = byId.get(subBlock.id) ?? new Set<string>()
-      seen.add(JSON.stringify(value ?? null))
-      byId.set(subBlock.id, seen)
+      if (ADDRESSING_IDS.has(subBlock.id)) continue
+      for (const operation of operationsFor(subBlock)) {
+        const kind = WRITE_PREFIXES.some((prefix) => operation.startsWith(prefix))
+          ? 'write'
+          : 'read'
+        const kinds = kindsById.get(subBlock.id) ?? new Set<string>()
+        kinds.add(kind)
+        kindsById.set(subBlock.id, kinds)
+      }
     }
 
-    const colliding = [...byId.entries()]
-      .filter(([, values]) => values.size > 1)
-      .map(([id, values]) => `${id}: ${[...values].join(' vs ')}`)
+    const mixed = [...kindsById.entries()]
+      .filter(([, kinds]) => kinds.size > 1)
+      .map(([id]) => id)
+      .sort()
 
-    expect(colliding).toEqual([])
+    expect(mixed).toEqual([])
+  })
+
+  it('never gives one dropdown id two different option sets', () => {
+    const optionsById = new Map<string, Set<string>>()
+
+    for (const subBlock of CloudflareBlock.subBlocks) {
+      if (subBlock.type !== 'dropdown' || !Array.isArray(subBlock.options)) continue
+      const signature = JSON.stringify(
+        subBlock.options.map((option) =>
+          typeof option === 'string' ? option : ((option as { id?: string }).id ?? '')
+        )
+      )
+      const signatures = optionsById.get(subBlock.id) ?? new Set<string>()
+      signatures.add(signature)
+      optionsById.set(subBlock.id, signatures)
+    }
+
+    const divergent = [...optionsById.entries()]
+      .filter(([, signatures]) => signatures.size > 1)
+      .map(([id, signatures]) => `${id}: ${[...signatures].join(' vs ')}`)
+
+    expect(divergent).toEqual([])
+  })
+})
+
+describe('no hidden advanced control feeds an operation that cannot show it', () => {
+  const STALE = '__stale_value__'
+
+  const toolsByOperation = new Map(
+    Object.values(cloudflareTools).map((tool) => [tool.id.replace(/^cloudflare_/, ''), tool])
+  )
+
+  /** Operations a subBlock's `condition` makes it visible for. */
+  function conditionOperations(subBlock: (typeof CloudflareBlock.subBlocks)[number]): string[] {
+    const condition = subBlock.condition
+    if (!condition || typeof condition !== 'object' || !('field' in condition)) return []
+    if (condition.field !== 'operation') return []
+    const value = condition.value
+    return Array.isArray(value) ? value.map(String) : [String(value)]
+  }
+
+  it('every advanced id reaching a tool is either shown or remapped for that operation', () => {
+    const operations = [...toolsByOperation.keys()]
+    const visibleIdsByOperation = new Map<string, Set<string>>(
+      operations.map((operation) => [operation, new Set<string>()])
+    )
+    for (const subBlock of CloudflareBlock.subBlocks) {
+      for (const operation of conditionOperations(subBlock)) {
+        visibleIdsByOperation.get(operation)?.add(subBlock.id)
+      }
+    }
+
+    const leaks: string[] = []
+
+    for (const subBlock of CloudflareBlock.subBlocks) {
+      if (subBlock.mode !== 'advanced') continue
+      const ownOperations = new Set(conditionOperations(subBlock))
+
+      for (const operation of operations) {
+        if (ownOperations.has(operation)) continue
+        const tool = toolsByOperation.get(operation)
+        if (!tool?.params || !(subBlock.id in tool.params)) continue
+        if (visibleIdsByOperation.get(operation)?.has(subBlock.id)) continue
+
+        // The mapper must overwrite or clear the stale value for this operation.
+        const mapped = mapFor(operation, { [subBlock.id]: STALE })
+        if (mapped[subBlock.id] === STALE) {
+          leaks.push(
+            `"${subBlock.id}" (advanced, shown for ${[...ownOperations].join('/') || 'nothing'}) reaches ${operation} as a param it never renders`
+          )
+        }
+      }
+    }
+
+    expect(leaks).toEqual([])
   })
 })

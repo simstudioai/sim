@@ -108,7 +108,7 @@ export interface CloudflareRawAccessPolicy {
 export interface CloudflareRawAccessGroup {
   id?: string
   name?: string
-  is_default?: boolean
+  is_default?: unknown[]
   include?: unknown[]
   exclude?: unknown[]
   require?: unknown[]
@@ -827,12 +827,14 @@ export interface CloudflareUpdateRulesetRuleParams extends CloudflareBaseParams 
   zoneId: string
   rulesetId: string
   ruleId: string
-  action?: string
-  expression?: string
+  action: string
+  expression: string
   description?: string
   enabled?: boolean
   ref?: string
   actionParameters?: string
+  ratelimit?: string
+  logging?: string
 }
 
 export interface CloudflareDeleteRulesetRuleParams extends CloudflareBaseParams {
@@ -901,7 +903,7 @@ export interface CloudflareUpdateRateLimitRuleParams extends CloudflareBaseParam
   characteristics: string
   period: number
   requestsPerPeriod: number
-  action?: string
+  action: string
   mitigationTimeout?: number
   counting_expression?: string
   requestsToOrigin?: boolean
@@ -958,7 +960,7 @@ export interface CloudflareAccessApplicationResponse extends ToolResponse {
 export interface CloudflareCreateAccessApplicationParams extends CloudflareBaseParams {
   accountId: string
   type: string
-  domain: string
+  domain?: string
   name?: string
   sessionDuration?: string
   allowedIdps?: string
@@ -1061,7 +1063,7 @@ export interface CloudflareListAccessGroupsResponse extends ToolResponse {
     groups: Array<{
       id: string
       name: string | null
-      is_default: boolean | null
+      is_default: unknown[] | null
       include: unknown[] | null
       exclude: unknown[] | null
       require: unknown[] | null

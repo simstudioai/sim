@@ -15,9 +15,10 @@ import type {
 } from '@/tools/cloudflare/types'
 
 /**
- * Reads a Cloudflare v4 response body into the shared envelope shape. This is
- * the one JSON boundary cast in the integration — every caller then branches on
- * the typed `success` flag and reads `result` through a checked payload type.
+ * Reads a Cloudflare v4 response body into the shared envelope shape, so the
+ * caller branches on a typed `success` flag and reads `result` through a checked
+ * payload type instead of an implicitly-`any` `response.json()`. Used by the
+ * tools whose `result` has a payload type in `types.ts`.
  */
 export async function readCloudflareResponse<TResult>(
   response: Response

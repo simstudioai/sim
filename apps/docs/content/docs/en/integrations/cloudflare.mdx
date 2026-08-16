@@ -282,7 +282,7 @@ Creates a new DNS record for a zone.
 | `content` | string | Yes | DNS record content \(e.g., IP address for A records, target for CNAME\) |
 | `ttl` | number | No | Time to live in seconds \(1 = automatic, default: 1\) |
 | `proxied` | boolean | No | Whether to enable Cloudflare proxy \(default: false\) |
-| `priority` | number | No | Priority for MX and SRV records |
+| `priority` | number | No | Record priority. Cloudflare accepts this top-level field for MX and URI records only; an SRV record carries its priority, weight, port, and target inside the record content instead |
 | `comment` | string | No | Comment for the DNS record |
 | `tags` | string | No | Comma-separated tags for the DNS record |
 | `apiKey` | string | Yes | Cloudflare API Token |
@@ -301,7 +301,7 @@ Creates a new DNS record for a zone.
 | `proxied` | boolean | Whether Cloudflare proxy is enabled |
 | `ttl` | number | Time to live in seconds \(1 = automatic\) |
 | `locked` | boolean | Whether the record is locked |
-| `priority` | number | Priority for MX and SRV records |
+| `priority` | number | Record priority, returned for MX and URI records |
 | `comment` | string | Comment associated with the record |
 | `tags` | array | Tags associated with the record |
 | `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
@@ -382,7 +382,7 @@ Lists SSL/TLS certificate packs for a zone.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to list certificates for |
-| `status` | string | No | Filter certificate packs by status \(e.g., "all", "active", "pending"\) |
+| `status` | string | No | Set to "all" to include every certificate pack regardless of status. Cloudflare documents no other value for this filter; omitting it returns only active packs |
 | `page` | number | No | Page number of paginated results \(default: 1\) |
 | `per_page` | number | No | Number of certificate packs per page \(default: 20, min: 5, max: 50\) |
 | `deploy` | string | No | Filter by deployment environment: "staging" or "production" |
@@ -763,12 +763,14 @@ Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather
 | `zoneId` | string | Yes | The zone ID that owns the ruleset |
 | `rulesetId` | string | Yes | The ruleset ID containing the rule |
 | `ruleId` | string | Yes | The rule ID to update |
-| `action` | string | No | The action the rule performs, e.g. block, challenge, js_challenge, managed_challenge, log, skip, or execute |
-| `expression` | string | No | Cloudflare filter expression selecting matching requests |
+| `action` | string | Yes | The action the rule performs, e.g. block, challenge, js_challenge, managed_challenge, log, skip, or execute. Required because this endpoint replaces the rule definition — omitting it resets the stored action |
+| `expression` | string | Yes | Cloudflare filter expression selecting matching requests. Required because this endpoint replaces the rule definition — omitting it resets the stored expression |
 | `description` | string | No | Human-readable description of the rule |
 | `enabled` | boolean | No | Whether the rule is enabled |
 | `ref` | string | No | Reference tag that stays stable across rule updates |
-| `actionParameters` | string | No | JSON object of action-specific parameters, e.g. \{"id":"&lt;MANAGED_RULESET_ID&gt;","overrides":\{"rules":\[\{"id":"&lt;RULE_ID&gt;","action":"log","enabled":true\}\]\}\} |
+| `actionParameters` | string | No | JSON object of action-specific parameters, e.g. \{"id":"&lt;MANAGED_RULESET_ID&gt;","overrides":\{"rules":\[\{"id":"&lt;RULE_ID&gt;","action":"log","enabled":true,"score_threshold":40\}\]\}\} |
+| `ratelimit` | string | No | JSON rate limiting configuration to preserve on a rule in the http_ratelimit phase, e.g. \{"characteristics":\["cf.colo.id","ip.src"\],"period":60,"requests_per_period":100\}. Because the update replaces the rule, omitting this on a rate limiting rule stops it rate limiting |
+| `logging` | string | No | JSON logging configuration to preserve, e.g. \{"enabled":true\}. Omitting it on a rule that had logging configured resets it to the default |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -856,7 +858,7 @@ Lists the WAF managed rulesets deployed on a zone together with the overrides ap
 |   ↳ `description` | string | Description of the deployment rule |
 |   ↳ `expression` | string | Filter expression scoping which requests the managed ruleset runs on |
 |   ↳ `enabled` | boolean | Whether the deployment is enabled |
-|   ↳ `overrides` | json | Overrides applied to the managed ruleset, at three levels — ruleset \(top level\), categories, and rules. The Rulesets engine documents action and enabled as the properties overridable at every level; individual managed rulesets may add more, and the OWASP Core Ruleset also accepts score_threshold on a rule override |
+|   ↳ `overrides` | json | Overrides applied to the managed ruleset, at three levels. Cloudflare documents action, enabled, and sensitivity_level at the ruleset \(top\) level; category, action, enabled, and sensitivity_level per category; and id, action, enabled, score_threshold, and sensitivity_level per rule. Rule overrides beat category overrides, which beat the ruleset-level override. sensitivity_level applies only to the DDoS phases, so for a WAF managed ruleset the rule-level properties are action, enabled, and score_threshold |
 | `total_count` | number | Number of managed ruleset deployments found |
 
 ### Cloudflare List Rate Limiting Rules
@@ -957,7 +959,7 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `characteristics` | string | Yes | Comma-separated counting characteristics. cf.colo.id is mandatory, plus exactly one of ip.src or cf.unique_visitor_id |
 | `period` | number | Yes | Counting window in seconds. Cloudflare accepts only 10, 60, 120, 300, 600, or 3600 |
 | `requestsPerPeriod` | number | Yes | Number of requests allowed within the counting period before the action fires |
-| `action` | string | No | Action applied once the limit is exceeded, e.g. block, managed_challenge, js_challenge, challenge, or log. Defaults to block |
+| `action` | string | Yes | Action applied once the limit is exceeded: block, managed_challenge, js_challenge, challenge, or log. Required because this endpoint replaces the rule rather than merging into it — a defaulted action would silently convert an existing log or challenge rule into a hard block |
 | `mitigationTimeout` | number | No | Seconds the action stays applied. Cloudflare accepts only 0, 10, 60, 120, 300, 600, 3600, or 86400 |
 | `counting_expression` | string | No | Optional expression defining which requests are counted |
 | `requestsToOrigin` | boolean | No | When true, only requests that reach the origin are counted |
@@ -1073,8 +1075,8 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Access applications are account-scoped |
-| `type` | string | Yes | Application type, e.g. self_hosted, saas, ssh, vnc, app_launcher, warp, or bookmark |
-| `domain` | string | Yes | The primary hostname and path secured by Access, e.g. internal.example.com or example.com/admin |
+| `type` | string | Yes | Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, dash_sso, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint |
+| `domain` | string | No | The primary hostname and path secured by Access, e.g. internal.example.com or example.com/admin. Required for the self_hosted, ssh, vnc, rdp, and bookmark types; the saas, app_launcher, warp, biso, dash_sso, infrastructure, mcp, mcp_portal, and proxy_endpoint types do not accept it |
 | `name` | string | No | Friendly name shown in the dashboard and App Launcher |
 | `sessionDuration` | string | No | How long an Access session stays valid, e.g. 24h or 30m |
 | `allowedIdps` | string | No | Comma-separated identity provider IDs users may authenticate with. Leave empty to allow all configured providers |
@@ -1118,8 +1120,8 @@ Updates a Cloudflare Access (Zero Trust) application. This replaces the applicat
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Access applications are account-scoped |
 | `appId` | string | Yes | The Access application ID to update |
-| `type` | string | Yes | Application type, e.g. self_hosted, saas, ssh, vnc, app_launcher, warp, or bookmark |
-| `domain` | string | Yes | The primary hostname and path secured by Access |
+| `type` | string | Yes | Application type: self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, dash_sso, infrastructure, rdp, mcp, mcp_portal, or proxy_endpoint |
+| `domain` | string | No | The primary hostname and path secured by Access. Required for the self_hosted, ssh, vnc, rdp, and bookmark types; the saas, app_launcher, warp, biso, dash_sso, infrastructure, mcp, mcp_portal, and proxy_endpoint types do not accept it |
 | `name` | string | No | Friendly name shown in the dashboard and App Launcher |
 | `sessionDuration` | string | No | How long an Access session stays valid, e.g. 24h or 30m |
 | `allowedIdps` | string | No | Comma-separated identity provider IDs users may authenticate with |
@@ -1332,7 +1334,7 @@ Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups b
 | `groups` | array | Access groups in the account |
 |   ↳ `id` | string | Access group identifier |
 |   ↳ `name` | string | Group name |
-|   ↳ `is_default` | boolean | Whether the group is automatically applied to every new application |
+|   ↳ `is_default` | json | Rules that place this group in every Access application by default. Cloudflare returns an array of rule objects here, not a boolean |
 |   ↳ `include` | json | Rules evaluated with OR logic |
 |   ↳ `exclude` | json | Rules evaluated with NOT logic |
 |   ↳ `require` | json | Rules evaluated with AND logic |
@@ -1554,7 +1556,7 @@ Lists the Workers scripts deployed in an account. Requires an API token with Acc
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accountId` | string | Yes | The Cloudflare account ID. Workers scripts are account-scoped |
-| `tags` | string | No | Filter scripts by tag, using Cloudflare's tag filter syntax |
+| `tags` | string | No | Filter scripts by tag. Cloudflare expects a comma-separated list of tag:allowed pairs where allowed is yes or no, e.g. team:core:yes,deprecated:no |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output

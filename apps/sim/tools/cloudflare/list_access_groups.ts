@@ -116,8 +116,9 @@ export const listAccessGroupsTool: ToolConfig<
           id: { type: 'string', description: 'Access group identifier' },
           name: { type: 'string', description: 'Group name', optional: true },
           is_default: {
-            type: 'boolean',
-            description: 'Whether the group is automatically applied to every new application',
+            type: 'json',
+            description:
+              'Rules that place this group in every Access application by default. Cloudflare returns an array of rule objects here, not a boolean',
             optional: true,
           },
           include: {

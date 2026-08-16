@@ -47,7 +47,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
         'Content-Type': 'application/json',
       }),
       body: (params) => {
-        const body: Record<string, any> = {
+        const body: Record<string, unknown> = {
           name: params.name,
           account: { id: params.accountId },
         }

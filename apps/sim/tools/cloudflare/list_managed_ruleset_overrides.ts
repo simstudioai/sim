@@ -105,7 +105,7 @@ export const listManagedRulesetOverridesTool: ToolConfig<
           overrides: {
             type: 'json',
             description:
-              'Overrides applied to the managed ruleset, at three levels — ruleset (top level), categories, and rules. The Rulesets engine documents action and enabled as the properties overridable at every level; individual managed rulesets may add more, and the OWASP Core Ruleset also accepts score_threshold on a rule override',
+              'Overrides applied to the managed ruleset, at three levels. Cloudflare documents action, enabled, and sensitivity_level at the ruleset (top) level; category, action, enabled, and sensitivity_level per category; and id, action, enabled, score_threshold, and sensitivity_level per rule. Rule overrides beat category overrides, which beat the ruleset-level override. sensitivity_level applies only to the DDoS phases, so for a WAF managed ruleset the rule-level properties are action, enabled, and score_threshold',
             optional: true,
           },
         },

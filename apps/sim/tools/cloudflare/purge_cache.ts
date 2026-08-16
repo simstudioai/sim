@@ -107,6 +107,20 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
           )
         }
 
+        /**
+         * Cloudflare's purge body is a one-of over the five target kinds — each
+         * is its own request schema, and combining two in a single call is not a
+         * documented shape. Rejecting here names the conflicting fields instead
+         * of letting the API answer with a generic parse error.
+         * https://developers.cloudflare.com/api/resources/cache/methods/purge/
+         */
+        const targets = Object.keys(body)
+        if (targets.length > 1) {
+          throw new Error(
+            `Only one purge target kind is allowed per request, but ${targets.join(' and ')} were provided. Run a separate purge for each.`
+          )
+        }
+
         return body
       },
     },

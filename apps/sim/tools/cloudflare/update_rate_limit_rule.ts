@@ -69,10 +69,10 @@ export const updateRateLimitRuleTool: ToolConfig<
     },
     action: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
-        'Action applied once the limit is exceeded, e.g. block, managed_challenge, js_challenge, challenge, or log. Defaults to block',
+        'Action applied once the limit is exceeded: block, managed_challenge, js_challenge, challenge, or log. Required because this endpoint replaces the rule rather than merging into it — a defaulted action would silently convert an existing log or challenge rule into a hard block',
     },
     mitigationTimeout: {
       type: 'number',
@@ -138,7 +138,7 @@ export const updateRateLimitRuleTool: ToolConfig<
       }
 
       const body: Record<string, unknown> = {
-        action: params.action || 'block',
+        action: params.action,
         expression: params.expression,
         ratelimit,
       }

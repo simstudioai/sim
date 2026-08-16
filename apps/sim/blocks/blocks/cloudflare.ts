@@ -2,6 +2,54 @@ import { CloudflareIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { CloudflareResponse } from '@/tools/cloudflare/types'
 
+/**
+ * Per-operation aliases from a tool param name to the subBlock id that supplies
+ * it, keyed by operation.
+ *
+ * Block state is keyed by subBlock id, so two controls sharing an id share one
+ * stored value and the last definition in file order wins the seeded default.
+ * That is fine — and deliberate — when both controls mean the same thing (a zone
+ * id, a page number, a record name). It is not fine when they differ: a control
+ * in `mode: 'advanced'` is serialized whenever its stored value is non-empty,
+ * *before* its own `condition` is evaluated (`shouldSerializeSubBlock` in
+ * `serializer/index.ts`), so a hidden filter from one operation would otherwise
+ * arrive as a written value on another — a `list_dns_records` "Content Filter"
+ * silently overwriting a record's content on `update_dns_record`, or a
+ * `list_zones` status reaching `list_tunnels`, whose status enum is disjoint.
+ *
+ * Every such control therefore carries its own id and is republished here under
+ * the tool's param name, before any coercion in the mapper reads it.
+ */
+const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
+  create_zone: { type: 'zoneType' },
+  list_zones: { name: 'zoneNameFilter' },
+  create_dns_record: { type: 'recordType', proxied: 'recordProxied' },
+  list_dns_records: {
+    type: 'dnsTypeFilter',
+    name: 'dnsNameFilter',
+    content: 'dnsContentFilter',
+    order: 'dnsOrder',
+    proxied: 'dnsProxiedFilter',
+  },
+  list_certificates: { status: 'certificateStatus' },
+  purge_cache: { tags: 'purgeTags' },
+  create_ruleset: { name: 'rulesetName' },
+  create_rate_limit_rule: { action: 'rateLimitAction' },
+  update_rate_limit_rule: { action: 'rateLimitAction' },
+  create_access_application: { type: 'appType', tags: 'accessAppTags' },
+  update_access_application: { type: 'appType', tags: 'accessAppTags' },
+  list_access_applications: { name: 'listNameFilter', domain: 'accessAppDomainFilter' },
+  list_access_groups: { name: 'listNameFilter' },
+  list_access_service_tokens: { name: 'listNameFilter' },
+  list_worker_scripts: { tags: 'workerTagFilter' },
+  list_tunnels: { status: 'tunnelStatus', name: 'listNameFilter' },
+}
+
+/** Every alias subBlock id, so none of them can reach a tool as a param. */
+const ALIASED_SUBBLOCK_IDS = [
+  ...new Set(Object.values(SUBBLOCK_ALIASES).flatMap((aliases) => Object.values(aliases))),
+]
+
 export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
   type: 'cloudflare',
   name: 'Cloudflare',
@@ -247,7 +295,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
 
     // List Zones inputs
     {
-      id: 'name',
+      id: 'zoneNameFilter',
       title: 'Domain Name',
       type: 'short-input',
       placeholder: 'Filter by domain (e.g., example.com)',
@@ -396,7 +444,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       condition: { field: 'operation', value: 'list_dns_records' },
     },
     {
-      id: 'type',
+      id: 'dnsTypeFilter',
       title: 'Record Type',
       type: 'dropdown',
       options: [
@@ -414,7 +462,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'name',
+      id: 'dnsNameFilter',
       title: 'Name Filter',
       type: 'short-input',
       placeholder: 'Filter by record name (exact match)',
@@ -422,7 +470,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'content',
+      id: 'dnsContentFilter',
       title: 'Content Filter',
       type: 'short-input',
       placeholder: 'Filter by record content (exact match)',
@@ -456,7 +504,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'order',
+      id: 'dnsOrder',
       title: 'Sort Field',
       type: 'dropdown',
       options: [
@@ -472,7 +520,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       mode: 'advanced',
     },
     {
-      id: 'proxied',
+      id: 'dnsProxiedFilter',
       title: 'Proxied Filter',
       type: 'dropdown',
       options: [
@@ -1078,7 +1126,7 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       },
     },
     {
-      id: 'tags',
+      id: 'purgeTags',
       title: 'Cache Tags',
       type: 'short-input',
       placeholder: 'Comma-separated cache tags (Enterprise only)',
@@ -1276,7 +1324,10 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       id: 'action',
       title: 'Action',
       type: 'short-input',
-      required: { field: 'operation', value: 'create_ruleset_rule' },
+      required: {
+        field: 'operation',
+        value: ['create_ruleset_rule', 'update_ruleset_rule'],
+      },
       placeholder: 'block, challenge, managed_challenge, js_challenge, log, skip, execute',
       condition: {
         field: 'operation',
@@ -1306,7 +1357,12 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       type: 'long-input',
       required: {
         field: 'operation',
-        value: ['create_ruleset_rule', 'create_rate_limit_rule', 'update_rate_limit_rule'],
+        value: [
+          'create_ruleset_rule',
+          'update_ruleset_rule',
+          'create_rate_limit_rule',
+          'update_rate_limit_rule',
+        ],
       },
       placeholder: '(http.request.uri.path matches "^/api/")',
       condition: {
@@ -1389,6 +1445,23 @@ Return ONLY the expression - no explanations, no quotes around the whole express
         field: 'operation',
         value: ['create_ruleset_rule', 'update_ruleset_rule'],
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'ratelimit',
+      title: 'Rate Limiting Configuration',
+      type: 'long-input',
+      placeholder:
+        '{"characteristics":["cf.colo.id","ip.src"],"period":60,"requests_per_period":100}',
+      condition: { field: 'operation', value: 'update_ruleset_rule' },
+      mode: 'advanced',
+    },
+    {
+      id: 'logging',
+      title: 'Logging Configuration',
+      type: 'long-input',
+      placeholder: '{"enabled":true}',
+      condition: { field: 'operation', value: 'update_ruleset_rule' },
       mode: 'advanced',
     },
     {
@@ -1596,7 +1669,14 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
         { label: 'VNC', id: 'vnc' },
         { label: 'App Launcher', id: 'app_launcher' },
         { label: 'WARP', id: 'warp' },
+        { label: 'Browser Isolation', id: 'biso' },
         { label: 'Bookmark', id: 'bookmark' },
+        { label: 'Dashboard SSO', id: 'dash_sso' },
+        { label: 'Infrastructure', id: 'infrastructure' },
+        { label: 'RDP', id: 'rdp' },
+        { label: 'MCP', id: 'mcp' },
+        { label: 'MCP Portal', id: 'mcp_portal' },
+        { label: 'Proxy Endpoint', id: 'proxy_endpoint' },
       ],
       value: () => 'self_hosted',
       required: true,
@@ -1609,15 +1689,14 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
-      required: true,
-      placeholder: 'e.g., internal.example.com or example.com/admin',
+      placeholder: 'Required for self_hosted, ssh, vnc, rdp, and bookmark apps',
       condition: {
         field: 'operation',
         value: ['create_access_application', 'update_access_application'],
       },
     },
     {
-      id: 'domain',
+      id: 'accessAppDomainFilter',
       title: 'Domain Filter',
       type: 'short-input',
       placeholder: 'Filter by the hostname the application secures',
@@ -1635,7 +1714,7 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       },
     },
     {
-      id: 'name',
+      id: 'listNameFilter',
       title: 'Name Filter',
       type: 'short-input',
       placeholder: 'Filter by name',
@@ -1775,7 +1854,7 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       mode: 'advanced',
     },
     {
-      id: 'tags',
+      id: 'accessAppTags',
       title: 'Tags',
       type: 'short-input',
       placeholder: 'Comma-separated tag names',
@@ -2103,7 +2182,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       condition: { field: 'operation', value: 'get_worker_script_settings' },
     },
     {
-      id: 'tags',
+      id: 'workerTagFilter',
       title: 'Tag Filter',
       type: 'short-input',
       placeholder: 'Filter scripts by tag',
@@ -2121,7 +2200,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       condition: { field: 'operation', value: ['get_tunnel', 'get_tunnel_configuration'] },
     },
     {
-      id: 'status',
+      id: 'tunnelStatus',
       title: 'Status Filter',
       type: 'dropdown',
       options: [
@@ -2299,45 +2378,21 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     config: {
       tool: (params) => `cloudflare_${params.operation}`,
       params: (params) => {
-        const {
-          recordType,
-          recordProxied,
-          certificateStatus,
-          appType,
-          rateLimitAction,
-          rulesetName,
-          ...rest
-        } = params
-        const result: Record<string, unknown> = rest
+        const result: Record<string, unknown> = { ...params }
+        const operation = typeof result.operation === 'string' ? result.operation : ''
 
+        for (const [toolParam, aliasId] of Object.entries(SUBBLOCK_ALIASES[operation] ?? {})) {
+          result[toolParam] = result[aliasId]
+        }
         /**
-         * SubBlock defaults are seeded into block state keyed by subBlock id, so
-         * two controls sharing an id leave one stored value and the last
-         * definition silently wins. Controls that map to the same tool param but
-         * need their own default therefore get their own id, and are routed back
-         * here — before any coercion below reads them.
+         * The executor merges this mapper's output over the raw inputs
+         * (`finalInputs = { ...inputs, ...transformedParams }` in
+         * `executor/handlers/generic/generic-handler.ts`), so a key this mapper
+         * merely omits survives as its raw subBlock string. Every alias id must
+         * therefore be assigned `undefined` rather than destructured away.
          */
-        if (result.operation === 'create_dns_record') {
-          result.type = recordType
-          result.proxied = recordProxied
-        }
-        if (result.operation === 'list_certificates') {
-          result.status = certificateStatus
-        }
-        if (
-          result.operation === 'create_access_application' ||
-          result.operation === 'update_access_application'
-        ) {
-          result.type = appType
-        }
-        if (
-          result.operation === 'create_rate_limit_rule' ||
-          result.operation === 'update_rate_limit_rule'
-        ) {
-          result.action = rateLimitAction
-        }
-        if (result.operation === 'create_ruleset') {
-          result.name = rulesetName
+        for (const aliasId of ALIASED_SUBBLOCK_IDS) {
+          result[aliasId] = undefined
         }
 
         if (result.ttl) result.ttl = Number(result.ttl)
@@ -2367,10 +2422,6 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
           if (result.content === '') result.content = undefined
           if (result.name === '') result.name = undefined
           if (result.comment === '') result.comment = undefined
-        }
-
-        if (result.operation === 'create_zone' && result.zoneType) {
-          result.type = result.zoneType
         }
 
         const numericFields = [
@@ -2425,7 +2476,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     zoneId: { type: 'string', description: 'Zone ID' },
     accountId: { type: 'string', description: 'Cloudflare account ID' },
     zoneType: { type: 'string', description: 'Zone type (full, partial, or secondary)' },
-    order: { type: 'string', description: 'Sort field for listing zones' },
+    order: { type: 'string', description: 'Sort field when listing zones' },
     direction: { type: 'string', description: 'Sort direction (asc, desc)' },
     match: { type: 'string', description: 'Match logic for filters (any, all)' },
     recordId: { type: 'string', description: 'DNS record ID' },
@@ -2437,6 +2488,26 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
       description: 'Whether the created DNS record is proxied through Cloudflare',
     },
     certificateStatus: { type: 'string', description: 'Certificate pack status filter' },
+    zoneNameFilter: { type: 'string', description: 'Domain name filter when listing zones' },
+    dnsTypeFilter: { type: 'string', description: 'DNS record type filter when listing records' },
+    dnsNameFilter: { type: 'string', description: 'Record name filter when listing records' },
+    dnsContentFilter: { type: 'string', description: 'Record content filter when listing records' },
+    dnsOrder: { type: 'string', description: 'Sort field when listing DNS records' },
+    dnsProxiedFilter: { type: 'string', description: 'Proxied filter when listing DNS records' },
+    purgeTags: { type: 'string', description: 'Comma-separated cache tags to purge' },
+    workerTagFilter: { type: 'string', description: 'Tag filter when listing Worker scripts' },
+    accessAppTags: { type: 'string', description: 'Tag names applied to an Access application' },
+    listNameFilter: {
+      type: 'string',
+      description:
+        'Name filter shared by the Access application, group, service token, and tunnel list operations',
+    },
+    accessAppDomainFilter: {
+      type: 'string',
+      description: 'Domain filter when listing Access applications',
+    },
+    tunnelStatus: { type: 'string', description: 'Status filter when listing tunnels' },
+
     appType: { type: 'string', description: 'Access application type' },
     rateLimitAction: {
       type: 'string',
@@ -2460,7 +2531,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     filters: { type: 'string', description: 'Filters to apply (e.g., queryType==A)' },
     sort: { type: 'string', description: 'Sort order for results' },
     limit: { type: 'number', description: 'Maximum number of results' },
-    status: { type: 'string', description: 'Status filter for zones or certificates' },
+    status: { type: 'string', description: 'Status filter when listing zones' },
     page: { type: 'number', description: 'Page number for pagination' },
     per_page: { type: 'number', description: 'Number of results per page' },
     deploy: {
@@ -2469,7 +2540,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     },
     purge_everything: { type: 'boolean', description: 'Purge all cached content' },
     files: { type: 'string', description: 'Comma-separated URLs to purge' },
-    tags: { type: 'string', description: 'Comma-separated cache tags to purge (Enterprise only)' },
+    tags: { type: 'string', description: 'Comma-separated DNS record tags' },
     hosts: { type: 'string', description: 'Comma-separated hostnames to purge (Enterprise only)' },
     prefixes: {
       type: 'string',
@@ -2487,6 +2558,14 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     enabled: { type: 'boolean', description: 'Whether the rule is enabled' },
     ref: { type: 'string', description: 'Rule reference tag' },
     actionParameters: { type: 'string', description: 'JSON action parameters for a rule' },
+    ratelimit: {
+      type: 'string',
+      description: 'JSON rate limiting configuration to preserve when replacing a rule',
+    },
+    logging: {
+      type: 'string',
+      description: 'JSON logging configuration to preserve when replacing a rule',
+    },
     position: { type: 'string', description: 'JSON position object for a new rule' },
     characteristics: {
       type: 'string',
