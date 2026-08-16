@@ -113,9 +113,10 @@ export const crowdstrikeGetSensorAggregatesTool: ToolConfig<
                   optional: true,
                 },
                 subAggregates: {
-                  type: 'json',
+                  type: 'array',
                   description: 'Nested aggregate results for this bucket',
                   optional: true,
+                  items: { type: 'object' },
                 },
                 to: {
                   type: 'number',
@@ -156,6 +157,19 @@ export const crowdstrikeGetSensorAggregatesTool: ToolConfig<
     count: {
       type: 'number',
       description: 'Number of aggregate result groups returned',
+    },
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
+      },
     },
   },
 }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-15",
+  "updatedAt": "2026-08-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -4581,7 +4581,7 @@
         },
         {
           "name": "Perform Host Action",
-          "description": "Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). \"contain\" network-isolates the host so it can only reach the Falcon cloud, cutting it off from the rest of the network; \"lift_containment\" restores normal network access; \"hide_host\" removes the host from the Falcon console host list and \"unhide_host\" restores it. Containment is immediately disruptive to the endpoint. Requires the \"Hosts: Write\" API scope."
+          "description": "Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain (network-isolates the host so it can only reach the Falcon cloud), lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. Containment is immediately disruptive to the endpoint. CrowdStrike accepts up to 100 host IDs per call. Requires the \"Hosts: Write\" API scope."
         },
         {
           "name": "Query Host Groups",
@@ -4629,7 +4629,7 @@
         },
         {
           "name": "Execute RTR Command",
-          "description": ""
+          "description": "Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Read-only base commands: cat, cd, clear, csrutil, env, eventlog backup/export/list/view, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg query, users. Host-modifying commands need the Active Responder or Admin RTR endpoints, which this tool does not expose. Requires the \"Real time response: Read\" API scope."
         },
         {
           "name": "Get RTR Command Status",
@@ -4641,11 +4641,11 @@
         },
         {
           "name": "Query Cases",
-          "description": "Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the case-templates:read API scope, shown as \"Cases: Read\" in the Falcon API client UI."
+          "description": "Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the \"Cases: Read\" API scope."
         },
         {
           "name": "Get Case Details",
-          "description": "Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the case-templates:read API scope, shown as \"Cases: Read\" in the Falcon API client UI."
+          "description": "Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the \"Cases: Read\" API scope."
         },
         {
           "name": "Query Sensors",

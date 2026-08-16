@@ -51,7 +51,7 @@ export type OperationResult = OperationSuccess | OperationFailure
  * that as HTTP 200 would read as a success, so fall back to the per-item error
  * code the envelope supplies, and to 502 when it supplies none.
  */
-function failureStatus(result: CrowdStrikeCallResult): number {
+export function failureStatus(result: CrowdStrikeCallResult): number {
   if (!result.ok) {
     return result.status
   }
@@ -76,7 +76,10 @@ function fail(result: CrowdStrikeCallResult, fallback: string): OperationFailure
  * CrowdStrike answers 200 with a populated `errors` array when only some IDs
  * fail. Treat that as an outright failure only when nothing came back at all.
  */
-function failedWithoutResources(result: CrowdStrikeCallResult, resourceCount: number): boolean {
+export function failedWithoutResources(
+  result: CrowdStrikeCallResult,
+  resourceCount: number
+): boolean {
   return resourceCount === 0 && getEnvelopeErrors(result.data).length > 0
 }
 
@@ -561,12 +564,17 @@ export async function executeCrowdStrikeOperation(
       })
       if (!result.ok) return fail(result, 'Failed to delete CrowdStrike RTR session')
 
+      const deleteErrors = getEnvelopeErrors(result.data)
+      if (deleteErrors.length > 0) {
+        return fail(result, 'Failed to delete CrowdStrike RTR session')
+      }
+
       return {
         ok: true,
         output: {
           sessionId: body.sessionId,
           deleted: true,
-          errors: getEnvelopeErrors(result.data),
+          errors: deleteErrors,
         },
       }
     }

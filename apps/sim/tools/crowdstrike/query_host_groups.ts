@@ -1,4 +1,3 @@
-import { CROWDSTRIKE_PAGINATION_OUTPUT } from '@/tools/crowdstrike/outputs'
 import type {
   CrowdStrikeQueryHostGroupsParams,
   CrowdStrikeQueryHostGroupsResponse,
@@ -101,6 +100,15 @@ export const crowdstrikeQueryHostGroupsTool: ToolConfig<
       type: 'number',
       description: 'Number of host group IDs returned',
     },
-    pagination: CROWDSTRIKE_PAGINATION_OUTPUT,
+    pagination: {
+      type: 'json',
+      description: 'Pagination metadata (limit, offset, total)',
+      optional: true,
+      properties: {
+        limit: { type: 'number', description: 'Page size used for the query', optional: true },
+        offset: { type: 'number', description: 'Offset returned by CrowdStrike', optional: true },
+        total: { type: 'number', description: 'Total records available', optional: true },
+      },
+    },
   },
 }

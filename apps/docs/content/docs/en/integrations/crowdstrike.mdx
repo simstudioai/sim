@@ -49,7 +49,7 @@ Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/i
 | `clientId` | string | Yes | CrowdStrike Falcon API client ID |
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
-| `indicators` | json | Yes | JSON array of indicators to create. Documented per-indicator fields: type, value, action, severity, platforms \(array\), applied_globally \(boolean\), host_groups \(array\), description, source, tags \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). Either applied_globally must be true or host_groups must be supplied. |
+| `indicators` | json | Yes | JSON array of indicators to create. applied_globally \(boolean\) is the only required per-indicator field. Other documented fields: type, value, action, severity, platforms \(array\), host_groups \(array\), description, source, tags \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). Either applied_globally must be true or host_groups must be supplied. |
 | `comment` | string | No | Audit comment explaining why these indicators were created |
 | `retrodetects` | boolean | No | Whether to generate retroactive detections for the new indicators |
 | `ignoreWarnings` | boolean | No | Whether to create the indicators even when CrowdStrike returns warnings |
@@ -59,7 +59,42 @@ Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/i
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `indicators` | array | Created CrowdStrike indicator records |
+|   ↳ `id` | string | Indicator identifier |
+|   ↳ `type` | string | Indicator type |
+|   ↳ `value` | string | Indicator value |
+|   ↳ `action` | string | Action taken when the indicator matches |
+|   ↳ `mobileAction` | string | Action taken on mobile platforms when the indicator matches |
+|   ↳ `severity` | string | Indicator severity |
+|   ↳ `description` | string | Indicator description |
+|   ↳ `source` | string | Indicator source |
+|   ↳ `appliedGlobally` | boolean | Whether the indicator applies to all hosts |
+|   ↳ `platforms` | array | Platforms the indicator applies to |
+|   ↳ `hostGroups` | array | Host group IDs the indicator is scoped to |
+|   ↳ `tags` | array | Tags applied to the indicator |
+|   ↳ `expiration` | string | Indicator expiration timestamp |
+|   ↳ `expired` | boolean | Whether the indicator has expired |
+|   ↳ `deleted` | boolean | Whether the indicator is deleted |
+|   ↳ `fromParent` | boolean | Whether the indicator was inherited from a parent CID |
+|   ↳ `parentCidName` | string | Parent CID name |
+|   ↳ `createdBy` | string | User who created the indicator |
+|   ↳ `createdOn` | string | Indicator creation timestamp |
+|   ↳ `modifiedBy` | string | User who last modified the indicator |
+|   ↳ `modifiedOn` | string | Indicator modification timestamp |
+|   ↳ `metadata` | json | File metadata CrowdStrike resolved for the indicator |
+|     ↳ `avHits` | number | Antivirus hit count |
+|     ↳ `companyName` | string | Company name |
+|     ↳ `fileDescription` | string | File description |
+|     ↳ `fileVersion` | string | File version |
+|     ↳ `filename` | string | File name |
+|     ↳ `originalFilename` | string | Original file name |
+|     ↳ `productName` | string | Product name |
+|     ↳ `productVersion` | string | Product version |
+|     ↳ `signed` | boolean | Whether the file is signed |
 | `count` | number | Number of indicators created |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Delete Indicators
 
@@ -82,6 +117,10 @@ Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /i
 | --------- | ---- | ----------- |
 | `deletedIds` | array | IOC IDs CrowdStrike deleted |
 | `count` | number | Number of indicators deleted |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Delete RTR Session
 
@@ -102,10 +141,14 @@ Close an open CrowdStrike Falcon Real Time Response session (DELETE /real-time-r
 | --------- | ---- | ----------- |
 | `sessionId` | string | RTR session ID that was closed |
 | `deleted` | boolean | Whether CrowdStrike accepted the session deletion |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Execute RTR Command
 
-Run a read-only Real Time Response command inside an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Documented read-only base commands: cat, cd, clear, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, and "reg query". Commands that write to or modify the host require the Active Responder or Admin RTR endpoints, which this tool does not expose. Returns a cloud request ID; poll Get RTR Command Status for output. Requires the "Real time response: Read" API scope.
+Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Read-only base commands: cat, cd, clear, csrutil, env, eventlog backup/export/list/view, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg query, users. Host-modifying commands need the Active Responder or Admin RTR endpoints, which this tool does not expose. Requires the "Real time response: Read" API scope.
 
 #### Input
 
@@ -115,7 +158,7 @@ Run a read-only Real Time Response command inside an open CrowdStrike Falcon ses
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
 | `sessionId` | string | Yes | RTR session ID returned by Init RTR Session |
-| `baseCommand` | string | Yes | Read-only RTR base command: cat, cd, clear, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, or "reg query" |
+| `baseCommand` | string | Yes | Read-only RTR base command, one of: cat, cd, clear, csrutil, env, "eventlog backup", "eventlog export", "eventlog list", "eventlog view", filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, "reg query", and users |
 | `commandString` | string | Yes | Full command line to run, such as "ls C:\\Windows" or "reg query HKLM\\Software" |
 
 #### Output
@@ -125,6 +168,10 @@ Run a read-only Real Time Response command inside an open CrowdStrike Falcon ses
 | `cloudRequestId` | string | Cloud request ID to poll for command output |
 | `sessionId` | string | RTR session the command ran in |
 | `queuedCommandOffline` | boolean | Whether the command was queued for an offline host |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get Alert Details
 
@@ -145,11 +192,68 @@ Get full CrowdStrike Falcon alert records for one or more composite alert IDs (P
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `alerts` | array | CrowdStrike alert records |
+|   ↳ `compositeId` | string | Composite alert ID |
+|   ↳ `id` | string | Alert ID |
+|   ↳ `cid` | string | CrowdStrike customer identifier |
+|   ↳ `aggregateId` | string | Aggregate identifier |
+|   ↳ `agentId` | string | Agent \(sensor\) identifier |
+|   ↳ `deviceId` | string | Device identifier from the alert device |
+|   ↳ `hostname` | string | Hostname from the alert device |
+|   ↳ `name` | string | Alert name |
+|   ↳ `displayName` | string | Alert display name |
+|   ↳ `description` | string | Alert description |
+|   ↳ `type` | string | Alert type |
+|   ↳ `product` | string | Falcon product that raised the alert |
+|   ↳ `platform` | string | Platform the alert was raised on |
+|   ↳ `severity` | number | Numeric severity |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `confidence` | number | Confidence score |
+|   ↳ `status` | string | Alert status |
+|   ↳ `assignedToName` | string | Assignee display name |
+|   ↳ `assignedToUid` | string | Assignee user ID |
+|   ↳ `assignedToUuid` | string | Assignee user UUID |
+|   ↳ `tactic` | string | MITRE ATT&CK tactic |
+|   ↳ `tacticId` | string | MITRE ATT&CK tactic ID |
+|   ↳ `technique` | string | MITRE ATT&CK technique |
+|   ↳ `techniqueId` | string | MITRE ATT&CK technique ID |
+|   ↳ `scenario` | string | Alert scenario |
+|   ↳ `objective` | string | Adversary objective |
+|   ↳ `resolution` | string | Alert resolution |
+|   ↳ `showInUi` | boolean | Whether the alert is shown in Falcon |
+|   ↳ `tags` | array | Tags applied to the alert |
+|   ↳ `filename` | string | Triggering file name |
+|   ↳ `filepath` | string | Triggering file path |
+|   ↳ `cmdline` | string | Triggering command line |
+|   ↳ `sha256` | string | SHA256 of the triggering file |
+|   ↳ `sha1` | string | SHA1 of the triggering file |
+|   ↳ `md5` | string | MD5 of the triggering file |
+|   ↳ `userName` | string | User name associated with the alert |
+|   ↳ `userId` | string | User ID associated with the alert |
+|   ↳ `patternId` | number | Detection pattern ID |
+|   ↳ `falconHostLink` | string | Deep link into the Falcon console |
+|   ↳ `controlGraphId` | string | Control graph identifier |
+|   ↳ `external` | boolean | Whether the alert is external |
+|   ↳ `emailSent` | boolean | Whether a notification email was sent |
+|   ↳ `isAggregated` | boolean | Whether the alert is aggregated |
+|   ↳ `isFalconPlatformIoa` | boolean | Whether the alert is a Falcon platform IOA |
+|   ↳ `dataDomains` | array | Data domains the alert belongs to |
+|   ↳ `iocValues` | array | Indicator values associated with the alert |
+|   ↳ `linkedCaseIds` | array | Case IDs linked to the alert |
+|   ↳ `linkedBehavioralDetections` | array | Behavioral detection IDs linked to the alert |
+|   ↳ `timestamp` | string | Alert timestamp |
+|   ↳ `createdTimestamp` | string | Alert creation timestamp |
+|   ↳ `updatedTimestamp` | string | Alert update timestamp |
+|   ↳ `crawledTimestamp` | string | Alert crawl timestamp |
+|   ↳ `contextTimestamp` | string | Alert context timestamp |
 | `count` | number | Number of alerts returned |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get Case Details
 
-Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the case-templates:read API scope, shown as "Cases: Read" in the Falcon API client UI.
+Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the "Cases: Read" API scope.
 
 #### Input
 
@@ -165,7 +269,43 @@ Get CrowdStrike Falcon Case Management case records for one or more case IDs (PO
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `cases` | array | CrowdStrike Case Management case records |
+|   ↳ `id` | string | Case identifier |
+|   ↳ `cid` | string | CrowdStrike customer identifier |
+|   ↳ `name` | string | Case name |
+|   ↳ `description` | string | Case description |
+|   ↳ `descriptionFormat` | string | Format of the case description |
+|   ↳ `status` | string | Case status |
+|   ↳ `severity` | number | Numeric case severity |
+|   ↳ `severityLevel` | string | Case severity level name |
+|   ↳ `referenceId` | string | Human-readable case reference ID |
+|   ↳ `version` | number | Case version for optimistic concurrency |
+|   ↳ `tags` | array | Tags applied to the case |
+|   ↳ `assignedTo` | json | Falcon user the case is assigned to |
+|     ↳ `uuid` | string | Falcon user UUID |
+|     ↳ `email` | string | Falcon user email |
+|     ↳ `fullName` | string | Falcon user full name |
+|   ↳ `createdBy` | json | Falcon user who created the case |
+|     ↳ `uuid` | string | Falcon user UUID |
+|     ↳ `email` | string | Falcon user email |
+|     ↳ `fullName` | string | Falcon user full name |
+|   ↳ `lastUpdatedBy` | json | Falcon user who last updated the case |
+|     ↳ `uuid` | string | Falcon user UUID |
+|     ↳ `email` | string | Falcon user email |
+|     ↳ `fullName` | string | Falcon user full name |
+|   ↳ `createdTimestamp` | string | Case creation timestamp |
+|   ↳ `updatedTimestamp` | string | Case update timestamp |
+|   ↳ `startTimestamp` | string | Case start timestamp |
+|   ↳ `endTimestamp` | string | Case end timestamp |
+|   ↳ `templateId` | string | Case template identifier |
+|   ↳ `templateName` | string | Case template name |
+|   ↳ `slaId` | string | SLA identifier applied to the case |
+|   ↳ `slaName` | string | SLA name applied to the case |
+|   ↳ `isReadOnly` | boolean | Whether the case is read only |
 | `count` | number | Number of cases returned |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get Host Group Details
 
@@ -185,7 +325,20 @@ Get CrowdStrike Falcon host group records for one or more group IDs (GET /device
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `hostGroups` | array | CrowdStrike host group records |
+|   ↳ `id` | string | Host group identifier |
+|   ↳ `name` | string | Host group name |
+|   ↳ `description` | string | Host group description |
+|   ↳ `groupType` | string | Group type \(static, dynamic, staticByID\) |
+|   ↳ `assignmentRule` | string | FQL assignment rule for dynamic groups |
+|   ↳ `createdBy` | string | User who created the group |
+|   ↳ `createdTimestamp` | string | Group creation timestamp |
+|   ↳ `modifiedBy` | string | User who last modified the group |
+|   ↳ `modifiedTimestamp` | string | Group modification timestamp |
 | `count` | number | Number of host groups returned |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get Indicator Details
 
@@ -205,7 +358,42 @@ Get custom CrowdStrike Falcon indicator of compromise (IOC) records for one or m
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `indicators` | array | CrowdStrike indicator of compromise records |
+|   ↳ `id` | string | Indicator identifier |
+|   ↳ `type` | string | Indicator type |
+|   ↳ `value` | string | Indicator value |
+|   ↳ `action` | string | Action taken when the indicator matches |
+|   ↳ `mobileAction` | string | Action taken on mobile platforms when the indicator matches |
+|   ↳ `severity` | string | Indicator severity |
+|   ↳ `description` | string | Indicator description |
+|   ↳ `source` | string | Indicator source |
+|   ↳ `appliedGlobally` | boolean | Whether the indicator applies to all hosts |
+|   ↳ `platforms` | array | Platforms the indicator applies to |
+|   ↳ `hostGroups` | array | Host group IDs the indicator is scoped to |
+|   ↳ `tags` | array | Tags applied to the indicator |
+|   ↳ `expiration` | string | Indicator expiration timestamp |
+|   ↳ `expired` | boolean | Whether the indicator has expired |
+|   ↳ `deleted` | boolean | Whether the indicator is deleted |
+|   ↳ `fromParent` | boolean | Whether the indicator was inherited from a parent CID |
+|   ↳ `parentCidName` | string | Parent CID name |
+|   ↳ `createdBy` | string | User who created the indicator |
+|   ↳ `createdOn` | string | Indicator creation timestamp |
+|   ↳ `modifiedBy` | string | User who last modified the indicator |
+|   ↳ `modifiedOn` | string | Indicator modification timestamp |
+|   ↳ `metadata` | json | File metadata CrowdStrike resolved for the indicator |
+|     ↳ `avHits` | number | Antivirus hit count |
+|     ↳ `companyName` | string | Company name |
+|     ↳ `fileDescription` | string | File description |
+|     ↳ `fileVersion` | string | File version |
+|     ↳ `filename` | string | File name |
+|     ↳ `originalFilename` | string | Original file name |
+|     ↳ `productName` | string | Product name |
+|     ↳ `productVersion` | string | Product version |
+|     ↳ `signed` | boolean | Whether the file is signed |
 | `count` | number | Number of indicators returned |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get RTR Command Status
 
@@ -232,6 +420,10 @@ Get the status and output of a Real Time Response command by cloud request ID (G
 | `sessionId` | string | RTR session the command ran in |
 | `taskId` | string | Task identifier for the command |
 | `sequenceId` | number | Output chunk sequence this response covers |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get Sensor Aggregates
 
@@ -258,7 +450,7 @@ Get documented CrowdStrike Identity Protection sensor aggregates from a JSON agg
 |     ↳ `label` | json | Bucket label object |
 |     ↳ `stringFrom` | string | String lower bound |
 |     ↳ `stringTo` | string | String upper bound |
-|     ↳ `subAggregates` | json | Nested aggregate results for this bucket |
+|     ↳ `subAggregates` | array | Nested aggregate results for this bucket |
 |     ↳ `to` | number | Bucket upper bound |
 |     ↳ `value` | number | Bucket metric value |
 |     ↳ `valueAsString` | string | String representation of the bucket value |
@@ -266,6 +458,10 @@ Get documented CrowdStrike Identity Protection sensor aggregates from a JSON agg
 |   ↳ `name` | string | Aggregate result name |
 |   ↳ `sumOtherDocCount` | number | Document count not included in the returned buckets |
 | `count` | number | Number of aggregate result groups returned |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get Sensor Details
 
@@ -305,10 +501,10 @@ Get documented CrowdStrike Identity Protection sensor details for one or more de
 |   ↳ `statusCauses` | array | Documented causes behind the current status |
 |   ↳ `tiEnabled` | string | Threat intelligence enablement status |
 | `count` | number | Number of sensors returned |
-| `pagination` | json | Pagination metadata when returned by the underlying API |
-|   ↳ `limit` | number | Page size used for the query |
-|   ↳ `offset` | number | Offset returned by CrowdStrike |
-|   ↳ `total` | number | Total records available |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Get Vulnerability Details
 
@@ -328,7 +524,62 @@ Get CrowdStrike Falcon Spotlight vulnerability records for one or more vulnerabi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `vulnerabilities` | array | CrowdStrike Spotlight vulnerability records |
+|   ↳ `id` | string | Vulnerability identifier |
+|   ↳ `aid` | string | Agent identifier of the affected host |
+|   ↳ `cid` | string | CrowdStrike customer identifier |
+|   ↳ `status` | string | Vulnerability status \(open, closed, reopen\) |
+|   ↳ `confidence` | string | Detection confidence |
+|   ↳ `vulnerabilityId` | string | Underlying vulnerability ID |
+|   ↳ `createdTimestamp` | string | Creation timestamp |
+|   ↳ `updatedTimestamp` | string | Last update timestamp |
+|   ↳ `closedTimestamp` | string | Closure timestamp |
+|   ↳ `cve` | json | CVE details for the vulnerability |
+|     ↳ `id` | string | CVE identifier |
+|     ↳ `baseScore` | number | CVSS base score |
+|     ↳ `severity` | string | CVE severity |
+|     ↳ `exprtRating` | string | CrowdStrike ExPRT rating |
+|     ↳ `exploitStatus` | number | Exploit status code |
+|     ↳ `exploitabilityScore` | number | CVSS exploitability score |
+|     ↳ `impactScore` | number | CVSS impact score |
+|     ↳ `remediationLevel` | string | CVSS remediation level |
+|     ↳ `description` | string | CVE description |
+|     ↳ `publishedDate` | string | CVE publication date |
+|     ↳ `vector` | string | CVSS vector string |
+|     ↳ `types` | array | CVE types |
+|     ↳ `isCisaKev` | boolean | Whether the CVE is in the CISA Known Exploited Vulnerabilities catalog |
+|     ↳ `cisaDueDate` | string | CISA remediation due date |
+|   ↳ `app` | json | Affected application |
+|     ↳ `productNameNormalized` | string | Normalized product name |
+|     ↳ `productNameVersion` | string | Product name and version |
+|     ↳ `vendorNormalized` | string | Normalized vendor name |
+|   ↳ `hostInfo` | json | Affected host details |
+|     ↳ `hostname` | string | Host name |
+|     ↳ `localIp` | string | Local IP address |
+|     ↳ `machineDomain` | string | Machine domain |
+|     ↳ `osVersion` | string | Operating system version |
+|     ↳ `platform` | string | Platform name |
+|     ↳ `productTypeDesc` | string | Product type description |
+|     ↳ `assetCriticality` | string | Asset criticality |
+|     ↳ `internetExposure` | string | Internet exposure |
+|     ↳ `tags` | array | Host tags |
+|     ↳ `groups` | array | Host group names the host belongs to |
+|   ↳ `remediationIds` | array | Remediation IDs for the vulnerability |
+|   ↳ `remediations` | array | Remediation entities for the vulnerability |
+|     ↳ `id` | string | Remediation identifier |
+|     ↳ `title` | string | Remediation title |
+|     ↳ `action` | string | Remediation action |
+|     ↳ `type` | string | Remediation type |
+|     ↳ `link` | string | Remediation link |
+|     ↳ `reference` | string | Remediation reference |
+|     ↳ `vendorUrl` | string | Vendor advisory URL |
+|   ↳ `suppressionInfo` | json | Suppression state for the vulnerability |
+|     ↳ `isSuppressed` | boolean | Whether the finding is suppressed |
+|     ↳ `reason` | string | Suppression reason |
 | `count` | number | Number of vulnerabilities returned |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Init RTR Session
 
@@ -356,10 +607,14 @@ Open a CrowdStrike Falcon Real Time Response session against a host so read-only
 | `offlineQueued` | boolean | Whether the session was queued for an offline host |
 | `existingAidSessions` | number | Number of sessions already open against this host |
 | `createdAt` | string | Session creation timestamp |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Perform Host Action
 
-Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). "contain" network-isolates the host so it can only reach the Falcon cloud, cutting it off from the rest of the network; "lift_containment" restores normal network access; "hide_host" removes the host from the Falcon console host list and "unhide_host" restores it. Containment is immediately disruptive to the endpoint. Requires the "Hosts: Write" API scope.
+Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain (network-isolates the host so it can only reach the Falcon cloud), lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. Containment is immediately disruptive to the endpoint. CrowdStrike accepts up to 100 host IDs per call. Requires the "Hosts: Write" API scope.
 
 #### Input
 
@@ -368,14 +623,21 @@ Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devic
 | `clientId` | string | Yes | CrowdStrike Falcon API client ID |
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
-| `actionName` | string | Yes | Action to take: contain, lift_containment, hide_host, or unhide_host. "contain" network-isolates the host. |
-| `deviceIds` | json | Yes | JSON array of CrowdStrike host agent IDs \(AIDs\) to act on |
+| `actionName` | string | Yes | Action to take: contain, lift_containment, hide_host, unhide_host, detection_suppress, or detection_unsuppress. "contain" network-isolates the host. |
+| `deviceIds` | json | Yes | JSON array of up to 100 CrowdStrike host agent IDs \(AIDs\) to act on |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `affected` | array | Entities affected by the action |
+|   ↳ `id` | string | Affected entity identifier |
+|   ↳ `path` | string | API path of the affected entity |
 | `count` | number | Number of hosts the action was applied to |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Perform Host Group Action
 
@@ -397,7 +659,20 @@ Add hosts to or remove hosts from a CrowdStrike Falcon static host group (POST /
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `hostGroups` | array | Host group records returned after the action |
+|   ↳ `id` | string | Host group identifier |
+|   ↳ `name` | string | Host group name |
+|   ↳ `description` | string | Host group description |
+|   ↳ `groupType` | string | Group type \(static, dynamic, staticByID\) |
+|   ↳ `assignmentRule` | string | FQL assignment rule for dynamic groups |
+|   ↳ `createdBy` | string | User who created the group |
+|   ↳ `createdTimestamp` | string | Group creation timestamp |
+|   ↳ `modifiedBy` | string | User who last modified the group |
+|   ↳ `modifiedTimestamp` | string | Group modification timestamp |
 | `count` | number | Number of host group records returned |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Query Alerts
 
@@ -430,7 +705,7 @@ Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return 
 
 ### CrowdStrike Query Cases
 
-Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the case-templates:read API scope, shown as "Cases: Read" in the Falcon API client UI.
+Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the "Cases: Read" API scope.
 
 #### Input
 
@@ -451,6 +726,10 @@ Search CrowdStrike Falcon Case Management cases with a Falcon Query Language fil
 | --------- | ---- | ----------- |
 | `caseIds` | array | Case IDs matching the query |
 | `count` | number | Number of case IDs returned |
+| `pagination` | json | Pagination metadata \(limit, offset, total\) |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
 
 ### CrowdStrike Query Host Groups
 
@@ -474,6 +753,10 @@ Search CrowdStrike Falcon host groups with a Falcon Query Language filter and re
 | --------- | ---- | ----------- |
 | `hostGroupIds` | array | Host group IDs matching the query |
 | `count` | number | Number of host group IDs returned |
+| `pagination` | json | Pagination metadata \(limit, offset, total\) |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
 
 ### CrowdStrike Query Indicators
 
@@ -487,7 +770,7 @@ Search custom CrowdStrike Falcon indicators of compromise (IOCs) with a Falcon Q
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
 | `filter` | string | No | Falcon Query Language filter over IOC fields |
-| `limit` | number | No | Maximum number of IOC IDs to return |
+| `limit` | number | No | Maximum number of IOC IDs to return \(1-500, default 100\) |
 | `offset` | number | No | Pagination offset. Mutually exclusive with the after cursor; use after beyond 10,000 IOCs. |
 | `after` | string | No | Pagination cursor from a previous response. Mutually exclusive with offset. |
 | `sort` | string | No | Sort expression. Supported fields include action, applied_globally, created_by, created_on, expiration, expired, modified_by, modified_on, severity_number, source, type, and value. |
@@ -549,6 +832,10 @@ Search CrowdStrike identity protection sensors by hostname, IP, or related field
 |   ↳ `limit` | number | Page size used for the query |
 |   ↳ `offset` | number | Offset returned by CrowdStrike |
 |   ↳ `total` | number | Total records available |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Query Vulnerabilities
 
@@ -608,6 +895,10 @@ Update CrowdStrike Falcon alerts by composite ID: change status, assign or unass
 | --------- | ---- | ----------- |
 | `updatedIds` | array | Composite alert IDs the update was submitted for |
 | `count` | number | Number of alerts the update was submitted for |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 ### CrowdStrike Update Indicators
 
@@ -630,6 +921,41 @@ Update existing custom CrowdStrike Falcon indicators of compromise by ID (PATCH 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `indicators` | array | Updated CrowdStrike indicator records |
+|   ↳ `id` | string | Indicator identifier |
+|   ↳ `type` | string | Indicator type |
+|   ↳ `value` | string | Indicator value |
+|   ↳ `action` | string | Action taken when the indicator matches |
+|   ↳ `mobileAction` | string | Action taken on mobile platforms when the indicator matches |
+|   ↳ `severity` | string | Indicator severity |
+|   ↳ `description` | string | Indicator description |
+|   ↳ `source` | string | Indicator source |
+|   ↳ `appliedGlobally` | boolean | Whether the indicator applies to all hosts |
+|   ↳ `platforms` | array | Platforms the indicator applies to |
+|   ↳ `hostGroups` | array | Host group IDs the indicator is scoped to |
+|   ↳ `tags` | array | Tags applied to the indicator |
+|   ↳ `expiration` | string | Indicator expiration timestamp |
+|   ↳ `expired` | boolean | Whether the indicator has expired |
+|   ↳ `deleted` | boolean | Whether the indicator is deleted |
+|   ↳ `fromParent` | boolean | Whether the indicator was inherited from a parent CID |
+|   ↳ `parentCidName` | string | Parent CID name |
+|   ↳ `createdBy` | string | User who created the indicator |
+|   ↳ `createdOn` | string | Indicator creation timestamp |
+|   ↳ `modifiedBy` | string | User who last modified the indicator |
+|   ↳ `modifiedOn` | string | Indicator modification timestamp |
+|   ↳ `metadata` | json | File metadata CrowdStrike resolved for the indicator |
+|     ↳ `avHits` | number | Antivirus hit count |
+|     ↳ `companyName` | string | Company name |
+|     ↳ `fileDescription` | string | File description |
+|     ↳ `fileVersion` | string | File version |
+|     ↳ `filename` | string | File name |
+|     ↳ `originalFilename` | string | Original file name |
+|     ↳ `productName` | string | Product name |
+|     ↳ `productVersion` | string | Product version |
+|     ↳ `signed` | boolean | Whether the file is signed |
 | `count` | number | Number of indicators updated |
+| `errors` | array | Errors CrowdStrike returned alongside a partially successful response |
+|   ↳ `code` | number | CrowdStrike error code |
+|   ↳ `id` | string | Identifier the error applies to |
+|   ↳ `message` | string | Error message |
 
 

@@ -1,7 +1,3 @@
-import {
-  CROWDSTRIKE_ERRORS_OUTPUT,
-  CROWDSTRIKE_HOST_GROUP_OUTPUT_PROPERTIES,
-} from '@/tools/crowdstrike/outputs'
 import type {
   CrowdStrikeGetHostGroupDetailsParams,
   CrowdStrikeGetHostGroupDetailsResponse,
@@ -79,13 +75,55 @@ export const crowdstrikeGetHostGroupDetailsTool: ToolConfig<
       description: 'CrowdStrike host group records',
       items: {
         type: 'object',
-        properties: CROWDSTRIKE_HOST_GROUP_OUTPUT_PROPERTIES,
+        properties: {
+          id: { type: 'string', description: 'Host group identifier', optional: true },
+          name: { type: 'string', description: 'Host group name', optional: true },
+          description: { type: 'string', description: 'Host group description', optional: true },
+          groupType: {
+            type: 'string',
+            description: 'Group type (static, dynamic, staticByID)',
+            optional: true,
+          },
+          assignmentRule: {
+            type: 'string',
+            description: 'FQL assignment rule for dynamic groups',
+            optional: true,
+          },
+          createdBy: { type: 'string', description: 'User who created the group', optional: true },
+          createdTimestamp: {
+            type: 'string',
+            description: 'Group creation timestamp',
+            optional: true,
+          },
+          modifiedBy: {
+            type: 'string',
+            description: 'User who last modified the group',
+            optional: true,
+          },
+          modifiedTimestamp: {
+            type: 'string',
+            description: 'Group modification timestamp',
+            optional: true,
+          },
+        },
       },
     },
     count: {
       type: 'number',
       description: 'Number of host groups returned',
     },
-    errors: CROWDSTRIKE_ERRORS_OUTPUT,
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
+      },
+    },
   },
 }

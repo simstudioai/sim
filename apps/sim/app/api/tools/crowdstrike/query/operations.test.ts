@@ -625,4 +625,144 @@ describe('CrowdStrike extended operations', () => {
     expect(queryUrl.searchParams.get('filter')).toBe('hostname:"dc-01"')
     expect(queryUrl.searchParams.get('sort')).toBe('hostname.asc')
   })
+
+  it('fails an RTR session close whose 200 envelope reports an error', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ meta: {}, errors: [{ code: 404, message: 'session not found' }] })
+    )
+
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_delete_rtr_session', sessionId: 'session-1' })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(404)
+    expect(data.success).toBe(false)
+    expect(data.error).toBe('session not found')
+  })
+
+  it('fails a sensor query whose 200 envelope carries only errors', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        resources: [],
+        errors: [{ code: 403, message: 'access denied for Identity Protection' }],
+      })
+    )
+
+    const response = await POST(requestFor({ operation: 'crowdstrike_query_sensors' }))
+    const data = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(data.success).toBe(false)
+    expect(data.error).toBe('access denied for Identity Protection')
+  })
+
+  it('fails a sensor detail lookup whose 200 envelope carries only errors', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ resources: [], errors: [{ code: 403, message: 'access denied' }] })
+    )
+
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_get_sensor_details', ids: ['aid-1'] })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(data.success).toBe(false)
+  })
+
+  it('fails a sensor aggregate whose 200 envelope carries only errors', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ resources: [], errors: [{ code: 403, message: 'access denied' }] })
+    )
+
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_get_sensor_aggregates',
+        aggregateQuery: { field: 'status', name: 'by_status', type: 'terms' },
+      })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(data.success).toBe(false)
+  })
+
+  it('surfaces partial sensor errors alongside the sensors that resolved', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        resources: [{ device_id: 'aid-1', hostname: 'dc-01' }],
+        errors: [{ code: 404, id: 'aid-2', message: 'sensor not found' }],
+      })
+    )
+
+    const response = await POST(
+      requestFor({ operation: 'crowdstrike_get_sensor_details', ids: ['aid-1', 'aid-2'] })
+    )
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.output.count).toBe(1)
+    expect(data.output.errors).toEqual([{ code: 404, id: 'aid-2', message: 'sensor not found' }])
+  })
+
+  it('preserves a scalar aggregate bucket label', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        resources: [{ name: 'by_status', buckets: [{ label: 'contained', count: 3 }] }],
+      })
+    )
+
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_get_sensor_aggregates',
+        aggregateQuery: { field: 'status', name: 'by_status', type: 'terms' },
+      })
+    )
+    const data = await response.json()
+
+    expect(data.output.aggregates[0].buckets[0].label).toBe('contained')
+  })
+
+  it('rejects an indicator payload whose blank field would clear stored data', async () => {
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_update_indicators',
+        indicators: [{ id: 'ioc-1', description: '' }],
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('rejects a host action targeting more than the documented 100 hosts', async () => {
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_perform_host_action',
+        actionName: 'contain',
+        deviceIds: Array.from({ length: 101 }, (_, index) => `aid-${index}`),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(fetchMock).toHaveBeenCalledTimes(0)
+  })
+
+  it('accepts the documented detection suppression host actions', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ resources: [{ id: 'aid-1' }] }))
+
+    const response = await POST(
+      requestFor({
+        operation: 'crowdstrike_perform_host_action',
+        actionName: 'detection_suppress',
+        deviceIds: ['aid-1'],
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(new URL(fetchMock.mock.calls[1][0]).searchParams.get('action_name')).toBe(
+      'detection_suppress'
+    )
+  })
 })

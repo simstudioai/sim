@@ -5,10 +5,22 @@ import type {
   ContractJsonResponse,
 } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import type { CrowdStrikeAggregateQuery } from '@/tools/crowdstrike/types'
+import type {
+  CrowdStrikeAggregateQuery,
+  CrowdStrikeSensorAggregateBucket,
+  CrowdStrikeSensorAggregateResult,
+} from '@/tools/crowdstrike/types'
 
 const crowdstrikeNullableStringSchema = z.string().nullable()
 const crowdstrikeNullableNumberSchema = z.number().nullable()
+
+const crowdstrikeErrorsSchema = z.array(
+  z.object({
+    code: crowdstrikeNullableNumberSchema,
+    id: crowdstrikeNullableStringSchema,
+    message: crowdstrikeNullableStringSchema,
+  })
+)
 
 const crowdstrikePaginationSchema = z
   .object({
@@ -40,30 +52,41 @@ const crowdstrikeSensorSchema = z.object({
   tiEnabled: crowdstrikeNullableStringSchema,
 })
 
-const crowdstrikeAggregateBucketSchema = z.object({
-  count: crowdstrikeNullableNumberSchema,
-  from: crowdstrikeNullableNumberSchema,
-  keyAsString: crowdstrikeNullableStringSchema,
-  label: z.unknown().nullable(),
-  stringFrom: crowdstrikeNullableStringSchema,
-  stringTo: crowdstrikeNullableStringSchema,
-  subAggregates: z.array(z.unknown()),
-  to: crowdstrikeNullableNumberSchema,
-  value: crowdstrikeNullableNumberSchema,
-  valueAsString: crowdstrikeNullableStringSchema,
-})
+/**
+ * Buckets nest recursively through `subAggregates`, so the two schemas reference
+ * each other through `z.lazy`. `label` is `interface{}` in CrowdStrike's own spec —
+ * a terms aggregation returns a scalar and a range aggregation an object — so the
+ * route forwards it unchanged.
+ */
+const crowdstrikeAggregateBucketSchema: z.ZodType<CrowdStrikeSensorAggregateBucket> = z.lazy(() =>
+  z.object({
+    count: crowdstrikeNullableNumberSchema,
+    from: crowdstrikeNullableNumberSchema,
+    keyAsString: crowdstrikeNullableStringSchema,
+    label: z.unknown(),
+    stringFrom: crowdstrikeNullableStringSchema,
+    stringTo: crowdstrikeNullableStringSchema,
+    subAggregates: z.array(crowdstrikeAggregateResultSchema),
+    to: crowdstrikeNullableNumberSchema,
+    value: crowdstrikeNullableNumberSchema,
+    valueAsString: crowdstrikeNullableStringSchema,
+  })
+)
 
-const crowdstrikeAggregateResultSchema = z.object({
-  buckets: z.array(crowdstrikeAggregateBucketSchema),
-  docCountErrorUpperBound: crowdstrikeNullableNumberSchema,
-  name: crowdstrikeNullableStringSchema,
-  sumOtherDocCount: crowdstrikeNullableNumberSchema,
-})
+const crowdstrikeAggregateResultSchema: z.ZodType<CrowdStrikeSensorAggregateResult> = z.lazy(() =>
+  z.object({
+    buckets: z.array(crowdstrikeAggregateBucketSchema),
+    docCountErrorUpperBound: crowdstrikeNullableNumberSchema,
+    name: crowdstrikeNullableStringSchema,
+    sumOtherDocCount: crowdstrikeNullableNumberSchema,
+  })
+)
 
 const crowdstrikeSensorsResponseSchema = z.object({
   success: z.literal(true),
   output: z.object({
     count: z.number(),
+    errors: crowdstrikeErrorsSchema,
     pagination: crowdstrikePaginationSchema,
     sensors: z.array(crowdstrikeSensorSchema),
   }),
@@ -74,6 +97,7 @@ const crowdstrikeAggregatesResponseSchema = z.object({
   output: z.object({
     aggregates: z.array(crowdstrikeAggregateResultSchema),
     count: z.number(),
+    errors: crowdstrikeErrorsSchema,
   }),
 })
 
@@ -95,9 +119,10 @@ const extendedBoundsSchema = z.object({
   min: z.string(),
 })
 
+/** CrowdStrike's `MsaRangeSpec` serializes its bounds capitalized, unlike every sibling spec. */
 const rangeSpecSchema = z.object({
-  from: z.number(),
-  to: z.number(),
+  From: z.number(),
+  To: z.number(),
 })
 
 const aggregateQuerySchema: z.ZodType<CrowdStrikeAggregateQuery> = z.lazy(() =>
@@ -162,14 +187,6 @@ const idsSchema = (max: number, label: string) =>
     .array(z.string().trim().min(1, `${label} must not be empty`))
     .min(1, `At least one ${label} is required`)
     .max(max, `CrowdStrike supports up to ${max} ${label} values per request`)
-
-const crowdstrikeErrorsSchema = z.array(
-  z.object({
-    code: crowdstrikeNullableNumberSchema,
-    id: crowdstrikeNullableStringSchema,
-    message: crowdstrikeNullableStringSchema,
-  })
-)
 
 const crowdstrikeCursorPaginationSchema = z
   .object({
@@ -627,14 +644,21 @@ const updateAlertsSchema = baseRequestSchema
     }
   })
 
-const HOST_ACTIONS = ['contain', 'lift_containment', 'hide_host', 'unhide_host'] as const
+const HOST_ACTIONS = [
+  'contain',
+  'lift_containment',
+  'hide_host',
+  'unhide_host',
+  'detection_suppress',
+  'detection_unsuppress',
+] as const
 
 const performHostActionSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_perform_host_action'),
   actionName: z.enum(HOST_ACTIONS, {
-    message: 'actionName must be contain, lift_containment, hide_host, or unhide_host',
+    message: `actionName must be one of ${HOST_ACTIONS.join(', ')}`,
   }),
-  deviceIds: idsSchema(5000, 'host agent ID'),
+  deviceIds: idsSchema(100, 'host agent ID'),
 })
 
 const queryHostGroupsSchema = baseRequestSchema.extend({
@@ -674,7 +698,7 @@ const queryIndicatorsSchema = baseRequestSchema
       .number()
       .int()
       .min(1, 'Limit must be at least 1')
-      .max(2000, 'Limit must be at most 2000')
+      .max(500, 'Limit must be at most 500')
       .optional(),
     offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
     after: nonBlankQuerySchema('After cursor'),
@@ -695,7 +719,30 @@ const getIndicatorDetailsSchema = baseRequestSchema.extend({
   indicatorIds: idsSchema(1000, 'indicator ID'),
 })
 
-const indicatorPayloadSchema = z.record(z.string(), z.unknown())
+/**
+ * `PATCH /iocs/entities/indicators/v1` treats a supplied empty string as a real
+ * value and clears the stored field, so the fields a blank would clobber are
+ * constrained here. Unknown keys pass through so newly documented IOC fields keep
+ * working without a contract change.
+ */
+const indicatorPayloadSchema = z
+  .object({
+    id: nonBlankQuerySchema('Indicator id'),
+    type: nonBlankQuerySchema('Indicator type'),
+    value: nonBlankQuerySchema('Indicator value'),
+    action: nonBlankQuerySchema('Indicator action'),
+    mobile_action: nonBlankQuerySchema('Indicator mobile_action'),
+    severity: nonBlankQuerySchema('Indicator severity'),
+    description: nonBlankQuerySchema('Indicator description'),
+    source: nonBlankQuerySchema('Indicator source'),
+    expiration: nonBlankQuerySchema('Indicator expiration'),
+    applied_globally: z.boolean().optional(),
+    platforms: z.array(z.string().trim().min(1, 'Platform must not be empty')).optional(),
+    host_groups: z.array(z.string().trim().min(1, 'Host group ID must not be empty')).optional(),
+    tags: z.array(z.string().trim().min(1, 'Tag must not be empty')).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .catchall(z.unknown())
 
 const createIndicatorsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_create_indicators'),
@@ -703,7 +750,7 @@ const createIndicatorsSchema = baseRequestSchema.extend({
     .array(indicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
     .max(200, 'CrowdStrike supports up to 200 indicators per request'),
-  comment: z.string().optional(),
+  comment: nonBlankQuerySchema('Comment'),
   retrodetects: z.boolean().optional(),
   ignoreWarnings: z.boolean().optional(),
 })
@@ -714,7 +761,7 @@ const updateIndicatorsSchema = baseRequestSchema.extend({
     .array(indicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
     .max(200, 'CrowdStrike supports up to 200 indicators per request'),
-  comment: z.string().optional(),
+  comment: nonBlankQuerySchema('Comment'),
   retrodetects: z.boolean().optional(),
   ignoreWarnings: z.boolean().optional(),
 })
@@ -724,7 +771,7 @@ const deleteIndicatorsSchema = baseRequestSchema
     operation: z.literal('crowdstrike_delete_indicators'),
     indicatorIds: idsSchema(1000, 'indicator ID').optional(),
     filter: z.string().trim().min(1, 'filter cannot be empty').optional(),
-    comment: z.string().optional(),
+    comment: nonBlankQuerySchema('Comment'),
   })
   .superRefine((value, ctx) => {
     if (!value.filter && !value.indicatorIds?.length) {
@@ -758,7 +805,7 @@ const initRtrSessionSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_init_rtr_session'),
   deviceId: z.string().trim().min(1, 'deviceId is required'),
   queueOffline: z.boolean().optional(),
-  origin: z.string().optional(),
+  origin: nonBlankQuerySchema('Origin'),
 })
 
 const executeRtrCommandSchema = baseRequestSchema.extend({

@@ -8,6 +8,85 @@ import {
 } from '@/blocks/utils'
 import type { CrowdStrikeResponse } from '@/tools/crowdstrike/types'
 
+/** Documented maximum `limit` for each CrowdStrike query collection. */
+const QUERY_LIMITS: Record<string, { min: number; max: number }> = {
+  crowdstrike_query_sensors: { min: 1, max: 200 },
+  crowdstrike_query_alerts: { min: 1, max: 10000 },
+  crowdstrike_query_host_groups: { min: 1, max: 5000 },
+  crowdstrike_query_indicators: { min: 1, max: 500 },
+  crowdstrike_query_vulnerabilities: { min: 1, max: 400 },
+  crowdstrike_query_cases: { min: 1, max: 10000 },
+}
+
+/** Spotlight paginates by cursor only, so it accepts no `offset`. */
+const OFFSET_QUERY_OPERATIONS = new Set([
+  'crowdstrike_query_sensors',
+  'crowdstrike_query_alerts',
+  'crowdstrike_query_host_groups',
+  'crowdstrike_query_indicators',
+  'crowdstrike_query_cases',
+])
+
+/** Only the IOC and Spotlight query endpoints accept an `after` cursor. */
+const CURSOR_QUERY_OPERATIONS = new Set([
+  'crowdstrike_query_indicators',
+  'crowdstrike_query_vulnerabilities',
+])
+
+/** Only Alerts and Case Management accept the free-text `q` parameter. */
+const FREE_TEXT_QUERY_OPERATIONS = new Set(['crowdstrike_query_alerts', 'crowdstrike_query_cases'])
+
+/**
+ * Every optional request key the block can produce, pre-cleared to `undefined`.
+ * The executor merges the mapped params over the raw block inputs, so a key left
+ * out of the mapped result silently keeps its raw subBlock value.
+ */
+const CLEARED_OPTIONAL_PARAMS: Record<string, undefined> = Object.freeze({
+  actionName: undefined,
+  actionParameters: undefined,
+  addTag: undefined,
+  after: undefined,
+  aggregateQuery: undefined,
+  appendComment: undefined,
+  assignToName: undefined,
+  assignToUserId: undefined,
+  assignToUuid: undefined,
+  baseCommand: undefined,
+  caseIds: undefined,
+  cloudRequestId: undefined,
+  commandString: undefined,
+  comment: undefined,
+  compositeIds: undefined,
+  deleteFilter: undefined,
+  deviceId: undefined,
+  deviceIds: undefined,
+  filter: undefined,
+  hostActionName: undefined,
+  hostGroupActionName: undefined,
+  hostGroupId: undefined,
+  hostGroupIds: undefined,
+  ids: undefined,
+  ignoreWarnings: undefined,
+  includeHidden: undefined,
+  indicatorIds: undefined,
+  indicators: undefined,
+  limit: undefined,
+  offset: undefined,
+  origin: undefined,
+  q: undefined,
+  queueOffline: undefined,
+  removeTag: undefined,
+  removeTagsByPrefix: undefined,
+  retrodetects: undefined,
+  sequenceId: undefined,
+  sessionId: undefined,
+  showInUi: undefined,
+  sort: undefined,
+  unassign: undefined,
+  updateStatus: undefined,
+  vulnerabilityIds: undefined,
+})
+
 export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
   type: 'crowdstrike',
   name: 'CrowdStrike',
@@ -92,7 +171,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         crowdstrike_delete_indicators: [
           'Delete custom indicators',
           { text: 'with IDs', field: 'indicatorIds' },
-          { text: ', matching', field: 'filter' },
+          { text: ', matching', field: 'deleteFilter' },
           { text: ', noting', field: 'comment' },
         ],
         crowdstrike_query_vulnerabilities: [
@@ -207,7 +286,6 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
           'crowdstrike_query_indicators',
           'crowdstrike_query_vulnerabilities',
           'crowdstrike_query_cases',
-          'crowdstrike_delete_indicators',
         ],
       },
       required: { field: 'operation', value: 'crowdstrike_query_vulnerabilities' },
@@ -421,8 +499,9 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         { label: 'Lift Containment', id: 'lift_containment' },
         { label: 'Hide Host', id: 'hide_host' },
         { label: 'Unhide Host', id: 'unhide_host' },
+        { label: 'Suppress Detections', id: 'detection_suppress' },
+        { label: 'Unsuppress Detections', id: 'detection_unsuppress' },
       ],
-      value: () => 'contain',
       condition: { field: 'operation', value: 'crowdstrike_perform_host_action' },
       required: { field: 'operation', value: 'crowdstrike_perform_host_action' },
     },
@@ -481,6 +560,20 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         value: ['crowdstrike_get_indicator_details', 'crowdstrike_delete_indicators'],
       },
       required: { field: 'operation', value: 'crowdstrike_get_indicator_details' },
+    },
+    {
+      id: 'deleteFilter',
+      title: 'Delete Filter',
+      type: 'short-input',
+      placeholder: "type:'sha256'+created_on:<'2026-01-01'",
+      condition: { field: 'operation', value: 'crowdstrike_delete_indicators' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a CrowdStrike IOC Management Falcon Query Language (FQL) filter string that selects the custom indicators to delete. Use exact IOC field names, operators, and values only. Return ONLY the filter string - no explanations, no extra text.',
+        placeholder:
+          'Describe which indicators to delete, for example "every sha256 indicator created before 2026"...',
+      },
     },
     {
       id: 'indicators',
@@ -594,18 +687,24 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         { label: 'cat', id: 'cat' },
         { label: 'cd', id: 'cd' },
         { label: 'clear', id: 'clear' },
+        { label: 'csrutil (macOS)', id: 'csrutil' },
         { label: 'env', id: 'env' },
-        { label: 'eventlog (Windows)', id: 'eventlog' },
+        { label: 'eventlog backup (Windows)', id: 'eventlog backup' },
+        { label: 'eventlog export (Windows)', id: 'eventlog export' },
+        { label: 'eventlog list (Windows)', id: 'eventlog list' },
+        { label: 'eventlog view (Windows)', id: 'eventlog view' },
         { label: 'filehash', id: 'filehash' },
-        { label: 'getsid', id: 'getsid' },
+        { label: 'getsid (Windows, macOS)', id: 'getsid' },
         { label: 'help', id: 'help' },
         { label: 'history', id: 'history' },
+        { label: 'ifconfig (macOS, Linux)', id: 'ifconfig' },
         { label: 'ipconfig (Windows)', id: 'ipconfig' },
         { label: 'ls', id: 'ls' },
         { label: 'mount', id: 'mount' },
         { label: 'netstat', id: 'netstat' },
         { label: 'ps', id: 'ps' },
         { label: 'reg query (Windows)', id: 'reg query' },
+        { label: 'users', id: 'users' },
       ],
       value: () => 'ls',
       condition: { field: 'operation', value: 'crowdstrike_execute_rtr_command' },
@@ -704,14 +803,24 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         typeof params.operation === 'string' ? params.operation : 'crowdstrike_query_alerts',
       params: (params) => {
         const operation = typeof params.operation === 'string' ? params.operation : ''
+
+        /**
+         * The executor merges this result over the raw block inputs, so a key this
+         * mapper simply omits keeps the raw subBlock value — and an untouched
+         * subBlock is stored as `null`, which the route contract rejects. Seeding
+         * every optional key as `undefined` makes omission authoritative: a blank
+         * field is dropped, and a value left over from another operation cannot
+         * ride along on the request.
+         */
         const mapped: Record<string, unknown> = {
+          ...CLEARED_OPTIONAL_PARAMS,
           clientId: params.clientId,
           clientSecret: params.clientSecret,
           cloud: params.cloud,
         }
 
         const setString = (key: string, value: unknown) => {
-          if (typeof value === 'string' && value.trim().length > 0) mapped[key] = value
+          mapped[key] = typeof value === 'string' && value.trim().length > 0 ? value : undefined
         }
 
         const setNumber = (
@@ -720,35 +829,33 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
           label: string,
           bounds: { min?: number; max?: number }
         ) => {
-          const parsed = parseOptionalNumberInput(value, label, { integer: true, ...bounds })
-          if (parsed != null) mapped[key] = parsed
+          mapped[key] = parseOptionalNumberInput(value, label, { integer: true, ...bounds })
         }
 
         const setBoolean = (key: string, value: unknown) => {
-          const parsed = parseOptionalBooleanInput(value)
-          if (parsed !== undefined) mapped[key] = parsed
+          mapped[key] = parseOptionalBooleanInput(value)
         }
 
         const setJson = (key: string, value: unknown, label: string) => {
-          const parsed = parseOptionalJsonInput(value, label)
-          if (parsed !== undefined) mapped[key] = parsed
+          mapped[key] = parseOptionalJsonInput(value, label)
         }
 
-        const QUERY_LIMITS: Record<string, { min: number; max: number }> = {
-          crowdstrike_query_sensors: { min: 1, max: 200 },
-          crowdstrike_query_alerts: { min: 1, max: 10000 },
-          crowdstrike_query_host_groups: { min: 1, max: 5000 },
-          crowdstrike_query_indicators: { min: 1, max: 2000 },
-          crowdstrike_query_vulnerabilities: { min: 1, max: 400 },
-          crowdstrike_query_cases: { min: 1, max: 10000 },
-        }
-
-        if (operation in QUERY_LIMITS) {
+        const queryLimit = QUERY_LIMITS[operation]
+        if (queryLimit) {
           setString('filter', params.filter)
           setString('sort', params.sort)
-          setNumber('limit', params.limit, 'limit', QUERY_LIMITS[operation])
+          setNumber('limit', params.limit, 'limit', queryLimit)
+        }
+
+        if (OFFSET_QUERY_OPERATIONS.has(operation)) {
           setNumber('offset', params.offset, 'offset', { min: 0 })
+        }
+
+        if (CURSOR_QUERY_OPERATIONS.has(operation)) {
           setString('after', params.after)
+        }
+
+        if (FREE_TEXT_QUERY_OPERATIONS.has(operation)) {
           setString('q', params.q)
         }
 
@@ -805,7 +912,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
             break
           case 'crowdstrike_delete_indicators':
             setJson('indicatorIds', params.indicatorIds, 'indicator IDs')
-            setString('filter', params.filter)
+            setString('filter', params.deleteFilter)
             setString('comment', params.comment)
             break
           case 'crowdstrike_get_vulnerability_details':
@@ -846,6 +953,10 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
     clientSecret: { type: 'string', description: 'CrowdStrike Falcon API client secret' },
     cloud: { type: 'string', description: 'CrowdStrike Falcon cloud region' },
     filter: { type: 'string', description: 'Falcon Query Language filter' },
+    deleteFilter: {
+      type: 'string',
+      description: 'Falcon Query Language filter selecting the indicators to delete',
+    },
     q: { type: 'string', description: 'Free-text metadata search' },
     ids: { type: 'json', description: 'JSON array of CrowdStrike sensor device IDs' },
     aggregateQuery: {

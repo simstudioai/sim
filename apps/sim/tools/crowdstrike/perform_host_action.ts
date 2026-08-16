@@ -1,7 +1,3 @@
-import {
-  CROWDSTRIKE_AFFECTED_ENTITIES_OUTPUT,
-  CROWDSTRIKE_ERRORS_OUTPUT,
-} from '@/tools/crowdstrike/outputs'
 import type {
   CrowdStrikePerformHostActionParams,
   CrowdStrikePerformHostActionResponse,
@@ -15,7 +11,7 @@ export const crowdstrikePerformHostActionTool: ToolConfig<
   id: 'crowdstrike_perform_host_action',
   name: 'CrowdStrike Perform Host Action',
   description:
-    'Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). "contain" network-isolates the host so it can only reach the Falcon cloud, cutting it off from the rest of the network; "lift_containment" restores normal network access; "hide_host" removes the host from the Falcon console host list and "unhide_host" restores it. Containment is immediately disruptive to the endpoint. Requires the "Hosts: Write" API scope.',
+    'Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain (network-isolates the host so it can only reach the Falcon cloud), lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. Containment is immediately disruptive to the endpoint. CrowdStrike accepts up to 100 host IDs per call. Requires the "Hosts: Write" API scope.',
   version: '1.0.0',
 
   params: {
@@ -42,13 +38,13 @@ export const crowdstrikePerformHostActionTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Action to take: contain, lift_containment, hide_host, or unhide_host. "contain" network-isolates the host.',
+        'Action to take: contain, lift_containment, hide_host, unhide_host, detection_suppress, or detection_unsuppress. "contain" network-isolates the host.',
     },
     deviceIds: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'JSON array of CrowdStrike host agent IDs (AIDs) to act on',
+      description: 'JSON array of up to 100 CrowdStrike host agent IDs (AIDs) to act on',
     },
   },
 
@@ -82,11 +78,33 @@ export const crowdstrikePerformHostActionTool: ToolConfig<
   },
 
   outputs: {
-    affected: CROWDSTRIKE_AFFECTED_ENTITIES_OUTPUT,
+    affected: {
+      type: 'array',
+      description: 'Entities affected by the action',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Affected entity identifier', optional: true },
+          path: { type: 'string', description: 'API path of the affected entity', optional: true },
+        },
+      },
+    },
     count: {
       type: 'number',
       description: 'Number of hosts the action was applied to',
     },
-    errors: CROWDSTRIKE_ERRORS_OUTPUT,
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
+      },
+    },
   },
 }

@@ -113,6 +113,7 @@ describe('CrowdStrike query route', () => {
     })
     expect(data.output).toEqual({
       count: 1,
+      errors: [],
       pagination: {
         limit: 1,
         offset: 0,
@@ -153,6 +154,7 @@ describe('CrowdStrike query route', () => {
     })
     expect(data.output).toEqual({
       count: 1,
+      errors: [],
       pagination: null,
       sensors: [normalizedSensor],
     })
@@ -266,6 +268,7 @@ describe('CrowdStrike query route', () => {
         },
       ],
       count: 1,
+      errors: [],
     })
   })
 })

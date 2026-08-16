@@ -1,4 +1,3 @@
-import { CROWDSTRIKE_ERRORS_OUTPUT } from '@/tools/crowdstrike/outputs'
 import type {
   CrowdStrikeExecuteRtrCommandParams,
   CrowdStrikeExecuteRtrCommandResponse,
@@ -12,7 +11,7 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
   id: 'crowdstrike_execute_rtr_command',
   name: 'CrowdStrike Execute RTR Command',
   description:
-    'Run a read-only Real Time Response command inside an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Documented read-only base commands: cat, cd, clear, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, and "reg query". Commands that write to or modify the host require the Active Responder or Admin RTR endpoints, which this tool does not expose. Returns a cloud request ID; poll Get RTR Command Status for output. Requires the "Real time response: Read" API scope.',
+    'Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Read-only base commands: cat, cd, clear, csrutil, env, eventlog backup/export/list/view, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg query, users. Host-modifying commands need the Active Responder or Admin RTR endpoints, which this tool does not expose. Requires the "Real time response: Read" API scope.',
   version: '1.0.0',
 
   params: {
@@ -45,7 +44,7 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Read-only RTR base command: cat, cd, clear, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, or "reg query"',
+        'Read-only RTR base command, one of: cat, cd, clear, csrutil, env, "eventlog backup", "eventlog export", "eventlog list", "eventlog view", filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, "reg query", and users',
     },
     commandString: {
       type: 'string',
@@ -98,6 +97,18 @@ export const crowdstrikeExecuteRtrCommandTool: ToolConfig<
       description: 'Whether the command was queued for an offline host',
       optional: true,
     },
-    errors: CROWDSTRIKE_ERRORS_OUTPUT,
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
+      },
+    },
   },
 }

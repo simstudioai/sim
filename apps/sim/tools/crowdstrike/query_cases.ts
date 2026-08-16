@@ -1,4 +1,3 @@
-import { CROWDSTRIKE_PAGINATION_OUTPUT } from '@/tools/crowdstrike/outputs'
 import type {
   CrowdStrikeQueryCasesParams,
   CrowdStrikeQueryCasesResponse,
@@ -12,7 +11,7 @@ export const crowdstrikeQueryCasesTool: ToolConfig<
   id: 'crowdstrike_query_cases',
   name: 'CrowdStrike Query Cases',
   description:
-    'Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the case-templates:read API scope, shown as "Cases: Read" in the Falcon API client UI.',
+    'Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the "Cases: Read" API scope.',
   version: '1.0.0',
 
   params: {
@@ -109,6 +108,15 @@ export const crowdstrikeQueryCasesTool: ToolConfig<
       type: 'number',
       description: 'Number of case IDs returned',
     },
-    pagination: CROWDSTRIKE_PAGINATION_OUTPUT,
+    pagination: {
+      type: 'json',
+      description: 'Pagination metadata (limit, offset, total)',
+      optional: true,
+      properties: {
+        limit: { type: 'number', description: 'Page size used for the query', optional: true },
+        offset: { type: 'number', description: 'Offset returned by CrowdStrike', optional: true },
+        total: { type: 'number', description: 'Total records available', optional: true },
+      },
+    },
   },
 }

@@ -209,5 +209,18 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
         total: { type: 'number', description: 'Total records available', optional: true },
       },
     },
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
+      },
+    },
   },
 }

@@ -1,4 +1,3 @@
-import { CROWDSTRIKE_ERRORS_OUTPUT } from '@/tools/crowdstrike/outputs'
 import type {
   CrowdStrikeInitRtrSessionParams,
   CrowdStrikeInitRtrSessionResponse,
@@ -108,6 +107,18 @@ export const crowdstrikeInitRtrSessionTool: ToolConfig<
       optional: true,
     },
     createdAt: { type: 'string', description: 'Session creation timestamp', optional: true },
-    errors: CROWDSTRIKE_ERRORS_OUTPUT,
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
+      },
+    },
   },
 }

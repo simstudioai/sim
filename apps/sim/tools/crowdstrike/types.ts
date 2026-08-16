@@ -29,9 +29,10 @@ interface CrowdStrikeAggregateExtendedBoundsSpec {
   min: string
 }
 
+/** CrowdStrike's `MsaRangeSpec` serializes its bounds capitalized, unlike every sibling spec. */
 interface CrowdStrikeAggregateRangeSpec {
-  from: number
-  to: number
+  From: number
+  To: number
 }
 
 export interface CrowdStrikeAggregateQuery {
@@ -108,7 +109,7 @@ export interface CrowdStrikeSensorAggregateBucket {
   count: number | null
   from: number | null
   keyAsString: string | null
-  label: Record<string, unknown> | null
+  label: unknown
   stringFrom: string | null
   stringTo: string | null
   subAggregates: CrowdStrikeSensorAggregateResult[]
