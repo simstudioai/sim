@@ -78,12 +78,12 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
    * every rename, along with any custom attribute the org had defined. Reading
    * first is the only way an omitted field can mean "leave it alone".
    */
-  directExecution: async (params): Promise<ToolResponse> => {
+  directExecution: async (params, signal): Promise<ToolResponse> => {
     const domain = validateOktaDomain(params.domain)
     const url = `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
     const headers = oktaHeaders(params.apiKey)
 
-    const readResponse = await fetch(url, { headers })
+    const readResponse = await fetch(url, { headers, signal })
     if (!readResponse.ok) {
       await throwOktaError(readResponse, logger, 'Failed to load group for update in Okta')
     }
@@ -93,6 +93,7 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
       method: 'PUT',
       headers,
       body: JSON.stringify({ profile: mergeOktaGroupProfile(existing.profile, params) }),
+      signal,
     })
 
     return transformUpdateGroupResponse(writeResponse)
