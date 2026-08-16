@@ -8,6 +8,7 @@ import {
   buildSplunkUrl,
   getSplunkPaging,
   normalizeSearchQuery,
+  readSplunkDispatchJson,
   readSplunkJson,
   requireSplunkSid,
   savedSearchFieldQuery,
@@ -86,29 +87,79 @@ describe('readSplunkJson', () => {
   })
 
   /**
-   * `output_mode` is not in the documented parameter table for the dispatching and
-   * job-control endpoints, and the only response the reference documents for them
-   * is XML. Throwing here reported a cancel that succeeded server-side as a
-   * failure, and pre-empted the error the caller raises for a missing value.
-   */
-  it('returns an empty envelope for an XML body instead of throwing', async () => {
-    await expect(
-      readSplunkJson(new Response('<response><sid>1457683115.100</sid></response>'))
-    ).resolves.toEqual({})
-  })
-
-  /**
-   * The XML tolerance must not extend to a body that was meant to be JSON.
-   * Swallowing a truncated result payload would hand `get_search_results` an empty
-   * envelope, reporting a lost result set as a search that legitimately matched
-   * nothing.
+   * The results path must never turn an unparseable body into an empty result set:
+   * that reports a lost result set as a search that legitimately matched nothing.
+   * The XML dispatch tolerance is deliberately not reachable from here.
    */
   it('throws on a truncated JSON body rather than reporting an empty result set', async () => {
     await expect(readSplunkJson(new Response('{"results":[{"_raw":"partial'))).rejects.toThrow()
   })
 
-  it('throws on a non-JSON, non-XML body', async () => {
+  it('throws on a non-JSON body', async () => {
     await expect(readSplunkJson(new Response('upstream connect error'))).rejects.toThrow()
+  })
+
+  it('throws on a 2xx HTML interstitial instead of reporting zero events', async () => {
+    await expect(
+      readSplunkJson(new Response('<!DOCTYPE html><html><body>Sign in</body></html>'))
+    ).rejects.toThrow()
+  })
+
+  it('throws even on the dispatch XML envelope — results are always JSON', async () => {
+    await expect(
+      readSplunkJson(new Response('<response><sid>1457683115.100</sid></response>'))
+    ).rejects.toThrow()
+  })
+})
+
+describe('readSplunkDispatchJson', () => {
+  /**
+   * `output_mode` is not in the documented parameter table for the dispatching and
+   * job-control endpoints, and the only response the reference documents for them
+   * is XML. Throwing here reported a cancel that succeeded server-side as a
+   * failure, and pre-empted the error the caller raises for a missing value.
+   */
+  it('returns an empty envelope for the documented XML response', async () => {
+    await expect(
+      readSplunkDispatchJson(new Response('<response><sid>1457683115.100</sid></response>'))
+    ).resolves.toEqual({})
+  })
+
+  it('accepts the XML declaration and the self-closing form', async () => {
+    await expect(
+      readSplunkDispatchJson(
+        new Response('<?xml version="1.0"?><response><sid>1.1</sid></response>')
+      )
+    ).resolves.toEqual({})
+    await expect(readSplunkDispatchJson(new Response('<response/>'))).resolves.toEqual({})
+  })
+
+  it('still parses a JSON body', async () => {
+    await expect(readSplunkDispatchJson(new Response('{"sid":"1.1"}'))).resolves.toEqual({
+      sid: '1.1',
+    })
+  })
+
+  it('returns an empty envelope for 204 and for an empty body', async () => {
+    await expect(readSplunkDispatchJson(new Response(null, { status: 204 }))).resolves.toEqual({})
+    await expect(readSplunkDispatchJson(new Response('  '))).resolves.toEqual({})
+  })
+
+  /**
+   * The tolerance is anchored to the one documented root element. A proxy error
+   * page or an SSO interstitial served with a 2xx is not a successful dispatch, and
+   * reading it as an empty envelope would hide it behind the missing-sid message.
+   */
+  it('throws on a 2xx HTML interstitial rather than reading it as an empty envelope', async () => {
+    await expect(
+      readSplunkDispatchJson(new Response('<!DOCTYPE html><html><body>Sign in</body></html>'))
+    ).rejects.toThrow()
+  })
+
+  it('throws on some other XML document', async () => {
+    await expect(
+      readSplunkDispatchJson(new Response('<error><message>Gateway timeout</message></error>'))
+    ).rejects.toThrow()
   })
 })
 

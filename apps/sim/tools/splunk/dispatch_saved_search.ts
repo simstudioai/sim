@@ -6,7 +6,7 @@ import {
   buildSplunkFormBody,
   buildSplunkFormHeaders,
   buildSplunkUrl,
-  readSplunkJson,
+  readSplunkDispatchJson,
   requireSplunkSid,
   SPLUNK_CONNECTION_PARAMS,
   splunkPathSegment,
@@ -107,7 +107,7 @@ export const dispatchSavedSearchTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readSplunkJson(response)
+    const data = await readSplunkDispatchJson(response)
     return { success: true, output: { sid: requireSplunkSid(data) } }
   },
 

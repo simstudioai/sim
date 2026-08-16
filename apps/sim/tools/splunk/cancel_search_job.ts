@@ -7,7 +7,7 @@ import {
   buildSplunkFormHeaders,
   buildSplunkUrl,
   mapSplunkMessages,
-  readSplunkJson,
+  readSplunkDispatchJson,
   SPLUNK_CONNECTION_PARAMS,
   SPLUNK_MESSAGES_OUTPUT,
   splunkPathSegment,
@@ -43,7 +43,7 @@ export const cancelSearchJobTool: ToolConfig<
   },
 
   transformResponse: async (response: Response, params) => {
-    const data = await readSplunkJson(response)
+    const data = await readSplunkDispatchJson(response)
     return {
       success: true,
       output: {

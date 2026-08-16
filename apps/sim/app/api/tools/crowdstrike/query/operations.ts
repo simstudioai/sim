@@ -137,13 +137,16 @@ const MAX_COMMITTED_IDS_IN_MESSAGE = 400
  * Rewrites a failed batch's envelope so the reported error names the deletions the
  * earlier batches already committed.
  *
- * Batches run sequentially and each one that answered `ok` really did delete its
- * indicators — Falcon has no way to roll them back. Short-circuiting on a later
- * batch would therefore report a bare failure over work that already happened, and
- * a blind retry would target IDs that no longer exist. Only the message survives to
- * the caller ({@link fail} keeps `status` and the message, not `data`), so the
- * committed prefix is written onto `errors[0].message`, which is the first thing
- * {@link getFalconErrorMessage} reads.
+ * Batches run sequentially and Falcon has no way to roll back a deletion it already
+ * performed. Short-circuiting on a later batch would therefore report a bare failure
+ * over work that already happened, and a blind retry would target IDs that no longer
+ * exist. Only the message survives to the caller ({@link fail} keeps `status` and the
+ * message, not `data`), so the committed list is written onto `errors[0].message`,
+ * which is the first thing {@link getFalconErrorMessage} reads.
+ *
+ * `committed` holds the IDs Falcon echoed in `resources`, never the IDs that were
+ * requested, so an ID that failed inside an otherwise-200 batch is not reported as
+ * deleted.
  */
 function withCommittedIds(
   result: CrowdStrikeCallResult,
@@ -227,7 +230,15 @@ async function callCrowdStrikeByIds(
       return options.method === 'DELETE' ? withCommittedIds(result, committed) : result
     }
 
-    committed.push(...chunk)
+    /**
+     * Only the IDs Falcon echoed in `resources` were actually deleted. A batch can
+     * answer 200 while reporting per-ID failures in `errors`, so recording the
+     * requested chunk would name indicators that are still live and tell the
+     * caller to drop them from the retry.
+     */
+    if (options.method === 'DELETE') {
+      committed.push(...getStringResources(result.data))
+    }
 
     if (index === 0) {
       status = result.status

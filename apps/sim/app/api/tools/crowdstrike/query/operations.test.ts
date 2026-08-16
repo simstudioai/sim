@@ -1072,6 +1072,47 @@ describe('CrowdStrike extended operations', () => {
       expect(data.error).toContain(deletedByFirstBatch[0])
     })
 
+    /**
+     * A batch can answer 200 while reporting per-ID failures in `errors`. Recording
+     * the requested chunk would name indicators that are still live and tell the
+     * caller to drop them from the retry, so only the IDs Falcon echoed in
+     * `resources` count as committed.
+     */
+    it('reports only the IDs Falcon confirmed, not every ID in a partly-failed batch', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+      let deleteCall = 0
+      let skipped = ''
+      const confirmed: string[] = []
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        deleteCall += 1
+        if (deleteCall === 2) {
+          return Promise.resolve(
+            jsonResponse({ errors: [{ code: 429, message: 'Rate limit exceeded' }] }, 429)
+          )
+        }
+        const ids = idsFromUrl(rawUrl)
+        skipped = ids[0]
+        confirmed.push(...ids.slice(1))
+        return Promise.resolve(
+          jsonResponse({
+            resources: ids.slice(1),
+            errors: [{ code: 404, id: ids[0], message: 'Indicator not found' }],
+          })
+        )
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(429)
+      expect(confirmed.length).toBeGreaterThan(0)
+      expect(data.error).toContain(`${confirmed.length} ID(s) were already deleted`)
+      expect(data.error).not.toContain(skipped)
+    })
+
     it('leaves a first-batch delete failure unannotated — nothing was committed', async () => {
       const indicatorIds = longIds(300, 'ioc')
 

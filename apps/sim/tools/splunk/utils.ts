@@ -152,7 +152,7 @@ export function buildSplunkFormBody(
 }
 
 /**
- * Read a Splunk JSON body, tolerating a body that is empty or is not JSON at all.
+ * Read a Splunk JSON body, tolerating only an empty one.
  *
  * The results endpoint answers `204 No Content` with no body while a job has not
  * produced results yet, and the job control endpoint documents "Returned values:
@@ -160,27 +160,52 @@ export function buildSplunkFormBody(
  * still-running job would surface `Unexpected end of JSON input` instead of an
  * empty result set.
  *
- * An XML body is tolerated the same way because `output_mode` does not appear in
- * the documented parameter table for the dispatching and job-control endpoints,
- * and the only response the reference documents for them is the XML
- * `<response><sid>...</sid></response>`. Throwing on that XML would report a
- * request that succeeded server-side as a failure — cancelling a job really does
- * cancel it — and would pre-empt the specific error the caller raises when the
- * envelope carries no usable value. Returning `{}` lets that error surface
- * instead, and a JSON body (which these endpoints do return in practice when
- * `output_mode=json` is honored) still parses normally.
+ * Nothing else is tolerated. Every request pins `output_mode=json`, so a
+ * non-empty body that will not parse is corrupt, truncated, or not from Splunk at
+ * all — a proxy's HTML error page or an SSO interstitial served with a 2xx.
+ * Swallowing any of those would hand `get_search_results` an empty envelope and
+ * report a lost result set as a search that legitimately matched nothing.
  *
- * The tolerance stops at XML. A body that is neither empty nor XML is meant to be
- * JSON, so a parse failure there means the payload is corrupt or truncated —
- * swallowing it would hand `get_search_results` an empty envelope and report a
- * lost result set as a successful search with zero events.
+ * Callers that must accept the documented XML dispatch envelope use
+ * {@link readSplunkDispatchJson} instead; the tolerance is deliberately not
+ * available on this path.
  */
 export async function readSplunkJson(response: Response): Promise<unknown> {
   if (response.status === 204) return {}
-  const text = await response.text()
-  const body = text.trim()
+  const body = (await response.text()).trim()
   if (!body) return {}
-  if (body.startsWith('<')) return {}
+  return JSON.parse(body)
+}
+
+/**
+ * The one XML body the reference documents: `<response><sid>...</sid></response>`,
+ * optionally preceded by an XML declaration. Anchored to that root element so an
+ * HTML interstitial (`<!DOCTYPE html>`, `<html>`) or any other XML document still
+ * fails to parse rather than being read as an empty envelope.
+ */
+const SPLUNK_XML_RESPONSE_ROOT = /^(?:<\?xml[^>]*\?>\s*)?<response[\s/>]/i
+
+/**
+ * Read a body from the dispatching and job-control endpoints, which may answer in
+ * XML rather than JSON.
+ *
+ * `output_mode` does not appear in the documented parameter table for these
+ * endpoints, so the XML `<response><sid>...</sid></response>` is the only response
+ * the reference actually promises. Throwing on it would report a request that
+ * succeeded server-side as a failure — cancelling a job really does cancel it —
+ * and would pre-empt the specific error the caller raises when the envelope
+ * carries no usable value. Returning `{}` lets {@link requireSplunkSid} name the
+ * problem instead, and a JSON body (which these endpoints do return in practice
+ * when `output_mode=json` is honored) still parses normally.
+ *
+ * Only that exact root element is accepted. Anything else — including an HTML
+ * error page served with a 2xx — falls through to `JSON.parse` and throws.
+ */
+export async function readSplunkDispatchJson(response: Response): Promise<unknown> {
+  if (response.status === 204) return {}
+  const body = (await response.text()).trim()
+  if (!body) return {}
+  if (SPLUNK_XML_RESPONSE_ROOT.test(body)) return {}
   return JSON.parse(body)
 }
 
