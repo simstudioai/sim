@@ -445,6 +445,64 @@ describe('read-only screens cover the rest of the session and transaction family
   })
 })
 
+describe('read-only screens cover RENAME and the Service Broker statement family', () => {
+  /**
+   * `RENAME` is documented T-SQL DDL for Azure Synapse dedicated SQL pools and
+   * Analytics Platform System, both reachable over TDS with the connection
+   * fields this block exposes — so a schema change was passing an operation
+   * advertised as read-only.
+   */
+  it.each([
+    ['RENAME OBJECT', 'SELECT 1 RENAME OBJECT dbo.Customer TO Customer1'],
+    ['RENAME OBJECT COLUMN', 'SELECT 1 RENAME OBJECT dbo.t COLUMN c1 TO c2'],
+    ['RENAME DATABASE', 'SELECT 1 RENAME DATABASE db1 TO db2'],
+    ['RECEIVE', 'SELECT 1 RECEIVE TOP(1) * FROM dbo.MyQueue'],
+    ['END CONVERSATION', "SELECT 1 END CONVERSATION '00000000-0000-0000-0000-000000000000'"],
+    [
+      'MOVE CONVERSATION',
+      "SELECT 1 MOVE CONVERSATION '00000000-0000-0000-0000-000000000000' TO '00000000-0000-0000-0000-000000000001'",
+    ],
+    ['GET CONVERSATION GROUP', 'SELECT 1 GET CONVERSATION GROUP @g FROM dbo.MyQueue'],
+    [
+      'SEND ON CONVERSATION',
+      "SELECT 1 SEND ON CONVERSATION '00000000-0000-0000-0000-000000000000' MESSAGE TYPE [t] ('x')",
+    ],
+  ])('rejects %s in the Query operation', (_label, query) => {
+    expect(validateReadOnlyQuery(query).isValid).toBe(false)
+  })
+
+  it.each([
+    ['RENAME OBJECT', 'id = 1 RENAME OBJECT dbo.t TO t2'],
+    ['RECEIVE', 'id = 1 RECEIVE TOP(1) * FROM dbo.MyQueue'],
+    ['END CONVERSATION', "id = 1 END CONVERSATION '00000000-0000-0000-0000-000000000000'"],
+    ['GET CONVERSATION GROUP', 'id = 1 GET CONVERSATION GROUP @g FROM dbo.MyQueue'],
+  ])('rejects %s in an update or delete WHERE clause', (_label, where) => {
+    expect(() => buildUpdateQuery('t', { a: 1 }, where)).toThrow()
+    expect(() => buildDeleteQuery('t', where)).toThrow()
+  })
+
+  /**
+   * The over-screening guard. `END` closes every `CASE`, and `rename`/`receive`
+   * are the stems of ordinary column names, so neither addition may cost the
+   * plain SELECTs this operation exists to run.
+   */
+  it('still accepts CASE … END and ordinary identifiers built on the new words', () => {
+    const allowed = [
+      "SELECT CASE WHEN status = 1 THEN 'on' ELSE 'off' END FROM dbo.jobs",
+      "SELECT CASE WHEN a = 1 THEN 'x' END AS conversation_state FROM dbo.t",
+      'SELECT renamed_at, rename_log, received_at, receive_queue FROM dbo.audit',
+      'SELECT conversation_id, get_flag, move_order, send_at, end_date FROM dbo.t',
+    ]
+
+    for (const query of allowed) {
+      expect(validateReadOnlyQuery(query)).toEqual({ isValid: true })
+    }
+
+    expect(() => buildUpdateQuery('audit', { a: 1 }, 'renamed_at > 0')).not.toThrow()
+    expect(() => buildDeleteQuery('audit', 'received_at > 0 AND conversation_id = 3')).not.toThrow()
+  })
+})
+
 describe('executeQuery result caps', () => {
   function makeCapPool(recordset: unknown[]) {
     return {

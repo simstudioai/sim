@@ -7,7 +7,9 @@ import {
   assertGraphNextPageUrlForCollection,
   buildGraphCollectionUrl,
   DEVICE_SELECT,
+  graphCollectionHeaders,
   mapDevice,
+  usesGraphAdvancedQuery,
 } from '@/tools/microsoft_ad/utils'
 import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -69,14 +71,11 @@ export const listDevicesTool: ToolConfig<
         search: search
           ? `"displayName:${search.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
           : undefined,
-        count: Boolean(search || params.filter),
+        count: usesGraphAdvancedQuery(params),
       })
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      ConsistencyLevel: 'eventual',
-    }),
+    headers: (params) => graphCollectionHeaders(params),
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()

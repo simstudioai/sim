@@ -33,11 +33,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       `[${requestId}] Inserting data into ${params.table} on ${params.host}:${params.port}/${params.database}`
     )
 
+    /**
+     * Built before connecting so a bad identifier costs no TLS+login round trip
+     * and answers 400 like the update, delete, query, and execute routes, rather
+     * than falling through to the catch-all as a 500.
+     */
+    let built: { query: string; values: unknown[] }
+    try {
+      built = buildInsertQuery(params.table, params.data)
+    } catch (error) {
+      const message = getErrorMessage(error, 'Invalid statement')
+      logger.warn(`[${requestId}] Insert statement rejected: ${message}`)
+      return NextResponse.json(
+        { error: `Microsoft SQL Server insert failed: ${message}` },
+        { status: 400 }
+      )
+    }
+
     const pool = await createMSSQLConnection(params)
 
     try {
-      const { query, values } = buildInsertQuery(params.table, params.data)
-      const result = await executeQuery(pool, query, values)
+      const result = await executeQuery(pool, built.query, built.values)
 
       logger.info(`[${requestId}] Insert executed successfully, ${result.rowCount} row(s) inserted`)
 

@@ -2,7 +2,9 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { SCOPE_DESCRIPTIONS } from '@/lib/oauth/utils'
 import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
+import * as microsoftAdTools from '@/tools/microsoft_ad'
 
 /**
  * The tri-state assertions run against `{ ...inputs, ...buildParams(inputs) }`, the shape the
@@ -121,9 +123,22 @@ describe('MicrosoftAdBlock', () => {
   /**
    * `User.ReadWrite.All` is listed on every `/users` read this block performs — list, get,
    * licenseDetails, registeredDevices, and ownedDevices — so `User.Read.All` was pure consent
-   * noise. `Directory.Read.All` and `GroupMember.ReadWrite.All` are deliberately retained:
-   * `GET /subscribedSkus` names neither `LicenseAssignment.ReadWrite.All` nor any scope left in
-   * this list, and `POST /groups/{id}/members/$ref` accepts `GroupMember.ReadWrite.All` only.
+   * noise.
+   *
+   * `Directory.Read.All` was required by exactly one call, `GET /subscribedSkus`, whose
+   * permission table names `LicenseAssignment.Read.All` as least privileged and
+   * `Directory.Read.All` only as a higher-privileged alternative — and does **not** list
+   * `LicenseAssignment.ReadWrite.All`, so the write scope this block already holds does not
+   * cover the read. Every other call is covered by a narrower scope in the list:
+   * directory roles by `RoleManagement.ReadWrite.Directory`, group members by
+   * `Group.ReadWrite.All`/`GroupMember.ReadWrite.All`, devices by `Device.Read.All`, audits by
+   * `AuditLog.Read.All`, service principals by `Application.Read.All`, user app-role
+   * assignments by `AppRoleAssignment.ReadWrite.All`, and CA policies by `Policy.Read.All`.
+   *
+   * `GroupMember.ReadWrite.All` is deliberately retained: `POST /groups/{id}/members/$ref`
+   * accepts it and nothing else in this list for a user member.
+   * @see https://learn.microsoft.com/en-us/graph/api/subscribedsku-list
+   * @see https://learn.microsoft.com/en-us/graph/api/group-post-members
    */
   describe('requested OAuth scopes', () => {
     const requiredScopes =
@@ -135,10 +150,39 @@ describe('MicrosoftAdBlock', () => {
       expect(requiredScopes).not.toContain('User.Read.All')
     })
 
+    it('requests the least-privileged scope for subscribedSkus, not Directory.Read.All', () => {
+      expect(requiredScopes).toContain('LicenseAssignment.Read.All')
+      expect(requiredScopes).not.toContain('Directory.Read.All')
+    })
+
     it('keeps the scopes no retained scope covers', () => {
-      expect(requiredScopes).toEqual(
-        expect.arrayContaining(['Directory.Read.All', 'GroupMember.ReadWrite.All'])
-      )
+      expect(requiredScopes).toEqual(expect.arrayContaining(['GroupMember.ReadWrite.All']))
+    })
+
+    it('describes every scope it requests', () => {
+      const undescribed = requiredScopes.filter((scope) => !SCOPE_DESCRIPTIONS[scope])
+      expect(undescribed).toEqual([])
+    })
+  })
+
+  /**
+   * `getBlockOutputs` derives the referenceable schema from `blockConfig.outputs`, so a single
+   * `response` entry made the tag dropdown offer `<microsoft_ad.response>` — which corresponds to
+   * nothing, since every tool puts its fields at the top level of `output` — and left the real
+   * outputs unreferenceable downstream.
+   */
+  describe('declared outputs', () => {
+    const toolOutputKeys = new Set(
+      Object.values(microsoftAdTools).flatMap((tool) => Object.keys(tool.outputs ?? {}))
+    )
+    const blockOutputKeys = new Set(Object.keys(MicrosoftAdBlock.outputs))
+
+    it('declares every key its tools emit', () => {
+      expect([...toolOutputKeys].filter((key) => !blockOutputKeys.has(key)).sort()).toEqual([])
+    })
+
+    it('declares nothing no tool emits', () => {
+      expect([...blockOutputKeys].filter((key) => !toolOutputKeys.has(key)).sort()).toEqual([])
     })
   })
 })

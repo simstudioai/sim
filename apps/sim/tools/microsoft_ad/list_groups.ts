@@ -3,7 +3,11 @@ import type {
   MicrosoftAdListGroupsResponse,
 } from '@/tools/microsoft_ad/types'
 import { GROUP_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrlForCollection } from '@/tools/microsoft_ad/utils'
+import {
+  assertGraphNextPageUrlForCollection,
+  graphCollectionHeaders,
+  usesGraphAdvancedQuery,
+} from '@/tools/microsoft_ad/utils'
 import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -68,16 +72,11 @@ export const listGroupsTool: ToolConfig<
           `$search=${encodeURIComponent(`"displayName:${term}" OR "description:${term}"`)}`
         )
       }
-      // Graph rejects advanced $filter operators (ne, not, endsWith, startsWith on
-      // non-indexed properties) unless $count=true accompanies ConsistencyLevel: eventual.
-      if (params.filter || params.search) queryParts.push('$count=true')
+      if (usesGraphAdvancedQuery(params)) queryParts.push('$count=true')
       return `https://graph.microsoft.com/v1.0/groups?${queryParts.join('&')}`
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      ConsistencyLevel: 'eventual',
-    }),
+    headers: (params) => graphCollectionHeaders(params),
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()

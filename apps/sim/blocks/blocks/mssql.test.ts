@@ -172,6 +172,22 @@ describe('Microsoft SQL Server tool declarations', () => {
     ).toHaveProperty('references')
   })
 
+  /**
+   * `getBlockOutputs` derives the referenceable schema from `blockConfig.outputs`, so a key a
+   * tool emits but the block omits is unreferenceable downstream — and for the truncation pair
+   * that also leaves the block's advertised schema describing every result as complete.
+   */
+  it('has a block that declares every output key its tools emit', () => {
+    const toolKeys = new Set(
+      Object.values(mssqlTools).flatMap((tool) => Object.keys(tool.outputs ?? {}))
+    )
+    const blockKeys = new Set(Object.keys(MSSQLBlock.outputs))
+
+    expect([...toolKeys].filter((key) => !blockKeys.has(key)).sort()).toEqual([])
+    expect(MSSQLBlock.outputs.truncated).toMatchObject({ type: 'boolean' })
+    expect(MSSQLBlock.outputs.truncationReason).toMatchObject({ type: 'string' })
+  })
+
   it('does not present TLS encryption as guaranteed once enabled', () => {
     // TDS 7.4 starts in-band TLS only if the prelogin response is ON/REQ; a
     // server answering NOT_SUP yields an unencrypted session with no error.

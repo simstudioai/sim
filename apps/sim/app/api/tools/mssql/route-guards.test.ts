@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  *
- * The update and delete routes build their statement before opening a
+ * The insert, update, and delete routes build their statement before opening a
  * connection, so a rejected WHERE clause or a bad identifier costs no TLS+login
  * round trip and answers 400 like the query and execute routes do.
  */
@@ -29,6 +29,7 @@ vi.mock('@sim/security/dns', () => ({
 }))
 
 import { POST as DELETE_POST } from '@/app/api/tools/mssql/delete/route'
+import { POST as INSERT_POST } from '@/app/api/tools/mssql/insert/route'
 import { POST as UPDATE_POST } from '@/app/api/tools/mssql/update/route'
 
 const connection = {
@@ -42,7 +43,7 @@ const connection = {
   connectionTimeout: 15000,
 }
 
-describe('MSSQL update and delete guards run before connecting', () => {
+describe('MSSQL insert, update, and delete guards run before connecting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
@@ -68,6 +69,8 @@ describe('MSSQL update and delete guards run before connecting', () => {
   )
 
   it.each([
+    ['insert', INSERT_POST, { table: 'users-table', data: { a: 1 } }],
+    ['insert column', INSERT_POST, { table: 'users', data: { 'bad-col': 1 } }],
     ['update', UPDATE_POST, { table: 'users-table', data: { a: 1 }, where: 'id = 1' }],
     ['delete', DELETE_POST, { table: 'users-table', where: 'id = 1' }],
   ])('answers 400 for a bad identifier on %s without connecting', async (_op, handler, body) => {
@@ -78,6 +81,7 @@ describe('MSSQL update and delete guards run before connecting', () => {
   })
 
   it.each([
+    ['insert', INSERT_POST, { table: 'users', data: { a: 1 } }],
     ['update', UPDATE_POST, { table: 'users', data: { a: 1 }, where: 'id = 1' }],
     ['delete', DELETE_POST, { table: 'users', where: 'id = 1' }],
   ])('still runs an accepted %s statement', async (_op, handler, body) => {

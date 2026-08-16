@@ -919,10 +919,129 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
     policyFilter: { type: 'string' },
   },
   outputs: {
-    response: {
-      type: 'json',
+    users: {
+      type: 'array',
       description:
-        'Microsoft Entra ID operation response. User operations return id, displayName, userPrincipalName, mail, jobTitle, department. Group operations return id, displayName, description, mailEnabled, securityEnabled, groupTypes. Member operations return id, displayName, mail, odataType. Licensing operations return skuId, skuPartNumber, consumedUnits, prepaidUnits, and servicePlans. Sign-in and audit operations return the event id, timestamp, actor, target, and result. App role and directory role operations return assignment and role ids with their principals. Device operations return id, deviceId, displayName, operatingSystem, accountEnabled, isCompliant, isManaged, and trustType. Conditional access operations return id, displayName, state, conditions, grantControls, and sessionControls. List operations also return nextLink for fetching additional pages.',
+        'User objects (id, displayName, givenName, surname, userPrincipalName, mail, jobTitle, department, officeLocation, mobilePhone, accountEnabled)',
+    },
+    userCount: { type: 'number', description: 'Number of users returned on this page' },
+    user: { type: 'json', description: 'The single user this operation created or read' },
+    userId: { type: 'string', description: 'Object ID of the user the operation acted on' },
+    userPrincipalName: { type: 'string', description: 'User principal name of that user' },
+    displayName: { type: 'string', description: 'Display name of the user the operation acted on' },
+    groups: {
+      type: 'array',
+      description:
+        'Group objects (id, displayName, description, mail, mailEnabled, securityEnabled, groupTypes, visibility)',
+    },
+    groupCount: { type: 'number', description: 'Number of groups returned on this page' },
+    group: { type: 'json', description: 'The single group this operation created or read' },
+    groupId: { type: 'string', description: 'Object ID of the group the operation acted on' },
+    members: {
+      type: 'array',
+      description: 'Group or directory role members (id, displayName, mail, odataType)',
+    },
+    memberCount: { type: 'number', description: 'Number of members returned on this page' },
+    memberId: { type: 'string', description: 'Object ID of the member the operation acted on' },
+    roles: {
+      type: 'array',
+      description: 'Activated directory roles (id, displayName, description, roleTemplateId)',
+    },
+    roleCount: { type: 'number', description: 'Number of directory roles returned' },
+    directoryRoleId: {
+      type: 'string',
+      description: 'Object ID of the directory role the operation acted on',
+    },
+    skus: {
+      type: 'array',
+      description:
+        'Subscribed SKUs (skuId, skuPartNumber, consumedUnits, prepaidUnits, servicePlans)',
+    },
+    skuCount: { type: 'number', description: 'Number of subscribed SKUs returned' },
+    licenses: {
+      type: 'array',
+      description: 'License details assigned to the user (skuId, skuPartNumber, servicePlans)',
+    },
+    licenseCount: { type: 'number', description: 'Number of license details returned' },
+    assignedLicenses: {
+      type: 'array',
+      description: 'Licenses the user holds after the assign or remove operation',
+    },
+    assignments: {
+      type: 'array',
+      description:
+        'App role assignments (id, appRoleId, principalId, principalDisplayName, resourceId, resourceDisplayName)',
+    },
+    assignmentCount: { type: 'number', description: 'Number of app role assignments returned' },
+    assignment: { type: 'json', description: 'The app role assignment this operation created' },
+    appRoleAssignmentId: {
+      type: 'string',
+      description: 'ID of the app role assignment that was removed',
+    },
+    servicePrincipals: {
+      type: 'array',
+      description:
+        'Service principals (id, appId, displayName, servicePrincipalType, accountEnabled, appRoles)',
+    },
+    servicePrincipalCount: { type: 'number', description: 'Number of service principals returned' },
+    devices: {
+      type: 'array',
+      description:
+        'Devices (id, deviceId, displayName, operatingSystem, accountEnabled, isCompliant, isManaged, trustType)',
+    },
+    deviceCount: { type: 'number', description: 'Number of devices returned on this page' },
+    device: { type: 'json', description: 'The single device this operation read' },
+    policies: {
+      type: 'array',
+      description:
+        'Conditional access policies (id, displayName, state, conditions, grantControls, sessionControls)',
+    },
+    policyCount: { type: 'number', description: 'Number of conditional access policies returned' },
+    policy: {
+      type: 'json',
+      description: 'The single conditional access policy this operation read',
+    },
+    audits: {
+      type: 'array',
+      description:
+        'Directory audit events (id, activityDateTime, activityDisplayName, initiatedBy, targetResources, result)',
+    },
+    auditCount: { type: 'number', description: 'Number of directory audit events returned' },
+    signIns: {
+      type: 'array',
+      description:
+        'Sign-in events (id, createdDateTime, userPrincipalName, appDisplayName, ipAddress, status)',
+    },
+    signInCount: { type: 'number', description: 'Number of sign-in events returned' },
+    methods: {
+      type: 'array',
+      description: 'Registered authentication methods for the user (id, odataType, and its detail)',
+    },
+    methodCount: { type: 'number', description: 'Number of authentication methods returned' },
+    newPassword: {
+      type: 'string',
+      description: 'Temporary password produced by the password reset, when Graph returned one',
+    },
+    operationLocation: {
+      type: 'string',
+      description: 'URL for polling the long-running password reset operation',
+    },
+    accepted: {
+      type: 'boolean',
+      description: 'True when Graph accepted the password reset for asynchronous processing',
+    },
+    forceChangePasswordNextSignIn: {
+      type: 'boolean',
+      description: 'Whether the user must change the password at next sign-in',
+    },
+    added: { type: 'boolean', description: 'True when the member was added' },
+    removed: { type: 'boolean', description: 'True when the member or assignment was removed' },
+    updated: { type: 'boolean', description: 'True when the resource was updated' },
+    deleted: { type: 'boolean', description: 'True when the resource was deleted' },
+    revoked: { type: 'boolean', description: "True when the user's sign-in sessions were revoked" },
+    nextLink: {
+      type: 'string',
+      description: 'Continuation URL for the next page, present only when more results exist',
     },
   },
 }

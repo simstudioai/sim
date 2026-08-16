@@ -276,6 +276,20 @@ export function toRowsResponseBody(result: MSSQLQueryResult, message: string) {
  * but it introduces a second statement in exactly the same semicolon-less way,
  * which is what this list exists to reject.
  *
+ * `RENAME` is documented T-SQL DDL — it applies to Azure Synapse Analytics
+ * dedicated SQL pools and Analytics Platform System, both of which speak TDS on
+ * port 1433 and are reachable with exactly the connection fields this block
+ * exposes. `SELECT 1 RENAME OBJECT dbo.Customer TO Customer1` is a valid
+ * semicolon-less batch that changes schema through an operation advertised as
+ * read-only, and `RENAME DATABASE` and `RENAME OBJECT … COLUMN … TO …` reach it
+ * the same way.
+ *
+ * `RECEIVE` is the Service Broker read that *removes* the messages it returns,
+ * so it is a write in everything but name. Its siblings — `END`/`MOVE`/`GET`
+ * `CONVERSATION` and `SEND ON CONVERSATION` — open with words that are ordinary
+ * identifiers (`END` closes every `CASE`), so they are screened as phrases in
+ * {@link MSSQL_STATEMENT_PHRASES} instead.
+ *
  * `FETCH` is deliberately **absent**: `OFFSET … FETCH NEXT` is the standard
  * T-SQL paging clause, so screening it would reject the ordinary paged SELECT
  * this operation exists to run. Word boundaries keep the additions off ordinary
@@ -283,7 +297,7 @@ export function toRowsResponseBody(result: MSSQLQueryResult, message: string) {
  * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/statements
  */
 const MSSQL_STATEMENT_KEYWORDS =
-  /\b(?:insert|update|updatetext|writetext|readtext|delete|merge|drop|create|alter|truncate|disable|enable|set|begin|commit|rollback|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into|deallocate)\b/i
+  /\b(?:insert|update|updatetext|writetext|readtext|delete|merge|drop|create|alter|truncate|rename|receive|disable|enable|set|begin|commit|rollback|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into|deallocate)\b/i
 
 /**
  * The remaining session, transaction, cursor, and key-management statements,
@@ -297,10 +311,16 @@ const MSSQL_STATEMENT_KEYWORDS =
  * run. `DEALLOCATE` is the one exception and lives in the word list above — it
  * has no ordinary-identifier reading.
  *
- * None of these writes table data or schema, which is why they were missed; they
- * are screened because the file's stated rule is that a second statement is
- * rejected structurally, not by what it happens to do. `RAISERROR ... WITH LOG`
- * writes to the error log and the Windows application log, so it is not inert.
+ * Most of these write neither table data nor schema, which is why they were
+ * missed; they are screened because the file's stated rule is that a second
+ * statement is rejected structurally, not by what it happens to do.
+ * `RAISERROR ... WITH LOG` writes to the error log and the Windows application
+ * log, so it is not inert. The Service Broker conversation statements are not
+ * inert either: `END CONVERSATION ... WITH CLEANUP` drops every message in a
+ * conversation, `MOVE CONVERSATION` reassigns it, and `SEND ON CONVERSATION`
+ * enqueues a message — and the handles they need are enumerable through this
+ * same path, because the catalog screen applies only to WHERE clauses.
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/end-conversation-transact-sql
  * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/statements
  */
 const MSSQL_STATEMENT_PHRASES: readonly RegExp[] = [
@@ -309,6 +329,8 @@ const MSSQL_STATEMENT_PHRASES: readonly RegExp[] = [
   /\bclose\s+(?:all\s+symmetric\s+keys|master\s+key|symmetric\s+key)\b/i,
   /\badd\s+signature\b/i,
   /\braiserror[\s\S]*?\bwith\s+log\b/i,
+  /\b(?:end|move|get)\s+conversation\b/i,
+  /\bsend\s+on\s+conversation\b/i,
 ]
 
 /** Matches the first screened statement phrase, or `null`. */

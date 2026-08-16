@@ -56,6 +56,73 @@ export function buildGraphCollectionUrl(
 }
 
 /**
+ * `$filter` targets Microsoft Graph documents as working **only without** advanced query
+ * parameters — the `checkmark-circle-green` legend entry on the advanced-queries page reads
+ * "The `$filter` operator only works without advanced query parameters."
+ *
+ * Sending `$count=true` with `ConsistencyLevel: eventual` alongside one of these fails the
+ * request, so the advanced-query pair has to be opt-out rather than unconditional. The common
+ * case — an advanced operator (`ne`, `not`, `endsWith`, `startsWith`) on an ordinary property —
+ * still gets the pair, because that is the far more frequent 400.
+ * @see https://learn.microsoft.com/en-us/graph/aad-advanced-queries
+ */
+const GRAPH_ADVANCED_QUERY_INCOMPATIBLE_FILTER =
+  /\b(?:hasMembersWithLicenseErrors|isLicenseReconciliationNeeded)\b|\bidentities\s*\/\s*any\b/i
+
+/** Decodes a URL for pattern matching, tolerating a malformed escape sequence. */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Decides whether a Graph collection request should carry the advanced-query pair —
+ * `$count=true` plus a `ConsistencyLevel: eventual` header.
+ *
+ * `$search` always requires it. A `$filter` requires it for advanced operators, except on the
+ * properties in {@link GRAPH_ADVANCED_QUERY_INCOMPATIBLE_FILTER}, which it breaks. A plain
+ * request needs neither, which also keeps these tools working in Azure AD B2C tenants, where
+ * Graph documents advanced query capabilities as unsupported outright.
+ *
+ * When continuing from a `nextLink`, the answer is read off the link itself: Graph echoes
+ * `$count`/`$search` into the continuation URL, so the follow-up page is advanced exactly when
+ * the first page was, regardless of what the filter subBlock still holds.
+ * @see https://learn.microsoft.com/en-us/graph/aad-advanced-queries
+ */
+export function usesGraphAdvancedQuery(params: {
+  nextLink?: string
+  filter?: string
+  search?: string
+}): boolean {
+  if (params.nextLink) {
+    return /[?&]\$(?:count=true|search=)/i.test(safeDecode(params.nextLink))
+  }
+  if (params.search?.trim()) return true
+  const filter = params.filter?.trim()
+  if (!filter) return false
+  return !GRAPH_ADVANCED_QUERY_INCOMPATIBLE_FILTER.test(filter)
+}
+
+/**
+ * Builds the Graph collection request headers, adding `ConsistencyLevel: eventual` only when
+ * {@link usesGraphAdvancedQuery} says the request carries the advanced-query pair.
+ */
+export function graphCollectionHeaders(params: {
+  accessToken: string
+  nextLink?: string
+  filter?: string
+  search?: string
+}): Record<string, string> {
+  return {
+    Authorization: `Bearer ${params.accessToken}`,
+    ...(usesGraphAdvancedQuery(params) ? { ConsistencyLevel: 'eventual' } : {}),
+  }
+}
+
+/**
  * Validates an `@odata.nextLink` and asserts it continues the collection the caller is querying.
  *
  * Every paged operation reads the one shared Next Page field, and a subBlock keeps its value
