@@ -231,27 +231,19 @@ export interface ServiceNowGetChangeNextStatesParams extends ServiceNowAuthParam
   changeSysId: string
 }
 
-export interface ServiceNowChangeTransitionCondition {
-  passed?: boolean
-  condition?: { name?: string; description?: string | null; sys_id?: string }
-}
-
-export interface ServiceNowChangeStateTransition {
-  sys_id?: string
-  display_value?: string
-  from_state?: string
-  to_state?: string
-  transition_available?: boolean
-  automatic_transition?: boolean
-  conditions?: ServiceNowChangeTransitionCondition[]
-}
-
 export interface ServiceNowGetChangeNextStatesResponse extends ToolResponse {
   output: {
     availableStates: string[]
     allowedStates: string[]
     stateLabels: Record<string, string>
-    stateTransitions: ServiceNowChangeStateTransition[]
+    /**
+     * Transitions are passed through verbatim once flattened. The Change
+     * Management API documents each as `{ sys_id, display_value, from_state,
+     * to_state, transition_available, automatic_transition, conditions[] }`, but
+     * only the outer object shape is verified at runtime, so the type stays as
+     * the raw record it actually is.
+     */
+    stateTransitions: ServiceNowRecord[]
     metadata: {
       transitionCount: number
     }
@@ -384,20 +376,15 @@ export interface ServiceNowSearchKnowledgeParams extends ServiceNowAuthParams {
   offset?: number
 }
 
-export interface ServiceNowKnowledgeArticleSummary {
-  id?: string
-  number?: string
-  title?: string
-  snippet?: string
-  link?: string
-  score?: number
-  rank?: number
-  fields?: Record<string, unknown>
-}
-
 export interface ServiceNowSearchKnowledgeResponse extends ToolResponse {
   output: {
-    articles: ServiceNowKnowledgeArticleSummary[]
+    /**
+     * Articles are passed through verbatim. The Knowledge Management API
+     * documents each as `{ id, number, title, snippet, link, score, rank,
+     * fields }`, but only the outer object shape is verified at runtime, so the
+     * type stays as the raw record it actually is.
+     */
+    articles: ServiceNowRecord[]
     metadata: {
       recordCount: number
       totalCount: number | null

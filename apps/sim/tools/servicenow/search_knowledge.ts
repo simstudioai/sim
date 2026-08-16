@@ -1,6 +1,5 @@
 import { authParams } from '@/tools/servicenow/params'
 import type {
-  ServiceNowKnowledgeArticleSummary,
   ServiceNowSearchKnowledgeParams,
   ServiceNowSearchKnowledgeResponse,
 } from '@/tools/servicenow/types'
@@ -9,6 +8,7 @@ import {
   normalizeInstanceUrl,
   parseServiceNowResponse,
   readNestedNumber,
+  readRecordArray,
   toRecordObject,
   withQueryString,
 } from '@/tools/servicenow/utils'
@@ -100,9 +100,7 @@ export const searchKnowledgeTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await parseServiceNowResponse(response)
     const result = toRecordObject(data.result)
-    const articles: ServiceNowKnowledgeArticleSummary[] = Array.isArray(result.articles)
-      ? result.articles
-      : []
+    const articles = readRecordArray(result, 'articles')
 
     return {
       success: true,

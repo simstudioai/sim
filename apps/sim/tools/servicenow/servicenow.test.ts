@@ -20,6 +20,7 @@ import { getIncidentTool } from '@/tools/servicenow/get_incident'
 import { listAttachmentsTool } from '@/tools/servicenow/list_attachments'
 import { listIncidentsTool } from '@/tools/servicenow/list_incidents'
 import { readRecordTool } from '@/tools/servicenow/read_record'
+import { searchKnowledgeTool } from '@/tools/servicenow/search_knowledge'
 import { updateChangeStateTool } from '@/tools/servicenow/update_change_state'
 import { updateIncidentTool } from '@/tools/servicenow/update_incident'
 import { updateRecordTool } from '@/tools/servicenow/update_record'
@@ -352,6 +353,31 @@ describe('one subBlock id never carries two different value spaces', () => {
     }
   )
 
+  /**
+   * `fields` carries a JSON body on Create/Update Record and a comma-separated
+   * projection everywhere else. The shipped ids keep the original `fields`
+   * subblock, so the split is one-directional: no operation added since can put
+   * a projection where a JSON body is parsed, or a body where a projection goes.
+   */
+  it('never sends a JSON body as a field projection', () => {
+    const merged = mergedParams({
+      operation: 'servicenow_list_incidents',
+      fields: '{"short_description":"x"}',
+      returnFields: 'number,short_description',
+    })
+    expect(merged.fields).toBe('number,short_description')
+  })
+
+  it('never parses a field projection as a create body', () => {
+    const merged = mergedParams({
+      operation: 'servicenow_create_record',
+      tableName: 'incident',
+      fields: '{"short_description":"x"}',
+      returnFields: 'number,short_description',
+    })
+    expect(merged.fields).toEqual({ short_description: 'x' })
+  })
+
   it('leaves the generic Table API operations without a semantic state', () => {
     const merged = mergedParams({
       operation: 'servicenow_read_record',
@@ -425,6 +451,66 @@ describe('coded-value controls stay reachable on a customized instance', () => {
     expect(matches.length).toBeGreaterThan(0)
     const selectOnly = matches.filter((subBlock) => subBlock.type === 'dropdown')
     expect(selectOnly).toEqual([])
+  })
+})
+
+describe('a successful response never yields a non-record where a record is declared', () => {
+  /**
+   * A collection member that is not a plain object would otherwise be cast and
+   * handed to the next block as a record, so the tool reports success while
+   * emitting a value its declared output says cannot occur.
+   */
+  it('drops non-object members of a record collection', async () => {
+    const output = (await listIncidentsTool.transformResponse?.(
+      new Response(JSON.stringify({ result: [{ number: 'INC1' }, null, 'oops', [1], 7] }), {
+        status: 200,
+      }) as never,
+      undefined as never
+    )) as { output: { records: unknown[]; metadata: { recordCount: number } } }
+
+    expect(output.output.records).toEqual([{ number: 'INC1' }])
+    expect(output.output.metadata.recordCount).toBe(1)
+  })
+
+  it('reports no record when a single-record endpoint returns a scalar', async () => {
+    const output = (await getIncidentTool.transformResponse?.(
+      new Response(JSON.stringify({ result: 'not a record' }), { status: 200 }) as never,
+      undefined as never
+    )) as { output: { record: unknown; metadata: { recordCount: number } } }
+
+    expect(output.output.record).toBeNull()
+    expect(output.output.metadata.recordCount).toBe(0)
+  })
+
+  it('drops non-object knowledge articles', async () => {
+    const output = (await searchKnowledgeTool.transformResponse?.(
+      new Response(
+        JSON.stringify({ result: { articles: [{ id: 'kb_knowledge:1' }, null, 'x'], meta: {} } }),
+        { status: 200 }
+      ) as never,
+      undefined as never
+    )) as { output: { articles: unknown[] } }
+
+    expect(output.output.articles).toEqual([{ id: 'kb_knowledge:1' }])
+  })
+
+  it('drops non-object change state transitions', async () => {
+    const output = (await getChangeNextStatesTool.transformResponse?.(
+      new Response(
+        JSON.stringify({
+          result: {
+            available_states: ['0'],
+            state_transitions: [[{ to_state: '0', transition_available: true }, null], ['nope']],
+            state_label: { '0': 'Review' },
+          },
+        }),
+        { status: 200 }
+      ) as never,
+      undefined as never
+    )) as { output: { stateTransitions: unknown[]; allowedStates: string[] } }
+
+    expect(output.output.stateTransitions).toEqual([{ to_state: '0', transition_available: true }])
+    expect(output.output.allowedStates).toEqual(['0'])
   })
 })
 

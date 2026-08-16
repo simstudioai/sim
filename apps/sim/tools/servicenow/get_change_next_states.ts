@@ -1,11 +1,11 @@
 import { authParams } from '@/tools/servicenow/params'
 import type {
-  ServiceNowChangeStateTransition,
   ServiceNowGetChangeNextStatesParams,
   ServiceNowGetChangeNextStatesResponse,
 } from '@/tools/servicenow/types'
 import {
   buildServiceNowHeaders,
+  isRecord,
   normalizeInstanceUrl,
   parseServiceNowResponse,
   toRecordObject,
@@ -63,11 +63,9 @@ export const getChangeNextStatesTool: ToolConfig<
      * array of arrays. Each entry already carries its own `from_state` and
      * `to_state`, so flattening loses nothing and is far easier to consume.
      */
-    const stateTransitions: ServiceNowChangeStateTransition[] = Array.isArray(
-      result.state_transitions
-    )
-      ? result.state_transitions.flat()
-      : []
+    const stateTransitions = (
+      Array.isArray(result.state_transitions) ? result.state_transitions.flat() : []
+    ).filter(isRecord)
 
     const allowedStates = [
       ...new Set(

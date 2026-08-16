@@ -154,9 +154,7 @@ export async function parseServiceNowResponse(response: Response): Promise<Servi
  * callers can read fields without an unchecked cast.
  */
 export function toRecordObject(result: unknown): ServiceNowRecord {
-  return result && typeof result === 'object' && !Array.isArray(result)
-    ? (result as ServiceNowRecord)
-    : {}
+  return isRecord(result) ? result : {}
 }
 
 /**
@@ -176,9 +174,7 @@ export function readString(record: ServiceNowRecord, key: string): string | null
  */
 export function readRecord(record: ServiceNowRecord, key: string): ServiceNowRecord | null {
   const value = record[key]
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as ServiceNowRecord)
-    : null
+  return isRecord(value) ? value : null
 }
 
 /**
@@ -187,11 +183,7 @@ export function readRecord(record: ServiceNowRecord, key: string): ServiceNowRec
  */
 export function readRecordArray(record: ServiceNowRecord, key: string): ServiceNowRecord[] {
   const value = record[key]
-  if (!Array.isArray(value)) return []
-  return value.filter(
-    (entry): entry is ServiceNowRecord =>
-      Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)
-  )
+  return Array.isArray(value) ? value.filter(isRecord) : []
 }
 
 /**
@@ -210,10 +202,20 @@ export function readNestedNumber(
 /**
  * Normalizes the `{ result: ... }` envelope into an array of records. Collection
  * endpoints return an array, single-record endpoints return an object.
+ *
+ * Members that are not plain objects are dropped rather than cast. Every tool
+ * built on this declares an object-shaped `records`/`record` output, so passing
+ * a `null` or a scalar straight through would report success while handing the
+ * next block a value its declared contract says cannot occur.
  */
 export function toRecordArray(result: unknown): ServiceNowRecord[] {
   if (result === null || result === undefined) return []
-  return (Array.isArray(result) ? result : [result]) as ServiceNowRecord[]
+  return (Array.isArray(result) ? result : [result]).filter(isRecord)
+}
+
+/** Narrows an unknown value to a plain (non-array, non-null) object. */
+export function isRecord(value: unknown): value is ServiceNowRecord {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 /**

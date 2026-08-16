@@ -530,10 +530,18 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       title: 'Fields to Return',
       type: 'short-input',
       placeholder: 'number,short_description,priority',
+      condition: { field: 'operation', value: 'servicenow_read_record' },
+      description: 'Comma-separated list of fields',
+      mode: 'advanced',
+    },
+    {
+      id: 'returnFields',
+      title: 'Fields to Return',
+      type: 'short-input',
+      placeholder: 'number,short_description,priority',
       condition: {
         field: 'operation',
         value: [
-          'servicenow_read_record',
           'servicenow_search_knowledge',
           'servicenow_get_knowledge_article',
           ...SEMANTIC_READ_OPS,
@@ -1572,6 +1580,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
         const {
           operation,
           fields,
+          returnFields,
           file,
           attachmentLimit,
           semanticDisplayValue,
@@ -1650,15 +1659,22 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
           return normalizedFile ? { ...rest, file: normalizedFile } : rest
         }
 
-        if (fields) {
-          if (isCreateOrUpdate) {
-            const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
-            return { ...rest, fields: parsedFields }
-          }
-          return { ...rest, fields }
+        /**
+         * `fields` means two different things: a JSON body on Create/Update
+         * Record, and a comma-separated projection everywhere else. The generic
+         * Table API tools keep the original `fields` subblock id, since renaming
+         * it would orphan the stored value of every workflow already using them;
+         * every operation added since reads `returnFields` instead, so a JSON
+         * body can never arrive as a projection or the reverse.
+         */
+        if (isCreateOrUpdate) {
+          if (!fields) return { ...rest, fields: undefined }
+          const parsedFields = typeof fields === 'string' ? JSON.parse(fields) : fields
+          return { ...rest, fields: parsedFields }
         }
 
-        return rest
+        const projection = operation === 'servicenow_read_record' ? fields : returnFields
+        return { ...rest, fields: projection || undefined }
       },
     },
   },
@@ -1709,6 +1725,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     resolutionNotes: { type: 'string', description: 'Incident resolution notes' },
     changeCloseNotes: { type: 'string', description: 'Change request close notes' },
     knowledgeQuery: { type: 'string', description: 'Knowledge article search text' },
+    returnFields: { type: 'string', description: 'Comma-separated fields to return' },
     impact: { type: 'string', description: 'Impact coded value' },
     urgency: { type: 'string', description: 'Urgency coded value' },
     priority: { type: 'string', description: 'Priority coded value' },
