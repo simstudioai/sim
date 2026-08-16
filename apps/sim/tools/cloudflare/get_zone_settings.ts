@@ -30,7 +30,7 @@ export const getZoneSettingsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/settings`,
+    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/settings`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -83,8 +83,7 @@ export const getZoneSettingsTool: ToolConfig<
           },
           value: {
             type: 'string',
-            description:
-              'Setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified (e.g., \'{"css":"on","html":"on","js":"on"}\').',
+            description: `Setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified (e.g., {"css":"on","html":"on","js":"on"}).`,
           },
           editable: {
             type: 'boolean',

@@ -23,7 +23,7 @@ export const getZoneTool: ToolConfig<CloudflareGetZoneParams, CloudflareGetZoneR
   },
 
   request: {
-    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}`,
+    url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
