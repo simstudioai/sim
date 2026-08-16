@@ -10,7 +10,7 @@
  * These tests assert the seeded default reaching each tool for operations whose
  * control is deliberately not last, so re-introducing a collision goes red.
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import * as cloudflareTools from '@/tools/cloudflare'
 
@@ -334,6 +334,43 @@ describe('no hidden advanced control feeds an operation that cannot show it', ()
         if (mapped[subBlock.id] === STALE) {
           leaks.push(
             `"${subBlock.id}" (advanced, shown for ${[...ownOperations].join('/') || 'nothing'}) reaches ${operation} as a param it never renders`
+          )
+        }
+      }
+    }
+
+    expect(leaks).toEqual([])
+  })
+
+  /**
+   * A subBlock can also be hidden by a guard on a field other than `operation`
+   * (purge_cache's targets are hidden once `purge_everything` is yes). An
+   * advanced control serializes on stored value alone, so the serializer never
+   * reaches that guard either — the mapper has to clear it.
+   */
+  it('clears every advanced control whose own guard field hides it', () => {
+    const leaks: string[] = []
+
+    for (const subBlock of CloudflareBlock.subBlocks) {
+      if (subBlock.mode !== 'advanced') continue
+      const guard = (
+        subBlock.condition as { and?: { field: string; value: unknown; not?: boolean } } | undefined
+      )?.and
+      if (!guard || guard.field === 'operation') continue
+
+      const hidingValue = guard.not === true ? String(guard.value) : '__guard_off__'
+
+      for (const operation of conditionOperations(subBlock)) {
+        const tool = toolsByOperation.get(operation)
+        if (!tool?.params || !(subBlock.id in tool.params)) continue
+
+        const mapped = mapFor(operation, {
+          [guard.field]: hidingValue,
+          [subBlock.id]: STALE,
+        })
+        if (mapped[subBlock.id] === STALE) {
+          leaks.push(
+            `"${subBlock.id}" reaches ${operation} when ${guard.field}=${hidingValue} hides it`
           )
         }
       }
@@ -711,6 +748,362 @@ describe('purge cache refuses an ambiguous whole-zone purge', () => {
     const purgeEverything = CloudflareBlock.subBlocks.find((sub) => sub.id === 'purge_everything')
     expect((purgeEverything?.value as () => string)()).toBe('false')
   })
+
+  /**
+   * `tags`, `hosts`, and `prefixes` are advanced, so the serializer emits their
+   * stored value before evaluating the `purge_everything` guard that hides them.
+   * A target typed before switching to a whole-zone purge therefore survived and
+   * made the tool refuse the purge over a field the editor no longer renders.
+   */
+  it('drops targets typed before the switch to a whole-zone purge', () => {
+    const mapped = mapFor('purge_cache', {
+      zoneId: 'z1',
+      purge_everything: 'true',
+      files: 'https://example.com/a.css',
+      tags: 'homepage',
+      hosts: 'example.com',
+      prefixes: 'https://example.com/assets/',
+    })
+
+    expect(mapped.files).toBeUndefined()
+    expect(mapped.tags).toBeUndefined()
+    expect(mapped.hosts).toBeUndefined()
+    expect(mapped.prefixes).toBeUndefined()
+    expect(buildBody(mapped as never)).toEqual({ purge_everything: true })
+  })
+
+  it('still purges the named targets when purge everything is no', () => {
+    const mapped = mapFor('purge_cache', {
+      zoneId: 'z1',
+      purge_everything: 'false',
+      tags: 'homepage',
+    })
+
+    expect(mapped.tags).toBe('homepage')
+    expect(buildBody(mapped as never)).toEqual({ tags: ['homepage'] })
+  })
+})
+
+describe('a rate limiting rule update keeps the fields the endpoint would reset', () => {
+  const updateRule = cloudflareTools.cloudflareUpdateRateLimitRuleTool
+
+  const base = {
+    zoneId: 'z1',
+    rulesetId: 'rs1',
+    ruleId: 'r1',
+    apiKey,
+    action: 'block',
+    expression: 'true',
+    characteristics: 'cf.colo.id,ip.src',
+    period: 60,
+    requestsPerPeriod: 100,
+  }
+
+  /**
+   * The rulesets update-rule endpoint replaces the whole rule definition, so a
+   * custom block response and the reference tag have to be resent or Cloudflare
+   * resets them — the block page comes back and the ref regenerates.
+   */
+  it('forwards the custom mitigation response, reference tag, and logging', () => {
+    const body = updateRule.request.body?.({
+      ...base,
+      ref: 'api-throttle',
+      actionParameters:
+        '{"response":{"status_code":429,"content":"{\\"error\\":\\"rate limited\\"}","content_type":"application/json"}}',
+      logging: '{"enabled":true}',
+    } as never) as Record<string, unknown>
+
+    expect(body.ref).toBe('api-throttle')
+    expect(body.action_parameters).toEqual({
+      response: {
+        status_code: 429,
+        content: '{"error":"rate limited"}',
+        content_type: 'application/json',
+      },
+    })
+    expect(body.logging).toEqual({ enabled: true })
+  })
+
+  it('declares the three fields as tool params so a caller can resend them', () => {
+    expect(updateRule.params.ref).toBeDefined()
+    expect(updateRule.params.actionParameters).toBeDefined()
+    expect(updateRule.params.logging).toBeDefined()
+    expect(updateRule.params.actionParameters.description).toMatch(/resets action_parameters/)
+    expect(updateRule.params.ref.description).toMatch(/omitting it resets/)
+  })
+
+  it('omits them entirely when the caller sends nothing', () => {
+    const body = updateRule.request.body?.(base as never) as Record<string, unknown>
+
+    expect(body).not.toHaveProperty('ref')
+    expect(body).not.toHaveProperty('action_parameters')
+    expect(body).not.toHaveProperty('logging')
+  })
+
+  it('offers all three in the block for the rate limiting update', () => {
+    const shownFor = (id: string) =>
+      CloudflareBlock.subBlocks.flatMap((subBlock) => {
+        if (subBlock.id !== id) return []
+        const condition = subBlock.condition
+        if (!condition || typeof condition !== 'object' || !('field' in condition)) return []
+        if (condition.field !== 'operation') return []
+        const value = condition.value
+        return Array.isArray(value) ? value.map(String) : [String(value)]
+      })
+
+    expect(shownFor('ref')).toContain('update_rate_limit_rule')
+    expect(shownFor('logging')).toContain('update_rate_limit_rule')
+    expect(shownFor('rateLimitActionParameters')).toEqual(['update_rate_limit_rule'])
+  })
+
+  /**
+   * The WAF control named "Action Parameters" holds a managed-ruleset payload,
+   * which is not what a rate limiting rule takes, so the two must stay separate
+   * controls that map onto the same tool param.
+   */
+  it('routes the rate limiting control onto the tool param without sharing the WAF one', () => {
+    expect(
+      mapFor('update_rate_limit_rule', {
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        actionParameters: '{"id":"managed-1"}',
+        rateLimitActionParameters: '{"response":{"status_code":429}}',
+      }).actionParameters
+    ).toBe('{"response":{"status_code":429}}')
+
+    expect(
+      mapFor('update_ruleset_rule', {
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        actionParameters: '{"id":"managed-1"}',
+      }).actionParameters
+    ).toBe('{"id":"managed-1"}')
+  })
+})
+
+describe('zone settings are read through the endpoints Cloudflare still supports', () => {
+  const tool = cloudflareTools.cloudflareGetZoneSettingsTool
+
+  function settingEnvelope(id: string, value: unknown) {
+    return new Response(
+      JSON.stringify({
+        success: true,
+        errors: [],
+        messages: [],
+        result: { id, value, editable: true, modified_on: '2026-01-01T00:00:00Z' },
+      }),
+      { headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * Cloudflare deprecated the batch `GET /zones/{zone_id}/settings` endpoint,
+   * with end of life on 2027-03-31, and directs integrations at the per-setting
+   * endpoint instead.
+   */
+  it('does not declare the deprecated batch settings endpoint', () => {
+    const declaredUrl = tool.request.url({ zoneId: 'z1', apiKey } as never)
+    expect(declaredUrl).not.toMatch(/\/zones\/z1\/settings$/)
+    expect(declaredUrl).toMatch(/\/zones\/z1\/settings\/[a-z0-9_]+$/)
+  })
+
+  it('issues one request per setting against the per-setting endpoint', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (input) => settingEnvelope(String(input).split('/').pop()!, 'on'))
+
+    await tool.directExecution!({ zoneId: 'z1', apiKey, settingIds: 'ssl,http3' } as never)
+
+    expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
+      'https://api.cloudflare.com/client/v4/zones/z1/settings/ssl',
+      'https://api.cloudflare.com/client/v4/zones/z1/settings/http3',
+    ])
+  })
+
+  it('returns each setting under the list shape the block already reads', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) =>
+      settingEnvelope(String(input).split('/').pop()!, 'full')
+    )
+
+    const out = (await tool.directExecution!({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: 'ssl',
+    } as never)) as {
+      success: boolean
+      output: { settings: Array<Record<string, unknown>>; unreadable: unknown[] }
+    }
+
+    expect(out.success).toBe(true)
+    expect(out.output.settings).toEqual([
+      { id: 'ssl', value: 'full', editable: true, modified_on: '2026-01-01T00:00:00Z' },
+    ])
+    expect(out.output.unreadable).toEqual([])
+  })
+
+  /**
+   * A plan-gated setting answers with an error rather than a value, and one
+   * refusal must not lose the settings that did come back.
+   */
+  it('reports a refused setting without dropping the readable ones', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const settingId = String(input).split('/').pop()!
+      if (settingId === 'http3') {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            errors: [{ code: 1006, message: 'Not available for this plan' }],
+          }),
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      return settingEnvelope(settingId, 'full')
+    })
+
+    const out = (await tool.directExecution!({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: 'ssl,http3',
+    } as never)) as {
+      success: boolean
+      output: { settings: Array<{ id: string }>; unreadable: Array<{ id: string; error: string }> }
+    }
+
+    expect(out.success).toBe(true)
+    expect(out.output.settings.map((setting) => setting.id)).toEqual(['ssl'])
+    expect(out.output.unreadable).toEqual([{ id: 'http3', error: 'Not available for this plan' }])
+  })
+
+  it('fails only when nothing at all could be read', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ success: false, errors: [{ message: 'Invalid zone identifier' }] }),
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+    )
+
+    const out = (await tool.directExecution!({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: 'ssl',
+    } as never)) as { success: boolean; error?: string }
+
+    expect(out.success).toBe(false)
+    expect(out.error).toBe('Invalid zone identifier')
+  })
+
+  it('refuses an unbounded fan-out instead of issuing the requests', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+
+    const out = (await tool.directExecution!({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: Array.from({ length: 41 }, (_, index) => `setting_${index}`).join(','),
+    } as never)) as { success: boolean; error?: string }
+
+    expect(out.success).toBe(false)
+    expect(out.error).toMatch(/at most 40/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('the top-level priority field is described the way Cloudflare defines it', () => {
+  /**
+   * Cloudflare accepts the top-level `priority` for MX and URI records and
+   * ignores it for every other type, SRV included — an SRV record carries its
+   * priority inside the record content. Saying "MX and SRV" invites a model to
+   * send a value Cloudflare drops while returning 200.
+   */
+  it.each([
+    ['update_dns_record param', cloudflareTools.cloudflareUpdateDnsRecordTool.params.priority],
+    [
+      'update_dns_record output',
+      cloudflareTools.cloudflareUpdateDnsRecordTool.outputs!.priority as { description: string },
+    ],
+    [
+      'list_dns_records output',
+      (
+        cloudflareTools.cloudflareListDnsRecordsTool.outputs!.records as never as {
+          items: { properties: Record<string, { description: string }> }
+        }
+      ).items.properties.priority,
+    ],
+  ])('%s does not claim SRV uses the top-level priority', (_name, described) => {
+    expect(described.description).not.toMatch(/MX and SRV|MX\/SRV/)
+    expect(described.description).toMatch(/URI/)
+  })
+
+  it('keeps the block placeholder and input description off SRV too', () => {
+    for (const subBlock of CloudflareBlock.subBlocks) {
+      if (subBlock.id !== 'priority') continue
+      expect(subBlock.placeholder).not.toMatch(/MX and SRV|MX\/SRV/)
+    }
+    expect(CloudflareBlock.inputs.priority.description).not.toMatch(/MX and SRV|MX\/SRV/)
+    expect(CloudflareBlock.inputs.priority.description).toMatch(/URI/)
+  })
+})
+
+describe('a blank optional number never reaches a tool as zero', () => {
+  /**
+   * `Number('')` is `0`, and the DNS tools forward `priority`/`ttl` on presence
+   * rather than truthiness — so a truthiness guard turned a blank advanced field
+   * into a TTL of 0 (out of Cloudflare's 30-86400 range) and a priority of 0.
+   */
+  it.each([
+    ['create_dns_record', 'ttl'],
+    ['create_dns_record', 'priority'],
+    ['list_zones', 'page'],
+    ['list_zones', 'per_page'],
+    ['dns_analytics', 'limit'],
+  ])('%s leaves a blank %s undefined rather than 0', (operation, field) => {
+    for (const blank of ['', null]) {
+      const mapped = mapFor(operation, { zoneId: 'z1', accountId: 'a1', [field]: blank })
+      expect(mapped[field], `${operation}.${field} from ${JSON.stringify(blank)}`).toBeUndefined()
+      expect(mapped[field]).not.toBe(0)
+    }
+  })
+
+  /**
+   * The mapper handing on `''` is what produces the `0`: the DNS tools forward
+   * on `!== undefined`, and `Number('')` is `0`. This walks that last step so
+   * the assertion is about the request Cloudflare actually receives.
+   */
+  it.each([
+    ['create_dns_record', cloudflareTools.cloudflareCreateDnsRecordTool],
+    ['update_dns_record', cloudflareTools.cloudflareUpdateDnsRecordTool],
+  ])('%s sends no ttl or priority at all when both are blank', (operation, tool) => {
+    const mapped = mapFor(operation, {
+      zoneId: 'z1',
+      recordId: 'rec1',
+      name: 'mail.example.com',
+      content: 'mx.example.com',
+      recordType: 'MX',
+      updateRecordType: 'MX',
+      ttl: '',
+      priority: '',
+    })
+
+    const body = tool.request.body?.(mapped as never) as Record<string, unknown>
+    expect(body).not.toHaveProperty('ttl')
+    expect(body).not.toHaveProperty('priority')
+    expect(body.ttl).not.toBe(0)
+    expect(body.priority).not.toBe(0)
+  })
+
+  it('still coerces a supplied value to a number', () => {
+    expect(mapFor('create_dns_record', { zoneId: 'z1', ttl: '3600' }).ttl).toBe(3600)
+    expect(mapFor('create_dns_record', { zoneId: 'z1', priority: '10' }).priority).toBe(10)
+    expect(mapFor('list_zones', { page: '2', per_page: '50' })).toMatchObject({
+      page: 2,
+      per_page: 50,
+    })
+  })
 })
 
 describe('list transforms survive a non-array result', () => {
@@ -718,7 +1111,6 @@ describe('list transforms survive a non-array result', () => {
     ['list_zones', cloudflareTools.cloudflareListZonesTool, 'zones'],
     ['list_dns_records', cloudflareTools.cloudflareListDnsRecordsTool, 'records'],
     ['list_certificates', cloudflareTools.cloudflareListCertificatesTool, 'certificates'],
-    ['get_zone_settings', cloudflareTools.cloudflareGetZoneSettingsTool, 'settings'],
   ])('%s returns an empty list rather than throwing', async (_name, tool, key) => {
     // A success:true body whose result is an object (or null) must not throw a
     // raw TypeError out of transformResponse.

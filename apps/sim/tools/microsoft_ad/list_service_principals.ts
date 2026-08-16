@@ -121,12 +121,18 @@ export const listServicePrincipalsTool: ToolConfig<
     servicePrincipals: {
       type: 'array',
       description: 'Service principals in the tenant',
-      properties: {
-        ...SERVICE_PRINCIPAL_OUTPUT_PROPERTIES,
-        appRoles: {
-          type: 'array',
-          description: 'App roles exposed by the associated application',
-          properties: APP_ROLE_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: {
+          ...SERVICE_PRINCIPAL_OUTPUT_PROPERTIES,
+          appRoles: {
+            type: 'array',
+            description: 'App roles exposed by the associated application',
+            items: {
+              type: 'object',
+              properties: APP_ROLE_OUTPUT_PROPERTIES,
+            },
+          },
         },
       },
     },

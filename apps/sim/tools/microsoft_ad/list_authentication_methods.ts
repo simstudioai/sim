@@ -63,7 +63,10 @@ export const listAuthenticationMethodsTool: ToolConfig<
     methods: {
       type: 'array',
       description: 'Authentication methods registered by the user',
-      properties: AUTHENTICATION_METHOD_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: AUTHENTICATION_METHOD_OUTPUT_PROPERTIES,
+      },
     },
     methodCount: { type: 'number', description: 'Number of authentication methods returned' },
   },

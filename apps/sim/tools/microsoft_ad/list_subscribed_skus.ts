@@ -67,7 +67,10 @@ export const listSubscribedSkusTool: ToolConfig<
     skus: {
       type: 'array',
       description: 'Subscription SKUs owned by the tenant',
-      properties: SUBSCRIBED_SKU_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: SUBSCRIBED_SKU_OUTPUT_PROPERTIES,
+      },
     },
     skuCount: { type: 'number', description: 'Number of SKUs returned' },
   },

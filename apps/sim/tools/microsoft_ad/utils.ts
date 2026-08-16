@@ -146,6 +146,67 @@ export function assertGraphNextPageUrlForCollection(
   return url.toString()
 }
 
+/**
+ * Canonical 8-4-4-4-12 form of an `Edm.Guid`, which is what Microsoft Graph object IDs are.
+ * Graph accepts either an object ID or a userPrincipalName in a `/users/{id}` path segment, but
+ * body properties typed `Edm.Guid` — `appRoleAssignment.principalId` among them — accept only
+ * the object ID.
+ * @see https://learn.microsoft.com/en-us/graph/api/resources/approleassignment
+ */
+const GRAPH_OBJECT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Whether a user-supplied identifier is already a Graph object ID rather than a UPN. */
+export function isGraphObjectId(value: string): boolean {
+  return GRAPH_OBJECT_ID_PATTERN.test(value.trim())
+}
+
+/** Extracts the message Microsoft Graph nests under `error.message` in its failure bodies. */
+export function extractGraphErrorMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === 'object' && 'error' in body) {
+    const error = (body as { error?: unknown }).error
+    if (
+      error &&
+      typeof error === 'object' &&
+      typeof (error as { message?: unknown }).message === 'string'
+    ) {
+      return (error as { message: string }).message
+    }
+  }
+  return fallback
+}
+
+/**
+ * Resolves a user identifier to its Graph object ID.
+ *
+ * Returns the input unchanged when it is already an object ID, so the extra round trip is paid
+ * only by callers who supplied a userPrincipalName.
+ */
+export async function resolveGraphUserObjectId(
+  userId: string,
+  accessToken: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const identifier = userId.trim()
+  if (isGraphObjectId(identifier)) return identifier
+
+  const response = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(identifier)}?$select=id`,
+    { headers: { Authorization: `Bearer ${accessToken}` }, signal }
+  )
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(
+      extractGraphErrorMessage(body, `Failed to resolve user "${identifier}" to an object ID`)
+    )
+  }
+
+  const objectId = typeof body?.id === 'string' ? body.id : ''
+  if (!objectId) {
+    throw new Error(`Microsoft Graph returned no object ID for user "${identifier}"`)
+  }
+  return objectId
+}
+
 /** The `device` properties the Microsoft Entra ID tools project into their outputs. */
 export const DEVICE_SELECT =
   'id,deviceId,displayName,operatingSystem,operatingSystemVersion,accountEnabled,isCompliant,isManaged,trustType,profileType,manufacturer,model,approximateLastSignInDateTime,registrationDateTime'

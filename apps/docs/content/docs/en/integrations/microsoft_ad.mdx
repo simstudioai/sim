@@ -55,6 +55,17 @@ List users in Azure AD (Microsoft Entra ID)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `users` | array | List of users |
+|   ↳ `id` | string | User ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `givenName` | string | First name |
+|   ↳ `surname` | string | Last name |
+|   ↳ `userPrincipalName` | string | User principal name \(email\) |
+|   ↳ `mail` | string | Email address |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `department` | string | Department |
+|   ↳ `officeLocation` | string | Office location |
+|   ↳ `mobilePhone` | string | Mobile phone number |
+|   ↳ `accountEnabled` | boolean | Whether the account is enabled |
 | `userCount` | number | Number of users returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -182,6 +193,16 @@ List groups in Azure AD (Microsoft Entra ID)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `groups` | array | List of groups |
+|   ↳ `id` | string | Group ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Group description |
+|   ↳ `mail` | string | Email address |
+|   ↳ `mailEnabled` | boolean | Whether mail is enabled |
+|   ↳ `mailNickname` | string | Mail nickname |
+|   ↳ `securityEnabled` | boolean | Whether security is enabled |
+|   ↳ `groupTypes` | array | Group types |
+|   ↳ `visibility` | string | Group visibility |
+|   ↳ `createdDateTime` | string | Creation date |
 | `groupCount` | number | Number of groups returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -298,6 +319,10 @@ List members of a group in Azure AD (Microsoft Entra ID)
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | List of group members |
+|   ↳ `id` | string | Member ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `mail` | string | Email address |
+|   ↳ `odataType` | string | Directory object type |
 | `memberCount` | number | Number of members returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -360,6 +385,8 @@ Add or remove subscription licenses (SKUs) on a user in Microsoft Entra ID. Remo
 | `displayName` | string | Display name of the user |
 | `userPrincipalName` | string | User principal name of the user |
 | `assignedLicenses` | array | Licenses assigned to the user after the change |
+|   ↳ `skuId` | string | SKU ID of the assigned license |
+|   ↳ `disabledPlans` | array | Service plan IDs disabled on this license |
 
 ### List Microsoft Entra ID User Licenses
 
@@ -376,6 +403,14 @@ List the subscription licenses assigned to a user in Microsoft Entra ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `licenses` | array | Licenses assigned to the user |
+|   ↳ `id` | string | License detail ID |
+|   ↳ `skuId` | string | SKU ID of the license |
+|   ↳ `skuPartNumber` | string | SKU part number \(e.g., "ENTERPRISEPACK"\) |
+|   ↳ `servicePlans` | array | Service plans included in the license |
+|     ↳ `servicePlanId` | string | Service plan ID |
+|     ↳ `servicePlanName` | string | Service plan name |
+|     ↳ `provisioningStatus` | string | Provisioning status of the service plan |
+|     ↳ `appliesTo` | string | Whether the plan applies to "User" or "Company" |
 | `licenseCount` | number | Number of licenses returned |
 
 ### List Microsoft Entra ID Subscribed SKUs
@@ -392,6 +427,22 @@ List the subscription SKUs the tenant owns, including how many license units are
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `skus` | array | Subscription SKUs owned by the tenant |
+|   ↳ `id` | string | Subscribed SKU object ID |
+|   ↳ `skuId` | string | SKU ID, used when assigning or removing licenses |
+|   ↳ `skuPartNumber` | string | SKU part number \(e.g., "ENTERPRISEPACK"\) |
+|   ↳ `appliesTo` | string | Whether the SKU applies to "User" or "Company" |
+|   ↳ `capabilityStatus` | string | Capability status of the subscription |
+|   ↳ `consumedUnits` | number | Number of licenses currently assigned |
+|   ↳ `prepaidUnits` | object | Prepaid license unit counts by status |
+|     ↳ `enabled` | number | Number of units that are enabled |
+|     ↳ `suspended` | number | Number of units that are suspended |
+|     ↳ `warning` | number | Number of units that are in warning status |
+|     ↳ `lockedOut` | number | Number of units that are locked out |
+|   ↳ `servicePlans` | array | Service plans included in the SKU |
+|     ↳ `servicePlanId` | string | Service plan ID |
+|     ↳ `servicePlanName` | string | Service plan name |
+|     ↳ `provisioningStatus` | string | Provisioning status of the service plan |
+|     ↳ `appliesTo` | string | Whether the plan applies to "User" or "Company" |
 | `skuCount` | number | Number of SKUs returned |
 
 ### Revoke Microsoft Entra ID Sign-In Sessions
@@ -467,6 +518,9 @@ List the authentication methods a user has registered, such as passwords, phone 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `methods` | array | Authentication methods registered by the user |
+|   ↳ `id` | string | Authentication method ID |
+|   ↳ `odataType` | string | Authentication method type \(e.g., "#microsoft.graph.phoneAuthenticationMethod"\). Method-specific details vary by type. |
+|   ↳ `createdDateTime` | string | When the authentication method was registered |
 | `methodCount` | number | Number of authentication methods returned |
 
 ### List Microsoft Entra ID Sign-Ins
@@ -486,6 +540,34 @@ List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requ
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `signIns` | array | Sign-in events |
+|   ↳ `id` | string | Sign-in event ID |
+|   ↳ `createdDateTime` | string | When the sign-in was initiated |
+|   ↳ `userId` | string | ID of the user who signed in |
+|   ↳ `userDisplayName` | string | Display name of the user |
+|   ↳ `userPrincipalName` | string | User principal name of the user |
+|   ↳ `appId` | string | ID of the application used to sign in |
+|   ↳ `appDisplayName` | string | Display name of the application |
+|   ↳ `resourceId` | string | ID of the resource that was accessed |
+|   ↳ `resourceDisplayName` | string | Display name of the resource |
+|   ↳ `ipAddress` | string | IP address the sign-in came from |
+|   ↳ `clientAppUsed` | string | Legacy client app used to sign in |
+|   ↳ `correlationId` | string | Correlation ID for the sign-in request |
+|   ↳ `conditionalAccessStatus` | string | Conditional access result: success, failure, notApplied, or unknownFutureValue |
+|   ↳ `isInteractive` | boolean | Whether the sign-in was interactive |
+|   ↳ `riskDetail` | string | Reason behind a specific risk state |
+|   ↳ `riskLevelAggregated` | string | Aggregated risk level for the sign-in |
+|   ↳ `riskState` | string | Risk state of the user or sign-in |
+|   ↳ `errorCode` | number | Sign-in status error code. 0 indicates a successful sign-in. |
+|   ↳ `failureReason` | string | Failure reason from the sign-in status |
+|   ↳ `deviceDisplayName` | string | Display name of the device used |
+|   ↳ `deviceId` | string | ID of the device used |
+|   ↳ `deviceOperatingSystem` | string | Operating system of the device used |
+|   ↳ `deviceBrowser` | string | Browser used to sign in |
+|   ↳ `deviceIsCompliant` | boolean | Whether the device is compliant |
+|   ↳ `deviceIsManaged` | boolean | Whether the device is managed |
+|   ↳ `locationCity` | string | City the sign-in came from |
+|   ↳ `locationState` | string | State the sign-in came from |
+|   ↳ `locationCountryOrRegion` | string | Two-letter country or region code the sign-in came from |
 | `signInCount` | number | Number of sign-ins returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -506,6 +588,25 @@ List directory audit records showing who changed what in Microsoft Entra ID, suc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `audits` | array | Directory audit records |
+|   ↳ `id` | string | Audit record ID |
+|   ↳ `activityDateTime` | string | When the activity took place |
+|   ↳ `activityDisplayName` | string | Name of the activity |
+|   ↳ `category` | string | Category of the activity |
+|   ↳ `correlationId` | string | Correlation ID for the activity |
+|   ↳ `loggedByService` | string | Service that logged the activity |
+|   ↳ `operationType` | string | Operation type \(e.g., Add, Update, Delete\) |
+|   ↳ `result` | string | Result of the activity: success, failure, timeout, or unknownFutureValue |
+|   ↳ `resultReason` | string | Reason for the result |
+|   ↳ `initiatedByUserId` | string | ID of the user who initiated the activity |
+|   ↳ `initiatedByUserPrincipalName` | string | User principal name of the initiating user |
+|   ↳ `initiatedByUserDisplayName` | string | Display name of the initiating user |
+|   ↳ `initiatedByAppId` | string | App ID that initiated the activity |
+|   ↳ `initiatedByAppDisplayName` | string | Display name of the app that initiated the activity |
+|   ↳ `targetResources` | array | Resources the activity acted on |
+|     ↳ `id` | string | ID of the target resource |
+|     ↳ `displayName` | string | Display name of the target resource |
+|     ↳ `type` | string | Type of the target resource \(e.g., User, Group\) |
+|     ↳ `userPrincipalName` | string | User principal name of the target, null for non-user resources |
 | `auditCount` | number | Number of audit records returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -527,6 +628,14 @@ List the application role assignments granted to a user, including assignments t
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `assignments` | array | App role assignments granted to the user |
+|   ↳ `id` | string | App role assignment ID, used when removing the assignment |
+|   ↳ `appRoleId` | string | ID of the app role. All-zero GUID means the assignment grants access without a specific role. |
+|   ↳ `createdDateTime` | string | When the assignment was created |
+|   ↳ `principalId` | string | ID of the assigned principal |
+|   ↳ `principalDisplayName` | string | Display name of the assigned principal |
+|   ↳ `principalType` | string | Principal type: User, Group, or ServicePrincipal |
+|   ↳ `resourceId` | string | ID of the resource service principal that defines the app role |
+|   ↳ `resourceDisplayName` | string | Display name of the resource |
 | `assignmentCount` | number | Number of assignments returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -538,7 +647,7 @@ Grant a user an application role on a service principal, giving them access to t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | User ID or user principal name to grant the app role to |
+| `userId` | string | Yes | Object ID or user principal name of the user to grant the app role to. A user principal name is resolved to its object ID before the grant. |
 | `resourceId` | string | Yes | Object ID of the resource service principal that defines the app role. Use List Service Principals to find it. |
 | `appRoleId` | string | Yes | ID of the app role to grant. Use the all-zero GUID 00000000-0000-0000-0000-000000000000 to assign access without a specific role. |
 
@@ -593,6 +702,21 @@ List the enterprise applications and service principals in the tenant, including
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `servicePrincipals` | array | Service principals in the tenant |
+|   ↳ `id` | string | Service principal object ID, used as the resource ID of an app role assignment |
+|   ↳ `appId` | string | Application ID associated with the service principal |
+|   ↳ `displayName` | string | Display name of the service principal |
+|   ↳ `servicePrincipalType` | string | Type of service principal \(e.g., Application, ManagedIdentity, Legacy\) |
+|   ↳ `accountEnabled` | boolean | Whether users can sign in to the associated application |
+|   ↳ `appOwnerOrganizationId` | string | Tenant ID where the application is registered |
+|   ↳ `signInAudience` | string | Which Microsoft accounts are supported by the associated application |
+|   ↳ `tags` | array | Custom strings used to categorize the service principal |
+|   ↳ `appRoles` | array | App roles exposed by the associated application |
+|     ↳ `id` | string | App role ID, used when granting an app role assignment |
+|     ↳ `displayName` | string | Display name of the app role |
+|     ↳ `description` | string | Description of the app role |
+|     ↳ `value` | string | Value included in the roles claim for this app role |
+|     ↳ `isEnabled` | boolean | Whether the app role can be assigned |
+|     ↳ `allowedMemberTypes` | array | Principal types the app role can be assigned to \(User and/or Application\) |
 | `servicePrincipalCount` | number | Number of service principals returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -613,6 +737,14 @@ List every user, group, and service principal assigned to an application, by rea
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `assignments` | array | Principals assigned to the application |
+|   ↳ `id` | string | App role assignment ID, used when removing the assignment |
+|   ↳ `appRoleId` | string | ID of the app role. All-zero GUID means the assignment grants access without a specific role. |
+|   ↳ `createdDateTime` | string | When the assignment was created |
+|   ↳ `principalId` | string | ID of the assigned principal |
+|   ↳ `principalDisplayName` | string | Display name of the assigned principal |
+|   ↳ `principalType` | string | Principal type: User, Group, or ServicePrincipal |
+|   ↳ `resourceId` | string | ID of the resource service principal that defines the app role |
+|   ↳ `resourceDisplayName` | string | Display name of the resource |
 | `assignmentCount` | number | Number of assignments returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -630,6 +762,10 @@ List the administrator roles that are activated in the tenant, such as Global Ad
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `roles` | array | Activated directory roles |
+|   ↳ `id` | string | Directory role object ID |
+|   ↳ `displayName` | string | Display name of the directory role |
+|   ↳ `description` | string | Description of the directory role |
+|   ↳ `roleTemplateId` | string | ID of the directory role template |
 | `roleCount` | number | Number of directory roles returned |
 
 ### List Microsoft Entra ID Directory Role Members
@@ -647,6 +783,10 @@ List the principals holding an administrator role. Returns up to 1000 members; t
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `members` | array | Principals holding the directory role |
+|   ↳ `id` | string | Member ID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `mail` | string | Email address |
+|   ↳ `odataType` | string | Directory object type |
 | `memberCount` | number | Number of members returned |
 
 ### Add Microsoft Entra ID Directory Role Member
@@ -705,6 +845,20 @@ List the devices registered in Microsoft Entra ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `devices` | array | Registered devices |
+|   ↳ `id` | string | Device object ID, used to get, update, or delete the device |
+|   ↳ `deviceId` | string | Unique device identifier set during registration |
+|   ↳ `displayName` | string | Display name of the device |
+|   ↳ `operatingSystem` | string | Operating system of the device |
+|   ↳ `operatingSystemVersion` | string | Operating system version of the device |
+|   ↳ `accountEnabled` | boolean | Whether the device is enabled |
+|   ↳ `isCompliant` | boolean | Whether the device complies with MDM policies |
+|   ↳ `isManaged` | boolean | Whether the device is managed by an MDM app |
+|   ↳ `trustType` | string | Device registration type: Workplace, AzureAd, or ServerAd |
+|   ↳ `profileType` | string | Device profile type: RegisteredDevice, SecureVM, Printer, Shared, or IoT |
+|   ↳ `manufacturer` | string | Manufacturer of the device |
+|   ↳ `model` | string | Model of the device |
+|   ↳ `approximateLastSignInDateTime` | string | Approximate time the device last signed in |
+|   ↳ `registrationDateTime` | string | When the device was registered |
 | `deviceCount` | number | Number of devices returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -756,6 +910,20 @@ List the devices a user has registered or owns. Devices the caller cannot read a
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `devices` | array | Devices linked to the user |
+|   ↳ `id` | string | Device object ID, used to get, update, or delete the device |
+|   ↳ `deviceId` | string | Unique device identifier set during registration |
+|   ↳ `displayName` | string | Display name of the device |
+|   ↳ `operatingSystem` | string | Operating system of the device |
+|   ↳ `operatingSystemVersion` | string | Operating system version of the device |
+|   ↳ `accountEnabled` | boolean | Whether the device is enabled |
+|   ↳ `isCompliant` | boolean | Whether the device complies with MDM policies |
+|   ↳ `isManaged` | boolean | Whether the device is managed by an MDM app |
+|   ↳ `trustType` | string | Device registration type: Workplace, AzureAd, or ServerAd |
+|   ↳ `profileType` | string | Device profile type: RegisteredDevice, SecureVM, Printer, Shared, or IoT |
+|   ↳ `manufacturer` | string | Manufacturer of the device |
+|   ↳ `model` | string | Model of the device |
+|   ↳ `approximateLastSignInDateTime` | string | Approximate time the device last signed in |
+|   ↳ `registrationDateTime` | string | When the device was registered |
 | `deviceCount` | number | Number of devices returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 
@@ -776,6 +944,15 @@ List the conditional access policies configured in the tenant, including their s
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `policies` | array | Conditional access policies |
+|   ↳ `id` | string | Conditional access policy ID |
+|   ↳ `displayName` | string | Display name of the policy |
+|   ↳ `state` | string | Policy state: enabled, disabled, or enabledForReportingButNotEnforced |
+|   ↳ `templateId` | string | ID of the template the policy was created from |
+|   ↳ `createdDateTime` | string | When the policy was created |
+|   ↳ `modifiedDateTime` | string | When the policy was last modified |
+|   ↳ `conditions` | json | Conditions that trigger the policy \(users, applications, platforms, locations, risk levels\) |
+|   ↳ `grantControls` | json | Controls enforced when the policy applies, or null when none are configured |
+|   ↳ `sessionControls` | json | Session controls enforced when the policy applies, or null when none are set |
 | `policyCount` | number | Number of policies returned |
 | `nextLink` | string | Continuation URL for the next page of results, or null if there are no more |
 

@@ -5,7 +5,7 @@ import type {
   OktaAssignUserRoleResponse,
   OktaRoleAssignment,
 } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaAssignUserRole')
@@ -74,7 +74,7 @@ export const oktaAssignUserRoleTool: ToolConfig<
       const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/roles`
       return params.disableNotifications === undefined
         ? base
-        : `${base}?disableNotifications=${params.disableNotifications}`
+        : `${base}?disableNotifications=${isOktaFlagEnabled(params.disableNotifications)}`
     },
     method: 'POST',
     headers: (params) => oktaHeaders(params.apiKey),

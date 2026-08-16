@@ -115,7 +115,10 @@ export const listSignInsTool: ToolConfig<
     signIns: {
       type: 'array',
       description: 'Sign-in events',
-      properties: SIGN_IN_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: SIGN_IN_OUTPUT_PROPERTIES,
+      },
     },
     signInCount: { type: 'number', description: 'Number of sign-ins returned' },
     nextLink: {

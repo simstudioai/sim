@@ -101,7 +101,10 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
     users: {
       type: 'array',
       description: 'List of users',
-      properties: USER_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: USER_OUTPUT_PROPERTIES,
+      },
     },
     userCount: { type: 'number', description: 'Number of users returned' },
     nextLink: {

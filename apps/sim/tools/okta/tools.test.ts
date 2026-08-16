@@ -4,6 +4,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OktaBlock } from '@/blocks/blocks/okta'
 import { oktaActivateUserTool } from '@/tools/okta/activate_user'
+import { oktaAssignUserRoleTool } from '@/tools/okta/assign_user_role'
 import { oktaClearUserSessionsTool } from '@/tools/okta/clear_user_sessions'
 import { oktaCreateUserTool } from '@/tools/okta/create_user'
 import { oktaDeactivateUserTool } from '@/tools/okta/deactivate_user'
@@ -390,6 +391,12 @@ describe('okta query-string flags are coerced rather than interpolated raw', () 
       build: (params) => builtUrl(oktaListAppsTool.request.url, params),
       param: 'includeNonDeleted',
       base: { ...AUTH },
+    },
+    {
+      name: 'assign_user_role.disableNotifications',
+      build: (params) => builtUrl(oktaAssignUserRoleTool.request.url, params),
+      param: 'disableNotifications',
+      base: { ...AUTH, userId: '00u1', roleType: 'USER_ADMIN' },
     },
   ]
 

@@ -196,6 +196,49 @@ describe('CrowdStrike block params', () => {
     expect(ids).toContain('detection_unsuppress')
   })
 
+  /**
+   * CrowdStrike declares `include_hidden` with `"default": true` on every alert
+   * endpoint this switch feeds, so omitting the parameter still returns hidden
+   * alerts. A switch that renders off while the wire behaves as on tells the
+   * analyst the opposite of what Falcon does.
+   */
+  it('seeds the hidden-alert switch on, matching the CrowdStrike default', () => {
+    const includeHidden = CrowdStrikeBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'includeHidden'
+    )
+
+    expect(includeHidden?.value?.({})).toBe('true')
+  })
+
+  it.each([
+    ['crowdstrike_query_alerts', {}],
+    ['crowdstrike_get_alert_details', { compositeIds: '["cid:aid:alert"]' }],
+    ['crowdstrike_update_alerts', { compositeIds: '["cid:aid:alert"]', updateStatus: 'closed' }],
+  ])('sends the seeded hidden-alert switch as an explicit true for %s', (operation, extra) => {
+    const includeHidden = CrowdStrikeBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'includeHidden'
+    )
+
+    const merged = merge({
+      ...credentials,
+      ...extra,
+      operation,
+      includeHidden: includeHidden?.value?.({}),
+    })
+
+    expect(merged.includeHidden).toBe(true)
+  })
+
+  it('still sends false when the analyst turns the hidden-alert switch off', () => {
+    const merged = merge({
+      ...credentials,
+      operation: 'crowdstrike_query_alerts',
+      includeHidden: false,
+    })
+
+    expect(merged.includeHidden).toBe(false)
+  })
+
   it('keeps every tool description inside the docs generator id-search window', () => {
     const toolsDir = path.join(__dirname, '../../tools/crowdstrike')
     const offenders: string[] = []

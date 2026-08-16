@@ -93,7 +93,10 @@ export const listDevicesTool: ToolConfig<
     devices: {
       type: 'array',
       description: 'Registered devices',
-      properties: DEVICE_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: DEVICE_OUTPUT_PROPERTIES,
+      },
     },
     deviceCount: { type: 'number', description: 'Number of devices returned' },
     nextLink: {

@@ -62,7 +62,8 @@ export const listParams: ServiceNowParams = {
     type: 'number',
     required: false,
     visibility: 'user-or-llm',
-    description: 'Maximum number of records to return (sysparm_limit).',
+    description:
+      'Maximum number of records to return (sysparm_limit). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read.',
   },
   offset: {
     type: 'number',

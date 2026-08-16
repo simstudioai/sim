@@ -404,9 +404,18 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
       mode: 'advanced',
     },
     {
+      /**
+       * CrowdStrike declares `include_hidden` with a default of `true` on all
+       * three alert endpoints this switch feeds (`GET /alerts/queries/alerts/v2`,
+       * `POST /alerts/entities/alerts/v2`, `PATCH /alerts/entities/alerts/v3`).
+       * An untouched switch omits the parameter, so Falcon returns hidden alerts
+       * either way — seeding `true` makes the rendered state match the wire
+       * instead of showing off while hidden alerts come back.
+       */
       id: 'includeHidden',
       title: 'Include Hidden Alerts',
       type: 'switch',
+      value: () => 'true',
       condition: {
         field: 'operation',
         value: [

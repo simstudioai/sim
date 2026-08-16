@@ -514,6 +514,8 @@ Output: {"short_description": "Network outage", "description": "Network connecti
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: ['servicenow_read_record', ...PAGINATED_OPS] },
+      description:
+        'Maximum number of records to return. Left blank, no limit is sent and the instance applies its own default, which is 10,000 on the Table API operations',
       mode: 'advanced',
     },
     {
@@ -2005,7 +2007,7 @@ export const ServiceNowBlockMeta = {
       description:
         'Find the ServiceNow incidents matching a state, priority, or assignment and summarize them.',
       content:
-        '# Triage Incidents\n\nPull the incidents that need attention and summarize them.\n\n## Steps\n1. Use the List Incidents operation with the filters it exposes — state, priority, assignment group, or an encoded query for anything else. Reserve the generic Read Records operation for tables that have no semantic operation of their own.\n2. Set a limit that matches what you will actually read; the default is small on purpose.\n3. Keep the display-value setting at "all" so reference fields come back with both their sys_id and a human-readable label.\n4. Read a single incident in full with Get Incident once you have picked one out.\n\n## Output\nSummarize the matched incidents by number, short description, state, and priority, and say how many matched.',
+        '# Triage Incidents\n\nPull the incidents that need attention and summarize them.\n\n## Steps\n1. Use the List Incidents operation with the filters it exposes — state, priority, assignment group, or an encoded query for anything else. Reserve the generic Read Records operation for tables that have no semantic operation of their own.\n2. Always set the limit. Nothing sends one for you, and the ServiceNow Table API falls back to its own default of 10,000 records, so an unset limit pulls far more than you will read.\n3. Keep the display-value setting at "all" so reference fields come back with both their sys_id and a human-readable label.\n4. Read a single incident in full with Get Incident once you have picked one out.\n\n## Output\nSummarize the matched incidents by number, short description, state, and priority, and say how many matched.',
     },
     {
       name: 'progress-incident',

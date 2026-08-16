@@ -7,7 +7,7 @@
  * leaking that default onto the generic ones.
  */
 import { describe, expect, it } from 'vitest'
-import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
+import { ServiceNowBlock, ServiceNowBlockMeta } from '@/blocks/blocks/servicenow'
 import * as servicenowTools from '@/tools/servicenow'
 import { aggregateTool } from '@/tools/servicenow/aggregate'
 import {
@@ -987,5 +987,57 @@ describe('a cleared numeric field never reaches the instance as a blank param', 
     const url = urlOf(readRecordTool, { ...auth, tableName: 'incident', offset: '' })
 
     expect(url.searchParams.has('sysparm_offset')).toBe(false)
+  })
+})
+
+describe('the limit guidance matches what the block actually sends', () => {
+  const skills = ServiceNowBlockMeta.skills
+  const triageSkill = skills.find((skill) => skill.name === 'triage-incidents')
+  const limitSubBlock = ServiceNowBlock.subBlocks.find((subBlock) => subBlock.id === 'limit')
+
+  function seededDefaults(): Record<string, unknown> {
+    const seeded: Record<string, unknown> = {}
+    for (const subBlock of ServiceNowBlock.subBlocks) {
+      if (typeof subBlock.value === 'function') {
+        seeded[subBlock.id] = (subBlock.value as (p: Record<string, never>) => unknown)({})
+      }
+    }
+    return seeded
+  }
+
+  /**
+   * Ground truth the guidance below has to agree with: neither the block nor the
+   * tool supplies a limit, so an untouched List Incidents reaches the instance
+   * with no `sysparm_limit` and inherits the Table API default of 10,000 rows.
+   */
+  it('sends no sysparm_limit for an untouched List Incidents block', () => {
+    const inputs = { ...seededDefaults(), ...auth, operation: 'servicenow_list_incidents' }
+    const mapped = (ServiceNowBlock.tools.config?.params?.(inputs as never) ?? {}) as Record<
+      string,
+      unknown
+    >
+    const url = urlOf(listIncidentsTool, { ...inputs, ...mapped })
+
+    expect(url.searchParams.has('sysparm_limit')).toBe(false)
+  })
+
+  it('never tells the agent a small limit is applied for it', () => {
+    const offenders = skills
+      .filter((skill) => /default is small|small (?:by )?default/i.test(skill.content))
+      .map((skill) => skill.name)
+
+    expect(offenders).toEqual([])
+  })
+
+  it('names the real Table API default in the triage skill', () => {
+    expect(triageSkill?.content).toContain('10,000')
+  })
+
+  it('names the real Table API default on the Limit control', () => {
+    expect(limitSubBlock?.description).toContain('10,000')
+  })
+
+  it('names the real Table API default on the tool param the model reads', () => {
+    expect(listIncidentsTool.params.limit?.description).toContain('10,000')
   })
 })

@@ -3947,7 +3947,7 @@
         },
         {
           "name": "Get Zone Settings",
-          "description": "Gets all settings for a zone including SSL mode, caching level, and security settings."
+          "description": "Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to ${DEFAULT_ZONE_SETTING_IDS.join(', ')}."
         },
         {
           "name": "Update Zone Setting",

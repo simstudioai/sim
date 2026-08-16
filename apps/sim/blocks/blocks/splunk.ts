@@ -28,12 +28,16 @@ function toSplunkToggle(value: unknown): boolean | undefined {
  * An untouched subBlock resolves to `null` and an empty one to `''`; both are
  * omissions rather than zeros, so neither may reach `Number()` (which reads both
  * as `0`).
+ *
+ * The key is always written, never skipped. The executor merges this mapper's
+ * return *over* the raw serialized subBlock values, so a key left unwritten keeps
+ * the raw string (`'1,000'`) and forwards the typo to Splunk verbatim — the
+ * opposite of omitting it. Writing `undefined` erases it instead, and both
+ * `buildSplunkFormBody` and `buildSplunkUrl` drop nullish fields from the request.
  */
 function assignSplunkNumber(target: Record<string, unknown>, key: string, value: unknown): void {
-  if (value == null || value === '') return
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return
-  target[key] = parsed
+  const parsed = value == null || value === '' ? Number.NaN : Number(value)
+  target[key] = Number.isFinite(parsed) ? parsed : undefined
 }
 
 export const SplunkBlock: BlockConfig<SplunkResponse> = {

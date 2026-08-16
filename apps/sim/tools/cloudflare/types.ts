@@ -734,6 +734,7 @@ export interface CloudflareDnsAnalyticsResponse extends ToolResponse {
 
 export interface CloudflareGetZoneSettingsParams extends CloudflareBaseParams {
   zoneId: string
+  settingIds?: string
 }
 
 interface CloudflareZoneSetting {
@@ -744,9 +745,25 @@ interface CloudflareZoneSetting {
   time_remaining?: number
 }
 
+/** Raw zone setting payload, as returned by the per-setting endpoint. */
+export interface CloudflareRawZoneSetting {
+  id?: string
+  value?: unknown
+  editable?: boolean
+  modified_on?: string | null
+  time_remaining?: number | null
+}
+
+/** A setting Cloudflare refused, so the caller sees the gap rather than a silent omission. */
+interface CloudflareUnreadableZoneSetting {
+  id: string
+  error: string
+}
+
 export interface CloudflareGetZoneSettingsResponse extends ToolResponse {
   output: {
     settings: CloudflareZoneSetting[]
+    unreadable: CloudflareUnreadableZoneSetting[]
   }
 }
 
@@ -916,6 +933,9 @@ export interface CloudflareUpdateRateLimitRuleParams extends CloudflareBaseParam
   requestsToOrigin?: boolean
   description?: string
   enabled?: boolean
+  ref?: string
+  actionParameters?: string
+  logging?: string
 }
 
 interface CloudflareAccessApplication {

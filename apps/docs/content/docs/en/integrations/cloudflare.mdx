@@ -257,7 +257,7 @@ Lists DNS records for a specific zone.
 |   ↳ `proxied` | boolean | Whether Cloudflare proxy is enabled |
 |   ↳ `ttl` | number | TTL in seconds \(1 = automatic\) |
 |   ↳ `locked` | boolean | Whether the record is locked |
-|   ↳ `priority` | number | MX/SRV record priority |
+|   ↳ `priority` | number | Record priority, returned for MX and URI records |
 |   ↳ `comment` | string | Comment associated with the record |
 |   ↳ `tags` | array | Tags associated with the record |
 |   ↳ `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
@@ -326,7 +326,7 @@ Updates an existing DNS record for a zone.
 | `content` | string | No | DNS record content \(e.g., IP address\) |
 | `ttl` | number | No | Time to live in seconds \(1 = automatic\) |
 | `proxied` | boolean | No | Whether to enable Cloudflare proxy |
-| `priority` | number | No | Priority for MX and SRV records |
+| `priority` | number | No | Record priority. Cloudflare accepts this top-level field for MX and URI records only; an SRV record carries its priority, weight, port, and target inside the record content instead |
 | `comment` | string | No | Comment for the DNS record |
 | `tags` | string | No | Comma-separated tags for the DNS record |
 | `apiKey` | string | Yes | Cloudflare API Token |
@@ -345,7 +345,7 @@ Updates an existing DNS record for a zone.
 | `proxied` | boolean | Whether Cloudflare proxy is enabled |
 | `ttl` | number | Time to live in seconds \(1 = automatic\) |
 | `locked` | boolean | Whether the record is locked |
-| `priority` | number | Priority for MX and SRV records |
+| `priority` | number | Record priority, returned for MX and URI records |
 | `comment` | string | Comment associated with the record |
 | `tags` | array | Tags associated with the record |
 | `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
@@ -440,25 +440,29 @@ Lists SSL/TLS certificate packs for a zone.
 
 ### Cloudflare Get Zone Settings
 
-Gets all settings for a zone including SSL mode, caching level, and security settings.
+Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to $\{DEFAULT_ZONE_SETTING_IDS.join(', ')\}.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to get settings for |
+| `settingIds` | string | No | Comma-separated setting IDs to read, e.g. "ssl,min_tls_version,security_level". Leave blank to read the default set \($\{DEFAULT_ZONE_SETTING_IDS.join\(', '\)\}\). At most $\{MAX_ZONE_SETTING_IDS\} settings per call. |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `settings` | array | List of zone settings |
+| `settings` | array | The zone settings that were readable |
 |   ↳ `id` | string | Setting identifier \(e.g., ssl, cache_level, security_level, always_use_https\) |
 |   ↳ `value` | string | Setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified \(e.g., \{"css":"on","html":"on","js":"on"\}\). |
 |   ↳ `editable` | boolean | Whether the setting can be modified for the current zone plan |
 |   ↳ `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
 |   ↳ `time_remaining` | number | Development mode countdown, in seconds. Cloudflare documents this only on the zones_development_mode setting, where it is the interval from when development mode expires \(positive\) or last expired \(negative\) |
+| `unreadable` | array | Requested settings Cloudflare refused, typically because the zone plan does not expose them or the setting ID does not exist |
+|   ↳ `id` | string | The requested setting identifier |
+|   ↳ `error` | string | Why Cloudflare would not return the setting |
 
 ### Cloudflare Update Zone Setting
 
@@ -951,6 +955,9 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `requestsToOrigin` | boolean | No | When true, only requests that reach the origin are counted |
 | `description` | string | No | Human-readable description of the rule |
 | `enabled` | boolean | No | Whether the rule is enabled |
+| `ref` | string | No | Reference tag that stays stable across rule updates. Because the update replaces the rule, omitting it resets the tag to the rule ID and breaks anything matching on the old value |
+| `actionParameters` | string | No | JSON object of action-specific parameters for the mitigation action, e.g. \{"response":\{"status_code":429,"content":"\{\\"error\\":\\"rate limited\\"\}","content_type":"application/json"\}\} for a custom block response. Because the update replaces the rule, omitting it resets action_parameters to \{\} and the rule falls back to Cloudflare\'s default block page |
+| `logging` | string | No | JSON logging configuration to preserve, e.g. \{"enabled":true\}. Omitting it on a rule that had logging configured resets it to the default |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output

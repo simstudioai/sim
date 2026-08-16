@@ -98,7 +98,10 @@ export const listUserDevicesTool: ToolConfig<
     devices: {
       type: 'array',
       description: 'Devices linked to the user',
-      properties: DEVICE_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: DEVICE_OUTPUT_PROPERTIES,
+      },
     },
     deviceCount: { type: 'number', description: 'Number of devices returned' },
     nextLink: {

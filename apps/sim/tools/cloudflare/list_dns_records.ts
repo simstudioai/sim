@@ -192,7 +192,11 @@ export const listDnsRecordsTool: ToolConfig<
           proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
           ttl: { type: 'number', description: 'TTL in seconds (1 = automatic)' },
           locked: { type: 'boolean', description: 'Whether the record is locked' },
-          priority: { type: 'number', description: 'MX/SRV record priority', optional: true },
+          priority: {
+            type: 'number',
+            description: 'Record priority, returned for MX and URI records',
+            optional: true,
+          },
           comment: {
             type: 'string',
             description: 'Comment associated with the record',

@@ -354,7 +354,7 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 | `callerId` | string | No | sys_id of the caller. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) incidents. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
@@ -739,7 +739,7 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 | `assignedTo` | string | No | sys_id of the assigned user. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) change requests. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
@@ -1032,7 +1032,7 @@ List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] ta
 | `catalogItemSysId` | string | No | sys_id of the catalog item \(cat_item\) to filter by. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) requested items. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
@@ -1132,7 +1132,7 @@ List approval records from the ServiceNow Approval [sysapproval_approver] table.
 | `state` | string | No | Approval state: "requested" \(pending, the default\), "approved", or "rejected". Pass an empty string with a custom query to list every state. |
 | `approvalFor` | string | No | sys_id of the record being approved, matched against the sysapproval reference field. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
@@ -1234,7 +1234,7 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 | `name` | string | No | Text to match against the CI name using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `operationalStatus` | string | No | Operational status coded value \(operational_status\). The choice list is configured per instance. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
@@ -1316,7 +1316,7 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 | `ciSysId` | string | Yes | sys_id of the configuration item whose relationships should be listed. |
 | `direction` | string | No | Which side of the relationship the CI sits on: "parent", "child", or "both" \(default\). "both" matches rows where the CI is either the parent or the child. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
@@ -1436,7 +1436,7 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 | `name` | string | No | Text to match against the display name using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) users. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
@@ -1487,7 +1487,7 @@ List the members of a ServiceNow group from the Group Member [sys_user_grmember]
 | `groupSysId` | string | No | sys_id of the sys_user_group whose members should be listed. |
 | `groupName` | string | No | Exact group name, resolved against the referenced group record. Provide this or the group sys_id. |
 | `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
-| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). Omitting it sends no limit at all, and the Table API then applies its own default of 10,000 records, so always set it to what you will actually read. |
 | `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
 | `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
 | `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |

@@ -60,7 +60,8 @@ export const updateDnsRecordTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Priority for MX and SRV records',
+      description:
+        'Record priority. Cloudflare accepts this top-level field for MX and URI records only; an SRV record carries its priority, weight, port, and target inside the record content instead',
     },
     comment: {
       type: 'string',
@@ -190,7 +191,11 @@ export const updateDnsRecordTool: ToolConfig<
     proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
     ttl: { type: 'number', description: 'Time to live in seconds (1 = automatic)' },
     locked: { type: 'boolean', description: 'Whether the record is locked' },
-    priority: { type: 'number', description: 'Priority for MX and SRV records', optional: true },
+    priority: {
+      type: 'number',
+      description: 'Record priority, returned for MX and URI records',
+      optional: true,
+    },
     comment: { type: 'string', description: 'Comment associated with the record', optional: true },
     tags: {
       type: 'array',

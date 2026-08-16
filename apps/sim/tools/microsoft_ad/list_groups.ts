@@ -105,7 +105,10 @@ export const listGroupsTool: ToolConfig<
     groups: {
       type: 'array',
       description: 'List of groups',
-      properties: GROUP_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: GROUP_OUTPUT_PROPERTIES,
+      },
     },
     groupCount: { type: 'number', description: 'Number of groups returned' },
     nextLink: {

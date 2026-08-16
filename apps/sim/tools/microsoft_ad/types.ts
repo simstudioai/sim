@@ -287,7 +287,10 @@ export const LICENSE_DETAIL_OUTPUT_PROPERTIES = {
   servicePlans: {
     type: 'array',
     description: 'Service plans included in the license',
-    properties: SERVICE_PLAN_OUTPUT_PROPERTIES,
+    items: {
+      type: 'object',
+      properties: SERVICE_PLAN_OUTPUT_PROPERTIES,
+    },
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -313,7 +316,10 @@ export const SUBSCRIBED_SKU_OUTPUT_PROPERTIES = {
   servicePlans: {
     type: 'array',
     description: 'Service plans included in the SKU',
-    properties: SERVICE_PLAN_OUTPUT_PROPERTIES,
+    items: {
+      type: 'object',
+      properties: SERVICE_PLAN_OUTPUT_PROPERTIES,
+    },
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -410,7 +416,10 @@ export const DIRECTORY_AUDIT_OUTPUT_PROPERTIES = {
   targetResources: {
     type: 'array',
     description: 'Resources the activity acted on',
-    properties: DIRECTORY_AUDIT_TARGET_RESOURCE_PROPERTIES,
+    items: {
+      type: 'object',
+      properties: DIRECTORY_AUDIT_TARGET_RESOURCE_PROPERTIES,
+    },
   },
 } as const satisfies Record<string, OutputProperty>
 
