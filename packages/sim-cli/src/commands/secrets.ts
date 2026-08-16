@@ -53,7 +53,8 @@ export function attachSecretCommands(program: Command): void {
   if (!secrets) throw new Error('The generated secrets command group is missing')
 
   secrets
-    .command('set <name>')
+    .command('set')
+    .argument('<name>', 'Secret name, as referenced in workflows')
     .description('Create or replace a named secret')
     .addOption(
       new Option('--scope <scope>', 'Secret ownership scope')

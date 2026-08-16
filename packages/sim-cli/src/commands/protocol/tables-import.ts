@@ -94,7 +94,8 @@ function validateTargetOptions(options: ImportOptions): boolean {
 
 export function attachTableImport(tables: Command): void {
   tables
-    .command('import [path]')
+    .command('import')
+    .argument('[path]', 'Local CSV file to import; omit when using --file-id')
     .description('Import a CSV, into a new table by default')
     .option(
       '--name <name>',

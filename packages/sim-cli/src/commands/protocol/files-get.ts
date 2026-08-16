@@ -174,7 +174,8 @@ export function isTerminalSafeContentType(contentType: string | null): boolean {
 
 export function attachFileGet(files: Command): void {
   files
-    .command('get <fileId>')
+    .command('get')
+    .argument('<fileId>', 'File whose content to read')
     .description('Get a file’s content')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')

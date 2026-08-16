@@ -8,12 +8,7 @@ sim login
 sim workflows list
 ```
 
-Prerelease channels track the corresponding Sim environments:
-
-```bash
-npm install --global sim@staging # staging
-npm install --global sim@dev     # dev
-```
+Full documentation: **https://docs.sim.ai/cli**
 
 ## Profiles
 
@@ -108,6 +103,10 @@ Settings → API keys.
 
 ## Commands
 
+The commands below are the common ones. The complete reference — every group,
+subcommand, argument, and flag, generated from this package — is at
+[docs.sim.ai/cli/commands](https://docs.sim.ai/cli/commands).
+
 Plural resource names are canonical, but every plural top-level resource group
 also accepts its singular form: for example, `sim table list`,
 `sim file get`, and `sim workflow get` are equivalent to their plural
@@ -142,7 +141,7 @@ sim tables list [--folder <path>]
 sim tables get <tableId>
 sim tables update <tableId> [--name <name>] [--description <text>] [--folder <path>]
 sim tables mv <tableId> <folder>
-sim tables columns <tableId>
+sim tables columns create|update|delete|run <tableId>
 sim tables rows list <tableId> [--limit <n>]
 sim tables rows create <tableId> --data <json|@file>
 sim tables rows create <tableId> --rows <json|@file>
@@ -173,6 +172,8 @@ sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
 sim knowledge documents list <knowledgeBaseId> [--search <text>]
 sim knowledge documents get <knowledgeBaseId> <documentId>
 sim knowledge documents upload <knowledgeBaseId> <path> [--tag <value>...]
+sim knowledge documents update <knowledgeBaseId> <documentId> [--filename <name>] [--enabled]
+sim knowledge documents batch-update <knowledgeBaseId> --operation enable|disable
 sim knowledge documents delete <knowledgeBaseId> <documentId> --yes
 
 sim billing status [--all-workspaces]
@@ -249,8 +250,11 @@ grammar is a tree; there's no honest flag encoding for it.
 sim tables rows query tbl_123 \
   --filter '{"all":[{"field":"status","op":"eq","value":"open"},
                     {"field":"score","op":"gt","value":10}]}' \
-  --sort score:desc --limit 50
+  --sort '[{"field":"score","direction":"desc"}]' --limit 50
 ```
+
+`--sort` is JSON for the same reason: it is an ordered list of keys, each with a
+`field` and a `direction` of `asc` or `desc`.
 
 Row columns are discovered at runtime from the returned data, unioned across the
 page so a sparse row doesn't hide a column.

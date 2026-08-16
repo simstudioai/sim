@@ -11,6 +11,8 @@ export interface FieldSpec {
   required?: boolean
   values?: readonly string[]
   default?: unknown
+  /** The field's `.describe()` from the route contract, used as `--help` text. */
+  describe?: string
 }
 
 /**

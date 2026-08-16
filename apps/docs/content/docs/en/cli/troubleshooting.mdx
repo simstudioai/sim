@@ -1,0 +1,244 @@
+---
+title: Troubleshooting
+description: What the CLI's errors mean, and the fastest way to resolve each one
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Every error the CLI can explain prints one line to stderr, prefixed `Error:`, and
+exits `1`. Where the API supplies an error code or validation details, those
+follow on dimmed lines.
+
+<Callout type="info">
+Start with `sim whoami`. Most surprises are a command running against a different
+profile, endpoint, or workspace than you assumed, and `whoami` prints the winning
+value for each setting **and where it came from**.
+</Callout>
+
+## Authentication
+
+### `Not logged in on profile "default". Run: sim login --profile default`
+
+No API key resolved for the profile. Either sign in, or supply a key through the
+environment:
+
+```bash
+sim login
+# or, for CI
+export SIM_API_KEY="sim_…"
+```
+
+Remember that the key is per profile. If you signed in as `dev` and are running
+without `--profile dev`, the default profile is still unauthenticated.
+
+### An error ending in `— run: sim login --profile <name>`
+
+The API rejected the key with a `401`. The key was revoked, or it belongs to a
+different deployment than the endpoint you are pointed at. Sign in again:
+
+```bash
+sim login --profile <name>
+```
+
+Check the endpoint first if you did not expect this — a key minted against a
+local stack will not authenticate against production:
+
+```bash
+sim whoami --profile <name>
+```
+
+### `Timed out waiting for browser approval.`
+
+`sim login` waits 15 minutes for you to approve the pairing code. Run it again.
+If the browser never opened, use the printed URL directly:
+
+```bash
+sim login --no-browser
+```
+
+### `Profile "default" already exists. Re-run with --yes to overwrite it.`
+
+Signing in again over a profile that already holds a key. This is a guard, not a
+failure — confirm you mean to replace it:
+
+```bash
+sim login --yes
+```
+
+## Workspace
+
+### `No workspace set for profile "default". Pass --workspace, or run: sim configure --profile default --set-workspace <id>`
+
+The command is workspace-scoped and no workspace resolved. Set one for the
+profile, pass it per command, or export it:
+
+```bash
+sim configure --set-workspace ws_abc123
+sim tables list --workspace ws_abc123
+export SIM_WORKSPACE=ws_abc123
+```
+
+The workspace ID is in the Sim URL: `https://sim.ai/workspace/{workspaceId}/…`.
+
+<Callout type="warn">
+`sim login` sets the profile's default workspace to whichever one you picked on
+the approval page. It does **not** limit the key to that workspace — use
+`--workspace` to reach any other workspace the key can access.
+</Callout>
+
+### A command returns rows from the wrong workspace
+
+The workspace resolved from a higher-priority source than you expected. `--workspace`
+beats `SIM_WORKSPACE`, which beats the profile. Confirm with `sim whoami`.
+
+`sim billing status`, `sim billing logs`, and `sim audit-logs list` also accept
+`--all-workspaces`, which drops the filter entirely and cannot be combined with
+`--workspace`.
+
+## Connectivity
+
+### `Could not reach https://sim.ai: <reason>`
+
+The request never got a response — DNS, TLS, a proxy, or a self-hosted stack that
+is not running. Check the endpoint the CLI actually used:
+
+```bash
+sim whoami
+```
+
+For a local deployment, confirm it is up and that the endpoint has the right port
+and scheme:
+
+```bash
+sim configure --set-endpoint http://localhost:3000 --profile local
+```
+
+### `Request cancelled.`
+
+The request was aborted, usually by `Ctrl-C` or a CI job timeout. Re-run it.
+
+## Arguments and flags
+
+### `error: missing required argument '<name>'`
+
+The CLI prints an `Example:` line beneath showing the full invocation. `--help`
+gives the complete signature at any depth:
+
+```bash
+sim tables rows query --help
+```
+
+### `error: option '--x <value>' argument 'y' is invalid. Allowed choices are …`
+
+The value is outside the accepted set. The accepted values are in `--help` and in
+this section's [command reference](/cli/commands).
+
+### `<message> Re-run with --yes to confirm.`
+
+A destructive command needs explicit confirmation. The message says what would be
+destroyed — read it, then repeat the command with `--yes`:
+
+```bash
+sim files delete file_123 --yes
+```
+
+There is no "delete everything" default: deletions require an explicit selector
+**and** `--yes`.
+
+### `--limit must be a non-negative number`
+
+Use `0` for "everything" rather than a negative number:
+
+```bash
+sim logs list --limit 0
+```
+
+### `--input @- reads stdin, but nothing is piped in`
+
+`@-` reads from stdin, so something has to be piped to it. Either pipe a value or
+point at a file:
+
+```bash
+cat wf.json | sim workflows import --workflow @-
+sim workflows import --workflow @wf.json
+```
+
+### A JSON flag rejects a value that looks like valid JSON
+
+Your shell probably consumed the quotes. Wrap the whole value in single quotes,
+or read it from a file:
+
+```bash
+sim tables rows query tbl_123 --filter '{"all":[{"field":"status","op":"eq","value":"open"}]}'
+sim tables rows query tbl_123 --filter @filter.json
+```
+
+## Output
+
+### `Error: … output …` naming the accepted formats
+
+A stored or exported output format is not one of `table`, `json`, `yaml`, or
+`text`. A higher-priority source still wins, so you can repair the profile
+without editing the file:
+
+```bash
+sim --output table configure --set-output json
+```
+
+### A value looks truncated
+
+`table` clips long cells so rows stay on one line. The data is not truncated —
+switch to a machine format to see it in full:
+
+```bash
+sim logs get run_123 --output json
+```
+
+### `sim profiles` ignores `--output`
+
+`sim profiles` and `sim configure`'s listing mode always print for humans; they
+report on your local configuration rather than on API data.
+
+## Files
+
+### `<path> already exists. Pass --force to overwrite it, or choose another output path.`
+
+`sim files get -o` will not overwrite an existing file by accident:
+
+```bash
+sim files get file_123 -o ./report.csv --force
+```
+
+### `sim files get` refuses to print to the terminal
+
+Writing arbitrary binary to an interactive terminal can corrupt it, so non-text
+content must go to a file or a pipe:
+
+```bash
+sim files get file_123 -o ./image.png
+sim files get file_123 | shasum
+```
+
+## Secrets
+
+### `Interactive secret input requires a terminal. Pass --value instead.`
+
+`sim secrets set` prompts with masked input when it can. In CI there is no
+terminal, so supply the value directly — from a CI secret, not a literal:
+
+```bash
+sim secrets set MY_KEY --scope workspace --value "$MY_KEY"
+```
+
+## Something else
+
+An unexpected error keeps its stack trace on purpose — that is a bug in the CLI,
+not a message meant for you. Please
+[open an issue](https://github.com/simstudioai/sim/issues) with the command you
+ran and the trace.
+
+Include the version:
+
+```bash
+sim --version
+```
