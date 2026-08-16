@@ -38,8 +38,7 @@ export interface SpringNavigation {
  * treated as part of the drag: unless a drop actually landed, ending the drag returns to where
  * it started. The workflow sidebar collapses its own spring-opened folders for the same reason.
  *
- * Shared by every foldered list. Files keeps its own drag configuration for OS file drops, but
- * this lifecycle is identical everywhere.
+ * Shared by every foldered list, including a drag of OS files onto the Files page.
  */
 export function useSpringNavigation({
   currentFolderId,
@@ -73,16 +72,25 @@ export function useSpringNavigation({
    * Seeds the origin for a drag that never reached {@link SpringNavigation.rememberOrigin} — a
    * drag of OS files starts outside the page, so there is no `dragstart` of ours to record it.
    * Without this the return lands on whatever folder the PREVIOUS drag began in.
+   *
+   * Refuses the folder already on screen. That target is not a navigation, and arming it is how
+   * a drag resting on one spot would re-open the same folder over and over: the underlying timer
+   * lets a folder spring more than once per drag so the user can descend, back out through the
+   * breadcrumb, and descend again.
    */
   const arm = useCallback(
     (folderId: string | null) => {
+      if (folderId === currentFolderIdRef.current) {
+        springLoad.disarm()
+        return
+      }
       if (!hasOriginRef.current) {
         originFolderIdRef.current = currentFolderIdRef.current
         hasOriginRef.current = true
       }
       springLoad.arm(folderId)
     },
-    [springLoad.arm]
+    [springLoad.arm, springLoad.disarm]
   )
 
   const markDropHandled = useCallback(() => {
