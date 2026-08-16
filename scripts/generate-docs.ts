@@ -359,12 +359,70 @@ interface IconRef {
 }
 
 /**
+ * Check mode (`--check`): render every generated artifact in memory and compare
+ * it against the committed file instead of writing, so CI can fail on docs
+ * drift the same way `tool-metadata:check` fails on stale tool metadata. Check
+ * mode performs no filesystem mutations.
+ *
+ * The pipeline writes some pages twice per run — the block pass writes the base
+ * page, then the trigger pass reads it back and appends/merges the Triggers
+ * section — so check mode keeps an in-memory overlay of everything "written"
+ * this run (`emittedByPath`), readers consult the overlay before disk
+ * (`readGeneratedFile`), and staleness is judged once at the end against each
+ * artifact's FINAL content. Comparing at emit time would flag the intermediate
+ * block-pass content of every trigger-owning page as a false positive.
+ *
+ * Known limitation: `updateMetaJson` derives the sidebar from the mdx files on
+ * disk, so in check mode a brand-new block's missing page is reported directly
+ * while the corresponding meta.json entry is not — regenerating fixes both.
+ */
+let CHECK_ONLY = false
+const staleArtifacts: string[] = []
+const emittedByPath = new Map<string, string>()
+
+/**
+ * Deletion candidates recorded by cleanup in check mode. Judged at the end of
+ * the run, not at cleanup time: generate mode deletes a non-canonical page and
+ * lets the trigger pass recreate it in the same run, so a candidate that was
+ * re-emitted this run is that delete-then-recreate dance — content drift (if
+ * any) is already covered by the overlay comparison — while a candidate nothing
+ * re-emitted is a genuinely stale page regeneration would remove.
+ */
+const wouldDeletePaths: string[] = []
+
+/** Writes a generated artifact, or in check mode records its final content for the end-of-run comparison. */
+function emitGeneratedFile(filePath: string, content: string): void {
+  if (CHECK_ONLY) {
+    emittedByPath.set(filePath, content)
+    return
+  }
+  fs.writeFileSync(filePath, content)
+}
+
+/** Reads a generated artifact as the pipeline would see it mid-run: overlay first in check mode, then disk. */
+function readGeneratedFile(filePath: string): string | null {
+  const emitted = emittedByPath.get(filePath)
+  if (emitted !== undefined) return emitted
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null
+}
+
+/** Compares every overlay entry against the committed file; returns repo-relative stale paths. */
+function collectStaleEmissions(): string[] {
+  const stale: string[] = []
+  for (const [filePath, content] of emittedByPath) {
+    const committed = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : null
+    if (committed !== content) stale.push(path.relative(rootDir, filePath))
+  }
+  return stale
+}
+
+/**
  * Copy the icons.tsx file from the main sim app to the docs app
  * This ensures icons are rendered consistently across both apps
  */
 function copyIconsFile(): void {
   try {
-    console.log('Copying icons from sim app to docs app...')
+    if (!CHECK_ONLY) console.log('Copying icons from sim app to docs app...')
 
     if (!fs.existsSync(ICONS_PATH)) {
       console.error(`Source icons file not found: ${ICONS_PATH}`)
@@ -372,9 +430,9 @@ function copyIconsFile(): void {
     }
 
     const iconsContent = fs.readFileSync(ICONS_PATH, 'utf-8')
-    fs.writeFileSync(DOCS_ICONS_PATH, iconsContent)
+    emitGeneratedFile(DOCS_ICONS_PATH, iconsContent)
 
-    console.log('✓ Icons successfully copied to docs app')
+    if (!CHECK_ONLY) console.log('✓ Icons successfully copied to docs app')
   } catch (error) {
     console.error('Error copying icons file:', error)
   }
@@ -579,8 +637,8 @@ ${mappingEntries}
 }
 `
 
-    fs.writeFileSync(iconMappingPath, content)
-    console.log('✓ Icon mapping file written to docs app')
+    emitGeneratedFile(iconMappingPath, content)
+    if (!CHECK_ONLY) console.log('✓ Icon mapping file written to docs app')
   } catch (error) {
     console.error('Error writing icon mapping:', error)
   }
@@ -938,8 +996,8 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
 ${mappingEntries}
 }
 `
-    fs.writeFileSync(iconMappingPath, content)
-    console.log('✓ Integration icon mapping written')
+    emitGeneratedFile(iconMappingPath, content)
+    if (!CHECK_ONLY) console.log('✓ Integration icon mapping written')
   } catch (error) {
     console.error('Error writing integration icon mapping:', error)
   }
@@ -1119,6 +1177,11 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
       : null
     if (previous?.integrations && serialize(previous.integrations) === serialize(integrations)) {
       console.log(`✓ Integration data unchanged: ${integrations.length} integrations → ${jsonPath}`)
+      return
+    }
+
+    if (CHECK_ONLY) {
+      staleArtifacts.push(path.relative(rootDir, jsonPath))
       return
     }
 
@@ -3117,10 +3180,7 @@ async function generateBlockDoc(blockPath: string) {
       const displayType = stripVersionSuffix(blockConfig.type)
       const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${displayType}.mdx`)
 
-      let existingContent: string | null = null
-      if (fs.existsSync(outputFilePath)) {
-        existingContent = fs.readFileSync(outputFilePath, 'utf-8')
-      }
+      const existingContent = readGeneratedFile(outputFilePath)
 
       const manualSections = existingContent ? extractManualContent(existingContent) : {}
 
@@ -3131,10 +3191,14 @@ async function generateBlockDoc(blockPath: string) {
         finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
       }
 
-      fs.writeFileSync(outputFilePath, finalContent)
-      const logType =
-        displayType !== blockConfig.type ? `${displayType} (from ${blockConfig.type})` : displayType
-      console.log(`✓ Generated docs for ${logType}`)
+      emitGeneratedFile(outputFilePath, finalContent)
+      if (!CHECK_ONLY) {
+        const logType =
+          displayType !== blockConfig.type
+            ? `${displayType} (from ${blockConfig.type})`
+            : displayType
+        console.log(`✓ Generated docs for ${logType}`)
+      }
     }
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
@@ -3373,6 +3437,11 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
           `Add it to a doc-emitting set or delete it by hand once the content is migrated.`
       )
       keptForManualContent++
+      continue
+    }
+
+    if (CHECK_ONLY) {
+      wouldDeletePaths.push(docPath)
       continue
     }
 
@@ -3900,14 +3969,16 @@ async function generateAllTriggerDocs(): Promise<void> {
         continue
       }
 
-      const existing = fs.existsSync(outputFilePath)
-        ? fs.readFileSync(outputFilePath, 'utf-8')
-        : null
+      const existing = readGeneratedFile(outputFilePath)
 
       if (existing?.includes('\n## Actions')) {
         // Actions page generated this run by the block pass — append the Triggers section.
         if (!existing.includes('\n## Triggers')) {
-          fs.appendFileSync(outputFilePath, `\n${buildTriggersSection(triggers)}`)
+          if (CHECK_ONLY) {
+            emittedByPath.set(outputFilePath, `${existing}\n${buildTriggersSection(triggers)}`)
+          } else {
+            fs.appendFileSync(outputFilePath, `\n${buildTriggersSection(triggers)}`)
+          }
         }
       } else {
         // Trigger-only service (no actions block) — (re)write the standalone page,
@@ -3923,13 +3994,15 @@ async function generateAllTriggerDocs(): Promise<void> {
           Object.keys(manualSections).length > 0
             ? mergeWithManualContent(markdown, existing, manualSections)
             : markdown
-        fs.writeFileSync(outputFilePath, finalContent)
+        emitGeneratedFile(outputFilePath, finalContent)
       }
 
       generatedProviders.push(blockType)
-      console.log(
-        `✓ Triggers for ${formatTriggerProviderName(provider)} (${triggers.length} trigger${triggers.length === 1 ? '' : 's'})`
-      )
+      if (!CHECK_ONLY) {
+        console.log(
+          `✓ Triggers for ${formatTriggerProviderName(provider)} (${triggers.length} trigger${triggers.length === 1 ? '' : 's'})`
+        )
+      }
     }
 
     console.log(`✓ Trigger sections merged into ${generatedProviders.length} integration pages`)
@@ -3990,21 +4063,43 @@ function updateMetaJson() {
     pages: items,
   }
 
-  fs.writeFileSync(metaJsonPath, `${JSON.stringify(metaJson, null, 2)}\n`)
-  console.log(`Updated meta.json with ${items.length} entries`)
+  emitGeneratedFile(metaJsonPath, `${JSON.stringify(metaJson, null, 2)}\n`)
+  if (!CHECK_ONLY) console.log(`Updated meta.json with ${items.length} entries`)
 }
 
 if (import.meta.main) {
-  console.log('Starting documentation generator...')
+  CHECK_ONLY = process.argv.includes('--check')
+  console.log(
+    CHECK_ONLY
+      ? 'Checking generated documentation freshness...'
+      : 'Starting documentation generator...'
+  )
   generateAllBlockDocs()
     .then((success) => {
-      if (success) {
-        console.log('Documentation generation completed successfully')
-        process.exit(0)
-      } else {
+      if (!success) {
         console.error('Documentation generation failed')
         process.exit(1)
       }
+      if (CHECK_ONLY) {
+        const genuinelyDeleted = wouldDeletePaths
+          .filter((docPath) => !emittedByPath.has(docPath))
+          .map(
+            (docPath) =>
+              `${path.relative(rootDir, docPath)} (stale page — regeneration would delete it)`
+          )
+        const stale = [...collectStaleEmissions(), ...staleArtifacts, ...genuinelyDeleted]
+        if (stale.length > 0) {
+          console.error(
+            `Generated integration docs are stale:\n- ${stale.join('\n- ')}\n` +
+              'Run `bun run scripts/generate-docs.ts` and commit the result.'
+          )
+          process.exit(1)
+        }
+        console.log('✓ Generated integration docs are in sync')
+        process.exit(0)
+      }
+      console.log('Documentation generation completed successfully')
+      process.exit(0)
     })
     .catch((error) => {
       console.error('Fatal error:', error)
