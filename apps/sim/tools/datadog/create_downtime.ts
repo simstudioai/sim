@@ -102,19 +102,20 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       if (params.end) schedule.end = new Date(params.end * 1000).toISOString()
 
       const monitorTags = splitCommaList(params.monitorTags)
+      const monitorId = parseMonitorIds(params.monitorId)?.[0]
 
       /**
        * `monitor_identifier` is required and is a `oneOf`: a downtime targets either a
        * single monitor or a tag set, never both. Accepting both silently would drop one
-       * of them and mute a different set of monitors than the caller asked for.
+       * of them and mute a different set of monitors than the caller asked for. Both
+       * sides are compared after parsing so a blank or whitespace-only input, which is
+       * how an untouched field arrives, does not read as a chosen target.
        */
-      if (params.monitorId && monitorTags) {
+      if (monitorId !== undefined && monitorTags) {
         throw new Error(
           'Supply either a monitor ID or monitor tags, not both — a downtime targets one or the other'
         )
       }
-
-      const monitorId = parseMonitorIds(params.monitorId)?.[0]
 
       // Datadog expresses "every monitor in scope" as the `*` monitor tag, which is the
       // fallback when no monitor is named.

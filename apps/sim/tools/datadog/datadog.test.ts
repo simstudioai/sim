@@ -416,6 +416,17 @@ describe('create_downtime monitor targeting', () => {
     expect(body.data.attributes.monitor_identifier).toEqual({ monitor_id: 123 })
   })
 
+  /** A blank monitor ID is how an untouched field arrives; it is not a chosen target. */
+  it('does not treat a whitespace-only monitor id as a conflicting target', () => {
+    const body = callBody(createDowntimeTool, {
+      ...auth,
+      scope: '*',
+      monitorId: '   ',
+      monitorTags: 'team:backend',
+    } as any)
+    expect(body.data.attributes.monitor_identifier).toEqual({ monitor_tags: ['team:backend'] })
+  })
+
   it('accepts monitor tags that arrive as an array', () => {
     const body = callBody(createDowntimeTool, {
       ...auth,
