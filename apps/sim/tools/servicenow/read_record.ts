@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import type { ServiceNowReadParams, ServiceNowReadResponse } from '@/tools/servicenow/types'
-import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
+import {
+  buildServiceNowHeaders,
+  normalizeInstanceUrl,
+  parseServiceNowResponse,
+  toRecordArray,
+} from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowReadRecordTool')
@@ -127,14 +132,15 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
 
   transformResponse: async (response: Response) => {
     try {
-      const data = await response.json()
+      const data = await parseServiceNowResponse(response)
 
-      if (!response.ok) {
-        const error = data.error || data
-        throw new Error(typeof error === 'string' ? error : error.message || JSON.stringify(error))
-      }
-
-      const records = Array.isArray(data.result) ? data.result : [data.result]
+      /**
+       * `toRecordArray` drops non-object members instead of wrapping them. The
+       * old `[data.result]` wrap turned an envelope with no `result` into a
+       * one-element `[null]` array reported as `recordCount: 1`, so a caller
+       * reading `records[0].sys_id` crashed on a response that had said success.
+       */
+      const records = toRecordArray(data.result)
 
       return {
         success: true,

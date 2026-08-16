@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import type { ServiceNowUpdateParams, ServiceNowUpdateResponse } from '@/tools/servicenow/types'
-import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
+import {
+  buildServiceNowHeaders,
+  normalizeInstanceUrl,
+  parseServiceNowResponse,
+  toRecordObject,
+} from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowUpdateRecordTool')
@@ -67,17 +72,13 @@ export const updateRecordTool: ToolConfig<ServiceNowUpdateParams, ServiceNowUpda
 
   transformResponse: async (response: Response, params?: ServiceNowUpdateParams) => {
     try {
-      const data = await response.json()
-
-      if (!response.ok) {
-        const error = data.error || data
-        throw new Error(typeof error === 'string' ? error : error.message || JSON.stringify(error))
-      }
+      const data = await parseServiceNowResponse(response)
 
       return {
         success: true,
         output: {
-          record: data.result,
+          /** Declared non-nullable — see the same narrowing in `create_record`. */
+          record: toRecordObject(data.result),
           metadata: {
             recordCount: 1,
             updatedFields: params ? Object.keys(params.fields || {}) : [],

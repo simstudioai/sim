@@ -3,10 +3,12 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OktaBlock } from '@/blocks/blocks/okta'
+import { oktaActivateUserTool } from '@/tools/okta/activate_user'
 import { oktaDeactivateUserTool } from '@/tools/okta/deactivate_user'
 import { oktaDeleteUserTool } from '@/tools/okta/delete_user'
 import { oktaGetLogsTool } from '@/tools/okta/get_logs'
 import { oktaGetUserTool } from '@/tools/okta/get_user'
+import { oktaResetPasswordTool } from '@/tools/okta/reset_password'
 import { oktaUpdateGroupTool } from '@/tools/okta/update_group'
 import { oktaUpdateUserTool } from '@/tools/okta/update_user'
 import { mergeOktaGroupProfile } from '@/tools/okta/utils'
@@ -198,6 +200,109 @@ describe('okta get_logs query building', () => {
   it('omits limit entirely when it was not supplied', () => {
     const url = oktaGetLogsTool.request.url({ ...AUTH })
     expect(url).not.toContain('limit=')
+  })
+})
+
+describe('okta get_logs pagination termination', () => {
+  const NEXT_LINK = '<https://dev-123456.okta.com/api/v1/logs?after=cursor1>; rel="next"'
+
+  function logsResponse(events: unknown[]): Response {
+    return new Response(JSON.stringify(events), { status: 200, headers: { Link: NEXT_LINK } })
+  }
+
+  async function outputOf(response: Response) {
+    const result = (await oktaGetLogsTool.transformResponse!(response, undefined as never)) as {
+      output: { count: number; nextCursor: string | null; hasMore: boolean }
+    }
+    return result.output
+  }
+
+  /**
+   * A query without `until` is a polling query, and Okta advertises a next link
+   * on every one of those pages "even if there are no new events". The block
+   * leaves `since`/`until` blank by default, so the default shape is the polling
+   * shape — a loop driven by an unconditioned `hasMore` never terminates.
+   */
+  it('stops advertising more results once a polling page comes back empty', async () => {
+    const output = await outputOf(logsResponse([]))
+
+    expect(output.count).toBe(0)
+    expect(output.hasMore).toBe(false)
+    expect(output.nextCursor).toBeNull()
+  })
+
+  it('still advertises the cursor while events are coming back', async () => {
+    const output = await outputOf(
+      logsResponse([{ uuid: 'e1', published: 'p', eventType: 't', severity: 'INFO' }])
+    )
+
+    expect(output.count).toBe(1)
+    expect(output.hasMore).toBe(true)
+    expect(output.nextCursor).toBe('cursor1')
+  })
+
+  it('reports the last page of a bounded query with no next link', async () => {
+    const output = await outputOf(
+      new Response(
+        JSON.stringify([{ uuid: 'e1', published: 'p', eventType: 't', severity: 'I' }]),
+        {
+          status: 200,
+        }
+      )
+    )
+
+    expect(output.hasMore).toBe(false)
+    expect(output.nextCursor).toBeNull()
+  })
+})
+
+describe('okta lifecycle flags are coerced rather than interpolated raw', () => {
+  /**
+   * `sendEmail` is a query parameter and Okta answers 400 to anything that is
+   * not literally `true` or `false`, but an LLM tool call routinely supplies
+   * `"yes"` or `1`.
+   */
+  it.each([
+    ['activate_user', oktaActivateUserTool],
+    ['reset_password', oktaResetPasswordTool],
+  ])('%s never forwards a non-canonical boolean', (_name, tool) => {
+    expect(tool.request.url({ ...AUTH, userId: '00u1', sendEmail: 'yes' } as never)).toContain(
+      'sendEmail=true'
+    )
+    expect(tool.request.url({ ...AUTH, userId: '00u1', sendEmail: 'nope' } as never)).toContain(
+      'sendEmail=false'
+    )
+  })
+
+  it.each([
+    ['activate_user', oktaActivateUserTool],
+    ['reset_password', oktaResetPasswordTool],
+  ])('%s keeps sending true when the flag is omitted entirely', (_name, tool) => {
+    expect(tool.request.url({ ...AUTH, userId: '00u1' } as never)).toContain('sendEmail=true')
+  })
+
+  it.each([
+    ['deactivate_user', oktaDeactivateUserTool],
+    ['delete_user', oktaDeleteUserTool],
+  ])('%s coerces through the same helper and still defaults to false', (_name, tool) => {
+    expect(tool.request.url({ ...AUTH, userId: '00u1' } as never)).toContain('sendEmail=false')
+    expect(tool.request.url({ ...AUTH, userId: '00u1', sendEmail: 'yes' } as never)).toContain(
+      'sendEmail=true'
+    )
+  })
+})
+
+describe('okta update_group declarative fallback', () => {
+  /**
+   * `PUT /api/v1/groups/{groupId}` replaces an extensible profile wholesale, so
+   * a body built without first reading the stored profile would erase the
+   * description on a rename plus every org-defined custom attribute. Unreachable
+   * today, but it must fail loudly rather than truncate silently.
+   */
+  it('refuses to build a body instead of sending a truncated profile', () => {
+    expect(() =>
+      oktaUpdateGroupTool.request.body!({ ...AUTH, groupId: '00g1', name: 'Engineering EMEA' })
+    ).toThrow(/direct execution/i)
   })
 })
 

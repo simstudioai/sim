@@ -106,20 +106,48 @@ export const CHANGE_CLOSE_CODE_OPTIONS = [
 /**
  * Approval record `state` values on the Approval [sysapproval_approver] table.
  *
- * ServiceNow documents four approval statuses — Requested, Approved, Rejected,
- * and Not Yet Requested — at
- * https://www.servicenow.com/docs/r/build-workflows/approvals/c_ApprovalStatus.html
- * but publishes coded values for only the three a caller acts on, which are the
- * three listed here. The fourth status has no published code, so it is not
- * asserted; a caller who knows their instance's value can still pass it as a raw
- * state.
+ * The approval-status overview page
+ * (https://www.servicenow.com/docs/r/build-workflows/approvals/c_ApprovalStatus.html)
+ * names statuses without their coded values, but the Ask for Approval flow
+ * action documents all seven as `Label [value]` — see
+ * `markdown/build-workflows/workflow-studio/ask-approval-flow-designer.md` on
+ * branch `australia` of https://github.com/ServiceNow/ServiceNowDocs.
+ *
+ * The punctuation is not uniform and not guessable: `not requested` uses a
+ * space while `not_required` uses an underscore. `not_yet_requested` and
+ * `no_longer_required` are not real values — ServiceNow accepts them into the
+ * field and then never matches them, so a filter built from either silently
+ * returns nothing.
  */
 export const APPROVAL_STATE = {
+  NOT_YET_REQUESTED: 'not requested',
   REQUESTED: 'requested',
   APPROVED: 'approved',
   REJECTED: 'rejected',
+  CANCELLED: 'cancelled',
+  NOT_REQUIRED: 'not_required',
+  SKIPPED: 'skipped',
 } as const
 
+/**
+ * Filter options for reading approvals — every published state.
+ */
+export const APPROVAL_STATE_OPTIONS = [
+  { label: 'Not Yet Requested', id: APPROVAL_STATE.NOT_YET_REQUESTED },
+  { label: 'Requested', id: APPROVAL_STATE.REQUESTED },
+  { label: 'Approved', id: APPROVAL_STATE.APPROVED },
+  { label: 'Rejected', id: APPROVAL_STATE.REJECTED },
+  { label: 'Cancelled', id: APPROVAL_STATE.CANCELLED },
+  { label: 'No Longer Required', id: APPROVAL_STATE.NOT_REQUIRED },
+  { label: 'Skipped', id: APPROVAL_STATE.SKIPPED },
+] as const
+
+/**
+ * Decisions a caller can write with Update Approval.
+ *
+ * Deliberately narrower than `APPROVAL_STATE_OPTIONS`: the other five states are
+ * set by the approval engine, not by an approver acting on a record.
+ */
 export const APPROVAL_DECISION_OPTIONS = [
   { label: 'Approve', id: APPROVAL_STATE.APPROVED },
   { label: 'Reject', id: APPROVAL_STATE.REJECTED },

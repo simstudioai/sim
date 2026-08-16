@@ -1,8 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
-import { mapOktaGroupRule, oktaHeaders, parseOktaPagination } from '@/tools/okta/utils'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  isOktaFlagEnabled,
+  mapOktaGroupRule,
+  oktaHeaders,
+  parseOktaPagination,
+  throwOktaError,
+} from '@/tools/okta/utils'
 
 /** Obvious non-secret so credential scanners do not flag these fixtures. */
 const PLACEHOLDER_TOKEN = 'not-a-real-api-token'
@@ -98,4 +104,97 @@ describe('mapOktaGroupRule', () => {
       excludedGroupIds: [],
     })
   })
+})
+
+describe('throwOktaError', () => {
+  const logger = { error: vi.fn() } as unknown as Parameters<typeof throwOktaError>[1]
+
+  function errorResponse(body: unknown): Response {
+    return new Response(JSON.stringify(body), { status: 400 })
+  }
+
+  /**
+   * `E0000001` is Okta's most common write failure and its `errorSummary` is the
+   * useless "Api validation failed: profile" — the failing field and the reason
+   * live only in `errorCauses`.
+   */
+  it('appends the causes that carry the actual reason', async () => {
+    await expect(
+      throwOktaError(
+        errorResponse({
+          errorCode: 'E0000001',
+          errorSummary: 'Api validation failed: profile',
+          errorCauses: [
+            {
+              errorSummary:
+                'login: An object with this field already exists in the current organization',
+            },
+          ],
+        }),
+        logger,
+        'Failed to create user in Okta'
+      )
+    ).rejects.toThrowError(
+      new Error(
+        'Api validation failed: profile: login: An object with this field already exists in the current organization'
+      )
+    )
+  })
+
+  it('joins several causes so no failing field is hidden', async () => {
+    await expect(
+      throwOktaError(
+        errorResponse({
+          errorSummary: 'Api validation failed: profile',
+          errorCauses: [{ errorSummary: 'login: is required' }, { errorSummary: 'email: invalid' }],
+        }),
+        logger,
+        'fallback'
+      )
+    ).rejects.toThrowError(
+      new Error('Api validation failed: profile: login: is required: email: invalid')
+    )
+  })
+
+  it('falls back to the causes alone when there is no summary', async () => {
+    await expect(
+      throwOktaError(
+        errorResponse({ errorCauses: [{ errorSummary: 'login: is required' }] }),
+        logger,
+        'fallback'
+      )
+    ).rejects.toThrowError(new Error('login: is required'))
+  })
+
+  it('drops blank causes rather than emitting a trailing separator', async () => {
+    await expect(
+      throwOktaError(
+        errorResponse({
+          errorSummary: 'Api validation failed: profile',
+          errorCauses: [{ errorSummary: '  ' }],
+        }),
+        logger,
+        'fallback'
+      )
+    ).rejects.toThrowError(new Error('Api validation failed: profile'))
+  })
+
+  it("falls back to the caller's message on an empty lifecycle body", async () => {
+    await expect(
+      throwOktaError(new Response('', { status: 404 }), logger, 'Failed to activate user in Okta')
+    ).rejects.toThrowError(new Error('Failed to activate user in Okta'))
+  })
+})
+
+describe('isOktaFlagEnabled', () => {
+  it.each([true, 'true', 'TRUE', ' yes ', 'y', '1', 'on', 1])('reads %o as enabled', (value) => {
+    expect(isOktaFlagEnabled(value)).toBe(true)
+  })
+
+  it.each([false, 'false', 'no', '0', 'off', 0, '', 'maybe', null, undefined, {}])(
+    'reads %o as disabled',
+    (value) => {
+      expect(isOktaFlagEnabled(value)).toBe(false)
+    }
+  )
 })

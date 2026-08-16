@@ -106,6 +106,18 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
     const { nextCursor, hasMore } = parseOktaPagination(response)
     const data: OktaLogEvent[] = await response.json()
 
+    /**
+     * The System Log runs two pagination regimes, and only this endpoint does.
+     *
+     * A bounded query (one with `until`) drops the `rel="next"` link on its last
+     * page, so the shared `Link` parser is enough. A polling query — no `until`,
+     * which is this tool's default shape — always advertises a next link "even
+     * if there are no new events", so `hasMore` would be permanently true and
+     * any loop driven by it would never terminate. An empty page ends both
+     * regimes, so emptiness is the terminating signal.
+     */
+    const moreAvailable = hasMore && data.length > 0
+
     const events = data.map((event) => ({
       uuid: event.uuid,
       published: event.published,
@@ -149,8 +161,8 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       output: {
         events,
         count: events.length,
-        nextCursor,
-        hasMore,
+        nextCursor: moreAvailable ? nextCursor : null,
+        hasMore: moreAvailable,
         success: true,
       },
     }
@@ -262,7 +274,11 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       description: 'Cursor for the next page, or null on the last page',
       optional: true,
     },
-    hasMore: { type: 'boolean', description: 'Whether more events are available' },
+    hasMore: {
+      type: 'boolean',
+      description:
+        'Whether more events are available. A query with no "until" is a polling query, which Okta always answers with a next link even when there are no new events, so this reports false once a page comes back empty',
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }
