@@ -201,23 +201,23 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         servicenow_list_incidents: [
           'List incidents',
           { text: 'matching', field: 'searchText', core: true },
-          { text: ', in state', field: 'state' },
+          { text: ', in state', field: 'incidentState' },
           { text: ', up to', field: 'limit' },
         ],
         servicenow_update_incident: [
           { text: 'Update incident', field: 'sysId', core: true },
-          { text: ', setting state', field: 'state' },
+          { text: ', setting state', field: 'incidentState' },
           { text: ', assigning to', field: 'assignedTo' },
         ],
         servicenow_resolve_incident: [
           { text: 'Resolve incident', field: 'sysId', core: true },
-          { text: 'with code', field: 'closeCode' },
-          { text: ', noting', field: 'closeNotes' },
+          { text: 'with code', field: 'resolutionCode' },
+          { text: ', noting', field: 'resolutionNotes' },
         ],
         servicenow_close_incident: [
           { text: 'Close incident', field: 'sysId', core: true },
-          { text: 'with code', field: 'closeCode' },
-          { text: ', noting', field: 'closeNotes' },
+          { text: 'with code', field: 'resolutionCode' },
+          { text: ', noting', field: 'resolutionNotes' },
         ],
         servicenow_add_incident_comment: [
           { text: 'Comment on incident', field: 'sysId', core: true },
@@ -235,12 +235,12 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         servicenow_list_change_requests: [
           'List change requests',
           { text: 'matching', field: 'searchText', core: true },
-          { text: ', in state', field: 'state' },
+          { text: ', in state', field: 'changeState' },
           { text: ', up to', field: 'limit' },
         ],
         servicenow_update_change_request: [
           { text: 'Update change request', field: 'sysId', core: true },
-          { text: ', setting state', field: 'state' },
+          { text: ', setting state', field: 'changeState' },
           { text: ', assigning to', field: 'assignedTo' },
         ],
         servicenow_update_change_state: [
@@ -301,7 +301,7 @@ export const ServiceNowBlock: BlockConfig<ServiceNowResponse> = {
         ],
         servicenow_search_knowledge: [
           'Search knowledge articles',
-          { text: 'for', field: 'query', core: true },
+          { text: 'for', field: 'knowledgeQuery', core: true },
           { text: ', up to', field: 'limit' },
         ],
         servicenow_get_knowledge_article: [
