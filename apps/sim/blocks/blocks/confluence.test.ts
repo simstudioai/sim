@@ -191,11 +191,16 @@ describe('Confluence v2 page-selector gating', () => {
   })
 
   it.each(operationIds)(
-    'shows the page target for %s whenever its tool requires pageId',
+    'shows the page target for %s exactly when its tool requires pageId',
     (operation) => {
-      if (!toolRequiresParam(ConfluenceV2Block, operation, 'pageId')) return
+      const required = toolRequiresParam(ConfluenceV2Block, operation, 'pageId')
       for (const id of PAGE_MEMBERS) {
-        expect(isVisibleFor(subBlockOf(ConfluenceV2Block, id), operation)).toBe(true)
+        expect(
+          isVisibleFor(subBlockOf(ConfluenceV2Block, id), operation),
+          required
+            ? `"${id}" must render for "${operation}", whose tool requires pageId`
+            : `"${id}" must not render for "${operation}", whose tool takes no required pageId`
+        ).toBe(required)
       }
     }
   )
@@ -283,11 +288,16 @@ describe('legacy Confluence block', () => {
   })
 
   it.each(operationIds)(
-    'shows the page target for %s whenever its tool requires pageId',
+    'shows the page target for %s exactly when its tool requires pageId',
     (operation) => {
-      if (!toolRequiresParam(ConfluenceBlock, operation, 'pageId')) return
+      const required = toolRequiresParam(ConfluenceBlock, operation, 'pageId')
       for (const id of PAGE_MEMBERS) {
-        expect(isVisibleFor(subBlockOf(ConfluenceBlock, id), operation)).toBe(true)
+        expect(
+          isVisibleFor(subBlockOf(ConfluenceBlock, id), operation),
+          required
+            ? `"${id}" must render for "${operation}", whose tool requires pageId`
+            : `"${id}" must not render for "${operation}", whose tool takes no required pageId`
+        ).toBe(required)
       }
     }
   )
