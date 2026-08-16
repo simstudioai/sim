@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-15",
+  "updatedAt": "2026-08-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -4852,10 +4852,6 @@
           "description": "List all monitors in Datadog with optional filtering by name, tags, or state."
         },
         {
-          "name": "Mute Monitor",
-          "description": "Mute a monitor to temporarily suppress notifications. This endpoint is legacy and is no longer published in the Datadog v1 API specification — schedule a downtime instead for supported muting."
-        },
-        {
           "name": "Query Logs",
           "description": "Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring."
         },
@@ -4909,7 +4905,7 @@
         },
         {
           "name": "Update SLO",
-          "description": "Update a service level objective. Datadog replaces the whole SLO, so name, type, and thresholds must always be supplied."
+          "description": "Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value."
         },
         {
           "name": "Delete SLO",
@@ -4988,7 +4984,7 @@
           "description": "List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission."
         }
       ],
-      "operationCount": 40,
+      "operationCount": 39,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

@@ -109,17 +109,19 @@ export const updateIncidentTool: ToolConfig<UpdateIncidentParams, UpdateIncident
         fields.severity = { type: 'dropdown', value: params.severity }
       }
 
+      /**
+       * Only non-empty values are sent. An empty string is how an untouched input
+       * arrives, and Datadog would take it literally — blanking the stored title or
+       * rejecting the request as an invalid `date-time`.
+       */
       const attributes: Record<string, unknown> = {}
-      if (params.title !== undefined) attributes.title = params.title
+      if (params.title) attributes.title = params.title
       if (params.customerImpacted !== undefined)
         attributes.customer_impacted = params.customerImpacted
-      if (params.customerImpactScope !== undefined)
-        attributes.customer_impact_scope = params.customerImpactScope
-      if (params.customerImpactStart !== undefined)
-        attributes.customer_impact_start = params.customerImpactStart
-      if (params.customerImpactEnd !== undefined)
-        attributes.customer_impact_end = params.customerImpactEnd
-      if (params.detected !== undefined) attributes.detected = params.detected
+      if (params.customerImpactScope) attributes.customer_impact_scope = params.customerImpactScope
+      if (params.customerImpactStart) attributes.customer_impact_start = params.customerImpactStart
+      if (params.customerImpactEnd) attributes.customer_impact_end = params.customerImpactEnd
+      if (params.detected) attributes.detected = params.detected
       if (Object.keys(fields).length > 0) attributes.fields = fields
 
       const handles = splitCommaList(params.notificationHandles)

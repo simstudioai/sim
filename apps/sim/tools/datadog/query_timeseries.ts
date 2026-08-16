@@ -3,6 +3,7 @@ import type {
   QueryTimeseriesParams,
   QueryTimeseriesResponse,
 } from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeseriesResponse> = {
@@ -72,18 +73,32 @@ export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeser
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           series: [],
           status: 'error',
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
     const data = await response.json()
+
+    /**
+     * A failed metrics query still returns 200; Datadog signals it with a non-`ok`
+     * `status` and puts the reason in `error`. Without this the caller gets an empty
+     * series and no indication anything went wrong.
+     */
+    if (data.status && data.status !== 'ok') {
+      return {
+        success: false,
+        output: { series: [], status: data.status },
+        error: data.error || `Datadog returned query status "${data.status}"`,
+      }
+    }
+
     const series = (data.series || []).map((s: MetricsQuerySeries) => ({
       metric: s.metric || s.expression,
       tags: s.tag_set || [],
@@ -97,7 +112,7 @@ export const queryTimeseriesTool: ToolConfig<QueryTimeseriesParams, QueryTimeser
       success: true,
       output: {
         series,
-        status: data.status || 'ok',
+        status: data.status,
       },
     }
   },

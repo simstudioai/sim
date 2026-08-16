@@ -25,7 +25,8 @@ export const createSloTool: ToolConfig<CreateSloParams, CreateSloResponse> = {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'SLO type: "metric", "monitor", or "time_slice"',
+      description:
+        'SLO type: "metric" (supply query) or "monitor" (supply monitorIds). Time-slice SLOs are not supported here because they need an SLI specification this tool does not send.',
     },
     thresholds: {
       type: 'string',

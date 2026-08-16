@@ -1,4 +1,6 @@
+import { filterUndefined } from '@sim/utils/object'
 import type { LogEntry, SendLogsParams, SendLogsResponse } from '@/tools/datadog/types'
+import { datadogErrorMessage, parseJsonParam } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
@@ -47,35 +49,31 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
       'DD-API-KEY': params.apiKey,
     }),
     body: (params) => {
-      let logs: LogEntry[]
-      try {
-        logs = (
-          typeof params.logs === 'string' ? JSON.parse(params.logs) : params.logs
-        ) as LogEntry[]
-      } catch {
-        throw new Error('Invalid JSON in logs parameter')
+      const logs = parseJsonParam<LogEntry[]>(params.logs, 'logs parameter')
+      if (!Array.isArray(logs) || logs.length === 0) {
+        throw new Error('logs must be a non-empty JSON array of log entries')
       }
 
-      // Ensure each log entry has the required format
-      return logs.map((log) => ({
-        ddsource: log.ddsource || 'custom',
-        ddtags: log.ddtags || '',
-        hostname: log.hostname || '',
-        message: log.message,
-        service: log.service || '',
-      }))
+      /**
+       * Every extra key is preserved: Datadog's log intake accepts arbitrary
+       * additional properties as the log's structured attributes, so rebuilding each
+       * entry from a fixed field list would silently discard them. Empty optional
+       * fields are dropped rather than sent blank, which would otherwise suppress
+       * Datadog's own host inference and write an empty reserved `service` attribute.
+       */
+      return logs.map((log) => filterUndefined({ ...log, ddsource: log.ddsource || 'custom' }))
     },
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           success: false,
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

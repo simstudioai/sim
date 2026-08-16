@@ -1,4 +1,9 @@
-import type { CreateSloParams, DatadogSite, SecuritySignalTriageData } from '@/tools/datadog/types'
+import type {
+  CreateSloParams,
+  DatadogSite,
+  SecuritySignalTriageData,
+  UpdateSloParams,
+} from '@/tools/datadog/types'
 
 /**
  * Builds a fully-qualified Datadog API URL for the caller's site/region.
@@ -21,30 +26,40 @@ export function datadogHeaders(params: {
   }
 }
 
+/** Reads one Datadog error entry, which is a plain string (v1) or a JSON:API object (v2). */
+function errorEntryMessage(entry: unknown): string | null {
+  if (typeof entry === 'string') return entry
+  if (entry && typeof entry === 'object') {
+    const record = entry as { detail?: unknown; title?: unknown }
+    if (typeof record.detail === 'string') return record.detail
+    if (typeof record.title === 'string') return record.title
+  }
+  return null
+}
+
 /**
  * Extracts a human-readable message from a failed Datadog response.
- * Datadog returns `{ errors: [...] }` where entries are either plain strings (v1)
- * or JSON:API error objects with a `detail`/`title` (v2).
+ *
+ * Datadog returns `{ errors: ... }` in three shapes: an array of plain strings (v1),
+ * an array of JSON:API error objects carrying `detail`/`title` (v2), and — on the SLO
+ * delete conflict — a dictionary keyed by resource ID whose values are the reasons.
  */
 export async function datadogErrorMessage(response: Response): Promise<string> {
   const fallback = `HTTP ${response.status}: ${response.statusText}`
   const body = await response.json().catch(() => null)
   const errors = (body as { errors?: unknown })?.errors
-  if (Array.isArray(errors) && errors.length > 0) {
-    const messages = errors
-      .map((entry) => {
-        if (typeof entry === 'string') return entry
-        if (entry && typeof entry === 'object') {
-          const record = entry as { detail?: unknown; title?: unknown }
-          if (typeof record.detail === 'string') return record.detail
-          if (typeof record.title === 'string') return record.title
-        }
-        return null
-      })
-      .filter((message): message is string => Boolean(message))
-    if (messages.length > 0) return messages.join('; ')
-  }
-  return fallback
+
+  const entries = Array.isArray(errors)
+    ? errors
+    : errors && typeof errors === 'object'
+      ? Object.values(errors as Record<string, unknown>)
+      : []
+
+  const messages = entries
+    .map(errorEntryMessage)
+    .filter((message): message is string => Boolean(message))
+
+  return messages.length > 0 ? messages.join('; ') : fallback
 }
 
 /** Splits a comma-separated user input into a trimmed, non-empty list. */
@@ -73,15 +88,35 @@ export function parseJsonParam<T>(value: unknown, fieldName: string): T | undefi
 }
 
 /**
- * Builds the `ServiceLevelObjective` request body shared by SLO create and update.
- * Datadog's `PUT /api/v1/slo/{slo_id}` is a full replacement, so both operations
- * send the same required fields (`name`, `type`, `thresholds`).
+ * Parses a comma-separated monitor ID list into the integers Datadog expects.
+ * `Number('abc')` yields `NaN`, which `JSON.stringify` writes as `null` and Datadog
+ * rejects with a message that names nothing the user typed, so bad input is rejected here.
+ */
+export function parseMonitorIds(value: string | undefined): number[] | undefined {
+  const items = splitCommaList(value)
+  if (!items) return undefined
+  return items.map((id) => {
+    const parsed = Number(id)
+    if (!Number.isInteger(parsed)) {
+      throw new Error(`monitorIds must be a comma-separated list of whole numbers (got "${id}")`)
+    }
+    return parsed
+  })
+}
+
+/**
+ * Builds the `ServiceLevelObjective` request body for SLO creation.
  */
 export function buildSloPayload(params: CreateSloParams): Record<string, unknown> {
+  const thresholds = parseJsonParam<unknown[]>(params.thresholds, 'thresholds parameter')
+  if (!Array.isArray(thresholds) || thresholds.length === 0) {
+    throw new Error('thresholds must be a non-empty JSON array')
+  }
+
   const body: Record<string, unknown> = {
     name: params.name,
     type: params.type,
-    thresholds: parseJsonParam<unknown[]>(params.thresholds, 'thresholds parameter') ?? [],
+    thresholds,
   }
 
   if (params.description) body.description = params.description
@@ -92,8 +127,62 @@ export function buildSloPayload(params: CreateSloParams): Record<string, unknown
   const query = parseJsonParam<Record<string, unknown>>(params.query, 'query parameter')
   if (query) body.query = query
 
-  const monitorIds = splitCommaList(params.monitorIds)
-  if (monitorIds) body.monitor_ids = monitorIds.map((id) => Number(id))
+  const monitorIds = parseMonitorIds(params.monitorIds)
+  if (monitorIds) body.monitor_ids = monitorIds
+
+  const groups = splitCommaList(params.groups)
+  if (groups) body.groups = groups
+
+  if (params.targetThreshold !== undefined) body.target_threshold = params.targetThreshold
+  if (params.warningThreshold !== undefined) body.warning_threshold = params.warningThreshold
+  if (params.timeframe) body.timeframe = params.timeframe
+
+  return body
+}
+
+/**
+ * Fields Datadog computes and rejects or ignores on an SLO update request.
+ * They must be stripped from a stored SLO before it is replayed into `PUT /api/v1/slo/{slo_id}`.
+ */
+const SLO_READ_ONLY_FIELDS = ['id', 'created_at', 'modified_at', 'creator', 'monitor_tags'] as const
+
+/**
+ * Merges user-supplied SLO edits onto the SLO Datadog currently stores.
+ *
+ * `PUT /api/v1/slo/{slo_id}` is a full replacement, not a patch, so a request built
+ * only from the fields the user filled in silently erases every field they left
+ * blank. Reading the stored SLO first and overlaying only the supplied fields keeps
+ * an edit to one field from destroying the rest.
+ */
+export function mergeSloUpdatePayload(
+  stored: Record<string, unknown>,
+  params: UpdateSloParams
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { ...stored }
+  for (const field of SLO_READ_ONLY_FIELDS) delete body[field]
+
+  const thresholds = parseJsonParam<unknown[]>(params.thresholds, 'thresholds parameter')
+  if (thresholds !== undefined) {
+    if (!Array.isArray(thresholds) || thresholds.length === 0) {
+      throw new Error('thresholds must be a non-empty JSON array')
+    }
+    body.thresholds = thresholds
+  }
+
+  if (params.name) body.name = params.name
+  if (params.type) body.type = params.type
+  if (params.description !== undefined && params.description !== '') {
+    body.description = params.description
+  }
+
+  const tags = splitCommaList(params.tags)
+  if (tags) body.tags = tags
+
+  const query = parseJsonParam<Record<string, unknown>>(params.query, 'query parameter')
+  if (query) body.query = query
+
+  const monitorIds = parseMonitorIds(params.monitorIds)
+  if (monitorIds) body.monitor_ids = monitorIds
 
   const groups = splitCommaList(params.groups)
   if (groups) body.groups = groups

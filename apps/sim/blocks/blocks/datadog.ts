@@ -51,11 +51,6 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
           { text: ', named like', field: 'listMonitorName' },
           { text: ', tagged', field: 'listMonitorTags' },
         ],
-        datadog_mute_monitor: [
-          { text: 'Mute monitor', field: 'muteMonitorId', core: true },
-          { text: ', for scope', field: 'scope' },
-          { text: ', until', field: 'end' },
-        ],
         datadog_query_logs: [
           { text: 'Search logs matching', field: 'logQuery', core: true },
           { text: ', since', field: 'logFrom' },
@@ -164,7 +159,6 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
         { label: 'Create Monitor', id: 'datadog_create_monitor' },
         { label: 'Get Monitor', id: 'datadog_get_monitor' },
         { label: 'List Monitors', id: 'datadog_list_monitors' },
-        { label: 'Mute Monitor', id: 'datadog_mute_monitor' },
         { label: 'Query Logs', id: 'datadog_query_logs' },
         { label: 'Send Logs', id: 'datadog_send_logs' },
         { label: 'Create Downtime', id: 'datadog_create_downtime' },
@@ -510,45 +504,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
 
-    // Mute Monitor inputs
-    {
-      id: 'muteMonitorId',
-      title: 'Monitor ID',
-      type: 'short-input',
-      placeholder: '12345678',
-      condition: { field: 'operation', value: 'datadog_mute_monitor' },
-      required: true,
-    },
-    {
-      id: 'scope',
-      title: 'Scope',
-      type: 'short-input',
-      placeholder: 'host:myhost (optional)',
-      condition: { field: 'operation', value: 'datadog_mute_monitor' },
-      mode: 'advanced',
-    },
-    {
-      id: 'end',
-      title: 'End Time (Unix Timestamp)',
-      type: 'short-input',
-      placeholder: 'Leave empty for indefinite',
-      condition: { field: 'operation', value: 'datadog_mute_monitor' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
-The timestamp should be a number representing seconds since January 1, 1970 UTC.
-Examples:
-- "in 1 hour" -> Calculate current time plus 3600 seconds
-- "tomorrow morning" -> Calculate tomorrow at 09:00:00 UTC as Unix timestamp
-- "end of day" -> Calculate today at 23:59:59 UTC as Unix timestamp
-
-Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe when mute should end (e.g., "in 1 hour", "tomorrow")...',
-        generationType: 'timestamp',
-      },
-    },
-
     // Query Logs inputs
     {
       id: 'logQuery',
@@ -618,6 +573,14 @@ Return ONLY the relative time string - no explanations, no quotes, no extra text
       title: 'Limit',
       type: 'short-input',
       placeholder: '50',
+      condition: { field: 'operation', value: 'datadog_query_logs' },
+      mode: 'advanced',
+    },
+    {
+      id: 'logCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor returned by a previous call',
       condition: { field: 'operation', value: 'datadog_query_logs' },
       mode: 'advanced',
     },
@@ -1029,7 +992,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       type: 'short-input',
       placeholder: 'Checkout API availability',
       condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
-      required: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      required: { field: 'operation', value: ['datadog_create_slo'] },
     },
     {
       id: 'sloType',
@@ -1038,11 +1001,10 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       options: [
         { label: 'Metric', id: 'metric' },
         { label: 'Monitor', id: 'monitor' },
-        { label: 'Time Slice', id: 'time_slice' },
       ],
       value: () => 'metric',
       condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
-      required: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      required: { field: 'operation', value: ['datadog_create_slo'] },
     },
     {
       id: 'sloThresholds',
@@ -1050,7 +1012,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       type: 'code',
       placeholder: '[{"timeframe": "30d", "target": 99.9, "warning": 99.95}]',
       condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
-      required: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      required: { field: 'operation', value: ['datadog_create_slo'] },
       wandConfig: {
         enabled: true,
         prompt: `Generate a JSON array of Datadog SLO thresholds based on the user's description.
@@ -1590,12 +1552,12 @@ Return ONLY the search query string - no explanations.`,
       id: 'signalFrom',
       title: 'From',
       type: 'short-input',
-      placeholder: 'now-1h',
+      placeholder: '2026-01-02T09:42:36.320Z',
       condition: { field: 'operation', value: 'datadog_list_security_signals' },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Datadog relative time string such as now-1h, now-15m, or now-7d. Return ONLY the string.',
+          'Convert the described start time into an absolute ISO-8601 UTC date-time, e.g. 2026-01-02T09:42:36.320Z. Datadog signal search rejects relative expressions such as "now-1h", so always resolve them against the current date. Return ONLY the timestamp.',
         placeholder: 'Describe the start time (e.g., "1 hour ago")...',
         generationType: 'timestamp',
       },
@@ -1604,12 +1566,12 @@ Return ONLY the search query string - no explanations.`,
       id: 'signalTo',
       title: 'To',
       type: 'short-input',
-      placeholder: 'now',
+      placeholder: '2026-01-03T09:42:36.320Z',
       condition: { field: 'operation', value: 'datadog_list_security_signals' },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Datadog relative time string such as now or now-5m. Return ONLY the string.',
+          'Convert the described end time into an absolute ISO-8601 UTC date-time, e.g. 2026-01-03T09:42:36.320Z. Datadog signal search rejects relative expressions such as "now", so always resolve them against the current date. Return ONLY the timestamp.',
         placeholder: 'Describe the end time (e.g., "now")...',
         generationType: 'timestamp',
       },
@@ -1808,7 +1770,6 @@ Return ONLY the search query string - no explanations.`,
           'datadog_create_monitor',
           'datadog_get_monitor',
           'datadog_list_monitors',
-          'datadog_mute_monitor',
           'datadog_query_logs',
           'datadog_create_downtime',
           'datadog_list_downtimes',
@@ -1855,7 +1816,10 @@ Return ONLY the search query string - no explanations.`,
         { label: 'US5 (us5.datadoghq.com)', id: 'us5.datadoghq.com' },
         { label: 'EU (datadoghq.eu)', id: 'datadoghq.eu' },
         { label: 'AP1 (ap1.datadoghq.com)', id: 'ap1.datadoghq.com' },
+        { label: 'AP2 (ap2.datadoghq.com)', id: 'ap2.datadoghq.com' },
+        { label: 'UK1 (uk1.datadoghq.com)', id: 'uk1.datadoghq.com' },
         { label: 'US1-FED (ddog-gov.com)', id: 'ddog-gov.com' },
+        { label: 'US2-FED (us2.ddog-gov.com)', id: 'us2.ddog-gov.com' },
       ],
       value: () => 'datadoghq.com',
       mode: 'advanced',
@@ -1869,7 +1833,6 @@ Return ONLY the search query string - no explanations.`,
       'datadog_create_monitor',
       'datadog_get_monitor',
       'datadog_list_monitors',
-      'datadog_mute_monitor',
       'datadog_query_logs',
       'datadog_send_logs',
       'datadog_create_downtime',
@@ -1957,14 +1920,6 @@ Return ONLY the search query string - no explanations.`,
               tags: params.listMonitorTags || undefined,
             }
 
-          case 'datadog_mute_monitor':
-            return {
-              ...baseParams,
-              monitorId: params.muteMonitorId,
-              scope: params.scope,
-              end: params.end ? Number(params.end) : undefined,
-            }
-
           case 'datadog_query_logs':
             return {
               ...baseParams,
@@ -1972,6 +1927,7 @@ Return ONLY the search query string - no explanations.`,
               from: params.logFrom,
               to: params.logTo,
               limit: params.logLimit ? Number(params.logLimit) : undefined,
+              cursor: params.logCursor || undefined,
             }
 
           case 'datadog_send_logs':
@@ -2090,9 +2046,9 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               sloId: params.sloId,
-              name: params.sloName,
-              type: params.sloType,
-              thresholds: params.sloThresholds,
+              name: params.sloName || undefined,
+              type: params.sloType || undefined,
+              thresholds: params.sloThresholds || undefined,
               description: params.sloDescription || undefined,
               tags: params.sloTags || undefined,
               query: params.sloMetricQuery || undefined,
@@ -2273,9 +2229,6 @@ Return ONLY the search query string - no explanations.`,
     monitorPriority: { type: 'number', description: 'Monitor priority (1-5)' },
     options: { type: 'json', description: 'Monitor options' },
     monitorId: { type: 'string', description: 'Monitor ID' },
-    muteMonitorId: { type: 'string', description: 'Monitor ID to mute' },
-    scope: { type: 'string', description: 'Scope for muting' },
-    end: { type: 'number', description: 'End time for mute' },
     // Logs
     logQuery: { type: 'string', description: 'Log search query' },
     logFrom: { type: 'string', description: 'Log start time' },
@@ -2391,6 +2344,7 @@ Return ONLY the search query string - no explanations.`,
     spanSort: { type: 'string', description: 'Span sort order' },
     spanLimit: { type: 'number', description: 'Max spans to return' },
     spanCursor: { type: 'string', description: 'Span pagination cursor' },
+    logCursor: { type: 'string', description: 'Log search pagination cursor' },
     servicePageSize: { type: 'number', description: 'Service definitions per page' },
     servicePageNumber: { type: 'number', description: 'Service definitions page number' },
     serviceSchemaVersion: { type: 'string', description: 'Service definition schema version' },

@@ -26,7 +26,6 @@ import { listSecuritySignalsTool } from '@/tools/datadog/list_security_signals'
 import { listServicesTool } from '@/tools/datadog/list_services'
 import { listSlosTool } from '@/tools/datadog/list_slos'
 import { listSyntheticsTestsTool } from '@/tools/datadog/list_synthetics_tests'
-import { muteMonitorTool } from '@/tools/datadog/mute_monitor'
 import { queryLogsTool } from '@/tools/datadog/query_logs'
 import { queryTimeseriesTool } from '@/tools/datadog/query_timeseries'
 import { searchSpansTool } from '@/tools/datadog/search_spans'
@@ -45,7 +44,6 @@ export const datadogCreateEventTool = createEventTool
 export const datadogCreateMonitorTool = createMonitorTool
 export const datadogGetMonitorTool = getMonitorTool
 export const datadogListMonitorsTool = listMonitorsTool
-export const datadogMuteMonitorTool = muteMonitorTool
 export const datadogQueryLogsTool = queryLogsTool
 export const datadogSendLogsTool = sendLogsTool
 export const datadogCreateDowntimeTool = createDowntimeTool

@@ -41,7 +41,7 @@ Submit custom metrics to Datadog. Use for tracking application performance, busi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `series` | string | Yes | JSON array of metric series to submit. Each series should include metric name, type \(gauge/rate/count\), points \(timestamp/value pairs\), and optional tags. |
+| `series` | string | Yes | JSON array of metric series to submit. Each entry needs "metric" and "points" \(objects with "timestamp" in POSIX seconds and a numeric "value"\); timestamps cannot be more than 10 minutes in the future or 1 hour in the past. Optional per entry: "type" \("count", "rate", or "gauge"; omit to let Datadog infer\), "interval" in seconds \(required by Datadog for count and rate\), "tags", "unit", "sourceTypeName", and "resources". |
 | `apiKey` | string | Yes | Datadog API key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
 
@@ -160,7 +160,7 @@ Retrieve details of a specific monitor by ID.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `monitorId` | string | Yes | The ID of the monitor to retrieve \(e.g., "12345678"\) |
-| `groupStates` | string | No | Comma-separated group states to include \(e.g., "alert,warn", "alert,warn,no data,ok"\) |
+| `groupStates` | string | No | Comma-separated group states to include. Valid values are "all", "alert", "warn", and "no data" \(e.g., "alert,warn"\). |
 | `withDowntimes` | boolean | No | Include downtime data with the monitor |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
@@ -192,7 +192,7 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `groupStates` | string | No | Comma-separated group states to filter by \(e.g., "alert,warn", "alert,warn,no data,ok"\) |
+| `groupStates` | string | No | Comma-separated group states to filter by. Valid values are "all", "alert", "warn", and "no data" \(e.g., "alert,warn"\). |
 | `name` | string | No | Filter monitors by name with partial match \(e.g., "CPU", "Production"\) |
 | `tags` | string | No | Comma-separated list of tags to filter by \(e.g., "env:prod,team:backend"\) |
 | `monitorTags` | string | No | Comma-separated list of monitor tags to filter by \(e.g., "service:api,priority:high"\) |
@@ -221,27 +221,6 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 |   ↳ `modified` | string | Last modification timestamp |
 |   ↳ `creator` | json | Monitor creator \(email, handle, name\) |
 
-### Datadog Mute Monitor
-
-Mute a monitor to temporarily suppress notifications. This endpoint is legacy and is no longer published in the Datadog v1 API specification — schedule a downtime instead for supported muting.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `monitorId` | string | Yes | The ID of the monitor to mute \(e.g., "12345678"\) |
-| `scope` | string | No | Scope to mute \(e.g., "host:myhost", "env:prod"\). If not specified, mutes all scopes. |
-| `end` | number | No | Unix timestamp in seconds when the mute should end \(e.g., 1705323600\). If not specified, mutes indefinitely. |
-| `apiKey` | string | Yes | Datadog API key |
-| `applicationKey` | string | Yes | Datadog Application key |
-| `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `success` | boolean | Whether the monitor was successfully muted |
-
 ### Datadog Query Logs
 
 Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or monitoring.
@@ -254,6 +233,7 @@ Search and retrieve logs from Datadog. Use for troubleshooting, analysis, or mon
 | `from` | string | Yes | Start time in ISO-8601 format or relative time \(e.g., "now-1h", "now-15m", "2024-01-15T10:00:00Z"\) |
 | `to` | string | Yes | End time in ISO-8601 format or relative time \(e.g., "now", "now-5m", "2024-01-15T12:00:00Z"\) |
 | `limit` | number | No | Maximum number of logs to return \(e.g., 50, 100, max: 1000\) |
+| `cursor` | string | No | Pagination cursor from a previous call, taken from its nextLogId output. Omit for the first page. |
 | `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
 | `indexes` | string | No | Comma-separated list of log indexes to search |
 | `apiKey` | string | Yes | Datadog API key |
@@ -338,6 +318,8 @@ List all scheduled downtimes in Datadog.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `currentOnly` | boolean | No | Only return currently active downtimes |
+| `limit` | number | No | Number of downtimes to return per page \(default: 30, max: 100\) |
+| `offset` | number | No | Index of the first downtime to return \(e.g., 0, 30, 60\) |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
@@ -346,6 +328,7 @@ List all scheduled downtimes in Datadog.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `totalCount` | number | Total number of downtimes matching the filter, across all pages |
 | `downtimes` | array | List of downtimes |
 |   ↳ `id` | string | Downtime UUID |
 |   ↳ `scope` | array | Downtime scope |
@@ -384,7 +367,7 @@ List incidents for the organization. Requires the Incident Management `incident_
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `include` | string | No | Comma-separated related resources to include \(e.g., "users", "attachments", "integrations"\) |
+| `include` | string | No | Comma-separated related resources to include: "users" and/or "attachments" |
 | `pageSize` | number | No | Number of incidents to return per page \(e.g., 10\) |
 | `pageOffset` | number | No | Index of the first incident to return \(e.g., 0, 10, 20\) |
 | `apiKey` | string | Yes | Datadog API key |
@@ -622,7 +605,7 @@ Create a service level objective from a metric query, monitors, or a time-slice 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | Name of the SLO \(e.g., "Checkout API availability"\) |
-| `type` | string | Yes | SLO type: "metric", "monitor", or "time_slice" |
+| `type` | string | Yes | SLO type: "metric" \(supply query\) or "monitor" \(supply monitorIds\). Time-slice SLOs are not supported here because they need an SLI specification this tool does not send. |
 | `thresholds` | string | Yes | JSON array of thresholds, e.g. \[\{"timeframe": "30d", "target": 99.9, "warning": 99.95\}\] |
 | `description` | string | No | Description of the SLO |
 | `tags` | string | No | Comma-separated tags \(e.g., "env:prod,team:core"\) |
@@ -652,16 +635,16 @@ Create a service level objective from a metric query, monitors, or a time-slice 
 
 ### Datadog Update SLO
 
-Update a service level objective. Datadog replaces the whole SLO, so name, type, and thresholds must always be supplied.
+Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `sloId` | string | Yes | The ID of the service level objective to update |
-| `name` | string | Yes | Name of the SLO |
-| `type` | string | Yes | SLO type: "metric", "monitor", or "time_slice" |
-| `thresholds` | string | Yes | JSON array of thresholds, e.g. \[\{"timeframe": "30d", "target": 99.9, "warning": 99.95\}\] |
+| `name` | string | No | New name for the SLO. Leave blank to keep the current name. |
+| `type` | string | No | SLO type: "metric" or "monitor". Leave blank to keep the current type. Changing type requires supplying the matching query or monitorIds. |
+| `thresholds` | string | No | JSON array of thresholds replacing the stored ones, e.g. \[\{"timeframe": "30d", "target": 99.9, "warning": 99.95\}\]. Leave blank to keep the current thresholds. |
 | `description` | string | No | Description of the SLO |
 | `tags` | string | No | Comma-separated tags \(e.g., "env:prod,team:core"\) |
 | `query` | string | No | For metric SLOs, JSON with numerator and denominator, e.g. \{"numerator": "sum:requests\{status:ok\}.as_count\(\)", "denominator": "sum:requests\{*\}.as_count\(\)"\} |
@@ -1040,8 +1023,8 @@ Search Cloud SIEM security signals by query and time range. Requires the `securi
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | No | Signal search query \(e.g., "security:attack status:high"\) |
-| `from` | string | No | Minimum timestamp, ISO-8601 or relative \(e.g., "now-1h", "2026-01-02T09:42:36.320Z"\) |
-| `to` | string | No | Maximum timestamp, ISO-8601 or relative \(e.g., "now"\) |
+| `from` | string | No | Minimum timestamp as an ISO-8601 date-time \(e.g., "2026-01-02T09:42:36.320Z"\). Signal search does not accept relative expressions like "now-1h". |
+| `to` | string | No | Maximum timestamp as an ISO-8601 date-time \(e.g., "2026-01-03T09:42:36.320Z"\). Signal search does not accept relative expressions like "now". |
 | `sort` | string | No | Sort order: "timestamp" for oldest first, "-timestamp" for newest first |
 | `cursor` | string | No | Pagination cursor returned as nextCursor by a previous call |
 | `limit` | number | No | Maximum number of signals to return \(default: 10, max: 1000\) |

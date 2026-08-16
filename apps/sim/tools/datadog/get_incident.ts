@@ -1,5 +1,10 @@
 import type { GetIncidentParams, GetIncidentResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  splitCommaList,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse> = {
@@ -44,9 +49,8 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
 
   request: {
     url: (params) => {
-      const queryString = params.include
-        ? `?${new URLSearchParams({ include: params.include }).toString()}`
-        : ''
+      const include = splitCommaList(params.include)?.join(',')
+      const queryString = include ? `?${new URLSearchParams({ include }).toString()}` : ''
       return datadogApiUrl(
         params.site,
         `/api/v2/incidents/${encodeURIComponent(params.incidentId)}${queryString}`

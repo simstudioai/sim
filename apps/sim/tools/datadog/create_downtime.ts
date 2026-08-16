@@ -3,6 +3,7 @@ import type {
   CreateDowntimeResponse,
   DowntimeAttributes,
 } from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntimeResponse> = {
@@ -128,13 +129,13 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           downtime: { scope: [] },
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

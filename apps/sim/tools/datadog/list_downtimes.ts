@@ -4,6 +4,7 @@ import type {
   ListDowntimesParams,
   ListDowntimesResponse,
 } from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesResponse> = {
@@ -18,6 +19,18 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       required: false,
       visibility: 'user-or-llm',
       description: 'Only return currently active downtimes',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of downtimes to return per page (default: 30, max: 100)',
+    },
+    offset: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Index of the first downtime to return (e.g., 0, 30, 60)',
     },
     apiKey: {
       type: 'string',
@@ -45,6 +58,8 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       const queryParams = new URLSearchParams()
 
       if (params.currentOnly) queryParams.set('current_only', 'true')
+      if (params.limit !== undefined) queryParams.set('page[limit]', String(params.limit))
+      if (params.offset !== undefined) queryParams.set('page[offset]', String(params.offset))
 
       const queryString = queryParams.toString()
       return `https://api.${site}/api/v2/downtime${queryString ? `?${queryString}` : ''}`
@@ -59,13 +74,13 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           downtimes: [],
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
@@ -89,11 +104,17 @@ export const listDowntimesTool: ToolConfig<ListDowntimesParams, ListDowntimesRes
       success: true,
       output: {
         downtimes,
+        totalCount: data.meta?.page?.total_filtered_count,
       },
     }
   },
 
   outputs: {
+    totalCount: {
+      type: 'number',
+      description: 'Total number of downtimes matching the filter, across all pages',
+      optional: true,
+    },
     downtimes: {
       type: 'array',
       description: 'List of downtimes',

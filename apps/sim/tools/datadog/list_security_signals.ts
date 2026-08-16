@@ -29,13 +29,14 @@ export const listSecuritySignalsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Minimum timestamp, ISO-8601 or relative (e.g., "now-1h", "2026-01-02T09:42:36.320Z")',
+        'Minimum timestamp as an ISO-8601 date-time (e.g., "2026-01-02T09:42:36.320Z"). Signal search does not accept relative expressions like "now-1h".',
     },
     to: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum timestamp, ISO-8601 or relative (e.g., "now")',
+      description:
+        'Maximum timestamp as an ISO-8601 date-time (e.g., "2026-01-03T09:42:36.320Z"). Signal search does not accept relative expressions like "now".',
     },
     sort: {
       type: 'string',

@@ -4,7 +4,12 @@ import type {
   ListIncidentsParams,
   ListIncidentsResponse,
 } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  splitCommaList,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsResponse> = {
@@ -19,8 +24,7 @@ export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsRes
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Comma-separated related resources to include (e.g., "users", "attachments", "integrations")',
+      description: 'Comma-separated related resources to include: "users" and/or "attachments"',
     },
     pageSize: {
       type: 'number',
@@ -57,7 +61,8 @@ export const listIncidentsTool: ToolConfig<ListIncidentsParams, ListIncidentsRes
   request: {
     url: (params) => {
       const queryParams = new URLSearchParams()
-      if (params.include) queryParams.set('include', params.include)
+      const include = splitCommaList(params.include)?.join(',')
+      if (include) queryParams.set('include', include)
       if (params.pageSize !== undefined) queryParams.set('page[size]', String(params.pageSize))
       if (params.pageOffset !== undefined)
         queryParams.set('page[offset]', String(params.pageOffset))

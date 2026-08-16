@@ -2,13 +2,17 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Datadog Site/Region options
+/** Regional sites Datadog serves the API from, per the `site` server variable enum. */
 export type DatadogSite =
   | 'datadoghq.com'
   | 'us3.datadoghq.com'
   | 'us5.datadoghq.com'
   | 'datadoghq.eu'
   | 'ap1.datadoghq.com'
+  | 'ap2.datadoghq.com'
+  | 'uk1.datadoghq.com'
   | 'ddog-gov.com'
+  | 'us2.ddog-gov.com'
 
 // Base parameters for write-only operations (only need API key)
 interface DatadogWriteOnlyParams {
@@ -46,6 +50,9 @@ export interface MetricSeries {
   points: MetricPoint[]
   tags?: string[]
   unit?: string
+  /** Required by Datadog when `type` is `rate` or `count`, in seconds. */
+  interval?: number
+  sourceTypeName?: string
   resources?: { name: string; type: string }[]
 }
 
@@ -93,7 +100,7 @@ interface TimeseriesResult {
 
 interface QueryTimeseriesOutput {
   series: TimeseriesResult[]
-  status: string
+  status?: string
 }
 
 export interface QueryTimeseriesResponse extends ToolResponse {
@@ -247,28 +254,19 @@ export interface ListMonitorsResponse extends ToolResponse {
   output: ListMonitorsOutput
 }
 
-export interface MuteMonitorParams extends DatadogBaseParams {
-  monitorId: string
-  scope?: string // Scope to mute (e.g., "host:myhost")
-  end?: number // Unix timestamp when mute ends
-}
-
-interface MuteMonitorOutput {
-  success: boolean
-}
-
-export interface MuteMonitorResponse extends ToolResponse {
-  output: MuteMonitorOutput
-}
-
 // LOGS TYPES
 
+/**
+ * One entry for the Datadog log intake. Datadog treats any key beyond the reserved
+ * ones as a structured log attribute, so extra properties are carried through.
+ */
 export interface LogEntry {
   ddsource?: string
   ddtags?: string
   hostname?: string
   message: string
   service?: string
+  [attribute: string]: unknown
 }
 
 export interface SendLogsParams extends DatadogWriteOnlyParams {
@@ -288,6 +286,7 @@ export interface QueryLogsParams extends DatadogBaseParams {
   from: string // ISO-8601 or relative (now-1h)
   to: string // ISO-8601 or relative (now)
   limit?: number
+  cursor?: string
   sort?: 'timestamp' | '-timestamp'
   indexes?: string // Comma-separated index names
 }
@@ -367,10 +366,13 @@ export interface CreateDowntimeResponse extends ToolResponse {
 
 export interface ListDowntimesParams extends DatadogBaseParams {
   currentOnly?: boolean
+  limit?: number
+  offset?: number
 }
 
 interface ListDowntimesOutput {
   downtimes: DowntimeData[]
+  totalCount?: number
 }
 
 export interface ListDowntimesResponse extends ToolResponse {
@@ -1121,7 +1123,6 @@ export type DatadogResponse =
   | CreateMonitorResponse
   | GetMonitorResponse
   | ListMonitorsResponse
-  | MuteMonitorResponse
   | SendLogsResponse
   | QueryLogsResponse
   | CreateDowntimeResponse

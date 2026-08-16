@@ -4,6 +4,7 @@ import type {
   EventAlertType,
   EventPriority,
 } from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse> = {
@@ -131,13 +132,13 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           event: {},
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

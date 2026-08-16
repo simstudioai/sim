@@ -1,4 +1,5 @@
 import type { GetMonitorParams, GetMonitorResponse } from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = {
@@ -19,7 +20,7 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated group states to include (e.g., "alert,warn", "alert,warn,no data,ok")',
+        'Comma-separated group states to include. Valid values are "all", "alert", "warn", and "no data" (e.g., "alert,warn").',
     },
     withDowntimes: {
       type: 'boolean',
@@ -68,13 +69,13 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           monitor: {},
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

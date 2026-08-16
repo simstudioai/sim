@@ -1,4 +1,5 @@
 import type { CreateMonitorParams, CreateMonitorResponse, MonitorType } from '@/tools/datadog/types'
+import { datadogErrorMessage, parseJsonParam } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorResponse> = {
@@ -110,14 +111,8 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
           .filter((t: string) => t.length > 0)
       }
 
-      if (params.options) {
-        try {
-          body.options =
-            typeof params.options === 'string' ? JSON.parse(params.options) : params.options
-        } catch {
-          // If options parsing fails, skip it
-        }
-      }
+      const options = parseJsonParam<Record<string, unknown>>(params.options, 'options parameter')
+      if (options) body.options = options
 
       return body
     },
@@ -125,13 +120,13 @@ export const createMonitorTool: ToolConfig<CreateMonitorParams, CreateMonitorRes
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           monitor: {},
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

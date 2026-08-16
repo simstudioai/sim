@@ -1,9 +1,9 @@
 import type { UpdateSloParams, UpdateSloResponse } from '@/tools/datadog/types'
 import {
-  buildSloPayload,
   datadogApiUrl,
   datadogErrorMessage,
   datadogHeaders,
+  mergeSloUpdatePayload,
 } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -11,7 +11,7 @@ export const updateSloTool: ToolConfig<UpdateSloParams, UpdateSloResponse> = {
   id: 'datadog_update_slo',
   name: 'Datadog Update SLO',
   description:
-    'Update a service level objective. Datadog replaces the whole SLO, so name, type, and thresholds must always be supplied.',
+    'Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value.',
   version: '1.0.0',
 
   params: {
@@ -23,22 +23,23 @@ export const updateSloTool: ToolConfig<UpdateSloParams, UpdateSloResponse> = {
     },
     name: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Name of the SLO',
+      description: 'New name for the SLO. Leave blank to keep the current name.',
     },
     type: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'SLO type: "metric", "monitor", or "time_slice"',
+      description:
+        'SLO type: "metric" or "monitor". Leave blank to keep the current type. Changing type requires supplying the matching query or monitorIds.',
     },
     thresholds: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON array of thresholds, e.g. [{"timeframe": "30d", "target": 99.9, "warning": 99.95}]',
+        'JSON array of thresholds replacing the stored ones, e.g. [{"timeframe": "30d", "target": 99.9, "warning": 99.95}]. Leave blank to keep the current thresholds.',
     },
     description: {
       type: 'string',
@@ -113,10 +114,43 @@ export const updateSloTool: ToolConfig<UpdateSloParams, UpdateSloResponse> = {
     url: (params) => datadogApiUrl(params.site, `/api/v1/slo/${encodeURIComponent(params.sloId)}`),
     method: 'PUT',
     headers: datadogHeaders,
-    body: buildSloPayload,
   },
 
-  transformResponse: async (response: Response) => {
+  /**
+   * Datadog's SLO update is a full replacement, so the stored SLO is read first and
+   * the supplied edits are overlaid onto it. Sending only the filled-in fields would
+   * erase every field the caller left blank.
+   */
+  directExecution: async (params, signal) => {
+    const url = datadogApiUrl(params.site, `/api/v1/slo/${encodeURIComponent(params.sloId)}`)
+    const headers = datadogHeaders(params)
+
+    const existingResponse = await fetch(url, { method: 'GET', headers, signal })
+    if (!existingResponse.ok) {
+      return {
+        success: false,
+        output: { slo: { id: '', name: '', type: '' } },
+        error: `Could not load SLO ${params.sloId} before updating it: ${await datadogErrorMessage(existingResponse)}`,
+      }
+    }
+
+    const existing = await existingResponse.json()
+    const stored = existing.data
+    if (!stored || typeof stored !== 'object') {
+      return {
+        success: false,
+        output: { slo: { id: '', name: '', type: '' } },
+        error: `Datadog returned no SLO for id ${params.sloId}`,
+      }
+    }
+
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(mergeSloUpdatePayload(stored, params)),
+      signal,
+    })
+
     if (!response.ok) {
       return {
         success: false,
