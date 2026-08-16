@@ -1027,7 +1027,7 @@ Lists the Cloudflare Access (Zero Trust) applications protecting an account. Req
 |   ↳ `custom_deny_message` | string | Message shown when access is denied |
 |   ↳ `custom_deny_url` | string | URL users are redirected to when access is denied |
 |   ↳ `logo_url` | string | Logo image URL |
-|   ↳ `self_hosted_domains` | array | Additional hostnames and paths secured by the application |
+|   ↳ `self_hosted_domains` | array | Additional hostnames and paths secured by the application. Cloudflare deprecated this field in favour of destinations, which is the one to read on a current application |
 |   ↳ `destinations` | json | Public and private destinations secured by the application |
 |   ↳ `tags` | array | Tags categorizing the application |
 |   ↳ `policies` | json | Access policies attached to the application |
@@ -1061,7 +1061,7 @@ Reads a single Cloudflare Access (Zero Trust) application, including its attache
 | `custom_deny_message` | string | Message shown when access is denied |
 | `custom_deny_url` | string | URL users are redirected to when access is denied |
 | `logo_url` | string | Logo image URL |
-| `self_hosted_domains` | array | Additional hostnames and paths secured by the application |
+| `self_hosted_domains` | array | Additional hostnames and paths secured by the application. Cloudflare deprecated this field in favour of destinations, which is the one to read on a current application |
 | `destinations` | json | Public and private destinations secured by the application |
 | `tags` | array | Tags categorizing the application |
 | `policies` | json | Access policies attached to the application |
@@ -1105,7 +1105,7 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 | `custom_deny_message` | string | Message shown when access is denied |
 | `custom_deny_url` | string | URL users are redirected to when access is denied |
 | `logo_url` | string | Logo image URL |
-| `self_hosted_domains` | array | Additional hostnames and paths secured by the application |
+| `self_hosted_domains` | array | Additional hostnames and paths secured by the application. Cloudflare deprecated this field in favour of destinations, which is the one to read on a current application |
 | `destinations` | json | Public and private destinations secured by the application |
 | `tags` | array | Tags categorizing the application |
 | `policies` | json | Access policies attached to the application |
@@ -1150,7 +1150,7 @@ Updates a Cloudflare Access (Zero Trust) application. This replaces the applicat
 | `custom_deny_message` | string | Message shown when access is denied |
 | `custom_deny_url` | string | URL users are redirected to when access is denied |
 | `logo_url` | string | Logo image URL |
-| `self_hosted_domains` | array | Additional hostnames and paths secured by the application |
+| `self_hosted_domains` | array | Additional hostnames and paths secured by the application. Cloudflare deprecated this field in favour of destinations, which is the one to read on a current application |
 | `destinations` | json | Public and private destinations secured by the application |
 | `tags` | array | Tags categorizing the application |
 | `policies` | json | Access policies attached to the application |

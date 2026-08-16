@@ -110,7 +110,8 @@ export const getAccessApplicationTool: ToolConfig<
     logo_url: { type: 'string', description: 'Logo image URL', optional: true },
     self_hosted_domains: {
       type: 'array',
-      description: 'Additional hostnames and paths secured by the application',
+      description:
+        'Additional hostnames and paths secured by the application. Cloudflare deprecated this field in favour of destinations, which is the one to read on a current application',
       items: { type: 'string', description: 'Hostname and path' },
       optional: true,
     },
