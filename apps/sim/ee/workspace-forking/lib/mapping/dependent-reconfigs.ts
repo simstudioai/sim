@@ -15,10 +15,7 @@ import {
   isNonEmptyValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
-import {
-  isSubBlockRequired,
-  isToolParamUserRequired,
-} from '@/lib/workflows/tool-input/param-visibility'
+import { resolveToolParamRequired } from '@/lib/workflows/tool-input/param-visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
@@ -93,7 +90,7 @@ interface EmitAnchoredParams {
    * Present ONLY for the nested `tool-input` pass: each param's resolved
    * {@link ParameterVisibility}, keyed by sub-block id and by canonical param id. Its presence
    * is what marks a dependent as a tool param rather than a block sub-block, so `required`
-   * can apply the tool-row rule (see {@link isToolParamUserRequired}).
+   * can apply the tool-row rule (see {@link resolveToolParamRequired}).
    *
    * Two cases fall back to the block-level `required`, failing closed: a param absent from
    * the map (custom-tool / MCP generic fallback, or an unresolvable tool id), and a param
@@ -230,16 +227,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         // Testing `rawSourceValue` directly is sound: the dormant guard above has already
         // returned for any pair in advanced mode, so the pair is basic-active here and
         // `rawSourceValue` IS the group's active canonical value.
-        const paramVisibility = paramVisibilityById
-          ? (paramVisibilityById.get(dependent.id) ??
-            (dependent.canonicalParamId
-              ? paramVisibilityById.get(dependent.canonicalParamId)
-              : undefined))
-          : undefined
-        const configuredRequired =
-          paramVisibility !== undefined
-            ? isToolParamUserRequired({ required: dependent.required, paramVisibility }, values)
-            : isSubBlockRequired(dependent.required, values)
+        const configuredRequired = resolveToolParamRequired(dependent, values, paramVisibilityById)
         out.push({
           parentKind: anchor.parentKind,
           parentSourceId,

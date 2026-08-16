@@ -43,6 +43,33 @@ export function isUserSuppliedToolParam(config: Pick<SubBlockConfig, 'paramVisib
 }
 
 /**
+ * Whether a `tool-input` param must be supplied by the user, resolving its visibility from a
+ * map keyed by sub-block id and canonical param id.
+ *
+ * Shared by fork sync's PRE-sync collector (which decides whether a row blocks the Sync
+ * button) and its POST-sync collector (whose `required` entries make promote SKIP the
+ * target's redeploy). Those two must agree: if the modal lets a sync through because a param
+ * is the model's to fill, the promote path must not then withhold the deployment for the
+ * same param.
+ *
+ * `paramVisibilityById` omitted means the caller is not in a tool-input context (a block's
+ * own sub-blocks), so the plain block-level rule applies. A param absent from the map, or
+ * present with an `undefined` value, falls back the same way — failing closed.
+ */
+export function resolveToolParamRequired(
+  config: Pick<SubBlockConfig, 'id' | 'required' | 'canonicalParamId'>,
+  values: Record<string, unknown>,
+  paramVisibilityById?: ReadonlyMap<string, ParameterVisibility | undefined>
+): boolean {
+  if (!paramVisibilityById) return isSubBlockRequired(config.required, values)
+  const visibility =
+    paramVisibilityById.get(config.id) ??
+    (config.canonicalParamId ? paramVisibilityById.get(config.canonicalParamId) : undefined)
+  if (visibility === undefined) return isSubBlockRequired(config.required, values)
+  return isToolParamUserRequired({ required: config.required, paramVisibility: visibility }, values)
+}
+
+/**
  * Resolve a sub-block's `required` declaration against the surrounding values. `true` is
  * unconditional; the object form is structurally a `SubBlockCondition` evaluated against the
  * same value map the editor uses (so an operation-scoped requirement resolves per operation).
