@@ -68,7 +68,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       byOperation: {
         list_zones: [
           'List zones',
-          { text: 'named', field: 'name' },
+          { text: 'named', field: 'zoneNameFilter' },
           { text: ', with status', field: 'status' },
         ],
         get_zone: [{ text: 'Read details of zone', field: 'zoneId', core: true }],
@@ -79,8 +79,8 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         delete_zone: [{ text: 'Delete zone', field: 'zoneId', core: true }],
         list_dns_records: [
           { text: 'List DNS records in zone', field: 'zoneId', core: true },
-          { text: ', of type', field: 'type' },
-          { text: ', named', field: 'name' },
+          { text: ', of type', field: 'dnsTypeFilter' },
+          { text: ', named', field: 'dnsNameFilter' },
         ],
         create_dns_record: [
           { text: 'Add DNS record', field: 'name', core: true },
@@ -113,7 +113,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         purge_cache: [
           { text: 'Purge cache for zone', field: 'zoneId', core: true },
-          { text: ', limited to', field: ['files', 'prefixes', 'hosts', 'tags'] },
+          { text: ', limited to', field: ['files', 'prefixes', 'hosts', 'purgeTags'] },
         ],
         list_rulesets: [{ text: 'List rulesets in zone', field: 'zoneId', core: true }],
         get_ruleset: [
@@ -160,7 +160,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         ],
         list_access_applications: [
           { text: 'List Access applications in account', field: 'accountId', core: true },
-          { text: ', matching', field: ['name', 'domain', 'search'] },
+          { text: ', matching', field: ['listNameFilter', 'accessAppDomainFilter', 'search'] },
         ],
         get_access_application: [{ text: 'Read Access application', field: 'appId', core: true }],
         create_access_application: [
@@ -226,7 +226,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
         list_worker_routes: [{ text: 'List Worker routes in zone', field: 'zoneId', core: true }],
         list_tunnels: [
           { text: 'List tunnels in account', field: 'accountId', core: true },
-          { text: ', with status', field: 'status' },
+          { text: ', with status', field: 'tunnelStatus' },
         ],
         get_tunnel: [{ text: 'Read tunnel', field: 'tunnelId', core: true }],
         get_tunnel_configuration: [
