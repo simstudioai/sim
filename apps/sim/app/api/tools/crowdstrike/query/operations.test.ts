@@ -1113,6 +1113,47 @@ describe('CrowdStrike extended operations', () => {
       expect(data.error).not.toContain(skipped)
     })
 
+    /**
+     * A 2xx envelope carrying per-ID errors is a partial success, not a failure —
+     * `failedWithoutResources` only fails the operation when nothing came back at
+     * all. The batched path must report it exactly as a single request would:
+     * `deletedIds` names what Falcon confirmed and `errors` names what it refused,
+     * which is stricter reconciliation than the prose message the transport-failure
+     * path has to fall back on. A retry excludes `deletedIds`.
+     */
+    it('reports a 2xx per-ID delete failure as partial success, matching an unbatched request', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+      let deleteCall = 0
+      let refused = ''
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        deleteCall += 1
+        const ids = idsFromUrl(rawUrl)
+        if (deleteCall === 2) {
+          refused = ids[0]
+          return Promise.resolve(
+            jsonResponse({
+              resources: ids.slice(1),
+              errors: [{ code: 404, id: ids[0], message: 'Indicator not found' }],
+            })
+          )
+        }
+        return Promise.resolve(jsonResponse({ resources: ids }))
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(refused).not.toBe('')
+      expect(data.output.deletedIds).not.toContain(refused)
+      expect(data.output.count).toBe(indicatorIds.length - 1)
+      expect(data.output.errors).toContainEqual(expect.objectContaining({ id: refused, code: 404 }))
+    })
+
     it('leaves a first-batch delete failure unannotated — nothing was committed', async () => {
       const indicatorIds = longIds(300, 'ioc')
 
