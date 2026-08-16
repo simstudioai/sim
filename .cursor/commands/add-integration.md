@@ -555,6 +555,7 @@ Run the documentation generator:
 ```bash
 bun run scripts/generate-docs.ts
 bun run integration-catalog:check
+bun run docs:check
 ```
 
 This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
@@ -645,6 +646,9 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified docs file created
 - [ ] Reviewed and committed the generated `apps/sim/lib/integrations/integrations.json` change
 - [ ] `bun run integration-catalog:check` passes
+- [ ] `bun run docs:check` passes — CI fails on stale generated docs, so commit the full generator
+      output, including catch-up regeneration for pages another PR left stale (never revert it as
+      "unrelated drift")
 
 ### Final Validation (Required)
 - [ ] Read every tool file and cross-referenced inputs/outputs against the API docs
