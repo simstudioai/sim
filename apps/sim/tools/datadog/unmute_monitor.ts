@@ -1,5 +1,10 @@
 import type { UnmuteMonitorParams, UnmuteMonitorResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorResponse> = {
@@ -51,7 +56,7 @@ export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorRes
 
   request: {
     url: (params) =>
-      datadogApiUrl(params.site, `/api/v1/monitor/${encodeURIComponent(params.monitorId)}/unmute`),
+      datadogApiUrl(params.site, `/api/v1/monitor/${datadogPathSegment(params.monitorId)}/unmute`),
     method: 'POST',
     headers: datadogHeaders,
     body: (params) => {

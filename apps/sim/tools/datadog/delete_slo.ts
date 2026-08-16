@@ -1,5 +1,10 @@
 import type { DeleteSloParams, DeleteSloResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteSloTool: ToolConfig<DeleteSloParams, DeleteSloResponse> = {
@@ -47,7 +52,7 @@ export const deleteSloTool: ToolConfig<DeleteSloParams, DeleteSloResponse> = {
       const queryString = params.force ? '?force=true' : ''
       return datadogApiUrl(
         params.site,
-        `/api/v1/slo/${encodeURIComponent(params.sloId)}${queryString}`
+        `/api/v1/slo/${datadogPathSegment(params.sloId)}${queryString}`
       )
     },
     method: 'DELETE',

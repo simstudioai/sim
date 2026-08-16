@@ -3,6 +3,7 @@ import {
   datadogApiUrl,
   datadogErrorMessage,
   datadogHeaders,
+  datadogPathSegment,
   splitCommaList,
 } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -64,7 +65,7 @@ export const addIncidentTodoTool: ToolConfig<AddIncidentTodoParams, AddIncidentT
     url: (params) =>
       datadogApiUrl(
         params.site,
-        `/api/v2/incidents/${encodeURIComponent(params.incidentId)}/relationships/todos`
+        `/api/v2/incidents/${datadogPathSegment(params.incidentId)}/relationships/todos`
       ),
     method: 'POST',
     headers: datadogHeaders,

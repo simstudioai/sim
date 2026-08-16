@@ -62,8 +62,10 @@ export const listUsersTool: ToolConfig<MicrosoftAdListUsersParams, MicrosoftAdLi
       if (params.search) {
         const term = params.search.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
         queryParts.push(`$search=${encodeURIComponent(`"displayName:${term}" OR "mail:${term}"`)}`)
-        queryParts.push('$count=true')
       }
+      // Graph rejects advanced $filter operators (ne, not, endsWith, startsWith on
+      // non-indexed properties) unless $count=true accompanies ConsistencyLevel: eventual.
+      if (params.filter || params.search) queryParts.push('$count=true')
       return `https://graph.microsoft.com/v1.0/users?${queryParts.join('&')}`
     },
     method: 'GET',

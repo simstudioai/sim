@@ -1,5 +1,10 @@
 import type { GetSecuritySignalParams, GetSecuritySignalResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSecuritySignalTool: ToolConfig<GetSecuritySignalParams, GetSecuritySignalResponse> =
@@ -41,7 +46,7 @@ export const getSecuritySignalTool: ToolConfig<GetSecuritySignalParams, GetSecur
       url: (params) =>
         datadogApiUrl(
           params.site,
-          `/api/v2/security_monitoring/signals/${encodeURIComponent(params.signalId)}`
+          `/api/v2/security_monitoring/signals/${datadogPathSegment(params.signalId)}`
         ),
       method: 'GET',
       headers: datadogHeaders,

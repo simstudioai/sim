@@ -1,5 +1,5 @@
 import type { GetMonitorParams, GetMonitorResponse } from '@/tools/datadog/types'
-import { datadogErrorMessage } from '@/tools/datadog/utils'
+import { datadogErrorMessage, datadogPathSegment } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = {
@@ -56,7 +56,7 @@ export const getMonitorTool: ToolConfig<GetMonitorParams, GetMonitorResponse> = 
       if (params.groupStates) queryParams.set('group_states', params.groupStates)
       if (params.withDowntimes) queryParams.set('with_downtimes', 'true')
 
-      const monitorId = encodeURIComponent(String(params.monitorId).trim())
+      const monitorId = datadogPathSegment(params.monitorId)
       const queryString = queryParams.toString()
       return `https://api.${site}/api/v1/monitor/${monitorId}${queryString ? `?${queryString}` : ''}`
     },

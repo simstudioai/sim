@@ -67,8 +67,10 @@ export const listGroupsTool: ToolConfig<
         queryParts.push(
           `$search=${encodeURIComponent(`"displayName:${term}" OR "description:${term}"`)}`
         )
-        queryParts.push('$count=true')
       }
+      // Graph rejects advanced $filter operators (ne, not, endsWith, startsWith on
+      // non-indexed properties) unless $count=true accompanies ConsistencyLevel: eventual.
+      if (params.filter || params.search) queryParts.push('$count=true')
       return `https://graph.microsoft.com/v1.0/groups?${queryParts.join('&')}`
     },
     method: 'GET',

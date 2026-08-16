@@ -510,8 +510,16 @@ export interface CreateSloResponse extends ToolResponse {
   output: CreateSloOutput
 }
 
-export interface UpdateSloParams extends CreateSloParams {
+/**
+ * `PUT /api/v1/slo/{slo_id}` is a full replacement that Sim fills from the stored SLO,
+ * so every identifying field is optional here: an omitted `type` means "keep the stored
+ * type" rather than "rewrite this SLO as a metric SLO".
+ */
+export interface UpdateSloParams extends Omit<CreateSloParams, 'name' | 'type' | 'thresholds'> {
   sloId: string
+  name?: string
+  type?: SloType
+  thresholds?: string
 }
 
 interface UpdateSloOutput {

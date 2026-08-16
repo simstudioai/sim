@@ -14,6 +14,18 @@ export function datadogApiUrl(site: DatadogSite | undefined, path: string): stri
   return `https://api.${site || 'datadoghq.com'}${path}`
 }
 
+/**
+ * Encodes one user-supplied identifier for use as a URL path segment.
+ *
+ * IDs reach Sim by copy/paste and from `<Block.output>` references, so they arrive with
+ * stray whitespace and as non-strings (a monitor ID is a number). `encodeURIComponent`
+ * preserves the whitespace as `%20`, which Datadog treats as part of the ID and answers
+ * with a 404 that names nothing the user typed — so trim before encoding.
+ */
+export function datadogPathSegment(value: unknown): string {
+  return encodeURIComponent(String(value ?? '').trim())
+}
+
 /** Standard Datadog authentication headers for API + application key auth. */
 export function datadogHeaders(params: {
   apiKey: string

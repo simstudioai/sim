@@ -76,7 +76,9 @@ export const listServicePrincipalsTool: ToolConfig<
         search: search
           ? `"displayName:${search.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
           : undefined,
-        count: Boolean(search),
+        // Graph rejects advanced $filter operators (ne, not, endsWith, startsWith on
+        // non-indexed properties) unless $count=true accompanies ConsistencyLevel: eventual.
+        count: Boolean(search || params.filter),
       })
     },
     method: 'GET',

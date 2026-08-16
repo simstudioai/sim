@@ -1,5 +1,10 @@
 import type { MuteMonitorParams, MuteMonitorResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse> = {
@@ -52,7 +57,7 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
 
   request: {
     url: (params) =>
-      datadogApiUrl(params.site, `/api/v1/monitor/${encodeURIComponent(params.monitorId)}/mute`),
+      datadogApiUrl(params.site, `/api/v1/monitor/${datadogPathSegment(params.monitorId)}/mute`),
     method: 'POST',
     headers: datadogHeaders,
     body: (params) => {

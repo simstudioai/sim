@@ -2,7 +2,12 @@ import type {
   UpdateSyntheticsStatusParams,
   UpdateSyntheticsStatusResponse,
 } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateSyntheticsStatusTool: ToolConfig<
@@ -51,7 +56,7 @@ export const updateSyntheticsStatusTool: ToolConfig<
     url: (params) =>
       datadogApiUrl(
         params.site,
-        `/api/v1/synthetics/tests/${encodeURIComponent(params.publicId)}/status`
+        `/api/v1/synthetics/tests/${datadogPathSegment(params.publicId)}/status`
       ),
     method: 'PUT',
     headers: datadogHeaders,
