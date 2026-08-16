@@ -1660,7 +1660,11 @@ describe('credential protection', () => {
     expect(mainFrame.executeJavaScript).not.toHaveBeenCalled()
   })
 
-  it('reports navigation that remains obstructed by a DOM dialog', async () => {
+  // A dialog that was ALREADY open before the click is not obstructing the
+  // navigation it survived — reporting it made every SPA route change under a
+  // persistent role=dialog (cookie banner, side drawer, picker) read as a
+  // failed click. Only a dialog that arrives with the navigation obstructs it.
+  it('ignores a dialog that was already open before the click', async () => {
     const contents = await openPage()
     let actionReads = 0
     vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
@@ -1697,11 +1701,50 @@ describe('credential protection', () => {
 
     expect(result).toMatchObject({
       ok: true,
+      result: { effectObserved: true, obstructedAfterNavigation: false, dialogs: ['Search'] },
+    })
+  })
+
+  it('reports navigation obstructed by a dialog that opened with it', async () => {
+    const contents = await openPage()
+    let actionReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'clickElement')) {
+        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Search result' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        actionReads++
+        return Promise.resolve(
+          actionReads === 1
+            ? {
+                url: 'https://example.com/search',
+                title: 'Search',
+                focus: 'body',
+                mutationRevision: 0,
+                dialogs: [],
+                scroll: [0],
+              }
+            : {
+                url: 'https://example.com/channel/eng-bugs',
+                title: 'eng-bugs',
+                focus: 'body',
+                mutationRevision: 1,
+                dialogs: ['Open in the Slack app?'],
+                scroll: [0],
+              }
+        )
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(result).toMatchObject({
+      ok: true,
       result: {
-        effectObserved: true,
         obstructedAfterNavigation: true,
-        dialogs: ['Search'],
-        note: expect.stringContaining('dialog is still open'),
+        note: expect.stringContaining('Open in the Slack app?'),
       },
     })
   })

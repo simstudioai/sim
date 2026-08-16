@@ -892,7 +892,14 @@ function unwrapPageResult(result: unknown): unknown {
       )
     }
     if (code === 'not-editable') {
-      throw new ToolError('That element is not a text input — pick an editable element.')
+      const tag = isRecordLike(result) ? String(result.elementTag ?? '') : ''
+      const role = isRecordLike(result) ? String(result.elementRole ?? '') : ''
+      const described = [tag ? `<${tag}>` : '', role ? `role="${role}"` : '']
+        .filter(Boolean)
+        .join(' ')
+      throw new ToolError(
+        `That element is not a text input${described ? ` (it is ${described})` : ''} — take a fresh browser_snapshot and target the editable field itself.`
+      )
     }
     if (code === 'outside-viewport') {
       throw new ToolError(
@@ -900,8 +907,14 @@ function unwrapPageResult(result: unknown): unknown {
       )
     }
     if (code === 'ambiguous-editable') {
+      const candidates =
+        isRecordLike(result) && Array.isArray(result.candidates)
+          ? result.candidates.map(String).filter(Boolean)
+          : []
       throw new ToolError(
-        'That composite control contains multiple editable fields. Take a fresh browser_snapshot and target the exact field.'
+        `That composite control contains multiple editable fields${
+          candidates.length > 0 ? ` (${candidates.join(', ')})` : ''
+        }. Take a fresh browser_snapshot and target the exact field.`
       )
     }
     if (code === 'different') {
@@ -2344,10 +2357,21 @@ async function executeToolInner(
       )
       const navigated =
         observation.effect.urlChanged || topObservation.effect.urlChanged || tabChanged
-      const obstructedAfterNavigation = navigated && dialogs.length > 0
+      // Only a dialog that ARRIVED with the navigation obstructs it. Comparing
+      // against the union of what was already open stops the false positive
+      // that fires on every SPA route change under a persistent `role=dialog`
+      // (a cookie banner, a side drawer, an emoji picker) — those are not
+      // blocking anything, and reporting them made successful clicks read as
+      // failures.
+      const dialogsBefore = new Set([
+        ...(Array.isArray(beforePage.dialogs) ? beforePage.dialogs.map(String) : []),
+        ...(Array.isArray(beforeTopPage.dialogs) ? beforeTopPage.dialogs.map(String) : []),
+      ])
+      const newDialogs = dialogs.filter((dialog) => !dialogsBefore.has(dialog))
+      const obstructedAfterNavigation = navigated && newDialogs.length > 0
       const notes: string[] = []
       if (obstructedAfterNavigation) {
-        notes.push('The page navigated, but a dialog is still open above it.')
+        notes.push(`The page navigated, but a dialog opened above it (${newDialogs.join(', ')}).`)
       }
       if (!effectObserved) {
         notes.push(
@@ -3249,6 +3273,12 @@ async function executeToolInner(
       }
       const beforePage = await pageActionState(target, true)
       const beforeElement = await activeElementState(target)
+      // Observe the TOP document too when typing inside a frame. A submit that
+      // navigates the top page is invisible to a frame-scoped observation, so a
+      // successful send reported effectObserved: false. Newly reachable now
+      // that the focus check descends into frames at all.
+      const insertInFrame = target !== contents
+      const beforeTopPage = insertInFrame ? await pageActionState(contents, true) : beforePage
       assertCurrentExecution()
       assertActiveContents(contents, insertNavigationEpoch)
       assertFocusedTargetUnchanged(contents, target)
@@ -3275,11 +3305,16 @@ async function executeToolInner(
       const state = await activeElementState(target)
       const afterPage = await pageActionState(target)
       const observation = pageEffect(beforePage, afterPage, beforeElement, state)
+      const topObservation = insertInFrame
+        ? pageEffect(beforeTopPage, await pageActionState(contents, true), beforeElement, state)
+        : observation
       const effectObserved =
         observation.effect.fieldChanged ||
         observation.effect.urlChanged ||
         observation.effect.dialogChanged ||
-        observation.effect.targetChanged
+        observation.effect.targetChanged ||
+        topObservation.effect.urlChanged ||
+        topObservation.effect.dialogChanged
       return {
         dispatched: true,
         trusted: true,

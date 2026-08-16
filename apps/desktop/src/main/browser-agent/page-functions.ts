@@ -1042,7 +1042,7 @@ export function clickElement(
       addCandidate(el)
       for (const candidate of Array.from(
         el.querySelectorAll<HTMLElement>(
-          'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]'
+          'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"]'
         )
       )) {
         addCandidate(candidate)
@@ -1250,7 +1250,12 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       tag === 'TEXTAREA' ||
       (tag === 'INPUT' &&
         ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
-      (node as HTMLElement).isContentEditable
+      (node as HTMLElement).isContentEditable ||
+      // An ARIA-only textbox. The snapshot already advertises these as
+      // `[textbox]` with a ref, and browser_insert_text accepts them, so
+      // refusing here meant one tool rejecting exactly what the outline told
+      // the model to type into and what its sibling would have accepted.
+      node.getAttribute('role') === 'textbox'
     ) {
       potentialEditables.push(node as HTMLElement)
     }
@@ -1258,14 +1263,34 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
   addEditable(el)
   for (const candidate of Array.from(
     el.querySelectorAll<HTMLElement>(
-      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]'
+      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"]'
     )
   )) {
     addEditable(candidate)
   }
   const editables = Array.from(new Set(potentialEditables))
-  if (editables.length === 0) return { error: 'not-editable' }
-  if (editables.length > 1) return { error: 'ambiguous-editable' }
+  if (editables.length === 0) {
+    // Describe the element instead of only refusing it. Without this the agent
+    // cannot tell "wrong ref" from "this tool cannot type here" and retries
+    // variations of the same failing call.
+    return {
+      error: 'not-editable',
+      elementTag: String(el.tagName || '').toLowerCase(),
+      ...(el.getAttribute('role') ? { elementRole: el.getAttribute('role') } : {}),
+    }
+  }
+  if (editables.length > 1) {
+    // The candidate list is right here; discarding it left the agent unable to
+    // pick a narrower target, which is the only recovery this error allows.
+    return {
+      error: 'ambiguous-editable',
+      candidates: editables.slice(0, 5).map((field) => {
+        const fieldTag = String(field.tagName || '').toLowerCase()
+        const label = field.getAttribute('aria-label') || field.getAttribute('placeholder') || ''
+        return label ? `${fieldTag} "${label}"` : fieldTag
+      }),
+    }
+  }
   const editable = editables[0]
   const editableTag = tagFor(editable)
 
@@ -1776,7 +1801,12 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
       candidateTag === 'TEXTAREA' ||
       (candidateTag === 'INPUT' &&
         ['text', 'search', 'email', 'url', 'tel', 'number', 'password'].includes(inputType)) ||
-      (node as HTMLElement).isContentEditable
+      (node as HTMLElement).isContentEditable ||
+      // An ARIA-only textbox. The snapshot already advertises these as
+      // `[textbox]` with a ref, and browser_insert_text accepts them, so
+      // refusing here meant one tool rejecting exactly what the outline told
+      // the model to type into and what its sibling would have accepted.
+      node.getAttribute('role') === 'textbox'
     ) {
       potentialEditables.push(node as HTMLElement)
     }
@@ -1784,14 +1814,34 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   addEditable(el)
   for (const candidate of Array.from(
     el.querySelectorAll<HTMLElement>(
-      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]'
+      'input, textarea, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"]'
     )
   )) {
     addEditable(candidate)
   }
   const editables = Array.from(new Set(potentialEditables))
-  if (editables.length === 0) return { error: 'not-editable' }
-  if (editables.length > 1) return { error: 'ambiguous-editable' }
+  if (editables.length === 0) {
+    // Describe the element instead of only refusing it. Without this the agent
+    // cannot tell "wrong ref" from "this tool cannot type here" and retries
+    // variations of the same failing call.
+    return {
+      error: 'not-editable',
+      elementTag: String(el.tagName || '').toLowerCase(),
+      ...(el.getAttribute('role') ? { elementRole: el.getAttribute('role') } : {}),
+    }
+  }
+  if (editables.length > 1) {
+    // The candidate list is right here; discarding it left the agent unable to
+    // pick a narrower target, which is the only recovery this error allows.
+    return {
+      error: 'ambiguous-editable',
+      candidates: editables.slice(0, 5).map((field) => {
+        const fieldTag = String(field.tagName || '').toLowerCase()
+        const label = field.getAttribute('aria-label') || field.getAttribute('placeholder') || ''
+        return label ? `${fieldTag} "${label}"` : fieldTag
+      }),
+    }
+  }
   const editable = editables[0]
   const tag = String(editable.tagName || '').toUpperCase()
   editable.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
@@ -1873,9 +1923,37 @@ export function pressKeyOnPage(
       .some((token) => token === 'current-password' || token === 'new-password')
   }
 
-  const target = (document.activeElement as HTMLElement | null) ?? document.body
+  // Descend to what is really focused, like every other focus reader here.
+  // Without this the synthetic key lands on the shadow HOST or the <iframe>
+  // element: the event bubbles from there but never enters the shadow tree or
+  // the frame document, so the editor's keymap never sees it — and the result
+  // still reports success. It also made this function's `target` disagree with
+  // the `activeElement` reported alongside it in the same tool result.
+  let target = (document.activeElement as HTMLElement | null) ?? document.body
+  for (let depth = 0; depth < 10; depth++) {
+    const shadow = target.shadowRoot
+    if (shadow?.activeElement) {
+      target = shadow.activeElement as HTMLElement
+      continue
+    }
+    const targetTag = String(target.tagName || '').toUpperCase()
+    if (targetTag === 'IFRAME' || targetTag === 'FRAME') {
+      try {
+        const inner = (target as HTMLIFrameElement).contentDocument
+        if (inner?.activeElement && inner.activeElement !== inner.body) {
+          target = inner.activeElement as HTMLElement
+          continue
+        }
+      } catch {
+        // Cross-origin frame — not inspectable; dispatch to the frame itself.
+      }
+    }
+    break
+  }
   // The driver checks focus before taking the trusted CDP path; this covers
   // the synthetic fallback, which is reached independently when CDP is down.
+  // Descending first is what makes this guard reach a password field nested in
+  // a shadow root or frame, rather than only inspecting the host.
   if (isSecretField(target)) return { error: 'password' }
   const opts = {
     bubbles: true,

@@ -261,8 +261,11 @@ describe('secret-field detection', () => {
     expect(typeIntoElement(0, 'change', false)).toEqual({ error: 'readonly' })
     expect(focusElementForTyping(1)).toEqual({ error: 'disabled' })
     expect(typeIntoElement(1, 'change', false)).toEqual({ error: 'disabled' })
-    expect(focusElementForTyping(2)).toEqual({ error: 'not-editable' })
-    expect(typeIntoElement(2, 'change', false)).toEqual({ error: 'not-editable' })
+    expect(focusElementForTyping(2)).toMatchObject({ error: 'not-editable', elementTag: 'input' })
+    expect(typeIntoElement(2, 'change', false)).toMatchObject({
+      error: 'not-editable',
+      elementTag: 'input',
+    })
   })
 
   it('detects a password field reached through a same-origin iframe', () => {
@@ -383,7 +386,12 @@ describe('combobox typing surfaces', () => {
     for (const input of Array.from(document.querySelectorAll('input'))) visible(input)
     register(ambiguous, secret)
 
-    expect(focusElementForTyping(0)).toEqual({ error: 'ambiguous-editable' })
+    // The candidate list is the whole point of this error — it is the only
+    // thing that lets the agent pick a narrower target.
+    expect(focusElementForTyping(0)).toMatchObject({
+      error: 'ambiguous-editable',
+      candidates: expect.arrayContaining([expect.stringContaining('input')]),
+    })
     expect(focusElementForTyping(1)).toEqual({ error: 'password' })
     expect(typeIntoElement(1, 'nope', false)).toEqual({ error: 'password' })
   })
