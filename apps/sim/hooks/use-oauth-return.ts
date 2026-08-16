@@ -31,12 +31,12 @@ const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
 
-interface OAuthResultMessage {
+export interface OAuthResultMessage {
   kind: 'success' | 'error'
   text: string
 }
 
-async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAuthResultMessage> {
+export async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAuthResultMessage> {
   if (ctx.reconnect) {
     return { kind: 'success', text: `"${ctx.displayName}" reconnected successfully.` }
   }
@@ -55,14 +55,17 @@ async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAuthResult
       }
     }
 
-    const baselineAccountIds = new Map(
-      ctx.baselineCredentials?.map((credential) => [credential.id, credential.accountId]) ?? []
+    const baselineCredentials = new Map(
+      ctx.baselineCredentials?.map((credential) => [credential.id, credential]) ?? []
     )
-    const reauthorizedCredential = forProvider.find(
-      (credential) =>
-        baselineAccountIds.has(credential.id) &&
-        baselineAccountIds.get(credential.id) !== credential.accountId
-    )
+    const reauthorizedCredential = forProvider.find((credential) => {
+      const baseline = baselineCredentials.get(credential.id)
+      return (
+        baseline !== undefined &&
+        (baseline.accountId !== credential.accountId ||
+          (baseline.updatedAt !== undefined && baseline.updatedAt !== credential.updatedAt))
+      )
+    })
     if (reauthorizedCredential) {
       return {
         kind: 'success',

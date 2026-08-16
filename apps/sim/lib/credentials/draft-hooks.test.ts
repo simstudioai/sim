@@ -31,6 +31,7 @@ describe('handleCreateCredentialFromDraft', () => {
   })
 
   it('treats a wrapped workspace-account conflict as an existing connection', async () => {
+    const now = new Date('2026-08-14T18:00:00.000Z')
     const cause = Object.assign(new Error('duplicate key'), {
       code: '23505',
       constraint_name: 'credential_workspace_account_unique',
@@ -49,9 +50,11 @@ describe('handleCreateCredentialFromDraft', () => {
       accountId: 'account-1',
       providerId: 'google-email',
       userId: 'user-1',
-      now: new Date('2026-08-14T18:00:00.000Z'),
+      now,
     })
 
+    expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.credential)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ updatedAt: now })
     expect(mocks.clearDeadFlag).toHaveBeenCalledWith('account-1')
     expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({

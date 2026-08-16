@@ -180,7 +180,10 @@ export function useConnectOAuthService() {
       // which refreshes caches and shows the connected toast.
       const desktopBridge = getDesktopBridge()
       if (desktopBridge?.beginOAuthConnect) {
-        const opened = await desktopBridge.beginOAuthConnect(providerId)
+        const opened = await desktopBridge.beginOAuthConnect(
+          providerId,
+          draftId ? { draftId } : undefined
+        )
         if (!opened) {
           throw new Error('Could not open your browser to connect this account.')
         }

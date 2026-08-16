@@ -50,8 +50,16 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   const port = parseLoopbackPort(typeof params.port === 'string' ? params.port : '')
   const workspaceId = isValidOpaqueId(params.workspaceId) ? params.workspaceId : undefined
   const credentialId = isValidOpaqueId(params.credentialId) ? params.credentialId : undefined
+  const draftId = isValidOpaqueId(params.draftId) ? params.draftId : undefined
   const expectedUserId = isValidOpaqueId(params.user) ? params.user : undefined
-  if (!isValidOAuthProviderId(providerId) || !isValidHandoffState(state) || port === null) {
+  const hasInvalidDraftId = params.draftId !== undefined && draftId === undefined
+  if (
+    !isValidOAuthProviderId(providerId) ||
+    !isValidHandoffState(state) ||
+    port === null ||
+    hasInvalidDraftId ||
+    (workspaceId !== undefined && draftId !== undefined)
+  ) {
     return <InvalidRequest />
   }
 
@@ -65,6 +73,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
         buildDesktopConnectPath(providerId, state, port, {
           workspaceId,
           credentialId,
+          draftId,
           user: expectedUserId,
         })
       )}`
@@ -86,6 +95,7 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
           returnTo={buildDesktopConnectPath(providerId, state, port, {
             workspaceId,
             credentialId,
+            draftId,
             user: expectedUserId,
           })}
         />
@@ -113,6 +123,9 @@ export default async function DesktopConnectPage({ searchParams }: DesktopConnec
   }
 
   return (
-    <ConnectLauncher providerId={providerId} completePath={buildConnectCompletePath(state, port)} />
+    <ConnectLauncher
+      providerId={providerId}
+      completePath={buildConnectCompletePath(state, port, draftId)}
+    />
   )
 }

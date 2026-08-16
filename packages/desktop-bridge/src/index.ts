@@ -641,11 +641,12 @@ export interface DesktopOAuthConnectResult {
  * Optional scope for an OAuth connect handoff. Chip-initiated connects carry
  * the workspace (the browser flow creates the workspace connect draft
  * server-side) and, for reconnects, the credential to rebind. Modal-initiated
- * connects omit both — the app already created the draft.
+ * connects carry the exact draft the app already created.
  */
 export interface DesktopOAuthConnectScope {
   workspaceId?: string
   credentialId?: string
+  draftId?: string
   /** Mothership credential-chip attempt to echo on desktop completion. */
   chatAttemptId?: string
 }

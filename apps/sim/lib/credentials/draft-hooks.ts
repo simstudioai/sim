@@ -69,6 +69,11 @@ export async function handleCreateCredentialFromDraft(params: {
       accountId,
     })
 
+    await db
+      .update(schema.credential)
+      .set({ updatedAt: now })
+      .where(eq(schema.credential.id, existingCredential.id))
+
     await clearDeadFlag(accountId)
 
     recordAudit({

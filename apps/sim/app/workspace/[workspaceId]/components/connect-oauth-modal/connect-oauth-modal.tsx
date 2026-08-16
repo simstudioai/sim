@@ -285,7 +285,11 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             .filter(
               (credential) => credential.type === 'oauth' && credential.providerId === providerId
             )
-            .map((credential) => ({ id: credential.id, accountId: credential.accountId })),
+            .map((credential) => ({
+              id: credential.id,
+              accountId: credential.accountId,
+              updatedAt: credential.updatedAt,
+            })),
           workspaceId,
           requestedAt: Date.now(),
         }
