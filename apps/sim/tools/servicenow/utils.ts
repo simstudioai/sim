@@ -170,6 +170,31 @@ export function readString(record: ServiceNowRecord, key: string): string | null
 }
 
 /**
+ * Reads a nested object off a ServiceNow record, returning `null` when the field
+ * is absent or is not a plain object. Keeps a tool declaring an object-shaped
+ * output from emitting a scalar because the instance returned a different shape.
+ */
+export function readRecord(record: ServiceNowRecord, key: string): ServiceNowRecord | null {
+  const value = record[key]
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as ServiceNowRecord)
+    : null
+}
+
+/**
+ * Reads an array of nested objects off a ServiceNow record, dropping any entry
+ * that is not a plain object. Absent or non-array fields become an empty array.
+ */
+export function readRecordArray(record: ServiceNowRecord, key: string): ServiceNowRecord[] {
+  const value = record[key]
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (entry): entry is ServiceNowRecord =>
+      Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)
+  )
+}
+
+/**
  * Reads a number field off a nested object on a ServiceNow record, for example
  * the `meta.count` the Knowledge search API returns alongside its results.
  */

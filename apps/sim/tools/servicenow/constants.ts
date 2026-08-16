@@ -13,11 +13,17 @@
  * The state labels and their order come from the incident life cycle:
  * https://www.servicenow.com/docs/bundle/australia-it-service-management/page/product/incident-management/concept/c_IncidentManagementStateModel.html
  *
- * That page names the states but not their coded values. `6` (Resolved) is the
- * only code ServiceNow spells out, in the scripting examples at
- * https://www.servicenow.com/docs/bundle/australia-api-reference/page/script/useful-scripts/reference/r_UsefulClientSideScripts.html
- * The rest are the long-standing base-system codes and are not published as a
- * table, so treat them as defaults rather than guarantees.
+ * That page names the states but publishes no coded values, and ServiceNow does
+ * not publish them anywhere else either — the scripting examples at
+ * https://www.servicenow.com/docs/r/api-reference/scripts/r_UsefulFieldScripts.html
+ * compare `6` and `7` but against the legacy `incident_state` field and without
+ * naming either state. ServiceNow instead directs you to read the codes off your
+ * own instance (right-click the field label, "Show Choice List"):
+ * https://www.servicenow.com/docs/r/platform-administration/c_DetermValsAssocWChoicesScripting.html
+ *
+ * The values below are the long-standing base-system codes. Treat them as
+ * defaults rather than guarantees; every control that offers them also accepts a
+ * raw value so a customized state model stays reachable.
  */
 export const INCIDENT_STATE = {
   NEW: '1',
@@ -101,10 +107,12 @@ export const CHANGE_CLOSE_CODE_OPTIONS = [
  * Approval record `state` values on the Approval [sysapproval_approver] table.
  *
  * ServiceNow documents four approval statuses — Requested, Approved, Rejected,
- * and Not Requested — at
- * https://www.servicenow.com/docs/bundle/australia-build-workflows/page/administer/approvals/concept/c_ApprovalStatus.html
- * Only the three a caller acts on are listed here; `not_requested` is reachable
- * through the raw state parameter.
+ * and Not Yet Requested — at
+ * https://www.servicenow.com/docs/r/build-workflows/approvals/c_ApprovalStatus.html
+ * but publishes coded values for only the three a caller acts on, which are the
+ * three listed here. The fourth status has no published code, so it is not
+ * asserted; a caller who knows their instance's value can still pass it as a raw
+ * state.
  */
 export const APPROVAL_STATE = {
   REQUESTED: 'requested',

@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
+import * as servicenowTools from '@/tools/servicenow'
 import { aggregateTool } from '@/tools/servicenow/aggregate'
 import { DEFAULT_DISPLAY_VALUE } from '@/tools/servicenow/constants'
 import { createIncidentTool } from '@/tools/servicenow/create_incident'
@@ -19,6 +20,7 @@ import { getIncidentTool } from '@/tools/servicenow/get_incident'
 import { listAttachmentsTool } from '@/tools/servicenow/list_attachments'
 import { listIncidentsTool } from '@/tools/servicenow/list_incidents'
 import { readRecordTool } from '@/tools/servicenow/read_record'
+import { updateChangeStateTool } from '@/tools/servicenow/update_change_state'
 import { updateIncidentTool } from '@/tools/servicenow/update_incident'
 import { updateRecordTool } from '@/tools/servicenow/update_record'
 
@@ -270,6 +272,70 @@ describe('block params mapping keeps per-operation defaults from colliding', () 
     } as never) as Record<string, unknown>
 
     expect(mapped.state).toBe('-5')
+  })
+})
+
+describe('every subBlock a tool reads is one the tool actually declares', () => {
+  const toolsById = new Map(Object.values(servicenowTools).map((tool) => [tool.id, tool] as const))
+
+  /**
+   * The block seeds and serializes a subBlock purely from its `condition`, with
+   * no check that the target tool declares a matching param. A control offered
+   * on an operation whose tool ignores it is a silent data-loss bug: the user
+   * fills it in, the block maps it, and the request builder drops it.
+   */
+  it.each([
+    ['additionalFields', 'additionalFields'],
+    ['targetState', 'state'],
+    ['approvalState', 'state'],
+  ])('routes the %s control only to operations declaring %s', (subBlockId, paramName) => {
+    const subBlock = ServiceNowBlock.subBlocks.find((candidate) => candidate.id === subBlockId)
+    const conditionValue =
+      subBlock?.condition && 'value' in subBlock.condition ? subBlock.condition.value : undefined
+    const ops = Array.isArray(conditionValue) ? conditionValue : [conditionValue]
+
+    const ignoring = ops
+      .filter((op): op is string => typeof op === 'string')
+      .filter((op) => !toolsById.get(op)?.params?.[paramName])
+
+    expect(ignoring).toEqual([])
+  })
+
+  it('lets a change transition carry raw fields the named controls do not cover', () => {
+    const body = updateChangeStateTool.request.body?.({
+      ...auth,
+      sysId: 'chg1',
+      state: '-2',
+      additionalFields: { on_hold_reason: 'Awaiting vendor' },
+    } as never)
+
+    expect(body).toEqual({ state: '-2', on_hold_reason: 'Awaiting vendor' })
+  })
+})
+
+describe('coded-value controls stay reachable on a customized instance', () => {
+  /**
+   * ServiceNow does not publish incident state codes at all, and any instance
+   * may extend a choice list. A select-only `dropdown` would make those codes
+   * unreachable — most sharply on Move Change State, whose target state is
+   * required and whose real codes come from get_change_next_states. A free-text
+   * control is equally fine; the invariant is only that the control is not
+   * select-only.
+   */
+  it.each([
+    'state',
+    'targetState',
+    'approvalState',
+    'impact',
+    'urgency',
+    'priority',
+    'type',
+    'closeCode',
+  ])('accepts a raw value for %s', (subBlockId) => {
+    const matches = ServiceNowBlock.subBlocks.filter((subBlock) => subBlock.id === subBlockId)
+    expect(matches.length).toBeGreaterThan(0)
+    const selectOnly = matches.filter((subBlock) => subBlock.type === 'dropdown')
+    expect(selectOnly).toEqual([])
   })
 })
 

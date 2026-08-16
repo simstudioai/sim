@@ -19,7 +19,7 @@ export const listChangeTasksTool: ToolConfig<
   id: 'servicenow_list_change_tasks',
   name: 'List ServiceNow Change Tasks',
   description:
-    'List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as {value, display_value}, so a reference field carries both its sys_id and its label.',
+    'List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as {value, display_value}, so a reference field carries both its sys_id and its label. This endpoint is not the Table API: the shape is fixed with no display-value option, and the results come back under `tasks` rather than the `records` the other list operations use.',
   version: '1.0.0',
 
   params: {
@@ -98,7 +98,7 @@ export const listChangeTasksTool: ToolConfig<
     tasks: {
       type: 'array',
       description:
-        'Change tasks. Each field is an object of the form {value, display_value}; `parent` holds the owning change request.',
+        'Change tasks, under `tasks` rather than the `records` key the Table API list operations use. Each field is an object of the form {value, display_value} — the Change Management API fixes this shape, so unlike those operations there is no display-value setting. `parent` holds the owning change request.',
     },
     metadata: {
       type: 'json',

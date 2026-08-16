@@ -126,6 +126,28 @@ export const listCatalogItemsTool: ToolConfig<
           picture: { type: 'string', description: 'Item picture reference', optional: true },
           icon: { type: 'string', description: 'Item icon reference', optional: true },
           order: { type: 'number', description: 'Display order', optional: true },
+          price: { type: 'string', description: 'Item price', optional: true },
+          show_price: {
+            type: 'boolean',
+            description: 'Whether the price is shown',
+            optional: true,
+          },
+          show_quantity: {
+            type: 'boolean',
+            description: 'Whether a quantity can be chosen when ordering',
+            optional: true,
+          },
+          content_type: {
+            type: 'string',
+            description: 'Content type for content items',
+            optional: true,
+          },
+          url: { type: 'string', description: 'Target URL for content items', optional: true },
+          kb_article: {
+            type: 'string',
+            description: 'sys_id of the knowledge article backing the item',
+            optional: true,
+          },
         },
       },
     },

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-15",
+  "updatedAt": "2026-08-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -17988,7 +17988,7 @@
         },
         {
           "name": "Close Incident",
-          "description": "Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role."
+          "description": "Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Which roles may close an incident is instance-configurable, so the credential may need elevated rights."
         },
         {
           "name": "Add Incident Comment",
@@ -18016,7 +18016,7 @@
         },
         {
           "name": "List Change Tasks",
-          "description": "List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as {value, display_value}, so a reference field carries both its sys_id and its label."
+          "description": "List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as {value, display_value}, so a reference field carries both its sys_id and its label. This endpoint is not the Table API: the shape is fixed with no display-value option, and the results come back under `tasks` rather than the `records` the other list operations use."
         },
         {
           "name": "Get Change Next States",

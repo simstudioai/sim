@@ -231,6 +231,9 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `shortDescription` | string | Yes | Short description — the one-line summary of the incident. |
 | `description` | string | No | Detailed description of the incident. |
 | `callerId` | string | No | Caller \(caller_id\) — sys_id of the sys_user who reported the incident. Use Find ServiceNow User to resolve an email address to a sys_id. |
@@ -247,6 +250,10 @@ Create an incident in ServiceNow. Reference fields (caller, assignment group, as
 | `contactType` | string | No | Channel \(contact_type\), e.g., email, phone, self-service, chat. |
 | `workNotes` | string | No | Internal work note to record on creation. |
 | `comments` | string | No | Customer-visible additional comment to record on creation. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -288,6 +295,13 @@ Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | No | Record sys_id. Provide either this or the record number. |
+| `number` | string | No | Record number \(e.g., INC0010001\). Provide either this or the sys_id. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -329,6 +343,9 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `searchText` | string | No | Text to match against the incident short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. |
 | `priority` | string | No | Priority coded value 1-5 \(1 Critical … 5 Planning\). |
@@ -336,6 +353,11 @@ Search ServiceNow incidents by state, priority, assignment, caller, or text. All
 | `assignedTo` | string | No | sys_id of the assigned user. |
 | `callerId` | string | No | sys_id of the caller. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) incidents. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -377,6 +399,10 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
 | `shortDescription` | string | No | New short description. |
 | `description` | string | No | New detailed description. |
 | `state` | string | No | Incident state coded value. Base system: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed, 8=Canceled. Use Resolve or Close ServiceNow Incident for those transitions so the resolution fields are populated. |
@@ -390,6 +416,10 @@ Update fields on an existing ServiceNow incident. Only the fields you supply are
 | `cmdbCi` | string | No | Configuration item \(cmdb_ci\) — sys_id of the affected CI. |
 | `workNotes` | string | No | Internal work note to append. |
 | `comments` | string | No | Customer-visible additional comment to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -431,9 +461,17 @@ Move a ServiceNow incident to Resolved (state 6) with a resolution code and reso
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
 | `closeCode` | string | Yes | Resolution code \(close_code\). This is a choice field whose values are configured per instance — read the choice list on your incident table and pass one of its values. |
 | `closeNotes` | string | Yes | Resolution notes \(close_notes\) documenting how the incident was resolved. |
 | `workNotes` | string | No | Additional internal work note to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -469,15 +507,23 @@ Move a ServiceNow incident to Resolved (state 6) with a resolution code and reso
 
 ### Close ServiceNow Incident
 
-Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role.
+Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Which roles may close an incident is instance-configurable, so the credential may need elevated rights.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
 | `closeCode` | string | Yes | Resolution code \(close_code\). This is a choice field whose values are configured per instance — read the choice list on your incident table and pass one of its values. |
 | `closeNotes` | string | Yes | Resolution notes \(close_notes\) documenting how the incident was resolved. |
 | `workNotes` | string | No | Additional internal work note to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -519,8 +565,15 @@ Append an internal work note or a customer-visible additional comment to a Servi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
 | `comment` | string | Yes | Text to append to the journal field. |
 | `commentField` | string | No | Which journal field to write to: "work_notes" for an internal note \(default\) or "comments" for a customer-visible additional comment. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -562,6 +615,9 @@ Create a change request in ServiceNow. Reference fields (assignment group, assig
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `shortDescription` | string | Yes | Short description — the one-line summary of the change. |
 | `description` | string | No | Detailed description of the change. |
 | `type` | string | No | Change type: "normal", "standard", or "emergency". |
@@ -579,6 +635,10 @@ Create a change request in ServiceNow. Reference fields (assignment group, assig
 | `implementationPlan` | string | No | Implementation plan. |
 | `backoutPlan` | string | No | Backout plan. |
 | `testPlan` | string | No | Test plan. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -620,6 +680,13 @@ Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | No | Record sys_id. Provide either this or the record number. |
+| `number` | string | No | Record number \(e.g., INC0010001\). Provide either this or the sys_id. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -661,6 +728,9 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `searchText` | string | No | Text to match against the change short description using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `state` | string | No | Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. |
 | `type` | string | No | Change type: "normal", "standard", or "emergency". |
@@ -668,6 +738,11 @@ Search ServiceNow change requests by state, type, risk, assignment, or text. All
 | `assignmentGroup` | string | No | sys_id of the assignment group. |
 | `assignedTo` | string | No | sys_id of the assigned user. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) change requests. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -709,6 +784,10 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
 | `shortDescription` | string | No | New short description. |
 | `description` | string | No | New detailed description. |
 | `state` | string | No | Change state coded value. Base system: -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. |
@@ -722,6 +801,10 @@ Update fields on an existing ServiceNow change request. Only the fields you supp
 | `closeCode` | string | No | Close code: "successful", "successful_issues", or "unsuccessful". Required when closing a change. |
 | `closeNotes` | string | No | Close notes describing the outcome of the change. |
 | `workNotes` | string | No | Internal work note to append. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -763,10 +846,18 @@ Move a ServiceNow change request to another state. Base-system change model stat
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | Yes | sys_id of the record to update. If you only have the record number, look it up first \(for example with Get ServiceNow Incident\). |
 | `state` | string | Yes | Target state coded value: -5 \(New\), -4 \(Assess\), -3 \(Authorize\), -2 \(Scheduled\), -1 \(Implement\), 0 \(Review\), 3 \(Closed\), or 4 \(Canceled\). |
 | `closeCode` | string | No | Close code, required when moving to Closed \(3\): "successful", "successful_issues", or "unsuccessful". |
 | `closeNotes` | string | No | Close notes describing the outcome of the change. |
 | `workNotes` | string | No | Internal work note explaining the transition. |
+| `additionalFields` | json | No | Any other ServiceNow fields to set, as a JSON object of raw column names \(e.g., \{"correlation_id": "abc-123", "u_custom": "x"\}\). Merged last, so it overrides the named parameters. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -802,12 +893,15 @@ Move a ServiceNow change request to another state. Base-system change model stat
 
 ### List ServiceNow Change Tasks
 
-List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as \{value, display_value\}, so a reference field carries both its sys_id and its label.
+List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as \{value, display_value\}, so a reference field carries both its sys_id and its label. This endpoint is not the Table API: the shape is fixed with no display-value option, and the results come back under `tasks` rather than the `records` the other list operations use.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `changeSysId` | string | Yes | sys_id of the change request whose tasks should be listed. |
 | `query` | string | No | ServiceNow encoded query used to filter the tasks \(e.g., "active=true^ORDERBYnumber"\). |
 | `order` | string | No | Field to sort the returned tasks by. |
@@ -818,7 +912,7 @@ List the change tasks belonging to a ServiceNow change request, via the Change M
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `tasks` | array | Change tasks. Each field is an object of the form \{value, display_value\}; `parent` holds the owning change request. |
+| `tasks` | array | Change tasks, under `tasks` rather than the `records` key the Table API list operations use. Each field is an object of the form \{value, display_value\} — the Change Management API fixes this shape, so unlike those operations there is no display-value setting. `parent` holds the owning change request. |
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of change tasks returned |
 
@@ -830,6 +924,9 @@ Read the states a ServiceNow change request can actually move to next, with the 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `changeSysId` | string | Yes | sys_id of the change request. Use Get ServiceNow Change Request to resolve a CHG number to its sys_id. |
 
 #### Output
@@ -860,6 +957,9 @@ Browse or search the ServiceNow service catalog. Returns each item with its sys_
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `searchText` | string | No | Text to search for in the catalog items \(e.g., "iPhone"\). |
 | `catalogSysId` | string | No | Restrict results to a specific catalog, by catalog sys_id. |
 | `categorySysId` | string | No | Restrict results to a specific category, by category sys_id. |
@@ -882,6 +982,12 @@ Browse or search the ServiceNow service catalog. Returns each item with its sys_
 |   ↳ `picture` | string | Item picture reference |
 |   ↳ `icon` | string | Item icon reference |
 |   ↳ `order` | number | Display order |
+|   ↳ `price` | string | Item price |
+|   ↳ `show_price` | boolean | Whether the price is shown |
+|   ↳ `show_quantity` | boolean | Whether a quantity can be chosen when ordering |
+|   ↳ `content_type` | string | Content type for content items |
+|   ↳ `url` | string | Target URL for content items |
+|   ↳ `kb_article` | string | sys_id of the knowledge article backing the item |
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of catalog items returned |
 
@@ -893,6 +999,9 @@ Submit a service catalog request for a catalog item using the Service Catalog AP
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `catalogItemSysId` | string | Yes | sys_id of the catalog item to order. Use List ServiceNow Catalog Items to find it. |
 | `quantity` | number | No | Quantity to order. Must not be negative. Defaults to 1. |
 | `requestedFor` | string | No | sys_id of the sys_user the item is ordered for. Ordering on behalf of another user is governed by the glide.sc.req_for.roles instance properties. |
@@ -916,9 +1025,17 @@ List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] ta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `requestSysId` | string | No | sys_id of the parent request \(sc_request\) whose items should be listed. |
 | `catalogItemSysId` | string | No | sys_id of the catalog item \(cat_item\) to filter by. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) requested items. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -960,6 +1077,13 @@ Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
+| `sysId` | string | No | Record sys_id. Provide either this or the record number. |
+| `number` | string | No | Record number \(e.g., INC0010001\). Provide either this or the sys_id. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -1001,9 +1125,17 @@ List approval records from the ServiceNow Approval [sysapproval_approver] table.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `approverSysId` | string | No | sys_id of the approver \(sys_user\) whose approvals should be listed. Use Find ServiceNow User to resolve an email address to a sys_id. |
 | `state` | string | No | Approval state: "requested" \(pending, the default\), "approved", or "rejected". Pass an empty string with a custom query to list every state. |
 | `approvalFor` | string | No | sys_id of the record being approved, matched against the sysapproval reference field. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -1045,9 +1177,15 @@ Approve or reject a ServiceNow approval record by setting its state on the Appro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `approvalSysId` | string | Yes | sys_id of the approval record on the sysapproval_approver table. Use List ServiceNow Approvals to find it. |
 | `decision` | string | Yes | Decision to record: "approved" or "rejected". |
 | `comments` | string | No | Comment to record alongside the decision. This is a journal field. |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
+| `inputDisplayValue` | boolean | No | Set to true to write display names into reference fields \(e.g., assigned_to: "Beth Anglin"\) and let ServiceNow resolve them to sys_ids. Defaults to false, meaning reference fields must be sys_ids. Note that true also reinterprets date and time values in the requesting user's timezone rather than GMT. |
 
 #### Output
 
@@ -1089,9 +1227,17 @@ Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `ciClass` | string | No | CMDB class \(table\) to search, e.g., cmdb_ci_linux_server or cmdb_ci_app_server. Defaults to $\{SERVICENOW_TABLES.CI\}, which covers every CI class. |
 | `name` | string | No | Text to match against the CI name using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `operationalStatus` | string | No | Operational status coded value \(operational_status\). The choice list is configured per instance. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -1133,6 +1279,9 @@ Retrieve a configuration item and its CMDB relationships through the CMDB Instan
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `ciClass` | string | Yes | CMDB class \(table\) the CI belongs to, e.g., cmdb_ci_linux_server. Read it from the sys_class_name field returned by Search ServiceNow Configuration Items. |
 | `sysId` | string | Yes | sys_id of the configuration item to retrieve. |
 
@@ -1161,8 +1310,16 @@ List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `ciSysId` | string | Yes | sys_id of the configuration item whose relationships should be listed. |
 | `direction` | string | No | Which side of the relationship the CI sits on: "parent", "child", or "both" \(default\). "both" matches rows where the CI is either the parent or the child. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -1204,6 +1361,9 @@ Search ServiceNow knowledge base articles through the Knowledge Management API. 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `query` | string | No | Text to search for across knowledge articles. |
 | `filter` | string | No | Encoded query used to filter the results, against the Knowledge \[kb_knowledge\] table \(e.g., "workflow_state=published"\). |
 | `knowledgeBaseSysIds` | string | No | Comma-separated knowledge base sys_ids \(from kb_knowledge_base\) to restrict results to. |
@@ -1237,6 +1397,9 @@ Retrieve the full content of a ServiceNow knowledge article by sys_id or KB numb
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `articleId` | string | Yes | sys_id or KB number of the knowledge article \(e.g., KB0000011\). |
 | `fields` | string | No | Comma-separated kb_knowledge fields to include alongside the article content \(e.g., workflow_state,author\). |
 | `language` | string | No | Two-letter ISO 639-1 language code. Only applies when the article is addressed by KB number and a translation exists. |
@@ -1265,10 +1428,18 @@ Look up ServiceNow users by email, user name, or display name. Use this to resol
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `email` | string | No | Exact email address to match. |
 | `userName` | string | No | Exact user name \(user_name\) to match. |
 | `name` | string | No | Text to match against the display name using the ServiceNow LIKE operator, which matches anywhere in the field. |
 | `active` | string | No | Restrict to active \("true"\) or inactive \("false"\) users. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 
@@ -1310,8 +1481,16 @@ List the members of a ServiceNow group from the Group Member [sys_user_grmember]
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | ServiceNow instance URL \(e.g., https://instance.service-now.com\) |
+| `username` | string | Yes | ServiceNow username |
+| `password` | string | Yes | ServiceNow password |
 | `groupSysId` | string | No | sys_id of the sys_user_group whose members should be listed. |
 | `groupName` | string | No | Exact group name, resolved against the referenced group record. Provide this or the group sys_id. |
+| `query` | string | No | Additional ServiceNow encoded query, ANDed with the other filters \(e.g., "opened_at&gt;=javascript:gs.beginningOfLastMonth\(\)"\). |
+| `limit` | number | No | Maximum number of records to return \(sysparm_limit\). |
+| `offset` | number | No | Number of records to skip for pagination \(sysparm_offset\). |
+| `fields` | string | No | Comma-separated list of fields to return \(e.g., number,short_description,state\). Returns all fields when omitted. |
+| `displayValue` | string | No | How reference and choice fields are returned: "all" \(default — both the sys_id and the label, as \{value, display_value\}\), "true" \(labels only\), or "false" \(raw sys_ids and coded values only\). |
 
 #### Output
 

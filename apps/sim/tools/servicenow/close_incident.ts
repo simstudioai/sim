@@ -25,7 +25,7 @@ export const closeIncidentTool: ToolConfig<
   id: 'servicenow_close_incident',
   name: 'Close ServiceNow Incident',
   description:
-    'Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Closing normally requires the itil_admin or admin role.',
+    'Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Which roles may close an incident is instance-configurable, so the credential may need elevated rights.',
   version: '1.0.0',
 
   params: {

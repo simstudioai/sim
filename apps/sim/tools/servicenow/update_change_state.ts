@@ -1,5 +1,6 @@
 import { SERVICENOW_TABLES } from '@/tools/servicenow/constants'
 import {
+  additionalFieldsParam,
   authParams,
   recordOutputs,
   requiredSysIdParam,
@@ -56,6 +57,7 @@ export const updateChangeStateTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal work note explaining the transition.',
     },
+    ...additionalFieldsParam,
     ...writeParams,
   },
 
@@ -68,12 +70,15 @@ export const updateChangeStateTool: ToolConfig<
       if (!state) {
         throw new Error('A target state is required')
       }
-      return buildFieldPayload({
-        state,
-        close_code: params.closeCode,
-        close_notes: params.closeNotes,
-        work_notes: params.workNotes,
-      })
+      return buildFieldPayload(
+        {
+          state,
+          close_code: params.closeCode,
+          close_notes: params.closeNotes,
+          work_notes: params.workNotes,
+        },
+        params.additionalFields
+      )
     },
   },
 

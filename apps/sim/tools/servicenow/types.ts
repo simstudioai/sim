@@ -113,7 +113,6 @@ export interface ServiceNowUpdateIncidentParams
   extends ServiceNowAuthParams,
     ServiceNowWriteOptions {
   sysId?: string
-  number?: string
   shortDescription?: string
   description?: string
   state?: string
@@ -134,7 +133,6 @@ export interface ServiceNowResolveIncidentParams
   extends ServiceNowAuthParams,
     ServiceNowWriteOptions {
   sysId?: string
-  number?: string
   closeCode: string
   closeNotes: string
   workNotes?: string
@@ -143,7 +141,6 @@ export interface ServiceNowResolveIncidentParams
 
 export interface ServiceNowAddCommentParams extends ServiceNowAuthParams, ServiceNowWriteOptions {
   sysId?: string
-  number?: string
   commentField?: string
   comment: string
 }
@@ -188,7 +185,6 @@ export interface ServiceNowListChangesParams extends ServiceNowAuthParams, Servi
 
 export interface ServiceNowUpdateChangeParams extends ServiceNowAuthParams, ServiceNowWriteOptions {
   sysId?: string
-  number?: string
   shortDescription?: string
   description?: string
   state?: string
@@ -207,11 +203,11 @@ export interface ServiceNowUpdateChangeParams extends ServiceNowAuthParams, Serv
 
 export interface ServiceNowChangeStateParams extends ServiceNowAuthParams, ServiceNowWriteOptions {
   sysId?: string
-  number?: string
   state: string
   closeCode?: string
   closeNotes?: string
   workNotes?: string
+  additionalFields?: Record<string, unknown> | string
 }
 
 export interface ServiceNowListChangeTasksParams extends ServiceNowAuthParams {
@@ -353,17 +349,17 @@ export interface ServiceNowGetCiParams extends ServiceNowAuthParams {
   sysId: string
 }
 
-export interface ServiceNowCiRelation {
-  sys_id?: string
-  target?: { display_value?: string; link?: string; value?: string }
-  type?: { display_value?: string; link?: string; value?: string }
-}
-
 export interface ServiceNowGetCiResponse extends ToolResponse {
   output: {
-    attributes: Record<string, any> | null
-    inboundRelations: ServiceNowCiRelation[]
-    outboundRelations: ServiceNowCiRelation[]
+    attributes: Record<string, unknown> | null
+    /**
+     * Relation entries are passed through verbatim. The CMDB Instance API
+     * documents each as `{ sys_id, type: { value, display_value, link },
+     * target: { value, display_value, link } }`, but the shape is not verified
+     * at runtime, so the type stays as the raw record it actually is.
+     */
+    inboundRelations: ServiceNowRecord[]
+    outboundRelations: ServiceNowRecord[]
     metadata: {
       inboundCount: number
       outboundCount: number
@@ -396,7 +392,7 @@ export interface ServiceNowKnowledgeArticleSummary {
   link?: string
   score?: number
   rank?: number
-  fields?: Record<string, any>
+  fields?: Record<string, unknown>
 }
 
 export interface ServiceNowSearchKnowledgeResponse extends ToolResponse {
@@ -422,8 +418,8 @@ export interface ServiceNowGetKnowledgeArticleResponse extends ToolResponse {
     number: string | null
     title: string | null
     content: string | null
-    fields: Record<string, any> | null
-    attachments: Array<Record<string, any>>
+    fields: Record<string, unknown> | null
+    attachments: Array<Record<string, unknown>>
   }
 }
 
@@ -442,7 +438,7 @@ export interface ServiceNowListGroupMembersParams
 }
 
 export interface ServiceNowCreateParams extends ServiceNowBaseParams {
-  fields: Record<string, any>
+  fields: Record<string, unknown>
 }
 
 export interface ServiceNowCreateResponse extends ToolResponse {
@@ -475,7 +471,7 @@ export interface ServiceNowReadResponse extends ToolResponse {
 
 export interface ServiceNowUpdateParams extends ServiceNowBaseParams {
   sysId: string
-  fields: Record<string, any>
+  fields: Record<string, unknown>
 }
 
 export interface ServiceNowUpdateResponse extends ToolResponse {
@@ -515,7 +511,7 @@ export interface ServiceNowAggregateParams extends ServiceNowBaseParams {
 
 export interface ServiceNowAggregateResponse extends ToolResponse {
   output: {
-    result: Record<string, any> | Record<string, any>[] | null
+    result: Record<string, unknown> | Record<string, unknown>[] | null
     count: number | null
     metadata: {
       grouped: boolean

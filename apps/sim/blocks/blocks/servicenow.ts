@@ -70,6 +70,15 @@ const SEMANTIC_UPDATE_OPS = [
 /** Every operation that writes through the Table API. */
 const SEMANTIC_WRITE_OPS = [...SEMANTIC_CREATE_OPS, ...SEMANTIC_UPDATE_OPS] as const
 
+/**
+ * Write operations that accept the raw `additionalFields` escape hatch. Excludes
+ * `add_incident_comment`, whose body is exactly one journal field, so a value
+ * entered there would be silently discarded.
+ */
+const ADDITIONAL_FIELDS_OPS = SEMANTIC_WRITE_OPS.filter(
+  (op) => op !== 'servicenow_add_incident_comment'
+)
+
 /** Every operation that reads through the Table API. */
 const SEMANTIC_READ_OPS = [...SEMANTIC_GET_OPS, ...SEMANTIC_LIST_OPS] as const
 
@@ -764,7 +773,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'state',
       title: 'Incident State',
-      type: 'dropdown',
+      type: 'combobox',
       options: optionalChoices(INCIDENT_STATE_OPTIONS),
       value: () => '',
       condition: {
@@ -781,7 +790,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'state',
       title: 'Change State',
-      type: 'dropdown',
+      type: 'combobox',
       options: optionalChoices(CHANGE_STATE_OPTIONS),
       value: () => '',
       condition: {
@@ -794,7 +803,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'targetState',
       title: 'Target State',
-      type: 'dropdown',
+      type: 'combobox',
       options: [...CHANGE_STATE_OPTIONS],
       value: () => CHANGE_STATE_OPTIONS[0].id,
       condition: { field: 'operation', value: 'servicenow_update_change_state' },
@@ -805,7 +814,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'approvalState',
       title: 'Approval State',
-      type: 'dropdown',
+      type: 'combobox',
       options: [
         { label: 'Any (not set)', id: '' },
         { label: 'Requested (pending)', id: APPROVAL_STATE.REQUESTED },
@@ -814,12 +823,14 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       ],
       value: () => APPROVAL_STATE.REQUESTED,
       condition: { field: 'operation', value: 'servicenow_list_approvals' },
+      description:
+        'ServiceNow publishes coded values only for these three. An instance that defines further approval states can be filtered by typing the raw value.',
     },
     // Prioritization
     {
       id: 'impact',
       title: 'Impact',
-      type: 'dropdown',
+      type: 'combobox',
       options: optionalChoices(IMPACT_URGENCY_OPTIONS),
       value: () => '',
       condition: {
@@ -835,7 +846,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'urgency',
       title: 'Urgency',
-      type: 'dropdown',
+      type: 'combobox',
       options: optionalChoices(IMPACT_URGENCY_OPTIONS),
       value: () => '',
       condition: {
@@ -846,7 +857,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'priority',
       title: 'Priority',
-      type: 'dropdown',
+      type: 'combobox',
       options: optionalChoices(PRIORITY_OPTIONS),
       value: () => '',
       condition: {
@@ -1065,7 +1076,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'closeCode',
       title: 'Close Code',
-      type: 'dropdown',
+      type: 'combobox',
       options: optionalChoices(CHANGE_CLOSE_CODE_OPTIONS),
       value: () => '',
       condition: {
@@ -1099,7 +1110,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
     {
       id: 'type',
       title: 'Change Type',
-      type: 'dropdown',
+      type: 'combobox',
       options: optionalChoices(CHANGE_TYPE_OPTIONS),
       value: () => '',
       condition: {
@@ -1463,7 +1474,7 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       type: 'code',
       language: 'json',
       placeholder: '{\n  "correlation_id": "abc-123"\n}',
-      condition: { field: 'operation', value: [...SEMANTIC_WRITE_OPS] },
+      condition: { field: 'operation', value: [...ADDITIONAL_FIELDS_OPS] },
       description:
         'Raw ServiceNow column names for anything not covered above. Merged last, so it overrides the fields set here.',
       mode: 'advanced',
