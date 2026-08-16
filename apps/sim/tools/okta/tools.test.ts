@@ -11,6 +11,11 @@ import { mergeOktaGroupProfile } from '@/tools/okta/utils'
 
 const AUTH = { apiKey: 'token', domain: 'dev-123456.okta.com' }
 
+/** Narrows a declarative `body` builder's union return to a plain object. */
+function builtBody(build: () => unknown): Record<string, unknown> {
+  return build() as Record<string, unknown>
+}
+
 /**
  * Mirrors `generic-handler.ts`, which spreads the mapper's result over the raw
  * serialized inputs. A key the mapper omits keeps its raw subBlock value, so a
@@ -101,7 +106,7 @@ describe('okta update_group profile merge', () => {
 
 describe('okta update_user partial merge', () => {
   it('drops blank profile fields so a partial update cannot erase stored values', () => {
-    const body = oktaUpdateGroupBodySafe(() =>
+    const body = builtBody(() =>
       oktaUpdateUserTool.request.body!({
         ...AUTH,
         userId: '00u1',
@@ -116,7 +121,7 @@ describe('okta update_user partial merge', () => {
   })
 
   it('still drops blanks when the block layer is bypassed by an LLM tool call', () => {
-    const body = oktaUpdateGroupBodySafe(() =>
+    const body = builtBody(() =>
       oktaUpdateUserTool.request.body!({
         ...AUTH,
         userId: '00u1',
@@ -128,11 +133,6 @@ describe('okta update_user partial merge', () => {
     expect(body).toEqual({ profile: {} })
   })
 })
-
-/** Narrows the declarative body helper's union return to a plain object. */
-function oktaUpdateGroupBodySafe(build: () => unknown): Record<string, unknown> {
-  return build() as Record<string, unknown>
-}
 
 describe('okta get_logs query building', () => {
   it('sends limit=0 rather than treating it as absent', () => {
