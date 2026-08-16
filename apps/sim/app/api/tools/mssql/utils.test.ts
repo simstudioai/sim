@@ -3,15 +3,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveHostAddresses, mockConnectionPool, mockConnect } = vi.hoisted(() => {
+const { mockResolveHostAddresses, mockConnectionPool, mockConnect, mockClose } = vi.hoisted(() => {
   const connect = vi.fn().mockResolvedValue(undefined)
+  const close = vi.fn().mockResolvedValue(undefined)
   const pool = vi.fn(function ConnectionPool(this: Record<string, unknown>) {
     this.connect = connect
+    this.close = close
   })
   return {
     mockResolveHostAddresses: vi.fn(),
     mockConnectionPool: pool,
     mockConnect: connect,
+    mockClose: close,
   }
 })
 
@@ -60,6 +63,18 @@ describe('validateReadOnlyQuery', () => {
     expect(
       validateReadOnlyQuery('WITH t AS (SELECT id FROM dbo.users) SELECT * FROM t').isValid
     ).toBe(true)
+  })
+
+  /** T-SQL does not require whitespace after the opening keyword. */
+  it.each(['SELECT*FROM dbo.users', 'SELECT(1)', 'WITH(x) AS (SELECT 1) SELECT * FROM x'])(
+    'accepts %s, which has no space after the keyword',
+    (query) => {
+      expect(validateReadOnlyQuery(query).isValid).toBe(true)
+    }
+  )
+
+  it('still rejects a keyword that merely starts with SELECT', () => {
+    expect(validateReadOnlyQuery('SELECTX FROM dbo.users').isValid).toBe(false)
   })
 
   it('accepts a SELECT whose literal contains a doubled quote', () => {
@@ -215,6 +230,7 @@ describe('createMSSQLConnection DNS pinning', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockConnect.mockResolvedValue(undefined)
+    mockClose.mockResolvedValue(undefined)
     mockResolveHostAddresses.mockResolvedValue({
       addresses: ['93.184.216.34'],
       preferred: '93.184.216.34',
@@ -244,6 +260,31 @@ describe('createMSSQLConnection DNS pinning', () => {
     const config = mockConnectionPool.mock.calls[0][0]
     expect(typeof config.options.connector).toBe('function')
     expect(config.options.instanceName).toBeUndefined()
+  })
+
+  /**
+   * Only a pool that is handed back reaches the route's `finally`, so a pool
+   * whose connect rejected has to release itself or a bad credential retried in
+   * a loop leaks one per attempt.
+   */
+  it('closes the pool and surfaces the original error when connect fails', async () => {
+    mockConnect.mockRejectedValue(new Error('Login failed for user'))
+
+    await expect(createMSSQLConnection(makeConfig())).rejects.toThrow('Login failed for user')
+    expect(mockClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not let a close failure mask the connect error', async () => {
+    mockConnect.mockRejectedValue(new Error('Login failed for user'))
+    mockClose.mockRejectedValue(new Error('close blew up'))
+
+    await expect(createMSSQLConnection(makeConfig())).rejects.toThrow('Login failed for user')
+  })
+
+  it('leaves the pool open on success so the route controls its lifetime', async () => {
+    await createMSSQLConnection(makeConfig())
+
+    expect(mockClose).not.toHaveBeenCalled()
   })
 
   it('maps the string toggles onto driver booleans without coercing "disabled" to true', async () => {

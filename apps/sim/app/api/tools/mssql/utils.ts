@@ -104,7 +104,19 @@ export async function createMSSQLConnection(
       connector: () => connectToPinnedAddress(pinnedAddress, config.port, config.connectionTimeout),
     },
   })
-  await pool.connect()
+  try {
+    await pool.connect()
+  } catch (error) {
+    /**
+     * Only a pool that was handed back gets closed by the route's `finally`, so
+     * a pool that failed to connect has to release its own tarn resources here
+     * or a bad credential retried in a loop leaks one every attempt. `close()`
+     * on a pool that never connected is a no-op rather than an error, and its
+     * own failure must not mask the connect error the caller needs to see.
+     */
+    await pool.close().catch(() => {})
+    throw error
+  }
 
   return pool
 }
@@ -283,7 +295,15 @@ function hasUnreliableQuoting(value: string): boolean {
 export function validateReadOnlyQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim()
 
-  if (!/^(?:select|with)\s/i.test(trimmedQuery)) {
+  /**
+   * `\b` rather than `\s`: T-SQL does not require whitespace after the keyword,
+   * so `SELECT*FROM dbo.users` and `SELECT(1)` are valid reads that a
+   * whitespace-anchored check would push to Execute Raw SQL for no reason. The
+   * boundary still refuses `SELECTX`, and it cannot loosen the screen overall —
+   * the keyword and batch checks below run on the whole statement regardless of
+   * how it opens.
+   */
+  if (!/^(?:select|with)\b/i.test(trimmedQuery)) {
     return {
       isValid: false,
       error:
