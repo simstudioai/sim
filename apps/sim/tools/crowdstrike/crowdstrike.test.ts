@@ -4,10 +4,12 @@
 import { describe, expect, it } from 'vitest'
 import { crowdstrikeQueryBodySchema } from '@/lib/api/contracts/tools/crowdstrike'
 import { CrowdStrikeBlock } from '@/blocks/blocks/crowdstrike'
+import { crowdstrikeCreateIndicatorsTool } from '@/tools/crowdstrike/create_indicators'
 import { crowdstrikeExecuteRtrCommandTool } from '@/tools/crowdstrike/execute_rtr_command'
 import { crowdstrikeGetSensorAggregatesTool } from '@/tools/crowdstrike/get_sensor_aggregates'
 import { crowdstrikeGetSensorDetailsTool } from '@/tools/crowdstrike/get_sensor_details'
 import { crowdstrikeQueryAlertsTool } from '@/tools/crowdstrike/query_alerts'
+import { crowdstrikeQueryIndicatorsTool } from '@/tools/crowdstrike/query_indicators'
 import { crowdstrikeQuerySensorsTool } from '@/tools/crowdstrike/query_sensors'
 import type {
   CrowdStrikeGetSensorAggregatesResponse,
@@ -168,27 +170,81 @@ describe('CrowdStrike RTR read-only base commands', () => {
 })
 
 describe('CrowdStrike sort placeholders', () => {
+  const sortBlocks = CrowdStrikeBlock.subBlocks.filter((block) => block.id === 'sort')
+
+  function placeholderFor(operation: string) {
+    const match = sortBlocks.find((block) => {
+      const declared = (block.condition as { value: string | string[] }).value
+      return Array.isArray(declared) ? declared.includes(operation) : declared === operation
+    })
+    return match?.placeholder
+  }
+
   it('shows the dot form for the collections that document it and the pipe form elsewhere', () => {
-    const sortBlocks = CrowdStrikeBlock.subBlocks.filter((block) => block.id === 'sort')
-    expect(sortBlocks).toHaveLength(2)
+    expect(sortBlocks).toHaveLength(3)
 
     for (const operation of ['crowdstrike_query_host_groups', 'crowdstrike_query_sensors']) {
-      const match = sortBlocks.find((block) =>
-        (block.condition as { value: string[] }).value.includes(operation)
-      )
-      expect(match?.placeholder).toBe('name.asc')
+      expect(placeholderFor(operation)).toBe('name.asc')
     }
 
     for (const operation of [
       'crowdstrike_query_alerts',
-      'crowdstrike_query_indicators',
       'crowdstrike_query_vulnerabilities',
       'crowdstrike_query_cases',
     ]) {
-      const match = sortBlocks.find((block) =>
-        (block.condition as { value: string[] }).value.includes(operation)
-      )
-      expect(match?.placeholder).toBe('created_timestamp|desc')
+      expect(placeholderFor(operation)).toBe('created_timestamp|desc')
     }
+  })
+
+  it('steers IOC Management to the dot form and away from created_timestamp', () => {
+    // PSFalcon's Get-FalconIoc -Sort ValidateSet is the dot form, and the IOC
+    // sort enum has no created_timestamp - the timestamp fields are created_on
+    // and modified_on. The pipe form here sent users toward a sort Falcon rejects.
+    const placeholder = placeholderFor('crowdstrike_query_indicators')
+    expect(placeholder).toBe('created_on.desc')
+    expect(placeholder).not.toContain('|')
+    expect(placeholder).not.toContain('created_timestamp')
+  })
+})
+
+describe('CrowdStrike limit caps name their real source', () => {
+  it('does not attribute the IOC indicator cap to CrowdStrike', () => {
+    // GET /iocs/queries/indicators/v1 publishes no `maximum`, unlike host groups
+    // (5000) and Spotlight (400), and PSFalcon clamps to 2000 on its own.
+    const messages = issueMessages(
+      crowdstrikeQueryBodySchema.safeParse({
+        ...credentials,
+        operation: 'crowdstrike_query_indicators',
+        limit: 501,
+      })
+    )
+
+    expect(
+      messages.some((message) => /Sim caps this request at 500 indicators/.test(message))
+    ).toBe(true)
+    expect(messages.some((message) => /CrowdStrike accepts at most 500/.test(message))).toBe(false)
+    expect(crowdstrikeQueryIndicatorsTool.params.limit.description).toMatch(
+      /Sim caps it at 500|publishes no maximum/i
+    )
+  })
+
+  it('still accepts a documented cap at its published maximum', () => {
+    expect(
+      crowdstrikeQueryBodySchema.safeParse({
+        ...credentials,
+        operation: 'crowdstrike_query_vulnerabilities',
+        filter: "status:'open'",
+        limit: 400,
+      }).success
+    ).toBe(true)
+  })
+})
+
+describe('CrowdStrike IOC action list stays inside what CrowdStrike documents', () => {
+  it('does not present prevent_no_ui as a documented action value', () => {
+    const description = crowdstrikeCreateIndicatorsTool.params.indicators.description ?? ''
+    expect(description).toMatch(/no_action, allow, prevent, detect/)
+    expect(description).not.toMatch(/allow, prevent_no_ui, prevent/)
+    expect(description).toMatch(/\/iocs\/queries\/actions\/v1/)
   })
 })

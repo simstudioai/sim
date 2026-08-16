@@ -309,8 +309,8 @@ export interface CloudflareRawDnsAnalyticsAggregate {
 /** Raw DNS analytics report payload. */
 export interface CloudflareRawDnsAnalyticsReport {
   totals?: CloudflareRawDnsAnalyticsAggregate
-  min?: CloudflareRawDnsAnalyticsAggregate
-  max?: CloudflareRawDnsAnalyticsAggregate
+  min?: Record<string, unknown>
+  max?: Record<string, unknown>
   data?: Array<{ dimensions?: string[]; metrics?: number[] }>
   data_lag?: number
   rows?: number
@@ -683,17 +683,22 @@ export interface CloudflareDnsAnalyticsParams extends CloudflareBaseParams {
   zoneId: string
   since?: string
   until?: string
-  metrics: string
+  metrics?: string
   dimensions?: string
   filters?: string
   sort?: string
   limit?: number
 }
 
+/**
+ * Aggregate metric block. Cloudflare only populates the metrics that were
+ * requested, so every field is optional — an absent field means "not requested"
+ * rather than zero.
+ */
 interface CloudflareDnsAnalyticsTotals {
-  queryCount: number
-  uncachedCount: number
-  staleCount: number
+  queryCount?: number
+  uncachedCount?: number
+  staleCount?: number
   responseTimeAvg?: number
   responseTimeMedian?: number
   responseTime90th?: number
@@ -713,8 +718,10 @@ interface CloudflareDnsAnalyticsQuery {
 export interface CloudflareDnsAnalyticsResponse extends ToolResponse {
   output: {
     totals: CloudflareDnsAnalyticsTotals
-    min: CloudflareDnsAnalyticsTotals
-    max: CloudflareDnsAnalyticsTotals
+    /** Cloudflare documents this as "currently always an empty object". */
+    min: Record<string, unknown> | null
+    /** Cloudflare documents this as "currently always an empty object". */
+    max: Record<string, unknown> | null
     data: Array<{
       dimensions: string[]
       metrics: number[]

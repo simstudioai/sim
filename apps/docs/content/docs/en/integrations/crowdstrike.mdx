@@ -49,7 +49,7 @@ Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/i
 | `clientId` | string | Yes | CrowdStrike Falcon API client ID |
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
-| `indicators` | json | Yes | JSON array of indicators to create. Each entry requires type, value, and applied_globally \(boolean\). type is one of sha256, md5, domain, ipv4, ipv6; action is one of no_action, allow, prevent_no_ui, prevent, detect; severity is one of informational, low, medium, high, critical; platforms entries are windows, mac, or linux. Other documented fields: host_groups \(array\), description, source, tags \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). Either applied_globally must be true or host_groups must be supplied. Tenants can extend these value sets, so treat them as the documented defaults rather than a closed list. |
+| `indicators` | json | Yes | JSON array of indicators to create. Each entry requires type, value, and applied_globally \(boolean\). type is one of sha256, md5, domain, ipv4, ipv6; action is one of no_action, allow, prevent, detect \(prevent_no_ui is widely reported and appears in the Falcon console, but CrowdStrike does not enumerate it in the IOC API docs - call GET /iocs/queries/actions/v1 to read the actions your tenant actually accepts\); severity is one of informational, low, medium, high, critical; platforms entries are windows, mac, or linux. Other documented fields: host_groups \(array\), description, source, tags \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). Either applied_globally must be true or host_groups must be supplied. Tenants can extend these value sets, so treat them as the documented defaults rather than a closed list. |
 | `comment` | string | No | Audit comment explaining why these indicators were created |
 | `retrodetects` | boolean | No | Whether to generate retroactive detections for the new indicators |
 | `ignoreWarnings` | boolean | No | Whether to create the indicators even when CrowdStrike returns warnings |
@@ -774,7 +774,7 @@ Search custom CrowdStrike Falcon indicators of compromise (IOCs) with a Falcon Q
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
 | `filter` | string | No | Falcon Query Language filter over IOC fields |
-| `limit` | number | No | Maximum number of IOC IDs to return \(1-500, default 100\) |
+| `limit` | number | No | Maximum number of IOC IDs to return \(default 100\). CrowdStrike publishes no maximum for this endpoint; Sim caps it at 500 to keep a single request bounded |
 | `offset` | number | No | Pagination offset. Mutually exclusive with the after cursor; use after beyond 10,000 IOCs. |
 | `after` | string | No | Pagination cursor from a previous response. Mutually exclusive with offset. |
 | `sort` | string | No | Sort expression. Supported fields include action, applied_globally, created_by, created_on, expiration, expired, modified_by, modified_on, severity_number, source, type, and value. |

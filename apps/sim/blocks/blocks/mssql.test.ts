@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { MSSQLBlock } from '@/blocks/blocks/mssql'
+import * as mssqlTools from '@/tools/mssql'
 
 /**
  * Every assertion here runs against `{ ...inputs, ...buildParams(inputs) }`, the
@@ -134,6 +135,50 @@ describe('MSSQLBlock', () => {
         new Set(defaults.map((value) => JSON.stringify(value))),
         `subBlock "${id}"`
       ).toHaveLength(1)
+    }
+  })
+})
+
+describe('Microsoft SQL Server tool declarations', () => {
+  it('never lets an LLM choose which database to open', () => {
+    // Every other connection field, on every other tool, is user-only. A model
+    // picking the database means the user's credentials open something else.
+    for (const tool of Object.values(mssqlTools)) {
+      for (const field of ['host', 'port', 'database', 'username', 'password']) {
+        const param = tool.params[field]
+        if (!param) continue
+        expect(param.visibility, `${tool.id}.${field}`).toBe('user-only')
+      }
+    }
+  })
+
+  it('declares the introspection table shape so downstream blocks get field hints', () => {
+    const tables = mssqlTools.mssqlIntrospectTool.outputs?.tables as {
+      items?: { type: string; properties?: Record<string, unknown> }
+    }
+
+    expect(tables.items?.type).toBe('object')
+    expect(Object.keys(tables.items?.properties ?? {})).toEqual([
+      'name',
+      'schema',
+      'columns',
+      'primaryKey',
+      'foreignKeys',
+      'indexes',
+    ])
+    expect(
+      (tables.items?.properties?.columns as { items?: { properties?: Record<string, unknown> } })
+        ?.items?.properties
+    ).toHaveProperty('references')
+  })
+
+  it('does not present TLS encryption as guaranteed once enabled', () => {
+    // TDS 7.4 starts in-band TLS only if the prelogin response is ON/REQ; a
+    // server answering NOT_SUP yields an unencrypted session with no error.
+    for (const tool of Object.values(mssqlTools)) {
+      const encrypt = tool.params.encrypt
+      if (!encrypt) continue
+      expect(encrypt.description, tool.id).toMatch(/negotiat|not a guarantee/i)
     }
   })
 })

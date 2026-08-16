@@ -6,6 +6,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  CrowdStrikeAuthError,
   type CrowdStrikeCallResult,
   callCrowdStrike,
   getAccessToken,
@@ -314,6 +315,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: true, output: result.output })
   } catch (error) {
     const message = toError(error).message
+
+    /**
+     * The token exchange runs before the operation dispatch, so without this a
+     * bad client ID or secret (Falcon 401) reaches the caller as a 500.
+     */
+    if (error instanceof CrowdStrikeAuthError) {
+      logger.warn('CrowdStrike authentication failed', { error: message, status: error.status })
+      return NextResponse.json({ success: false, error: message }, { status: error.status })
+    }
+
     logger.error('CrowdStrike request failed', { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }

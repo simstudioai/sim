@@ -44,7 +44,7 @@ export const insertTool: ToolConfig<MSSQLInsertParams, MSSQLInsertResponse> = {
       required: false,
       visibility: 'user-only',
       description:
-        'Encrypt the connection with TLS (enabled, disabled). Defaults to enabled. Disabling sends the login packet and every row in cleartext',
+        'Request TLS encryption for the connection (enabled, disabled). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee',
     },
     trustServerCertificate: {
       type: 'string',

@@ -52,8 +52,8 @@ export const getZoneSettingsTool: ToolConfig<
     return {
       success: true,
       output: {
-        settings:
-          data.result?.map((setting: Record<string, unknown>) => ({
+        settings: (Array.isArray(data.result) ? data.result : []).map(
+          (setting: Record<string, unknown>) => ({
             id: (setting.id as string) ?? '',
             value:
               typeof setting.value === 'object' && setting.value !== null
@@ -64,7 +64,8 @@ export const getZoneSettingsTool: ToolConfig<
             ...(setting.time_remaining != null
               ? { time_remaining: setting.time_remaining as number }
               : {}),
-          })) ?? [],
+          })
+        ),
       },
     }
   },
@@ -96,7 +97,7 @@ export const getZoneSettingsTool: ToolConfig<
           time_remaining: {
             type: 'number',
             description:
-              'Seconds remaining until the setting can be modified again (only present for rate-limited settings)',
+              'Development mode countdown, in seconds. Cloudflare documents this only on the zones_development_mode setting, where it is the interval from when development mode expires (positive) or last expired (negative)',
             optional: true,
           },
         },

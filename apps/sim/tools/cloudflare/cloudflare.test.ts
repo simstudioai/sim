@@ -630,3 +630,101 @@ describe('optional and per-API pagination params', () => {
     )
   })
 })
+
+/** Builds the Cloudflare v4 envelope every tool's transformResponse reads. */
+function envelope(result: unknown, success = true): Response {
+  return new Response(JSON.stringify({ success, errors: [], messages: [], result }), {
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+describe('DNS analytics does not fabricate metrics Cloudflare did not return', () => {
+  const tool = cloudflareTools.cloudflareDnsAnalyticsTool
+
+  it('passes min and max through instead of filling seven zeroes', async () => {
+    // Cloudflare documents both as "currently always an empty object", so a
+    // seven-field numeric block is fabricated telemetry.
+    const out = (await tool.transformResponse!(
+      envelope({ totals: { queryCount: 12 }, min: {}, max: {}, data: [], rows: 0 }),
+      {} as never
+    )) as { output: { min: unknown; max: unknown } }
+
+    expect(out.output.min).toEqual({})
+    expect(out.output.max).toEqual({})
+  })
+
+  it('reports an absent min or max as null rather than zeroes', async () => {
+    const out = (await tool.transformResponse!(envelope({ totals: {} }), {} as never)) as {
+      output: { min: unknown; max: unknown }
+    }
+
+    expect(out.output.min).toBeNull()
+    expect(out.output.max).toBeNull()
+  })
+
+  it('leaves an unrequested total absent instead of reading it as zero', async () => {
+    const out = (await tool.transformResponse!(
+      envelope({ totals: { queryCount: 12 } }),
+      {} as never
+    )) as { output: { totals: Record<string, unknown> } }
+
+    expect(out.output.totals.queryCount).toBe(12)
+    expect(out.output.totals.responseTimeAvg).toBeUndefined()
+    expect(out.output.totals.uncachedCount).toBeUndefined()
+  })
+
+  it('declares min and max as opaque JSON, not a numeric object', () => {
+    expect(tool.outputs?.min).toMatchObject({ type: 'json' })
+    expect(tool.outputs?.max).toMatchObject({ type: 'json' })
+    expect((tool.outputs?.min as { description: string }).description).toMatch(/empty object/i)
+  })
+
+  it('keeps metrics optional in the block, matching the tool and the API', () => {
+    const metrics = CloudflareBlock.subBlocks.find((sub) => sub.id === 'metrics')
+    expect(metrics?.required).toBeUndefined()
+    expect(tool.params.metrics.required).toBe(false)
+    expect(tool.params.metrics.description).not.toMatch(/default metric set/i)
+  })
+})
+
+describe('purge cache refuses an ambiguous whole-zone purge', () => {
+  const buildBody = cloudflareTools.cloudflarePurgeCacheTool.request.body!
+
+  it('throws when purge_everything is combined with a target list', () => {
+    expect(() =>
+      buildBody({
+        zoneId: 'z1',
+        apiKey,
+        purge_everything: true,
+        files: 'https://example.com/a.css',
+      } as never)
+    ).toThrow(/cannot be combined with specific targets/)
+  })
+
+  it('still purges everything when no targets were given', () => {
+    expect(buildBody({ zoneId: 'z1', apiKey, purge_everything: true } as never)).toEqual({
+      purge_everything: true,
+    })
+  })
+
+  it('defaults the block dropdown to purging specific targets', () => {
+    const purgeEverything = CloudflareBlock.subBlocks.find((sub) => sub.id === 'purge_everything')
+    expect((purgeEverything?.value as () => string)()).toBe('false')
+  })
+})
+
+describe('list transforms survive a non-array result', () => {
+  it.each([
+    ['list_zones', cloudflareTools.cloudflareListZonesTool, 'zones'],
+    ['list_dns_records', cloudflareTools.cloudflareListDnsRecordsTool, 'records'],
+    ['list_certificates', cloudflareTools.cloudflareListCertificatesTool, 'certificates'],
+    ['get_zone_settings', cloudflareTools.cloudflareGetZoneSettingsTool, 'settings'],
+  ])('%s returns an empty list rather than throwing', async (_name, tool, key) => {
+    // A success:true body whose result is an object (or null) must not throw a
+    // raw TypeError out of transformResponse.
+    const out = (await tool.transformResponse!(envelope({ unexpected: true }), {} as never)) as {
+      output: Record<string, unknown>
+    }
+    expect(out.output[key]).toEqual([])
+  })
+})

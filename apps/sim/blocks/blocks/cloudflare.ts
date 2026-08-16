@@ -1001,7 +1001,6 @@ Return ONLY the timestamp or relative expression - no explanations, no quotes, n
       title: 'Metrics',
       type: 'short-input',
       placeholder: 'Comma-separated (e.g., queryCount,uncachedCount,responseTimeAvg)',
-      required: { field: 'operation', value: 'dns_analytics' },
       condition: { field: 'operation', value: 'dns_analytics' },
       wandConfig: {
         enabled: true,
@@ -1126,7 +1125,7 @@ Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
         { label: 'Yes - Purge All', id: 'true' },
         { label: 'No - Purge Specific', id: 'false' },
       ],
-      value: () => 'true',
+      value: () => 'false',
       condition: { field: 'operation', value: 'purge_cache' },
     },
     {
@@ -1591,7 +1590,7 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         enabled: true,
         prompt: `Generate a comma-separated list of Cloudflare rate limiting counting characteristics from the user's description.
 
-cf.colo.id is mandatory in every list. Include exactly one of ip.src or cf.unique_visitor_id.
+cf.colo.id is mandatory in every list. ip.src and cf.unique_visitor_id are mutually exclusive - include at most one, and neither is required. Do not add an IP or visitor characteristic the user did not ask for; a rule keyed on host, path, country, header, cookie or JA3/JA4 alone is valid.
 
 Available characteristics:
 - cf.colo.id (mandatory)
@@ -1610,7 +1609,7 @@ Available characteristics:
 Examples:
 - "per IP address" -> cf.colo.id,ip.src
 - "per visitor" -> cf.colo.id,cf.unique_visitor_id
-- "per API key header" -> cf.colo.id,ip.src,http.request.headers["x-api-key"]
+- "per API key header" -> cf.colo.id,http.request.headers["x-api-key"]
 - "per country" -> cf.colo.id,ip.src.country
 
 Return ONLY the comma-separated list - no explanations, no extra text.`,
@@ -2634,7 +2633,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     apiKey: { type: 'string', description: 'Cloudflare API token' },
     zoneId: { type: 'string', description: 'Zone ID' },
     accountId: { type: 'string', description: 'Cloudflare account ID' },
-    zoneType: { type: 'string', description: 'Zone type (full, partial, or secondary)' },
+    zoneType: {
+      type: 'string',
+      description:
+        'Zone type to create (full, partial, or secondary). Cloudflare also defines an internal type, which is not creatable here but can appear on zones returned by reads',
+    },
     order: { type: 'string', description: 'Sort field when listing zones' },
     direction: { type: 'string', description: 'Sort direction (asc, desc)' },
     match: { type: 'string', description: 'Match logic for filters (any, all)' },
@@ -2856,8 +2859,16 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     certificates: { type: 'json', description: 'List of SSL/TLS certificate packs' },
     settings: { type: 'json', description: 'List of zone settings' },
     totals: { type: 'json', description: 'Aggregate DNS analytics totals' },
-    min: { type: 'json', description: 'Minimum values across the DNS analytics period' },
-    max: { type: 'json', description: 'Maximum values across the DNS analytics period' },
+    min: {
+      type: 'json',
+      description:
+        'Per-metric DNS analytics minimums. Cloudflare documents this as currently always an empty object',
+    },
+    max: {
+      type: 'json',
+      description:
+        'Per-metric DNS analytics maximums. Cloudflare documents this as currently always an empty object',
+    },
     query: { type: 'json', description: 'Echo of the DNS analytics query parameters sent' },
     validation_errors: { type: 'json', description: 'Validation issues for certificate packs' },
     data: { type: 'json', description: 'Raw analytics data rows from the DNS analytics report' },
@@ -2913,7 +2924,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     modified_on: { type: 'string', description: 'Last modified date (ISO 8601)' },
     value: { type: 'string', description: 'Setting value (complex values are JSON-stringified)' },
     editable: { type: 'boolean', description: 'Whether the setting can be modified' },
-    time_remaining: { type: 'number', description: 'Seconds until setting can be modified again' },
+    time_remaining: {
+      type: 'number',
+      description:
+        'Development mode countdown in seconds — documented only on the zones_development_mode setting, positive until it expires and negative afterwards',
+    },
     total_count: { type: 'number', description: 'Total count of results' },
     rulesets: { type: 'json', description: 'Rulesets defined on the zone' },
     rules: { type: 'json', description: 'Rules contained in a ruleset, in evaluation order' },
@@ -3179,7 +3194,7 @@ export const CloudflareBlockMeta = {
       description:
         'Protect an API path from abuse with a Cloudflare rate limiting rule using the current Rulesets-based rate limiting API.',
       content:
-        '# Rate Limit an API Endpoint\n\nRate limiting rules are rules in the `http_ratelimit` phase entry point ruleset. The legacy `rate_limits` endpoint is no longer the way to do this.\n\n## Steps\n1. Resolve the zone ID for the domain serving the API.\n2. List the existing rate limiting rules to get the `http_ratelimit` entry point ruleset ID and see what is already in place.\n3. Decide the counting characteristics. `cf.colo.id` is mandatory, plus exactly one of `ip.src` (per IP) or `cf.unique_visitor_id` (per visitor); add `http.request.headers["<name>"]` to count per API key.\n4. Pick a counting period (10, 60, 120, 300, 600, or 3600 seconds) and the request allowance for that period.\n5. Create the rule with the matching expression (e.g. `(http.request.uri.path matches "^/api/")`), the counting configuration, and the mitigation action.\n6. Read the rules back and confirm the new rule and its limit.\n\n## Output\nThe ruleset ID, the new rule ID, the expression, and the effective limit (requests per period, characteristics, and mitigation timeout).\n\n## Cautions\nThe rule applies to live traffic as soon as it is created. Size the allowance against real traffic before choosing `block` over `log` or `managed_challenge`.',
+        '# Rate Limit an API Endpoint\n\nRate limiting rules are rules in the `http_ratelimit` phase entry point ruleset. The legacy `rate_limits` endpoint is no longer the way to do this.\n\n## Steps\n1. Resolve the zone ID for the domain serving the API.\n2. List the existing rate limiting rules to get the `http_ratelimit` entry point ruleset ID and see what is already in place.\n3. Decide the counting characteristics. `cf.colo.id` is mandatory. `ip.src` (per IP) and `cf.unique_visitor_id` (per visitor) are mutually exclusive - include at most one, and neither is required; a rule keyed on host, path, country, header or cookie alone is valid. Add `http.request.headers["<name>"]` to count per API key.\n4. Pick a counting period (10, 60, 120, 300, 600, or 3600 seconds) and the request allowance for that period.\n5. Create the rule with the matching expression (e.g. `(http.request.uri.path matches "^/api/")`), the counting configuration, and the mitigation action.\n6. Read the rules back and confirm the new rule and its limit.\n\n## Output\nThe ruleset ID, the new rule ID, the expression, and the effective limit (requests per period, characteristics, and mitigation timeout).\n\n## Cautions\nThe rule applies to live traffic as soon as it is created. Size the allowance against real traffic before choosing `block` over `log` or `managed_challenge`.',
     },
     {
       name: 'review-zero-trust-access',

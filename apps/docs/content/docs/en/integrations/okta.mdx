@@ -280,7 +280,7 @@ Generate a one-time token to reset a user password. Can email the reset link to 
 | `apiKey` | string | Yes | Okta API token for authentication |
 | `domain` | string | Yes | Okta domain \(e.g., dev-123456.okta.com\) |
 | `userId` | string | Yes | User ID or login to reset password for |
-| `sendEmail` | boolean | No | Send password reset email to the user \(default: true\) |
+| `sendEmail` | boolean | No | Send password reset email to the user. Okta requires this parameter and declares no default of its own; leaving it blank sends the email |
 
 #### Output
 
@@ -1268,7 +1268,7 @@ Query the Okta System Log for sign-ins, admin changes, and security events. Supp
 |   ↳ `debugData` | json | Extra context whose keys depend on the event type. Okta states these keys and values can change between releases, so treat them as a debugging aid rather than a contract |
 | `count` | number | Number of events returned |
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
-| `hasMore` | boolean | Whether more events are available |
+| `hasMore` | boolean | Whether more events are available. A query with no "until" is a polling query, which Okta always answers with a next link even when there are no new events, so this reports false once a page comes back empty |
 | `success` | boolean | Operation success status |
 
 

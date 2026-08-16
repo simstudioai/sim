@@ -37,62 +37,19 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 | `latestTime` | string | No | Latest \(exclusive\) time bound — relative \(e.g. now\) or absolute time |
 | `adhocSearchLevel` | string | No | Search mode: verbose, fast, or smart. Defaults to fast. |
 | `autoCancel` | number | No | Cancel the search after this many seconds of inactivity \(e.g. 60\). 0 never auto-cancels. |
-| `maxCount` | number | No | Maximum number of results the search stores and returns. Defaults to 10000. Lower it to bound large oneshot responses. |
+| `maxCount` | number | No | Maximum number of results the search stores and returns. Defaults to 1000 here; Splunk itself defaults to 10000, which a oneshot search returns in a single unbounded response. Raise it deliberately. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search result rows, each holding the fields the search produced |
-| `resultCount` | number | Number of result rows returned |
-| `preview` | boolean | Whether the results are previews |
-| `initOffset` | number | Offset of the first returned row |
-| `messages` | json | Messages returned with the response \(\[\{type, text\}\]\) |
-| `sid` | string | Search ID of the job |
-| `label` | string | Custom name of the search job |
-| `dispatchState` | string | Current state of the search job |
-| `doneProgress` | number | Approximate job progress between 0 and 1 |
-| `isDone` | boolean | Whether the search has completed |
-| `isFailed` | boolean | Whether the search failed |
-| `isFinalized` | boolean | Whether the search was finalized |
-| `isPaused` | boolean | Whether the search is paused |
-| `isZombie` | boolean | Whether the search process died |
-| `isSaved` | boolean | Whether the job artifacts are saved |
-| `isSavedSearch` | boolean | Whether the job came from a saved search |
-| `isRealTimeSearch` | boolean | Whether this is a real-time search |
-| `eventCount` | number | Number of events returned |
-| `eventAvailableCount` | number | Number of events available for export |
-| `eventFieldCount` | number | Number of fields found in the results |
-| `resultPreviewCount` | number | Number of rows in the latest preview |
-| `scanCount` | number | Number of events scanned off disk |
-| `runDuration` | number | Seconds the search took to complete |
-| `priority` | number | Search priority between 0 and 10 |
-| `earliestTime` | string | Earliest time bound of the job |
-| `latestTime` | string | Latest time bound of the job |
-| `searchEarliestTime` | string | Earliest time as specified in the search command |
-| `searchLatestTime` | string | Latest time as specified in the search command |
-| `savedSearches` | json | Saved searches \(\[\{name, id, author, updated, search, description, disabled, isScheduled, cronSchedule, alertType\}\]\) |
-| `name` | string | Saved search name |
-| `id` | string | Fully qualified REST URI of the resource |
-| `author` | string | Owner of the saved search |
-| `updated` | string | Last update timestamp |
-| `search` | string | SPL the saved search runs |
-| `qualifiedSearch` | string | Exact search string the scheduler runs |
-| `description` | string | Saved search description |
-| `disabled` | boolean | Whether the saved search is disabled |
-| `isScheduled` | boolean | Whether the search runs on a schedule |
-| `isVisible` | boolean | Whether the search is listed as visible |
-| `cronSchedule` | string | Cron schedule for the search |
-| `nextScheduledTime` | string | Next scheduled run time |
-| `alertType` | string | Alert condition type |
-| `dispatchEarliestTime` | string | Earliest time used when dispatching |
-| `dispatchLatestTime` | string | Latest time used when dispatching |
-| `alerts` | json | Saved searches with currently triggered alerts \(\[\{name, id, updated, triggeredAlertCount\}\]\) |
-| `firedAlerts` | json | Triggered instances of an alert \(\[\{name, savedSearchName, alertType, severity, sid, triggerTime\}\]\) |
-| `indexes` | json | Indexes configured on the instance \(\[\{name, datatype, disabled, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, minTime, maxTime\}\]\) |
-| `apps` | json | Apps installed on the instance \(name, label, version, author, disabled\) |
-| `total` | number | Total number of entries matching a list request, from the response paging envelope. Compare with offset to decide whether another page remains. |
-| `offset` | number | Offset of the first entry in the returned page, from the paging envelope |
+| `results` | array | Result rows. Each row holds the fields produced by the search. |
+| `resultCount` | number | Number of result rows returned in this response |
+| `preview` | boolean | Whether these are preview results from a still-running job |
+| `initOffset` | number | Offset of the first returned row within the full result set |
+| `messages` | array | Search messages returned alongside the results |
+|   ↳ `type` | string | Message severity |
+|   ↳ `text` | string | Message text |
 
 ### Splunk Create Search Job
 
@@ -169,8 +126,8 @@ Get the status and progress of a Splunk search job by search ID, including dispa
 | `priority` | number | Search priority between 0 and 10 |
 | `earliestTime` | string | Earliest \(inclusive\) time bound for the search |
 | `latestTime` | string | Latest \(exclusive\) time bound for the search |
-| `searchEarliestTime` | string | Earliest time as specified in the search command itself |
-| `searchLatestTime` | string | Latest time as specified in the search command itself |
+| `searchEarliestTime` | number | Earliest time as specified in the search command itself, as an epoch timestamp. Unlike earliestTime, which the job entry renders as an ISO string, this pair is documented as bare numbers \(e.g. 1308589800.000000000\). |
+| `searchLatestTime` | number | Latest time as specified in the search command itself, as an epoch timestamp. Unlike latestTime, which the job entry renders as an ISO string, this pair is documented as bare numbers. |
 | `messages` | json | Errors and debug messages recorded for the job |
 
 ### Splunk Get Search Results
@@ -197,56 +154,13 @@ Fetch the transformed results of a completed Splunk search job by search ID, wit
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `results` | json | Search result rows, each holding the fields the search produced |
-| `resultCount` | number | Number of result rows returned |
-| `preview` | boolean | Whether the results are previews |
-| `initOffset` | number | Offset of the first returned row |
-| `messages` | json | Messages returned with the response \(\[\{type, text\}\]\) |
-| `sid` | string | Search ID of the job |
-| `label` | string | Custom name of the search job |
-| `dispatchState` | string | Current state of the search job |
-| `doneProgress` | number | Approximate job progress between 0 and 1 |
-| `isDone` | boolean | Whether the search has completed |
-| `isFailed` | boolean | Whether the search failed |
-| `isFinalized` | boolean | Whether the search was finalized |
-| `isPaused` | boolean | Whether the search is paused |
-| `isZombie` | boolean | Whether the search process died |
-| `isSaved` | boolean | Whether the job artifacts are saved |
-| `isSavedSearch` | boolean | Whether the job came from a saved search |
-| `isRealTimeSearch` | boolean | Whether this is a real-time search |
-| `eventCount` | number | Number of events returned |
-| `eventAvailableCount` | number | Number of events available for export |
-| `eventFieldCount` | number | Number of fields found in the results |
-| `resultPreviewCount` | number | Number of rows in the latest preview |
-| `scanCount` | number | Number of events scanned off disk |
-| `runDuration` | number | Seconds the search took to complete |
-| `priority` | number | Search priority between 0 and 10 |
-| `earliestTime` | string | Earliest time bound of the job |
-| `latestTime` | string | Latest time bound of the job |
-| `searchEarliestTime` | string | Earliest time as specified in the search command |
-| `searchLatestTime` | string | Latest time as specified in the search command |
-| `savedSearches` | json | Saved searches \(\[\{name, id, author, updated, search, description, disabled, isScheduled, cronSchedule, alertType\}\]\) |
-| `name` | string | Saved search name |
-| `id` | string | Fully qualified REST URI of the resource |
-| `author` | string | Owner of the saved search |
-| `updated` | string | Last update timestamp |
-| `search` | string | SPL the saved search runs |
-| `qualifiedSearch` | string | Exact search string the scheduler runs |
-| `description` | string | Saved search description |
-| `disabled` | boolean | Whether the saved search is disabled |
-| `isScheduled` | boolean | Whether the search runs on a schedule |
-| `isVisible` | boolean | Whether the search is listed as visible |
-| `cronSchedule` | string | Cron schedule for the search |
-| `nextScheduledTime` | string | Next scheduled run time |
-| `alertType` | string | Alert condition type |
-| `dispatchEarliestTime` | string | Earliest time used when dispatching |
-| `dispatchLatestTime` | string | Latest time used when dispatching |
-| `alerts` | json | Saved searches with currently triggered alerts \(\[\{name, id, updated, triggeredAlertCount\}\]\) |
-| `firedAlerts` | json | Triggered instances of an alert \(\[\{name, savedSearchName, alertType, severity, sid, triggerTime\}\]\) |
-| `indexes` | json | Indexes configured on the instance \(\[\{name, datatype, disabled, totalEventCount, currentDBSizeMB, maxTotalDataSizeMB, minTime, maxTime\}\]\) |
-| `apps` | json | Apps installed on the instance \(name, label, version, author, disabled\) |
-| `total` | number | Total number of entries matching a list request, from the response paging envelope. Compare with offset to decide whether another page remains. |
-| `offset` | number | Offset of the first entry in the returned page, from the paging envelope |
+| `results` | array | Result rows. Each row holds the fields produced by the search. |
+| `resultCount` | number | Number of result rows returned in this response |
+| `preview` | boolean | Whether these are preview results from a still-running job |
+| `initOffset` | number | Offset of the first returned row within the full result set |
+| `messages` | array | Search messages returned alongside the results |
+|   ↳ `type` | string | Message severity |
+|   ↳ `text` | string | Message text |
 
 ### Splunk Cancel Search Job
 
@@ -269,6 +183,9 @@ Cancel a running Splunk search job and delete its result cache.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `sid` | string | Search ID of the cancelled job |
+| `messages` | array | Informational, warning, and error messages returned with the response |
+|   ↳ `type` | string | Message severity \(INFO, WARN, ERROR, DEBUG\) |
+|   ↳ `text` | string | Message text |
 
 ### Splunk List Saved Searches
 
@@ -308,6 +225,8 @@ List saved searches and reports configured in Splunk, including their SPL, sched
 |   ↳ `alertType` | string | Alert condition type \(e.g. always, custom, number of events\) |
 |   ↳ `dispatchEarliestTime` | string | Earliest time bound used when the search is dispatched |
 |   ↳ `dispatchLatestTime` | string | Latest time bound used when the search is dispatched |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
 
 ### Splunk Get Saved Search
 
@@ -400,6 +319,8 @@ List the saved searches with currently triggered (unexpired) Splunk alerts and h
 |   ↳ `id` | string | Fully qualified REST URI of the entry |
 |   ↳ `updated` | string | Last update timestamp |
 |   ↳ `triggeredAlertCount` | number | Trigger count for this alert |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
 
 ### Splunk Get Fired Alerts
 
@@ -473,6 +394,8 @@ List the indexes configured on the Splunk instance with their size, event count,
 |   ↳ `homePath` | string | Path to the hot and warm buckets |
 |   ↳ `coldPath` | string | Path to the cold buckets |
 |   ↳ `thawedPath` | string | Path to the thawed buckets |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
 
 ### Splunk List Apps
 
@@ -509,5 +432,7 @@ List the apps installed on the Splunk instance with their label, version, author
 |   ↳ `configured` | boolean | Whether the custom app setup has been completed |
 |   ↳ `checkForUpdates` | boolean | Whether Splunkbase is checked for app updates |
 |   ↳ `stateChangeRequiresRestart` | boolean | Whether changing the app state requires a restart |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
 
 

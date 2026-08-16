@@ -67,10 +67,6 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
         'Content-Type': 'application/json',
       }),
       body: (params) => {
-        if (params.purge_everything) {
-          return { purge_everything: true }
-        }
-
         const body: Record<string, string[]> = {}
         if (params.files) {
           const fileList = String(params.files)
@@ -101,20 +97,36 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
           if (prefixList.length > 0) body.prefixes = prefixList
         }
 
-        if (Object.keys(body).length === 0) {
+        const targets = Object.keys(body)
+
+        /**
+         * `purge_everything` wipes the zone's entire cache, so a request that
+         * also names specific targets is ambiguous about what the caller wanted.
+         * Erroring is safer than silently discarding the target list and purging
+         * everything anyway.
+         */
+        if (params.purge_everything) {
+          if (targets.length > 0) {
+            throw new Error(
+              `purge_everything purges the entire zone cache and cannot be combined with specific targets, but ${targets.join(' and ')} were also provided. Set purge_everything to false to purge only those targets.`
+            )
+          }
+          return { purge_everything: true }
+        }
+
+        if (targets.length === 0) {
           throw new Error(
             'No purge targets specified. Provide at least one of: files, tags, hosts, or prefixes, or set purge_everything to true.'
           )
         }
 
         /**
-         * Cloudflare's purge body is a one-of over the five target kinds — each
-         * is its own request schema, and combining two in a single call is not a
-         * documented shape. Rejecting here names the conflicting fields instead
-         * of letting the API answer with a generic parse error.
+         * Cloudflare's purge request body is an `anyOf` over the target kinds and
+         * no Cloudflare page documents whether mixing them is supported. Sim
+         * refuses the combination conservatively so the caller gets a named error
+         * instead of a generic 400.
          * https://developers.cloudflare.com/api/resources/cache/methods/purge/
          */
-        const targets = Object.keys(body)
         if (targets.length > 1) {
           throw new Error(
             `Only one purge target kind is allowed per request, but ${targets.join(' and ')} were provided. Run a separate purge for each.`
