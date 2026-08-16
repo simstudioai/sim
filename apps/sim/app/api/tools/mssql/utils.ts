@@ -183,10 +183,20 @@ export async function executeQuery(
  * DML. One list serves both the read-only query screen and the WHERE screen so
  * the two cannot drift apart; a gap in either is a gap in both, which is how
  * `DBCC` slipped past a per-site list.
+ *
+ * `DISABLE`/`ENABLE` are here because `SELECT 1 DISABLE TRIGGER dbo.audit ON
+ * dbo.users` is a valid semicolon-less batch that turns auditing off, and
+ * `SET`/`BEGIN`/`COMMIT`/`ROLLBACK` because session and transaction state are
+ * changed the same way (`SET IDENTITY_INSERT`, `SET ANSI_NULLS`).
+ *
+ * `FETCH` is deliberately **absent**: `OFFSET … FETCH NEXT` is the standard
+ * T-SQL paging clause, so screening it would reject the ordinary paged SELECT
+ * this operation exists to run. Word boundaries keep the additions off ordinary
+ * identifiers — `settled`, `offset_value`, and `begin_date` all match nothing.
  * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/statements
  */
 const MSSQL_STATEMENT_KEYWORDS =
-  /\b(?:insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into)\b/i
+  /\b(?:insert|update|delete|merge|drop|create|alter|truncate|disable|enable|set|begin|commit|rollback|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into)\b/i
 
 /** Extended, OLE-automation, and system stored procedures, called with or without `EXEC`. */
 const MSSQL_PROCEDURE_PATTERN = /\b(?:xp_|sp_)\w+/i
@@ -348,10 +358,24 @@ export function validateReadOnlyQuery(query: string): { isValid: boolean; error?
   return { isValid: true }
 }
 
+/**
+ * Restricts Execute Raw SQL to a statement kind the operation advertises.
+ *
+ * The anchor is `\b` rather than `\s`, matching the read-only screen, because
+ * T-SQL does not require whitespace after the opening keyword: `EXEC(@sql)` is
+ * the ordinary way to run dynamic SQL and `SELECT(1)` is a valid read, both of
+ * which a whitespace anchor refused on the one operation meant to accept them.
+ * `EXECUTE x` still matches — the alternation backtracks from `exec` to
+ * `execute` when the boundary fails — and `SELECTX` is still refused.
+ *
+ * This is a statement-kind check, not a security screen. Execute Raw SQL is the
+ * deliberate escape hatch: the caller supplies their own credentials, so the
+ * boundary is what those credentials may do, not what this pattern matches.
+ */
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
   const trimmedQuery = query.trim()
 
-  const allowedStatements = /^(select|insert|update|delete|with|merge|exec|execute|declare)\s+/i
+  const allowedStatements = /^(select|insert|update|delete|with|merge|exec|execute|declare)\b/i
   if (!allowedStatements.test(trimmedQuery)) {
     return {
       isValid: false,

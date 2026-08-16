@@ -40,6 +40,7 @@ import {
   createMSSQLConnection,
   executeQuery,
   type MSSQLConnectionConfig,
+  validateQuery,
   validateReadOnlyQuery,
 } from '@/app/api/tools/mssql/utils'
 
@@ -116,6 +117,51 @@ describe('validateReadOnlyQuery', () => {
 
   it('rejects an unpaired quote', () => {
     expect(validateReadOnlyQuery(`SELECT * FROM dbo.t WHERE a = 'x`).isValid).toBe(false)
+  })
+
+  /** Semicolon-less batches that change trigger, session, or transaction state. */
+  it.each([
+    'SELECT 1 DISABLE TRIGGER dbo.audit_trigger ON dbo.users',
+    'SELECT 1 ENABLE TRIGGER dbo.audit_trigger ON dbo.users',
+    'SELECT 1 SET IDENTITY_INSERT dbo.t ON',
+    'SELECT 1 BEGIN TRAN',
+    'SELECT 1 COMMIT',
+    'SELECT 1 ROLLBACK',
+  ])('rejects the state-changing batch %s', (query) => {
+    expect(validateReadOnlyQuery(query).isValid).toBe(false)
+  })
+
+  /**
+   * The guard against over-screening. `FETCH` is excluded from the keyword list
+   * because `OFFSET … FETCH NEXT` is the standard paging clause, and the added
+   * keywords must not catch ordinary identifiers that merely contain them.
+   */
+  it.each([
+    'SELECT * FROM dbo.users ORDER BY id OFFSET 10 ROWS FETCH NEXT 20 ROWS ONLY',
+    'WITH p AS (SELECT id FROM dbo.o) SELECT * FROM p ORDER BY id OFFSET 0 ROWS FETCH NEXT 5 ROWS ONLY',
+    'SELECT settled, offset_value, begin_date FROM dbo.t',
+    'SELECT TOP (100) id, name FROM dbo.users WHERE is_active = 1',
+  ])('still accepts the legitimate read %s', (query) => {
+    expect(validateReadOnlyQuery(query).isValid).toBe(true)
+  })
+})
+
+describe('validateQuery (Execute Raw SQL)', () => {
+  /** T-SQL needs no space after the keyword; `EXEC(@sql)` is ordinary dynamic SQL. */
+  it.each([
+    'EXEC(@sql)',
+    'EXECUTE(@sql)',
+    'EXEC sp_who',
+    'EXECUTE dbo.myproc',
+    'SELECT(1)',
+    'WITH(x) AS (SELECT 1) SELECT * FROM x',
+    'DECLARE @x INT',
+  ])('accepts %s', (query) => {
+    expect(validateQuery(query).isValid).toBe(true)
+  })
+
+  it.each(['SELECTX 1', 'DROP TABLE dbo.t', 'TRUNCATE TABLE dbo.t'])('rejects %s', (query) => {
+    expect(validateQuery(query).isValid).toBe(false)
   })
 })
 
