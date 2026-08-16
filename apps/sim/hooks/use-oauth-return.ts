@@ -31,9 +31,14 @@ const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
 const CONTEXT_MAX_AGE_MS = 15 * 60 * 1000
 
-async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<string> {
+interface OAuthResultMessage {
+  kind: 'success' | 'error'
+  text: string
+}
+
+async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<OAuthResultMessage> {
   if (ctx.reconnect) {
-    return `"${ctx.displayName}" reconnected successfully.`
+    return { kind: 'success', text: `"${ctx.displayName}" reconnected successfully.` }
   }
 
   try {
@@ -44,14 +49,45 @@ async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<string> {
 
     const forProvider = oauthCredentials.filter((c) => c.providerId === ctx.providerId)
     if (forProvider.length > ctx.preCount) {
-      return `"${ctx.displayName}" credential connected successfully.`
+      return {
+        kind: 'success',
+        text: `"${ctx.displayName}" credential connected successfully.`,
+      }
     }
 
-    const existing = forProvider[0]
-    return `This account is already connected as "${existing?.displayName || ctx.displayName}".`
+    const baselineAccountIds = new Map(
+      ctx.baselineCredentials?.map((credential) => [credential.id, credential.accountId]) ?? []
+    )
+    const reauthorizedCredential = forProvider.find(
+      (credential) =>
+        baselineAccountIds.has(credential.id) &&
+        baselineAccountIds.get(credential.id) !== credential.accountId
+    )
+    if (reauthorizedCredential) {
+      return {
+        kind: 'success',
+        text: `This account is already connected as "${reauthorizedCredential.displayName}".`,
+      }
+    }
   } catch {
-    return `"${ctx.displayName}" credential connected successfully.`
+    return {
+      kind: 'error',
+      text: `We couldn’t verify the "${ctx.displayName}" connection. Try again.`,
+    }
   }
+
+  return {
+    kind: 'error',
+    text: `We couldn’t verify the "${ctx.displayName}" connection. Try again.`,
+  }
+}
+
+function showOAuthResultMessage(result: OAuthResultMessage): void {
+  if (result.kind === 'success') {
+    toast.success(result.text)
+    return
+  }
+  toast.error(result.text)
 }
 
 function dispatchCredentialUpdate(ctx: { providerId: string; workspaceId: string }) {
@@ -171,7 +207,7 @@ export function useOAuthReturnRouter() {
       consumeOAuthReturnContext()
       void (async () => {
         const message = await resolveOAuthMessage(ctx)
-        toast.success(message)
+        showOAuthResultMessage(message)
         dispatchCredentialUpdate(ctx)
       })()
       return
@@ -213,7 +249,7 @@ export function useOAuthReturnForWorkflow(workflowId: string) {
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
-      toast.success(message)
+      showOAuthResultMessage(message)
       dispatchCredentialUpdate(ctx)
     })()
   }, [workflowId])
@@ -233,7 +269,7 @@ export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
-      toast.success(message)
+      showOAuthResultMessage(message)
       dispatchCredentialUpdate(ctx)
     })()
   }, [knowledgeBaseId])
@@ -277,7 +313,7 @@ export function useDesktopOAuthConnectListener() {
       if (ctx) {
         void (async () => {
           const message = await resolveOAuthMessage(ctx)
-          toast.success(message)
+          showOAuthResultMessage(message)
           dispatchCredentialUpdate(ctx)
         })()
         return

@@ -59,7 +59,7 @@ describe('saveCredentialDraft', () => {
   })
 
   it('authorizes workspace access before resolving reconnect credential access', async () => {
-    await saveCredentialDraft.execute({
+    const result = await saveCredentialDraft.execute({
       principal,
       input: {
         workspaceId: 'workspace-1',
@@ -69,6 +69,7 @@ describe('saveCredentialDraft', () => {
       },
     })
 
+    expect(result).toEqual({ success: true, draftId: 'draft-1' })
     expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getActor.mock.invocationCallOrder[0]
     )
@@ -77,7 +78,6 @@ describe('saveCredentialDraft', () => {
         userId: 'user-1',
         workspaceId: 'workspace-1',
         credentialId: 'credential-1',
-        displayNameDefinesIntent: false,
       })
     )
   })

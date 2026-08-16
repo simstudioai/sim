@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, sql } from 'drizzle-orm'
+import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import {
   handleCreateCredentialFromDraft,
   handleReconnectCredential,
@@ -9,15 +10,20 @@ import {
 
 const logger = createLogger('CredentialDraftProcessor')
 
-export const OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM = 'credentialDraftId'
-
 interface OAuthStateWithCallbackUrl {
   callbackURL?: unknown
 }
 
-type OAuthCredentialDraftBinding =
+export type OAuthCredentialDraftBinding =
   | { status: 'available'; draftId?: string }
   | { status: 'unavailable'; error: unknown }
+
+type AvailableOAuthCredentialDraftBinding = Extract<
+  OAuthCredentialDraftBinding,
+  { status: 'available' }
+>
+
+const oauthCredentialDraftBindings = new WeakMap<object, AvailableOAuthCredentialDraftBinding>()
 
 /** Extracts a draft binding from Better Auth state and rejects malformed callback state. */
 export function parseCredentialDraftIdFromCallbackUrl(callbackUrl: unknown): string | undefined {
@@ -41,6 +47,25 @@ export async function loadOAuthCredentialDraftBinding(
   } catch (error) {
     return { status: 'unavailable', error }
   }
+}
+
+/** Captures request-scoped OAuth state before Better Auth defers its account after-hook. */
+export async function captureOAuthCredentialDraftBinding(
+  context: object,
+  loadOAuthState: () => Promise<OAuthStateWithCallbackUrl | null | undefined>
+): Promise<void> {
+  const binding = await loadOAuthCredentialDraftBinding(loadOAuthState)
+  if (binding.status === 'unavailable') throw binding.error
+  oauthCredentialDraftBindings.set(context, binding)
+}
+
+/** Consumes the binding captured for the same Better Auth account-hook context. */
+export function consumeOAuthCredentialDraftBinding(
+  context: object
+): AvailableOAuthCredentialDraftBinding | undefined {
+  const binding = oauthCredentialDraftBindings.get(context)
+  oauthCredentialDraftBindings.delete(context)
+  return binding
 }
 
 interface ProcessCredentialDraftParams {
