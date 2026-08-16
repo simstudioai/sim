@@ -10,6 +10,13 @@ export const linearConnectorMeta: ConnectorMeta = {
 
   auth: { mode: 'oauth', provider: 'linear', requiredScopes: ['read'] },
 
+  /**
+   * Linear's `IssueFilter.updatedAt` DateComparator lets a sync narrow to issues
+   * touched since the last run, which Linear explicitly recommends over walking
+   * the full dataset on every poll.
+   */
+  supportsIncrementalSync: true,
+
   configFields: [
     {
       id: 'teamSelector',

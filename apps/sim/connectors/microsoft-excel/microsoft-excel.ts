@@ -249,18 +249,29 @@ async function fetchWorkbookItem(
   return (await response.json()) as WorkbookItem
 }
 
-/** Lists the workbook's worksheets in tab order. */
-async function fetchWorksheets(accessToken: string, basePath: string): Promise<Worksheet[]> {
+/**
+ * Lists the workbook's worksheets in tab order.
+ *
+ * `truncated` reports that the walk stopped while Graph was still offering more
+ * sheets — either because `@odata.nextLink` pointed off the Graph origin and was
+ * refused, or because the `MAX_WORKSHEETS` bound was reached. The caller must turn
+ * that into `listingCapped`, otherwise the sync engine reconciles the unseen sheets
+ * away as deletions.
+ */
+async function fetchWorksheets(
+  accessToken: string,
+  basePath: string
+): Promise<{ worksheets: Worksheet[]; truncated: boolean }> {
   const worksheets: Worksheet[] = []
   let url: string | undefined =
     `${basePath}/workbook/worksheets?$select=id,name,position,visibility&$orderby=position`
+  let truncated = false
 
   /**
    * Graph paginates collection responses, so a workbook with more sheets than fit
    * in one page must follow `@odata.nextLink`. Reading only the first page would
-   * drop the remainder from the listing without setting `listingCapped`, and the
-   * sync engine would then reconcile those documents away as deleted. The walk is
-   * bounded by `MAX_WORKSHEETS`, whose truncation the caller does flag.
+   * drop the remainder from the listing, and the sync engine would then reconcile
+   * those documents away as deleted.
    */
   while (url && worksheets.length <= MAX_WORKSHEETS) {
     const response = await fetchWithRetry(url, {
@@ -274,10 +285,27 @@ async function fetchWorksheets(accessToken: string, basePath: string): Promise<W
     worksheets.push(...(data.value ?? []))
 
     const next = data['@odata.nextLink']
-    url = next?.startsWith(GRAPH_API_BASE) ? next : undefined
+    if (next && !next.startsWith(GRAPH_API_BASE)) {
+      logger.warn('Dropping off-origin @odata.nextLink while listing worksheets', { basePath })
+      truncated = true
+      url = undefined
+    } else {
+      url = next
+    }
   }
 
-  return worksheets
+  /** Exiting with a page still pending means the `MAX_WORKSHEETS` bound cut the walk short. */
+  if (url) truncated = true
+
+  /**
+   * The `$orderby` above is honoured per page, but nothing guarantees a stable order
+   * once pages are concatenated, and both the `first` sheet filter and the
+   * `MAX_WORKSHEETS` cut pick by position. Re-sorting the assembled list is cheap and
+   * makes the order deterministic regardless.
+   */
+  worksheets.sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+
+  return { worksheets, truncated }
 }
 
 /**
@@ -352,6 +380,8 @@ async function fetchRangeValues(
 interface WorkbookSnapshot {
   workbook: WorkbookItem | null
   worksheets: Worksheet[]
+  /** True when the worksheet walk stopped before Graph ran out of sheets. */
+  worksheetsTruncated: boolean
 }
 
 /**
@@ -373,8 +403,9 @@ async function loadWorkbookSnapshot(
 
   const pending = (async (): Promise<WorkbookSnapshot> => {
     const workbook = await fetchWorkbookItem(accessToken, basePath)
-    if (!workbook) return { workbook: null, worksheets: [] }
-    return { workbook, worksheets: await fetchWorksheets(accessToken, basePath) }
+    if (!workbook) return { workbook: null, worksheets: [], worksheetsTruncated: false }
+    const { worksheets, truncated } = await fetchWorksheets(accessToken, basePath)
+    return { workbook, worksheets, worksheetsTruncated: truncated }
   })()
 
   if (syncContext) {
@@ -463,7 +494,7 @@ export const microsoftExcelConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const { spreadsheetId, basePath } = resolveBasePath(sourceConfig)
 
-    const { workbook, worksheets } = await loadWorkbookSnapshot(
+    const { workbook, worksheets, worksheetsTruncated } = await loadWorkbookSnapshot(
       accessToken,
       basePath,
       spreadsheetId,
@@ -485,13 +516,23 @@ export const microsoftExcelConnector: ConnectorConfig = {
     const scoped = sheetFilter === 'first' ? worksheets.slice(0, 1) : worksheets
 
     const selected = scoped.slice(0, MAX_WORKSHEETS)
-    if (selected.length < scoped.length && syncContext) {
-      logger.warn('Worksheet listing truncated by the connector cap', {
+
+    /**
+     * The listing is short of the workbook's real sheet set when the connector cap
+     * trims it, or when the worksheet walk itself stopped early. `sheetFilter: 'first'`
+     * is excluded on purpose — it is a deliberate scope choice, not a truncation, so
+     * the unselected sheets must still reconcile as deletions.
+     */
+    const capped =
+      selected.length < scoped.length || (sheetFilter !== 'first' && worksheetsTruncated)
+    if (capped) {
+      logger.warn('Worksheet listing truncated; suppressing deletion reconciliation', {
         spreadsheetId,
-        total: scoped.length,
+        listed: selected.length,
         cap: MAX_WORKSHEETS,
+        worksheetsTruncated,
       })
-      syncContext.listingCapped = true
+      if (syncContext) syncContext.listingCapped = true
     }
 
     logger.info('Listing Microsoft Excel worksheets', {
@@ -594,11 +635,14 @@ export const microsoftExcelConnector: ConnectorConfig = {
         logger.info('Skipping oversized worksheet range', { externalId })
         return markSkipped(stub, 'Worksheet exceeds the connector size limit and was not indexed')
       }
-      logger.warn('Failed to extract content from worksheet', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+      /**
+       * Everything reaching here is a transport or Graph failure that survived
+       * `fetchWithRetry`. Returning `null` would let the worksheet quietly go
+       * unindexed with no `failed` row; rethrowing lets the sync engine record it
+       * per-document (it hydrates deferred docs under `Promise.allSettled`, so one
+       * bad worksheet never aborts the run, and logs the rejection itself).
+       */
+      throw toError(error)
     }
   },
 

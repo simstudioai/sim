@@ -6705,69 +6705,6 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
-      "type": "evernote",
-      "slug": "evernote",
-      "name": "Evernote",
-      "description": "Manage notes, notebooks, and tags in Evernote",
-      "longDescription": "Integrate with Evernote to manage notes, notebooks, and tags. Create, read, update, copy, search, and delete notes. Create and list notebooks and tags.",
-      "bgColor": "#FFFFFF",
-      "iconName": "EvernoteIcon",
-      "docsUrl": "https://docs.sim.ai/integrations/evernote",
-      "operations": [
-        {
-          "name": "Create Note",
-          "description": "Create a new note in Evernote"
-        },
-        {
-          "name": "Get Note",
-          "description": "Retrieve a note from Evernote by its GUID"
-        },
-        {
-          "name": "Update Note",
-          "description": "Update an existing note in Evernote"
-        },
-        {
-          "name": "Delete Note",
-          "description": "Move a note to the trash in Evernote"
-        },
-        {
-          "name": "Copy Note",
-          "description": "Copy a note to another notebook in Evernote"
-        },
-        {
-          "name": "Search Notes",
-          "description": "Search for notes in Evernote using the Evernote search grammar"
-        },
-        {
-          "name": "Get Notebook",
-          "description": "Retrieve a notebook from Evernote by its GUID"
-        },
-        {
-          "name": "Create Notebook",
-          "description": "Create a new notebook in Evernote"
-        },
-        {
-          "name": "List Notebooks",
-          "description": "List all notebooks in an Evernote account"
-        },
-        {
-          "name": "Create Tag",
-          "description": "Create a new tag in Evernote"
-        },
-        {
-          "name": "List Tags",
-          "description": "List all tags in an Evernote account"
-        }
-      ],
-      "operationCount": 11,
-      "triggers": [],
-      "triggerCount": 0,
-      "authType": "api-key",
-      "category": "tools",
-      "integrationType": "documents",
-      "tags": ["note-taking", "knowledge-base"]
-    },
-    {
       "type": "exa",
       "slug": "exa",
       "name": "Exa",

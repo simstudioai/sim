@@ -698,6 +698,34 @@ describe('getMissingRequiredScopes', () => {
     expect(missing).toEqual([])
   })
 
+  it.concurrent('accepts calendar for a required calendar.readonly via the generic rule', () => {
+    const credential = { scopes: ['https://www.googleapis.com/auth/calendar'] }
+    const missing = getMissingRequiredScopes(credential, [
+      'https://www.googleapis.com/auth/calendar.readonly',
+    ])
+
+    expect(missing).toEqual([])
+  })
+
+  /**
+   * The rule derives only the bare read-write scope. Sim requests `gmail.send`,
+   * `gmail.modify` and `gmail.labels` but never `.../auth/gmail`, so a consumer
+   * must require one of the scopes actually granted rather than `gmail.readonly`.
+   */
+  it.concurrent('does not treat unrelated gmail scopes as covering gmail.readonly', () => {
+    const credential = {
+      scopes: [
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.labels',
+      ],
+    }
+    const missing = getMissingRequiredScopes(credential, [
+      'https://www.googleapis.com/auth/gmail.readonly',
+    ])
+
+    expect(missing).toEqual(['https://www.googleapis.com/auth/gmail.readonly'])
+  })
+
   it.concurrent('should ignore offline.access in required scopes', () => {
     const credential = { scopes: ['read'] }
     const missing = getMissingRequiredScopes(credential, ['read', 'offline.access'])

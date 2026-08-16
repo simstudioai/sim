@@ -85,7 +85,7 @@ interface GranolaListNotesResponse {
 function granolaHeaders(accessToken: string): Record<string, string> {
   return {
     Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
+    Accept: 'application/json',
   }
 }
 
@@ -139,12 +139,21 @@ function parseDateFilter(sourceConfig: Record<string, unknown>, key: string): st
 }
 
 /**
- * Detects whether a string contains HTML markup. Granola returns markdown for
- * `summary_markdown`, but this guard lets us defensively strip tags if the API
- * ever emits HTML, without mangling legitimate markdown.
+ * Matches a real HTML tag, anchored to a known tag name rather than any
+ * `<word…>` run. Markdown autolinks (`<https://acme.com>`, `<jane@acme.com>`)
+ * and angle-bracketed prose (`<redacted>`) are common in meeting summaries, and
+ * a looser pattern would route the whole markdown document through
+ * `htmlToPlainText`, which collapses every newline and destroys its structure.
+ */
+const HTML_TAG_PATTERN =
+  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
+
+/**
+ * Detects HTML markup in a summary. Granola documents `summary_markdown` as
+ * markdown, so this only guards against the API ever emitting HTML instead.
  */
 function looksLikeHtml(value: string): boolean {
-  return /<\/?[a-z][\s\S]*?>/i.test(value)
+  return HTML_TAG_PATTERN.test(value)
 }
 
 /**
@@ -271,20 +280,34 @@ export const granolaConnector: ConnectorConfig = {
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = allStubs
+    let capDroppedNotes = false
     if (maxNotes > 0) {
       const remaining = Math.max(0, maxNotes - prevFetched)
       if (allStubs.length > remaining) {
         documents = allStubs.slice(0, remaining)
+        capDroppedNotes = true
       }
     }
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
 
+    const sourceHasMore = Boolean(data.hasMore) && Boolean(nextCursor)
     const hitLimit = maxNotes > 0 && totalFetched >= maxNotes
-    if (hitLimit && syncContext) syncContext.listingCapped = true
 
-    const hasMore = !hitLimit && Boolean(data.hasMore) && Boolean(nextCursor)
+    /**
+     * Only report the listing as capped when the cap actually hid notes that
+     * still exist — either this page was sliced, or Granola reports further
+     * pages. A cap that lands exactly on the last note leaves the listing
+     * complete, and flagging it there would block deletion reconciliation on
+     * every ordinary sync, stranding notes deleted in Granola in the knowledge
+     * base indefinitely.
+     */
+    if (syncContext && hitLimit && (capDroppedNotes || sourceHasMore)) {
+      syncContext.listingCapped = true
+    }
+
+    const hasMore = !hitLimit && sourceHasMore
 
     return {
       documents,
@@ -309,7 +332,7 @@ export const granolaConnector: ConnectorConfig = {
       })
 
       if (!response.ok) {
-        if (response.status === 404 || response.status === 410) return null
+        if (response.status === 404) return null
         throw new Error(`Failed to fetch Granola note: ${response.status}`)
       }
 
@@ -349,11 +372,19 @@ export const granolaConnector: ConnectorConfig = {
         },
       }
     } catch (error) {
+      /**
+       * Only a confirmed 404 above returns null (the note is gone, or was never
+       * summarized — Granola 404s both). Everything else — 429 rate limiting,
+       * 5xx, network faults — is rethrown so the sync engine records a failed
+       * row and preserves the already-indexed document, instead of silently
+       * dropping a note that still exists. Granola's documented 5 req/s
+       * sustained limit makes transient 429s a realistic outcome on large syncs.
+       */
       logger.warn('Failed to get Granola note', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

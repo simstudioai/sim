@@ -19,6 +19,13 @@ const FEEDBACK_PER_PAGE = 100
  */
 const MAX_APPLICATIONS_FOR_FEEDBACK = 10
 
+/**
+ * Defensive page ceiling for the per-candidate note and feedback cursor loops. Ashby
+ * terminates them via `moreDataAvailable`, but a repeated cursor would otherwise spin
+ * forever inside a single `getDocument` call.
+ */
+const MAX_SUB_PAGES = 100
+
 type UnknownRecord = Record<string, unknown>
 
 /**
@@ -43,13 +50,29 @@ interface AshbyEnvelope {
 }
 
 /**
- * Extracts a human-readable error message from an Ashby error envelope. Ashby returns
- * errors as either `errorInfo.message` or an `errors` string array.
+ * Extracts a human-readable error message from an Ashby error envelope. Ashby documents
+ * two shapes and uses both: `errorInfo.message`, and an `errors` array whose entries are
+ * either plain strings or `{ message, parameter }` objects. An object entry stringifies
+ * to `[object Object]` unless its message is read explicitly, which is the form a 403
+ * for a missing module permission arrives in.
  */
 function ashbyErrorMessage(data: AshbyEnvelope, fallback: string): string {
   if (data.errorInfo?.message) return data.errorInfo.message
   if (Array.isArray(data.errors) && data.errors.length > 0) {
-    return data.errors.map((e) => String(e)).join('; ')
+    const messages = data.errors
+      .map((entry) => {
+        if (typeof entry === 'string') return entry.trim()
+        if (entry && typeof entry === 'object') {
+          const e = entry as UnknownRecord
+          const message = typeof e.message === 'string' ? e.message.trim() : ''
+          const parameter = typeof e.parameter === 'string' ? e.parameter.trim() : ''
+          if (message && parameter) return `${message} (${parameter})`
+          if (message) return message
+        }
+        return ''
+      })
+      .filter(Boolean)
+    if (messages.length > 0) return messages.join('; ')
   }
   return fallback
 }
@@ -214,21 +237,50 @@ interface AshbyFeedbackSummary {
   lines: string[]
 }
 
+interface AshbyFeedbackField {
+  title: string
+  /** `selectableValues` stored value -> display label, for select-type fields. */
+  labelByValue: Map<string, string>
+}
+
 /**
- * Collects `{ field.path -> field.title }` entries from a feedback form definition.
- * Ashby's `formDefinition` exposes fields either flat under `fields[]` or grouped
- * under `sections[].fields[]`, and individual entries are sometimes wrapped in a
- * `{ field }` envelope — all variants are handled.
+ * Collects `{ field.path -> { title, labelByValue } }` entries from a feedback form
+ * definition. Ashby's `formDefinition` exposes fields either flat under `fields[]` or
+ * grouped under `sections[].fields[]`, and individual entries are sometimes wrapped in a
+ * `{ isRequired, field }` envelope — all variants are handled.
+ *
+ * Select-type fields (`ValueSelect`, `MultiValueSelect`, `Score`) return the stored
+ * option value in `submittedValues`, not its display label, so `selectableValues`
+ * (`[{ label, value }]`) is indexed here to render human-readable text.
+ *
+ * Ref: https://developers.ashbyhq.com/reference/applicationfeedbacklist
  */
-function collectFieldTitles(formDefinition: UnknownRecord | undefined): Map<string, string> {
-  const titleByPath = new Map<string, string>()
-  if (!formDefinition) return titleByPath
+function collectFeedbackFields(
+  formDefinition: UnknownRecord | undefined
+): Map<string, AshbyFeedbackField> {
+  const fieldByPath = new Map<string, AshbyFeedbackField>()
+  if (!formDefinition) return fieldByPath
 
   const addField = (entry: UnknownRecord): void => {
     const field = (entry?.field ?? entry) as UnknownRecord
     const path = field?.path as string | undefined
-    const title = (field?.title as string) || (field?.humanReadablePath as string)
-    if (path && title) titleByPath.set(path, title)
+    if (!path) return
+
+    const title = (field?.title as string) || (field?.humanReadablePath as string) || path
+    const labelByValue = new Map<string, string>()
+    if (Array.isArray(field?.selectableValues)) {
+      for (const option of field.selectableValues as UnknownRecord[]) {
+        const label = option?.label
+        const value = option?.value
+        const isScalar =
+          typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+        if (typeof label === 'string' && label.trim() && isScalar) {
+          labelByValue.set(String(value), label.trim())
+        }
+      }
+    }
+
+    fieldByPath.set(path, { title, labelByValue })
   }
 
   if (Array.isArray(formDefinition.fields)) {
@@ -242,7 +294,7 @@ function collectFieldTitles(formDefinition: UnknownRecord | undefined): Map<stri
     }
   }
 
-  return titleByPath
+  return fieldByPath
 }
 
 /**
@@ -258,14 +310,15 @@ function mapFeedback(raw: unknown): AshbyFeedbackSummary {
   const last = (submittedBy?.lastName as string) ?? ''
   const submittedByName = `${first} ${last}`.trim() || (submittedBy?.email as string) || null
 
-  const titleByPath = collectFieldTitles(f.formDefinition as UnknownRecord | undefined)
+  const fieldByPath = collectFeedbackFields(f.formDefinition as UnknownRecord | undefined)
 
   const submittedValues = (f.submittedValues as UnknownRecord | undefined) ?? {}
   const lines: string[] = []
   for (const [path, value] of Object.entries(submittedValues)) {
     if (value == null) continue
-    const label = titleByPath.get(path) ?? path
-    const rendered = renderFeedbackValue(value)
+    const field = fieldByPath.get(path)
+    const label = field?.title ?? path
+    const rendered = renderFeedbackValue(value, field?.labelByValue)
     if (rendered) lines.push(`${label}: ${rendered}`)
   }
 
@@ -277,14 +330,20 @@ function mapFeedback(raw: unknown): AshbyFeedbackSummary {
 
 /**
  * Renders an arbitrary submitted feedback value (string, number, boolean, or a
- * rich-text / structured object) into a single-line plain-text string.
+ * rich-text / structured object) into a single-line plain-text string, resolving
+ * select-type stored values to their display label when the field defines one.
  */
-function renderFeedbackValue(value: unknown): string {
-  if (typeof value === 'string') return value.trim()
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+function renderFeedbackValue(value: unknown, labelByValue?: Map<string, string>): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return labelByValue?.get(trimmed) ?? labelByValue?.get(value) ?? trimmed
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return labelByValue?.get(String(value)) ?? String(value)
+  }
   if (Array.isArray(value)) {
     return value
-      .map((v) => renderFeedbackValue(v))
+      .map((v) => renderFeedbackValue(v, labelByValue))
       .filter(Boolean)
       .join(', ')
   }
@@ -371,7 +430,7 @@ async function fetchAllNotes(accessToken: string, candidateId: string): Promise<
   let cursor: string | undefined
   let hasMore = true
 
-  while (hasMore) {
+  for (let page = 0; hasMore && page < MAX_SUB_PAGES; page++) {
     const body: UnknownRecord = { candidateId, limit: NOTES_PER_PAGE }
     if (cursor) body.cursor = cursor
     const data = await ashbyPost(accessToken, 'candidate.listNotes', body)
@@ -379,6 +438,13 @@ async function fetchAllNotes(accessToken: string, candidateId: string): Promise<
     for (const raw of results) notes.push(mapNote(raw))
     cursor = data.nextCursor ?? undefined
     hasMore = Boolean(data.moreDataAvailable) && Boolean(cursor)
+  }
+
+  if (hasMore) {
+    logger.warn('Stopped paginating Ashby candidate notes at the page ceiling', {
+      candidateId,
+      notes: notes.length,
+    })
   }
 
   return notes
@@ -396,7 +462,7 @@ async function fetchFeedbackForApplication(
   let cursor: string | undefined
   let hasMore = true
 
-  while (hasMore) {
+  for (let page = 0; hasMore && page < MAX_SUB_PAGES; page++) {
     const body: UnknownRecord = { applicationId, limit: FEEDBACK_PER_PAGE }
     if (cursor) body.cursor = cursor
     const data = await ashbyPost(accessToken, 'applicationFeedback.list', body)
@@ -404,6 +470,13 @@ async function fetchFeedbackForApplication(
     for (const raw of results) feedback.push(mapFeedback(raw))
     cursor = data.nextCursor ?? undefined
     hasMore = Boolean(data.moreDataAvailable) && Boolean(cursor)
+  }
+
+  if (hasMore) {
+    logger.warn('Stopped paginating Ashby application feedback at the page ceiling', {
+      applicationId,
+      submissions: feedback.length,
+    })
   }
 
   return feedback
@@ -474,11 +547,12 @@ export const ashbyConnector: ConnectorConfig = {
 
     const prevFetched = (syncContext?.totalCandidatesFetched as number) ?? 0
     if (maxCandidates > 0 && prevFetched >= maxCandidates) {
-      if (syncContext) syncContext.listingCapped = true
       return { documents: [], hasMore: false }
     }
 
-    const body: UnknownRecord = { limit: CANDIDATES_PER_PAGE }
+    /** Remaining budget under `maxCandidates`, so the last page requests only what is needed. */
+    const remaining = maxCandidates > 0 ? maxCandidates - prevFetched : Number.POSITIVE_INFINITY
+    const body: UnknownRecord = { limit: Math.min(CANDIDATES_PER_PAGE, remaining) }
     if (cursor) body.cursor = cursor
     if (createdAfterMs !== undefined) body.createdAfter = createdAfterMs
 
@@ -492,18 +566,23 @@ export const ashbyConnector: ConnectorConfig = {
     const candidates = results.map(mapCandidate).filter((c) => c.id)
 
     let documents = candidates.map(candidateToStub)
-    if (maxCandidates > 0) {
-      const remaining = Math.max(0, maxCandidates - prevFetched)
-      if (documents.length > remaining) documents = documents.slice(0, remaining)
-    }
+    if (documents.length > remaining) documents = documents.slice(0, remaining)
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalCandidatesFetched = totalFetched
-    const hitLimit = maxCandidates > 0 && totalFetched >= maxCandidates
-    if (hitLimit && syncContext) syncContext.listingCapped = true
 
     const nextCursor = data.nextCursor ?? undefined
-    const hasMore = !hitLimit && Boolean(data.moreDataAvailable) && Boolean(nextCursor)
+    const sourceHasMore = Boolean(data.moreDataAvailable) && Boolean(nextCursor)
+    const hitLimit = maxCandidates > 0 && totalFetched >= maxCandidates
+    /**
+     * `listingCapped` blocks the sync engine's deletion reconciliation, so it is set only
+     * when `maxCandidates` cut the listing short while Ashby still had more candidates —
+     * never when the cap coincides with genuine exhaustion, and never for the intentional
+     * `createdAfter` scope filter.
+     */
+    if (syncContext && hitLimit && sourceHasMore) syncContext.listingCapped = true
+
+    const hasMore = !hitLimit && sourceHasMore
 
     return {
       documents,
@@ -529,14 +608,27 @@ export const ashbyConnector: ConnectorConfig = {
 
       const feedback: AshbyFeedbackSummary[] = []
       const applicationIds = candidate.applicationIds.slice(0, MAX_APPLICATIONS_FOR_FEEDBACK)
-      for (const applicationId of applicationIds) {
-        try {
-          const applicationFeedback = await fetchFeedbackForApplication(accessToken, applicationId)
-          feedback.push(...applicationFeedback)
-        } catch (error) {
+      if (candidate.applicationIds.length > applicationIds.length) {
+        logger.warn('Truncated Ashby feedback fetch to the per-candidate application cap', {
+          externalId,
+          applications: candidate.applicationIds.length,
+          fetched: applicationIds.length,
+        })
+      }
+
+      const settled = await Promise.allSettled(
+        applicationIds.map((applicationId) =>
+          fetchFeedbackForApplication(accessToken, applicationId)
+        )
+      )
+      for (let i = 0; i < settled.length; i++) {
+        const outcome = settled[i]
+        if (outcome.status === 'fulfilled') {
+          feedback.push(...outcome.value)
+        } else {
           logger.warn('Failed to fetch Ashby feedback for application', {
-            applicationId,
-            error: toError(error).message,
+            applicationId: applicationIds[i],
+            error: toError(outcome.reason).message,
           })
         }
       }
@@ -555,11 +647,17 @@ export const ashbyConnector: ConnectorConfig = {
         metadata: candidateMetadata(candidate),
       }
     } catch (error) {
+      /**
+       * Ashby documents no not-found code for `candidate.info`, so a thrown error cannot
+       * be read as absence — it is an HTTP fault or a `success: false` envelope. Rethrow
+       * so the sync engine records a failed row instead of treating a candidate that
+       * still exists as an empty re-fetch and leaving it silently stale.
+       */
       logger.warn('Failed to get Ashby candidate', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

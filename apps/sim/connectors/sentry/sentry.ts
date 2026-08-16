@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_QUERY, sentryConnectorMeta } from '@/connectors/sentry/meta'
@@ -12,11 +12,11 @@ const DEFAULT_HOST = 'sentry.io'
 const ISSUES_PER_PAGE = 100
 
 /**
- * Allowed `statsPeriod` values for the project issues list endpoint. Sentry's
- * project issues endpoint only honors `24h` (default) or `14d` for its timeline
- * stats; an empty value disables the stats window. Other periods (e.g. `90d`)
- * are accepted by the organization issues endpoint but not this one, so they are
- * rejected during validation to avoid a silently-ignored filter.
+ * Allowed `statsPeriod` values. On the issues list, `statsPeriod` selects the
+ * timeline stats Sentry computes per issue, and the documented choices are `24h`
+ * (the default) and `14d`, with an empty value disabling the stats window
+ * entirely. Anything else is rejected during validation rather than sent and
+ * silently reinterpreted.
  */
 const ALLOWED_STATS_PERIODS = new Set(['24h', '14d'])
 
@@ -389,20 +389,33 @@ export const sentryConnector: ConnectorConfig = {
       throw new Error('Organization and project slugs are required')
     }
 
+    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    const remaining =
+      maxIssues > 0 ? Math.max(0, maxIssues - prevFetched) : Number.POSITIVE_INFINITY
+
     /*
-     * Uses the project issues list endpoint
-     * `/api/0/projects/{org}/{project}/issues/`. This endpoint is deprecated in favor of
-     * `/api/0/organizations/{org}/issues/?project=<id>`, but the organization endpoint
-     * filters by numeric project ID rather than slug — a UX regression for a connector
-     * keyed on the human-readable project slug. The project endpoint remains functional
-     * and slug-addressable, so it is retained deliberately for the listing path. Issue
-     * detail and latest-event fetches use the organization-scoped paths.
+     * Lists through the organization issues endpoint
+     * `/api/0/organizations/{org}/issues/?project=<slug>`. Sentry marks the
+     * project-scoped `/api/0/projects/{org}/{project}/issues/` deprecated and names this
+     * endpoint as its replacement. `project` accepts project slugs as well as numeric ids
+     * ("The IDs or slugs of projects to filter by"), so the connector stays keyed on the
+     * human-readable slug, and `environment` is a documented parameter here. Issue detail
+     * and latest-event fetches already use organization-scoped paths, so the whole
+     * connector now speaks one path style.
      */
-    const url = new URL(
-      `${apiBase}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/issues/`
-    )
+    const url = new URL(`${apiBase}/organizations/${encodeURIComponent(organization)}/issues/`)
+    url.searchParams.set('project', project)
     url.searchParams.set('query', query)
-    url.searchParams.set('limit', String(ISSUES_PER_PAGE))
+    /*
+     * Sort by first-seen (`new`) rather than Sentry's default last-seen (`date`).
+     * The cursor encodes a position in the sort key, so a mutable key is unsafe across a
+     * multi-page sync: an issue whose `lastSeen` advances mid-sync jumps ahead of the
+     * cursor and is skipped, and a document missing from an otherwise-complete listing is
+     * hard-deleted by the sync engine's deletion reconciliation. `firstSeen` never changes
+     * for an existing issue, so paging over it is stable.
+     */
+    url.searchParams.set('sort', 'new')
+    url.searchParams.set('limit', String(Math.min(ISSUES_PER_PAGE, Math.max(1, remaining))))
     if (statsPeriod) url.searchParams.set('statsPeriod', statsPeriod)
     if (environment) url.searchParams.set('environment', environment)
     if (cursor) url.searchParams.set('cursor', cursor)
@@ -430,16 +443,9 @@ export const sentryConnector: ConnectorConfig = {
 
     const issues = ((await response.json()) as SentryIssue[]).filter((issue) => Boolean(issue.id))
 
-    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let documents = issues.map(issueToStub)
-    let slicedSome = false
-    if (maxIssues > 0) {
-      const remaining = Math.max(0, maxIssues - prevFetched)
-      if (documents.length > remaining) {
-        slicedSome = true
-        documents = documents.slice(0, remaining)
-      }
-    }
+    const slicedSome = documents.length > remaining
+    if (slicedSome) documents = documents.slice(0, remaining)
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
@@ -458,52 +464,50 @@ export const sentryConnector: ConnectorConfig = {
     }
   },
 
+  /**
+   * Hydrates a deferred stub. Only a genuinely gone issue (404/410) resolves to `null`;
+   * every other failure propagates, because the sync engine counts a rejected hydration
+   * as a failed document and logs it with its externalId, whereas a `null` return is
+   * indistinguishable from "deleted at the source" and is dropped silently.
+   */
   getDocument: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
-      const { apiBase, organization } = readSourceConfig(sourceConfig)
-      if (!organization) return null
+    const { apiBase, organization } = readSourceConfig(sourceConfig)
+    if (!organization) return null
 
-      const url = `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/${encodeURIComponent(externalId)}/`
+    const url = `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/${encodeURIComponent(externalId)}/`
 
-      const response = await secureFetchWithRetry(url, {
-        method: 'GET',
-        headers: authHeaders(accessToken),
-      })
+    const response = await secureFetchWithRetry(url, {
+      method: 'GET',
+      headers: authHeaders(accessToken),
+    })
 
-      if (!response.ok) {
-        if (response.status === 404 || response.status === 410) return null
-        throw new Error(`Failed to fetch Sentry issue: ${response.status}`)
-      }
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 410) return null
+      throw new Error(`Failed to fetch Sentry issue: ${response.status}`)
+    }
 
-      const issue = (await response.json()) as SentryIssue
-      if (!issue?.id) return null
+    const issue = (await response.json()) as SentryIssue
+    if (!issue?.id) return null
 
-      const event = await fetchLatestEvent(apiBase, organization, accessToken, issue.id)
-      const content = formatIssueContent(issue, event)
-      if (!content.trim()) return null
+    const event = await fetchLatestEvent(apiBase, organization, accessToken, issue.id)
+    const content = formatIssueContent(issue, event)
+    if (!content.trim()) return null
 
-      return {
-        externalId: issue.id,
-        title: buildTitle(issue),
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: issue.permalink || undefined,
-        contentHash: buildContentHash(issue),
-        metadata: buildMetadata(issue),
-      }
-    } catch (error) {
-      logger.warn('Failed to get Sentry issue', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+    return {
+      externalId: issue.id,
+      title: buildTitle(issue),
+      content,
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: issue.permalink || undefined,
+      contentHash: buildContentHash(issue),
+      metadata: buildMetadata(issue),
     }
   },
 
@@ -568,12 +572,13 @@ export const sentryConnector: ConnectorConfig = {
        * `listDocuments` and the org-scoped `getDocument`/latest-event hydration —
        * needs `event:read`. A token scoped to `project:read` only would pass the
        * first probe yet fail at hydration time, so this second probe forces a
-       * misconfigured token to fail fast at save time. It is slug-addressable and
-       * cheap (one issue, no stats window).
+       * misconfigured token to fail fast at save time. It hits the same endpoint
+       * `listDocuments` uses, and is cheap (one issue, no stats window).
        */
       const issuesProbeUrl = new URL(
-        `${apiBase}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/issues/`
+        `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/`
       )
+      issuesProbeUrl.searchParams.set('project', project)
       issuesProbeUrl.searchParams.set('query', DEFAULT_QUERY)
       issuesProbeUrl.searchParams.set('limit', '1')
 

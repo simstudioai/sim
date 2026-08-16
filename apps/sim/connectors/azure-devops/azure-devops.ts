@@ -232,6 +232,7 @@ interface WikiV2 {
   name: string
   remoteUrl?: string
   type?: string
+  isDisabled?: boolean
 }
 
 interface GitRepository {
@@ -242,6 +243,16 @@ interface GitRepository {
   remoteUrl?: string
   webUrl?: string
   size?: number
+}
+
+/**
+ * Resolves the browsable base URL for a repository. `webUrl` is only present
+ * when the repositories listing is requested with `includeAllUrls=true`;
+ * `remoteUrl` is always returned and points at the same
+ * `.../{project}/_git/{repo}` web route, so it is the fallback.
+ */
+function repoBaseUrl(repo: GitRepository | undefined): string | undefined {
+  return repo?.webUrl || repo?.remoteUrl
 }
 
 interface GitItem {
@@ -687,7 +698,12 @@ async function listRepositories(
   retryOptions?: Parameters<typeof fetchWithRetry>[2],
   syncContext?: Record<string, unknown>
 ): Promise<GitRepository[]> {
-  const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/git/repositories?api-version=${GIT_API_VERSION}`
+  /**
+   * `includeAllUrls=true` is required for the response to carry `webUrl`; without
+   * it the listing returns only `url`/`remoteUrl` and every repository-file
+   * document would be indexed with no `sourceUrl`.
+   */
+  const url = `${ADO_BASE_URL}/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/_apis/git/repositories?includeAllUrls=true&api-version=${GIT_API_VERSION}`
   const response = await fetchWithRetry(
     url,
     {
@@ -743,11 +759,30 @@ async function resolveRepositories(
   if (syncContext && !cached) syncContext.repositories = all
 
   const needle = repositoryFilter.toLowerCase()
-  return all.filter((repo) => {
+  const matched = all.filter((repo) => {
     if (repo.isDisabled) return false
     if (!needle) return true
     return repo.id.toLowerCase() === needle || (repo.name ?? '').toLowerCase() === needle
   })
+
+  /**
+   * A configured repository filter that no longer resolves (renamed, deleted,
+   * or newly disabled repo) would otherwise produce an empty file listing and
+   * let reconciliation hard-delete every previously synced file. That is a
+   * stale reference, not evidence the files are gone, so the listing is flagged
+   * incomplete. An unfiltered project that genuinely has no repositories is
+   * left unflagged so real deletions still reconcile.
+   */
+  if (needle && matched.length === 0 && all.length > 0) {
+    if (syncContext) syncContext.listingCapped = true
+    logger.warn('Configured Azure DevOps repository filter matched no repository', {
+      organization,
+      project,
+      repositoryFilter,
+    })
+  }
+
+  return matched
 }
 
 /**
@@ -933,7 +968,7 @@ async function resolveRepoFiles(
       entries.push({
         repoId: repo.id,
         repoName: repo.name,
-        repoWebUrl: repo.webUrl,
+        repoWebUrl: repoBaseUrl(repo),
         branch,
         item,
       })
@@ -1003,15 +1038,17 @@ async function resolveFileBranch(
   branchOverride: string,
   syncContext?: Record<string, unknown>
 ): Promise<{ branch: string; repo?: GitRepository }> {
-  if (branchOverride) {
-    const repos = (syncContext?.repositories as GitRepository[] | undefined) ?? []
-    return { branch: branchOverride, repo: repos.find((r) => r.id === repoId) }
-  }
+  /**
+   * The repository record is needed even when the branch is overridden — it
+   * supplies the web URL and display name that keep the hydrated document's
+   * sourceUrl and `repository` tag identical to the listing stub's.
+   */
   const repos =
     (syncContext?.repositories as GitRepository[] | undefined) ??
     (await listRepositories(accessToken, organization, project))
   if (syncContext && !syncContext.repositories) syncContext.repositories = repos
   const repo = repos.find((r) => r.id === repoId)
+  if (branchOverride) return { branch: branchOverride, repo }
   return { branch: stripRefsHeads(repo?.defaultBranch ?? ''), repo }
 }
 
@@ -1064,8 +1101,15 @@ async function getFileDocument(
     throw new Error(`Failed to fetch repository file metadata: ${metadataResponse.status}`)
   }
 
-  const item = (await metadataResponse.json()) as GitItem
-  if (!item.objectId) return null
+  /**
+   * Items - Get declares a bare `GitItem` response, but every documented sample
+   * returns a `{ count, value: [...] }` collection (the samples scope with
+   * `scopePath` rather than `path`). Accept both shapes rather than depending on
+   * which one the service picks for this request.
+   */
+  const metadataBody = (await metadataResponse.json()) as GitItem | { value?: GitItem[] } | null
+  const item = metadataBody && 'objectId' in metadataBody ? metadataBody : metadataBody?.value?.[0]
+  if (!item?.objectId) return null
   if (item.contentMetadata?.isBinary) {
     logger.info('Skipping binary Azure DevOps file', { path })
     return null
@@ -1105,7 +1149,7 @@ async function getFileDocument(
         title: skippedTitle,
         content: '',
         mimeType: 'text/plain',
-        sourceUrl: buildFileSourceUrl(repo?.webUrl, branch, path),
+        sourceUrl: buildFileSourceUrl(repoBaseUrl(repo), branch, path),
         contentHash: buildFileContentHash(repoId, item.objectId),
         metadata: {
           kind: 'file',
@@ -1135,7 +1179,7 @@ async function getFileDocument(
     content,
     contentDeferred: false,
     mimeType: 'text/plain',
-    sourceUrl: buildFileSourceUrl(repo?.webUrl, branch, path),
+    sourceUrl: buildFileSourceUrl(repoBaseUrl(repo), branch, path),
     contentHash: buildFileContentHash(repoId, item.objectId),
     metadata: {
       kind: 'file',
@@ -1197,9 +1241,25 @@ async function listWikiPages(
   syncContext?: Record<string, unknown>
 ): Promise<ExternalDocumentList> {
   const allWikis = await resolveWikis(accessToken, organization, project, syncContext)
-  const wikis = allWikis.filter((w) => wikiMatchesFilter(w, wikiFilter))
+  const wikis = allWikis.filter((w) => !w.isDisabled && wikiMatchesFilter(w, wikiFilter))
 
   if (wikis.length === 0) {
+    /**
+     * A configured wiki filter that no longer resolves (renamed, deleted, or
+     * newly disabled wiki) would otherwise produce an empty listing and let
+     * reconciliation hard-delete every previously synced page. That is a stale
+     * reference, not evidence the pages are gone, so the listing is flagged
+     * incomplete. A project that genuinely has no wikis is left unflagged so
+     * real deletions still reconcile.
+     */
+    if (wikiFilter && allWikis.length > 0) {
+      if (syncContext) syncContext.listingCapped = true
+      logger.warn('Configured Azure DevOps wiki filter matched no wiki', {
+        organization,
+        project,
+        wikiFilter,
+      })
+    }
     return { documents: [], hasMore: false }
   }
 
@@ -1237,12 +1297,27 @@ async function listWikiPages(
   })
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
-    logger.error('Failed to list Azure DevOps wiki pages', {
+    logger.error('Failed to list Azure DevOps wiki pages; skipping wiki', {
       wikiId: wiki.id,
       status: response.status,
       error: errorText,
     })
-    throw new Error(`Failed to list wiki pages: ${response.status}`)
+    /**
+     * One unreadable wiki must not abort the whole sync (which would also drop
+     * the work-item and repository-file phases). Skip to the next wiki instead.
+     * Anything other than a 404 means the pages still exist but could not be
+     * read on this run, so the listing is flagged incomplete to keep deletion
+     * reconciliation from purging them. A 404 means the wiki is genuinely gone.
+     */
+    if (response.status !== 404 && syncContext) {
+      syncContext.listingCapped = true
+    }
+    const moreWikis = wikiIndex + 1 < wikis.length
+    return {
+      documents: [],
+      nextCursor: moreWikis ? `wiki|${wikiIndex + 1}|` : undefined,
+      hasMore: moreWikis,
+    }
   }
 
   const data = await response.json()
@@ -1386,7 +1461,8 @@ export const azureDevopsConnector: ConnectorConfig = {
     const wikiFilter = readString(sourceConfig.wikiName)
     const filters = readWorkItemFilters(sourceConfig)
     const fileFilters = readFileFilters(sourceConfig)
-    const maxItems = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : 0
+    const parsedMaxItems = Number(sourceConfig.maxItems)
+    const maxItems = Number.isFinite(parsedMaxItems) && parsedMaxItems > 0 ? parsedMaxItems : 0
 
     if (!organization || !project) {
       throw new Error('Organization and project are required')
@@ -1505,21 +1581,19 @@ export const azureDevopsConnector: ConnectorConfig = {
      * deferred wiki pages. Unknown IDs return null defensively.
      */
     if (externalId.startsWith(FILE_PREFIX)) {
-      try {
-        return await getFileDocument(
-          accessToken,
-          organization,
-          project,
-          externalId,
-          readString(sourceConfig.branch),
-          syncContext
-        )
-      } catch (error) {
-        logger.warn(`Failed to fetch Azure DevOps file ${externalId}`, {
-          error: toError(error).message,
-        })
-        return null
-      }
+      /**
+       * `getFileDocument` returns null only for a 404 or an unreadable blob. Anything
+       * it throws is transient and propagates, so the sync engine records a failed row
+       * rather than hard-deleting an already-indexed file on a blip.
+       */
+      return getFileDocument(
+        accessToken,
+        organization,
+        project,
+        externalId,
+        readString(sourceConfig.branch),
+        syncContext
+      )
     }
 
     const parsed = parseWikiExternalId(externalId)

@@ -13,9 +13,11 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
 /**
@@ -1588,7 +1590,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           const response = await fetch('https://oauth.reddit.com/api/v1/me', {
             headers: {
               Authorization: `Bearer ${tokens.accessToken}`,
-              'User-Agent': 'sim-studio/1.0',
+              'User-Agent': REDDIT_USER_AGENT,
             },
           })
 
@@ -2319,9 +2321,9 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       providerId: 'docusign',
       clientId: env.DOCUSIGN_CLIENT_ID as string,
       clientSecret: env.DOCUSIGN_CLIENT_SECRET as string,
-      authorizationUrl: 'https://account-d.docusign.com/oauth/auth',
-      tokenUrl: 'https://account-d.docusign.com/oauth/token',
-      userInfoUrl: 'https://account-d.docusign.com/oauth/userinfo',
+      authorizationUrl: getDocusignOAuthUrl('/oauth/auth'),
+      tokenUrl: getDocusignOAuthUrl('/oauth/token'),
+      userInfoUrl: getDocusignOAuthUrl('/oauth/userinfo'),
       scopes: getCanonicalScopesForProvider('docusign'),
       responseType: 'code',
       accessType: 'offline',
@@ -2331,7 +2333,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
         try {
           logger.info('Fetching DocuSign user profile')
 
-          const response = await fetch('https://account-d.docusign.com/oauth/userinfo', {
+          const response = await fetch(getDocusignOAuthUrl('/oauth/userinfo'), {
             headers: {
               Authorization: `Bearer ${tokens.accessToken}`,
             },

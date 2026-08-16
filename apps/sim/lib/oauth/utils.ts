@@ -23,9 +23,11 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',
+  'https://www.googleapis.com/auth/gmail.readonly': 'View email messages and settings',
   'https://www.googleapis.com/auth/gmail.modify': 'View and manage email messages',
   'https://www.googleapis.com/auth/drive.file': 'View and manage Google Drive files',
   'https://www.googleapis.com/auth/drive': 'Access all Google Drive files',
+  'https://www.googleapis.com/auth/calendar.readonly': 'View calendars and events',
   'https://www.googleapis.com/auth/calendar': 'View and manage calendar',
   'https://www.googleapis.com/auth/contacts': 'View and manage Google Contacts',
   'https://www.googleapis.com/auth/tasks': 'Create, read, update, and delete Google Tasks',
@@ -711,6 +713,10 @@ export function getMissingRequiredScopes(
  * `.../auth/ediscovery.readonly`. Without this, narrowing a consumer to the
  * least-privileged scope would report every already-connected credential as
  * missing it and prompt a re-consent that grants nothing new.
+ *
+ * This only derives a scope Sim actually requests. A consumer must never
+ * require a scope absent from its provider's `scopes` array — no credential can
+ * carry it, since that array is what the authorize request asks for.
  */
 function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
   const readonlySuffix = '.readonly'

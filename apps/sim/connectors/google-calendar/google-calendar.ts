@@ -52,7 +52,7 @@ function formatEventTime(eventTime?: CalendarEventTime): string {
   if (!eventTime) return 'Unknown'
   if (eventTime.dateTime) {
     const date = new Date(eventTime.dateTime)
-    return date.toLocaleString('en-US', {
+    const options: Intl.DateTimeFormatOptions = {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -60,8 +60,23 @@ function formatEventTime(eventTime?: CalendarEventTime): string {
       hour: 'numeric',
       minute: '2-digit',
       timeZoneName: 'short',
-      timeZone: eventTime.timeZone || undefined,
-    })
+    }
+    /**
+     * `start.timeZone` is a free-form IANA string echoed from the event. An
+     * unrecognized or legacy zone makes `toLocaleString` throw a RangeError,
+     * which would abort the whole listing page, so fall back to the runtime
+     * zone rather than failing the sync over one event.
+     */
+    if (eventTime.timeZone) {
+      try {
+        return date.toLocaleString('en-US', { ...options, timeZone: eventTime.timeZone })
+      } catch {
+        logger.warn('Unrecognized event time zone, formatting in runtime zone', {
+          timeZone: eventTime.timeZone,
+        })
+      }
+    }
+    return date.toLocaleString('en-US', options)
   }
   if (eventTime.date) {
     const date = new Date(`${eventTime.date}T00:00:00`)
@@ -80,6 +95,33 @@ function formatEventTime(eventTime?: CalendarEventTime): string {
  */
 function isAllDayEvent(event: CalendarEvent): boolean {
   return Boolean(event.start?.date && !event.start?.dateTime)
+}
+
+/**
+ * Whether attendee/organizer identifiers may be indexed. The dropdown stores the
+ * string `'false'` to opt out; anything else — including an unset field on a source
+ * configured before the option existed — keeps identifiers.
+ */
+function readIncludeAttendees(sourceConfig: Record<string, unknown>): boolean {
+  const value = sourceConfig.includeAttendees
+  return value !== 'false' && value !== false
+}
+
+/**
+ * Discriminator appended to the metadata-only content hash when attendee
+ * identifiers are suppressed. Without it, flipping the toggle would leave every
+ * already-synced event hash-unchanged and the setting would never take effect on
+ * existing documents. The ON form stays byte-identical to the historical hash so
+ * turning the feature on (or leaving it unset) causes zero re-index churn.
+ */
+const NO_ATTENDEES_HASH_SUFFIX = ':noattendees'
+
+/**
+ * Counts attendees excluding rooms/equipment, matching what the content renderer lists.
+ */
+function countAttendees(attendees?: CalendarAttendee[]): number {
+  if (!attendees) return 0
+  return attendees.filter((a) => !a.resource).length
 }
 
 /**
@@ -106,8 +148,13 @@ function formatOrganizer(organizer?: { email?: string; displayName?: string }): 
 
 /**
  * Builds a readable content string from a calendar event.
+ *
+ * When `includeAttendees` is false the organizer line is dropped entirely and the
+ * attendee line degrades to a bare count: a count carries no identity, is already
+ * published as the `attendeeCount` tag, and keeps "how big was this meeting"
+ * answerable without naming anyone.
  */
-function eventToContent(event: CalendarEvent): string {
+function eventToContent(event: CalendarEvent, includeAttendees: boolean): string {
   const parts: string[] = []
 
   parts.push(`Event: ${event.summary || 'Untitled Event'}`)
@@ -122,14 +169,21 @@ function eventToContent(event: CalendarEvent): string {
     parts.push(`Location: ${event.location}`)
   }
 
-  const organizer = formatOrganizer(event.organizer)
-  if (organizer) {
-    parts.push(`Organizer: ${organizer}`)
-  }
+  if (includeAttendees) {
+    const organizer = formatOrganizer(event.organizer)
+    if (organizer) {
+      parts.push(`Organizer: ${organizer}`)
+    }
 
-  const attendees = formatAttendees(event.attendees)
-  if (attendees) {
-    parts.push(`Attendees: ${attendees}`)
+    const attendees = formatAttendees(event.attendees)
+    if (attendees) {
+      parts.push(`Attendees: ${attendees}`)
+    }
+  } else {
+    const attendeeCount = countAttendees(event.attendees)
+    if (attendeeCount > 0) {
+      parts.push(`Attendees: ${attendeeCount}`)
+    }
   }
 
   if (event.description) {
@@ -205,20 +259,22 @@ function getTimeRange(sourceConfig: Record<string, unknown>): { timeMin: string;
 function eventToDocument(
   event: CalendarEvent,
   calendarId: string,
-  isMultiCalendar: boolean
+  isMultiCalendar: boolean,
+  includeAttendees: boolean
 ): ExternalDocument | null {
   if (event.status === 'cancelled') return null
 
-  const content = eventToContent(event)
+  const content = eventToContent(event, includeAttendees)
   if (!content.trim()) return null
 
   const startTime = event.start?.dateTime || event.start?.date || ''
-  const attendeeCount = event.attendees?.filter((a) => !a.resource).length || 0
+  const attendeeCount = countAttendees(event.attendees)
 
   const externalId = isMultiCalendar ? `${calendarId}:${event.id}` : event.id
-  const contentHash = isMultiCalendar
+  const baseHash = isMultiCalendar
     ? `gcal:${calendarId}:${event.id}:${event.updated ?? ''}`
     : `gcal:${event.id}:${event.updated ?? ''}`
+  const contentHash = includeAttendees ? baseHash : `${baseHash}${NO_ATTENDEES_HASH_SUFFIX}`
 
   return {
     externalId,
@@ -232,7 +288,7 @@ function eventToDocument(
       startTime,
       endTime: event.end?.dateTime || event.end?.date || '',
       location: event.location || '',
-      organizer: formatOrganizer(event.organizer),
+      organizer: includeAttendees ? formatOrganizer(event.organizer) : '',
       attendeeCount,
       isAllDay: isAllDayEvent(event),
       eventDate: startTime,
@@ -284,10 +340,25 @@ export const googleCalendarConnector: ConnectorConfig = {
 
     const calendarId = calendarIds[calendarIndex]
 
+    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    const rawMaxEvents = sourceConfig.maxEvents
+      ? Number(sourceConfig.maxEvents)
+      : DEFAULT_MAX_EVENTS
+    const maxEvents = Number.isFinite(rawMaxEvents) ? rawMaxEvents : 0
+    const isCapped = maxEvents > 0
+    /**
+     * Last-page precision: never ask Google for more events than the remaining
+     * cap allowance. `maxResults` is capped at 2500 by the API; PAGE_SIZE stays
+     * within that.
+     */
+    const pageSize = isCapped
+      ? Math.max(1, Math.min(PAGE_SIZE, maxEvents - prevFetched))
+      : PAGE_SIZE
+
     const queryParams = new URLSearchParams({
       singleEvents: 'true',
       orderBy: 'startTime',
-      maxResults: String(PAGE_SIZE),
+      maxResults: String(pageSize),
       timeMin,
       timeMax,
     })
@@ -333,19 +404,39 @@ export const googleCalendarConnector: ConnectorConfig = {
     const events = (data.items || []) as CalendarEvent[]
 
     const isMultiCalendar = calendarIds.length > 1
-    const documents: ExternalDocument[] = []
+    const includeAttendees = readIncludeAttendees(sourceConfig)
+    const allDocuments: ExternalDocument[] = []
     for (const event of events) {
-      const doc = eventToDocument(event, calendarId, isMultiCalendar)
-      if (doc) documents.push(doc)
+      const doc = eventToDocument(event, calendarId, isMultiCalendar, includeAttendees)
+      if (doc) allDocuments.push(doc)
     }
 
-    const totalFetched = ((syncContext?.totalDocsFetched as number) ?? 0) + documents.length
+    let documents = allDocuments
+    if (isCapped) {
+      const remaining = Math.max(0, maxEvents - prevFetched)
+      if (allDocuments.length > remaining) documents = allDocuments.slice(0, remaining)
+    }
+
+    const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
 
-    const maxEvents = sourceConfig.maxEvents ? Number(sourceConfig.maxEvents) : DEFAULT_MAX_EVENTS
-    const hitLimit = maxEvents > 0 && totalFetched >= maxEvents
+    const nextPageToken = (data.nextPageToken as string | undefined) || undefined
+    const hasMoreCalendars = calendarIndex + 1 < calendarIds.length
+    const hitLimit = isCapped && totalFetched >= maxEvents
 
-    const nextPageToken = data.nextPageToken as string | undefined
+    /**
+     * `listingCapped` suppresses the sync engine's deletion reconciliation, so
+     * it is set only when the `maxEvents` cap actually truncated a larger
+     * source — events were dropped from this page, another page remains, or a
+     * configured calendar is still unwalked. A cap reached exactly at source
+     * exhaustion leaves it unset so events deleted upstream still reconcile.
+     * The `timeMin`/`timeMax` window is an intentional scope filter, never a
+     * cap, and is deliberately not flagged.
+     */
+    const truncatedByCap =
+      hitLimit &&
+      (documents.length < allDocuments.length || Boolean(nextPageToken) || hasMoreCalendars)
+    if (truncatedByCap && syncContext) syncContext.listingCapped = true
 
     if (hitLimit) {
       return { documents, hasMore: false }
@@ -359,11 +450,10 @@ export const googleCalendarConnector: ConnectorConfig = {
       }
     }
 
-    const nextCalendarIndex = calendarIndex + 1
-    if (nextCalendarIndex < calendarIds.length) {
+    if (hasMoreCalendars) {
       return {
         documents,
-        nextCursor: JSON.stringify({ calendarIndex: nextCalendarIndex }),
+        nextCursor: JSON.stringify({ calendarIndex: calendarIndex + 1 }),
         hasMore: true,
       }
     }
@@ -429,7 +519,7 @@ export const googleCalendarConnector: ConnectorConfig = {
 
     if (event.status === 'cancelled') return null
 
-    return eventToDocument(event, calendarId, isMultiCalendar) ?? null
+    return eventToDocument(event, calendarId, isMultiCalendar, readIncludeAttendees(sourceConfig))
   },
 
   validateConfig: async (

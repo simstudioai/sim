@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
@@ -39,6 +39,9 @@ const MAX_CONVERSATION_ENTRIES = 400
  * ticket cannot turn a single `getDocument` call into a thousand HTTP requests.
  */
 const MAX_HYDRATED_THREADS = 50
+
+/** Thread bodies fetched in parallel per ticket. Kept low to stay inside Zoho's per-minute API credit budget. */
+const THREAD_FETCH_CONCURRENCY = 4
 
 interface ZohoDeskArticleSummary {
   id: string
@@ -158,6 +161,17 @@ function resolveMax(value: unknown, fallback: number, label: string): number {
   return Math.floor(parsed)
 }
 
+/** Carries the HTTP status so callers can tell a deleted record from a fault. */
+class ZohoDeskApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'ZohoDeskApiError'
+  }
+}
+
 /**
  * Performs an authenticated GET against the Zoho Desk API.
  *
@@ -189,7 +203,7 @@ async function deskGet(
         : typeof body.errorCode === 'string' && body.errorCode.trim()
           ? body.errorCode
           : `Zoho Desk API HTTP error: ${response.status}`
-    throw new Error(message)
+    throw new ZohoDeskApiError(response.status, message)
   }
 
   return body
@@ -200,17 +214,26 @@ function readDataArray<T>(body: Record<string, unknown>): T[] {
   return Array.isArray(body.data) ? (body.data as T[]) : []
 }
 
+/** Matches a value that carries HTML markup rather than plain prose. */
+const HTML_MARKUP_PATTERN = /<[a-z][\s\S]*>/i
+
 /**
  * Renders a Zoho content value as plain text. Zoho spells the HTML discriminator
- * both as `html` (comments) and `text/html` (threads), so both are matched; a
- * value without an HTML content type is passed through untouched so genuinely
- * plain bodies are not mangled by tag stripping.
+ * both as `html` (comments) and `text/html` (threads), so both are matched.
+ *
+ * A ticket's `description` and `resolution` carry no content-type at all while
+ * still holding rich text, so an undeclared value is sniffed for markup and
+ * stripped only when tags are actually present — a genuinely plain body is
+ * never mangled.
  */
 function toPlainText(content: string | undefined, contentType: string | undefined): string {
   if (!content) return ''
   const normalized = contentType?.trim().toLowerCase() ?? ''
-  const isHtml = normalized === 'html' || normalized.startsWith('text/html')
-  return isHtml ? htmlToPlainText(content) : content
+  if (normalized) {
+    const isHtml = normalized === 'html' || normalized.startsWith('text/html')
+    return isHtml ? htmlToPlainText(content) : content
+  }
+  return HTML_MARKUP_PATTERN.test(content) ? htmlToPlainText(content) : content
 }
 
 /**
@@ -414,13 +437,7 @@ function formatTicketContent(ticket: ZohoDeskTicket, conversation: string[]): st
   if (ticket.description) {
     parts.push('')
     parts.push('--- Description ---')
-    // Zoho ships no content-type discriminator for `description`, and it can be
-    // either HTML or plain text, so strip only when markup is actually present.
-    parts.push(
-      /<[a-z][\s\S]*>/i.test(ticket.description)
-        ? htmlToPlainText(ticket.description)
-        : ticket.description
-    )
+    parts.push(toPlainText(ticket.description, undefined))
   }
 
   // The agent's resolution note is the single most reusable answer on a ticket,
@@ -428,11 +445,7 @@ function formatTicketContent(ticket: ZohoDeskTicket, conversation: string[]): st
   if (ticket.resolution) {
     parts.push('')
     parts.push('--- Resolution ---')
-    parts.push(
-      /<[a-z][\s\S]*>/i.test(ticket.resolution)
-        ? htmlToPlainText(ticket.resolution)
-        : ticket.resolution
-    )
+    parts.push(toPlainText(ticket.resolution, undefined))
   }
 
   if (conversation.length > 0) {
@@ -648,25 +661,35 @@ export const zohoDeskConnector: ConnectorConfig = {
             cap: MAX_CONVERSATION_ENTRIES,
           })
         }
-        const blocks: string[] = []
-        let hydratedThreads = 0
+        const threadIds = entries
+          .filter((entry) => entry.type === 'thread')
+          .slice(0, MAX_HYDRATED_THREADS)
+          .map((entry) => entry.id)
+        const hydratedById = new Map<string, ZohoDeskThreadDetail>()
 
-        for (const entry of entries) {
-          let hydrated: ZohoDeskThreadDetail | null = null
-          if (entry.type === 'thread' && hydratedThreads < MAX_HYDRATED_THREADS) {
-            try {
-              hydrated = await fetchThread(apiBase, accessToken, orgId, ticketId, entry.id)
-              hydratedThreads += 1
-            } catch (error) {
-              logger.warn('Failed to fetch Zoho Desk thread body; using summary', {
-                ticketId,
-                threadId: entry.id,
-                error: getErrorMessage(error),
-              })
-            }
-          }
-          blocks.push(formatConversationEntry(entry, hydrated))
+        for (let i = 0; i < threadIds.length; i += THREAD_FETCH_CONCURRENCY) {
+          await Promise.all(
+            threadIds.slice(i, i + THREAD_FETCH_CONCURRENCY).map(async (threadId) => {
+              try {
+                const detail = await fetchThread(apiBase, accessToken, orgId, ticketId, threadId)
+                if (detail) hydratedById.set(threadId, detail)
+              } catch (error) {
+                logger.warn('Failed to fetch Zoho Desk thread body; using summary', {
+                  ticketId,
+                  threadId,
+                  error: getErrorMessage(error),
+                })
+              }
+            })
+          )
         }
+
+        const blocks = entries.map((entry) =>
+          formatConversationEntry(
+            entry,
+            entry.type === 'thread' ? (hydratedById.get(entry.id) ?? null) : null
+          )
+        )
 
         const content = formatTicketContent(ticket, blocks)
         if (!content.trim()) return null
@@ -676,11 +699,15 @@ export const zohoDeskConnector: ConnectorConfig = {
 
       return null
     } catch (error) {
-      logger.warn('Failed to get Zoho Desk document', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+      /**
+       * Only a deleted record (404/410) resolves to `null`. Every other failure is
+       * rethrown so the sync engine records a visible failed document instead of
+       * dropping it from the run with no counter and no error log.
+       */
+      if (error instanceof ZohoDeskApiError && (error.status === 404 || error.status === 410)) {
+        return null
+      }
+      throw error
     }
   },
 
@@ -709,7 +736,7 @@ export const zohoDeskConnector: ConnectorConfig = {
       resolveMax(sourceConfig.maxTickets, DEFAULT_MAX_TICKETS, 'Max tickets')
       resolveMax(sourceConfig.maxArticles, DEFAULT_MAX_ARTICLES, 'Max articles')
     } catch (error) {
-      return { valid: false, error: toError(error).message }
+      return { valid: false, error: getErrorMessage(error) }
     }
 
     try {
@@ -732,7 +759,7 @@ export const zohoDeskConnector: ConnectorConfig = {
       }
       return { valid: true }
     } catch (error) {
-      return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
+      return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
 

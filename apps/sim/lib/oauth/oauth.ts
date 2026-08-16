@@ -71,12 +71,14 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
   SALESFORCE_LOGIN_HOSTS,
   SALESFORCE_PROVIDER_ID_LABELS,
 } from '@/lib/oauth/salesforce'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
@@ -1524,6 +1526,12 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        // Box refresh tokens are single-use: "the Refresh Token is invalidated and a
+        // new Refresh Token is returned" and "A Refresh Token is valid for 60 days and
+        // can be used to obtain a new Access Token and Refresh Token only once."
+        // (developer.box.com/guides/authentication/tokens/refresh). Without rotation the
+        // new token is discarded and the credential dies on the second refresh.
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'docusign': {
@@ -1533,7 +1541,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         'DOCUSIGN_CLIENT_SECRET'
       )
       return {
-        tokenEndpoint: 'https://account-d.docusign.com/oauth/token',
+        tokenEndpoint: getDocusignOAuthUrl('/oauth/token'),
         clientId,
         clientSecret,
         useBasicAuth: true,
@@ -1580,7 +1588,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         additionalHeaders: {
-          'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+          'User-Agent': REDDIT_USER_AGENT,
         },
       }
     }
@@ -1779,9 +1787,16 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
     case 'zoho-desk': {
       // Zoho's refresh_token grant returns a new access token but no new refresh
       // token, so rotation stays off (the existing refresh token is preserved).
-      // The refresh must target the accounts server; a US/multi-DC-enabled client
-      // uses accounts.zoho.com. Data residency for API calls is honored separately
-      // via the persisted Desk base URL derived from the token response api_domain.
+      // The refresh must target the accounts server of the data center that issued
+      // the token - "if location=eu, you will need to make access token request to
+      // https://accounts.zoho.eu" (zoho.com/accounts/protocol/oauth/multi-dc.html).
+      // accounts.zoho.com is correct here because the authorize and code-exchange
+      // legs in lib/auth/connectors/providers.ts are also pinned to the US accounts
+      // server, so every refresh token in the system is US-issued. Making refresh
+      // DC-aware requires making the grant DC-aware first (read the `accounts-server`
+      // callback param) and threading the credential's persisted `__zoho_domain__`
+      // marker into refreshOAuthToken, which today only receives the token string.
+      // Data residency for API calls is already honored via that persisted Desk base.
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'zoho-desk',
         'ZOHO_CLIENT_ID',

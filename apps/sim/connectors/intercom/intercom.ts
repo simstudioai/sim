@@ -2,38 +2,63 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
-import { DEFAULT_MAX_ITEMS, intercomConnectorMeta } from '@/connectors/intercom/meta'
+import {
+  DEFAULT_INTERCOM_REGION,
+  DEFAULT_MAX_ITEMS,
+  INTERCOM_API_BASE_BY_REGION,
+  intercomConnectorMeta,
+} from '@/connectors/intercom/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('IntercomConnector')
 
-const INTERCOM_API_BASE = 'https://api.intercom.io'
-const ARTICLES_PER_PAGE = 50
-const CONVERSATIONS_PER_PAGE = 50
+/**
+ * Intercom pins request/response shapes to an `Intercom-Version` header. 2.11 is a
+ * supported version (Intercom supports 2.7+) and is the version whose documented
+ * schemas this connector parses.
+ *
+ * @see https://developers.intercom.com/docs/build-an-integration/learn-more/rest-apis/api-versioning
+ */
+const INTERCOM_API_VERSION = '2.11'
 
+/**
+ * `/articles` is page-number paginated (`page` selects the n-th chunk of `per_page`
+ * records), so `per_page` must stay constant across pages or a later page would
+ * slide backwards and skip articles. Intercom caps `per_page` at 150 API-wide.
+ */
+const ARTICLES_PER_PAGE = 50
+/** Intercom caps `per_page` at 150 across every list API. */
+const CONVERSATIONS_PER_PAGE = 150
+
+/** Intercom returns at most 500 conversation parts per conversation. */
+const MAX_CONVERSATION_PARTS = 500
+
+const CONTENT_TYPES = new Set(['articles', 'conversations', 'both'])
+
+/**
+ * Every schema here models only the fields this connector reads. `.passthrough()`
+ * carries the rest of Intercom's payload through untouched, so unmodeled or newly
+ * added fields never fail a parse.
+ */
 const IntercomAuthorSchema = z
   .object({
-    type: z.string(),
-    id: z.string(),
-    name: z.string().optional(),
+    type: z.string().optional(),
+    name: z.string().nullable().optional(),
   })
   .passthrough()
 
 const IntercomArticleSchema = z
   .object({
-    type: z.string().optional(),
     id: z.string(),
-    title: z.string().optional(),
+    title: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
     body: z.string().nullable().optional(),
-    author_id: z.union([z.number(), z.string()]).optional(),
+    author_id: z.union([z.number(), z.string()]).nullable().optional(),
     state: z.string(),
     created_at: z.number(),
     updated_at: z.number(),
-    url: z.string().optional(),
-    parent_id: z.number().nullable().optional(),
-    parent_type: z.string().nullable().optional(),
+    url: z.string().nullable().optional(),
   })
   .passthrough()
 
@@ -41,9 +66,6 @@ type IntercomArticle = z.infer<typeof IntercomArticleSchema>
 
 const IntercomConversationPartSchema = z
   .object({
-    type: z.string().optional(),
-    id: z.string(),
-    part_type: z.string().optional(),
     body: z.string().nullable().optional(),
     created_at: z.number(),
     author: IntercomAuthorSchema.optional(),
@@ -52,45 +74,29 @@ const IntercomConversationPartSchema = z
 
 const IntercomConversationSchema = z
   .object({
-    type: z.string().optional(),
     id: z.string(),
     created_at: z.number(),
     updated_at: z.number(),
     title: z.string().nullable().optional(),
     state: z.string(),
-    open: z.boolean().optional(),
     source: z
       .object({
-        type: z.string(),
-        id: z.string(),
-        subject: z.string().optional(),
         body: z.string().nullable().optional(),
-        author: IntercomAuthorSchema,
-        delivered_as: z.string().optional(),
+        author: IntercomAuthorSchema.optional(),
       })
       .passthrough()
       .optional(),
     tags: z
       .object({
-        type: z.string().optional(),
-        tags: z
-          .array(
-            z
-              .object({
-                id: z.string(),
-                name: z.string(),
-              })
-              .passthrough()
-          )
-          .default([]),
+        tags: z.array(z.object({ name: z.string() }).passthrough()).default([]),
       })
       .passthrough()
       .optional(),
+    /** Omitted entirely by `GET /conversations`; only the single-conversation fetch returns it. */
     conversation_parts: z
       .object({
-        type: z.string(),
-        conversation_parts: z.array(IntercomConversationPartSchema),
-        total_count: z.number(),
+        conversation_parts: z.array(IntercomConversationPartSchema).default([]),
+        total_count: z.number().optional(),
       })
       .passthrough()
       .optional(),
@@ -99,16 +105,41 @@ const IntercomConversationSchema = z
 
 type IntercomConversation = z.infer<typeof IntercomConversationSchema>
 
+/** HTTP failure from the Intercom API, carrying the status so callers can branch on 404. */
+class IntercomHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message)
+    this.name = 'IntercomHttpError'
+  }
+}
+
+/**
+ * Resolves the regional REST host for the workspace. Intercom serves EU and AU
+ * workspaces from dedicated hosts; an unset/unknown region falls back to US.
+ */
+function resolveApiBase(sourceConfig: Record<string, unknown>): string {
+  const region =
+    typeof sourceConfig.region === 'string' ? sourceConfig.region.trim().toLowerCase() : ''
+  return (
+    INTERCOM_API_BASE_BY_REGION[region as keyof typeof INTERCOM_API_BASE_BY_REGION] ??
+    INTERCOM_API_BASE_BY_REGION[DEFAULT_INTERCOM_REGION]
+  )
+}
+
 /**
  * Makes a GET request to the Intercom API with Bearer token auth.
  */
 async function intercomApiGet(
+  apiBase: string,
   path: string,
   accessToken: string,
   params?: Record<string, string>,
   retryOptions?: Parameters<typeof fetchWithRetry>[2]
 ): Promise<Record<string, unknown>> {
-  const url = new URL(`${INTERCOM_API_BASE}${path}`)
+  const url = new URL(`${apiBase}${path}`)
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, value)
@@ -122,7 +153,7 @@ async function intercomApiGet(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
-        'Intercom-Version': '2.11',
+        'Intercom-Version': INTERCOM_API_VERSION,
       },
     },
     retryOptions
@@ -130,25 +161,34 @@ async function intercomApiGet(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => '')
-    throw new Error(`Intercom API HTTP error ${response.status}: ${errorBody}`)
+    throw new IntercomHttpError(
+      response.status,
+      `Intercom API HTTP error ${response.status}: ${errorBody}`
+    )
   }
 
   return (await response.json()) as Record<string, unknown>
 }
 
 /**
- * Fetches all articles from Intercom, respecting page-based pagination and max items cap.
+ * Fetches articles using Intercom's page-based `/articles` pagination.
+ *
+ * `capped` reports whether the `maxItems` budget hid articles that still exist in
+ * the source. A budget landing exactly on source exhaustion is NOT capped — the
+ * listing is complete and deletion reconciliation must stay enabled.
  */
 async function fetchArticles(
+  apiBase: string,
   accessToken: string,
   maxItems: number,
   stateFilter: string
-): Promise<IntercomArticle[]> {
-  const allArticles: IntercomArticle[] = []
+): Promise<{ articles: IntercomArticle[]; capped: boolean }> {
+  const collected: IntercomArticle[] = []
   let page = 1
+  let capped = false
 
-  while (allArticles.length < maxItems) {
-    const data = await intercomApiGet('/articles', accessToken, {
+  while (collected.length < maxItems) {
+    const data = await intercomApiGet(apiBase, '/articles', accessToken, {
       page: String(page),
       per_page: String(ARTICLES_PER_PAGE),
     })
@@ -156,67 +196,84 @@ async function fetchArticles(
     const articles = z.array(IntercomArticleSchema).parse(data.data ?? [])
     if (articles.length === 0) break
 
+    let consumed = 0
     for (const article of articles) {
+      consumed++
       if (stateFilter !== 'all' && article.state !== stateFilter) continue
-      allArticles.push(article)
-      if (allArticles.length >= maxItems) break
+      collected.push(article)
+      if (collected.length >= maxItems) break
     }
 
     const pages = data.pages as { total_pages?: number } | null
-    if (!pages?.total_pages || page >= pages.total_pages) break
+    const morePages = Boolean(pages?.total_pages && page < pages.total_pages)
+
+    if (collected.length >= maxItems) {
+      capped = consumed < articles.length || morePages
+      break
+    }
+    if (!morePages) break
     page++
   }
 
-  return allArticles
+  return { articles: collected, capped }
 }
 
 /**
- * Fetches conversations from Intercom using cursor-based pagination.
+ * Fetches conversations using Intercom's cursor-based `/conversations` pagination
+ * (`pages.next.starting_after`).
+ *
+ * See {@link fetchArticles} for the `capped` contract.
  */
 async function fetchConversations(
+  apiBase: string,
   accessToken: string,
   maxItems: number,
   stateFilter: string
-): Promise<IntercomConversation[]> {
-  const allConversations: IntercomConversation[] = []
+): Promise<{ conversations: IntercomConversation[]; capped: boolean }> {
+  const collected: IntercomConversation[] = []
   let startingAfter: string | undefined
+  let capped = false
 
-  while (allConversations.length < maxItems) {
-    const params: Record<string, string> = {
-      per_page: String(Math.min(CONVERSATIONS_PER_PAGE, 150)),
-    }
+  while (collected.length < maxItems) {
+    /**
+     * `/conversations` is cursor paginated, so shrinking the last page is safe.
+     * A state filter drops rows client-side, so only an unfiltered listing can
+     * size the page from the remaining budget.
+     */
+    const perPage =
+      stateFilter === 'all'
+        ? Math.min(CONVERSATIONS_PER_PAGE, maxItems - collected.length)
+        : CONVERSATIONS_PER_PAGE
+
+    const params: Record<string, string> = { per_page: String(perPage) }
     if (startingAfter) {
       params.starting_after = startingAfter
     }
 
-    const data = await intercomApiGet('/conversations', accessToken, params)
+    const data = await intercomApiGet(apiBase, '/conversations', accessToken, params)
     const conversations = z.array(IntercomConversationSchema).parse(data.conversations ?? [])
     if (conversations.length === 0) break
 
+    let consumed = 0
     for (const conversation of conversations) {
+      consumed++
       if (stateFilter !== 'all' && conversation.state !== stateFilter) continue
-      allConversations.push(conversation)
-      if (allConversations.length >= maxItems) break
+      collected.push(conversation)
+      if (collected.length >= maxItems) break
     }
 
-    const pages = data.pages as { next?: { starting_after?: string } } | null
-    const nextCursor = pages?.next?.starting_after
+    const pages = data.pages as { next?: { starting_after?: string | null } | null } | null
+    const nextCursor = pages?.next?.starting_after || undefined
+
+    if (collected.length >= maxItems) {
+      capped = consumed < conversations.length || Boolean(nextCursor)
+      break
+    }
     if (!nextCursor) break
     startingAfter = nextCursor
   }
 
-  return allConversations
-}
-
-/**
- * Fetches the full conversation with conversation_parts included.
- */
-async function fetchConversationDetail(
-  accessToken: string,
-  conversationId: string
-): Promise<IntercomConversation> {
-  const data = await intercomApiGet(`/conversations/${conversationId}`, accessToken)
-  return IntercomConversationSchema.parse(data)
+  return { conversations: collected, capped }
 }
 
 /**
@@ -265,6 +322,64 @@ function formatArticle(article: IntercomArticle): string {
   return parts.join('\n\n')
 }
 
+function articleMetadata(article: IntercomArticle): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {
+    type: 'article',
+    state: article.state,
+    updatedAt: new Date(article.updated_at * 1000).toISOString(),
+    createdAt: new Date(article.created_at * 1000).toISOString(),
+  }
+  if (article.author_id !== undefined && article.author_id !== null) {
+    metadata.authorId = String(article.author_id)
+  }
+  return metadata
+}
+
+/**
+ * Shared article projection so `listDocuments` and `getDocument` cannot drift on
+ * `externalId`, `contentHash`, or `sourceUrl`.
+ */
+function articleToDocument(article: IntercomArticle): ExternalDocument {
+  return {
+    externalId: `article-${article.id}`,
+    title: article.title || `Article ${article.id}`,
+    content: formatArticle(article),
+    mimeType: 'text/plain',
+    sourceUrl:
+      article.url || `https://app.intercom.com/a/apps/_/articles/articles/${article.id}/show`,
+    contentHash: `intercom:article-${article.id}:${article.updated_at}`,
+    metadata: articleMetadata(article),
+  }
+}
+
+function conversationMetadata(conversation: IntercomConversation): Record<string, unknown> {
+  return {
+    type: 'conversation',
+    state: conversation.state,
+    tags: (conversation.tags?.tags?.map((t) => t.name) || []).join(', '),
+    updatedAt: new Date(conversation.updated_at * 1000).toISOString(),
+    createdAt: new Date(conversation.created_at * 1000).toISOString(),
+  }
+}
+
+/**
+ * Lightweight listing stub. `/conversations` never returns `conversation_parts`
+ * (documented as "ignored when Listing all Conversations"), so the transcript is
+ * hydrated per-document via `getDocument`.
+ */
+function conversationToStub(conversation: IntercomConversation): ExternalDocument {
+  return {
+    externalId: `conversation-${conversation.id}`,
+    title: conversation.title || `Conversation #${conversation.id}`,
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: `https://app.intercom.com/a/apps/_/inbox/inbox/all/conversations/${conversation.id}`,
+    contentHash: `intercom:conversation-${conversation.id}:${conversation.updated_at}`,
+    metadata: conversationMetadata(conversation),
+  }
+}
+
 export const intercomConnector: ConnectorConfig = {
   ...intercomConnectorMeta,
 
@@ -272,72 +387,69 @@ export const intercomConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     _cursor?: string,
-    _syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
+    const apiBase = resolveApiBase(sourceConfig)
     const contentType = (sourceConfig.contentType as string) || 'articles'
     const articleState = (sourceConfig.articleState as string) || 'published'
     const conversationState = (sourceConfig.conversationState as string) || 'all'
-    const maxItems = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : DEFAULT_MAX_ITEMS
+    const parsedMax = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : DEFAULT_MAX_ITEMS
+    const maxItems =
+      Number.isFinite(parsedMax) && parsedMax > 0 ? Math.floor(parsedMax) : DEFAULT_MAX_ITEMS
 
     const documents: ExternalDocument[] = []
+    let capped = false
 
     if (contentType === 'articles' || contentType === 'both') {
       logger.info('Fetching Intercom articles', { articleState, maxItems })
-      const articles = await fetchArticles(accessToken, maxItems, articleState)
+      const result = await fetchArticles(apiBase, accessToken, maxItems, articleState)
+      capped = capped || result.capped
 
-      for (const article of articles) {
-        const content = formatArticle(article)
-        if (!content.trim()) continue
-
-        const updatedAt = new Date(article.updated_at * 1000).toISOString()
-
-        documents.push({
-          externalId: `article-${article.id}`,
-          title: article.title || `Article ${article.id}`,
-          content,
-          mimeType: 'text/plain',
-          sourceUrl: `https://app.intercom.com/a/apps/_/articles/articles/${article.id}/show`,
-          contentHash: `intercom:article-${article.id}:${article.updated_at}`,
-          metadata: {
-            type: 'article',
-            state: article.state,
-            authorId: String(article.author_id),
-            updatedAt,
-            createdAt: new Date(article.created_at * 1000).toISOString(),
-          },
-        })
+      for (const article of result.articles) {
+        const doc = articleToDocument(article)
+        if (!doc.content.trim()) continue
+        documents.push(doc)
       }
 
-      logger.info('Fetched Intercom articles', { count: articles.length })
+      logger.info('Fetched Intercom articles', { count: result.articles.length })
     }
 
-    if (contentType === 'conversations' || contentType === 'both') {
+    /**
+     * `maxItems` is a single budget for the whole sync, so an "articles &
+     * conversations" source cannot silently fetch 2x the configured cap.
+     */
+    const conversationBudget = maxItems - documents.length
+
+    if ((contentType === 'conversations' || contentType === 'both') && conversationBudget > 0) {
       logger.info('Fetching Intercom conversations', { conversationState, maxItems })
-      const conversations = await fetchConversations(accessToken, maxItems, conversationState)
+      const result = await fetchConversations(
+        apiBase,
+        accessToken,
+        conversationBudget,
+        conversationState
+      )
+      capped = capped || result.capped
 
-      for (const conversation of conversations) {
-        const updatedAt = new Date(conversation.updated_at * 1000).toISOString()
-        const tags = conversation.tags?.tags?.map((t) => t.name) || []
-
-        documents.push({
-          externalId: `conversation-${conversation.id}`,
-          title: conversation.title || `Conversation #${conversation.id}`,
-          content: '',
-          contentDeferred: true,
-          mimeType: 'text/plain',
-          sourceUrl: `https://app.intercom.com/a/apps/_/inbox/inbox/all/conversations/${conversation.id}`,
-          contentHash: `intercom:conversation-${conversation.id}:${conversation.updated_at}`,
-          metadata: {
-            type: 'conversation',
-            state: conversation.state,
-            tags: tags.join(', '),
-            updatedAt,
-            createdAt: new Date(conversation.created_at * 1000).toISOString(),
-          },
-        })
+      for (const conversation of result.conversations) {
+        documents.push(conversationToStub(conversation))
       }
 
-      logger.info('Fetched Intercom conversations', { count: conversations.length })
+      logger.info('Fetched Intercom conversations', { count: result.conversations.length })
+    } else if (contentType === 'both' && conversationBudget <= 0) {
+      capped = true
+    }
+
+    /**
+     * The sync engine hard-deletes stored documents absent from a full listing.
+     * Only flag when the cap actually hid still-existing items — flagging a
+     * complete listing would permanently block deletion reconciliation.
+     */
+    if (capped && syncContext) {
+      syncContext.listingCapped = true
+      logger.warn('Intercom listing truncated by maxItems; skipping deletion reconciliation', {
+        maxItems,
+        docsListed: documents.length,
+      })
     }
 
     return { documents, hasMore: false }
@@ -348,59 +460,54 @@ export const intercomConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
+    const apiBase = resolveApiBase(sourceConfig)
+
     try {
       if (externalId.startsWith('article-')) {
-        const articleId = externalId.replace('article-', '')
-        const data = await intercomApiGet(`/articles/${articleId}`, accessToken)
+        const articleId = externalId.slice('article-'.length)
+        const data = await intercomApiGet(
+          apiBase,
+          `/articles/${encodeURIComponent(articleId)}`,
+          accessToken
+        )
         const article = IntercomArticleSchema.parse(data)
 
-        const content = formatArticle(article)
-        if (!content.trim()) return null
-
-        const updatedAt = new Date(article.updated_at * 1000).toISOString()
-
-        return {
-          externalId,
-          title: article.title || `Article ${article.id}`,
-          content,
-          mimeType: 'text/plain',
-          sourceUrl: `https://app.intercom.com/a/apps/_/articles/articles/${article.id}/show`,
-          contentHash: `intercom:article-${article.id}:${article.updated_at}`,
-          metadata: {
-            type: 'article',
-            state: article.state,
-            authorId: String(article.author_id),
-            updatedAt,
-            createdAt: new Date(article.created_at * 1000).toISOString(),
-          },
-        }
+        const doc = articleToDocument(article)
+        if (!doc.content.trim()) return null
+        return { ...doc, externalId }
       }
 
       if (externalId.startsWith('conversation-')) {
-        const conversationId = externalId.replace('conversation-', '')
-        const detail = await fetchConversationDetail(accessToken, conversationId)
+        const conversationId = externalId.slice('conversation-'.length)
+        const data = await intercomApiGet(
+          apiBase,
+          `/conversations/${encodeURIComponent(conversationId)}`,
+          accessToken
+        )
+        const detail = IntercomConversationSchema.parse(data)
 
         const content = formatConversation(detail)
         if (!content.trim()) return null
 
-        const updatedAt = new Date(detail.updated_at * 1000).toISOString()
-        const tags = detail.tags?.tags?.map((t) => t.name) || []
+        const returnedParts = detail.conversation_parts?.conversation_parts?.length ?? 0
+        const totalParts = detail.conversation_parts?.total_count ?? returnedParts
+        if (totalParts > returnedParts || returnedParts >= MAX_CONVERSATION_PARTS) {
+          logger.warn('Intercom returned a truncated conversation transcript', {
+            externalId,
+            returnedParts,
+            totalParts,
+            limit: MAX_CONVERSATION_PARTS,
+          })
+        }
 
         return {
+          ...conversationToStub(detail),
           externalId,
-          title: detail.title || `Conversation #${detail.id}`,
           content,
           contentDeferred: false,
-          mimeType: 'text/plain',
-          sourceUrl: `https://app.intercom.com/a/apps/_/inbox/inbox/all/conversations/${detail.id}`,
-          contentHash: `intercom:conversation-${detail.id}:${detail.updated_at}`,
           metadata: {
-            type: 'conversation',
-            state: detail.state,
-            tags: tags.join(', '),
-            updatedAt,
-            createdAt: new Date(detail.created_at * 1000).toISOString(),
-            messageCount: (detail.conversation_parts?.total_count ?? 0) + 1,
+            ...conversationMetadata(detail),
+            messageCount: totalParts + 1,
           },
         }
       }
@@ -408,11 +515,20 @@ export const intercomConnector: ConnectorConfig = {
       logger.warn('Unknown external ID format', { externalId })
       return null
     } catch (error) {
-      logger.warn('Failed to get Intercom document', {
+      /**
+       * Only a genuine 404 means "gone". Anything else is a transient/unexpected
+       * failure and must propagate so the sync engine records a failed document
+       * instead of silently dropping it from this run.
+       */
+      if (error instanceof IntercomHttpError && error.status === 404) {
+        logger.warn('Intercom document not found', { externalId })
+        return null
+      }
+      logger.error('Failed to get Intercom document', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 
@@ -427,14 +543,24 @@ export const intercomConnector: ConnectorConfig = {
       return { valid: false, error: 'Content type is required' }
     }
 
+    if (!CONTENT_TYPES.has(contentType)) {
+      return {
+        valid: false,
+        error: 'Content type must be one of: articles, conversations, both',
+      }
+    }
+
     if (maxItems && (Number.isNaN(Number(maxItems)) || Number(maxItems) <= 0)) {
       return { valid: false, error: 'Max items must be a positive number' }
     }
+
+    const apiBase = resolveApiBase(sourceConfig)
 
     try {
       // Verify API access by fetching the first page of articles or conversations
       if (contentType === 'articles' || contentType === 'both') {
         await intercomApiGet(
+          apiBase,
           '/articles',
           accessToken,
           { page: '1', per_page: '1' },
@@ -444,6 +570,7 @@ export const intercomConnector: ConnectorConfig = {
 
       if (contentType === 'conversations' || contentType === 'both') {
         await intercomApiGet(
+          apiBase,
           '/conversations',
           accessToken,
           { per_page: '1' },
@@ -477,7 +604,7 @@ export const intercomConnector: ConnectorConfig = {
       result.authorId = metadata.authorId
     }
 
-    if (typeof metadata.messageCount === 'number') {
+    if (typeof metadata.messageCount === 'number' && Number.isFinite(metadata.messageCount)) {
       result.messageCount = metadata.messageCount
     }
 

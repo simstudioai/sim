@@ -15,13 +15,22 @@ export const pagerdutyConnectorMeta: ConnectorMeta = {
   },
 
   /**
-   * Deliberately absent. PagerDuty's `since`/`until` filter incident *creation*
-   * time, and the REST API exposes no modified-since filter, so an incremental
-   * listing would never surface a status change, a new note, or a resolution on
-   * an incident created before the window — an incident synced while triggered
-   * would stay triggered forever. Every sync therefore lists the full history,
-   * gated by `contentHash` so unchanged incidents are never re-hydrated.
+   * Re-fetch every incident on an explicit full resync.
+   *
+   * The document's `contentHash` is keyed on the incident's `updated_at`, but its
+   * content also folds in notes and log entries — child resources PagerDuty does
+   * not document as bumping the parent incident's `updated_at`. Routine syncs stay
+   * hash-gated and cheap; a full resync re-hydrates every incident (one show call
+   * plus its notes and timeline pages each) so note-only and timeline-only changes
+   * are picked up. That cost is paid on every full resync, not once.
+   *
+   * `supportsIncrementalSync` is deliberately absent for the same reason at the
+   * listing level: PagerDuty's `since`/`until` filter incident *creation* time and
+   * the REST API exposes no modified-since filter, so an incremental listing would
+   * never surface a status change or resolution on an incident created before the
+   * window — an incident synced while triggered would stay triggered forever.
    */
+  rehydrateOnFullSync: true,
 
   configFields: [
     {

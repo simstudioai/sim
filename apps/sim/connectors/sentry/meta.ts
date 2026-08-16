@@ -86,7 +86,7 @@ export const sentryConnectorMeta: ConnectorMeta = {
         { label: 'Last 24 hours', id: '24h' },
         { label: 'Last 14 days', id: '14d' },
       ],
-      description: 'Time window for the issue stats Sentry computes on the project issues list.',
+      description: 'Time window for the per-issue stats Sentry computes on the issues list.',
     },
     {
       id: 'maxIssues',

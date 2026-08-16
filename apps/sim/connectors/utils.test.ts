@@ -62,6 +62,7 @@ import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
+  htmlToPlainText,
   isSkippedDocument,
   markSkipped,
   readBodyWithLimit,
@@ -1308,5 +1309,59 @@ describe('takeIndexableWithinCap', () => {
     expect(res.documents).toHaveLength(0)
     expect(res.indexableCount).toBe(0)
     expect(res.capReached).toBe(true)
+  })
+})
+
+describe('htmlToPlainText entity decoding', () => {
+  it('decodes decimal numeric references', () => {
+    expect(htmlToPlainText('<p>Sim&#8217;s docs &#8211; part &#8230;</p>')).toBe(
+      'Sim’s docs – part …'
+    )
+  })
+
+  it('decodes hex numeric references, case-insensitively', () => {
+    expect(htmlToPlainText('<p>&#x2019;&#X2013;</p>')).toBe('’–')
+  })
+
+  it('decodes astral-plane code points as a surrogate pair', () => {
+    expect(htmlToPlainText('<p>&#128512;</p>')).toBe('\u{1F600}')
+  })
+
+  it('still decodes the named entities it always handled', () => {
+    expect(htmlToPlainText('<p>&lt;a&gt; &quot;b&quot; &#39;c&#39; d&amp;e&nbsp;f</p>')).toBe(
+      '<a> "b" \'c\' d&e f'
+    )
+  })
+
+  it('does not double-decode an escaped entity', () => {
+    expect(htmlToPlainText('<p>&amp;#8217;</p>')).toBe('&#8217;')
+  })
+
+  it('does not double-decode a numerically escaped ampersand into a named entity', () => {
+    expect(htmlToPlainText('<p>&#38;amp; &#x26;lt;</p>')).toBe('&amp; &lt;')
+  })
+
+  it('remaps windows-1252 C1 references the way a browser renders them', () => {
+    expect(htmlToPlainText('<p>Sim&#146;s &#147;docs&#148; &#151; part &#133;</p>')).toBe(
+      'Sim’s “docs” — part …'
+    )
+  })
+
+  it('leaves NUL and other control references as literal text', () => {
+    expect(htmlToPlainText('<p>a&#0;b&#1;c&#x7f;d</p>')).toBe('a&#0;b&#1;c&#x7f;d')
+  })
+
+  it('decodes whitespace references and folds them into the whitespace collapse', () => {
+    expect(htmlToPlainText('<p>a&#10;&#9;b</p>')).toBe('a b')
+  })
+
+  it('leaves malformed and out-of-range references as literal text', () => {
+    expect(htmlToPlainText('<p>&#1114112; &#xD800; &#; &#x;</p>')).toBe(
+      '&#1114112; &#xD800; &#; &#x;'
+    )
+  })
+
+  it('leaves an unknown named entity untouched', () => {
+    expect(htmlToPlainText('<p>&copy; &notreal;</p>')).toBe('&copy; &notreal;')
   })
 })
