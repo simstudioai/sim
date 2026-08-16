@@ -46,6 +46,11 @@ export function DependentFieldSelector({
     [options]
   )
 
+  // A field title is a label, and some already read as an instruction ("Select Issue",
+  // "Select Project"). Composing those directly produced "Select select issue", so strip a
+  // leading verb to get the bare noun the surrounding copy supplies its own verb for.
+  const noun = title.replace(/^select\s+/i, '').toLowerCase()
+
   if (isLoading && enabled) {
     return (
       <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
@@ -62,10 +67,10 @@ export function DependentFieldSelector({
       value={value || undefined}
       onChange={(next) => onChange(next)}
       searchable
-      searchPlaceholder={`Search ${title.toLowerCase()}...`}
-      placeholder={`Select ${title.toLowerCase()}`}
+      searchPlaceholder={`Search ${noun}...`}
+      placeholder={`Select ${noun}`}
       disabled={!enabled}
-      emptyMessage={`No ${title.toLowerCase()} found`}
+      emptyMessage={`No ${noun} found`}
     />
   )
 }

@@ -2,6 +2,17 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+
+const { mockGetToolInputParamConfigs } = vi.hoisted(() => ({
+  mockGetToolInputParamConfigs: vi.fn(() => [] as unknown[]),
+}))
+
+// Mocked at the module boundary so these tests stay about the collector's own logic rather
+// than the tool/block registries the real resolver reaches into.
+vi.mock('@/lib/workflows/search-replace/indexer', () => ({
+  getToolInputParamConfigs: mockGetToolInputParamConfigs,
+}))
+
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
@@ -686,6 +697,220 @@ describe('collectForkDependentReconfigs', () => {
       subBlockKey: 'conflictColumnSelector',
       selectorKey: 'table.columns',
     })
+  })
+})
+
+/**
+ * A sync carries the source's configuration across; it never invents configuration the
+ * source never had. A blank selector is still OFFERED (so it can be set in place during the
+ * swap) but must not gate the sync.
+ */
+describe('collectForkDependentReconfigs — blank source values never gate', () => {
+  const jiraProjectBlock = () =>
+    blockWith([
+      { id: 'credential', title: 'Credential', type: 'oauth-input' },
+      { id: 'operation', title: 'Operation', type: 'dropdown' },
+      {
+        id: 'projectId',
+        title: 'Select Project',
+        type: 'project-selector',
+        canonicalParamId: 'projectId',
+        selectorKey: 'jira.projects',
+        dependsOn: ['credential'],
+        mode: 'basic',
+        required: { field: 'operation', value: ['write'] },
+      },
+      // The advanced twin carries the SAME `required` but no `selectorKey`, so it is never
+      // emitted. That asymmetry is what made an identical blank config gate or not gate
+      // purely on a display preference.
+      {
+        id: 'manualProjectId',
+        title: 'Project ID',
+        type: 'short-input',
+        canonicalParamId: 'projectId',
+        dependsOn: ['credential'],
+        mode: 'advanced',
+        required: { field: 'operation', value: ['write'] },
+      },
+    ])
+
+  it('offers a blank required selector but does not mark it required', () => {
+    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('jira', {
+          credential: { value: 'cred-src' },
+          operation: { value: 'write' },
+          projectId: { value: '' },
+        }),
+      ],
+    ])
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: false, sourceValue: '' })
+  })
+
+  it('still marks a populated required selector as required', () => {
+    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('jira', {
+          credential: { value: 'cred-src' },
+          operation: { value: 'write' },
+          projectId: { value: 'PROJ-1' },
+        }),
+      ],
+    ])
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+    expect(result[0]).toMatchObject({ subBlockKey: 'projectId', required: true })
+  })
+
+  it('reaches the same verdict in basic and advanced canonical mode', () => {
+    vi.mocked(getBlock).mockReturnValue(jiraProjectBlock())
+    const blankSubBlocks = {
+      credential: { value: 'cred-src' },
+      operation: { value: 'write' },
+      projectId: { value: '' },
+      manualProjectId: { value: '' },
+    }
+    const basic = sourceState('jira', blankSubBlocks)
+    const advanced = sourceState('jira', blankSubBlocks) as unknown as WorkflowState & {
+      blocks: Record<string, { data?: Record<string, unknown> }>
+    }
+    advanced.blocks['block-1'].data = { canonicalModes: { projectId: 'advanced' } }
+
+    const basicResult = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', basic]]),
+      resolve
+    )
+    const advancedResult = collectForkDependentReconfigs(
+      [replaceItem],
+      new Map([['wf-src', advanced as unknown as WorkflowState]]),
+      resolve
+    )
+    // Advanced drops the row entirely (dormant member); basic keeps it but non-blocking.
+    // Neither may produce a required row from the same blank pair.
+    expect(basicResult.every((f) => !f.required)).toBe(true)
+    expect(advancedResult.every((f) => !f.required)).toBe(true)
+  })
+})
+
+/**
+ * Inside a `tool-input`, only a `user-only` param is the user's to supply. A `user-or-llm`
+ * or `llm-only` param is filled by the model at runtime (`createLLMToolSchema` keeps an empty
+ * one in the schema handed to the model), so a blank value there is a deliberate
+ * configuration state and must never gate a sync.
+ */
+describe('collectForkDependentReconfigs — nested tool params follow ParameterVisibility', () => {
+  const agentWithJiraTool = () =>
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'jira')
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'issueKey',
+            title: 'Select Issue',
+            type: 'file-selector',
+            canonicalParamId: 'issueKey',
+            selectorKey: 'jira.issues',
+            dependsOn: ['credential'],
+            required: true,
+          },
+          {
+            id: 'domain',
+            title: 'Domain',
+            type: 'short-input',
+            selectorKey: 'jira.domains',
+            dependsOn: ['credential'],
+            required: true,
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+
+  const stateWithIssueKey = (issueKey: string) =>
+    new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('agent', {
+          tools: {
+            value: [
+              {
+                type: 'jira',
+                title: 'Jira',
+                operation: 'read',
+                params: { credential: 'cred-src', domain: 'acme.atlassian.net', issueKey },
+              },
+            ],
+          },
+        }),
+      ],
+    ])
+
+  const resolvedParams = (visibilityByParam: Record<string, string>) =>
+    Object.entries(visibilityByParam).map(([paramId, paramVisibility]) => ({
+      paramId,
+      authoritative: true,
+      config: { id: paramId, type: 'short-input', paramVisibility },
+      value: undefined,
+    }))
+
+  it('does not require a blank user-or-llm param the agent fills at runtime', () => {
+    agentWithJiraTool()
+    mockGetToolInputParamConfigs.mockReturnValue(
+      resolvedParams({ issueKey: 'user-or-llm', domain: 'user-only' })
+    )
+    const result = collectForkDependentReconfigs([replaceItem], stateWithIssueKey(''), resolve)
+    const issue = result.find((f) => f.subBlockKey === 'tools[0].issueKey')
+    expect(issue).toMatchObject({ required: false, toolName: 'Jira' })
+  })
+
+  it('does not require a POPULATED user-or-llm param either', () => {
+    // Visibility, not emptiness, is the rule here. A parent swap blanks this field in the
+    // modal (`effectiveDependentValue`), so an emptiness-only guard would still gate it.
+    agentWithJiraTool()
+    mockGetToolInputParamConfigs.mockReturnValue(
+      resolvedParams({ issueKey: 'user-or-llm', domain: 'user-only' })
+    )
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      stateWithIssueKey('ACME-999'),
+      resolve
+    )
+    const issue = result.find((f) => f.subBlockKey === 'tools[0].issueKey')
+    expect(issue).toMatchObject({ required: false, sourceValue: 'ACME-999' })
+  })
+
+  it('still requires a populated user-only param', () => {
+    agentWithJiraTool()
+    mockGetToolInputParamConfigs.mockReturnValue(
+      resolvedParams({ issueKey: 'user-or-llm', domain: 'user-only' })
+    )
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      stateWithIssueKey('ACME-999'),
+      resolve
+    )
+    const domain = result.find((f) => f.subBlockKey === 'tools[0].domain')
+    expect(domain).toMatchObject({ required: true })
+  })
+
+  it('falls back to the block-level required when no authoritative visibility exists', () => {
+    // custom-tool / MCP / unresolvable tool id -> the resolver has no authoritative entry.
+    // Fail closed: keep the pre-existing gate rather than silently un-gating an unknown schema.
+    agentWithJiraTool()
+    mockGetToolInputParamConfigs.mockReturnValue([])
+    const result = collectForkDependentReconfigs(
+      [replaceItem],
+      stateWithIssueKey('ACME-999'),
+      resolve
+    )
+    const issue = result.find((f) => f.subBlockKey === 'tools[0].issueKey')
+    expect(issue).toMatchObject({ required: true })
   })
 })
 

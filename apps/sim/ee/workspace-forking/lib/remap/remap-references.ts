@@ -30,6 +30,7 @@ import {
   resolveCanonicalMode,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { isSubBlockRequired } from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -1186,20 +1187,6 @@ export interface NeedsConfigurationField {
   /** Nested `tool-input` tool display name when the field lives under a tool. */
   toolName?: string
   required: boolean
-}
-
-/** Evaluate a subblock's `required` (boolean | condition | fn) against a value map. */
-export function isSubBlockRequired(
-  required: SubBlockConfig['required'],
-  values: Record<string, unknown>
-): boolean {
-  if (required === true) return true
-  if (!required) return false
-  // The object/function forms are structurally a SubBlockCondition.
-  return evaluateSubBlockCondition(
-    required as Parameters<typeof evaluateSubBlockCondition>[0],
-    values
-  )
 }
 
 /** Nested `tool-input` dependents (Agent/tool blocks) the TARGET configured that a remap cleared. */
