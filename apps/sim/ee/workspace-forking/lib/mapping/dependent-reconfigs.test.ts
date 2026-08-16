@@ -7,8 +7,10 @@ const { mockGetToolInputParamConfigs } = vi.hoisted(() => ({
   mockGetToolInputParamConfigs: vi.fn(() => [] as unknown[]),
 }))
 
-// Mocked at the module boundary so these tests stay about the collector's own logic rather
-// than the tool/block registries the real resolver reaches into.
+/**
+ * Mocked at the module boundary so these tests stay about the collector's own logic rather
+ * than the tool/block registries the real resolver reaches into.
+ */
 vi.mock('@/lib/workflows/search-replace/indexer', () => ({
   getToolInputParamConfigs: mockGetToolInputParamConfigs,
 }))
@@ -56,13 +58,17 @@ const replaceItem = {
   mode: 'replace' as const,
 }
 
-// No persisted block map in these unit tests, so the resolver derives - matching the
-// `deriveForkBlockId(...)` ids the expectations assert.
+/**
+ * No persisted block map in these unit tests, so the resolver derives - matching the
+ * `deriveForkBlockId(...)` ids the expectations assert.
+ */
 const resolve = buildForkBlockIdResolver(true, EMPTY_FORK_BLOCK_MAP)
 
-// The indexer mock is module-scoped, so a `mockReturnValue` from one test would otherwise
-// leak into the next and make these order-dependent. Reset to the empty (no authoritative
-// visibility) default before each.
+/**
+ * The indexer mock is module-scoped, so a `mockReturnValue` from one test would otherwise
+ * leak into the next and make these order-dependent. Reset to the empty (no authoritative
+ * visibility) default before each.
+ */
 beforeEach(() => {
   mockGetToolInputParamConfigs.mockReset()
   mockGetToolInputParamConfigs.mockReturnValue([])
