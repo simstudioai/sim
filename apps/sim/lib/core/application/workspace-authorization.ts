@@ -109,6 +109,20 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   operation: O
 ): asserts principal is PrincipalForOperation<O> {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
+    /**
+     * A workspace key refused because the operation does not delegate to one is
+     * the case {@link WorkspaceApiKeyAuthorizationError} exists to name, and the
+     * one the `WORKSPACE_API_KEY_DENIED` OpenAPI sentence promises. It has to be
+     * separated here rather than left to `authorizeWorkspaceOperation`: an
+     * operation that denies workspace keys also omits `workspace_api_key` from
+     * `principalKinds` — `defineWorkspaceOperation` enforces that the two agree
+     * — so this guard always fires first and the later branch can never see such
+     * a principal. Reported as the generic kind refusal, a client branching on
+     * the published `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` never matched.
+     */
+    if (principal.kind === 'workspace_api_key' && operation.workspaceApiKey === 'deny') {
+      throw new WorkspaceApiKeyAuthorizationError()
+    }
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }
   if (principal.kind !== 'delegated') return

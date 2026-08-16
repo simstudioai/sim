@@ -1,5 +1,6 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
-import { coerceObjectArray, isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
@@ -123,7 +124,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     paramVisibilityById,
     out,
   } = params
-  const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks)
+  const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks, {
+    canonicalModes,
+  })
   const canonicalIndex = buildCanonicalIndex(config.subBlocks)
   const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
   const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
@@ -332,10 +335,10 @@ export function collectForkDependentReconfigs(
         if (!tools) continue
         for (let index = 0; index < tools.length; index++) {
           const tool = tools[index]
-          if (!isRecord(tool) || typeof tool.type !== 'string') continue
+          if (!isRecordLike(tool) || typeof tool.type !== 'string') continue
           const toolConfig = getBlock(tool.type)
           if (!toolConfig) continue
-          const toolParams = isRecord(tool.params) ? tool.params : {}
+          const toolParams = isRecordLike(tool.params) ? tool.params : {}
           // A tool's `operation` is stored at the tool level, not in params, but subblock
           // conditions reference it (e.g. a Gmail label only under `read_gmail`). Merge it
           // in so condition-gating matches the editor's `{ operation, ...params }`.

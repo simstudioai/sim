@@ -12,9 +12,7 @@ import type { SafeXmlNode } from '../parser/xml-parser'
 import type { RenderContext } from './render-context'
 import { resolveColor } from './style-resolver'
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 interface SeriesData {
   name: string
@@ -73,9 +71,7 @@ type OoxmlChartType =
   | 'stockChart'
   | 'surface3DChart'
 
-// ---------------------------------------------------------------------------
 // Chart Type Mapping
-// ---------------------------------------------------------------------------
 
 const CHART_TYPE_ELEMENTS: OoxmlChartType[] = [
   'barChart',
@@ -94,9 +90,7 @@ const CHART_TYPE_ELEMENTS: OoxmlChartType[] = [
   'surface3DChart',
 ]
 
-// ---------------------------------------------------------------------------
 // Data Extraction Helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Extract text values from a strRef or strCache structure.
@@ -643,9 +637,7 @@ function parseSeries(chartTypeNode: SafeXmlNode, ctx: RenderContext): SeriesData
   return seriesArr
 }
 
-// ---------------------------------------------------------------------------
 // Chart Title
-// ---------------------------------------------------------------------------
 
 /**
  * Extract chart title from chartSpace > chart > title.
@@ -769,9 +761,7 @@ function getChartThemeFontFamily(ctx: RenderContext): string | undefined {
   )
 }
 
-// ---------------------------------------------------------------------------
 // Legend
-// ---------------------------------------------------------------------------
 
 /** Parsed legend info including overlay flag. */
 interface LegendInfo {
@@ -1106,9 +1096,7 @@ function hasManualGrid(
   )
 }
 
-// ---------------------------------------------------------------------------
 // Axis Parsing
-// ---------------------------------------------------------------------------
 
 const DEFAULT_AXIS_INFO: AxisInfo = {
   deleted: false,
@@ -1296,9 +1284,7 @@ function applyAxisInfo(
   }
 }
 
-// ---------------------------------------------------------------------------
 // ECharts Option Builders
-// ---------------------------------------------------------------------------
 
 /**
  * Convert OOXML data label position to ECharts bar label position.
@@ -2001,9 +1987,7 @@ function buildScatterChartOption(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Bubble Chart
-// ---------------------------------------------------------------------------
 
 function buildBubbleChartOption(
   chartTypeNode: SafeXmlNode,
@@ -2103,9 +2087,7 @@ function buildBubbleChartOption(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Stock Chart (Candlestick)
-// ---------------------------------------------------------------------------
 
 function buildStockChartOption(
   _chartTypeNode: SafeXmlNode,
@@ -2310,9 +2292,7 @@ function buildStockChartOption(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Data Table (c:dTable)
-// ---------------------------------------------------------------------------
 
 /** Parsed c:dTable info for building the chart data table. */
 interface DataTableInfo {
@@ -2404,9 +2384,7 @@ function buildDataTableElement(info: DataTableInfo, seriesColors?: string[]): HT
   return table
 }
 
-// ---------------------------------------------------------------------------
 // Main Chart XML Parser
-// ---------------------------------------------------------------------------
 
 /**
  * Extract background colors from chartSpace and plotArea.
@@ -2556,9 +2534,7 @@ function buildChartPalette(chartXml: SafeXmlNode, ctx: RenderContext): string[] 
   return accents
 }
 
-// ---------------------------------------------------------------------------
 // Chart-Space Default Font Size + Legend Grid Adjustment
-// ---------------------------------------------------------------------------
 
 /**
  * Apply chart-space default font size to all text elements in the ECharts option
@@ -3295,9 +3271,7 @@ export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseC
   }
 }
 
-// ---------------------------------------------------------------------------
 // Public Render Function
-// ---------------------------------------------------------------------------
 
 /**
  * Render a chart node into an HTML element with an ECharts instance.

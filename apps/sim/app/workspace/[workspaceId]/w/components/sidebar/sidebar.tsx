@@ -43,7 +43,6 @@ import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -78,6 +77,7 @@ import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
@@ -100,7 +100,6 @@ import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
-import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
@@ -112,10 +111,8 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
-import { useTablesList } from '@/hooks/queries/tables'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -359,6 +356,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       leftIcon={item.icon}
       active={active}
       fullWidth
+      className={SIDEBAR_RAIL_CHIP_CLASS}
       onClick={
         item.onClick
           ? (e) => {
@@ -378,6 +376,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       leftIcon={item.icon}
       active={active}
       fullWidth
+      className={SIDEBAR_RAIL_CHIP_CLASS}
       onClick={item.onClick}
     >
       {item.label}
@@ -458,6 +457,7 @@ export const Sidebar = memo(function Sidebar({
     config: permissionConfig,
     filterBlocks,
     isBlockAllowed,
+    isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
   const { navigateToSettings } = useSettingsNavigation()
@@ -473,8 +473,14 @@ export const Sidebar = memo(function Sidebar({
   )
 
   useEffect(() => {
-    initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks, providerModelSignature, customBlockOverlayVersion])
+    initializeSearchData(filterBlocks, isToolAllowed)
+  }, [
+    initializeSearchData,
+    filterBlocks,
+    isToolAllowed,
+    providerModelSignature,
+    customBlockOverlayVersion,
+  ])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
@@ -600,16 +606,6 @@ export const Sidebar = memo(function Sidebar({
 
   useFolders(workspaceId)
   const { data: folderMap = EMPTY_FOLDER_MAP } = useFolderMap(workspaceId)
-  // Tables and knowledge bases keep their folders in the generic folder tree,
-  // keyed by resource type, so each needs its own map to resolve a path.
-  const { data: tableFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
-    permissionConfig.hideTablesTab ? undefined : workspaceId,
-    'table'
-  )
-  const { data: knowledgeBaseFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
-    permissionConfig.hideKnowledgeBaseTab ? undefined : workspaceId,
-    'knowledge_base'
-  )
   const updateWorkflowMutation = useUpdateWorkflow()
 
   const folderTree = useMemo(
@@ -901,56 +897,6 @@ export const Sidebar = memo(function Sidebar({
         date: SEARCH_MODAL_DATE_FORMAT.format(t.updatedAt),
       })),
     [fetchedChats, workspaceId]
-  )
-
-  const { data: fetchedTables = [] } = useTablesList(workspaceId)
-  const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
-  const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
-
-  const searchModalTables = useMemo(
-    () =>
-      permissionConfig.hideTablesTab
-        ? []
-        : fetchedTables.map((t) => ({
-            id: t.id,
-            name: t.name,
-            href: `/workspace/${workspaceId}/tables/${t.id}`,
-            folderPath: getFolderPathNames(tableFolderMap, t.folderId),
-          })),
-    [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
-  )
-
-  const searchModalFiles = useMemo(
-    () =>
-      permissionConfig.hideFilesTab
-        ? []
-        : fetchedFiles.map((f) => ({
-            id: f.id,
-            name: f.name,
-            href: `/workspace/${workspaceId}/files/${f.id}`,
-            folderPath: f.folderPath
-              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
-              : undefined,
-          })),
-    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
-  )
-
-  const searchModalKnowledgeBases = useMemo(
-    () =>
-      permissionConfig.hideKnowledgeBaseTab
-        ? []
-        : fetchedKnowledgeBases.map((kb) => ({
-            id: kb.id,
-            name: kb.name,
-            href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
-            folderPath: getFolderPathNames(knowledgeBaseFolderMap, kb.folderId),
-          })),
-    [
-      fetchedKnowledgeBases,
-      knowledgeBaseFolderMap,
-      workspaceId,
-      permissionConfig.hideKnowledgeBaseTab,
-    ]
   )
 
   const chatIds = useMemo(() => chats.map((t) => t.id), [chats])
@@ -1415,7 +1361,7 @@ export const Sidebar = memo(function Sidebar({
       />
       <div className='relative h-full'>
         <aside
-          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
+          className='group/rail sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
           data-collapsed={isCollapsed || undefined}
           aria-label='Workspace sidebar'
           onClick={handleSidebarClick}
@@ -1468,11 +1414,24 @@ export const Sidebar = memo(function Sidebar({
                * between them. `gap-[1px]` rather than `gap-px`: the `px` spacing key
                * is remapped to `--border-width`, which thins to 0.5px on hidpi so
                * hairline rules stay hairlines.
+               *
+               * The expanded width is EXPLICIT (2 icon chips × 32px + the 1px gap;
+               * 32px when the desktop inset title bar hides the collapse chip), never
+               * `auto`: `w-0 → auto` cannot interpolate, so on expand the cluster
+               * snapped to full width while the rail was still 51px wide — and since
+               * the cluster refuses to flex-shrink (min-width: auto) while the
+               * workspace chip's wrapper is `min-w-0 flex-1`, the workspace chip
+               * crushed to zero and the hover-filled Search chip landed exactly under
+               * the cursor on the workspace icon: a visible flash on every expand.
+               * With both endpoints explicit, the width tweens in step with the rail
+               * and the workspace chip keeps its space throughout.
                */}
               <div
                 className={cn(
-                  'flex h-[30px] items-center gap-[1px] overflow-hidden transition-all duration-200',
-                  isCollapsed && 'w-0 opacity-0'
+                  'flex h-[30px] items-center gap-[1px] overflow-hidden transition-all duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
+                  isCollapsed
+                    ? 'w-0 opacity-0'
+                    : 'w-[65px] [[data-sim-desktop-title-bar=inset]_&]:w-[32px]'
                 )}
               >
                 <SidebarTooltip
@@ -1928,9 +1887,6 @@ export const Sidebar = memo(function Sidebar({
         workflows={searchModalWorkflows}
         workspaces={searchModalWorkspaces}
         chats={chats}
-        tables={searchModalTables}
-        files={searchModalFiles}
-        knowledgeBases={searchModalKnowledgeBases}
         logs={searchModalLogs}
         integrations={searchModalIntegrations}
         connectedAccounts={searchModalConnectedAccounts}

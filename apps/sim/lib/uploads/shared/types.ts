@@ -25,6 +25,18 @@ export const MAX_WORKSPACE_FORMDATA_FILE_SIZE = 100 * 1024 * 1024
 /** Maximum size accepted by the knowledge-document parsing pipeline. */
 export const MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE = 100 * 1024 * 1024
 
+/**
+ * Rejection wording shared by every surface that admits a knowledge document.
+ *
+ * The size guards were upper-bound only, so a zero-byte file passed admission
+ * and was stored and registered — but the parsing pipeline refuses an empty
+ * buffer outright (`parseBuffer` throws before dispatching to a parser), so the
+ * document could never reach anything but `failed`. A file the pipeline is
+ * guaranteed to reject is a bad request, and admission is the only place a
+ * caller can be told so.
+ */
+export const EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE = 'Knowledge document cannot be empty'
+
 export type StorageContext =
   | 'knowledge-base'
   | 'chat'

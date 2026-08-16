@@ -52,6 +52,12 @@ vi.mock('@/lib/core/telemetry', () => ({
 
 vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mocks.loadFolderIndex,
+  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
+    if (path === undefined) return { kind: 'unfiltered' }
+    if (path === '/') return { kind: 'folder', folderId: null }
+    const folderId = index.idByPath.get(path)
+    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
+  },
 }))
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
@@ -94,6 +100,7 @@ import {
   listArchivedKnowledgeBases,
   listInternalKnowledgeBases,
   listKnowledgeBaseCatalog,
+  listKnowledgeBases,
   readInternalKnowledgeBase,
   readKnowledgeBase,
   restoreInternalKnowledgeBase,
@@ -141,7 +148,7 @@ describe('knowledge base application use cases', () => {
       folderId: null,
       index: { pathById: new Map(), idByPath: new Map(), rowById: new Map() },
     })
-    mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map() })
+    mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map(), idByPath: new Map() })
     mocks.createRecord.mockResolvedValue(knowledgeBase)
     mocks.listRecords.mockResolvedValue({ data: [], nextCursorKeys: null })
     mocks.listInternalRecords.mockResolvedValue([knowledgeBase])
@@ -155,6 +162,22 @@ describe('knowledge base application use cases', () => {
     mocks.performRestore.mockResolvedValue({ success: true, knowledgeBase })
     mocks.updateRecord.mockResolvedValue({ ...knowledgeBase, name: 'Renamed' })
     mocks.deleteRecord.mockResolvedValue(undefined)
+  })
+
+  /**
+   * The folder filter is a filter like any other: a path naming no active folder
+   * narrows the list to nothing instead of failing it. Reaching the row query
+   * with no folder id would return every knowledge base in the workspace.
+   */
+  it('returns an empty page for a folder path that matches no folder', async () => {
+    const result = await listKnowledgeBases.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'workspace-1', folderPath: '/does-not-exist' },
+    })
+
+    expect(result).toMatchObject({ knowledgeBases: [], nextCursorKeys: null })
+    expect(mocks.listRecords).not.toHaveBeenCalled()
+    expect(mocks.resolveFolderPath).not.toHaveBeenCalled()
   })
 
   it('lists legacy personal knowledge bases through the explicit session-only operation', async () => {

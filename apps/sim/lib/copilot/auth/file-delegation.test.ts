@@ -8,6 +8,7 @@ import {
   messageForCopilotFileError,
   resolveCopilotFilePrincipal,
 } from '@/lib/copilot/auth/file-delegation'
+import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const trustedContext = {
@@ -20,7 +21,7 @@ const trustedContext = {
 }
 
 describe('Copilot file delegation', () => {
-  it('creates a short-lived principal scoped to the trusted workspace and file', () => {
+  it('creates an orchestration-bounded principal scoped to the trusted workspace and file', () => {
     const principal = resolveCopilotFilePrincipal(trustedContext, 'file-1')
 
     expect(principal).toMatchObject({
@@ -36,7 +37,9 @@ describe('Copilot file delegation', () => {
         executionId: 'execution-1',
       },
     })
-    expect(principal.expiresAt.getTime()).toBeGreaterThan(principal.issuedAt.getTime())
+    expect(principal.expiresAt.getTime() - principal.issuedAt.getTime()).toBe(
+      ORCHESTRATION_TIMEOUT_MS
+    )
   })
 
   it('creates a workspace-scoped principal for file creation', () => {

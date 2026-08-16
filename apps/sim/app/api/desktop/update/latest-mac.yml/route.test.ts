@@ -4,10 +4,15 @@
 import { setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MANIFEST_ASSET_NAME } from '@/lib/desktop/update-feed'
+import {
+  DESKTOP_PRERELEASE_REPOSITORY,
+  DESKTOP_STABLE_RELEASE_REPOSITORY,
+  MANIFEST_ASSET_NAME,
+} from '@/lib/desktop/update-feed'
 import { GET } from '@/app/api/desktop/update/latest-mac.yml/route'
 
-const RELEASES_URL = 'https://api.github.com/repos/simstudioai/sim/releases?per_page=30'
+const STABLE_RELEASES_URL = `https://api.github.com/repos/${DESKTOP_STABLE_RELEASE_REPOSITORY}/releases?per_page=30`
+const PRERELEASE_RELEASES_URL = `https://api.github.com/repos/${DESKTOP_PRERELEASE_REPOSITORY}/releases?per_page=30`
 const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
 
 function release(tag: string) {
@@ -49,36 +54,38 @@ describe('desktop update manifest route', () => {
   })
 
   it.each([
-    ['dev', 'v1.2.0-dev.4', '1.2.0-dev.4'],
-    ['staging', 'v1.2.0-staging.5', '1.2.0-staging.5'],
-    ['production', 'v1.1.0', '1.1.0'],
-  ])('serves the newest release for the %s deployment', async (environment, tag, version) => {
-    setEnv({ APPCONFIG_ENVIRONMENT: environment })
-    fetchMock.mockImplementation(async (input: string | URL | Request) => {
-      const url = String(input)
-      if (url === RELEASES_URL) {
-        return Response.json([
-          release('v1.2.0-dev.4'),
-          release('v1.2.0-staging.5'),
-          release('v1.1.0'),
-        ])
-      }
-      if (url === `https://downloads.example/${tag}/${MANIFEST_ASSET_NAME}`) {
-        return new Response(manifest(version))
-      }
-      return new Response(null, { status: 404 })
-    })
+    ['dev', 'v1.2.0-dev.4', '1.2.0-dev.4', DESKTOP_PRERELEASE_REPOSITORY],
+    ['staging', 'v1.2.0-staging.5', '1.2.0-staging.5', DESKTOP_PRERELEASE_REPOSITORY],
+    ['production', 'v1.1.0', '1.1.0', DESKTOP_STABLE_RELEASE_REPOSITORY],
+  ])(
+    'serves the newest release for the %s deployment',
+    async (environment, tag, version, repository) => {
+      setEnv({ APPCONFIG_ENVIRONMENT: environment })
+      fetchMock.mockImplementation(async (input: string | URL | Request) => {
+        const url = String(input)
+        if (url === PRERELEASE_RELEASES_URL) {
+          return Response.json([release('v1.2.0-dev.4'), release('v1.2.0-staging.5')])
+        }
+        if (url === STABLE_RELEASES_URL) {
+          return Response.json([release('v1.1.0')])
+        }
+        if (url === `https://downloads.example/${tag}/${MANIFEST_ASSET_NAME}`) {
+          return new Response(manifest(version))
+        }
+        return new Response(null, { status: 404 })
+      })
 
-    const response = await getFeed('internal.service.local')
-    const body = await response.text()
+      const response = await getFeed('internal.service.local')
+      const body = await response.text()
 
-    expect(response.status).toBe(200)
-    expect(response.headers.get(FEED_STATUS_HEADER)).toBe('release')
-    expect(body).toContain(`version: ${version}`)
-    expect(body).toContain(
-      `https://github.com/simstudioai/sim/releases/download/${tag}/Sim-${version}-universal-mac.zip`
-    )
-  })
+      expect(response.status).toBe(200)
+      expect(response.headers.get(FEED_STATUS_HEADER)).toBe('release')
+      expect(body).toContain(`version: ${version}`)
+      expect(body).toContain(
+        `https://github.com/${repository}/releases/download/${tag}/Sim-${version}-universal-mac.zip`
+      )
+    }
+  )
 
   it.each([
     ['dev', 'www.staging.sim.ai:443', 'v1.2.0-dev.4', '1.2.0-dev.4'],
@@ -90,12 +97,11 @@ describe('desktop update manifest route', () => {
       setEnv({ APPCONFIG_ENVIRONMENT: environment })
       fetchMock.mockImplementation(async (input: string | URL | Request) => {
         const url = String(input)
-        if (url === RELEASES_URL) {
-          return Response.json([
-            release('v1.2.0-dev.4'),
-            release('v1.2.0-staging.5'),
-            release('v1.1.0'),
-          ])
+        if (url === PRERELEASE_RELEASES_URL) {
+          return Response.json([release('v1.2.0-dev.4'), release('v1.2.0-staging.5')])
+        }
+        if (url === STABLE_RELEASES_URL) {
+          return Response.json([release('v1.1.0')])
         }
         if (url === `https://downloads.example/${tag}/${MANIFEST_ASSET_NAME}`) {
           return new Response(manifest(version))
@@ -118,8 +124,8 @@ describe('desktop update manifest route', () => {
   it('defaults self-hosted deployments to the stable channel', async () => {
     fetchMock.mockImplementation(async (input: string | URL | Request) => {
       const url = String(input)
-      if (url === RELEASES_URL) {
-        return Response.json([release('v1.2.0-dev.4'), release('v1.1.0')])
+      if (url === STABLE_RELEASES_URL) {
+        return Response.json([release('v1.1.0')])
       }
       if (url === `https://downloads.example/v1.1.0/${MANIFEST_ASSET_NAME}`) {
         return new Response(manifest('1.1.0'))
@@ -134,6 +140,7 @@ describe('desktop update manifest route', () => {
 
     expect(response.status).toBe(200)
     expect(await response.text()).toContain('version: 1.1.0')
+    expect(fetchMock).toHaveBeenCalledWith(STABLE_RELEASES_URL, expect.any(Object))
   })
 
   it('reports an authoritative no-release result for production with only prereleases', async () => {
@@ -159,5 +166,6 @@ describe('desktop update manifest route', () => {
 
     expect(response.status).toBe(502)
     expect(await response.json()).toMatchObject({ error: 'Release manifest unavailable' })
+    expect(fetchMock).toHaveBeenNthCalledWith(1, PRERELEASE_RELEASES_URL, expect.any(Object))
   })
 })

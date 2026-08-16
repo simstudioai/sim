@@ -1,9 +1,11 @@
+import { omit } from '@sim/utils/object'
 import {
   parseV2KnowledgeTagFiltersParam,
   v2BulkUpdateKnowledgeDocumentsContract,
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
+import { cursorRoute, cursorScopeKey, unorderedScopeOf } from '@/lib/api/cursor-binding'
 import {
   defineV2BodyLifecycleRoute,
   defineV2JsonRoute,
@@ -13,6 +15,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFileToBufferWithLimit,
@@ -31,16 +34,40 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { toV2DocumentSummary, toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
-import {
-  decodeOffsetCursor,
-  encodeOffsetCursor,
-  offsetCursorScope,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
+
+/**
+ * Every param that changes which documents, in which order, this list returns.
+ *
+ * `tagFilters` binds through the contract's parser, not the raw query text: the
+ * schema defaults `operator` to `eq`, so `{tagName}` and `{tagName, operator}`
+ * are one filter to the query and must be one scope to the cursor. An
+ * unparseable value binds raw — that request is about to 400 anyway.
+ *
+ * `fieldType` is dropped: `resolveKnowledgeTagFilters` builds every structured
+ * filter with the stored definition's type and never reads the caller's, so
+ * stating it or omitting it selects the same documents. A scope part the query
+ * ignores refuses a cursor for a page that did not move.
+ */
+function documentCursorFilters(
+  knowledgeBaseId: string,
+  query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
+) {
+  const parsed = parseV2KnowledgeTagFiltersParam(query.tagFilters)
+  return cursorScopeKey(cursorRoute(v2ListKnowledgeDocumentsContract, { id: knowledgeBaseId }), {
+    workspaceId: query.workspaceId,
+    enabledFilter: query.enabledFilter,
+    search: query.search,
+    tagFilters: parsed.success
+      ? unorderedScopeOf(parsed.filters?.map((filter) => omit(filter, ['fieldType'])))
+      : query.tagFilters,
+  })
+}
 
 /** GET /api/v2/knowledge/[id]/documents — List documents in a knowledge base. */
 export const GET = defineV2JsonRoute({
@@ -54,38 +81,31 @@ export const GET = defineV2JsonRoute({
     if (!tagFilters.success) {
       throw new OrchestrationError('validation', tagFilters.message)
     }
-    /**
-     * The offset counts positions in the filtered, sorted document sequence, so
-     * every param that changes that sequence is stamped into the cursor and
-     * re-checked here. `limit` selects how much of the sequence to return, not
-     * what the sequence is, so it stays out.
-     */
-    const cursorScope = offsetCursorScope({
-      knowledgeBaseId: params.id,
-      enabledFilter: query.enabledFilter,
-      search: query.search,
-      sortBy: query.sortBy,
-      sortOrder: query.sortOrder,
-      tagFilters: query.tagFilters,
-    })
     return {
       knowledgeBaseId: params.id,
       assertedWorkspaceId: query.workspaceId,
       enabledFilter: query.enabledFilter,
       search: query.search,
       limit: query.limit,
-      offset: decodeOffsetCursor(query.cursor, cursorScope),
+      offset: decodeOffsetCursor(
+        query.cursor,
+        cursorSortKey(query.sortBy, query.sortOrder),
+        documentCursorFilters(params.id, query)
+      ),
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       tagNameFilters: tagFilters.filters,
-      cursorScope,
     }
   },
   useCase: listKnowledgeDocuments,
-  present: ({ documents, tagDefinitions, pagination, cursorScope }) => ({
+  present: ({ documents, tagDefinitions, pagination }, { params, query }) => ({
     data: documents.map((document) => toV2TaggedDocument(document, tagDefinitions)),
     nextCursor: pagination.hasMore
-      ? encodeOffsetCursor(cursorScope ?? '', pagination.offset + pagination.limit)
+      ? encodeOffsetCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          documentCursorFilters(params.id, query),
+          pagination.offset + pagination.limit
+        )
       : null,
   }),
 })
@@ -159,6 +179,9 @@ export const POST = defineV2BodyLifecycleRoute({
       })
     } catch (error) {
       if (isPayloadSizeLimitError(error)) throw error
+      if (isMultipartFieldValidationError(error)) {
+        throw new OrchestrationError('validation', error.message)
+      }
       throw new OrchestrationError('validation', 'Request body must be valid multipart form data')
     }
 

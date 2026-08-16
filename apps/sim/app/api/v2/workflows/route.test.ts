@@ -98,6 +98,71 @@ describe('/api/v2/workflows', () => {
     expect(mocks.listWorkflows).not.toHaveBeenCalled()
   })
 
+  /**
+   * The reported defect: a cursor from an unfiltered page was accepted under
+   * `deployedOnly=true` or a changed `search`, and answered with whatever
+   * matched the new filter *after* the old position — every earlier match
+   * silently missing behind an opaque token.
+   */
+  it.each([
+    ['deployedOnly', 'deployedOnly=true'],
+    ['search', 'search=billing'],
+    ['folderPath', 'folderPath=/Ops'],
+  ])('refuses a cursor replayed under a different %s', async (_filter, param) => {
+    mocks.listWorkflows.mockResolvedValueOnce({
+      workflows: [WORKFLOW],
+      nextCursorKeys: [1, WORKFLOW.id],
+      sortBy: 'position',
+      sortOrder: 'asc',
+    })
+    const firstPage = await (
+      await GET(new NextRequest(`http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`))
+    ).json()
+    expect(firstPage.nextCursor).toEqual(expect.any(String))
+    mocks.listWorkflows.mockClear()
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&${param}&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('requested filters') },
+    })
+    expect(mocks.listWorkflows).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor whose filters are unchanged', async () => {
+    mocks.listWorkflows.mockResolvedValueOnce({
+      workflows: [WORKFLOW],
+      nextCursorKeys: [1, WORKFLOW.id],
+      sortBy: 'position',
+      sortOrder: 'asc',
+    })
+    const firstPage = await (
+      await GET(
+        new NextRequest(
+          `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&deployedOnly=true`
+        )
+      )
+    ).json()
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&deployedOnly=true&cursor=${encodeURIComponent(firstPage.nextCursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.listWorkflows).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ cursorKeys: [1, WORKFLOW.id] }),
+      })
+    )
+  })
+
   it('lists through the workspace principal and preserves rate headers', async () => {
     const request = new NextRequest(
       `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}`,
@@ -172,5 +237,59 @@ describe('/api/v2/workflows', () => {
 
     expect(response.status).toBe(401)
     expect((await response.json()).error.code).toBe('UNAUTHORIZED')
+  })
+
+  /**
+   * A `U+0000` in caller text is a driver-level throw on the way to a `text`
+   * column, and an unclassified throw is a `500 INTERNAL_ERROR`. The read case
+   * needed no write at all — a search term was enough — so it is asserted here
+   * against the real route, not only against the parser.
+   */
+  describe('NUL bytes in caller text', () => {
+    const NUL = '\u0000'
+
+    it('rejects a NUL search term with the v2 validation envelope, not a 500', async () => {
+      const response = await GET(
+        new NextRequest(
+          `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&search=${encodeURIComponent(`a${NUL}b`)}`,
+          { headers: { 'x-api-key': 'secret' } }
+        )
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.listWorkflows).not.toHaveBeenCalled()
+    })
+
+    it('rejects a NUL workflow name before the create use case runs', async () => {
+      const response = await POST(
+        new NextRequest('http://localhost/api/v2/workflows', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+          body: JSON.stringify({ name: `a${NUL}b`, workspaceId: WORKSPACE_ID }),
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.createWorkflow).not.toHaveBeenCalled()
+    })
+
+    it('rejects a NUL description on the same body', async () => {
+      const response = await POST(
+        new NextRequest('http://localhost/api/v2/workflows', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+          body: JSON.stringify({
+            name: 'Daily digest',
+            description: `notes${NUL}`,
+            workspaceId: WORKSPACE_ID,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.createWorkflow).not.toHaveBeenCalled()
+    })
   })
 })

@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
 import { v2ListCredentialsContract } from '@/lib/api/contracts/v2/credentials'
 import { v2ListCustomToolsContract } from '@/lib/api/contracts/v2/custom-tools'
@@ -107,6 +108,27 @@ describe('v2 limit validation', () => {
       expect(clamped.parse('0')).toBe(1)
       expect(clamped.parse('-5')).toBe(1)
       expect(clamped.parse('99999')).toBe(1000)
+    })
+
+    /**
+     * The published schema must not carry `minimum`/`maximum`. In JSON Schema
+     * they mean "rejected outside", so publishing them beside a description
+     * that promises clamping made a generated SDK refuse locally a `limit` this
+     * branch would have accepted and corrected. The rejecting branch keeps its
+     * bounds, because there they are true.
+     */
+    it('publishes no numeric bounds, because it clamps rather than rejects', () => {
+      const published = z.toJSONSchema(clamped, { io: 'input', unrepresentable: 'any' })
+      expect(published).not.toHaveProperty('minimum')
+      expect(published).not.toHaveProperty('maximum')
+      expect(published.description).toContain('clamped')
+    })
+
+    it('keeps the bounds on the rejecting branch, where they are enforced', () => {
+      const rejecting = v2LimitSchema({ max: 1000, fallback: 100 })
+      const published = z.toJSONSchema(rejecting, { io: 'input', unrepresentable: 'any' })
+      expect(published).toMatchObject({ minimum: 1, maximum: 1000 })
+      expect(rejecting.safeParse('99999').success).toBe(false)
     })
   })
 })

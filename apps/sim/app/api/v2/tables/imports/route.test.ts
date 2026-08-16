@@ -88,7 +88,7 @@ describe('POST /api/v2/tables/imports', () => {
         session: {
           id: 'import-1',
           workspaceId: WORKSPACE_ID,
-          status: 'queued',
+          status: 'processing',
           source: { type: 'workspace_file', fileId: 'file-1' },
           target: { type: 'new', name: 'imported_data' },
           tableId: 'table-1',

@@ -5,7 +5,6 @@ import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   type ActiveWorkspaceFileContext,
-  fetchServableWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
@@ -16,6 +15,7 @@ import {
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
@@ -93,9 +93,16 @@ export const downloadWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
  * artifact that never appears. It stays a `conflict` only because the v2
  * envelope has no 422; the message is what distinguishes the two.
  */
-async function resolveRenderedArtifact(file: DownloadWorkspaceFileResult['file']) {
+async function resolveRenderedArtifact(
+  file: DownloadWorkspaceFileResult['file'],
+  filePrincipal: AuthorizedWorkspaceUseCaseContext<
+    typeof fileOperations.download,
+    DownloadWorkspaceFileInput,
+    ActiveWorkspaceFileContext
+  >['principal']
+) {
   try {
-    return await fetchServableWorkspaceFileBuffer(file, {
+    return await fetchAuthorizedServableWorkspaceFileBuffer(file, filePrincipal, {
       maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
     })
   } catch (error) {
@@ -118,6 +125,7 @@ async function resolveRenderedArtifact(file: DownloadWorkspaceFileResult['file']
 
 async function executeDownloadWorkspaceFileStream({
   context,
+  principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.download,
   DownloadWorkspaceFileInput,
@@ -138,7 +146,7 @@ async function executeDownloadWorkspaceFileStream({
    * double peak memory.
    */
   if (needsRenderedArtifact(file.type, file.name)) {
-    const { buffer, contentType } = await resolveRenderedArtifact(file)
+    const { buffer, contentType } = await resolveRenderedArtifact(file, principal)
     return {
       file,
       stream: new ReadableStream<Uint8Array>({

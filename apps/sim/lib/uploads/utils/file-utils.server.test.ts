@@ -81,10 +81,13 @@ describe('downloadFileFromStorage context derivation', () => {
       context: 'execution',
     }
 
-    await downloadServableFileFromStorage(userFile, 'req-1', createLogger('test'))
+    const filePrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    await downloadServableFileFromStorage(userFile, 'req-1', createLogger('test'), {
+      filePrincipal,
+    })
 
     expect(mockResolveServableDocBytes).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId })
+      expect.objectContaining({ workspaceId, filePrincipal })
     )
   })
 })

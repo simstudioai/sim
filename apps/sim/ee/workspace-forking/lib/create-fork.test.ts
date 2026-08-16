@@ -134,10 +134,12 @@ describe('createFork storage headroom gate', () => {
       keyMap: new Map(),
       idMap: new Map(),
       blobTasks: [],
+      folderIdMap: new Map(),
     })
     mockCopyForkResourceContainers.mockResolvedValue({
       idMap: new Map(),
       mappingEntries: [],
+      folderIdMap: new Map(),
       contentPlan: {
         sourceWorkspaceId: 'src-ws',
         childWorkspaceId: 'child-ws',
@@ -224,6 +226,7 @@ describe('createFork storage headroom gate', () => {
       keyMap: new Map([['workspace/src-ws/a.png', 'workspace/child/a.png']]),
       idMap: new Map([['file-1', 'file-1-copy']]),
       blobTasks: [],
+      folderIdMap: new Map(),
     })
 
     await createFork(forkParams({ files: ['file-1'] }))

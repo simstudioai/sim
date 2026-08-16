@@ -1,4 +1,9 @@
-import type { CreateDowntimeParams, CreateDowntimeResponse } from '@/tools/datadog/types'
+import type {
+  CreateDowntimeParams,
+  CreateDowntimeResponse,
+  DowntimeAttributes,
+} from '@/tools/datadog/types'
+import { datadogErrorMessage, parseMonitorIds, splitCommaList } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntimeResponse> = {
@@ -90,57 +95,62 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       'DD-APPLICATION-KEY': params.applicationKey,
     }),
     body: (params) => {
-      const schedule: Record<string, any> = {}
+      // A one-time schedule accepts only `start` and `end` (`additionalProperties: false`);
+      // the timezone is a display-only attribute on the downtime itself.
+      const schedule: { start?: string; end?: string } = {}
       if (params.start) schedule.start = new Date(params.start * 1000).toISOString()
       if (params.end) schedule.end = new Date(params.end * 1000).toISOString()
-      if (params.timezone) schedule.timezone = params.timezone
 
-      const body: Record<string, any> = {
-        data: {
-          type: 'downtime',
-          attributes: {
-            scope: params.scope,
-            schedule: Object.keys(schedule).length > 0 ? schedule : undefined,
-          },
-        },
+      const monitorTags = splitCommaList(params.monitorTags)
+      const monitorId = parseMonitorIds(params.monitorId)?.[0]
+
+      /**
+       * `monitor_identifier` is required and is a `oneOf`: a downtime targets either a
+       * single monitor or a tag set, never both. Accepting both silently would drop one
+       * of them and mute a different set of monitors than the caller asked for. Both
+       * sides are compared after parsing so a blank or whitespace-only input, which is
+       * how an untouched field arrives, does not read as a chosen target.
+       */
+      if (monitorId !== undefined && monitorTags) {
+        throw new Error(
+          'Supply either a monitor ID or monitor tags, not both — a downtime targets one or the other'
+        )
       }
 
-      if (params.message) body.data.attributes.message = params.message
+      // Datadog expresses "every monitor in scope" as the `*` monitor tag, which is the
+      // fallback when no monitor is named.
+      const monitorIdentifier =
+        monitorId !== undefined ? { monitor_id: monitorId } : { monitor_tags: monitorTags ?? ['*'] }
+
+      const attributes: Record<string, unknown> = {
+        scope: params.scope,
+        monitor_identifier: monitorIdentifier,
+      }
+      if (Object.keys(schedule).length > 0) attributes.schedule = schedule
+      if (params.timezone) attributes.display_timezone = params.timezone
+      if (params.message) attributes.message = params.message
       if (params.muteFirstRecoveryNotification !== undefined) {
-        body.data.attributes.mute_first_recovery_notification = params.muteFirstRecoveryNotification
+        attributes.mute_first_recovery_notification = params.muteFirstRecoveryNotification
       }
 
-      if (params.monitorId) {
-        body.data.attributes.monitor_identifier = {
-          monitor_id: Number.parseInt(params.monitorId, 10),
-        }
-      } else if (params.monitorTags) {
-        body.data.attributes.monitor_identifier = {
-          monitor_tags: params.monitorTags
-            .split(',')
-            .map((t: string) => t.trim())
-            .filter((t: string) => t.length > 0),
-        }
-      }
-
-      return body
+      return { data: { type: 'downtime', attributes } }
     },
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
-          downtime: {} as any,
+          downtime: { scope: [] },
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
     const data = await response.json()
-    const attrs = data.data?.attributes || {}
+    const attrs: DowntimeAttributes = data.data?.attributes || {}
     return {
       success: true,
       output: {
@@ -152,8 +162,7 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
             ? new Date(attrs.schedule.start).getTime() / 1000
             : undefined,
           end: attrs.schedule?.end ? new Date(attrs.schedule.end).getTime() / 1000 : undefined,
-          timezone: attrs.schedule?.timezone,
-          disabled: attrs.disabled,
+          timezone: attrs.display_timezone ?? undefined,
           active: attrs.status === 'active',
           created: attrs.created ? new Date(attrs.created).getTime() / 1000 : undefined,
           modified: attrs.modified ? new Date(attrs.modified).getTime() / 1000 : undefined,
@@ -167,12 +176,15 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       type: 'object',
       description: 'The created downtime details',
       properties: {
-        id: { type: 'number', description: 'Downtime ID' },
+        id: { type: 'string', description: 'Downtime UUID' },
         scope: { type: 'array', description: 'Downtime scope' },
         message: { type: 'string', description: 'Downtime message' },
         start: { type: 'number', description: 'Start time (Unix timestamp)' },
         end: { type: 'number', description: 'End time (Unix timestamp)' },
+        timezone: { type: 'string', description: 'Display timezone for the downtime' },
         active: { type: 'boolean', description: 'Whether downtime is currently active' },
+        created: { type: 'number', description: 'Creation time (Unix timestamp)' },
+        modified: { type: 'number', description: 'Last modification time (Unix timestamp)' },
       },
     },
   },

@@ -171,6 +171,24 @@ The API uses standard HTTP status codes. v2 errors include a stable code and hum
 | `404` | Resource not found | Verify the ID exists and belongs to your workspace |
 | `429` | Rate limit exceeded | Wait for the duration in the `Retry-After` header |
 
+### Unrecognized fields are rejected
+
+Every v2 endpoint validates the request against its published schema — path parameters, query string, and body — and answers `400` for any field it does not declare. A misspelled parameter is an error rather than a silent no-op, so `?limt=20` fails instead of quietly returning an unbounded list.
+
+This holds for endpoints that declare no query parameters at all. Do not append tracking tags, cache busters, or other extra parameters to a v2 URL; send only what the endpoint documents.
+
+```json
+{
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "Invalid request",
+    "details": [
+      { "code": "unrecognized_keys", "keys": ["limt"], "path": [], "message": "Unrecognized key: \"limt\"" }
+    ]
+  }
+}
+```
+
 <Callout type="info">
   Use [Get Billing Status](/api-reference/billing/getBillingStatus) to inspect current credit and storage usage.
 </Callout>

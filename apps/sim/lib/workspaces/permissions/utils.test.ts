@@ -745,6 +745,33 @@ describe('Permission Utils', () => {
 
       expect(result).toEqual({ id: 'workspace123', ownerId: null })
     })
+
+    /**
+     * Archived visibility is applied in JS, not SQL, so the read can be shared by the
+     * gates that disagree about it. That makes these two the boundary worth pinning:
+     * if the filter ever stops matching the old `archived_at IS NULL` predicate, archived
+     * workspaces silently become visible to callers that asked not to see them.
+     */
+    it.concurrent('should hide an archived workspace by default', async () => {
+      const chain = createMockChain([
+        { id: 'workspace123', ownerId: 'owner456', archivedAt: new Date('2026-01-01') },
+      ])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceWithOwner('workspace123')
+
+      expect(result).toBeNull()
+    })
+
+    it.concurrent('should return an archived workspace when asked to include them', async () => {
+      const archivedAt = new Date('2026-01-01')
+      const chain = createMockChain([{ id: 'workspace123', ownerId: 'owner456', archivedAt }])
+      mockDb.select.mockReturnValue(chain)
+
+      const result = await getWorkspaceWithOwner('workspace123', { includeArchived: true })
+
+      expect(result).toEqual({ id: 'workspace123', ownerId: 'owner456', archivedAt })
+    })
   })
 
   describe('workspaceExists', () => {

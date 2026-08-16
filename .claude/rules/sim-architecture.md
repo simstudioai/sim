@@ -57,6 +57,27 @@ Use the `migrate-application-operation` skill before creating or migrating a pro
 
 Every export of a `'use client'` module becomes a *client reference* on the server — server-evaluated code (RSC pages/layouts, `prefetch.ts`, route handlers, block definitions, triggers) can only *render* it as a component or pass it as a prop, never *call* it (doing so throws at runtime, e.g. `tableKeys.list is not a function`; `next build` does not catch it). Keep server-importable query primitives (key factories, fetchers, mappers, constants) in non-`'use client'` modules — see `.claude/rules/sim-queries.md`. Enforced by `scripts/check-client-boundary-imports.ts`.
 
+## The app/worker runtime boundary
+
+Server code runs in two runtimes with **different environments**. The app container loads the
+full env from `SIM_ENV_SECRET_ID` (Secrets Manager). Trigger.dev workers — which execute
+workflows, so every block handler and every tool call — get their env from the Trigger.dev
+dashboard, and `trigger.config.ts` syncs only `DB_APP_NAME`. The repo cannot see what the
+dashboard holds.
+
+So before replacing a worker's HTTP call to our own API with an in-process call, ask what env
+that work reads *on the app side*. Anything gated by a `require*Capability` helper is the sharp
+case: those **throw** when the variable is absent (`requireOAuthClientCapability` →
+`EnvCapabilityConfigurationError`), and the throw may be caught and reported as something
+unrelated. OAuth token refresh is the known example — moving it into the worker turns every
+expired credential into `Failed to refresh access token`, while a still-valid token hides the
+bug entirely, so it surfaces hours later and only for whoever's token lapsed first.
+
+An in-process conversion is safe when the same work already runs in that runtime (the agent
+block has always called `executeProviderRequest` in-process, so router and evaluator joining it
+is proven), or when the caller and the callee are both the app (a route calling a lib module, an
+RSC prefetch reading the data layer). It is not safe on reasoning alone.
+
 ## Feature Organization
 
 Features live under `app/workspace/[workspaceId]/`:

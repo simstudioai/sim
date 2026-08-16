@@ -30,7 +30,6 @@ import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
 import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
 import {
-  fetchServableWorkspaceFileBuffer,
   findWorkspaceFileRecord,
   getSandboxWorkspaceFilePath,
   type WorkspaceFileRecord,
@@ -42,6 +41,7 @@ import {
   hasCloudStorage,
 } from '@/lib/uploads/core/storage-service'
 import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
@@ -202,7 +202,7 @@ async function pushWorkspaceFileMount(
   }
 
   const { buffer, contentType } = rendersFromSource
-    ? await fetchServableWorkspaceFileBuffer(record, {
+    ? await fetchAuthorizedServableWorkspaceFileBuffer(record, principal, {
         maxBytes: Math.min(MAX_FILE_SIZE, remainingBudget),
       }).catch((error) => {
         if (!isPayloadSizeLimitError(error)) throw error

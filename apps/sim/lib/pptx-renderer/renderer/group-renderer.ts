@@ -7,9 +7,7 @@ import type { GroupNodeData } from '../model/nodes/group-node'
 import type { ShapeNodeData } from '../model/nodes/shape-node'
 import type { RenderContext } from './render-context'
 
-// ---------------------------------------------------------------------------
 // Group Rendering
-// ---------------------------------------------------------------------------
 
 /**
  * Render a group node into an absolutely-positioned HTML element.
@@ -171,9 +169,7 @@ export function renderGroup(
   return wrapper
 }
 
-// ---------------------------------------------------------------------------
 // Child Node Parsing
-// ---------------------------------------------------------------------------
 
 import { parseChartNode } from '../model/nodes/chart-node'
 import { parseGroupNode } from '../model/nodes/group-node'

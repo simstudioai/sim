@@ -28,6 +28,7 @@ import {
   startUploadedTableImport,
   type TableImportResource,
   tableImportBodyFromUpload,
+  tableImportResourceFromUpload,
 } from '@/lib/table/orchestration/import-resource'
 import {
   getWorkspaceFile,
@@ -58,6 +59,10 @@ export interface TableImportUploadInput extends TableImportResourceInput {
 
 export interface CreateTableImportPartsInput extends TableImportUploadInput {
   partNumbers: number[]
+}
+
+export interface ReadTableImportInput extends TableImportResourceInput {
+  uploadToken?: string
 }
 
 export interface CancelTableImportInput extends TableImportResourceInput {
@@ -196,12 +201,36 @@ export const createTableImportUseCase = defineAuthorizedTableUseCase({
   },
 })
 
+/**
+ * Reads an import, including while its upload is still in flight.
+ *
+ * An upload-sourced import has no durable job row until the upload completes,
+ * so a caller holding the upload token is resolved against the session instead —
+ * the same branch `cancelTableImportUseCase` takes. The job is still preferred
+ * once it exists: the upload session lingers in a completed state after the
+ * runner starts, and reporting `uploading` for an import that is already
+ * processing would strand a poller.
+ */
 export const readTableImportUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.readImport,
-  resolveContext: ({ input }: { input: TableImportResourceInput }) =>
-    resolveTableImportContext(input),
+  async resolveContext({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ReadTableImportInput
+  }) {
+    return input.uploadToken
+      ? resolveTableImportUploadContext(principal, { ...input, uploadToken: input.uploadToken })
+      : resolveTableImportContext(input)
+  },
   async execute({ context }): Promise<TableImportResult> {
-    return { import: context.record }
+    if (!('upload' in context)) return { import: context.record }
+    const started = await findTableImportResource({
+      importId: context.upload.id,
+      assertedWorkspaceId: context.workspaceId,
+    })
+    return { import: started ?? tableImportResourceFromUpload(context.upload) }
   },
 })
 

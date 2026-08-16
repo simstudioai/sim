@@ -6,6 +6,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2PaginationFields,
+  v2RunWindowBoundSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -17,12 +18,6 @@ import {
  * monitors. Everything is credit-denominated (Sim's usage unit; 1,000 credits
  * = $5) — raw dollar costs and rate-limit internals are never on this wire.
  */
-
-/** `Date`-constructor-parseable string; validates parseability, not a wire format. */
-const parseableDateSchema = z
-  .string()
-  .min(1)
-  .refine((value) => !Number.isNaN(Date.parse(value)), { error: 'Invalid date' })
 
 /**
  * `.strict()` carries more weight here than on an ordinary read. `workspaceId` is
@@ -157,15 +152,21 @@ export const v2BillingLogsQuerySchema = z
     period: usageLogPeriodSchema
       .optional()
       .default('30d')
-      .describe('Relative window, all history, or a custom date range.'),
-    /** Required when `period` is `'custom'`. */
-    startDate: parseableDateSchema
-      .optional()
-      .describe('Start of a custom window as a Date-parseable string.'),
-    /** Defaults to now when omitted for `'custom'`. */
-    endDate: parseableDateSchema
-      .optional()
-      .describe('End of a custom window as a Date-parseable string; defaults to now.'),
+      .describe(
+        'Relative window, all history, or a custom date range. `startDate` and `endDate` are accepted only with `custom`; every other value computes its own window.'
+      ),
+    /** Required when `period` is `'custom'`, and rejected otherwise. */
+    startDate: v2RunWindowBoundSchema('startDate')
+      .describe(
+        'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
+      )
+      .optional(),
+    /** Defaults to now when omitted for `'custom'`; rejected for every other period. */
+    endDate: v2RunWindowBoundSchema('endDate')
+      .describe(
+        'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
+      )
+      .optional(),
     ...v2PaginationFields({ description: 'Maximum usage events per page.' }),
   })
   .strict()
@@ -173,6 +174,41 @@ export const v2BillingLogsQuerySchema = z
     error: 'startDate is required when period is "custom"',
     path: ['startDate'],
   })
+  /**
+   * `.strict()` only rejects keys the schema does not declare. Both bounds *are*
+   * declared, and `resolveDateRange` reads them in the `'custom'` branch alone, so
+   * a bound sent with any other period parsed, was accepted, and was then dropped —
+   * the query answered 200 over the default 30-day window. On a ledger a caller
+   * reconciles charges against, that is the worst shape of wrong answer: the rows
+   * are real, they are simply not the rows that were asked for, and nothing in the
+   * response distinguishes the two. Rejecting names the escape hatch instead.
+   */
+  .superRefine((query, ctx) => {
+    if (query.period === 'custom') return
+    for (const field of ['startDate', 'endDate'] as const) {
+      if (query[field] === undefined) continue
+      ctx.addIssue({
+        code: 'custom',
+        message: `${field} is only accepted when period=custom; period="${query.period}" computes its own window`,
+        path: [field],
+      })
+    }
+  })
+  /**
+   * Parity with `GET /logs` and `GET /workflows/{id}/runs`, which reject an
+   * inverted window rather than answering with the empty page an unsatisfiable
+   * `createdAt >= start AND createdAt <= end` produces.
+   */
+  .refine(
+    (query) =>
+      !query.startDate ||
+      !query.endDate ||
+      Date.parse(query.startDate) <= Date.parse(query.endDate),
+    {
+      error: 'startDate must be before or equal to endDate',
+      path: ['startDate'],
+    }
+  )
 
 /**
  * One credit-consuming usage event. `creditCost` is apportioned across the

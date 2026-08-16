@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { readClientId } from '@/lib/api/client-id'
 import {
   type BatchInsertTableRowsBodyInput,
   batchUpdateTableRowsBodySchema,
@@ -25,8 +26,9 @@ import {
   validateRowData,
   validateRowSize,
 } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicateShape,
@@ -254,7 +256,9 @@ export const POST = withRouteHandler(
         table,
         requestId
       )
-      signalTableRowsChanged(tableId)
+      // Attributed unlike the batch path above: the acting tab's insert deliberately avoids
+      // invalidating the rows root to prevent flicker, which an unattributed echo would undo.
+      signalTableRowsChangedByActor(tableId, readClientId(request))
 
       const responseBody = {
         success: true,
@@ -355,6 +359,13 @@ export const GET = withRouteHandler(
       }
 
       const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+      /**
+       * The newly expanded path can return up to the byte budget, so skip the
+       * per-row execution-sidecar load. Keep the count behavior unchanged so
+       * Query Rows continues to return totalCount for workflow callers.
+       */
+      const isExpandedQuery =
+        validated.limit === undefined || validated.limit > TABLE_LIMITS.MAX_QUERY_LIMIT
       const result = await queryRows(
         table,
         {
@@ -378,6 +389,7 @@ export const GET = withRouteHandler(
           offset: validated.offset,
           after: validated.after,
           includeTotal: validated.includeTotal,
+          withExecutions: !isExpandedQuery,
         },
         requestId
       )

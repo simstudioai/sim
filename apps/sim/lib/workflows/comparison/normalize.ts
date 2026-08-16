@@ -3,6 +3,7 @@
  * Used by both client-side signature computation and server-side comparison.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
@@ -198,7 +199,7 @@ export function sanitizeTools(tools: unknown[] | undefined): Record<string, unkn
   if (!Array.isArray(tools)) return []
 
   return tools.map((tool) => {
-    if (tool && typeof tool === 'object' && !Array.isArray(tool)) {
+    if (isRecordLike(tool)) {
       const { isExpanded, ...rest } = tool as ToolWithExpanded
       return rest
     }
@@ -290,7 +291,7 @@ type InputFormatItem = Record<string, unknown> & { collapsed?: boolean }
 export function sanitizeInputFormat(inputFormat: unknown[] | undefined): Record<string, unknown>[] {
   if (!Array.isArray(inputFormat)) return []
   return inputFormat.map((item) => {
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
+    if (isRecordLike(item)) {
       const { collapsed, ...rest } = item as InputFormatItem
       return rest
     }

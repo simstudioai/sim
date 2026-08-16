@@ -51,6 +51,7 @@ export interface ServiceAccountSecretFields {
   serviceAccountJson?: string
   clientId?: string
   clientSecret?: string
+  certificateId?: string
   orgId?: string
   dataCenter?: string
   authMethod?: string
@@ -262,12 +263,11 @@ async function buildTokenServiceAccountSecret(
 }
 
 /**
- * Builds a client-credential service-account secret (OAuth client id/secret +
- * provider org identifier) for any provider registered in
- * `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the triple by minting a
- * real access token via the provider's registered minter (also capturing the
- * derived identity for the display name and audit log), then persists the raw
- * fields in the encrypted blob so execution-time resolution can re-mint.
+ * Builds a client-credential service-account secret for any provider registered
+ * in `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the provider-specific
+ * descriptor fields by minting a real access token (also capturing the derived
+ * identity for the display name and audit log), then persists those fields in
+ * the encrypted blob so execution-time resolution can re-mint.
  */
 async function buildClientCredentialAccountSecret(
   providerId: string,
@@ -295,6 +295,9 @@ async function buildClientCredentialAccountSecret(
   // the unused one encrypted at rest on the credential.
   const submitted: ClientCredentialAccountFields = {
     clientId: fields.clientId?.trim() ?? '',
+    certificateId: usesField('certificateId')
+      ? fields.certificateId?.trim() || undefined
+      : undefined,
     orgId: fields.orgId?.trim() ?? '',
     dataCenter: fields.dataCenter?.trim() || undefined,
     authMethod: resolvedAuthMethod,

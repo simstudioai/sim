@@ -9,6 +9,7 @@ import {
   buildFolderPath,
   buildFolderPathIndex,
   encodeFolderPathSegment,
+  FolderPathError,
   MAX_FOLDER_PATH_SEGMENTS,
   parseFolderPath,
   ROOT_FOLDER_PATH,
@@ -38,6 +39,18 @@ describe('canonical folder paths', () => {
     '/%E0%A4%A',
   ])('rejects noncanonical path %s', (path) => {
     expect(() => parseFolderPath(path)).toThrow()
+  })
+
+  it.each(['/apitest_%00x', '/%00', '/Reports/Q1%00'])(
+    'rejects a percent-encoded NUL in path %s',
+    (path) => {
+      expect(() => parseFolderPath(path)).toThrow(FolderPathError)
+    }
+  )
+
+  it('rejects a NUL in a folder name before it can be encoded into a path', () => {
+    expect(() => encodeFolderPathSegment('apitest_\u0000x')).toThrow(FolderPathError)
+    expect(() => buildFolderPath(['apitest_\u0000x'])).toThrow(FolderPathError)
   })
 
   it('builds a bidirectional index and rejects corrupt hierarchies', () => {

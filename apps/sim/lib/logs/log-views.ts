@@ -45,9 +45,7 @@ const DEFAULT_MATCH_TIME_BUDGET_MS = 5_000
  */
 const DEFAULT_MAX_SCANNED_CHARS = 64 * 1024 * 1024
 
-// ---------------------------------------------------------------------------
 // Overview (Level 2): block tree with timing + cost, NO input/output.
-// ---------------------------------------------------------------------------
 
 export interface OverviewSpan {
   id: string
@@ -77,9 +75,7 @@ export function toOverview(spans: TraceSpan[]): OverviewSpan[] {
   })
 }
 
-// ---------------------------------------------------------------------------
 // Full (Level 3): block tree WITH materialized input/output.
-// ---------------------------------------------------------------------------
 
 export interface FullSpan extends OverviewSpan {
   startTime?: string
@@ -179,9 +175,7 @@ async function materializeField(value: unknown, ctx: LogViewContext): Promise<un
   return value
 }
 
-// ---------------------------------------------------------------------------
 // Grep (single execution): stream large refs chunk-by-chunk, release each.
-// ---------------------------------------------------------------------------
 
 export interface GrepSpanMatch {
   spanId: string

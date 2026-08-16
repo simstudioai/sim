@@ -47,7 +47,6 @@ import {
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { BlockTile } from '@/blocks/block-tile'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
@@ -708,14 +707,13 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
     <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3.5 pt-3 pb-4'>
       <div className='flex items-start gap-2'>
         {!isIterationType(span.type) && (
-          <div
-            className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-            style={{ background: bgColor }}
-          >
-            {BlockIcon && (
-              <BlockIcon className={cn('size-[12px]', getTileIconColorClass(bgColor))} />
-            )}
-          </div>
+          <BlockTile
+            blockType={span.type?.toLowerCase() ?? ''}
+            icon={BlockIcon ?? undefined}
+            bgColor={bgColor}
+            size='lg'
+            className='mt-[2px]'
+          />
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
           <h3

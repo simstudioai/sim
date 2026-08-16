@@ -283,21 +283,32 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     setIsResourceCollapsed(true)
   }, [clearWidth])
 
+  const clearResourceActivity = useCallback((resourceId: string) => {
+    setResourceActivityIds((current) => {
+      if (!current.has(resourceId)) return current
+      const next = new Set(current)
+      next.delete(resourceId)
+      return next
+    })
+  }, [])
+
+  const expandResource = () => {
+    userOwnsResourceViewRef.current = true
+    const activeResourceId = activeResourceParamRef.current
+    if (activeResourceId) clearResourceActivity(activeResourceId)
+    setIsResourceCollapsed(false)
+  }
+
   const selectResourceFromUser = useCallback(
     (resourceId: string) => {
       userOwnsResourceViewRef.current = true
-      setResourceActivityIds((current) => {
-        if (!current.has(resourceId)) return current
-        const next = new Set(current)
-        next.delete(resourceId)
-        return next
-      })
+      clearResourceActivity(resourceId)
       if (effectiveActiveResourceIdRef.current === resourceId) return
       effectiveActiveResourceIdRef.current = resourceId
       activeResourceParamRef.current = resourceId
       setActiveResourceId(resourceId)
     },
-    [setActiveResourceId]
+    [setActiveResourceId, clearResourceActivity]
   )
 
   const addResourceFromUser = useCallback(
@@ -581,9 +592,17 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         {showEmptyState && (
           <div
             className={cn(
-              'absolute z-10',
-              RESOURCE_HEADER_CLASSES.contentTop,
-              RESOURCE_HEADER_CLASSES.adjacentEndPosition
+              'z-10',
+              RESOURCE_HEADER_CLASSES.overlay,
+              // Collapsed, the expand toggle overlays this corner, so the chip
+              // yields the fixed reserve; open, the toggle lives in the panel's
+              // corner and the chip takes the standard end inset itself.
+              isResourceCollapsed
+                ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
+                : RESOURCE_HEADER_CLASSES.endPosition,
+              skipResourceTransition
+                ? 'transition-none'
+                : 'transition-[right] duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]'
             )}
           >
             <CreditsChip />
@@ -690,34 +709,14 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       </MothershipResourcesProvider>
 
       <div
-        className={cn(
-          'absolute top-0 z-30 flex items-center',
-          RESOURCE_HEADER_CLASSES.controls,
-          RESOURCE_HEADER_CLASSES.endPosition
-        )}
+        className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
       >
         <Button
           variant='ghost'
           size={null}
           type='button'
-          onClick={
-            isResourceCollapsed
-              ? () => {
-                  userOwnsResourceViewRef.current = true
-                  const activeResourceId = activeResourceParamRef.current
-                  if (activeResourceId) {
-                    setResourceActivityIds((current) => {
-                      if (!current.has(activeResourceId)) return current
-                      const next = new Set(current)
-                      next.delete(activeResourceId)
-                      return next
-                    })
-                  }
-                  setIsResourceCollapsed(false)
-                }
-              : collapseResource
-          }
-          className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+          onClick={isResourceCollapsed ? expandResource : collapseResource}
+          className='size-[var(--resource-header-toggle-size)] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
           aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
         >
           <span className='relative'>

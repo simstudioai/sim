@@ -1,7 +1,4 @@
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
+import { isRecordLike } from '@sim/utils/object'
 export function requiredString(
   record: Record<string, unknown>,
   key: string,
@@ -136,14 +133,14 @@ export function requiredRecord(
   context: string
 ): Record<string, unknown> {
   const value = record[key]
-  if (!isRecord(value)) throw new Error(`${context}.${key} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${context}.${key} must be an object`)
   return value
 }
 
 export async function readGitHubErrorMessage(response: Response): Promise<string | undefined> {
   try {
     const value: unknown = await response.json()
-    if (!isRecord(value)) return undefined
+    if (!isRecordLike(value)) return undefined
     const message = value.message
     return typeof message === 'string' && message.trim() ? message : undefined
   } catch {

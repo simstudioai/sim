@@ -76,6 +76,39 @@ describe('readWorkspaceInlineFile', () => {
     expect(mockLoadContext).toHaveBeenCalledWith('f1')
   })
 
+  /**
+   * The response is marked immutable only when the URL names the object that was streamed. The key is
+   * resolved to a file and the file's CURRENT key is what gets downloaded, so a rotation landing
+   * between those two reads would serve new bytes under a URL naming the old object — cached, that
+   * would be wrong forever.
+   */
+  it('is content-addressed only when the requested key is the one it streamed', async () => {
+    mockGetMetadataByKey.mockResolvedValue({ id: 'f1', workspaceId: 'ws-1' })
+
+    const match = await readWorkspaceInlineFile.execute({
+      principal,
+      input: { workspaceId: 'ws-1', key: file.key },
+    })
+    expect(match.contentAddressed).toBe(true)
+
+    // The file's content was replaced between resolving the key and reading the row.
+    mockGetWorkspaceFile.mockResolvedValue({ ...file, key: 'workspace/ws-1/rotated-photo.png' })
+    const rotated = await readWorkspaceInlineFile.execute({
+      principal,
+      input: { workspaceId: 'ws-1', key: file.key },
+    })
+    expect(rotated.contentAddressed).toBe(false)
+  })
+
+  it('is never content-addressed when the caller named the file rather than an object', async () => {
+    const result = await readWorkspaceInlineFile.execute({
+      principal,
+      input: { workspaceId: 'ws-1', fileId: 'f1' },
+    })
+
+    expect(result.contentAddressed).toBe(false)
+  })
+
   it('conceals a key belonging to another workspace before authorization', async () => {
     mockGetMetadataByKey.mockResolvedValue({ id: 'other', workspaceId: 'ws-other' })
 

@@ -14,6 +14,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
+import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -353,22 +354,23 @@ export const SPECIAL_TAG_NAMES = [
   'question',
 ] as const
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 function isOptionsItemData(value: unknown): value is OptionsItemData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return typeof value.title === 'string' && typeof value.description === 'string'
 }
 
+/**
+ * Arrays are accepted alongside keyed objects: an agent that emits
+ * `<options>[{title,description},…]</options>` still renders, with the array
+ * index standing in as the option key.
+ */
 function isOptionsTagData(value: unknown): value is OptionsTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value) && !Array.isArray(value)) return false
   return Object.values(value).every(isOptionsItemData)
 }
 
 function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.reason === 'string' &&
     typeof value.message === 'string' &&
@@ -378,7 +380,7 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
 }
 
 function isCredentialItemData(value: unknown): value is CredentialItemData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type)
@@ -452,7 +454,7 @@ export function parseLastCredentialTag(content: string): CredentialTagData | nul
 }
 
 function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.message === 'string' &&
     (value.code === undefined || typeof value.code === 'string') &&
@@ -461,7 +463,7 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
 }
 
 function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type)
@@ -479,7 +481,7 @@ function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceT
 }
 
 function isQuestionOption(value: unknown): value is QuestionOption {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return typeof value.id === 'string' && typeof value.label === 'string'
 }
 
@@ -497,7 +499,7 @@ const SELF_PROVIDED_OPTION_LABELS = new Set([
 ])
 
 function isQuestionItem(value: unknown): value is QuestionItem {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(QUESTION_TYPES as readonly string[]).includes(value.type)
@@ -551,7 +553,7 @@ function recoverQuestionPrompts(body: string): string | null {
     const parsed = JSON.parse(body) as unknown
     const items = Array.isArray(parsed) ? parsed : [parsed]
     const prompts = items
-      .filter(isRecord)
+      .filter(isRecordLike)
       .map((item) => (typeof item.prompt === 'string' ? item.prompt.trim() : ''))
       .filter((prompt) => prompt.length > 0)
     return prompts.length > 0 ? prompts.join('\n\n') : null

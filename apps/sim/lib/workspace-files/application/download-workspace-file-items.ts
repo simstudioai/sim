@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   buildWorkspaceFileFolderPathMap,
-  fetchServableWorkspaceFileBuffer,
   listWorkspaceFileFolders,
   listWorkspaceFiles,
   loadWorkspaceFileOperationContext,
@@ -16,6 +16,7 @@ import {
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export const MAX_ZIP_DOWNLOAD_FILES = 100
@@ -61,10 +62,12 @@ function validationError(message: string): never {
 async function executeDownloadWorkspaceFileItems({
   input,
   context,
-}: {
-  input: DownloadWorkspaceFileItemsInput
-  context: Awaited<ReturnType<typeof resolveDownloadContext>>
-}): Promise<DownloadWorkspaceFileItemsResult> {
+  principal,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.download,
+  DownloadWorkspaceFileItemsInput,
+  Awaited<ReturnType<typeof resolveDownloadContext>>
+>): Promise<DownloadWorkspaceFileItemsResult> {
   const fileIds = [...new Set(input.fileIds)]
   const folderIds = [...new Set(input.folderIds)]
   if (fileIds.length > MAX_REQUESTED_FILE_IDS) {
@@ -118,7 +121,9 @@ async function executeDownloadWorkspaceFileItems({
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
     const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {
-      const { buffer } = await fetchServableWorkspaceFileBuffer(file, { maxBytes: allowance })
+      const { buffer } = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
+        maxBytes: allowance,
+      })
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {

@@ -209,7 +209,11 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
       setUploadProgress((prev) => ({ ...prev, stage: 'processing' }))
       logger.info(`Successfully started processing ${uploadedDocuments.length} documents`)
 
-      await queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) }),
+        /** The knowledge-base list rows carry `docCount`, so an upload changes them too. */
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
+      ])
 
       return uploadedDocuments
     } catch (err) {

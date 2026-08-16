@@ -35,6 +35,7 @@ vi.mock('@/lib/workspaces/application/list-public-workspace-members', () => ({
   },
 }))
 
+import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET as listMembers } from '@/app/api/v2/workspaces/[workspaceId]/members/route'
 import { GET as getWorkspace } from '@/app/api/v2/workspaces/[workspaceId]/route'
@@ -51,7 +52,34 @@ const auth = {
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
-const context = () => ({ params: Promise.resolve({ workspaceId: WORKSPACE_ID }) })
+const OTHER_WORKSPACE_ID = 'b1c1a2f5-1f4b-4a2e-9a2f-1d0a5f1c9e77'
+const context = (workspaceId: string = WORKSPACE_ID) => ({
+  params: Promise.resolve({ workspaceId }),
+})
+
+function requestMembers(workspaceId: string, query = '') {
+  return listMembers(
+    new NextRequest(`http://localhost:3000/api/v2/workspaces/${workspaceId}/members${query}`),
+    context(workspaceId)
+  )
+}
+
+/**
+ * A cursor as the route itself mints it, rather than a payload hand-built by
+ * the test. The binding a cursor carries is the route's to compute, so a test
+ * that reconstructed it would pass against a route that stopped applying one.
+ */
+async function mintMemberCursor(workspaceId: string): Promise<string> {
+  const { nextCursor } = await (await requestMembers(workspaceId, '?limit=1')).json()
+  expect(typeof nextCursor).toBe('string')
+  return nextCursor
+}
+
+/** The payload inside a minted cursor's binding envelope. */
+function innerPayload(cursor: string): unknown {
+  const { inner } = JSON.parse(Buffer.from(cursor, 'base64').toString())
+  return JSON.parse(Buffer.from(inner, 'base64').toString())
+}
 
 describe('v2 workspace routes', () => {
   beforeEach(() => {
@@ -122,18 +150,72 @@ describe('v2 workspace routes', () => {
       isExternal: false,
       joinedAt: '2026-01-01T00:00:00.000Z',
     })
-    expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toEqual({
-      email: 'ada@example.com',
-    })
+    expect(innerPayload(body.nextCursor)).toEqual({ email: 'ada@example.com' })
   })
 
   it('rejects malformed cursors before the application read', async () => {
-    const response = await listMembers(
-      new NextRequest(
-        `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/members?cursor=not-a-cursor`
-      ),
-      context()
+    const response = await requestMembers(WORKSPACE_ID, '?cursor=not-a-cursor')
+
+    expect(response.status).toBe(400)
+    expect(mocks.listMembers).not.toHaveBeenCalled()
+    expect((await response.json()).error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
+  })
+
+  /**
+   * The regression guard for the cursor's binding: the roster still pages
+   * through its OWN cursor. A token no route accepts binds nothing — it just
+   * breaks pagination.
+   */
+  it('resumes from the cursor it minted', async () => {
+    const cursor = await mintMemberCursor(WORKSPACE_ID)
+    mocks.listMembers.mockClear()
+
+    const response = await requestMembers(WORKSPACE_ID, `?cursor=${encodeURIComponent(cursor)}`)
+
+    expect(response.status).toBe(200)
+    expect(mocks.listMembers).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ afterEmail: 'ada@example.com' }) })
     )
+  })
+
+  /**
+   * The same person is a member of every workspace they belong to, so an
+   * unbound email token from one roster decoded cleanly against another and
+   * resumed from a position that silently skipped members.
+   */
+  it('refuses a members cursor minted on another workspace', async () => {
+    const cursor = await mintMemberCursor(WORKSPACE_ID)
+    mocks.listMembers.mockClear()
+
+    const response = await requestMembers(
+      OTHER_WORKSPACE_ID,
+      `?cursor=${encodeURIComponent(cursor)}`
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mocks.listMembers).not.toHaveBeenCalled()
+  })
+
+  it('mints a members cursor bound to the workspace that answered', async () => {
+    expect(await mintMemberCursor(WORKSPACE_ID)).not.toBe(
+      await mintMemberCursor(OTHER_WORKSPACE_ID)
+    )
+  })
+
+  it.each([
+    ['non-email', { email: 'not-an-email' }],
+    ['carrying an unknown key', { email: 'ada@example.com', role: 'admin' }],
+    ['missing its key', {}],
+  ])('rejects a members cursor forged inside a valid binding %s', async (_case, payload) => {
+    const { scope } = JSON.parse(
+      Buffer.from(await mintMemberCursor(WORKSPACE_ID), 'base64').toString()
+    )
+    const inner = Buffer.from(JSON.stringify(payload)).toString('base64')
+    const cursor = Buffer.from(JSON.stringify({ scope, inner })).toString('base64')
+    mocks.listMembers.mockClear()
+
+    const response = await requestMembers(WORKSPACE_ID, `?cursor=${encodeURIComponent(cursor)}`)
 
     expect(response.status).toBe(400)
     expect(mocks.listMembers).not.toHaveBeenCalled()

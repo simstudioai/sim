@@ -1,3 +1,4 @@
+import type { PersonalApiKeyPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -63,6 +64,7 @@ export interface RateLimitResult {
   userId?: string
   workspaceId?: string
   keyType?: 'personal' | 'workspace'
+  principal?: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
   error?: string
 }
 
@@ -80,6 +82,18 @@ export function requireRateLimitUserId(rateLimit: RateLimitResult): string {
     throw new Error('Allowed public API request is missing a user ID')
   }
   return rateLimit.userId
+}
+
+export function requireRateLimitPrincipal(
+  rateLimit: RateLimitResult
+): PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal {
+  if (!rateLimit.allowed) {
+    throw new Error('Cannot authorize a denied public API request')
+  }
+  if (!rateLimit.principal) {
+    throw new Error('Allowed public API request is missing its Principal')
+  }
+  return rateLimit.principal
 }
 
 export async function checkRateLimit(
@@ -144,6 +158,7 @@ export async function checkRateLimit(
       userId,
       workspaceId: auth.workspaceId,
       keyType: auth.keyType,
+      principal: auth.principal,
     }
   } catch (error) {
     logger.error('Rate limit check error', { error })

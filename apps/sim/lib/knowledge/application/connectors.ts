@@ -173,12 +173,16 @@ async function validateConnectorSourceConfig(input: {
   let accessToken: string | null = null
   if (connectorConfig.auth.mode === 'apiKey') {
     if (!input.connector.encryptedApiKey) {
-      return {
-        message: 'API key not found. Please reconfigure the connector.',
-        errorCode: 'validation',
+      if (!connectorConfig.auth.optional) {
+        return {
+          message: 'API key not found. Please reconfigure the connector.',
+          errorCode: 'validation',
+        }
       }
+      accessToken = ''
+    } else {
+      accessToken = (await decryptApiKey(input.connector.encryptedApiKey)).decrypted
     }
-    accessToken = (await decryptApiKey(input.connector.encryptedApiKey)).decrypted
   } else {
     if (!input.connector.credentialId) {
       return {

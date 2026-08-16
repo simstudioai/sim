@@ -6,47 +6,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('DeploymentUtils')
 
-interface InputField {
-  name: string
-  type: string
-}
-
-/**
- * Gets the input format from the Start block
- * Returns an array of field definitions with name and type
- */
-export function getStartBlockInputFormat(): InputField[] {
-  try {
-    const candidates = resolveStartCandidates(useWorkflowStore.getState().blocks, {
-      execution: 'api',
-    })
-
-    const targetCandidate =
-      candidates.find((candidate) => candidate.path === StartBlockPath.UNIFIED) ||
-      candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_API) ||
-      candidates.find((candidate) => candidate.path === StartBlockPath.SPLIT_INPUT) ||
-      candidates.find((candidate) => candidate.path === StartBlockPath.LEGACY_STARTER)
-
-    const targetBlock = targetCandidate?.block
-
-    if (targetBlock) {
-      const inputFormat = useSubBlockStore.getState().getValue(targetBlock.id, 'inputFormat')
-      if (inputFormat && Array.isArray(inputFormat)) {
-        return inputFormat
-          .map((field: { name?: string; type?: string }) => ({
-            name: field.name || '',
-            type: field.type || 'string',
-          }))
-          .filter((field) => field.name)
-      }
-    }
-  } catch (error) {
-    logger.warn('Error getting start block input format:', error)
-  }
-
-  return []
-}
-
 /**
  * Gets the input format example for a workflow's API deployment
  * Returns the -d flag with example data if inputs exist, empty string otherwise

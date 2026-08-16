@@ -79,22 +79,6 @@ export const contentTypeMap: Record<string, string> = {
   googleFolder: 'application/vnd.google-apps.folder',
 }
 
-export const binaryExtensions = [
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'ppt',
-  'pptx',
-  'zip',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'pdf',
-]
-
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
   return contentTypeMap[extension] || 'application/octet-stream'

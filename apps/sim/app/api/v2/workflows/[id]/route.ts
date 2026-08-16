@@ -12,6 +12,18 @@ import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 
 export const revalidate = 0
 
+/**
+ * Deliberately head-safe despite issuing a write.
+ *
+ * Reading a workflow can trigger a migrate-on-read `workflow_blocks` update when
+ * `applyBlockMigrations` upgrades a stored block. That write is convergent: it is
+ * conditional on a migration actually applying, idempotent, and would be issued by
+ * the next ordinary read regardless, so a `HEAD` only brings it forward.
+ *
+ * Declaring `headSafe: false` would also cost real capability: the bodiless
+ * `200` is unconditional, so a `HEAD` could no longer distinguish a workflow
+ * that exists from one that does not.
+ */
 export const GET = defineV2JsonRoute({
   contract: v2GetWorkflowContract,
   auth: v2ApiKeyAuth,

@@ -484,6 +484,7 @@ export const PiBlock: BlockConfig<PiResponse> = {
       id: 'privateKey',
       title: 'Private Key',
       type: 'code',
+      password: true,
       paramVisibility: 'user-only',
       placeholder: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
       required: {

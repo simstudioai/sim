@@ -26,6 +26,9 @@ vi.mock('@/lib/table/trigger', () => ({
   fireTableTrigger: vi.fn(),
 }))
 
+vi.mock('@/lib/table/workflow-group-deps', () => ({
+  stripGroupDeps: vi.fn(),
+}))
 vi.mock('@/lib/table/workflow-columns', () => ({
   assertValidSchema: vi.fn(),
   scheduleRunsForRows: vi.fn(),
@@ -216,6 +219,21 @@ describe('queryRows byte budget', () => {
     updatedAt: new Date('2024-01-01'),
   })
 
+  const mockRowsPastFormerBatchSafetyLimit = () => {
+    const largeRow = row(1, TABLE_LIMITS.MAX_ROW_SIZE_BYTES)
+    const smallRow = row(2, 0)
+    const state = { drainBatch: 0 }
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockImplementation(async (ask: number) => {
+      state.drainBatch++
+      if (state.drainBatch > 1001) return []
+      const rows = Array.from({ length: ask }, () => smallRow)
+      if (state.drainBatch === 1) rows[0] = largeRow
+      return rows
+    })
+    return state
+  }
+
   it('returns an empty page with a null cursor', async () => {
     const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
     expect(result.rows).toEqual([])
@@ -240,6 +258,16 @@ describe('queryRows byte budget', () => {
     const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
 
     expect(result.rows).toHaveLength(2)
+    expect(result.nextCursor).toBeNull()
+  })
+
+  it('returns an entire under-budget result past the former batch safety limit', async () => {
+    const state = mockRowsPastFormerBatchSafetyLimit()
+
+    const result = await queryRows(TABLE, { includeTotal: false, withExecutions: false }, 'req-1')
+
+    expect(state.drainBatch).toBe(1002)
+    expect(result.rows.length).toBeGreaterThan(TABLE_LIMITS.MAX_QUERY_LIMIT)
     expect(result.nextCursor).toBeNull()
   })
 

@@ -115,32 +115,3 @@ export function NextError({ error, reset }: NextErrorProps) {
 
   return <ErrorUI onReset={reset} />
 }
-
-/**
- * Next.js Global Error Page Component
- * Renders for application-level errors
- */
-export function NextGlobalError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string }
-  reset: () => void
-}) {
-  useEffect(() => {
-    logger.error('Global workspace error:', { error })
-  }, [error])
-
-  return (
-    <html lang='en'>
-      <body>
-        <ErrorUI
-          title='Application Error'
-          message='Something went wrong with the application. Please try again later.'
-          onReset={reset}
-          fullScreen={true}
-        />
-      </body>
-    </html>
-  )
-}

@@ -4,12 +4,10 @@ interface DatagmaBaseParams {
   apiKey: string
 }
 
-// ---------------------------------------------------------------------------
 // Find Email (findEmail)
 // Endpoint: GET https://gateway.datagma.net/api/ingress/v6/findEmail
 // Auth: apiId query param
 // Docs: https://datagmaapi.readme.io/reference/find-work-email-address
-// ---------------------------------------------------------------------------
 
 export interface DatagmaFindEmailParams extends DatagmaBaseParams {
   fullName: string
@@ -30,13 +28,11 @@ export interface DatagmaFindEmailResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Enrich Person
 // Endpoint: GET https://gateway.datagma.net/api/ingress/v2/full
 // Auth: apiId query param
 // Docs: https://datagmaapi.readme.io/reference/ingressservice_fullapiv2
 // Pricing: 2 credits per successful response
-// ---------------------------------------------------------------------------
 
 export interface DatagmaEnrichPersonParams extends DatagmaBaseParams {
   /** Email address, LinkedIn URL, or full name (use with companyKeyword) */
@@ -69,13 +65,11 @@ export interface DatagmaEnrichPersonResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Enrich Company (via full endpoint with company domain/name)
 // Endpoint: GET https://gateway.datagma.net/api/ingress/v2/full
 // Auth: apiId query param
 // Docs: https://datagmaapi.readme.io/reference/ingressservice_fullapiv2
 // Pricing: 2 credits per successful response
-// ---------------------------------------------------------------------------
 
 export interface DatagmaEnrichCompanyParams extends DatagmaBaseParams {
   /** Company domain, name, or SIREN number */
@@ -98,13 +92,11 @@ export interface DatagmaEnrichCompanyResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Find Phone (via search endpoint or enrich with phoneFull)
 // Endpoint: GET https://gateway.datagma.net/api/ingress/v1/search
 // Auth: apiId query param
 // Docs: https://datagmaapi.readme.io/reference/find-a-phone-number
 // Pricing: 30 credits per phone number found (1 credit = 1 email)
-// ---------------------------------------------------------------------------
 
 export interface DatagmaFindPhoneParams extends DatagmaBaseParams {
   /** LinkedIn URL of the person */
@@ -123,13 +115,11 @@ export interface DatagmaFindPhoneResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Get Credits
 // Endpoint: GET https://gateway.datagma.net/api/ingress/v1/mine
 // Auth: apiId query param
 // Docs: https://datagmaapi.readme.io/reference/ingressservice_getcredit
 // Pricing: free (no credit consumed)
-// ---------------------------------------------------------------------------
 
 export interface DatagmaGetCreditsParams extends DatagmaBaseParams {}
 
@@ -139,9 +129,7 @@ export interface DatagmaGetCreditsResponse extends ToolResponse {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Union of all response types
-// ---------------------------------------------------------------------------
 
 export type DatagmaResponse =
   | DatagmaFindEmailResponse

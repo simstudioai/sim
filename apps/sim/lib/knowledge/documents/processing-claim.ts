@@ -94,3 +94,51 @@ export async function failStaleDocumentProcessingClaim({
 
   return { success: Boolean(failed), processingDuration }
 }
+
+interface FailUndispatchedDocumentProcessingParams {
+  documentId: string
+  knowledgeBaseId: string
+  error: string
+  now?: Date
+}
+
+/**
+ * Marks a document whose indexing dispatch never got off the ground as `failed`.
+ *
+ * A document registered by a completed upload sits at `pending` until a worker
+ * claims it. Nothing sweeps `pending`, and `retryProcessing` only accepts a
+ * `failed` document, so a document left there after a failed dispatch is
+ * invisible and unrecoverable. Recording the failure puts it on the same path
+ * as any other processing failure: visible in the document list with its error,
+ * and re-queueable.
+ *
+ * Guarded on `pending` so it cannot overwrite a document a worker has already
+ * claimed — the dispatch may have been accepted and only its acknowledgement
+ * lost. A worker that starts late still moves the row to `processing`
+ * unconditionally, so this write never strands a job that does run.
+ */
+export async function failUndispatchedDocumentProcessing({
+  documentId,
+  knowledgeBaseId,
+  error,
+  now = new Date(),
+}: FailUndispatchedDocumentProcessingParams): Promise<boolean> {
+  const [failed] = await db
+    .update(document)
+    .set({
+      processingStatus: 'failed',
+      processingError: error,
+      processingCompletedAt: now,
+    })
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        eq(document.processingStatus, 'pending'),
+        isNull(document.deletedAt)
+      )
+    )
+    .returning({ id: document.id })
+
+  return Boolean(failed)
+}

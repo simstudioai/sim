@@ -99,17 +99,27 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toMatchObject({
-      error: 'Upload must contain exactly 3 bytes',
+      error: { code: 'BAD_REQUEST', message: 'Upload must contain exactly 3 bytes' },
     })
     expect(mockWriteLocalPut).not.toHaveBeenCalled()
   })
 
-  it('rejects a URL whose token names a non-local or multipart session', async () => {
+  /**
+   * This route is deliberately absent from the OpenAPI documents, which is a
+   * statement about addressability rather than about behaviour. It used to
+   * answer with a bare `{ error: string }`, which made the one step of an
+   * upload that actually moves the bytes the one step a caller could not parse
+   * with its v2 error handling.
+   */
+  it('rejects a URL whose token names a non-local or multipart session, in the v2 envelope', async () => {
     mockGetOwnedUploadSession.mockReturnValue({ ...SESSION, method: 'multipart' })
 
     const response = await request()
 
     expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'FORBIDDEN', message: 'Upload URL does not match this session' },
+    })
     expect(mockWriteLocalPut).not.toHaveBeenCalled()
   })
 
@@ -119,7 +129,9 @@ describe('PUT /api/v2/uploads/[uploadId]', () => {
     const response = await request({ contentLength: null })
 
     expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ error: 'Upload exceeds 3 bytes' })
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'BAD_REQUEST', message: 'Upload exceeds 3 bytes' },
+    })
   })
 })
 

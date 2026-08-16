@@ -32,7 +32,6 @@ import {
   type TerminalToolResponse,
 } from '@sim/terminal-protocol'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, WebContents } from 'electron'
 import {
   type FocusedResourceShortcut,
@@ -1200,9 +1199,4 @@ export class TerminalService {
 
 function unknownTerminal(terminalId: string): string {
   return `No terminal with id ${terminalId}. Call terminal_list for the open ones.`
-}
-
-/** Narrows an IPC payload to the tool-call shape without trusting the sender. */
-export function parseToolParams(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
 }

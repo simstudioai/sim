@@ -1,4 +1,5 @@
 import { v2CreateSkillContract, v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -8,25 +9,14 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 import { skillOperations } from '@/lib/skills/application/operations'
 import { createSkillUseCase, listSkillsUseCase } from '@/lib/skills/application/use-cases'
-import {
-  decodeOffsetCursor,
-  encodeOffsetCursor,
-  offsetCursorScope,
-} from '@/app/api/v2/lib/response'
+import { cursorSortKey, decodeOffsetCursor, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 import { toV2Skill, toV2SkillSummary } from '@/app/api/v2/skills/utils'
 
-/** The query state a skills offset cursor is only valid within. */
-function skillCursorScope(query: {
-  workspaceId: string
-  search?: string
-  sortBy: string
-  sortOrder: string
-}): string {
-  return offsetCursorScope({
+/** Every param that changes which skills, in which order, this list returns. */
+function skillCursorFilters(query: { workspaceId: string; search?: string }) {
+  return cursorScopeKey(cursorRoute(v2ListSkillsContract), {
     workspaceId: query.workspaceId,
     search: query.search,
-    sortBy: query.sortBy,
-    sortOrder: query.sortOrder,
   })
 }
 
@@ -47,17 +37,25 @@ export const GET = defineV2JsonRoute({
      * re-checked here. `limit` is deliberately absent — it selects how much of
      * the sequence to return, not what the sequence is.
      */
-    const scope = skillCursorScope(query)
     return {
       ...query,
-      offset: decodeOffsetCursor(query.cursor, scope),
-      cursorScope: scope,
+      offset: decodeOffsetCursor(
+        query.cursor,
+        cursorSortKey(query.sortBy, query.sortOrder),
+        skillCursorFilters(query)
+      ),
     }
   },
   useCase: listSkillsUseCase,
-  present: ({ skills, hasMore, offset, limit, cursorScope }) => ({
+  present: ({ skills, hasMore, offset, limit }, { query }) => ({
     data: skills.map(toV2SkillSummary),
-    nextCursor: hasMore ? encodeOffsetCursor(cursorScope, offset + limit) : null,
+    nextCursor: hasMore
+      ? encodeOffsetCursor(
+          cursorSortKey(query.sortBy, query.sortOrder),
+          skillCursorFilters(query),
+          offset + limit
+        )
+      : null,
   }),
 })
 

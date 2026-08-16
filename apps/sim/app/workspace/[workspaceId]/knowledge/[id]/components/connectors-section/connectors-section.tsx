@@ -358,27 +358,22 @@ function ConnectorCard({
     >
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='relative size-9 flex-shrink-0'>
-            <div
-              className={cn(
-                'flex size-full items-center justify-center rounded-xl border',
-                brandBg
-                  ? 'border-[var(--border-1)]'
-                  : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
-              )}
-              style={brandBg ? { background: brandBg } : undefined}
-            >
-              {Icon && (
-                <Icon
-                  className={cn(
-                    'size-5',
-                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
-                  )}
-                />
-              )}
-            </div>
-            {connector.status === 'disabled' && (
-              <TriangleAlert className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
+          <div
+            className={cn(
+              'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border',
+              brandBg
+                ? 'border-[var(--border-1)]'
+                : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
+            )}
+            style={brandBg ? { background: brandBg } : undefined}
+          >
+            {Icon && (
+              <Icon
+                className={cn(
+                  'size-5',
+                  brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                )}
+              />
             )}
           </div>
           <div className='flex min-w-0 flex-col gap-0.5'>
@@ -578,6 +573,7 @@ function ConnectorCard({
                       providerId: providerId!,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }
@@ -612,6 +608,7 @@ function ConnectorCard({
                       providerId: providerId!,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }

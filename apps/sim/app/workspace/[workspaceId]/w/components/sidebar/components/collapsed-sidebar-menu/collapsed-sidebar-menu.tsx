@@ -16,6 +16,7 @@ import { File, Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
@@ -166,6 +167,22 @@ interface CollapsedWorkflowFlyoutItemProps {
   canRename?: boolean
 }
 
+/**
+ * Suppresses the Radix menu row's own pointer handlers, which focus the row on
+ * `pointermove` and hand focus back to the flyout content on `pointerleave`.
+ * A submenu closes on any focus that is not its trigger, so while this row's
+ * actions submenu is open those two handlers would close it the instant the
+ * cursor moved — the path a right-click takes, since it opens the submenu with
+ * the cursor still over the row rather than over the trigger. Radix composes
+ * consumer handlers ahead of its own and skips its own once the event is
+ * defaulted, so preventing default here holds focus still until the cursor
+ * reaches the submenu. Only applied to the row whose submenu is open: moving on
+ * to any other row still steals focus and closes it, as it should.
+ */
+const holdRowFocus = (e: React.PointerEvent) => {
+  if (e.pointerType === 'mouse') e.preventDefault()
+}
+
 const EDIT_ROW_CLASS = cn(
   chipVariants({ active: true, fullWidth: true }),
   'min-w-0 cursor-default select-none text-small'
@@ -193,7 +210,7 @@ export function CollapsedSidebarMenu({
             <button
               type='button'
               aria-label={ariaLabel}
-              className={chipVariants({ fullWidth: true })}
+              className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
             >
               {icon}
             </button>
@@ -340,6 +357,8 @@ export function CollapsedWorkflowFlyoutItem({
     <DropdownMenuItem
       asChild
       active={isCurrentRoute || actionsOpen}
+      onPointerMove={actionsOpen ? holdRowFocus : undefined}
+      onPointerLeave={actionsOpen ? holdRowFocus : undefined}
       action={
         hasActions ? (
           <DropdownMenuSub

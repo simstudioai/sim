@@ -20,11 +20,12 @@ export const cloudwatchSelectors = {
     key: 'cloudwatch.logGroups',
     contracts: [selectorContracts.cloudwatchLogGroupsSelectorContract],
     staleTime: SELECTOR_STALE,
-    getQueryKey: ({ context }: SelectorQueryArgs) => [
+    getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'cloudwatch.logGroups',
       context.awsAccessKeyId ?? 'none',
       context.awsRegion ?? 'none',
+      search ?? '',
     ],
     enabled: ({ context }) =>
       Boolean(context.awsAccessKeyId && context.awsSecretAccessKey && context.awsRegion),
@@ -51,12 +52,13 @@ export const cloudwatchSelectors = {
     key: 'cloudwatch.logStreams',
     contracts: [selectorContracts.cloudwatchLogStreamsSelectorContract],
     staleTime: SELECTOR_STALE,
-    getQueryKey: ({ context }: SelectorQueryArgs) => [
+    getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       'selectors',
       'cloudwatch.logStreams',
       context.awsAccessKeyId ?? 'none',
       context.awsRegion ?? 'none',
       context.logGroupName ?? 'none',
+      search ?? '',
     ],
     enabled: ({ context }) =>
       Boolean(

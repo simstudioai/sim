@@ -1,4 +1,4 @@
-import { isRecordLike as isRecord } from '@sim/utils/object'
+import { isRecordLike } from '@sim/utils/object'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import {
   MothershipStreamV1CompletionStatus,
@@ -220,10 +220,10 @@ function rebindResolvedIntegrationCall(node: ToolNode, toolName: string): void {
 /**
  * Reads a wire event payload as a generic record. The payload is a wide
  * discriminated union; the reducer accesses fields uniformly, so this narrows
- * through the `unknown`-typed {@link isRecord} guard rather than a double cast.
+ * through the `unknown`-typed {@link isRecordLike} guard rather than a double cast.
  */
 function payloadRecord(payload: unknown): Record<string, unknown> {
-  return isRecord(payload) ? payload : {}
+  return isRecordLike(payload) ? payload : {}
 }
 
 /** Parses a wire `ts` to epoch ms, or undefined when absent/unparseable. */
@@ -523,7 +523,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           // back into an ordinary running row without waiting for the result.
           node.status = 'running'
         }
-        if (isRecord(payload.arguments)) node.args = payload.arguments
+        if (isRecordLike(payload.arguments)) node.args = payload.arguments
         // Only the snapshot-replay path (contentBlocksToModel) carries this
         // field — the live wire never does; it restores the rebound gateway
         // description across a preserve-state rebuild.
@@ -531,7 +531,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         if (restoredDescription) node.integrationDescription = restoredDescription
         // Tool-call titles are derived from the tool name (+args) at serialize
         // time; the stream only carries behavioral flags now.
-        const ui = isRecord(payload.ui) ? payload.ui : undefined
+        const ui = isRecordLike(payload.ui) ? payload.ui : undefined
         if (ui?.hidden === true) node.hidden = true
       } else if (phase === MothershipStreamV1ToolPhase.args_delta) {
         const node = upsertToolNode(
@@ -559,7 +559,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
     case MothershipStreamV1EventType.span: {
       const payload = envelope.payload
       if (payload.kind !== MothershipStreamV1SpanPayloadKind.subagent) break
-      const data = isRecord(payload.data) ? payload.data : undefined
+      const data = isRecordLike(payload.data) ? payload.data : undefined
       const triggerToolCallId =
         scope?.parentToolCallId ?? asString(data?.tool_call_id) ?? asString(data?.toolCallId)
       const agentId = asString(payload.agent) ?? scope?.agentId ?? ''
@@ -686,7 +686,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       const payload = payloadRecord(envelope.payload)
       // An async pause is not a turn terminal — the paused tools/subagents
       // legitimately stay open until a later resume leg completes them.
-      const response = isRecord(payload.response) ? payload.response : undefined
+      const response = isRecordLike(payload.response) ? payload.response : undefined
       if (response && 'async_pause' in response) break
       const status = payload.status
       if (status === MothershipStreamV1CompletionStatus.cancelled) {

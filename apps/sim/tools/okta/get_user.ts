@@ -1,11 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
-import type {
-  OktaApiError,
-  OktaGetUserParams,
-  OktaGetUserResponse,
-  OktaUser,
-} from '@/tools/okta/types'
+import type { OktaGetUserParams, OktaGetUserResponse, OktaUser } from '@/tools/okta/types'
+import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaGetUser')
@@ -43,23 +39,12 @@ export const oktaGetUserTool: ToolConfig<OktaGetUserParams, OktaGetUserResponse>
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}`
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `SSWS ${params.apiKey}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => oktaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let error: OktaApiError = {}
-      try {
-        error = await response.json()
-      } catch {
-        // non-JSON error body
-      }
-      logger.error('Okta API request failed', { data: error, status: response.status })
-      throw new Error(error.errorSummary || 'Failed to get user from Okta')
+      await throwOktaError(response, logger, 'Failed to get user from Okta')
     }
 
     const user: OktaUser = await response.json()

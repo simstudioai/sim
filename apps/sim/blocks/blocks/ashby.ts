@@ -39,12 +39,78 @@ function parseSocialLinksInput(value: unknown): Array<{ type: string; url: strin
   return parsed
 }
 
+/**
+ * Parses an Ashby custom field value from the block input. Ashby custom fields
+ * are polymorphic, so structured input is decoded to give Currency, NumberRange,
+ * MultiValueSelect, Boolean, Number, and cleared fields the right wire type,
+ * while everything else passes through as a plain string, which String,
+ * LongText, Date, Url, and ValueSelect fields accept.
+ *
+ * Decoding is deliberately narrow rather than a blanket `JSON.parse`. Parsing
+ * every string that happens to be valid JSON corrupts real text: `1e999` becomes
+ * Infinity and serializes back out as `null`, which CLEARS the field; a long
+ * numeric id loses precision past 2^53; and pasted prose that starts with `{`
+ * turns into an object. So only these forms decode:
+ *
+ * - `null`, `true`, `false` - the literal keywords
+ * - text starting with `{`, `[`, or `"` - objects, arrays, and quoted strings
+ * - numbers that survive a round trip exactly, which excludes Infinity,
+ *   precision loss, and leading zeros
+ *
+ * The remaining trade-off is that the text `123` becomes the number 123. A field
+ * that needs the literal string can be quoted (`"123"`), which decodes back to it.
+ */
+function parseCustomFieldValueInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed) return value
+
+  if (trimmed === 'null') return null
+  if (trimmed === 'true') return true
+  if (trimmed === 'false') return false
+
+  const first = trimmed[0]
+  if (first === '{' || first === '[' || first === '"') {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return value
+    }
+  }
+
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    const asNumber = Number(trimmed)
+    if (Number.isFinite(asNumber) && String(asNumber) === trimmed) return asNumber
+  }
+
+  return value
+}
+
+function parseCustomFieldValuesInput(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string' || !value.trim()) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in Ashby custom field values: ${getErrorMessage(error)}. Expected a JSON array like [{"fieldId":"<uuid>","fieldValue":"High"}].`
+    )
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      'Invalid Ashby custom field values: expected a JSON array like [{"fieldId":"<uuid>","fieldValue":"High"}].'
+    )
+  }
+  return parsed
+}
+
 export const AshbyBlock: BlockConfig = {
   type: 'ashby',
   name: 'Ashby',
   description: 'Manage candidates, jobs, and applications in Ashby',
   longDescription:
-    'Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).',
+    'Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag, anonymize), applications (list, get, create, delete, change stage, change source), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), custom field values (set one or many), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).',
   docsLink: 'https://docs.sim.ai/integrations/ashby',
   category: 'tools',
   integrationType: IntegrationType.HR,
@@ -101,11 +167,17 @@ export const AshbyBlock: BlockConfig = {
           { text: ', for application', field: 'offerApplicationId' },
           { text: ', created after', field: 'createdAfter' },
         ],
+        delete_application: [{ text: 'Delete application', field: 'applicationId', core: true }],
         change_application_stage: [
           { text: 'Move application', field: 'applicationId', core: true },
           { text: 'to stage', field: 'interviewStageId' },
           { text: ', with archive reason', field: 'archiveReasonId' },
         ],
+        change_application_source: [
+          { text: 'Attribute application', field: 'applicationId', core: true },
+          { text: 'to source', field: 'changeSourceId' },
+        ],
+        anonymize_candidate: [{ text: 'Anonymize candidate', field: 'candidateId', core: true }],
         add_candidate_tag: [
           { text: 'Add tag', field: 'tagId', core: true },
           { text: 'to candidate', field: 'candidateId', core: true },
@@ -119,6 +191,15 @@ export const AshbyBlock: BlockConfig = {
         list_candidate_tags: ['List candidate tags'],
         list_archive_reasons: ['List archive reasons'],
         list_custom_fields: ['List custom field definitions'],
+        set_custom_field_value: [
+          { text: 'Set custom field', field: 'fieldId', core: true },
+          { text: 'on', field: 'objectType' },
+          { text: 'to', field: 'fieldValue' },
+        ],
+        set_custom_field_values: [
+          { text: 'Set custom fields on', field: 'objectType', core: true },
+          { text: 'record', field: 'objectId', core: true },
+        ],
         list_departments: ['List departments'],
         list_locations: ['List locations'],
         list_job_postings: [
@@ -169,8 +250,11 @@ export const AshbyBlock: BlockConfig = {
         { label: 'List Applications', id: 'list_applications' },
         { label: 'Get Application', id: 'get_application' },
         { label: 'Create Application', id: 'create_application' },
+        { label: 'Delete Application', id: 'delete_application' },
         { label: 'List Offers', id: 'list_offers' },
         { label: 'Change Application Stage', id: 'change_application_stage' },
+        { label: 'Change Application Source', id: 'change_application_source' },
+        { label: 'Anonymize Candidate', id: 'anonymize_candidate' },
         { label: 'Add Candidate Tag', id: 'add_candidate_tag' },
         { label: 'Remove Candidate Tag', id: 'remove_candidate_tag' },
         { label: 'Get Offer', id: 'get_offer' },
@@ -178,6 +262,8 @@ export const AshbyBlock: BlockConfig = {
         { label: 'List Candidate Tags', id: 'list_candidate_tags' },
         { label: 'List Archive Reasons', id: 'list_archive_reasons' },
         { label: 'List Custom Fields', id: 'list_custom_fields' },
+        { label: 'Set Custom Field Value', id: 'set_custom_field_value' },
+        { label: 'Set Custom Field Values', id: 'set_custom_field_values' },
         { label: 'List Departments', id: 'list_departments' },
         { label: 'List Locations', id: 'list_locations' },
         { label: 'List Job Postings', id: 'list_job_postings' },
@@ -209,6 +295,7 @@ export const AshbyBlock: BlockConfig = {
           'update_candidate',
           'add_candidate_tag',
           'remove_candidate_tag',
+          'anonymize_candidate',
         ],
       },
       placeholder: 'Enter candidate UUID',
@@ -221,6 +308,7 @@ export const AshbyBlock: BlockConfig = {
           'update_candidate',
           'add_candidate_tag',
           'remove_candidate_tag',
+          'anonymize_candidate',
         ],
       },
     },
@@ -352,12 +440,23 @@ Output only the ISO 8601 timestamp string, nothing else.`,
       type: 'short-input',
       required: {
         field: 'operation',
-        value: ['get_application', 'change_application_stage'],
+        value: [
+          'get_application',
+          'change_application_stage',
+          'change_application_source',
+          'delete_application',
+        ],
       },
       placeholder: 'Enter application UUID',
       condition: {
         field: 'operation',
-        value: ['get_application', 'change_application_stage', 'list_interviews'],
+        value: [
+          'get_application',
+          'change_application_stage',
+          'change_application_source',
+          'delete_application',
+          'list_interviews',
+        ],
       },
     },
     {
@@ -652,6 +751,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
           'list_departments',
           'list_custom_fields',
           'list_offers',
+          'list_jobs',
         ],
       },
       mode: 'advanced',
@@ -757,6 +857,131 @@ Output only the JSON array, nothing else.`,
       mode: 'advanced',
     },
     {
+      id: 'includeUnpublishedJobPostings',
+      title: 'Include Draft Postings',
+      type: 'switch',
+      condition: { field: 'operation', value: 'list_job_postings' },
+      mode: 'advanced',
+    },
+    {
+      id: 'objectType',
+      title: 'Object Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Job', id: 'Job' },
+        { label: 'Application', id: 'Application' },
+        { label: 'Candidate', id: 'Candidate' },
+        { label: 'Opening', id: 'Opening' },
+      ],
+      value: () => 'Job',
+      required: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+    },
+    {
+      id: 'objectId',
+      title: 'Object ID',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+      placeholder: 'Enter the UUID of the job, application, candidate, or opening',
+      condition: {
+        field: 'operation',
+        value: ['set_custom_field_value', 'set_custom_field_values'],
+      },
+    },
+    {
+      id: 'fieldId',
+      title: 'Custom Field ID',
+      type: 'short-input',
+      required: { field: 'operation', value: 'set_custom_field_value' },
+      placeholder: 'Custom field definition UUID from List Custom Fields',
+      condition: { field: 'operation', value: 'set_custom_field_value' },
+    },
+    {
+      id: 'fieldValue',
+      title: 'Custom Field Value',
+      type: 'long-input',
+      required: { field: 'operation', value: 'set_custom_field_value' },
+      placeholder: 'Plain value, or JSON for structured field types. Use null to clear.',
+      condition: { field: 'operation', value: 'set_custom_field_value' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an Ashby custom field value matching the field's type.
+
+Rules:
+- Boolean: true or false
+- Number: a bare number, e.g. 42
+- String, LongText, Date, Url, ValueSelect: the plain text, e.g. Senior Engineer or 2026-03-01
+- MultiValueSelect: a JSON array of option values, e.g. ["Remote","Hybrid"]
+- Currency: {"value":150000,"currencyCode":"USD"}
+- NumberRange: {"type":"number-range","minValue":1,"maxValue":5}
+- CompensationRange: {"type":"compensation-range","minValue":120000,"maxValue":160000,"currencyCode":"USD","interval":"YEAR"}
+- Location: {"country":"United States","region":"California","city":"San Francisco"}
+- To clear the field, output exactly: null
+
+Output only the value. Do not wrap it in an object or add commentary.`,
+        placeholder: 'Describe the value to write...',
+      },
+    },
+    {
+      id: 'fieldValues',
+      title: 'Custom Field Values',
+      type: 'code',
+      required: { field: 'operation', value: 'set_custom_field_values' },
+      placeholder: '[{ "fieldId": "<uuid>", "fieldValue": "High" }]',
+      condition: { field: 'operation', value: 'set_custom_field_values' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-array',
+        prompt: `Generate a JSON array of Ashby custom field writes for one object.
+
+Each element is {"fieldId": "<custom field definition UUID>", "fieldValue": <value>}.
+fieldValue follows the field's type: boolean, number, plain string, a string array for
+MultiValueSelect, an object for Currency/NumberRange/CompensationRange/Location, or null to clear.
+
+Example:
+[{"fieldId":"11111111-1111-1111-1111-111111111111","fieldValue":"High"},{"fieldId":"22222222-2222-2222-2222-222222222222","fieldValue":true}]
+
+Output only the JSON array.`,
+        placeholder: 'Describe the fields to write...',
+      },
+    },
+    {
+      id: 'unsetSource',
+      title: 'Clear the source instead',
+      type: 'switch',
+      condition: { field: 'operation', value: 'change_application_source' },
+    },
+    {
+      /**
+       * Hidden while the clear switch is on, so the editor cannot hold a source
+       * ID and a clear request at the same time. The two are mutually exclusive
+       * intents and the tool rejects the pair rather than picking a winner.
+       */
+      id: 'changeSourceId',
+      title: 'Source ID',
+      type: 'short-input',
+      required: {
+        field: 'operation',
+        value: 'change_application_source',
+        and: { field: 'unsetSource', value: true, not: true },
+      },
+      placeholder: 'Source UUID from List Sources',
+      condition: {
+        field: 'operation',
+        value: 'change_application_source',
+        and: { field: 'unsetSource', value: true, not: true },
+      },
+    },
+    {
       id: 'expandJob',
       title: 'Include Job',
       type: 'switch',
@@ -812,10 +1037,13 @@ Output only the JSON array, nothing else.`,
   tools: {
     access: [
       'ashby_add_candidate_tag',
+      'ashby_anonymize_candidate',
+      'ashby_change_application_source',
       'ashby_change_application_stage',
       'ashby_create_application',
       'ashby_create_candidate',
       'ashby_create_note',
+      'ashby_delete_application',
       'ashby_get_application',
       'ashby_get_candidate',
       'ashby_get_job',
@@ -838,6 +1066,8 @@ Output only the JSON array, nothing else.`,
       'ashby_list_users',
       'ashby_remove_candidate_tag',
       'ashby_search_candidates',
+      'ashby_set_custom_field_value',
+      'ashby_set_custom_field_values',
       'ashby_update_candidate',
     ],
     config: {
@@ -864,6 +1094,12 @@ Output only the JSON array, nothing else.`,
         }
         if (params.listedOnly === 'true' || params.listedOnly === true) {
           result.listedOnly = true
+        }
+        if (
+          params.includeUnpublishedJobPostings === 'true' ||
+          params.includeUnpublishedJobPostings === true
+        ) {
+          result.includeUnpublishedJobPostings = true
         }
         if (params.expandJob === 'true' || params.expandJob === true) {
           result.expandJob = true
@@ -905,6 +1141,28 @@ Output only the JSON array, nothing else.`,
         if (params.socialLinks) {
           const socialLinks = parseSocialLinksInput(params.socialLinks)
           if (socialLinks.length > 0) result.socialLinks = socialLinks
+        }
+        if (params.operation === 'set_custom_field_value') {
+          result.fieldValue = parseCustomFieldValueInput(params.fieldValue)
+        }
+        if (params.operation === 'set_custom_field_values') {
+          result.values = parseCustomFieldValuesInput(params.fieldValues)
+        }
+        if (params.operation === 'change_application_source') {
+          // sourceId is always assigned, never conditionally, because the executor
+          // merges `{ ...inputs, ...transformedParams }` and a key this mapping
+          // leaves unset simply inherits whatever was in inputs. The create-path
+          // `sourceId` subblock leaks into exactly that gap: it is mode
+          // 'advanced', and the serializer includes an advanced subblock whenever
+          // its value is non-empty without ever evaluating its condition, so a
+          // value typed while on Create Application survives into this operation.
+          // Inheriting it would attribute a source nobody asked for, or collide
+          // with a clear request and fail with no visible cause.
+          const unsetSource = params.unsetSource === 'true' || params.unsetSource === true
+          const changeSourceId =
+            typeof params.changeSourceId === 'string' ? params.changeSourceId.trim() : ''
+          result.sourceId = unsetSource || !changeSourceId ? undefined : changeSourceId
+          if (unsetSource) result.unsetSource = true
         }
         return result
       },
@@ -981,6 +1239,32 @@ Output only the JSON array, nothing else.`,
       type: 'string',
       description: 'Social links as JSON array',
     },
+    includeUnpublishedJobPostings: {
+      type: 'boolean',
+      description: 'Also return unpublished (draft) job postings',
+    },
+    objectType: {
+      type: 'string',
+      description: 'Custom field target object type (Application, Candidate, Job, or Opening)',
+    },
+    objectId: { type: 'string', description: 'UUID of the object to set custom fields on' },
+    fieldId: { type: 'string', description: 'Custom field definition UUID' },
+    fieldValue: {
+      type: 'string',
+      description: 'Custom field value (plain value, or JSON for structured types; null clears it)',
+    },
+    fieldValues: {
+      type: 'string',
+      description: 'Custom field writes as a JSON array of { fieldId, fieldValue }',
+    },
+    changeSourceId: {
+      type: 'string',
+      description: 'Source UUID to attribute an application to',
+    },
+    unsetSource: {
+      type: 'boolean',
+      description: 'Deliberately clear an application source instead of setting one',
+    },
   },
 
   outputs: {
@@ -1020,7 +1304,12 @@ Output only the JSON array, nothing else.`,
     customFields: {
       type: 'json',
       description:
-        'List of custom field definitions (id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues[] {label, value, isArchived})',
+        'For List Custom Fields, the field definitions (id, title, isPrivate, fieldType, objectType, isArchived, isRequired, selectableValues[] {label, value, isArchived}). For Set Custom Field Values, the field values written to the object (id, title, isPrivate, valueLabel, value)',
+    },
+    customField: {
+      type: 'json',
+      description:
+        'A single custom field value after a write (id, title, isPrivate, valueLabel, value)',
     },
     departments: {
       type: 'json',
@@ -1092,9 +1381,15 @@ Output only the JSON array, nothing else.`,
     },
     isPrivate: { type: 'boolean', description: 'Whether the note is private' },
     createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
+    applicationId: { type: 'string', description: 'UUID of the deleted application' },
     moreDataAvailable: { type: 'boolean', description: 'Whether more pages exist' },
     nextCursor: { type: 'string', description: 'Pagination cursor for next page' },
     syncToken: { type: 'string', description: 'Sync token for incremental updates' },
+    nextSyncCursor: {
+      type: 'string',
+      description:
+        "Ashby's syncToken for the next incremental List Jobs run, exposed as a cursor so it stays readable in block output",
+    },
   },
 }
 

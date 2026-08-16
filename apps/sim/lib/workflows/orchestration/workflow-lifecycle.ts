@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { folder as folderTable, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isFolderInWorkspace } from '@sim/platform-authz/workflow'
-import { toError } from '@sim/utils/errors'
+import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
@@ -16,6 +16,9 @@ import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/util
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowLifecycle')
+
+/** Partial unique index on `(workspace_id, coalesce(folder_id, ''), name) WHERE archived_at IS NULL`. */
+const WORKFLOW_NAME_UNIQUE_INDEX = 'workflow_workspace_folder_name_active_unique'
 
 export interface PerformCreateWorkflowParams {
   userId: string
@@ -258,25 +261,52 @@ export async function performCreateWorkflowTransition(
   const now = new Date()
   const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
 
-  await db.transaction(async (tx) => {
-    await tx.insert(workflow).values({
-      id: workflowId,
-      userId: params.userId,
-      workspaceId: params.workspaceId,
-      folderId,
-      sortOrder,
-      name,
-      description: params.description,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(workflow).values({
+        id: workflowId,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        folderId,
+        sortOrder,
+        name,
+        description: params.description,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+        isDeployed: false,
+        runCount: 0,
+        variables: {},
+      })
 
-    await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-  })
+      await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+    })
+  } catch (error) {
+    /**
+     * The name pre-check above is a `SELECT`, so two concurrent creates of the same
+     * name both pass it and the loser is rejected by
+     * {@link WORKFLOW_NAME_UNIQUE_INDEX} as a raw Postgres `23505`. Reported as the
+     * conflict the pre-check already raises, so a caller sees one answer whether it
+     * lost the race or simply arrived second.
+     *
+     * Matched on the constraint name, not on the code alone. This transaction also
+     * runs `saveWorkflowToNormalizedTables`, whose inserts can raise `23505` from
+     * `workflow_blocks_pkey` — a globally unique block id colliding across
+     * workflows, an integrity fault this repository has already hit in production.
+     * A code-only match reported that as a name conflict and hid it.
+     */
+    if (
+      getPostgresErrorCode(error) === '23505' &&
+      getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
+    ) {
+      return {
+        success: false,
+        error: `A workflow named "${name}" already exists in this folder`,
+        errorCode: 'conflict',
+      }
+    }
+    throw error
+  }
 
   logger.info(`[${requestId}] Successfully created workflow ${workflowId}`)
 

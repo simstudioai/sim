@@ -14,6 +14,15 @@ export const internalSessionOrExecutorAuth = createInternalSessionOrExecutorAuth
   },
 })
 
+/**
+ * Generated-document serving authorizes the root file and every referenced input. Its executor
+ * Principal is therefore intentionally workspace-scoped; a file-scoped Principal could authorize
+ * the root or one dependency, but never the full dependency graph.
+ */
+export const internalWorkspaceFileServeAuth = createInternalSessionOrExecutorAuth({
+  audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+})
+
 export const v2FileErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   concealResourceAuthorization: createV2ResourceConcealmentPolicy({

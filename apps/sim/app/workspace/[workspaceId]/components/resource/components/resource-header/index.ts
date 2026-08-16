@@ -1,4 +1,5 @@
 export type {
+  BreadcrumbDropConfig,
   BreadcrumbEditing,
   BreadcrumbItem,
   DropdownOption,

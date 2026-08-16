@@ -173,7 +173,11 @@ export async function copyPromoteUnmappedResources(params: {
   now: Date
   selection: PromoteCopySelection
   workflowIdMap: Map<string, string>
-  /** source folder id -> target folder id, so copied skill/markdown bodies rewrite `sim:folder/<id>`. */
+  /**
+   * source workflow-folder id -> target folder id, so copied skill/markdown bodies rewrite
+   * `sim:folder/<id>`. The file / table / knowledge-base trees are mirrored by the copies run
+   * here and unioned onto this map before the content rewrite.
+   */
   folderIdMap: Map<string, string>
   /** Base resolver (persisted mappings + env identity), used to detect already-mapped KBs (U-docs). */
   resolver: ForkReferenceResolver
@@ -251,6 +255,7 @@ export async function copyPromoteUnmappedResources(params: {
           keyMap: new Map<string, string>(),
           idMap: new Map<string, string>(),
           blobTasks: [] as BlobCopyTask[],
+          folderIdMap: new Map<string, string>(),
         }
 
   // U-docs: documents referenced under an already-mapped (not copied this sync) KB. Skip any doc
@@ -304,7 +309,9 @@ export async function copyPromoteUnmappedResources(params: {
   const contentRefMaps = serializeContentRefMaps({
     workspaceId: { from: sourceWorkspaceId, to: targetWorkspaceId },
     workflows: workflowIdMap,
-    folders: folderIdMap,
+    // Workflow folders (mapped by the caller) unioned with the file / table / knowledge-base
+    // folders this copy mirrored, so a `sim:folder/<id>` ref resolves whichever tree it names.
+    folders: new Map([...folderIdMap, ...fileResult.folderIdMap, ...result.folderIdMap]),
     fileKeys: fileResult.keyMap,
     fileIds: fileResult.idMap,
     skills: result.idMap.get('skill'),

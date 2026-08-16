@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { MANAGED_OAUTH_DELEGATION_HEADER } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type GenerateInternalDelegationTokenInput,
@@ -56,6 +57,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
@@ -1344,10 +1346,7 @@ async function consumePrivateToolPayloadMetadata(
   if (!requestedType) return 'verified'
 
   const inspection = inspectPrivateToolMetadataEnvelope(headers, payload, requestedType)
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
 
   if (requestedType === RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2 && record) {
     const capability = inspectPrivateToolMetadataResponseCapability(headers, requestedType)
@@ -1702,13 +1701,12 @@ async function executeToolImplementation(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
       )
       try {
-        const baseUrl = getInternalApiBaseUrl()
-
-        const workflowId = contextParams._context?.workflowId
-        const userId = contextParams._context?.userId
+        const workflowId = scope.workflowId
+        const userId = scope.userId
 
         const tokenPayload: OAuthTokenPayload = {
           credentialId: contextParams.credential as string,
+          toolId,
         }
         if (workflowId) {
           tokenPayload.workflowId = workflowId
@@ -1717,24 +1715,49 @@ async function executeToolImplementation(
           tokenPayload.impersonateEmail = contextParams.impersonateUserEmail as string
         }
         if (tool?.oauth?.provider) {
-          const { getCanonicalScopesForProvider } = await import('@/lib/oauth/utils')
-          const providerScopes = getCanonicalScopesForProvider(tool.oauth.provider)
+          const providerScopes =
+            tool.oauth.requiredScopes ??
+            (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
           if (providerScopes.length > 0) {
             tokenPayload.scopes = providerScopes
           }
         }
 
+        /**
+         * The acting user asserted alongside an internal token. Only sent when the
+         * run enforces credential access, matching the `userId` query param the HTTP
+         * surface accepted — it never widens access, it only pins the assertion to
+         * the token subject.
+         */
+        const callerUserId =
+          userId && contextParams._context?.enforceCredentialAccess ? userId : undefined
+
+        const baseUrl = getInternalApiBaseUrl()
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
         const tokenUrlObj = new URL('/api/auth/oauth/token', baseUrl)
         if (workflowId) {
           tokenUrlObj.searchParams.set('workflowId', workflowId)
         }
-        if (userId && contextParams._context?.enforceCredentialAccess) {
-          tokenUrlObj.searchParams.set('userId', userId)
+        if (callerUserId) {
+          tokenUrlObj.searchParams.set('userId', callerUserId)
         }
 
-        // Always send Content-Type; add internal auth on server-side runs
+        /**
+         * Deliberately an HTTP hop rather than an in-process call to
+         * `resolveCredentialToken`, even though both run the same authorization rule.
+         *
+         * An OAuth refresh needs the provider's client id and secret
+         * (`requireOAuthClientCapability`, which THROWS when they are absent). Only the
+         * app container loads those, from `SIM_ENV_SECRET_ID`. Tool calls execute inside
+         * the Trigger.dev worker, whose environment does not carry them, so resolving
+         * in-process there turns every credential whose access token has expired into
+         * `Failed to refresh access token`. A still-valid token hides it — the refresh
+         * path is only reached once the token lapses.
+         *
+         * Moving this in-process requires the worker to hold the OAuth client config,
+         * not just a code change.
+         */
         const tokenHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
         if (typeof window === 'undefined') {
           try {
@@ -1743,8 +1766,24 @@ async function executeToolImplementation(
           } catch (_e) {
             // Swallow token generation errors; the request will fail and be reported upstream
           }
+          const managedCredentialDelegation =
+            executionContext?.executorDelegationOrigin ??
+            (workflowId && userId
+              ? {
+                  subjectUserId: userId,
+                  workflowId,
+                  ...(scope.executionId ? { executionId: scope.executionId } : {}),
+                }
+              : undefined)
+          if (managedCredentialDelegation) {
+            const delegationHeaders = await buildExecutorDelegationHeaders(
+              managedCredentialDelegation
+            )
+            tokenHeaders[MANAGED_OAUTH_DELEGATION_HEADER] = delegationHeaders.Authorization
+          }
         }
 
+        // boundary-raw-fetch: same-origin token route, authenticated by internal JWT on the server and the session cookie in the browser
         const response = await fetch(tokenUrlObj.toString(), {
           method: 'POST',
           headers: tokenHeaders,
@@ -1768,7 +1807,8 @@ async function executeToolImplementation(
           throw new Error(`Failed to obtain credential for ${toolLabel}: ${parsedError}`)
         }
 
-        const data = await response.json()
+        const data = (await response.json()) as CredentialTokenPayload
+
         contextParams.accessToken = data.accessToken
         if (data.idToken) {
           contextParams.idToken = data.idToken
@@ -2764,10 +2804,7 @@ async function executeToolRequest(
 
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
       const hasStructuredErrorPayload =
-        errorData !== null &&
-        typeof errorData === 'object' &&
-        !Array.isArray(errorData) &&
-        ('error' in errorData || 'message' in errorData)
+        isRecordLike(errorData) && ('error' in errorData || 'message' in errorData)
 
       if (response.status === 413 && !hasStructuredErrorPayload) {
         logger.error(

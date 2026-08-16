@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
-import type { WorkflowGroup } from '@/lib/table'
+import type { SortDirection, WorkflowGroup } from '@/lib/table'
 import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { COL_WIDTH, SELECTION_TINT_BG } from '../constants'
@@ -42,6 +42,10 @@ interface ColumnHeaderMenuProps {
   /** Opens a popup preview of the column's underlying workflow. Surfaced in
    *  the chevron menu for workflow-output columns. */
   onViewWorkflow?: (workflowId: string) => void
+  onSortColumn?: (columnId: string, direction: SortDirection) => void
+  onClearSort?: () => void
+  /** This column's active sort direction. Absent when another column owns the sort. */
+  sortDirection?: SortDirection
   /** Whether this column is currently pinned to the left. */
   isPinned?: boolean
   /** Toggle the pinned state for this column. */
@@ -84,6 +88,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   sourceInfo,
   onOpenConfig,
   onViewWorkflow,
+  onSortColumn,
+  onClearSort,
+  sortDirection,
   isPinned,
   onPinToggle,
   stickyLeft,
@@ -245,6 +252,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
   return (
     <th
+      data-column-drag-target={column.key}
+      data-column-drag-group={column.workflowGroupId}
       className={cn(
         'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
         stickyLeft !== undefined && 'z-[11]',
@@ -343,6 +352,9 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             onViewWorkflow={
               onViewWorkflow && ownGroup ? () => onViewWorkflow(ownGroup.workflowId) : undefined
             }
+            onSortColumn={onSortColumn}
+            onClearSort={onClearSort}
+            sortDirection={sortDirection}
             isPinned={isPinned}
             onPinToggle={onPinToggle}
           />

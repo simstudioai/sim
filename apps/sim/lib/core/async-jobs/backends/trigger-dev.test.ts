@@ -331,6 +331,80 @@ describe('TriggerDevJobQueue status mapping', () => {
 
     await expect(queue.getJob('run-1')).resolves.toMatchObject({ status: jobStatus })
   })
+
+  it('dates a run cancelled before it was dequeued by its last transition', async () => {
+    mockRetrieve.mockResolvedValueOnce({
+      id: 'run-1',
+      payload: {},
+      status: 'CANCELED',
+      taskIdentifier: 'workflow-execution',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      updatedAt: new Date('2026-08-05T12:00:02.000Z'),
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+      status: 'cancelled',
+      startedAt: undefined,
+      completedAt: new Date('2026-08-05T12:00:02.000Z'),
+    })
+  })
+
+  it('dates a run cancelled mid-flight by its last transition until it drains', async () => {
+    mockRetrieve.mockResolvedValueOnce({
+      id: 'run-1',
+      payload: {},
+      status: 'CANCELED',
+      taskIdentifier: 'workflow-execution',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      startedAt: new Date('2026-08-05T12:00:01.000Z'),
+      updatedAt: new Date('2026-08-05T12:00:03.000Z'),
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+      status: 'cancelled',
+      startedAt: new Date('2026-08-05T12:00:01.000Z'),
+      completedAt: new Date('2026-08-05T12:00:03.000Z'),
+    })
+  })
+
+  it('prefers the reported finish over the last transition once the run has drained', async () => {
+    mockRetrieve.mockResolvedValueOnce({
+      id: 'run-1',
+      payload: {},
+      status: 'COMPLETED',
+      taskIdentifier: 'workflow-execution',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      startedAt: new Date('2026-08-05T12:00:01.000Z'),
+      finishedAt: new Date('2026-08-05T12:00:04.000Z'),
+      updatedAt: new Date('2026-08-05T12:00:09.000Z'),
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+      status: 'completed',
+      completedAt: new Date('2026-08-05T12:00:04.000Z'),
+    })
+  })
+
+  it('leaves a still-running job with no completion instant', async () => {
+    mockRetrieve.mockResolvedValueOnce({
+      id: 'run-1',
+      payload: {},
+      status: 'EXECUTING',
+      taskIdentifier: 'workflow-execution',
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      startedAt: new Date('2026-08-05T12:00:01.000Z'),
+      updatedAt: new Date('2026-08-05T12:00:03.000Z'),
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+      status: 'processing',
+      completedAt: undefined,
+    })
+  })
 })
 
 describe('TriggerDevJobQueue cancellation', () => {

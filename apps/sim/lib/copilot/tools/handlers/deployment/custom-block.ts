@@ -11,6 +11,7 @@ import {
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import {
@@ -77,13 +78,12 @@ async function resolveIconUrl(
     { fileId: record.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_ICON_BYTES },
     { fileId: record.id }
   )
-  const safeFileName = record.name.replace(/[^a-zA-Z0-9.-]/g, '_')
   const uploaded = await uploadFile({
     file: buffer,
     fileName: record.name,
     contentType: record.type,
     context: 'workspace-logos',
-    customKey: `workspace-logos/${Date.now()}-${generateShortId()}-${safeFileName}`,
+    customKey: `workspace-logos/${buildStorageKeySegment(`${Date.now()}-${generateShortId()}-`, record.name)}`,
     preserveKey: true,
     metadata: { workspaceId, userId: context.userId, originalName: record.name },
   })

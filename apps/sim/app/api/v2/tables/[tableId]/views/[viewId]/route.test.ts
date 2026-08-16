@@ -46,11 +46,19 @@ const auth = {
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
+const columns = [
+  { id: 'col_a', name: 'Status', type: 'text' as const },
+  { id: 'col_b', name: 'Email', type: 'text' as const },
+]
 const view = {
   id: 'view-1',
   tableId: 'table-1',
   name: 'Active',
-  config: {},
+  config: {
+    hiddenColumns: ['col_b'],
+    sort: [{ field: 'col_a', direction: 'desc' as const }],
+    filter: { all: [{ field: 'col_a', op: 'eq' as const, value: 'open' }] },
+  },
   isDefault: true,
   createdBy: 'user-1',
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -76,8 +84,8 @@ describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
     v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.read.mockResolvedValue({ view })
-    mocks.update.mockResolvedValue({ view, changed: false })
+    mocks.read.mockResolvedValue({ view, columns })
+    mocks.update.mockResolvedValue({ view, columns, changed: false })
     mocks.remove.mockResolvedValue({ viewId: 'view-1' })
     mocks.email.mockResolvedValue('user@example.com')
   })
@@ -92,6 +100,20 @@ describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
       principal,
       input: { tableId: 'table-1', viewId: 'view-1', workspaceId: WORKSPACE_ID },
       request: req,
+    })
+  })
+
+  /**
+   * Storage keys on stable column ids; this surface reads and writes column
+   * names, so a `col_…` id must never reach the caller.
+   */
+  it('presents the saved config keyed by column name', async () => {
+    const response = await GET(request('GET'), context)
+
+    expect((await response.json()).data.config).toEqual({
+      hiddenColumns: ['Email'],
+      sort: [{ field: 'Status', direction: 'desc' }],
+      filter: { all: [{ field: 'Status', op: 'eq', value: 'open' }] },
     })
   })
 

@@ -45,7 +45,7 @@ import {
   hasAgentStreamPolicy,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { type V2ErrorCode, v2Data, v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
+import { type V2ErrorCode, v2Data, v2Error } from '@/app/api/v2/lib/response'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,
@@ -191,7 +191,6 @@ export const POST = withRouteHandler(
       const parsed = await parseRequest(v2ExecuteWorkflowContract, req, context, {
         ...V2_PARSE_DEFAULTS,
         maxBodyBytes: 10 * 1024 * 1024,
-        validationErrorResponse: v2ValidationError,
       })
       if (!parsed.success) return parsed.response
       const body = parsed.data.body
@@ -286,6 +285,7 @@ export const POST = withRouteHandler(
         result = await executeWorkflowService({
           workflowId,
           userId,
+          isPublicApiAccess,
           input: body.input ?? {},
           triggerType: 'api',
           requestId,

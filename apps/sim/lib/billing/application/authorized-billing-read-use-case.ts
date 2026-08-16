@@ -8,6 +8,13 @@ import type {
   BillingReadPrincipal,
 } from '@/lib/billing/application/operations'
 import type { OperationUseCase } from '@/lib/core/application'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+  PersonalApiKeysDisabledError,
+  PrincipalKindAuthorizationError,
+  WorkspaceApiKeyScopeAuthorizationError,
+} from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -36,10 +43,7 @@ function requireBillingReadPrincipal(
   operation: BillingReadOperation
 ): asserts principal is BillingReadPrincipal {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
-    throw new OrchestrationError(
-      'forbidden',
-      `Principal kind ${principal.kind} cannot perform operation ${operation.id}`
-    )
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
   }
 }
 
@@ -50,7 +54,14 @@ async function resolveBillingReadScope(
 ): Promise<BillingReadScope> {
   if (principal.kind === 'workspace_api_key') {
     if (requestedWorkspaceId && requestedWorkspaceId !== principal.workspaceId) {
-      throw new OrchestrationError('forbidden', 'API key is not authorized for this workspace')
+      /**
+       * A cross-tenant refusal, so it must not explain itself: naming the cause
+       * would confirm the named workspace exists to a key that was never scoped
+       * to it. The billing routes conceal this class as a `404`, which is also
+       * the answer a workspace id that does not exist gets, so the two are
+       * indistinguishable — see `createV2ResourceConcealmentPolicy`.
+       */
+      throw new WorkspaceApiKeyScopeAuthorizationError()
     }
   } else if (!requestedWorkspaceId) {
     return { kind: 'account', userId: principal.userId }
@@ -65,15 +76,16 @@ async function resolveBillingReadScope(
 
   if (principal.kind === 'personal_api_key') {
     if (!workspace.allowPersonalApiKeys) {
-      throw new OrchestrationError('forbidden', 'Personal API keys are disabled for this workspace')
+      throw new PersonalApiKeysDisabledError()
     }
     const permission = await resolveEffectiveWorkspacePermission(
       principal.userId,
       workspace.workspaceId,
       workspace.workspaceOrganizationId
     )
+    if (permission === null) throw new NoWorkspaceAccessError()
     if (!permissionSatisfies(permission, operation.workspaceMinimumRole)) {
-      throw new OrchestrationError('forbidden', 'Access denied')
+      throw new InsufficientWorkspacePermissionsError()
     }
   }
 

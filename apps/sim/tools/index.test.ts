@@ -254,7 +254,11 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Read',
     description: 'Read Gmail messages',
     version: '1.0.0',
-    oauth: { required: true, provider: 'google-email' },
+    oauth: {
+      required: true,
+      provider: 'google-email',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    },
     params: {},
     request: { url: '/api/tools/gmail/read', method: 'GET' },
   },
@@ -263,7 +267,11 @@ const mockRegistryTools: Record<string, any> = {
     name: 'Gmail Send',
     description: 'Send Gmail messages',
     version: '1.0.0',
-    oauth: { required: true, provider: 'google-email' },
+    oauth: {
+      required: true,
+      provider: 'google-email',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.modify'],
+    },
     params: {},
     request: { url: '/api/tools/gmail/send', method: 'POST' },
   },
@@ -3776,6 +3784,58 @@ describe('Copilot OAuth Credential Enforcement', () => {
     expect(result.error).toContain('credentialId')
     expect(result.error).toContain('environment/credentials.json')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('Managed OAuth Credential Delegation', () => {
+  it('passes an opaque credential ID with trusted tool scope and origin-bound delegation', async () => {
+    mockGenerateInternalToken.mockResolvedValueOnce('legacy-token')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ accessToken: 'managed-access-token' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ messages: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const executorDelegationOrigin = {
+      subjectUserId: 'origin-user',
+      workflowId: 'origin-workflow',
+      executionId: 'origin-execution',
+    }
+    const context = createToolExecutionContext({
+      userId: 'current-user',
+      workflowId: 'current-workflow',
+      executionId: 'current-execution',
+      executorDelegationOrigin,
+    })
+
+    await executeTool(
+      'gmail_read',
+      { oauthCredential: 'managed-credential-id' },
+      { executionContext: context }
+    )
+
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith(executorDelegationOrigin)
+    const [tokenUrl, tokenRequest] = fetchMock.mock.calls[0]
+    expect(String(tokenUrl)).toContain('/api/auth/oauth/token')
+    expect(tokenRequest.headers).toMatchObject({
+      Authorization: 'Bearer legacy-token',
+      'x-sim-managed-oauth-delegation': 'Bearer executor-token',
+    })
+    expect(JSON.parse(tokenRequest.body)).toMatchObject({
+      credentialId: 'managed-credential-id',
+      toolId: 'gmail_read',
+      scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+    })
   })
 })
 

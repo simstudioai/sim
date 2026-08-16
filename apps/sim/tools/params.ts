@@ -31,9 +31,7 @@ import type {
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
 
-// ============================================================================
 // Tag/Value Parsing Utilities
-// ============================================================================
 
 interface Option {
   label: string

@@ -100,6 +100,34 @@ describe('getGlobalSearchResults', () => {
     ).toEqual(['new-chat-action', 'new-chat-result'])
   })
 
+  it('keeps a mid-word-matched action below word-start entity matches', () => {
+    const action = {
+      id: 'create-folder',
+      name: 'Create folder',
+      icon: () => null,
+      context: 'global' as const,
+      run: () => {},
+    }
+    const [actionMatch] = scoreActions([action], 'a')
+    const [blockMatch] = scoreAndSort([{ name: 'Airtable' }], (item) => item.name, 'a')
+
+    expect(actionMatch.score).toBeLessThan(blockMatch.score)
+  })
+
+  it('still biases a word-start action match above entity name matches', () => {
+    const action = {
+      id: 'create-workflow',
+      name: 'Create workflow',
+      icon: () => null,
+      context: 'global' as const,
+      run: () => {},
+    }
+    const [actionMatch] = scoreActions([action], 'w')
+    const [blockMatch] = scoreAndSort([{ name: 'Webhook' }], (item) => item.name, 'w')
+
+    expect(actionMatch.score).toBeGreaterThan(blockMatch.score)
+  })
+
   it('breaks identical visible-name matches by the original section order', () => {
     const workflow = { id: 'new-chat-workflow', name: 'New chat', href: '/new-chat-workflow' }
     const chat = { id: 'new-chat-result', name: 'New chat', href: '/new-chat-result' }

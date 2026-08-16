@@ -26,6 +26,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { searchFilter } from '@/lib/api/list-query'
 import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   assertBillingAttributionSnapshot,
@@ -98,6 +99,7 @@ import {
   parseBooleanValue,
   parseDateValue,
   parseNumberValue,
+  uncompilableTagFilterError,
   validateTagValue,
 } from '@/lib/knowledge/tags/utils'
 import type { ProcessedDocumentTags } from '@/lib/knowledge/types'
@@ -122,6 +124,13 @@ const logger = createLogger('DocumentService')
  * Thrown when a knowledge-base document's `fileUrl` references an internal
  * knowledge-base storage object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
+ *
+ * Deliberately carries no `details.code`. It belongs to the cross-tenant class
+ * the closed set in `lib/core/application/forbidden.ts` excludes: it fires
+ * identically for a key bound to another tenant and for a key bound to nothing
+ * at all, so the single fixed message is the whole of what a caller may learn,
+ * and a machine-readable name would only invite a client to read resource
+ * existence into it.
  */
 export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   constructor(public readonly storageKey: string) {
@@ -1676,15 +1685,14 @@ export async function getDocuments(
   }
 
   if (search) {
-    whereConditions.push(sql`LOWER(${document.filename}) LIKE LOWER(${`%${search}%`})`)
+    whereConditions.push(searchFilter(document.filename, search))
   }
 
   if (tagFilters && tagFilters.length > 0) {
     for (const filter of tagFilters) {
       const condition = buildTagFilterCondition(filter)
-      if (condition) {
-        whereConditions.push(condition)
-      }
+      if (!condition) throw uncompilableTagFilterError(filter)
+      whereConditions.push(condition)
     }
   }
 

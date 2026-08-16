@@ -391,15 +391,15 @@ describe('initUpdater state machine', () => {
   })
 })
 
-function manifest(version: string): string {
+function manifest(version: string, repository = 'simstudioai/sim'): string {
   return [
     `version: ${version}`,
     'files:',
-    `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
+    `  - url: https://github.com/${repository}/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
     '    sha512: abc',
-    `  - url: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal.dmg`,
+    `  - url: https://github.com/${repository}/releases/download/v${version}/Sim-${version}-universal.dmg`,
     '    sha512: def',
-    `path: https://github.com/simstudioai/sim/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
+    `path: https://github.com/${repository}/releases/download/v${version}/Sim-${version}-universal-mac.zip`,
     "releaseDate: '2026-07-23T00:00:00.000Z'",
   ].join('\n')
 }
@@ -453,6 +453,26 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(2)
   })
 
+  it('offers prerelease-repository assets as manual downloads', async () => {
+    const fetchManifest = vi.fn(async () =>
+      manifest('9.9.9-dev.1', 'simstudioai/sim-desktop-releases')
+    )
+    const { handle } = await createManualUpdater(fetchManifest)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.getState()).toEqual({
+      status: 'available',
+      version: '9.9.9-dev.1',
+      manual: true,
+    })
+
+    handle.check()
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      'https://github.com/simstudioai/sim-desktop-releases/releases/download/v9.9.9-dev.1/Sim-9.9.9-dev.1-universal.dmg'
+    )
+  })
+
   it('refuses a manifest whose download urls are not http(s)', async () => {
     const hostile = [
       'version: 9.9.9',
@@ -489,6 +509,19 @@ describe('initUpdater manual mode (no Developer ID signature)', () => {
       "releaseDate: '2026-07-23T00:00:00.000Z'",
     ].join('\n')
     const { handle } = await createManualUpdater(async () => offHost)
+
+    handle.check()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(handle.getState()).toMatchObject({ status: 'error', manual: true })
+    handle.check()
+    handle.install()
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('refuses assets from other repositories on github.com', async () => {
+    const offRepository = manifest('9.9.9', 'simstudioai/not-desktop-releases')
+    const { handle } = await createManualUpdater(async () => offRepository)
 
     handle.check()
     await vi.advanceTimersByTimeAsync(0)

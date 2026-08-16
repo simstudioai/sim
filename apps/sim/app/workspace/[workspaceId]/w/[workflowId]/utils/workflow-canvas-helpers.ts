@@ -198,46 +198,6 @@ export function computeClampedPositionUpdates(
   }))
 }
 
-interface ParentUpdateEntry {
-  blockId: string
-  newParentId: string
-  affectedEdges: Edge[]
-}
-
-/**
- * Computes parent update entries for nodes being moved into a subflow.
- * Only includes "boundary edges" - edges that cross the selection boundary
- * (one end inside selection, one end outside). Edges between nodes in the
- * selection are preserved.
- */
-export function computeParentUpdateEntries(
-  validNodes: Node[],
-  allEdges: Edge[],
-  targetParentId: string
-): ParentUpdateEntry[] {
-  const movingNodeIds = new Set(validNodes.map((n) => n.id))
-
-  // Find edges that cross the boundary (one end inside selection, one end outside)
-  // Edges between nodes in the selection should stay intact
-  const boundaryEdges = allEdges.filter((e) => {
-    const sourceInSelection = movingNodeIds.has(e.source)
-    const targetInSelection = movingNodeIds.has(e.target)
-    // Only remove if exactly one end is in the selection (crosses boundary)
-    return sourceInSelection !== targetInSelection
-  })
-
-  // Build updates for all valid nodes
-  return validNodes.map((n) => {
-    // Only include boundary edges connected to this specific node
-    const edgesForThisNode = boundaryEdges.filter((e) => e.source === n.id || e.target === n.id)
-    return {
-      blockId: n.id,
-      newParentId: targetParentId,
-      affectedEdges: edgesForThisNode,
-    }
-  })
-}
-
 /**
  * Resolves parent-child selection conflicts by deselecting children whose parent is also selected.
  */

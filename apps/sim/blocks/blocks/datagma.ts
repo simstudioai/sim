@@ -52,9 +52,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       value: () => 'datagma_find_email',
     },
 
-    // -------------------------------------------------------------------------
     // Find Email
-    // -------------------------------------------------------------------------
     {
       id: 'fe_fullName',
       title: 'Full Name',
@@ -80,9 +78,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       mode: 'advanced',
     },
 
-    // -------------------------------------------------------------------------
     // Enrich Person
-    // -------------------------------------------------------------------------
     {
       id: 'ep_data',
       title: 'Email, LinkedIn URL, or Full Name',
@@ -130,9 +126,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       mode: 'advanced',
     },
 
-    // -------------------------------------------------------------------------
     // Enrich Company
-    // -------------------------------------------------------------------------
     {
       id: 'ec_data',
       title: 'Company Domain, Name, or SIREN',
@@ -166,9 +160,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       mode: 'advanced',
     },
 
-    // -------------------------------------------------------------------------
     // Find Phone
-    // -------------------------------------------------------------------------
     {
       id: 'fp_username',
       title: 'LinkedIn URL',
@@ -185,9 +177,7 @@ export const DatagmaBlock: BlockConfig<DatagmaResponse> = {
       condition: { field: 'operation', value: 'datagma_find_phone' },
     },
 
-    // -------------------------------------------------------------------------
     // API Key — hidden on hosted Sim for operations with hosted-key support
-    // -------------------------------------------------------------------------
     {
       id: 'apiKey',
       title: 'API Key',

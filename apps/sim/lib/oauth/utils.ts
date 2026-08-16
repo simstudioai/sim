@@ -36,6 +36,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/adwords': 'Manage Google Ads campaigns and reporting',
   'https://www.googleapis.com/auth/bigquery': 'View and manage data in Google BigQuery',
   'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
+  'https://www.googleapis.com/auth/ediscovery.readonly':
+    'View Google Vault matters, holds, and saved queries',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
   'https://www.googleapis.com/auth/admin.directory.group': 'Manage Google Workspace groups',
   'https://www.googleapis.com/auth/admin.directory.group.member':
@@ -254,10 +256,18 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
   'Sites.Manage.All': 'Manage Sharepoint sites',
   'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
-  'User.Read.All': 'Read all user profiles',
   'User.ReadWrite.All': 'Read and write all user profiles',
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
+  'LicenseAssignment.ReadWrite.All': 'Assign and remove user licenses',
+  'UserAuthenticationMethod.ReadWrite.All':
+    'Read and reset authentication methods and passwords for all users',
+  'AuditLog.Read.All': 'Read sign-in and directory audit logs',
+  'Application.Read.All': 'Read all applications and service principals',
+  'AppRoleAssignment.ReadWrite.All': 'Grant and revoke application role assignments',
+  'RoleManagement.ReadWrite.Directory': 'Read and manage directory role assignments',
+  'Device.Read.All': 'Read all devices',
+  'Policy.Read.All': 'Read conditional access and other policies',
 
   // Reddit scopes
   identity: 'Access Reddit identity',
@@ -686,10 +696,25 @@ export function getMissingRequiredScopes(
   for (const s of requiredScopes) {
     if (IGNORED_SCOPES.has(s)) continue
 
-    if (!granted.has(s)) missing.push(s)
+    if (!granted.has(s) && !isScopeSatisfiedBy(s, granted)) missing.push(s)
   }
 
   return missing
+}
+
+/**
+ * Whether a granted scope already covers `required` despite not matching it verbatim.
+ *
+ * A read-write scope subsumes its `.readonly` sibling — a credential holding
+ * `.../auth/ediscovery` is accepted by every method that documents
+ * `.../auth/ediscovery.readonly`. Without this, narrowing a consumer to the
+ * least-privileged scope would report every already-connected credential as
+ * missing it and prompt a re-consent that grants nothing new.
+ */
+function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
+  const readonlySuffix = '.readonly'
+  if (!required.endsWith(readonlySuffix)) return false
+  return granted.has(required.slice(0, -readonlySuffix.length))
 }
 
 /**

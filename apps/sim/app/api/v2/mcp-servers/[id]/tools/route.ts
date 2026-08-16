@@ -14,13 +14,8 @@ export const revalidate = 0
  * as `mcp-<hash>` from the workspace and endpoint URL, and the registration
  * contract requires a URL.
  *
- * Discovery is not a safe read: it opens a live connection to the registered
- * endpoint and records the outcome on the server row. Next aliases `HEAD` onto
- * `GET`, and RFC 9110 §9.2.1 defines `HEAD` as safe, so this route declares
- * itself not head-safe — a `HEAD` is authenticated and rate-limited, then
- * answered bodiless without connecting or writing. Without that, an uptime
- * monitor or link checker walking the documented URL list would drive outbound
- * third-party traffic and mutate rows on every probe.
+ * `headSafe: false` because discovery opens a live connection to the registered
+ * endpoint and records the outcome on the server row.
  */
 export const GET = defineV2JsonRoute({
   contract: v2ListMcpServerToolsContract,

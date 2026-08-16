@@ -1,7 +1,9 @@
 import type {
   CloudflareListZonesParams,
   CloudflareListZonesResponse,
+  CloudflareRawZone,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareListZonesResponse> = {
@@ -88,7 +90,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawZone[]>(response)
 
     if (!data.success) {
       return {
@@ -102,7 +104,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
       success: true,
       output: {
         zones:
-          data.result?.map((zone: any) => ({
+          data.result?.map((zone) => ({
             id: zone.id ?? '',
             name: zone.name ?? '',
             status: zone.status ?? '',

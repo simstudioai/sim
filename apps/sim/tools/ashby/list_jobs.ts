@@ -26,7 +26,15 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results per page (default 100)',
+      description:
+        'Number of results per page (default and max 100). Ashby silently caps larger values rather than erroring.',
+    },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Opaque token from a prior sync to fetch only jobs changed since then. Ashby only returns a new syncToken on the last page, so drain moreDataAvailable/nextCursor before persisting it.',
     },
     status: {
       type: 'string',
@@ -75,6 +83,7 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
       const body: Record<string, unknown> = { expand: ['openings', 'location'] }
       if (params.cursor) body.cursor = params.cursor
       if (params.perPage) body.limit = params.perPage
+      if (params.syncToken) body.syncToken = params.syncToken
       if (params.status) body.status = [params.status]
       const isoToMs = (iso: string): number | null => {
         const ms = new Date(iso).getTime()
@@ -117,6 +126,7 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
         jobs: (data.results ?? []).map(mapJob),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -137,6 +147,12 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
     nextCursor: {
       type: 'string',
       description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    nextSyncCursor: {
+      type: 'string',
+      description:
+        "Ashby's syncToken for the next incremental run, returned only once the last page is drained. Named as a cursor because that is what it is - an opaque resumption marker, not a credential - so it stays readable in block output alongside nextCursor.",
       optional: true,
     },
   },

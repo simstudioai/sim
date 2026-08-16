@@ -53,7 +53,7 @@ export const internalSessionAuth = {
   },
 } as const
 
-export interface InternalSessionOrExecutorAuthOptions {
+interface InternalSessionOrExecutorAuthOptions {
   audience: string
   resourceScope?(
     params: Record<string, string | string[] | undefined>
@@ -230,6 +230,7 @@ type InternalJsonRouteOptions<
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
+  statusForResult?(result: NoInfer<R>): number
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
   finalizeResponse?(args: {
     request: NextRequest
@@ -287,12 +288,6 @@ export function defineInternalJsonRoute<
     options.operation,
     options.useCase.operation
   )
-  if (successStatuses.length !== 1) {
-    throw new Error(
-      `${options.contract.method} ${options.contract.path} internal JSON route requires one success status`
-    )
-  }
-
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
       if (!methodMatchesContract(request.method, options.contract.method)) {
@@ -344,6 +339,12 @@ export function defineInternalJsonRoute<
           throw new Error('Internal JSON route response mode changed after initialization')
         }
         const validatedBody = responseSchema.schema.parse(body) as ContractJsonResponse<C>
+        const responseStatus = options.statusForResult?.(result) ?? successStatus
+        if (!successStatuses.includes(responseStatus)) {
+          throw new Error(
+            `Internal JSON route produced undeclared success status ${responseStatus}; expected ${successStatuses.join(', ')}`
+          )
+        }
         const headers = options.responseHeaders?.({ principal, input, result })
         const finalization = options.finalizeResponse
           ? await options.finalizeResponse({
@@ -357,7 +358,7 @@ export function defineInternalJsonRoute<
         return NextResponse.json(
           appendFinalizedBodyFields(validatedBody, finalization?.bodyFields),
           {
-            status: successStatus,
+            status: responseStatus,
             headers: appendFinalizedHeaders(headers, finalization?.headers),
           }
         )

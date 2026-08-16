@@ -1,7 +1,7 @@
 import type { AnyApiRouteContract } from '@/lib/api/contracts'
 import type { ApplicationOperation } from '@/lib/core/application'
 
-export interface JsonRouteDefinitionMetadata {
+interface JsonRouteDefinitionMetadata {
   successStatus: number
   successStatuses: readonly number[]
 }

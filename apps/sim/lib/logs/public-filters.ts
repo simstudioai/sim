@@ -6,6 +6,17 @@ export interface LogFilters {
   workspaceId: string
   workflowIds?: string[]
   folderIds?: string[]
+  /**
+   * Trigger types to include. `all` is a sentinel — a list containing it
+   * disables this filter entirely rather than matching a trigger of that name.
+   *
+   * It is safe because `all` is modelled as a sentinel rather than a value:
+   * `TriggerType` in `stores/logs/filters/types.ts` adds it alongside
+   * `CoreTriggerType`, which never contains it, so no run is recorded under it.
+   * It does mean the filterable vocabulary is one name smaller than the
+   * column's, which is why the public `triggers` param documents the sentinel
+   * instead of leaving a caller to discover it.
+   */
   triggers?: string[]
   level?: 'info' | 'error'
   startDate?: Date

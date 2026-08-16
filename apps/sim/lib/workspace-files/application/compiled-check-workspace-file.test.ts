@@ -102,6 +102,16 @@ describe('compiledCheckWorkspaceFile', () => {
       },
     ]
 
+    /**
+     * A workspace key is refused with the code naming *why* — the operation
+     * denies workspace keys, so the remedy is a personal key — while any other
+     * disallowed kind gets the generic kind refusal.
+     */
+    const expectedDetailCode = {
+      personal_api_key: 'PRINCIPAL_KIND_NOT_PERMITTED',
+      workspace_api_key: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED',
+    } as const
+
     for (const principal of unsupportedPrincipals) {
       await expect(
         compiledCheckWorkspaceFile.execute({
@@ -110,7 +120,7 @@ describe('compiledCheckWorkspaceFile', () => {
         })
       ).rejects.toMatchObject({
         code: 'forbidden',
-        message: `Principal kind ${principal.kind} cannot perform operation files.compiled_check`,
+        detailCode: expectedDetailCode[principal.kind],
       })
     }
 

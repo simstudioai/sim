@@ -241,6 +241,20 @@ function objectProperties(
   }
 }
 
+/**
+ * Whether a request slice declares no keys at all, i.e. `z.object({}).strict()`.
+ *
+ * A v2 contract states that an endpoint takes no query params by declaring
+ * `query: noInputSchema` rather than by omitting `query`, because an omitted
+ * slice is the one `parseRequest` skips validating entirely. That distinction is
+ * load-bearing at runtime and invisible to the spec: either way the operation
+ * publishes zero parameters.
+ */
+function declaresNoKeys(schema: ApiSchema): boolean {
+  const def = (schema as { def?: { type?: string; shape?: Record<string, unknown> } }).def
+  return def?.type === 'object' && Object.keys(def.shape ?? {}).length === 0
+}
+
 function parametersFor(
   schema: ApiSchema | undefined,
   location: 'path' | 'query' | 'header',
@@ -248,6 +262,12 @@ function parametersFor(
   label: string
 ): JsonObject[] {
   if (!schema) return []
+  /**
+   * Short-circuited ahead of `objectProperties`, which would otherwise demand
+   * the `.meta({ id })` and the non-empty `properties` an empty schema has
+   * nothing to supply, and would register a component no operation references.
+   */
+  if (declaresNoKeys(schema)) return []
   const { properties, required } = objectProperties(schema, components, label)
   return Object.entries(properties).map(([name, property]) => {
     invariant(property && typeof property === 'object', `${label}.${name} is not a schema`)

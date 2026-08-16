@@ -59,13 +59,6 @@ export const PI_NODE_VERSION_ASSERT =
 export const PI_BUN_VERSION_ASSERT = `test "$(bun --version)" = "${PI_BUN_VERSION}"`
 
 /**
- * The review tools run `python3 /workspace/sim-review-tools.py`
- * (`cloud-review-tools.ts:15`). E2B's `code-interpreter-v1` base ships Python, so
- * only the Daytona image has to provide it explicitly.
- */
-export const PI_REQUIRES_PYTHON3 = true
-
-/**
  * vCPU and RAM for the Pi sandbox, shared for the same reason the package lists
  * are: the two providers had already drifted here. Daytona asked for 4 CPU / 8 GB
  * while the E2B template asked for nothing and inherited its base default of

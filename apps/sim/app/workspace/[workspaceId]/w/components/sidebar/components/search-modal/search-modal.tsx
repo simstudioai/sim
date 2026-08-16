@@ -43,10 +43,12 @@ import { createPortal } from 'react-dom'
 import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
   CommandFadedList,
@@ -86,8 +88,13 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { useFolderMap } from '@/hooks/queries/folders'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useTablesList } from '@/hooks/queries/tables'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import type { WorkflowFolder } from '@/stores/folders/types'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/search/types'
 
@@ -100,6 +107,9 @@ const logger = createLogger('SearchModal')
  */
 export const MAX_BROWSE_RESULTS = Number.POSITIVE_INFINITY
 const MAX_SEARCH_RESULTS = 50
+
+/** Stable empty default so a pending folder map does not remount the memos below. */
+const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
 
 export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
@@ -121,9 +131,6 @@ function SearchModalContent({
   workflows = [],
   workspaces = [],
   chats = [],
-  tables = [],
-  files = [],
-  knowledgeBases = [],
   logs = [],
   integrations = [],
   connectedAccounts = [],
@@ -156,6 +163,83 @@ function SearchModalContent({
   posthogRef.current = posthog
 
   const { blocks, tools, triggers, toolOperations } = useSearchModalStore((state) => state.data)
+
+  /**
+   * Read here rather than passed down from the sidebar. This component mounts only while the
+   * palette is open, so these workspace-wide lists are fetched — and registered in the query
+   * cache — only then. The sidebar renders on every workspace route, so holding them there put
+   * three lists and two folder maps in the cache on routes that never display them, and a
+   * registered key also blocks a page from seeding it during the server render.
+   */
+  const { data: fetchedTables = [] } = useTablesList(workspaceId, 'active', {
+    enabled: !permissionConfig.hideTablesTab,
+  })
+  const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId, 'active', {
+    enabled: !permissionConfig.hideFilesTab,
+  })
+  const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId, {
+    enabled: !permissionConfig.hideKnowledgeBaseTab,
+  })
+  const { data: tableFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideTablesTab ? undefined : workspaceId,
+    'table'
+  )
+  const { data: knowledgeBaseFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideKnowledgeBaseTab ? undefined : workspaceId,
+    'knowledge_base'
+  )
+
+  /**
+   * The hidden-tab checks are repeated here, not left to `enabled`. A disabled query still
+   * returns whatever is already cached — another surface may have filled it, or the permission
+   * config may have flipped after it did — so gating only the fetch would let the palette list
+   * entities a permission group hides.
+   */
+  const tables = useMemo(
+    () =>
+      permissionConfig.hideTablesTab
+        ? []
+        : fetchedTables.map((t) => ({
+            id: t.id,
+            name: t.name,
+            href: `/workspace/${workspaceId}/tables/${t.id}`,
+            folderPath: getFolderPathNames(tableFolderMap, t.folderId),
+          })),
+    [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
+  )
+
+  const files = useMemo(
+    () =>
+      permissionConfig.hideFilesTab
+        ? []
+        : fetchedFiles.map((f) => ({
+            id: f.id,
+            name: f.name,
+            href: `/workspace/${workspaceId}/files/${f.id}`,
+            folderPath: f.folderPath
+              ? parseWorkspaceFileFolderDisplayPath(f.folderPath)
+              : undefined,
+          })),
+    [fetchedFiles, workspaceId, permissionConfig.hideFilesTab]
+  )
+
+  const knowledgeBases = useMemo(
+    () =>
+      permissionConfig.hideKnowledgeBaseTab
+        ? []
+        : fetchedKnowledgeBases.map((kb) => ({
+            id: kb.id,
+            name: kb.name,
+            href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
+            folderPath: getFolderPathNames(knowledgeBaseFolderMap, kb.folderId),
+          })),
+    [
+      fetchedKnowledgeBases,
+      knowledgeBaseFolderMap,
+      workspaceId,
+      permissionConfig.hideKnowledgeBaseTab,
+    ]
+  )
 
   const openHelpModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help-modal'))
@@ -970,6 +1054,9 @@ function SearchModalContent({
       ...(pageContext ? rankActionGroup(actionsByGroup.page, 'Actions') : []),
       ...rankActionGroup(actionsByGroup.sim, 'Sim'),
     ]
+    const blockNames = new Set(
+      [...availableBlocks, ...availableTools].map((item) => item.name.toLowerCase())
+    )
 
     return {
       actions: rankedActions.map(({ item, score }) => ({ section: 'actions', item, score })),
@@ -988,8 +1075,14 @@ function SearchModalContent({
         section: 'triggers',
         item,
         /* The display rename ("Start" → "Start Trigger") costs the exact-name
-           bonus, so a query that IS the trigger's name ranks it like a page row. */
-        score: item.baseName.toLowerCase() === query.toLowerCase() ? PAGE_MATCH_TIER : score,
+           bonus, so a query that IS the trigger's name ranks it like a page row
+           — unless a block shares that name (Gmail, Slack). Then the query names
+           the block first, and the lift would leapfrog its exact-name match. */
+        score:
+          item.baseName.toLowerCase() === query.toLowerCase() &&
+          !blockNames.has(item.baseName.toLowerCase())
+            ? PAGE_MATCH_TIER
+            : score,
       })),
       tools: rank(
         'tools',

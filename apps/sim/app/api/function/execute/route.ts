@@ -2,6 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { functionExecuteContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -1030,12 +1031,6 @@ function inspectMountedWorkspaceFileProvenance(
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
 function getPositiveNumber(value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
     return undefined
@@ -1054,8 +1049,8 @@ function getBrokerFileArgs(args: unknown): {
   offset?: number
   length?: number
 } {
-  const record = asRecord(args)
-  const options = asRecord(record.options)
+  const record = toRecord(args)
+  const options = toRecord(record.options)
   return {
     file: record.file,
     maxBytes: clampInlineBytes(options.maxBytes),
@@ -1105,8 +1100,8 @@ function createFunctionRuntimeBrokers(
     'sim.files.readBase64Chunk': (args) => readFile(args, 'base64', true),
     'sim.files.readTextChunk': (args) => readFile(args, 'text', true),
     'sim.values.read': async (args) => {
-      const record = asRecord(args)
-      const options = asRecord(record.options)
+      const record = toRecord(args)
+      const options = toRecord(record.options)
       const ref = record.ref
       if (!isLargeValueRef(ref)) {
         throw new Error('Expected a large execution value reference.')
@@ -1125,8 +1120,8 @@ function createFunctionRuntimeBrokers(
       return value
     },
     'sim.values.readArray': async (args) => {
-      const record = asRecord(args)
-      const options = asRecord(record.options)
+      const record = toRecord(args)
+      const options = toRecord(record.options)
       const manifest = record.ref
       if (!isLargeArrayManifest(manifest)) {
         throw new Error('Expected a large array manifest.')
@@ -1180,9 +1175,9 @@ async function functionJsonResponse<T>(
 }
 
 function getFunctionResultProvenanceSurface(body: unknown): unknown {
-  const record = asRecord(body)
-  const output = asRecord(record.output)
-  const debug = asRecord(record.debug)
+  const record = toRecord(body)
+  const output = toRecord(record.output)
+  const debug = toRecord(record.debug)
   return [
     Object.hasOwn(record, 'error') ? record.error : undefined,
     Object.hasOwn(output, 'result') ? output.result : undefined,

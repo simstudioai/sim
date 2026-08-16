@@ -14,6 +14,7 @@ import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { hasWorkspaceInboxAccess, hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
@@ -25,7 +26,7 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
 import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
-import { prefetchGeneralSettings, prefetchUserProfile } from './prefetch'
+import { prefetchGeneralSettings } from './prefetch'
 import { SettingsPage } from './settings'
 
 interface WorkspaceSettingsSectionPageProps {
@@ -48,6 +49,7 @@ const TOP_LEVEL_REDIRECTS: Readonly<Record<string, (workspaceId: string) => stri
 const WORKSPACE_SECTION_MAP: Partial<Record<SettingsSection, WorkspaceSettingsSection>> = {
   teammates: 'teammates',
   secrets: 'secrets',
+  'credential-groups': 'credential-groups',
   byok: 'byok',
   sandboxes: 'sandboxes',
   'custom-tools': 'custom-tools',
@@ -67,6 +69,7 @@ const ORGANIZATION_SECTION_MAP: Partial<Record<SettingsSection, OrganizationSett
   'access-control': 'access-control',
   'audit-logs': 'audit-logs',
   sso: 'sso',
+  sessions: 'sessions',
   'data-retention': 'data-retention',
   'data-drains': 'data-drains',
   whitelabeling: 'whitelabeling',
@@ -77,6 +80,14 @@ function parseSection(section: string): SettingsSection | null {
   return allNavigationItems.some((item) => item.id === normalized)
     ? (normalized as SettingsSection)
     : null
+}
+
+/**
+ * Settings availability varies across workspaces, so a preserved section may
+ * need to land on the destination workspace's universally available page.
+ */
+function redirectToGeneralSettings(workspaceId: string): never {
+  redirect(`/workspace/${workspaceId}/settings/general`)
 }
 
 export async function generateMetadata({
@@ -109,14 +120,16 @@ export default async function WorkspaceSettingsSectionPage({
 
   const workspaceSection = WORKSPACE_SECTION_MAP[parsed]
   if (workspaceSection) {
-    const [permissionGroup, forksAvailable, inboxAvailable, sandboxes] = await Promise.all([
-      hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
-        ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
-        : null,
-      isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
-      hasWorkspaceInboxAccess(workspaceId),
-      hasWorkspaceSandboxAccess(workspaceId),
-    ])
+    const [permissionGroup, forksAvailable, inboxAvailable, sandboxes, credentialGroupsAvailable] =
+      await Promise.all([
+        hostContext.hostOrganizationId && hostContext.ownerBilling.isEnterprise
+          ? resolveWorkspaceGroup(session.user.id, hostContext.hostOrganizationId, workspaceId)
+          : null,
+        isForkingAvailableForWorkspace(hostContext.hostOrganizationId, session.user.id),
+        hasWorkspaceInboxAccess(workspaceId),
+        hasWorkspaceSandboxAccess(workspaceId),
+        isCredentialGroupsAvailable(hostContext.ownerBilling),
+      ])
     const customBlocksAvailable = isHosted
       ? hostContext.ownerBilling.isEnterprise
       : isTruthy(getEnv('NEXT_PUBLIC_CUSTOM_BLOCKS_ENABLED'))
@@ -125,26 +138,31 @@ export default async function WorkspaceSettingsSectionPage({
       permissionConfig: permissionGroup?.config ?? {},
       entitlements: {
         byok: isHosted,
+        credentialGroups: credentialGroupsAvailable,
         inbox: inboxAvailable,
         customBlocks: customBlocksAvailable,
         forks: forksAvailable,
         sandboxes,
       },
     })
-    if (!navigation.some((item) => item.id === workspaceSection)) notFound()
+    if (!navigation.some((item) => item.id === workspaceSection)) {
+      redirectToGeneralSettings(workspaceId)
+    }
   }
 
   const organizationSection = ORGANIZATION_SECTION_MAP[parsed]
   if (organizationSection) {
     if (!isBillingEnabled && (parsed === 'billing' || parsed === 'organization')) {
-      redirect(`/workspace/${workspaceId}/settings/general`)
+      redirectToGeneralSettings(workspaceId)
     }
     if (!hostContext.hostOrganizationId) {
       if (parsed !== 'billing' || hostContext.workspace.billedAccountUserId !== session.user.id) {
-        notFound()
+        redirectToGeneralSettings(workspaceId)
       }
     } else {
-      if (!hostContext.viewer.isHostOrganizationAdmin) notFound()
+      if (!hostContext.viewer.isHostOrganizationAdmin) {
+        redirectToGeneralSettings(workspaceId)
+      }
       if (
         !(await canOpenOrganizationSettingsSection(
           hostContext.hostOrganizationId,
@@ -152,7 +170,7 @@ export default async function WorkspaceSettingsSectionPage({
           organizationSection
         ))
       ) {
-        notFound()
+        redirectToGeneralSettings(workspaceId)
       }
       const hasEnterprisePlan =
         organizationSection !== 'members' &&
@@ -164,14 +182,19 @@ export default async function WorkspaceSettingsSectionPage({
           getOrganizationSettingsFeatures(hasEnterprisePlan)
         )
       ) {
-        notFound()
+        redirectToGeneralSettings(workspaceId)
       }
     }
   }
 
   const queryClient = getQueryClient()
-  void prefetchGeneralSettings(queryClient)
-  void prefetchUserProfile(queryClient)
+  /**
+   * Awaited, not fired and forgotten: only a settled query is dehydrated, so an unawaited
+   * prefetch is dropped from the payload and the panel waterfalls anyway. The viewer's
+   * profile is already seeded by the workspace layout under the same key, so it is not
+   * repeated here.
+   */
+  await prefetchGeneralSettings(queryClient)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

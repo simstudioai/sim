@@ -18,16 +18,28 @@ export const WORDMARK_PATHS: readonly string[] = [
 ]
 
 /**
+ * Canvas of `public/brand/color/email/wordmark.png`, which the header renders
+ * instead of these paths because email clients strip inline SVG.
+ *
+ * **These proportions are frozen.** A sent email is immutable — it keeps the
+ * `width`/`height` it was sent with and refetches this URL forever — so an
+ * export whose canvas is shaped differently would stretch the mark in every
+ * message already delivered. Re-export onto this canvas (the outlines centered
+ * at their own aspect, filled with the email palette's `textBody`) and the same
+ * file keeps serving old and new mail alike.
+ */
+export const EMAIL_WORDMARK_CANVAS = { width: 272, height: 164 } as const
+
+/**
  * Display box for the email header wordmark.
  *
  * The landing navbar sizes the mark at its neighbouring text plus 2px above and
  * below (18px ink against 14px chip labels). Email body copy is 16px, so the
- * mark stands 20px tall; the width follows the view box. Both dimensions are
- * pinned because email clients do no responsive image selection.
+ * mark wants to stand ~20px tall. The canvas insets the outlines, so a 26px box
+ * renders 20.7px of ink; the width follows {@link EMAIL_WORDMARK_CANVAS}. Both
+ * dimensions are pinned because email clients do no responsive image selection.
  *
- * The header renders `public/brand/color/email/wordmark.png` rather than these
- * paths, because email clients strip inline SVG. That file is these outlines
- * filled with the email palette's `textBody`, rasterized at 4x so the mark
- * stays crisp on retina and this box can be retuned without re-exporting it.
+ * Retuning this box is safe on its own — the canvas is 6x the box, so the mark
+ * stays crisp, and older mail keeps rendering against its own numbers.
  */
-export const EMAIL_WORDMARK_SIZE = { width: 42, height: 20 } as const
+export const EMAIL_WORDMARK_SIZE = { width: 43, height: 26 } as const

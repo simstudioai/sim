@@ -166,9 +166,12 @@ export interface SearchModalProps {
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
   chats?: TaskItem[]
-  tables?: FolderedItem[]
-  files?: FileItem[]
-  knowledgeBases?: FolderedItem[]
+  /**
+   * Tables, files, and knowledge bases are NOT passed in: the content component reads them
+   * itself, so those three workspace-wide lists are queried only while the palette is open.
+   * The sidebar renders on every workspace route, so fetching them there registered the keys
+   * in the cache on routes that never show them.
+   */
   logs?: LogItem[]
   integrations?: IntegrationSearchItem[]
   connectedAccounts?: IntegrationSearchItem[]
@@ -578,19 +581,32 @@ export function scoreSectionItems<T>(
 }
 
 /**
- * Rank offset added to every matched action. Actions are the palette's few
+ * Rank offset added to a matched action. Actions are the palette's few
  * runnable verbs, so a matched action outranks entity rows of the same match
  * quality — a name-matched action beats name-matched entities, a
  * keyword-matched action beats other secondary-text matches — while the
  * half-tier offset deliberately cannot bridge into the next tier up
- * ({@link SECTION_MATCH_TIER}, {@link PAGE_MATCH_TIER}).
+ * ({@link SECTION_MATCH_TIER}, {@link PAGE_MATCH_TIER}). A name hit that
+ * starts mid-word ("h" in "New chat") is NOT the same quality as the
+ * word-start matches the offset would leapfrog, so it forgoes the bias.
  */
 export const ACTION_MATCH_BIAS = 500_000
 
 /**
+ * Whether a match begins where a word begins — the string start, right after a
+ * separator, or at a camelCase hump. The empty query (no positions) counts as
+ * a word start.
+ */
+function isWordStartMatch(text: string, positions: readonly number[]): boolean {
+  if (positions.length === 0) return true
+  return isHardBoundary(text.toLowerCase(), positions[0]) || isCamelBoundary(text, positions[0])
+}
+
+/**
  * Scores actions by visible name before falling back to their keywords.
- * Every match is lifted by {@link ACTION_MATCH_BIAS}; a query listed in the
- * action's `exactQueries` ranks it like a page row instead.
+ * Word-start matches are lifted by {@link ACTION_MATCH_BIAS}; a mid-word name
+ * hit keeps its honest score so word-start entity matches outrank it; a query
+ * listed in the action's `exactQueries` ranks it like a page row instead.
  */
 export function scoreActions(
   actions: ActionItem[],
@@ -606,10 +622,15 @@ export function scoreActions(
     search,
     (action) => `${toSearchToken(action.name)} ${action.keywords ?? ''}`,
     maxResults
-  ).map(({ item, score }) => ({
-    item,
-    score: item.exactQueries?.includes(query) ? PAGE_MATCH_TIER : score + ACTION_MATCH_BIAS,
-  }))
+  ).map(({ item, score }) => {
+    if (item.exactQueries?.includes(query)) return { item, score: PAGE_MATCH_TIER }
+    /* Section-lifted rows (the query IS the group label) keep the bias
+       wholesale — only plain name-tier scores are quality-checked. */
+    const byName = fuzzyMatch(item.name, query)
+    const midWordNameMatch =
+      score < SECTION_MATCH_TIER && byName.matched && !isWordStartMatch(item.name, byName.positions)
+    return { item, score: midWordNameMatch ? score : score + ACTION_MATCH_BIAS }
+  })
 }
 
 /**

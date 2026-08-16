@@ -1,13 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { z } from 'zod'
 import type { forkRemapKindSchema } from '@/lib/api/contracts/workspace-fork'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import {
   coerceObjectArray,
-  isRecord,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
@@ -346,7 +345,7 @@ function remapEnvInValue(
   }
   // Recurse plain objects so `{{ENV}}` nested in array-form tool params (and other
   // object-valued subblocks) is rewritten, not just top-level strings/arrays.
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     let changed = false
     const next: Record<string, unknown> = {}
     for (const [key, nested] of Object.entries(value)) {
@@ -399,7 +398,7 @@ export function remapToolBlockResources(
 ): Record<string, unknown> {
   if (typeof tool.type !== 'string') return tool
   const params = tool.params
-  if (!isRecord(params)) return tool
+  if (!isRecordLike(params)) return tool
 
   let nextParams: Record<string, unknown> | null = null
   const setParam = (paramId: string, value: unknown) => {
@@ -679,7 +678,7 @@ function remapForkToolInputValue(
       next.push(nextTool)
     }
 
-    if (!isRecord(tool) || typeof tool.type !== 'string') {
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') {
       keep(tool)
       return
     }
@@ -702,7 +701,11 @@ function remapForkToolInputValue(
       keep(tool)
       return
     }
-    if (tool.type === 'mcp' && isRecord(tool.params) && typeof tool.params.serverId === 'string') {
+    if (
+      tool.type === 'mcp' &&
+      isRecordLike(tool.params) &&
+      typeof tool.params.serverId === 'string'
+    ) {
       const serverId = tool.params.serverId
       const target = resolve('mcp-server', serverId)
       opts.record?.('mcp-server', serverId, target != null)
@@ -775,7 +778,7 @@ function remapForkSkillInputValue(
   if (!array) return value
   let changed = false
   const next = array.flatMap((entry) => {
-    if (!isRecord(entry) || typeof entry.skillId !== 'string') return [entry]
+    if (!isRecordLike(entry) || typeof entry.skillId !== 'string') return [entry]
     if (entry.skillId.startsWith('builtin-')) return [entry]
     const target = resolve('skill', entry.skillId)
     opts.record?.('skill', entry.skillId, target != null)
@@ -1208,12 +1211,12 @@ function collectClearedToolParamDependents(
   for (let index = 0; index < mergedTools.length; index++) {
     const tool = mergedTools[index]
     const targetTool = targetTools[index]
-    if (!isRecord(tool) || typeof tool.type !== 'string') continue
-    if (!isRecord(targetTool) || targetTool.type !== tool.type) continue
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') continue
+    if (!isRecordLike(targetTool) || targetTool.type !== tool.type) continue
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) continue
-    const targetParams = isRecord(targetTool.params) ? targetTool.params : {}
-    const mergedParams = isRecord(tool.params) ? tool.params : {}
+    const targetParams = isRecordLike(targetTool.params) ? targetTool.params : {}
+    const mergedParams = isRecordLike(tool.params) ? tool.params : {}
     // A tool's `operation` lives at the tool level, not in params, but conditions
     // reference it - merge it in so condition/required gating matches the editor.
     const mergedValues =
@@ -1351,10 +1354,10 @@ export function readTargetDraftDependentValue(
   if (nested) {
     const { toolInputId, index, paramId } = nested
     const targetTool = coerceObjectArray(targetDraftSubBlocks[toolInputId]?.value).array?.[index]
-    if (!isRecord(targetTool) || typeof targetTool.type !== 'string') return ''
+    if (!isRecordLike(targetTool) || typeof targetTool.type !== 'string') return ''
     const sourceTool = coerceObjectArray(sourceSubBlocks?.[toolInputId]?.value).array?.[index]
-    if (!isRecord(sourceTool) || sourceTool.type !== targetTool.type) return ''
-    const params = isRecord(targetTool.params) ? targetTool.params : {}
+    if (!isRecordLike(sourceTool) || sourceTool.type !== targetTool.type) return ''
+    const params = isRecordLike(targetTool.params) ? targetTool.params : {}
     const value = params[paramId]
     return typeof value === 'string' ? value : ''
   }
@@ -1382,7 +1385,7 @@ function applyNestedToolOverrides(
   const merged = array.map((tool, index) => {
     const forTool = items.filter((item) => item.index === index)
     if (forTool.length === 0) return tool
-    if (!isRecord(tool) || typeof tool.type !== 'string') return tool
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') return tool
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) return tool
     const allowed = new Set(
@@ -1390,7 +1393,7 @@ function applyNestedToolOverrides(
         .filter((cfg) => cfg.id && cfg.dependsOn && cfg.selectorKey)
         .map((cfg) => cfg.id)
     )
-    const params = isRecord(tool.params) ? tool.params : {}
+    const params = isRecordLike(tool.params) ? tool.params : {}
     let nextParams: Record<string, unknown> | null = null
     for (const item of forTool) {
       if (!allowed.has(item.paramId)) continue

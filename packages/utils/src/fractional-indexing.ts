@@ -14,16 +14,12 @@
  * with no trailing zero.
  */
 
-// ---------------------------------------------------------------------------
 // Digits
-// ---------------------------------------------------------------------------
 
 /** Default digit alphabet. Must be in ascending character-code order. */
 export const BASE_62_DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
-// ---------------------------------------------------------------------------
 // Integer-part helpers
-// ---------------------------------------------------------------------------
 
 /** Length the integer part must have, derived from its first character. */
 function getIntegerLength(head: string): number {
@@ -126,9 +122,7 @@ function decrementInteger(x: string, digits: string): string | null {
   return head + digs.join('')
 }
 
-// ---------------------------------------------------------------------------
 // Midpoint
-// ---------------------------------------------------------------------------
 
 /**
  * Fraction strictly between `a` and `b` (both without integer parts). `a` may be
@@ -168,9 +162,7 @@ function midpoint(a: string, b: string | null | undefined, digits: string): stri
   return digits[digitA] + midpoint(a.slice(1), null, digits)
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /**
  * Returns a key that sorts strictly between `a` and `b`. Either may be null for

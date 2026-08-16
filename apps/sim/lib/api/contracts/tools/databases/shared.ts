@@ -41,12 +41,12 @@ export const sqlQueryBodySchema = sqlConnectionBodySchema.extend({
   query: z.string().min(1, 'Query is required'),
 })
 
-const sqlInsertDataSchema = z.union([
+export const sqlInsertDataSchema = z.union([
   nonEmptyRecordSchema('Data object cannot be empty'),
   jsonObjectStringSchema('Invalid JSON format in data field', true),
 ])
 
-const sqlUpdateDataSchema = z.union([
+export const sqlUpdateDataSchema = z.union([
   nonEmptyRecordSchema('Data object cannot be empty'),
   jsonObjectStringSchema('Invalid JSON format in data field'),
 ])

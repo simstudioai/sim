@@ -2024,6 +2024,20 @@
       "when": 1786438204549,
       "tag": "0289_warm_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1786662875077,
+      "tag": "0290_settings_auto_focus_on_click",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1786704849273,
+      "tag": "0291_fuzzy_wong",
+      "breakpoints": true
     }
   ]
 }

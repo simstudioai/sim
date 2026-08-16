@@ -2,11 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { v2ExecutionErrorSchema } from '@/lib/api/contracts/v2/workflows'
 import type { ExecutionResult } from '@/executor/types'
 import {
   attachExecutionResult,
   buildBlockExecutionError,
   classifyExecutionError,
+  type WorkflowExecutionErrorCode,
 } from '@/executor/utils/errors'
 
 function failedResult(partial?: Partial<ExecutionResult>): ExecutionResult {
@@ -145,5 +147,38 @@ describe('classifyExecutionError', () => {
       blockName: undefined,
       blockType: undefined,
     })
+  })
+
+  /**
+   * The published enum promises callers a code to route on, so a member this
+   * function cannot produce is a branch no response ever takes — the state
+   * `OUTPUT_TOO_LARGE` was in until it was retired, since an oversize run
+   * response is an HTTP 413 and never reaches classification. Pinning the two
+   * together makes the next unreachable member fail here instead of shipping
+   * into SDK types.
+   */
+  it('produces every code the public execution-error contract publishes', () => {
+    const producedBy: Record<WorkflowExecutionErrorCode, unknown> = {
+      TIMEOUT: new Error('Execution timed out after 5 minutes'),
+      CANCELLED: new Error('Run was cancelled'),
+      USAGE_LIMIT_EXCEEDED: new Error('Usage limit exceeded for this billing period'),
+      INVALID_INPUT: new Error('Invalid input format for the workflow'),
+      BLOCK_EXECUTION_FAILED: buildBlockExecutionError({
+        block: { id: 'block-1', metadata: { name: 'Send Email', id: 'gmail' } } as never,
+        error: new Error('Invalid credentials'),
+      }),
+      CHILD_WORKFLOW_FAILED: buildBlockExecutionError({
+        block: { id: 'block-2', metadata: { name: 'Child', id: 'workflow' } } as never,
+        error: new Error('Child run failed'),
+      }),
+      EXECUTION_FAILED: new Error('something odd'),
+    }
+
+    for (const [code, error] of Object.entries(producedBy)) {
+      expect(classifyExecutionError(error).code).toBe(code)
+    }
+    expect(new Set(v2ExecutionErrorSchema.shape.code.options)).toEqual(
+      new Set(Object.keys(producedBy))
+    )
   })
 })

@@ -13,6 +13,7 @@ vi.mock('@/lib/table/events', () => ({
   signalTableViewsChanged: mockSignalTableViewsChanged,
 }))
 
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   createTableView,
   deleteTableView,
@@ -140,6 +141,7 @@ describe('table-view mutations signal collaborators', () => {
   })
 
   it('createTableView signals the table after inserting', async () => {
+    queueTableRows(tableViews, [{ total: 0 }]) // the in-lock view-count check
     dbChainMockFns.returning.mockResolvedValueOnce([viewRow])
 
     await createTableView({
@@ -253,5 +255,371 @@ describe('getTableView', () => {
 
   it('returns null for a view id that is not on this table', async () => {
     expect(await getTableView('view-elsewhere', 'table-1', columns)).toBeNull()
+  })
+})
+
+/**
+ * `GET /tables/{id}/views` returns every view in one unpaginated page and
+ * declares the set bounded. Nothing made that true, so the ceiling is asserted
+ * on the write that could cross it.
+ */
+describe('saved-view ceiling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  function create() {
+    return createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'Another View',
+      config: {},
+      userId: 'user-1',
+      columns: [],
+    })
+  }
+
+  it('refuses a create that would cross MAX_VIEWS_PER_TABLE', async () => {
+    queueTableRows(tableViews, [{ total: TABLE_LIMITS.MAX_VIEWS_PER_TABLE }])
+
+    await expect(create()).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
+  })
+
+  it('allows the create that lands exactly on the ceiling', async () => {
+    queueTableRows(tableViews, [{ total: TABLE_LIMITS.MAX_VIEWS_PER_TABLE - 1 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'view-100',
+        tableId: 'table-1',
+        workspaceId: 'ws-1',
+        name: 'Another View',
+        config: {},
+        isDefault: false,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ])
+
+    await expect(create()).resolves.toMatchObject({ id: 'view-100' })
+  })
+})
+
+/**
+ * A saved config's column references are stored as stable column ids, but the
+ * v2 wire is column-NAME-keyed like every other v2 row/data surface. The write
+ * path translates; anything it cannot resolve is a caller mistake and must be
+ * refused rather than stored and quietly dropped on the next read.
+ */
+describe('view config column-reference normalization', () => {
+  const columns: ColumnDefinition[] = [
+    { id: 'col_a', name: 'Name', type: 'text' },
+    { id: 'col_b', name: 'Email', type: 'text' },
+  ]
+  const storedRow = {
+    id: 'view-1',
+    tableId: 'table-1',
+    workspaceId: 'ws-1',
+    name: 'My View',
+    config: {},
+    isDefault: false,
+    createdBy: 'user-1',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  function insertedConfig(): TableViewConfig {
+    const [values] = dbChainMockFns.values.mock.calls.at(-1) as [{ config: TableViewConfig }]
+    return values.config
+  }
+
+  function create(config: TableViewConfig, strictRefs = true) {
+    return createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config,
+      userId: 'user-1',
+      columns,
+      strictRefs,
+    })
+  }
+
+  it('stores a name-keyed sort as column ids instead of discarding it', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({ sort: [{ field: 'Name', direction: 'desc' }] })
+
+    expect(insertedConfig().sort).toEqual([{ field: 'col_a', direction: 'desc' }])
+  })
+
+  it('stores a name-keyed filter and layout as column ids', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({
+      filter: { all: [{ field: 'Email', op: 'eq', value: 'x@example.com' }] },
+      columnOrder: ['Email', 'Name'],
+      hiddenColumns: ['Name'],
+      pinnedColumns: ['Email'],
+      columnWidths: { Name: 200 },
+    })
+
+    expect(insertedConfig()).toEqual({
+      filter: { all: [{ field: 'col_b', op: 'eq', value: 'x@example.com' }] },
+      columnOrder: ['col_b', 'col_a'],
+      hiddenColumns: ['col_a'],
+      pinnedColumns: ['col_b'],
+      columnWidths: { col_a: 200 },
+    })
+  })
+
+  it('leaves an already id-keyed config untouched', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({
+      sort: [{ field: 'col_b', direction: 'asc' }],
+      filter: { all: [{ field: 'col_a', op: 'eq', value: 'x' }] },
+    })
+
+    expect(insertedConfig()).toEqual({
+      sort: [{ field: 'col_b', direction: 'asc' }],
+      filter: { all: [{ field: 'col_a', op: 'eq', value: 'x' }] },
+    })
+  })
+
+  it('refuses a filter on a column that does not exist for a strict caller', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      create({ filter: { all: [{ field: 'ghost', op: 'eq', value: 'x' }] } })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The layout half used to answer 200 and store a name no read ever shows,
+   * while the same unknown name in `filter` answered 400 — one request, two
+   * policies.
+   */
+  it('refuses a hidden column that does not exist for a strict caller', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(create({ hiddenColumns: ['ghost'] })).rejects.toMatchObject({
+      name: 'TableViewValidationError',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unknown column in every other layout key too', async () => {
+    for (const config of [
+      { columnOrder: ['ghost'] },
+      { pinnedColumns: ['ghost'] },
+      { columnWidths: { ghost: 120 } },
+    ]) {
+      queueTableRows(tableViews, [{ total: 0 }])
+      await expect(create(config)).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    }
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('keeps storing a first-party layout reference that no longer resolves', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({ hiddenColumns: ['col_gone'] }, false)
+
+    expect(insertedConfig().hiddenColumns).toEqual(['col_gone'])
+  })
+
+  it('refuses a sort on a column that does not exist for a strict caller', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(create({ sort: [{ field: 'ghost', direction: 'asc' }] })).rejects.toMatchObject({
+      name: 'TableViewValidationError',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  /**
+   * "Save as view" hands back the filter the grid is displaying, dangling leaf
+   * and all — the same slice the Save chip sends to the update path, which has
+   * always tolerated it. Refusing one and accepting the other would 400 the two
+   * menu items against each other.
+   */
+  it('stores the same dangling reference for a first-party caller', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create(
+      { filter: { all: [{ field: 'col_gone', op: 'eq', value: 'x' }] }, sort: [] },
+      false
+    )
+
+    expect(insertedConfig().filter).toEqual({
+      all: [{ field: 'col_gone', op: 'eq', value: 'x' }],
+    })
+  })
+
+  /**
+   * A user column may legally be named `createdAt`. The name→id rewrite would
+   * otherwise point the stored ref at that column's JSONB cell while every read
+   * still resolves the literal to `user_table_rows.created_at`.
+   */
+  it('leaves a system field alone even when a user column carries its name', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await createTableView({
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: 'My View',
+      config: { sort: [{ field: 'createdAt', direction: 'desc' }] },
+      userId: 'user-1',
+      columns: [...columns, { id: 'col_c', name: 'createdAt', type: 'string' }],
+      strictRefs: true,
+    })
+
+    expect(insertedConfig().sort).toEqual([{ field: 'createdAt', direction: 'desc' }])
+  })
+
+  it('refuses a nonexistent filter column on a configPatch too', async () => {
+    queueTableRows(tableViews, [{ id: 'view-1' }])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        configPatch: { filter: { all: [{ field: 'ghost', op: 'eq', value: 'x' }] } },
+        columns,
+        strictRefs: true,
+      })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+  })
+
+  /**
+   * A column delete leaves the referencing views behind, and `pruneViewConfig`
+   * deliberately does not prune a filter. The write must therefore let the
+   * already-stored reference through — otherwise the first save of anything else
+   * on that view (a sort change, a hidden-column change, the Save chip's whole
+   * config) 400s on a condition the user did not touch.
+   */
+  it('lets a save carry forward a stale filter reference the view already stored', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, sort: [{ field: 'col_a', direction: 'asc' }] },
+        columns,
+      })
+    ).resolves.not.toBeNull()
+  })
+
+  it('still refuses a NEW unknown reference on a view that already had a stale one', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: { all: [{ field: 'col_other_ghost', op: 'eq', value: 'x' }] } },
+        columns,
+        strictRefs: true,
+      })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+  })
+
+  /**
+   * The carried-forward exemption exists so a dangling FILTER ref stays
+   * writable, not so it becomes a valid target for a NEW layout ref. Without
+   * scoping, a strict caller could store `hiddenColumns: ['col_gone']` purely
+   * because `col_gone` survives in the stored filter — a layout entry the very
+   * next read drops, which is the asymmetry the strict check closes.
+   */
+  it('refuses a NEW layout reference that resolves only via a carried-forward filter ref', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_gone'] },
+        columns,
+        strictRefs: true,
+      })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('still lets a strict save carry the stale filter reference forward with a valid layout', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_a'] },
+        columns,
+        strictRefs: true,
+      })
+    ).resolves.not.toBeNull()
+  })
+
+  it('leaves the non-strict grid path free to save that same layout reference', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_gone'] },
+        columns,
+      })
+    ).resolves.not.toBeNull()
+  })
+
+  it('accepts that same new reference from a first-party caller', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: { all: [{ field: 'col_other_ghost', op: 'eq', value: 'x' }] } },
+        columns,
+      })
+    ).resolves.not.toBeNull()
+  })
+
+  it('keeps a sort on a system row column, which is sortable but not in schema.columns', () => {
+    expect(
+      pruneViewConfig({ sort: [{ field: 'createdAt', direction: 'desc' }] }, columns).sort
+    ).toEqual([{ field: 'createdAt', direction: 'desc' }])
   })
 })

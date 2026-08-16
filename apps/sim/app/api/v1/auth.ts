@@ -1,3 +1,4 @@
+import type { PersonalApiKeyPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
@@ -11,6 +12,7 @@ export interface AuthResult {
   userId?: string
   workspaceId?: string
   keyType?: 'personal' | 'workspace'
+  principal?: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
   error?: string
 }
 
@@ -20,6 +22,11 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
       authenticated: true,
       userId: ANONYMOUS_USER_ID,
       keyType: 'personal',
+      principal: {
+        kind: 'personal_api_key',
+        userId: ANONYMOUS_USER_ID,
+        keyId: 'auth-disabled',
+      },
     }
   }
 
@@ -43,13 +50,35 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
       }
     }
 
-    await updateApiKeyLastUsed(result.keyId!)
+    if (!result.keyId || !result.userId || !result.keyType) {
+      throw new Error('Authenticated v1 API key is missing its canonical identity')
+    }
+    let principal: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
+    if (result.keyType === 'workspace') {
+      if (!result.workspaceId) {
+        throw new Error('Authenticated workspace API key is missing its workspace scope')
+      }
+      principal = {
+        kind: 'workspace_api_key',
+        workspaceId: result.workspaceId,
+        keyId: result.keyId,
+      }
+    } else {
+      principal = {
+        kind: 'personal_api_key',
+        userId: result.userId,
+        keyId: result.keyId,
+      }
+    }
+
+    await updateApiKeyLastUsed(result.keyId)
 
     return {
       authenticated: true,
-      userId: result.userId!,
+      userId: result.userId,
       workspaceId: result.workspaceId,
       keyType: result.keyType,
+      principal,
     }
   } catch (error) {
     logger.error('API key authentication error', { error })

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -46,7 +46,7 @@ export const v2WorkspaceMemberSchema = z
     isExternal: z
       .boolean()
       .describe(
-        "Whether the member belongs to a different organization than the workspace. True for an explicitly granted member whose own organization differs from the workspace's; false for the workspace owner and for a member sharing the workspace organization. Inherited organization-administrator access is always reported as false, so this is not a signal that access came from outside the explicit member list."
+        'Whether the member belongs to a different organization than the workspace. True only for an explicitly granted member whose own organization differs; inherited organization-administrator access is always reported as false, so this does not detect every outside caller.'
       ),
     joinedAt: v2TimestampSchema.describe('ISO 8601 timestamp when access was granted.'),
   })
@@ -72,6 +72,7 @@ export type V2WorkspaceMemberCursor = z.output<typeof v2WorkspaceMemberCursorSch
 export const v2GetWorkspaceContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workspaces/[workspaceId]',
+  query: noInputSchema,
   params: v2WorkspaceParamsSchema,
   response: { mode: 'json', schema: v2DataResponse(v2WorkspaceSchema) },
 })

@@ -25,6 +25,7 @@ import {
   getKnowledgeOpaqueModelInputRegistry,
 } from '@/lib/knowledge/model-input-provenance'
 import { StorageService } from '@/lib/uploads'
+import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
@@ -362,8 +363,7 @@ async function handleFileForOCR(
 
     const timestamp = Date.now()
     const uniqueId = randomBytes(8).toString('hex')
-    const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const customKey = `kb/${timestamp}-${uniqueId}-${safeFileName}`
+    const customKey = `kb/${buildStorageKeySegment(`${timestamp}-${uniqueId}-`, filename)}`
 
     const cloudResult = await StorageService.uploadFile({
       file: buffer,
@@ -659,8 +659,10 @@ async function processChunk(
   try {
     const timestamp = Date.now()
     const uniqueId = randomBytes(8).toString('hex')
-    const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const chunkKey = `kb/${timestamp}-${uniqueId}-chunk${chunkIndex + 1}-${safeFileName}`
+    const chunkKey = `kb/${buildStorageKeySegment(
+      `${timestamp}-${uniqueId}-chunk${chunkIndex + 1}-`,
+      filename
+    )}`
 
     // No metadata: these chunks are ephemeral OCR artifacts (deleted in the
     // finally below) that are fetched via a direct presigned URL, never through

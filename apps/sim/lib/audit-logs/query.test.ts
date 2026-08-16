@@ -7,7 +7,9 @@
  */
 import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { unorderedScopePart } from '@/lib/api/cursor-binding'
 import {
+  buildFilterConditions,
   buildOrgScopeCondition,
   decodeAuditLogCursor,
   getOrgWorkspaceIds,
@@ -169,6 +171,59 @@ describe('getOrgWorkspaceIds', () => {
     expect(dbChainMockFns.where).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'eq', left: 'organizationId', right: ORG_ID })
     )
+  })
+})
+
+/**
+ * `resourceType` is a comma-separated set, and the v2 cursor scope fingerprints
+ * the same list. The query and the scope must agree on the members, or either
+ * two different result sets share one stamp or two spellings of one result set
+ * get different stamps and page 2 is refused.
+ */
+describe('buildFilterConditions resourceType', () => {
+  function resourceTypeCondition(resourceType: string): MockCondition {
+    const conditions = buildFilterConditions({ resourceType })
+    expect(conditions).toHaveLength(1)
+    return asCondition(conditions[0])
+  }
+
+  it('trims members so a spaced list filters on the types it names', () => {
+    expect(resourceTypeCondition('file, workflow')).toMatchObject({
+      type: 'inArray',
+      column: 'resourceType',
+      values: ['file', 'workflow'],
+    })
+  })
+
+  it('filters identically however the caller orders, spaces, or repeats members', () => {
+    const canonical = resourceTypeCondition('file,workflow')
+    for (const spelling of ['workflow,file', 'file, workflow', ' workflow ,file,file']) {
+      expect(resourceTypeCondition(spelling)).toEqual(canonical)
+    }
+  })
+
+  it('agrees with the cursor scope on the member list', () => {
+    for (const spelling of ['file,workflow', 'workflow, file', 'file,workflow,file']) {
+      expect(asCondition(buildFilterConditions({ resourceType: spelling })[0]).values).toEqual(
+        unorderedScopePart(spelling)!.split(',')
+      )
+      expect(unorderedScopePart(spelling)).toBe(unorderedScopePart('file,workflow'))
+    }
+  })
+
+  it('still collapses a single member to an equality check', () => {
+    expect(resourceTypeCondition(' workflow ')).toMatchObject({
+      type: 'eq',
+      left: 'resourceType',
+      right: 'workflow',
+    })
+  })
+
+  it('keeps genuinely different type sets apart', () => {
+    expect(resourceTypeCondition('file,workflow')).not.toEqual(
+      resourceTypeCondition('file,knowledge')
+    )
+    expect(unorderedScopePart('file,workflow')).not.toBe(unorderedScopePart('file,knowledge'))
   })
 })
 

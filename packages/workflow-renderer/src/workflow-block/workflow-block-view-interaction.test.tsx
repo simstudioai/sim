@@ -226,6 +226,7 @@ describe('WorkflowTypeTag colors', () => {
     expect(getWorkflowTypeRole('api')).toBe('interface')
     expect(getWorkflowTypeRole('condition')).toBe('logic')
     expect(getWorkflowTypeRole('credential')).toBe('state')
+    expect(getWorkflowTypeRole('credential_group')).toBe('identity')
     expect(getWorkflowTypeRole('router_v2')).toBe('flow')
     expect(getWorkflowTypeRole('table')).toBe('records')
     expect(getWorkflowTypeRole('a2a')).toBe('neutral')
@@ -244,6 +245,10 @@ describe('WorkflowTypeTag colors', () => {
     expect(getWorkflowTypeAccent('parallel')).toEqual({ variant: 'workflow', tone: 'ash' })
     expect(getWorkflowTypeAccent('router')).toEqual({ variant: 'workflow', tone: 'ash' })
     expect(getWorkflowTypeAccent('condition')).toEqual({ variant: 'workflow', tone: 'orange' })
+    expect(getWorkflowTypeAccent('credential_group')).toEqual({
+      variant: 'workflow',
+      tone: 'identity',
+    })
     expect(getWorkflowTypeAccent('image_generator_v2')).toEqual({
       variant: 'workflow',
       tone: 'purple',
@@ -272,6 +277,7 @@ describe('WorkflowTypeTag colors', () => {
         <>
           <WorkflowTypeIcon type='knowledge' Icon={TestIcon} />
           <WorkflowTypeIcon type='image_generator_v2' Icon={TestIcon} />
+          <WorkflowTypeIcon type='credential_group' Icon={TestIcon} />
         </>
       )
     )
@@ -282,6 +288,34 @@ describe('WorkflowTypeTag colors', () => {
     )
     expect(host.querySelector('[data-workflow-type-icon="image_generator_v2"]')).toHaveClass(
       'bg-[#AA00FF]',
+      'text-[#F8F8F8]'
+    )
+    expect(host.querySelector('[data-workflow-type-icon="credential_group"]')).toHaveClass(
+      'bg-[#8B5CF6]',
+      'text-[#F8F8F8]'
+    )
+  })
+
+  it('renders the Credential Groups header tag with its purple identity fill', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() =>
+      root.render(
+        <WorkflowTypeTag
+          type='credential_group'
+          typeLabel='Credential Groups'
+          Icon={TestIcon}
+          iconBgColor='#8B5CF6'
+        />
+      )
+    )
+
+    expect(host.querySelector('[data-workflow-type-accent="credential_group"]')).toHaveClass(
+      'bg-[#8B5CF6]',
       'text-[#F8F8F8]'
     )
   })

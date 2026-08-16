@@ -87,7 +87,10 @@ export async function bulkInsertImportBatch(
         `Row ${i + 1}: ${sizeValidation.errors.join(', ')}`
       )
     }
-    const schemaValidation = coerceRowToSchema(data.rows[i], table.schema)
+    // A CSV cell that does not fit its mapped column blanks that cell rather
+    // than failing the file: the import has no caller waiting on a 400, and one
+    // malformed cell in a 100k-row upload must not reject the other 99,999.
+    const schemaValidation = coerceRowToSchema(data.rows[i], table.schema, 'null')
     if (!schemaValidation.valid) {
       throw new OrchestrationError(
         'validation',

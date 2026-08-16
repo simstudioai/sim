@@ -6,6 +6,12 @@ import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/o
 import { knowledgeOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/knowledge'
 import { logsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/logs'
 import { resourcesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/resources'
+import {
+  FOLDER_TREE_TOO_LARGE,
+  RUN_RETENTION,
+  WORKSPACE_API_KEY_DENIED,
+  WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
+} from '../../apps/sim/lib/api/contracts/v2/openapi/shared'
 import { tablesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/tables'
 import { workflowsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/workflows'
 import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
@@ -31,7 +37,7 @@ const EXPECTED_OPERATION_COUNTS = new Map<string, number>([
   ['apps/docs/openapi-v2-tables.json', 44],
   ['apps/docs/openapi-v2-knowledge.json', 21],
   ['apps/docs/openapi-v2-billing.json', 2],
-  ['apps/docs/openapi-v2-resources.json', 22],
+  ['apps/docs/openapi-v2-resources.json', 26],
 ])
 
 function getOperation(spec: JsonObject, path: string, method: string): JsonObject {
@@ -163,7 +169,7 @@ describe('generated OpenAPI documents', () => {
         })
       }
     }
-    expect(totalOperations).toBe(135)
+    expect(totalOperations).toBe(139)
   })
 
   it('documents mixed workflow execution and resume responses', () => {
@@ -322,5 +328,135 @@ describe('generated OpenAPI documents', () => {
     for (const document of DOCUMENTS) {
       expect(serializeOpenApiDocument(document)).toBe(serializeOpenApiDocument(document))
     }
+  })
+})
+
+/**
+ * Documented error sets.
+ *
+ * The 413 sweep runs over all seven documents rather than the two families it
+ * first audited: the gaps the narrower scope was written around are closed, and
+ * leaving it narrow would let a new body-carrying operation in any other family
+ * ship without publishing the 413 its body read raises.
+ */
+describe('documented error sets', () => {
+  /**
+   * A v2 JSON route whose contract declares a body reads that body through
+   * `parseJsonBody` under `DEFAULT_MAX_JSON_BODY_BYTES` *before* schema
+   * validation, with the builders supplying `V2_PARSE_DEFAULTS`. So an
+   * oversized body is a real 413 on every one of them, and an operation that
+   * does not publish it is documenting a response its callers can hit. The
+   * converse does not hold — several bodyless folder reads publish 413 because
+   * materializing an oversized folder tree raises one — so this is one
+   * directional.
+   */
+  it.each(
+    DOCUMENTS.flatMap((document) =>
+      document.routes
+        .filter((route) => route.contract.body !== undefined)
+        .map((route) => [route.operation.operationId, route.operation.errors] as const)
+    )
+  )('%s publishes the 413 its body read can raise', (_operationId, errors) => {
+    expect(errors).toContain('PayloadTooLarge')
+  })
+
+  /**
+   * The file list resolves its `folderPath` filter through the capped folder
+   * path index, so an oversized workspace tree is a 413 here exactly as it is on
+   * the knowledge, workflow, and table lists.
+   */
+  it('publishes the folder-tree 413 the file list can raise', () => {
+    const listFiles = filesAuditOpenApiDocument.routes.find(
+      (route) => route.operation.operationId === 'listFiles'
+    )?.operation
+
+    expect(listFiles?.errors).toContain('PayloadTooLarge')
+    expect(listFiles?.description).toContain(FOLDER_TREE_TOO_LARGE)
+  })
+
+  /**
+   * `listAuditLogs` has no not-found path to publish. It throws only
+   * `validation` (a bad cursor, a workspaceId outside the organization),
+   * `resolveEnterpriseAuditAccess` returns 403 shapes only, and an empty
+   * selection is an empty page. `getAuditLog` does 404 and keeps it.
+   */
+  it('does not publish a 404 the audit-log list cannot emit', () => {
+    const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    expect(
+      Object.keys(getOperation(spec, '/api/v2/audit-logs', 'get').responses as JsonObject)
+    ).not.toContain('404')
+    expect(
+      Object.keys(getOperation(spec, '/api/v2/audit-logs/{id}', 'get').responses as JsonObject)
+    ).toContain('404')
+  })
+
+  /**
+   * `files.share.update` denies the workspace key through its principal-kind
+   * list, which raises `PrincipalKindAuthorizationError` — not one of the
+   * cross-tenant errors the concealment policy rewrites — so the caller sees
+   * 403. The description claimed 404.
+   */
+  it('describes the file-share workspace-key refusal as the 403 it renders', () => {
+    const description = filesAuditOpenApiDocument.routes.find(
+      (route) => route.operation.operationId === 'upsertFileShare'
+    )?.operation.description
+
+    expect(description).toContain(WORKSPACE_API_KEY_DENIED)
+    expect(description).not.toContain(WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND)
+  })
+})
+
+/**
+ * Shared parameter vocabulary.
+ *
+ * `cursor` and `sortOrder` appear on dozens of operations across the seven
+ * documents, and each is sourced from one schema in `contracts/v2/shared.ts`. A
+ * caller reading two families back to back cannot tell a reworded copy from a
+ * different contract, so a divergence is a defect rather than a style choice.
+ * This pins each to one string; a list that hand-rolls its own `cursor` fails
+ * here.
+ *
+ * `startDate`/`endDate` are deliberately excluded: the run-window pair and the
+ * billing usage window share a name but filter different sequences.
+ */
+describe('shared parameter descriptions do not fork', () => {
+  const SINGLE_VOICE_PARAMETERS = ['cursor', 'sortOrder'] as const
+
+  const descriptionsByParameter = new Map<string, Set<string>>()
+  for (const document of DOCUMENTS) {
+    const spec = generateOpenApiDocument(document)
+    for (const operation of operations(spec)) {
+      for (const parameter of (operation.parameters ?? []) as JsonObject[]) {
+        const name = parameter.name as string
+        if (!SINGLE_VOICE_PARAMETERS.includes(name as (typeof SINGLE_VOICE_PARAMETERS)[number])) {
+          continue
+        }
+        const seen = descriptionsByParameter.get(name) ?? new Set<string>()
+        seen.add(parameter.description as string)
+        descriptionsByParameter.set(name, seen)
+      }
+    }
+  }
+
+  it.each(SINGLE_VOICE_PARAMETERS)('publishes one description for %s', (name) => {
+    expect([...(descriptionsByParameter.get(name) ?? [])]).toHaveLength(1)
+  })
+})
+
+/**
+ * The run-retention window is the one fact that explains an empty run list on a
+ * workflow reporting a non-zero `runCount`, and it is published on both reads
+ * over `workflow_execution_logs` from one constant. Pinning both keeps a future
+ * trim from silently dropping it off one of them.
+ */
+describe('run retention is published on both run reads', () => {
+  it.each([
+    [logsOpenApiDocument, 'listLogs'],
+    [workflowsOpenApiDocument, 'listWorkflowRunsV2'],
+  ] as const)('%#: names the retention window', (document, operationId) => {
+    const description = document.routes.find((route) => route.operation.operationId === operationId)
+      ?.operation.description
+
+    expect(description).toContain(RUN_RETENTION)
   })
 })

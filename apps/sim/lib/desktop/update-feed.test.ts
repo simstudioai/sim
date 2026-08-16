@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   channelForDeploymentEnvironment,
   channelOfVersion,
+  DESKTOP_PRERELEASE_REPOSITORY,
+  DESKTOP_STABLE_RELEASE_REPOSITORY,
   MANIFEST_ASSET_NAME,
+  releaseRepositoryForChannel,
   rewriteManifestUrls,
   selectReleaseForChannel,
 } from '@/lib/desktop/update-feed'
@@ -46,6 +49,14 @@ describe('channelOfVersion', () => {
   it('classifies legacy alpha and beta tags with their environment', () => {
     expect(channelOfVersion('0.5.25-alpha.412')).toBe('dev')
     expect(channelOfVersion('0.5.25-beta.3')).toBe('staging')
+  })
+})
+
+describe('releaseRepositoryForChannel', () => {
+  it('keeps stable releases in sim and prereleases in the release-only repository', () => {
+    expect(releaseRepositoryForChannel('latest')).toBe(DESKTOP_STABLE_RELEASE_REPOSITORY)
+    expect(releaseRepositoryForChannel('dev')).toBe(DESKTOP_PRERELEASE_REPOSITORY)
+    expect(releaseRepositoryForChannel('staging')).toBe(DESKTOP_PRERELEASE_REPOSITORY)
   })
 })
 
@@ -122,7 +133,10 @@ describe('selectReleaseForChannel', () => {
 })
 
 describe('rewriteManifestUrls', () => {
-  it('rewrites relative url and path entries to absolute asset URLs', () => {
+  it.each([
+    ['stable', DESKTOP_STABLE_RELEASE_REPOSITORY],
+    ['prerelease', DESKTOP_PRERELEASE_REPOSITORY],
+  ])('rewrites relative url and path entries to absolute %s asset URLs', (_kind, repository) => {
     const manifest = [
       'version: 0.5.24',
       'files:',
@@ -133,18 +147,20 @@ describe('rewriteManifestUrls', () => {
       'sha512: abc',
       "releaseDate: '2026-07-23T00:00:00.000Z'",
     ].join('\n')
-    const rewritten = rewriteManifestUrls(manifest, 'v0.5.24')
+    const rewritten = rewriteManifestUrls(manifest, 'v0.5.24', repository)
     expect(rewritten).toContain(
-      '  - url: https://github.com/simstudioai/sim/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip'
+      `  - url: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip`
     )
     expect(rewritten).toContain(
-      'path: https://github.com/simstudioai/sim/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip'
+      `path: https://github.com/${repository}/releases/download/v0.5.24/Sim-0.5.24-universal-mac.zip`
     )
     expect(rewritten).toContain('sha512: abc')
   })
 
   it('leaves already-absolute URLs alone', () => {
     const manifest = '  - url: https://cdn.example.com/Sim.zip'
-    expect(rewriteManifestUrls(manifest, 'v0.5.24')).toBe(manifest)
+    expect(rewriteManifestUrls(manifest, 'v0.5.24', DESKTOP_STABLE_RELEASE_REPOSITORY)).toBe(
+      manifest
+    )
   })
 })

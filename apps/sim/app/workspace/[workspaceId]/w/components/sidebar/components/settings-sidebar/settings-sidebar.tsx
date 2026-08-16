@@ -31,6 +31,7 @@ import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
@@ -138,6 +139,12 @@ export function SettingsSidebar({
         return false
       }
       if (item.id === 'forks' && !(forkingAvailable && canAdminWorkspace)) {
+        return false
+      }
+      if (
+        item.id === 'credential-groups' &&
+        (!hostContext.features?.credentialGroups || !canAdminWorkspace)
+      ) {
         return false
       }
 
@@ -305,7 +312,11 @@ export function SettingsSidebar({
         )}
       >
         <SidebarTooltip label='Back' enabled={showCollapsedTooltips}>
-          <button type='button' onClick={handleBack} className={chipVariants({ fullWidth: true })}>
+          <button
+            type='button'
+            onClick={handleBack}
+            className={cn(chipVariants({ fullWidth: true }), SIDEBAR_RAIL_CHIP_CLASS)}
+          >
             {/* The 16px slot every settings row gives its icon, so Back's label starts on their baseline. */}
             <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
               <ChevronLeft className='size-[14px]' />
@@ -352,7 +363,10 @@ export function SettingsSidebar({
                       (item.id === 'inbox'
                         ? !inboxEntitled
                         : !subscriptionAccess.hasUsableMaxAccess)
-                    const itemClassName = chipVariants({ active, fullWidth: true })
+                    const itemClassName = cn(
+                      chipVariants({ active, fullWidth: true }),
+                      SIDEBAR_RAIL_CHIP_CLASS
+                    )
                     const content = (
                       <>
                         <Icon className={chipContentIconClass} />

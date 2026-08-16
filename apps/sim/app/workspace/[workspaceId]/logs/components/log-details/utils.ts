@@ -135,21 +135,3 @@ export function getDisplayName(span: TraceSpan): string {
 export function formatCostAmount(value: number | undefined): string | undefined {
   return formatCreditCost(value, { emptyForZeroOrLess: true })
 }
-
-export function formatTokensSummary(tokens: TraceSpan['tokens']): string | undefined {
-  if (!tokens) return undefined
-  const parts: string[] = []
-  const input = formatTokenCount(tokens.input)
-  const output = formatTokenCount(tokens.output)
-  const total = formatTokenCount(tokens.total)
-  const cacheRead = formatTokenCount(tokens.cacheRead)
-  const cacheWrite = formatTokenCount(tokens.cacheWrite)
-  const reasoning = formatTokenCount(tokens.reasoning)
-  if (input) parts.push(`${input} in`)
-  if (cacheRead) parts.push(`${cacheRead} cached`)
-  if (cacheWrite) parts.push(`${cacheWrite} cache write`)
-  if (output) parts.push(`${output} out`)
-  if (reasoning) parts.push(`${reasoning} reasoning`)
-  if (total) parts.push(`${total} total`)
-  return parts.length > 0 ? parts.join(' · ') : undefined
-}

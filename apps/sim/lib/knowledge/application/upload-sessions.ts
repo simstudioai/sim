@@ -1,5 +1,8 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -16,6 +19,7 @@ import {
   resolveActiveKnowledgeBaseContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { failUndispatchedDocumentProcessing } from '@/lib/knowledge/documents/processing-claim'
 import {
   createSingleDocument,
   type DocumentData,
@@ -40,14 +44,12 @@ import {
 } from '@/lib/uploads/upload-session/service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
+const logger = createLogger('KnowledgeUploadSessions')
+
 const PROCESSING_DISPATCH_FAILURE_MESSAGE = 'Knowledge document processing dispatch failed'
 
-class KnowledgeDocumentProcessingDispatchError extends Error {
-  constructor(cause: unknown) {
-    super(PROCESSING_DISPATCH_FAILURE_MESSAGE, { cause })
-    this.name = 'KnowledgeDocumentProcessingDispatchError'
-  }
-}
+/** Keeps a driver or provider message from filling the document row's error column. */
+const DISPATCH_FAILURE_MESSAGE_MAX_LENGTH = 500
 
 export class KnowledgeDocumentUnsupportedMediaTypeError extends Error {
   constructor(message: string) {
@@ -209,6 +211,13 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
     const requestId = generateRequestId()
     const recoveringUnprojectedRegistration =
       session.status === 'finalizing' && session.completedFileId === null
+    /**
+     * Filled by whichever completion branch establishes a document that still
+     * needs indexing, and acted on only after the session is durably completed.
+     * Registration and dispatch are two different transactions: the first must
+     * commit even when the second cannot run.
+     */
+    let pendingDispatch: PendingProcessingDispatch | null = null
     const result = await completeUploadSession<KnowledgeDocumentUploadCompletion>({
       session,
       loadCompleted: async (claimed) => {
@@ -261,21 +270,13 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
           )
         }
         if (bound.status === 'bound') {
-          if (
-            session.error === PROCESSING_DISPATCH_FAILURE_MESSAGE &&
-            bound.document.processingStatus === 'pending'
-          ) {
-            const billingAttribution = await resolveKnowledgeBillingAttribution(
-              principal,
-              freshContext
-            )
-            await dispatchKnowledgeDocumentProcessing(
-              bound.document,
-              freshContext.knowledgeBaseId,
+          if (bound.document.processingStatus === 'pending') {
+            pendingDispatch = {
+              document: bound.document,
+              knowledgeBaseId: freshContext.knowledgeBaseId,
               processingOptions,
-              requestId,
-              billingAttribution
-            )
+              billingAttribution: await resolveKnowledgeBillingAttribution(principal, freshContext),
+            }
           }
           return {
             value: {
@@ -339,13 +340,12 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
           throw error
         }
 
-        await dispatchKnowledgeDocumentProcessing(
-          created,
-          registrationContext.knowledgeBaseId,
+        pendingDispatch = {
+          document: created,
+          knowledgeBaseId: registrationContext.knowledgeBaseId,
           processingOptions,
-          requestId,
-          billingAttribution
-        )
+          billingAttribution,
+        }
         return {
           value: {
             document: created,
@@ -356,6 +356,7 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
         }
       },
     })
+    if (pendingDispatch) await queueKnowledgeDocumentProcessing(pendingDispatch, requestId)
     return {
       ...result,
       workspaceId: context.workspaceId,
@@ -383,30 +384,74 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
   },
 })
 
-async function dispatchKnowledgeDocumentProcessing(
-  document: CreatedKnowledgeDocument,
-  knowledgeBaseId: string,
-  processingOptions: KnowledgeDocumentUploadMetadata['processingOptions'],
-  requestId: string,
+/** Everything the indexing dispatch needs, captured while the completion still holds its lease. */
+interface PendingProcessingDispatch {
+  document: CreatedKnowledgeDocument
+  knowledgeBaseId: string
+  processingOptions: KnowledgeDocumentUploadMetadata['processingOptions']
   billingAttribution: Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>
+}
+
+/**
+ * Queues indexing for a document the completion has already made durable.
+ *
+ * It runs after `completeUploadSession` resolves, and a failure is recorded
+ * rather than raised, because by that point the caller's request has already
+ * succeeded: the object is stored, the document row exists, and the session is
+ * marked completed. A 500 raised after all of that has committed describes
+ * nothing the caller can act on — replaying the same request answers
+ * `200 completed`.
+ *
+ * The dispatch outcome is not lost by going unraised. `processDocumentsWithQueue`
+ * marks the document `failed` with its error when processing itself breaks. When
+ * the dispatch never got off the ground the document would instead be left at
+ * `pending`, which nothing sweeps and which `retryProcessing` refuses, so
+ * {@link failUndispatchedDocumentProcessing} records the failure on the row.
+ * Either way the error is visible on every subsequent read of the document, and
+ * the document can be re-queued through
+ * `PATCH /api/knowledge/{id}/documents/{documentId}` with `retryProcessing`.
+ */
+async function queueKnowledgeDocumentProcessing(
+  dispatch: PendingProcessingDispatch,
+  requestId: string
 ): Promise<void> {
   const processingDocument: DocumentData = {
-    documentId: document.id,
-    filename: document.filename,
-    fileUrl: document.fileUrl,
-    fileSize: document.fileSize,
-    mimeType: document.mimeType,
+    documentId: dispatch.document.id,
+    filename: dispatch.document.filename,
+    fileUrl: dispatch.document.fileUrl,
+    fileSize: dispatch.document.fileSize,
+    mimeType: dispatch.document.mimeType,
   }
   try {
     await processDocumentsWithQueue(
       [processingDocument],
-      knowledgeBaseId,
-      processingOptions ?? {},
+      dispatch.knowledgeBaseId,
+      dispatch.processingOptions ?? {},
       requestId,
-      billingAttribution
+      dispatch.billingAttribution
     )
   } catch (error) {
-    throw new KnowledgeDocumentProcessingDispatchError(error)
+    const failureMessage = getErrorMessage(error, 'Document processing dispatch failed')
+    logger.error(PROCESSING_DISPATCH_FAILURE_MESSAGE, {
+      requestId,
+      documentId: dispatch.document.id,
+      knowledgeBaseId: dispatch.knowledgeBaseId,
+      error: failureMessage,
+    })
+    try {
+      await failUndispatchedDocumentProcessing({
+        documentId: dispatch.document.id,
+        knowledgeBaseId: dispatch.knowledgeBaseId,
+        error: truncate(failureMessage, DISPATCH_FAILURE_MESSAGE_MAX_LENGTH),
+      })
+    } catch (markError) {
+      logger.error('Failed to record a knowledge document dispatch failure', {
+        requestId,
+        documentId: dispatch.document.id,
+        knowledgeBaseId: dispatch.knowledgeBaseId,
+        error: getErrorMessage(markError),
+      })
+    }
   }
 }
 

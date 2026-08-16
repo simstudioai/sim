@@ -12,7 +12,7 @@ import {
   updateTableColumnUseCase,
 } from '@/lib/table/application/columns'
 import { tableOperations } from '@/lib/table/application/operations'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn } from '@/lib/table/wire'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

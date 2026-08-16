@@ -10,9 +10,12 @@
  * - hosted `staging` deployment → `staging` (per-push prerelease builds from `staging`)
  * - production + self-hosted    → `latest`  (stable vX.Y.Z releases only)
  *
- * Artifacts stay on GitHub Releases (dumb storage); the feed route picks the
- * right release for its channel and serves that release's electron-updater
- * manifest with download URLs rewritten to absolute GitHub asset URLs.
+ * Artifacts stay on GitHub Releases (dumb storage). Stable releases live in
+ * the source repository; dev and staging releases live in a release-only
+ * repository so source-repository followers are not notified for every shell
+ * build. The feed route picks both the repository and release for its channel,
+ * then serves that release's electron-updater manifest with download URLs
+ * rewritten to absolute GitHub asset URLs.
  *
  * Streams are strictly isolated: dev serves `-dev.` prereleases, staging
  * `-staging.`, and `latest` only stable releases. The legacy `-alpha.` and
@@ -24,7 +27,12 @@
  */
 import { compareVersions } from '@/lib/desktop/min-version'
 
-export const DESKTOP_RELEASE_REPO = 'simstudioai/sim'
+export const DESKTOP_STABLE_RELEASE_REPOSITORY = 'simstudioai/sim'
+export const DESKTOP_PRERELEASE_REPOSITORY = 'simstudioai/sim-desktop-releases'
+
+export type DesktopReleaseRepository =
+  | typeof DESKTOP_STABLE_RELEASE_REPOSITORY
+  | typeof DESKTOP_PRERELEASE_REPOSITORY
 
 export type DesktopUpdateChannel = 'dev' | 'staging' | 'latest'
 
@@ -35,6 +43,13 @@ export function channelForDeploymentEnvironment(
   if (environment === 'dev') return 'dev'
   if (environment === 'staging') return 'staging'
   return 'latest'
+}
+
+/** Keeps stable and prerelease release storage isolated by channel. */
+export function releaseRepositoryForChannel(
+  channel: DesktopUpdateChannel
+): DesktopReleaseRepository {
+  return channel === 'latest' ? DESKTOP_STABLE_RELEASE_REPOSITORY : DESKTOP_PRERELEASE_REPOSITORY
 }
 
 /** The channel a specific version belongs to, from its prerelease tag. */
@@ -106,8 +121,12 @@ export function selectReleaseForChannel(
  * to the file URL) straight from GitHub while the feed itself stays served
  * by this deployment.
  */
-export function rewriteManifestUrls(manifest: string, tag: string): string {
-  const base = `https://github.com/${DESKTOP_RELEASE_REPO}/releases/download/${tag}/`
+export function rewriteManifestUrls(
+  manifest: string,
+  tag: string,
+  repository: DesktopReleaseRepository
+): string {
+  const base = `https://github.com/${repository}/releases/download/${tag}/`
   return manifest.replace(/^(\s*(?:-\s*)?(?:url|path):\s*)(\S+)\s*$/gm, (line, prefix, value) => {
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return line

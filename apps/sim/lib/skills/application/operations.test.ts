@@ -15,11 +15,38 @@ import { skillOperations } from '@/lib/skills/application/operations'
  * These tests exist so the next reader finds the reason instead of "fixing" it.
  */
 describe('skill operation registry', () => {
-  it('gates creation on workspace role, which a workspace key can express', () => {
+  it('gates creation on a human subject, like every other write', () => {
     expect(skillOperations.create).toMatchObject({
       minimumRole: 'write',
-      workspaceApiKey: 'allow',
+      workspaceApiKey: 'deny',
+      principalKinds: ['session', 'personal_api_key', 'delegated'],
     })
+  })
+
+  /**
+   * The invariant the create/delete split violated. A principal kind that can
+   * create a skill must be able to remove it, or its only possible interaction
+   * with the resource is to accumulate rows it can never reach again.
+   *
+   * Symmetry alone is not the property. A lifecycle that uniformly ALLOWED a
+   * workspace key is just as symmetric and reopens the hole, because the edit
+   * paths cannot resolve an acting subject for one. So both halves are pinned:
+   * the writes agree on a policy, and the policy they agree on is the one every
+   * edit path can honour. The principal kinds are compared directly rather than
+   * left to the test's own name.
+   */
+  it('admits the same principal kinds to every write in the lifecycle', () => {
+    const writes = [
+      skillOperations.create,
+      skillOperations.update,
+      skillOperations.upsert,
+      skillOperations.delete,
+    ]
+
+    expect(new Set(writes.map((operation) => operation.workspaceApiKey))).toEqual(new Set(['deny']))
+    for (const operation of writes) {
+      expect(operation.principalKinds).toEqual(skillOperations.delete.principalKinds)
+    }
   })
 
   it('gates every edit path on a human subject rather than workspace role', () => {

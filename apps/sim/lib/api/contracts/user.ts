@@ -90,6 +90,8 @@ export const userSettingsSchema = z.object({
   errorNotificationsEnabled: z.boolean().default(true),
   snapToGridSize: z.number().min(0).max(50).default(0),
   showActionBar: z.boolean().default(true),
+  /** Whether clicking a block on the canvas animates the camera to center it. */
+  autoFocusOnClick: z.boolean().default(true),
   /** Copilot tool ids the user chose "always allow" for, so they are never prompted for them again. */
   copilotAutoAllowedTools: z.array(z.string()).default([]),
   /** IANA timezone for scheduling; `null` means the client falls back to the browser-detected zone. */
@@ -110,6 +112,7 @@ export const updateUserSettingsBodySchema = z.object({
   errorNotificationsEnabled: z.boolean().optional(),
   snapToGridSize: z.number().min(0).max(50).optional(),
   showActionBar: z.boolean().optional(),
+  autoFocusOnClick: z.boolean().optional(),
   copilotAutoAllowedTools: z.array(z.string()).optional(),
   /** IANA timezone; explicit `null` resets to the browser-detected zone. */
   timezone: ianaTimezoneSchema.nullable().optional(),

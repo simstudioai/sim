@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listLogs",
         "summary": "List Logs",
-        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. This list predates the shared sort convention: it has no `sortBy` (the sort column is fixed to execution start time) and spells the direction `order` rather than `sortOrder`. Trace spans are stored separately from the log row and are pruned on their own retention schedule: `includeTraceSpans=true` on a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.",
+        "description": "List workflow execution logs for a workspace with filters, selectable detail, and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
         "tags": ["Logs"],
         "parameters": [
           {
@@ -47,6 +47,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose execution logs should be returned."
             }
           },
@@ -54,20 +55,20 @@
             "name": "workflowIds",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow identifiers to include.",
+            "description": "Comma-separated workflow identifiers to include. An empty entry is rejected.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow identifiers to include."
+              "description": "Comma-separated workflow identifiers to include. An empty entry is rejected."
             }
           },
           {
             "name": "triggers",
             "in": "query",
             "required": false,
-            "description": "Comma-separated trigger types to include.",
+            "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated trigger types to include."
+              "description": "Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`."
             }
           },
           {
@@ -85,64 +86,72 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
+            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
+              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
+            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
+              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "minDurationMs",
             "in": "query",
             "required": false,
-            "description": "Minimum total execution duration in milliseconds.",
+            "description": "Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.",
             "schema": {
-              "type": "number",
-              "description": "Minimum total execution duration in milliseconds."
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647,
+              "description": "Minimum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected."
             }
           },
           {
             "name": "maxDurationMs",
             "in": "query",
             "required": false,
-            "description": "Maximum total execution duration in milliseconds.",
+            "description": "Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected.",
             "schema": {
-              "type": "number",
-              "description": "Maximum total execution duration in milliseconds."
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647,
+              "description": "Maximum total execution duration in milliseconds. Whole milliseconds from 0 to 2147483647; the stored duration is a 32-bit integer, so a fractional or out-of-range bound is rejected."
             }
           },
           {
             "name": "minCost",
             "in": "query",
             "required": false,
-            "description": "Minimum execution cost in USD.",
+            "description": "Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.",
             "schema": {
               "type": "number",
-              "description": "Minimum execution cost in USD."
+              "minimum": 0,
+              "maximum": 1000000,
+              "description": "Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run."
             }
           },
           {
             "name": "maxCost",
             "in": "query",
             "required": false,
-            "description": "Maximum execution cost in USD.",
+            "description": "Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run.",
             "schema": {
               "type": "number",
-              "description": "Maximum execution cost in USD."
+              "minimum": 0,
+              "maximum": 1000000,
+              "description": "Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run."
             }
           },
           {
@@ -159,21 +168,21 @@
             "name": "details",
             "in": "query",
             "required": false,
-            "description": "Response detail level.",
+            "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly.",
             "schema": {
               "default": "basic",
               "type": "string",
               "enum": ["basic", "full"],
-              "description": "Response detail level."
+              "description": "Response detail level. `full` adds the `workflow` summary to every item. `includeTraceSpans=true` and `includeFinalOutput=true` each imply `full`, so either one adds `workflow` even when `details=basic` is sent explicitly."
             }
           },
           {
             "name": "includeTraceSpans",
             "in": "query",
             "required": false,
-            "description": "Whether to include block-level trace spans.",
+            "description": "Whether to include block-level trace spans. Implies `details=full`. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.",
             "schema": {
-              "description": "Whether to include block-level trace spans.",
+              "description": "Whether to include block-level trace spans. Implies `details=full`. Spans are pruned on their own retention schedule, so a run whose spans have aged out returns `traceSpans: []` rather than an error.",
               "type": "boolean"
             }
           },
@@ -181,9 +190,9 @@
             "name": "includeFinalOutput",
             "in": "query",
             "required": false,
-            "description": "Whether to include the final workflow output.",
+            "description": "Whether to include the final workflow output. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to.",
             "schema": {
-              "description": "Whether to include the final workflow output.",
+              "description": "Whether to include the final workflow output. Implies `details=full`, so the `workflow` summary is present regardless of what `details` is set to.",
               "type": "boolean"
             }
           },
@@ -195,8 +204,6 @@
             "schema": {
               "description": "Maximum log entries per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
               "default": 100
             }
           },
@@ -204,9 +211,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -215,12 +222,12 @@
             "name": "order",
             "in": "query",
             "required": false,
-            "description": "Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.",
+            "description": "Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
             "schema": {
               "default": "desc",
+              "description": "Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
               "type": "string",
-              "enum": ["desc", "asc"],
-              "description": "Sort direction by execution start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: logs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted."
+              "enum": ["asc", "desc"]
             }
           },
           {
@@ -231,6 +238,8 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
               "description": "Exact run identifier to match."
             }
           },
@@ -238,10 +247,10 @@
             "name": "folderPaths",
             "in": "query",
             "required": false,
-            "description": "Comma-separated workflow folder paths to include.",
+            "description": "Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
               "type": "string",
-              "description": "Comma-separated workflow folder paths to include."
+              "description": "Comma-separated workflow folder paths to include. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error."
             }
           }
         ],
@@ -295,18 +304,20 @@
       "get": {
         "operationId": "getLog",
         "summary": "Get Log",
-        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. The returned `workflowState` snapshot has credential values redacted: OAuth credential references and secret (`password`) sub-block values are null, while `{{VAR}}` environment-variable references are preserved so consecutive snapshots stay diffable. Trace spans are stored separately from the log row and are pruned on their own retention schedule: a run whose stored spans have aged out returns `traceSpans: []` rather than an error, so an empty array does not mean the run recorded no spans.",
+        "description": "Retrieve the diagnostic representation of a run, including its workflow snapshot, trace spans, final output, and cost. Trace spans are pruned on their own retention schedule, so an empty `traceSpans` array does not mean the run recorded none.",
         "tags": ["Logs"],
         "parameters": [
           {
             "name": "runId",
             "in": "path",
             "required": true,
-            "description": "The unique run identifier shared by lifecycle and diagnostic resources.",
+            "description": "Unique workflow run identifier.",
             "schema": {
               "type": "string",
               "minLength": 1,
-              "description": "The unique run identifier shared by lifecycle and diagnostic resources."
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "description": "Unique workflow run identifier."
             }
           }
         ],
@@ -363,7 +374,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       }
     },
     "headers": {
@@ -398,13 +409,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -419,7 +430,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
@@ -449,7 +460,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\nA resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.",
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
         "content": {
           "application/json": {
             "schema": {
@@ -479,7 +490,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -493,18 +504,8 @@
           }
         }
       },
-      "Gone": {
-        "description": "The requested generated resource has expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -549,7 +550,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -569,7 +570,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -600,7 +601,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Optional structured error details."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -661,7 +662,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters."
+            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters."
           },
           "level": {
             "type": "string",
@@ -987,7 +988,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -1057,7 +1058,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not run to completion and the run is waiting to be resumed again. **This differs from the run resources for the same run:** `GET /api/v2/workflows/{id}/runs` and `GET /api/v2/workflows/{id}/runs/{runId}` additionally report `paused` for a run held at a human-in-the-loop pause point, which this field reports as `pending`. Use the run resources when the pause state matters."
+            "description": "Current execution status, reported as persisted. `redacting` is transient while run output is scrubbed. `paused` is reported only when a resume attempt did not complete; a run held at a human-in-the-loop pause point reads `pending` here, and `paused` on the workflow run resources. Use those when the pause state matters."
           },
           "level": {
             "type": "string",
@@ -1144,13 +1145,15 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "description": "Canonical slash-prefixed folder path. `/` is the workspace root."
+                    "title": "Folder path",
+                    "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+                    "maxLength": 4096
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "description": "Workflow folder path, or null when unavailable."
+                "description": "Canonical folder path of the workflow, in the same form `folderPaths` accepts as a filter: `/` for a workflow at the workspace root. Null only when the path cannot be resolved — the folder has been deleted, or the workflow itself no longer exists."
               },
               "ownerEmail": {
                 "anyOf": [
@@ -1234,7 +1237,7 @@
                 "type": "null"
               }
             ],
-            "description": "Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null; and `{{VAR}}` references in non-opaque fields are preserved. Null when no snapshot is retained."
+            "description": "Workflow graph snapshot captured for the run, or null when none is retained. Credential-bearing values are redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata. `{{VAR}}` references in non-opaque fields are preserved."
           },
           "traceSpans": {
             "type": "array",

@@ -40,7 +40,7 @@ export type FileIntentScope = {
   messageId?: string
   // When set, consumeLatestFileIntent only considers intents from this subagent
   // channel — the key to isolating concurrent file subagents. Omitted by callers
-  // that intentionally span the whole message (e.g. clearIntentsForWorkspace).
+  // that intentionally span the whole message.
   channelId?: string
 }
 
@@ -66,8 +66,8 @@ function scopeMatches(intent: PendingFileIntent, scope?: FileIntentScope): boole
 
 // Channel filter for consume: when a scope carries a channelId, only the
 // matching file subagent's intent qualifies. No channelId => message-wide
-// (legacy / main-agent) behavior. Deliberately separate from scopeMatches so
-// clearIntentsForWorkspace keeps clearing every channel in a message.
+// (legacy / main-agent) behavior. Deliberately separate from scopeMatches, which
+// spans every channel in a message.
 function channelMatches(intent: PendingFileIntent, scope?: FileIntentScope): boolean {
   return !scope?.channelId || intent.channelId === scope.channelId
 }
@@ -156,33 +156,6 @@ export async function storeFileIntent(
   })
 }
 
-async function consumeFileIntent(
-  workspaceId: string,
-  fileId: string,
-  scope?: FileIntentScope
-): Promise<PendingFileIntent | undefined> {
-  const redis = getRedisClient()
-  if (!redis) {
-    const key = buildKey(workspaceId, buildScopedField(fileId, scope))
-    const intent = memoryStore.get(key)
-    if (intent) {
-      memoryStore.delete(key)
-    }
-    return intent
-  }
-
-  const raw = await withRedisRetry('consume_file_intent', workspaceId, async (client) => {
-    const key = getWorkspaceRedisKey(workspaceId)
-    const field = buildScopedField(fileId, scope)
-    const value = await client.hget(key, field)
-    if (value !== null) {
-      await client.hdel(key, field)
-    }
-    return value
-  })
-  return parseIntent(raw)
-}
-
 export async function peekFileIntent(
   workspaceId: string,
   fileId: string,
@@ -262,51 +235,4 @@ export async function consumeLatestFileIntent(
     })
   }
   return latest
-}
-
-export async function clearIntentsForWorkspace(
-  workspaceId: string,
-  scope?: FileIntentScope
-): Promise<number> {
-  const redis = getRedisClient()
-  if (!redis) {
-    let cleared = 0
-    for (const [key, intent] of memoryStore) {
-      if (intent.workspaceId === workspaceId && (!scope || scopeMatches(intent, scope))) {
-        memoryStore.delete(key)
-        cleared++
-      }
-    }
-    return cleared
-  }
-
-  const key = getWorkspaceRedisKey(workspaceId)
-  if (!scope) {
-    const count = await withRedisRetry(
-      'count_workspace_file_intents',
-      workspaceId,
-      async (client) => client.hlen(key)
-    )
-    await withRedisRetry('clear_workspace_file_intents', workspaceId, async (client) => {
-      await client.del(key)
-    })
-    return count
-  }
-
-  const entries = await withRedisRetry('read_workspace_file_intents', workspaceId, async (client) =>
-    client.hgetall(key)
-  )
-  const fieldsToDelete: string[] = []
-  for (const [field, raw] of Object.entries(entries)) {
-    const parsed = parseIntent(raw)
-    if (parsed && scopeMatches(parsed, scope)) {
-      fieldsToDelete.push(field)
-    }
-  }
-  if (fieldsToDelete.length > 0) {
-    await withRedisRetry('clear_scoped_file_intents', workspaceId, async (client) => {
-      await client.hdel(key, ...fieldsToDelete)
-    })
-  }
-  return fieldsToDelete.length
 }

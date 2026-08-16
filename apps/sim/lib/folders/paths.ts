@@ -1,4 +1,5 @@
 import type { folder } from '@sim/db/schema'
+import { containsNulCharacter } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export const ROOT_FOLDER_PATH = '/'
@@ -54,9 +55,27 @@ function encodedByteLength(value: string): number {
   return new TextEncoder().encode(value).length
 }
 
-/** Encodes one stored folder name without normalizing its case or Unicode form. */
+/**
+ * Encodes one stored folder name without normalizing its case or Unicode form.
+ *
+ * This is the single chokepoint for what a folder name may contain: every path
+ * built from names passes through it, and {@link parseFolderPath} re-encodes
+ * each decoded segment through it to prove canonicality. So the NUL rejection
+ * belongs here rather than at either caller.
+ *
+ * The request-level scan in `@/lib/api/server/nul-bytes` cannot cover this. A
+ * folder path arrives percent-encoded, so the scan sees `%00` — three ordinary
+ * characters — and passes it, and the NUL only exists after this module decodes
+ * it. Reads happened to survive (an unmatched path is a 404); writers carried
+ * the decoded name into an `INSERT` and the driver threw a 500. Validating at
+ * the decode boundary covers every percent-encoded escape a caller can spell,
+ * not just the one that was reported.
+ */
 export function encodeFolderPathSegment(name: string): string {
   if (name.length === 0) throw new FolderPathError('Folder names cannot be empty')
+  if (containsNulCharacter(name)) {
+    throw new FolderPathError('Folder names cannot contain a NUL character (U+0000)')
+  }
 
   if (name === '.') return '%2E'
   if (name === '..') return '%2E%2E'

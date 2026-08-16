@@ -34,9 +34,12 @@ import {
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
+  applyDependentRepick,
+  type DependentConfigurationState,
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
+  getActionableDependentFields,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import type {
   ForkKindSummary,
@@ -89,6 +92,7 @@ interface DependentBlock {
   targetBlockId: string
   blockName: string
   fields: ForkDependentReconfig[]
+  configurableFields: ForkDependentReconfig[]
 }
 
 interface WorkflowDependents {
@@ -103,7 +107,9 @@ interface WorkflowDependents {
  */
 function groupDependentsByWorkflow(
   workflows: ForkResourceUsage['workflows'],
-  dependents: ForkDependentReconfig[]
+  dependents: ForkDependentReconfig[],
+  reconfig: Record<string, string>,
+  state: DependentConfigurationState
 ): WorkflowDependents[] {
   const byWorkflow = new Map<string, ForkDependentReconfig[]>()
   for (const dependent of dependents) {
@@ -116,7 +122,12 @@ function groupDependentsByWorkflow(
     for (const field of byWorkflow.get(workflow.workflowId) ?? []) {
       let block = byBlock.get(field.targetBlockId)
       if (!block) {
-        block = { targetBlockId: field.targetBlockId, blockName: field.blockName, fields: [] }
+        block = {
+          targetBlockId: field.targetBlockId,
+          blockName: field.blockName,
+          fields: [],
+          configurableFields: [],
+        }
         byBlock.set(field.targetBlockId, block)
       }
       block.fields.push(field)
@@ -124,7 +135,13 @@ function groupDependentsByWorkflow(
     return {
       workflowId: workflow.workflowId,
       workflowName: workflow.workflowName,
-      blocks: Array.from(byBlock.values()).sort((a, b) => a.blockName.localeCompare(b.blockName)),
+      blocks: Array.from(byBlock.values())
+        .map((block) => ({
+          ...block,
+          configurableFields: getActionableDependentFields(block.fields, reconfig, state),
+        }))
+        .filter((block) => block.configurableFields.length > 0)
+        .sort((a, b) => a.blockName.localeCompare(b.blockName)),
     }
   })
 }
@@ -144,28 +161,6 @@ function blockChainState(
     }
   }
   return { providedValues, providedContextKeys }
-}
-
-/** Store a re-pick and invalidate in-block children chained off the changed field. */
-function applyDependentRepick(
-  setReconfig: Dispatch<SetStateAction<Record<string, string>>>,
-  field: ForkDependentReconfig,
-  blockFields: ForkDependentReconfig[],
-  value: string
-) {
-  setReconfig((prev) => {
-    const nextState = { ...prev, [dependentKey(field)]: value }
-    // A changed parent invalidates its children's stale re-picks.
-    const providedKey = field.providesContextKey
-    if (providedKey) {
-      for (const sibling of blockFields) {
-        if (sibling.consumesContextKeys.includes(providedKey)) {
-          delete nextState[dependentKey(sibling)]
-        }
-      }
-    }
-    return nextState
-  })
 }
 
 interface DependentSelectorProps {
@@ -225,7 +220,9 @@ function DependentSelector({
       }}
       enabled={parentValue !== '' && ready}
       value={effectiveValue(field)}
-      onChange={(value) => applyDependentRepick(setReconfig, field, block.fields, value)}
+      onChange={(value) =>
+        setReconfig((current) => applyDependentRepick(current, field, block.fields, value))
+      }
       title={field.title}
     />
   )
@@ -260,7 +257,7 @@ function DependentWorkflowCard({
   setReconfig,
 }: DependentWorkflowCardProps) {
   const [collapsed, setCollapsed] = useState(
-    () => !workflow.blocks.some((block) => block.fields.some((field) => field.required))
+    () => !workflow.blocks.some((block) => block.configurableFields.some((field) => field.required))
   )
   return (
     <CollapsibleCard
@@ -270,9 +267,9 @@ function DependentWorkflowCard({
     >
       <div className='flex flex-col gap-3'>
         {workflow.blocks.map((block) => {
-          const topLevel = block.fields.filter((field) => !field.toolName)
+          const topLevel = block.configurableFields.filter((field) => !field.toolName)
           const byTool = new Map<string, ForkDependentReconfig[]>()
-          for (const field of block.fields) {
+          for (const field of block.configurableFields) {
             if (!field.toolName) continue
             const list = byTool.get(field.toolName)
             if (list) list.push(field)
@@ -357,11 +354,14 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
 
   const usages = controller.usagesForEntry(entry)
   const dependents = controller.dependentsForEntry(entry)
-  // Group once per (usages, dependents) change - both keep stable references from the
-  // controller's memoized maps, so this skips recompute across the page's frequent re-renders.
   const workflows = useMemo(
-    () => groupDependentsByWorkflow(usages, dependents),
-    [usages, dependents]
+    () =>
+      groupDependentsByWorkflow(usages, dependents, controller.reconfig, {
+        parentResolved: target !== '' || copying,
+        parentChanged,
+        copying,
+      }),
+    [usages, dependents, controller.reconfig, target, parentChanged, copying]
   )
   const configurable = workflows.filter((workflow) => workflow.blocks.length > 0)
   const usedOnly = workflows.filter((workflow) => workflow.blocks.length === 0)

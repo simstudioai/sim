@@ -1,5 +1,6 @@
 import { createReadStream, createWriteStream } from 'node:fs'
 import {
+  copyFile,
   link,
   mkdir,
   readdir,
@@ -23,10 +24,14 @@ import {
 } from '@/lib/uploads/config'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import {
+  LOCAL_MULTIPART_ROOT,
+  LOCAL_STAGING_ROOT,
+  LOCAL_UPLOAD_METADATA_SUFFIX,
+} from '@/lib/uploads/core/storage-key'
+import {
   createBlobConfig,
   createGcsConfig,
   createS3Config,
-  LOCAL_UPLOAD_METADATA_SUFFIX,
 } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
@@ -512,9 +517,11 @@ export async function writeLocalPutObject(params: {
 }): Promise<void> {
   const { Readable, Transform } = await import('node:stream')
   const destination = localObjectPath(params.key)
-  const temporary = `${destination}.${params.uploadId}-${generateId()}.tmp`
-  const temporaryMetadata = `${temporary}${LOCAL_UPLOAD_METADATA_SUFFIX}`
-  await mkdir(dirname(destination), { recursive: true })
+  const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(params.uploadId)
+  await Promise.all([
+    mkdir(dirname(destination), { recursive: true }),
+    mkdir(dirname(temporary), { recursive: true }),
+  ])
   let bytes = 0
   const counter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
@@ -603,7 +610,30 @@ export async function writeLocalMultipartPart(params: {
 }
 
 function localPartsDirectory(uploadId: string): string {
-  return join(UPLOAD_DIR_SERVER, '.multipart', uploadId)
+  return join(UPLOAD_DIR_SERVER, LOCAL_MULTIPART_ROOT, uploadId)
+}
+
+/**
+ * Paths for an object being staged before it is published at its final key.
+ *
+ * Staged names are derived from the upload id alone, never from the
+ * destination. A temporary built as `destination + suffix` inherits the
+ * destination's length and then adds to it, so a key that fits `NAME_MAX`
+ * exactly still failed with `ENAMETOOLONG`: that is the 500 the upload-session
+ * PUT returned for any file name past roughly 125 characters, and the identical
+ * failure multipart `complete` returned while assembling one. Deriving the
+ * staged name from a fixed-width id removes the arithmetic rather than
+ * re-budgeting it — no suffix added here can depend on the caller's file name,
+ * so no future suffix can reintroduce the overflow.
+ *
+ * The staging root sits inside `UPLOAD_DIR_SERVER`, which keeps publication a
+ * same-filesystem `link` and lets the cleanup sweep reclaim what a crashed
+ * request left behind — artifacts written next to the destination were never
+ * swept at all.
+ */
+function localStagedPaths(uploadId: string): { object: string; metadata: string } {
+  const object = join(UPLOAD_DIR_SERVER, LOCAL_STAGING_ROOT, `${uploadId}-${generateId()}.tmp`)
+  return { object, metadata: `${object}${LOCAL_UPLOAD_METADATA_SUFFIX}` }
 }
 
 function localPartPath(uploadId: string, partNumber: number): string {
@@ -626,9 +656,11 @@ async function assembleLocalParts(
   metadata: Record<string, string>
 ): Promise<void> {
   const destination = localObjectPath(key)
-  const temporary = `${destination}.${uploadId}-${generateId()}.tmp`
-  const temporaryMetadata = `${temporary}${LOCAL_UPLOAD_METADATA_SUFFIX}`
-  await mkdir(dirname(destination), { recursive: true })
+  const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(uploadId)
+  await Promise.all([
+    mkdir(dirname(destination), { recursive: true }),
+    mkdir(dirname(temporary), { recursive: true }),
+  ])
   try {
     for (const part of parts) {
       await pipeline(
@@ -674,15 +706,48 @@ async function listLocalMultipartParts(uploadId: string): Promise<CompletedUploa
   return parts
 }
 
+/**
+ * Names a staged artifact at its final path, refusing to overwrite one already
+ * there.
+ *
+ * `link` is what makes that atomic: it either creates the name or fails
+ * `EEXIST`, and no reader ever observes a half-written object under the final
+ * key. It also requires both paths to sit on one filesystem. Staging beside the
+ * destination guaranteed that; a single `.staging` root does not, because a
+ * volume mounted under part of the uploads tree puts the two on different
+ * devices and `link` answers `EXDEV`.
+ *
+ * The fallback copies onto the destination's own device first and links from
+ * there, so the create-or-fail step still decides the final name and the
+ * no-overwrite guarantee survives — a plain copy to the destination would give
+ * that up. The copy's own name is derived from a fresh id, never from the
+ * destination, so it inherits none of the destination's path-component length.
+ */
+async function linkLocalArtifact(source: string, destination: string): Promise<void> {
+  try {
+    await link(source, destination)
+    return
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+  }
+  const sameDeviceCopy = join(dirname(destination), `.${generateId()}.publish`)
+  try {
+    await copyFile(source, sameDeviceCopy)
+    await link(sameDeviceCopy, destination)
+  } finally {
+    await rm(sameDeviceCopy, { force: true })
+  }
+}
+
 async function publishLocalObject(
   temporary: string,
   temporaryMetadata: string,
   destination: string,
   destinationMetadata: string
 ): Promise<void> {
-  await link(temporary, destination)
+  await linkLocalArtifact(temporary, destination)
   try {
-    await link(temporaryMetadata, destinationMetadata)
+    await linkLocalArtifact(temporaryMetadata, destinationMetadata)
   } catch (error) {
     await rm(destination, { force: true })
     throw error

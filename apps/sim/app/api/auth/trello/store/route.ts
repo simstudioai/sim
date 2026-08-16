@@ -18,11 +18,13 @@ export const dynamic = 'force-dynamic'
 
 const TRELLO_STATE_COOKIE = 'trello_oauth_state'
 const TRELLO_RETURN_URL_COOKIE = 'trello_return_url'
+const TRELLO_CREDENTIAL_DRAFT_COOKIE = 'trello_credential_draft_id'
 const TRELLO_STATE_COOKIE_PATH = '/api/auth/trello'
 
 function clearStateCookie(response: NextResponse) {
   response.cookies.delete({ name: TRELLO_STATE_COOKIE, path: TRELLO_STATE_COOKIE_PATH })
   response.cookies.delete({ name: TRELLO_RETURN_URL_COOKIE, path: TRELLO_STATE_COOKIE_PATH })
+  response.cookies.delete({ name: TRELLO_CREDENTIAL_DRAFT_COOKIE, path: TRELLO_STATE_COOKIE_PATH })
   return response
 }
 
@@ -37,6 +39,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(storeTrelloTokenContract, request, {})
     if (!parsed.success) return parsed.response
     const { token, state } = parsed.data.body
+    const draftId = request.cookies.get(TRELLO_CREDENTIAL_DRAFT_COOKIE)?.value
 
     const cookieState = request.cookies.get(TRELLO_STATE_COOKIE)?.value
     if (!cookieState || cookieState !== state) {
@@ -135,17 +138,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         ),
       }))
 
-    if (persisted) {
-      try {
-        await processCredentialDraft({
-          userId: session.user.id,
-          providerId: 'trello',
-          accountId: persisted.id,
-        })
-      } catch (error) {
-        logger.error('Failed to process credential draft for Trello', { error })
-      }
+    if (!persisted) {
+      throw new Error(`Trello OAuth account ${trelloUser.id} was not persisted`)
     }
+    await processCredentialDraft({
+      draftId,
+      userId: session.user.id,
+      providerId: 'trello',
+      accountId: persisted.id,
+    })
 
     return clearStateCookie(NextResponse.json({ success: true }))
   } catch (error) {

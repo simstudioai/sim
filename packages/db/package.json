@@ -16,6 +16,10 @@
     "./schema": {
       "types": "./schema.ts",
       "default": "./schema.ts"
+    },
+    "./timestamps": {
+      "types": "./timestamps.ts",
+      "default": "./timestamps.ts"
     }
   },
   "scripts": {

@@ -107,17 +107,65 @@ export const v1ListKnowledgeDocumentsQuerySchema = z.object({
 })
 
 /**
+ * Comparison operators the tag filter builders implement, per field type.
+ *
+ * Both builders — `lib/knowledge/documents/tag-filter.ts` for document lists and
+ * `lib/knowledge/search/queries.ts` for search — recognize exactly these. An
+ * operator outside the set used to be admitted by the boundary and then diverge:
+ * the document list dropped the predicate and returned the whole knowledge base,
+ * while search fell through to equality. Enumerating them here makes both
+ * `default:` arms unreachable instead of load-bearing.
+ */
+export const KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE = {
+  text: ['eq', 'neq', 'contains', 'not_contains', 'starts_with', 'ends_with'],
+  number: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'],
+  date: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'],
+  boolean: ['eq', 'neq'],
+} as const satisfies Record<'text' | 'number' | 'date' | 'boolean', readonly string[]>
+
+/** Every operator any field type implements; the field type narrows it further. */
+export const KNOWLEDGE_TAG_FILTER_OPERATORS = [
+  'eq',
+  'neq',
+  'contains',
+  'not_contains',
+  'starts_with',
+  'ends_with',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'between',
+] as const
+
+/**
  * POST `/api/v1/knowledge/search` tag filter — uses display `tagName` (not
  * slot) and a default operator. Distinct from the in-app
  * `documentTagFilterSchema`, which is slot-based and used for list filtering.
+ *
+ * Deliberately not strict. v1 has always stripped unrecognized keys, and
+ * rejecting them now would break shipped callers for no correctness win; v2
+ * layers `.strict()` on top of this schema instead. The one stripped key that
+ * changed an answer — a mis-cased `valueto` leaving a `between` filter with no
+ * upper bound, which the document list then discarded entirely — is caught on
+ * both versions by the `valueTo` rule below.
  */
-export const v1SearchTagFilterSchema = z.object({
-  tagName: z.string(),
-  fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
-  operator: z.string().default('eq'),
-  value: z.union([z.string(), z.number(), z.boolean()]),
-  valueTo: z.union([z.string(), z.number()]).optional(),
-})
+export const v1SearchTagFilterSchema = z
+  .object({
+    tagName: z.string(),
+    fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
+    operator: z
+      .enum(KNOWLEDGE_TAG_FILTER_OPERATORS, {
+        error: `operator must be one of: ${KNOWLEDGE_TAG_FILTER_OPERATORS.join(', ')}`,
+      })
+      .default('eq'),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+    valueTo: z.union([z.string(), z.number()]).optional(),
+  })
+  .refine((filter) => filter.operator !== 'between' || filter.valueTo !== undefined, {
+    message: 'valueTo is required when operator is "between"',
+    path: ['valueTo'],
+  })
 
 /** POST `/api/v1/knowledge/search` body. */
 export const v1KnowledgeSearchBodySchema = z

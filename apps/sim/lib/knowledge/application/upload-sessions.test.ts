@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   createDocument: vi.fn(),
   createPartUrls: vi.fn(),
   createUpload: vi.fn(),
+  failUndispatched: vi.fn(),
   findBound: vi.fn(),
   getUpload: vi.fn(),
   processQueue: vi.fn(),
@@ -46,6 +47,10 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveContext,
+}))
+
+vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
+  failUndispatchedDocumentProcessing: mocks.failUndispatched,
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -195,6 +200,7 @@ describe('knowledge-document upload application lifecycle', () => {
     mocks.findBound.mockResolvedValue({ status: 'absent' })
     mocks.createDocument.mockResolvedValue(DOCUMENT)
     mocks.processQueue.mockResolvedValue(undefined)
+    mocks.failUndispatched.mockResolvedValue(true)
   })
 
   it('admits, binds, and records ownership before returning upload credentials', async () => {
@@ -394,43 +400,185 @@ describe('knowledge-document upload application lifecycle', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('fails completion when document processing cannot be dispatched', async () => {
-    const failure = new Error('queue unavailable')
-    mocks.processQueue.mockRejectedValue(failure)
+  /**
+   * The registration is durable before indexing is queued, so a queue that is
+   * down cannot un-create the document. Failing the call reports a completion
+   * that did happen as a 500, and the only recovery a caller has — replaying the
+   * same request — answers `200 completed`.
+   */
+  it('completes and audits the upload when processing cannot be dispatched', async () => {
+    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
     mocks.completeUpload.mockImplementation(
       async (params: {
         session: UploadSessionRecord
-        finalize: (session: UploadSessionRecord) => Promise<unknown>
-      }) => params.finalize(params.session)
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
     )
 
-    await expect(
-      completeKnowledgeDocumentUpload.execute({
-        principal: PRINCIPAL,
-        input: {
-          knowledgeBaseId: 'knowledge-1',
-          assertedWorkspaceId: 'workspace-1',
-          uploadId: 'upload-1',
-          uploadToken: 'token',
-          source: 'api',
-        },
-        request: REQUEST,
-      })
-    ).rejects.toMatchObject({
-      name: 'KnowledgeDocumentProcessingDispatchError',
-      message: 'Knowledge document processing dispatch failed',
-      cause: failure,
+    const result = await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
     })
+
+    expect(result.value.created).toBe(true)
+    expect(result.value.document).toEqual(DOCUMENT)
     expect(mocks.createDocument).toHaveBeenCalledTimes(1)
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mocks.processQueue).toHaveBeenCalledTimes(1)
+    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
   })
 
-  it('retries a failed processing dispatch before completing a bound registration', async () => {
+  /**
+   * A completed session with a `completedFileId` replays into `loadCompleted`,
+   * which never dispatches, and nothing sweeps `pending`. Leaving the document
+   * there strands it with no retry and no signal, so the failure is recorded on
+   * the row — the state `retryProcessing` accepts.
+   */
+  it('marks the document failed when its processing dispatch never got off the ground', async () => {
+    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
+    )
+
+    await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(mocks.failUndispatched).toHaveBeenCalledWith({
+      documentId: DOCUMENT.id,
+      knowledgeBaseId: 'knowledge-1',
+      error: 'queue unavailable',
+    })
+  })
+
+  /** Recording the failure is itself best-effort; it must not resurface as a 500. */
+  it('still completes when the dispatch failure cannot be recorded', async () => {
+    mocks.processQueue.mockRejectedValue(new Error('queue unavailable'))
+    mocks.failUndispatched.mockRejectedValue(new Error('database unavailable'))
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
+    )
+
+    const result = await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(result.value.document).toEqual(DOCUMENT)
+  })
+
+  /**
+   * The dispatch is a follow-on to the completion, not a step inside it: a
+   * completion that cannot write its durable marker must not have queued
+   * indexing for a document the caller was told nothing about.
+   */
+  it('queues processing only after the session is durably completed', async () => {
+    const order: string[] = []
+    mocks.processQueue.mockImplementation(async () => {
+      order.push('dispatch')
+    })
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+          completedFileId?: string
+        }>
+      }) => {
+        const finalized = await params.finalize(params.session)
+        order.push('completed')
+        return {
+          session: { ...params.session, status: 'completed' as const },
+          value: finalized.value,
+          alreadyCompleted: false,
+        }
+      }
+    )
+
+    await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(order).toEqual(['completed', 'dispatch'])
+  })
+
+  /**
+   * The re-queue is decided by the document — a registration still `pending` was
+   * never picked up — rather than by the message a previous failure happened to
+   * leave on the session. The session no longer carries one: a dispatch failure
+   * completes the session and is logged, so keying recovery off `session.error`
+   * would leave a `pending` document with nothing to re-queue it.
+   */
+  it('re-queues a bound registration whose document was never picked up', async () => {
     const recoveringSession = {
       ...SESSION,
       status: 'finalizing' as const,
       completedFileId: null,
-      error: 'Knowledge document processing dispatch failed',
     }
     mocks.getUpload.mockResolvedValue(recoveringSession)
     mocks.findBound.mockResolvedValue({

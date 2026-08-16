@@ -39,10 +39,6 @@ export function isParallelSentinelNodeId(nodeId: string): boolean {
   return SubflowNodeIdCodec.isParallelSentinelNodeId(nodeId)
 }
 
-export function isSentinelNodeId(nodeId: string): boolean {
-  return isLoopSentinelNodeId(nodeId) || isParallelSentinelNodeId(nodeId)
-}
-
 export function extractLoopIdFromSentinel(sentinelId: string): string | null {
   return SubflowNodeIdCodec.extractLoopIdFromSentinel(sentinelId)
 }

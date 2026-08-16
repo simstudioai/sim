@@ -528,6 +528,7 @@ export const env = createEnv({
     TABLES_V2_API:                        z.boolean().optional(),                 // Enable the v2 tables HTTP API (public /api/v2/tables + internal /api/table/[tableId]/query predicate-grammar route)
     TABLE_LOCKS:                          z.boolean().optional(),                 // Enable per-table mutation locks (schema/insert/update/delete toggles)
     TABLE_VIEWS:                          z.boolean().optional(),                 // Enable saved table views (named filter/sort/column-visibility presets) and the column show/hide menu
+    CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)

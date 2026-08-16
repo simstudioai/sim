@@ -102,6 +102,7 @@ describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
         assertedWorkspaceId: WORKSPACE_ID,
         data: { email: 'ada@example.com' },
         conflictTarget: 'email',
+        strictWrite: true,
       },
       request,
     })

@@ -1,7 +1,20 @@
 import { requestJson } from '@/lib/api/client/request'
-import { listWorkspaceCredentialsContract, type WorkspaceCredential } from '@/lib/api/contracts'
+import {
+  type ContractJsonResponse,
+  listWorkspaceCredentialsContract,
+  type WorkspaceCredential,
+} from '@/lib/api/contracts'
 
 export const WORKSPACE_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
+
+export function requireWorkspaceCredentialListResponse(
+  data: ContractJsonResponse<typeof listWorkspaceCredentialsContract>
+): WorkspaceCredential[] {
+  if (!('credentials' in data)) {
+    throw new Error('Workspace credential list returned a lookup response')
+  }
+  return data.credentials
+}
 
 /**
  * Fetches the workspace credential list.
@@ -18,5 +31,5 @@ export async function fetchWorkspaceCredentialList(
     query: { workspaceId },
     signal,
   })
-  return data.credentials ?? []
+  return requireWorkspaceCredentialListResponse(data)
 }

@@ -4,7 +4,13 @@
  * @vitest-environment node
  */
 
-import { hybridAuthMockFns, permissionsMock, workflowsUtilsMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hybridAuthMockFns,
+  permissionsMock,
+  resetDbChainMock,
+  workflowsUtilsMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,6 +32,7 @@ describe('OAuth Credentials API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
   })
 
   it('should handle unauthenticated user', async () => {
@@ -89,5 +96,34 @@ describe('OAuth Credentials API Route', () => {
 
     expect(response.status).toBe(200)
     expect(data.credentials).toHaveLength(0)
+  })
+
+  it('does not expose a managed credential requested by exact ID', async () => {
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'user-123',
+      authType: 'session',
+    })
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'managed-credential-1',
+        workspaceId: 'workspace-1',
+        type: 'managed_oauth',
+        displayName: 'Managed Gmail',
+        providerId: 'google-email',
+        accountId: null,
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+        accountProviderId: null,
+        accountScope: null,
+        accountUpdatedAt: null,
+      },
+    ])
+
+    const response = await GET(
+      createMockRequestWithQuery('GET', '?credentialId=managed-credential-1')
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ credentials: [] })
   })
 })

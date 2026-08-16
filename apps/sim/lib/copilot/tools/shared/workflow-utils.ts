@@ -31,15 +31,3 @@ export function formatNormalizedWorkflowForCopilot(
   if (!normalized) return null
   return formatWorkflowStateForCopilot(normalized, options)
 }
-
-export function normalizeWorkflowName(name?: string | null): string {
-  return String(name || '')
-    .trim()
-    .toLowerCase()
-}
-
-export function extractWorkflowNames(workflows: Array<{ name?: string | null }>): string[] {
-  return workflows
-    .map((workflow) => (typeof workflow?.name === 'string' ? workflow.name : null))
-    .filter((name): name is string => Boolean(name))
-}

@@ -1,4 +1,4 @@
-import { filterUndefined, isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   InstantlyCampaign,
   InstantlyEmail,
@@ -55,8 +55,9 @@ export async function parseInstantlyResponse(response: Response): Promise<unknow
   return data
 }
 
+/** Thin re-export of the shared {@link toRecord} helper, kept for existing importers. */
 export function asRecord(value: unknown): JsonRecord {
-  return isRecordLike(value) ? value : {}
+  return toRecord(value)
 }
 
 export function getItems(value: unknown): JsonRecord[] {

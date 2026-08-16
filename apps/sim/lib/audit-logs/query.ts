@@ -3,6 +3,7 @@ import { db, dbReplica } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
+import { parseUnorderedList } from '@/lib/api/cursor-binding'
 
 type DbAuditLog = InferSelectModel<typeof auditLog>
 
@@ -46,12 +47,20 @@ export interface AuditLogFilterParams {
   endDate?: string
 }
 
+/**
+ * Compiles the caller-supplied filters into SQL conditions.
+ *
+ * `resourceType` is a comma-separated set, parsed through
+ * {@link parseUnorderedList} — the same parse the v2 cursor scope fingerprints
+ * through. Splitting it here independently is what let `file,workflow` and
+ * `file, workflow` mean one thing to the query and another to the cursor.
+ */
 export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown>[] {
   const conditions: SQL<unknown>[] = []
 
   if (params.action) conditions.push(eq(auditLog.action, params.action))
   if (params.resourceType) {
-    const types = params.resourceType.split(',').filter(Boolean)
+    const types = parseUnorderedList(params.resourceType) ?? []
     if (types.length === 1) conditions.push(eq(auditLog.resourceType, types[0]))
     else if (types.length > 1) conditions.push(inArray(auditLog.resourceType, types))
   }

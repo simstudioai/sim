@@ -60,6 +60,7 @@ vi.mock('@/lib/users/queries', () => ({
 }))
 
 import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
+import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/knowledge/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -145,6 +146,76 @@ describe('/api/v2/knowledge route composition', () => {
         }),
       ],
       nextCursor: null,
+    })
+  })
+
+  /**
+   * Pins the binding end-to-end — the mint in `present` and the read in
+   * `mapInput` — because the contract-level sweep only checks a hand-maintained
+   * map of param names and stays green when a route drops the stamp entirely.
+   */
+  it('refuses a cursor minted under a different filter', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+      nextCursorKeys: ['Support docs', 'kb-1'],
+      sortBy: 'name',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+    const { nextCursor } = await minted.json()
+    expect(nextCursor).toEqual(expect.any(String))
+
+    mockList.mockClear()
+    const replayed = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=billing&cursor=${encodeURIComponent(nextCursor)}`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(replayed.status).toBe(400)
+    expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
+    expect(mockList).not.toHaveBeenCalled()
+  })
+
+  it('resumes a cursor replayed under the filters it was minted with', async () => {
+    mockList.mockResolvedValue({
+      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+      nextCursorKeys: ['Support docs', 'kb-1'],
+      sortBy: 'name',
+      sortOrder: 'desc',
+    })
+
+    const minted = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+    const { nextCursor } = await minted.json()
+
+    mockList.mockClear()
+    const resumed = await GET(
+      new NextRequest(
+        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support&cursor=${encodeURIComponent(nextCursor)}`,
+        { headers: { 'x-api-key': 'secret' } }
+      )
+    )
+
+    expect(resumed.status).toBe(200)
+    expect(mockList).toHaveBeenCalledWith({
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      input: expect.objectContaining({
+        search: 'support',
+        cursorKeys: ['Support docs', 'kb-1'],
+      }),
+      request: expect.anything(),
     })
   })
 

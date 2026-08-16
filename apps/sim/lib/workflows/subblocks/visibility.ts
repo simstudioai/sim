@@ -368,21 +368,6 @@ export function reindexToolCanonicalModes<T>(
 }
 
 /**
- * Check if a block has any standalone advanced-only fields (not part of canonical pairs).
- * These require the block-level advanced mode toggle to be visible.
- */
-export function hasStandaloneAdvancedFields(
-  subBlocks: SubBlockConfig[],
-  canonicalIndex: CanonicalIndex
-): boolean {
-  for (const subBlock of subBlocks) {
-    if (!isStandaloneAdvancedMode(subBlock.mode)) continue
-    if (!canonicalIndex.canonicalIdBySubBlockId[subBlock.id]) return true
-  }
-  return false
-}
-
-/**
  * True for the modes that make a field advanced-only when it is not part of a
  * canonical basic/advanced pair: a standalone `advanced` field, or a standalone
  * `trigger-advanced` field (an advanced option on a trigger block). Both are

@@ -1,3 +1,4 @@
+import { KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE } from '@/lib/api/contracts/v1/knowledge'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
@@ -21,6 +22,31 @@ export interface KnowledgeTagNameFilter {
   valueTo?: string | number
 }
 
+/**
+ * Rejects an operator the resolved field type does not implement, and a
+ * `between` with no upper bound.
+ *
+ * Both filter builders end their operator switch with a `default:` arm — the
+ * document list drops the predicate and returns the whole knowledge base, while
+ * search falls through to equality — so an unchecked operator answered a
+ * different question depending on which endpoint the caller reached. The field
+ * type is only known here, after the tag name resolves to its definition.
+ */
+function validateTagOperator(filter: KnowledgeTagNameFilter, fieldType: string): string | null {
+  const supported =
+    KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE[
+      fieldType as keyof typeof KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE
+    ]
+  if (!supported) return null
+  if (!(supported as readonly string[]).includes(filter.operator)) {
+    return `Tag "${filter.tagName}" is a ${fieldType} tag and does not support operator "${filter.operator}". Supported operators: ${supported.join(', ')}`
+  }
+  if (filter.operator === 'between' && filter.valueTo === undefined) {
+    return `Tag "${filter.tagName}" requires valueTo when using the "between" operator`
+  }
+  return null
+}
+
 export interface ResolvedKnowledgeTagFilters {
   structuredFilters: StructuredFilter[]
   definitionsByKnowledgeBase: Map<string, DocumentTagDefinition[]>
@@ -34,7 +60,9 @@ export interface ResolvedKnowledgeTagFilters {
  * across them, is a validation failure telling the caller to search those
  * knowledge bases separately. With one knowledge base a name that resolves to no
  * definition is reported as an undefined tag rather than dropped, so a filter is
- * never silently ignored.
+ * never silently ignored. The operator is held to the same guarantee: one the
+ * resolved field type does not implement is rejected here rather than dropped
+ * downstream by the document list or coerced to equality by search.
  *
  * The loaded definitions are returned alongside the filters so a caller that
  * also needs the slot-to-name map (to project tag values back out) does not read
@@ -97,6 +125,18 @@ export async function resolveKnowledgeTagFilters(
       definition.fieldType
     )
     if (validationError) typeErrors.push(validationError)
+    const operatorError = validateTagOperator(filter, definition.fieldType)
+    if (operatorError) typeErrors.push(operatorError)
+    if (filter.operator === 'between' && filter.valueTo !== undefined) {
+      const valueToError = validateTagValue(
+        filter.tagName,
+        String(filter.valueTo),
+        definition.fieldType
+      )
+      if (valueToError) {
+        typeErrors.push(`The "between" upper bound is invalid. ${valueToError}`)
+      }
+    }
   }
   if (undefinedTags.length > 0 || typeErrors.length > 0) {
     throw new OrchestrationError(

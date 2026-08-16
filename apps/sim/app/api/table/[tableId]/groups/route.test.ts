@@ -54,7 +54,7 @@ vi.mock('@/lib/table/application/groups', () => ({
   updateTableGroupUseCase: mocks.useCases.update,
 }))
 
-vi.mock('@/app/api/table/utils', () => ({
+vi.mock('@/lib/table/wire', () => ({
   normalizeColumn: vi.fn(),
 }))
 

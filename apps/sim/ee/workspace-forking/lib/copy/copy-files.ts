@@ -19,6 +19,7 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import {
   type ForkContentRefMaps,
   rewriteForkContentRefs,
@@ -55,6 +56,13 @@ export interface BlobCopyTask {
   displayName: string | null
   userId: string
   workspaceId: string
+  /**
+   * Target file-folder id, already created inside the copy transaction by
+   * {@link resolveForkFolderMapping}. Optional because tasks queued by an earlier deploy have
+   * no such field: those replay as `undefined` and finalize at the target root, exactly as
+   * they did before folder structure transited a fork edge.
+   */
+  targetFolderId?: string | null
 }
 
 export interface PlanForkFileCopiesResult {
@@ -74,6 +82,11 @@ export interface PlanForkFileCopiesResult {
   idMap: Map<string, string>
   /** Blob duplications plus deferred metadata to finalize after the fork transaction commits. */
   blobTasks: BlobCopyTask[]
+  /**
+   * source file-folder id -> target file-folder id for the mirrored subtree. Merged into the
+   * content-ref maps so `sim:folder/<id>` mentions inside copied bodies resolve to the copy.
+   */
+  folderIdMap: Map<string, string>
 }
 
 async function getFinalizedFileCopies(
@@ -124,7 +137,9 @@ export async function planForkFileCopies(params: {
   const keyMap = new Map<string, string>()
   const idMap = new Map<string, string>()
   const blobTasks: BlobCopyTask[] = []
-  if (fileIds.length === 0 && fileKeys.length === 0) return { keyMap, idMap, blobTasks }
+  let folderIdMap = new Map<string, string>()
+  if (fileIds.length === 0 && fileKeys.length === 0)
+    return { keyMap, idMap, blobTasks, folderIdMap }
 
   // Match by id and/or storage key (OR'd) so either selection shape resolves to the same
   // source rows. Batch the metadata read (one query for all selected files): non-deleted,
@@ -148,6 +163,19 @@ export async function planForkFileCopies(params: {
       )
     )
 
+  // Mirror the file-folder subtree holding the selected files (plus ancestors) into the target
+  // and place each copy inside it. Scoped to `resourceType: 'file'`: file folders are a tree of
+  // their own, disjoint from the workflow folders the workflow copy mirrors.
+  folderIdMap = await resolveForkFolderMapping({
+    tx,
+    sourceWorkspaceId,
+    targetWorkspaceId: childWorkspaceId,
+    userId,
+    now: params.now,
+    resourceType: 'file',
+    contentFolderIds: metas.map((meta) => meta.folderId),
+  })
+
   for (const meta of metas) {
     const childFileId = generateId()
     // Use the canonical workspace-file key (`workspace/{id}/...`) so the file-serve
@@ -168,10 +196,13 @@ export async function planForkFileCopies(params: {
       displayName: meta.displayName,
       userId,
       workspaceId: childWorkspaceId,
+      // An unmapped folder (pruned, or archived mid-copy) re-roots the file, matching how a
+      // copied workflow falls back to the target root.
+      targetFolderId: meta.folderId ? (folderIdMap.get(meta.folderId) ?? null) : null,
     })
   }
 
-  return { keyMap, idMap, blobTasks }
+  return { keyMap, idMap, blobTasks, folderIdMap }
 }
 
 /**
@@ -269,7 +300,7 @@ export async function executeForkFileBlobCopies(
               key: task.targetKey,
               userId: task.userId,
               workspaceId: task.workspaceId,
-              folderId: null,
+              folderId: task.targetFolderId ?? null,
               context: task.context,
               chatId: null,
               originalName: task.fileName,
@@ -312,7 +343,7 @@ export async function executeForkFileBlobCopies(
               .update(workspaceFiles)
               .set({
                 userId: task.userId,
-                folderId: null,
+                folderId: task.targetFolderId ?? null,
                 context: task.context,
                 chatId: null,
                 originalName: task.fileName,

@@ -8,7 +8,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
-import { isTest } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
@@ -31,9 +30,9 @@ import {
   type McpCacheStorageAdapter,
 } from '@/lib/mcp/storage'
 import {
-  McpConnectionError,
   McpOauthAuthorizationRequiredError,
   type McpServerConfig,
+  McpServerCooldownError,
   type McpServerStatusConfig,
   type McpServerSummary,
   type McpTool,
@@ -1060,10 +1059,7 @@ class McpService {
 
     if (refresh !== 'force' && (await this.isServerUnhealthy(workspaceId, serverId))) {
       logger.info(`[${requestId}] Skipping recently-failed server ${serverId} (negative-cache)`)
-      throw new McpConnectionError(
-        'Server recently failed and is in cooldown — try again shortly.',
-        serverId
-      )
+      throw new McpServerCooldownError(serverId)
     }
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -1229,24 +1225,3 @@ class McpService {
 }
 
 export const mcpService = new McpService()
-
-/**
- * Setup process signal handlers for graceful shutdown
- */
-export function setupMcpServiceCleanup() {
-  if (isTest) {
-    return
-  }
-
-  const cleanup = () => {
-    mcpService.dispose()
-  }
-
-  process.on('SIGTERM', cleanup)
-  process.on('SIGINT', cleanup)
-
-  return () => {
-    process.removeListener('SIGTERM', cleanup)
-    process.removeListener('SIGINT', cleanup)
-  }
-}

@@ -17,9 +17,10 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealImportAuthorization,
-  mapInput: ({ params, query }) => ({
+  mapInput: ({ params, query, headers }) => ({
     importId: params.importId,
     workspaceId: query.workspaceId,
+    uploadToken: headers['upload-token'],
   }),
   useCase: readTableImportUseCase,
   present: ({ import: tableImport }) => presentV2TableImport(tableImport),

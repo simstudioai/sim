@@ -30,10 +30,12 @@ const {
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   buildWorkspaceFileFolderPathMap: (folders: Array<{ id: string; path?: string; name: string }>) =>
     new Map(folders.map((folder) => [folder.id, folder.path ?? folder.name])),
-  fetchServableWorkspaceFileBuffer: mockFetchServable,
   listWorkspaceFileFolders: mockListFolders,
   listWorkspaceFiles: mockListFiles,
   loadWorkspaceFileOperationContext: mockLoadContext,
+}))
+vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
+  fetchAuthorizedServableWorkspaceFileBuffer: mockFetchServable,
 }))
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (actual: string | null, required: string) =>
@@ -161,9 +163,11 @@ describe('downloadWorkspaceFileItems', () => {
 
     expect(result.filesToZip[0].id).toBe('f1')
     expect(result.renderedDocuments.get('f1')).toEqual(Buffer.from('rendered'))
-    expect(mockFetchServable).toHaveBeenCalledWith(expect.objectContaining({ id: 'f1' }), {
-      maxBytes: 50 * 1024 * 1024,
-    })
+    expect(mockFetchServable).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'f1' }),
+      principal,
+      { maxBytes: 50 * 1024 * 1024 }
+    )
   })
 
   it('returns typed validation and conflict failures without recording audit', async () => {

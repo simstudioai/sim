@@ -249,14 +249,17 @@ describe('createHandoffManager', () => {
     const manager = createHandoffManager(deps, makeCallbacks())
     await manager.beginConnect('google-email', {
       workspaceId: 'workspace-1',
+      draftId: 'draft-1',
       chatAttemptId: 'attempt-1',
     })
-    const state = new URL(vi.mocked(deps.openExternal).mock.calls[0][0]).searchParams.get(
-      'state'
-    ) as string
+    const landing = new URL(vi.mocked(deps.openExternal).mock.calls[0][0])
+    const state = landing.searchParams.get('state') as string
+
+    expect(landing.searchParams.get('draftId')).toBe('draft-1')
 
     expect(manager.consumeConnect(state)).toEqual({
       workspaceId: 'workspace-1',
+      draftId: 'draft-1',
       chatAttemptId: 'attempt-1',
     })
     expect(manager.consumeConnect(state)).toBeNull()

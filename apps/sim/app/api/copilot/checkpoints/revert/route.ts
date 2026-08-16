@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workflowCheckpoints, workflow as workflowTable } from '@sim/db/schema'
+import { workflowCheckpoints } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
 import { and, eq } from 'drizzle-orm'
@@ -15,8 +15,11 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  parseWorkflowStateForPersistence,
+  saveWorkflowNormalizedState,
+} from '@/lib/workflows/persistence/save-normalized-state'
 import { isUuidV4 } from '@/executor/constants'
 
 const logger = createLogger('CheckpointRevertAPI')
@@ -62,21 +65,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createNotFoundResponse('Checkpoint not found or access denied')
     }
 
-    const workflowData = await db
-      .select()
-      .from(workflowTable)
-      .where(eq(workflowTable.id, checkpoint.workflowId))
-      .then((rows) => rows[0])
-
-    if (!workflowData) {
-      return createNotFoundResponse('Workflow not found')
-    }
-
+    /** Authorization already loads the workflow, so its absence is the not-found signal. */
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId: checkpoint.workflowId,
       userId,
       action: 'write',
     })
+    if (!authorization.workflow) {
+      return createNotFoundResponse('Workflow not found')
+    }
     if (!authorization.allowed) {
       return createUnauthorizedResponse()
     }
@@ -121,28 +118,40 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Invalid workflow ID format' }, { status: 400 })
     }
 
-    const stateResponse = await fetch(
-      `${getInternalApiBaseUrl()}/api/workflows/${checkpoint.workflowId}/state`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Cookie: request.headers.get('Cookie') || '',
-        },
-        body: JSON.stringify(cleanedState),
-      }
-    )
-
-    if (!stateResponse.ok) {
-      const errorData = await stateResponse.text()
-      logger.error(`[${tracker.requestId}] Failed to apply checkpoint state: ${errorData}`)
+    /**
+     * The checkpoint blob is persisted JSONB, so it goes through the same
+     * schema the PUT state contract applies before it is written back — the
+     * validation the removed HTTP hop used to provide.
+     */
+    const parsedState = parseWorkflowStateForPersistence(cleanedState)
+    if (!parsedState.success) {
+      logger.error(
+        `[${tracker.requestId}] Checkpoint state failed validation`,
+        parsedState.error.issues
+      )
       return NextResponse.json(
         { error: 'Failed to revert workflow to checkpoint' },
         { status: 500 }
       )
     }
 
-    const result = await stateResponse.json()
+    const saveResult = await saveWorkflowNormalizedState({
+      requestId: tracker.requestId,
+      workflowId: checkpoint.workflowId,
+      userId,
+      state: parsedState.data,
+      /** Already resolved above; re-deriving it would repeat 2-3 sequential reads. */
+      authorization,
+    })
+
+    if (!saveResult.success) {
+      logger.error(`[${tracker.requestId}] Failed to apply checkpoint state: ${saveResult.error}`)
+      return NextResponse.json(
+        { error: 'Failed to revert workflow to checkpoint' },
+        { status: 500 }
+      )
+    }
+
     logger.info(
       `[${tracker.requestId}] Successfully reverted workflow ${checkpoint.workflowId} to checkpoint ${checkpointId}`
     )

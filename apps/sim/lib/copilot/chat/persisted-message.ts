@@ -173,9 +173,7 @@ export function stripToolResultOutput(message: PersistedMessage): PersistedMessa
   return changed ? { ...message, contentBlocks } : message
 }
 
-// ---------------------------------------------------------------------------
 // Write: OrchestratorResult → PersistedMessage
-// ---------------------------------------------------------------------------
 
 function resolveToolState(block: ContentBlock): PersistedToolState {
   const tc = block.toolCall
@@ -424,11 +422,9 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
   return message
 }
 
-// ---------------------------------------------------------------------------
 // Read: raw JSONB → PersistedMessage
 // Handles both canonical (type: 'tool', 'text', 'span', 'complete') and
 // legacy (type: 'tool_call', 'thinking', 'subagent', 'stopped') blocks.
-// ---------------------------------------------------------------------------
 
 const CANONICAL_BLOCK_TYPES: Set<string> = new Set(Object.values(MothershipStreamV1EventType))
 

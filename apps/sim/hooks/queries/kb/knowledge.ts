@@ -5,9 +5,13 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type BulkChunkOperationData,
+  type BulkDeleteKnowledgeItemsBody,
   type BulkDocumentOperationData,
+  type BulkMoveKnowledgeItemsBody,
+  bulkDeleteKnowledgeItemsContract,
   bulkKnowledgeChunksContract,
   bulkKnowledgeDocumentsContract,
+  bulkMoveKnowledgeItemsContract,
   type ChunkData,
   type ChunksPagination,
   createKnowledgeBaseContract,
@@ -47,6 +51,7 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   KNOWLEDGE_BASE_LIST_STALE_TIME,
   type KnowledgeQueryScope,
@@ -539,6 +544,10 @@ export function useDeleteDocument() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
+      /** The knowledge-base list rows carry `docCount`, so removing a document changes them too. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.lists(),
+      })
     },
   })
 }
@@ -573,10 +582,16 @@ export function useBulkDocumentOperation() {
 
   return useMutation({
     mutationFn: bulkDocumentOperation,
-    onSettled: (_data, _error, { knowledgeBaseId }) => {
+    onSettled: (_data, _error, { knowledgeBaseId, operation }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
       })
+      /** Only a bulk delete changes the `docCount` the knowledge-base list rows render. */
+      if (operation === 'delete') {
+        queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.lists(),
+        })
+      }
     },
   })
 }
@@ -1032,6 +1047,86 @@ export function useDeleteDocumentTagDefinitions() {
     },
     onError: (error) => {
       logger.error('Failed to delete document tag definitions:', error)
+    },
+  })
+}
+
+/**
+ * Move a mixed selection of knowledge bases and knowledge folders into one
+ * folder, or to the workspace root with `targetFolderId: null`.
+ *
+ * One request, one authorized operation: the Knowledge list interleaves folder
+ * and knowledge base rows in a single grid, so a selection is routinely mixed
+ * and must not be split into a resource call plus a per-folder fan-out.
+ *
+ * No optimistic patch, unlike the single-base move: a folder move re-parents
+ * rows the list renders at a different level, and the response reports per-item
+ * outcomes (`skipped`, `notFound`, `failed`) the client cannot predict.
+ */
+export function useBulkMoveKnowledgeBases(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      knowledgeBaseIds = [],
+      folderIds = [],
+      targetFolderId,
+    }: Omit<BulkMoveKnowledgeItemsBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkMoveKnowledgeItemsContract, {
+        body: { workspaceId, knowledgeBaseIds, folderIds, targetFolderId },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { knowledgeBaseIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('knowledge_base') })
+      /**
+       * `exact` because `detail` is the prefix for the base's documents, chunks, and tag
+       * queries — a move only re-parents the base record itself, so a prefix invalidation would
+       * refetch every cached document and chunk page for nothing. The sibling delete hook
+       * deliberately stays non-exact, since there the children really must go.
+       */
+      for (const knowledgeBaseId of knowledgeBaseIds) {
+        queryClient.invalidateQueries({
+          queryKey: knowledgeKeys.detail(knowledgeBaseId),
+          exact: true,
+        })
+      }
+    },
+  })
+}
+
+/**
+ * Delete a mixed selection of knowledge bases and knowledge folders.
+ *
+ * Deleting a folder cascades to every knowledge base and subfolder inside it,
+ * so the response's `deletedItems` totals exceed the explicitly selected count.
+ */
+export function useBulkDeleteKnowledgeBases(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      knowledgeBaseIds = [],
+      folderIds = [],
+    }: Omit<BulkDeleteKnowledgeItemsBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkDeleteKnowledgeItemsContract, {
+        body: { workspaceId, knowledgeBaseIds, folderIds },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { knowledgeBaseIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('knowledge_base') })
+      for (const knowledgeBaseId of knowledgeBaseIds) {
+        queryClient.removeQueries({ queryKey: knowledgeKeys.detail(knowledgeBaseId) })
+      }
     },
   })
 }

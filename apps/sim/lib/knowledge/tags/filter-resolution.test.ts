@@ -90,6 +90,89 @@ describe('resolveKnowledgeTagFilters', () => {
       )
     ).rejects.toThrow('is not mapped consistently')
   })
+
+  it('rejects an operator the resolved field type does not implement', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([definition('kb-1', 'tag1', 'category')])
+
+    await expect(
+      resolveKnowledgeTagFilters(
+        [{ tagName: 'category', operator: 'gt', value: 'billing' }],
+        ['kb-1']
+      )
+    ).rejects.toThrow(
+      'Tag "category" is a text tag and does not support operator "gt". Supported operators: eq, neq, contains, not_contains, starts_with, ends_with'
+    )
+  })
+
+  it('rejects an operator no field type implements rather than passing it through', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([definition('kb-1', 'tag1', 'category')])
+
+    await expect(
+      resolveKnowledgeTagFilters(
+        [{ tagName: 'category', operator: 'nosuchop', value: 'billing' }],
+        ['kb-1']
+      )
+    ).rejects.toThrow('does not support operator "nosuchop"')
+  })
+
+  it('rejects "between" with no upper bound instead of dropping the predicate', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      definition('kb-1', 'number1', 'score', 'number'),
+    ])
+
+    await expect(
+      resolveKnowledgeTagFilters([{ tagName: 'score', operator: 'between', value: '1' }], ['kb-1'])
+    ).rejects.toThrow('Tag "score" requires valueTo when using the "between" operator')
+  })
+
+  it('rejects an upper bound that is not of the tag field type', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      definition('kb-1', 'number1', 'score', 'number'),
+    ])
+
+    await expect(
+      resolveKnowledgeTagFilters(
+        [{ tagName: 'score', operator: 'between', value: '1', valueTo: 'ten' }],
+        ['kb-1']
+      )
+    ).rejects.toThrow('The "between" upper bound is invalid. Tag "score" expects a number value')
+  })
+
+  it.each([
+    [
+      'text',
+      'tag1',
+      'category',
+      ['eq', 'neq', 'contains', 'not_contains', 'starts_with', 'ends_with'],
+      'billing',
+    ],
+    ['number', 'number1', 'score', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'], 1],
+    ['date', 'date1', 'due', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between'], '2025-01-10'],
+    ['boolean', 'boolean1', 'archived', ['eq', 'neq'], true],
+  ])(
+    'accepts every operator a %s tag implements',
+    async (fieldType, tagSlot, tagName, operators, value) => {
+      mockGetDocumentTagDefinitions.mockResolvedValue([
+        definition('kb-1', tagSlot as string, tagName as string, fieldType as string),
+      ])
+
+      for (const operator of operators as string[]) {
+        const valueTo = fieldType === 'number' ? 2 : '2025-02-10'
+        const resolved = await resolveKnowledgeTagFilters(
+          [
+            {
+              tagName: tagName as string,
+              operator,
+              value: value as string | number | boolean,
+              ...(operator === 'between' ? { valueTo } : {}),
+            },
+          ],
+          ['kb-1']
+        )
+        expect(resolved.structuredFilters[0].operator).toBe(operator)
+      }
+    }
+  )
 })
 
 describe('toKnowledgeTagFilterConditions', () => {

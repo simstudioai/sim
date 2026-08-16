@@ -21,19 +21,42 @@ export const deployedWorkflowStateSchema = z
     additionalProperties: true,
   })
 
+/**
+ * Upper bound of `workflow_deployment_version.version`, whose column is a
+ * Postgres `integer`. A larger value has no row to address and overflows the
+ * comparison instead of missing, so every schema carrying a deployment version
+ * — path param, request body, or cursor payload — must be bounded by this.
+ */
+export const DEPLOYMENT_VERSION_MAX = 2147483647
+
+/** A deployment version number, bounded to the range its column can hold. */
+export const deploymentVersionNumberSchema = z
+  .number()
+  .int('version must be an integer')
+  .min(1, 'version must be a positive integer')
+  .max(DEPLOYMENT_VERSION_MAX, 'version is out of range')
+
+/**
+ * {@link deploymentVersionNumberSchema} for a path segment, which arrives as a
+ * string. Spelled out rather than piped through the body schema because a
+ * `ZodPipe` publishes none of its constraints to the generated OpenAPI document,
+ * which would leave the documented parameter unbounded even though the runtime
+ * check holds.
+ */
+const deploymentVersionPathSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(DEPLOYMENT_VERSION_MAX, 'version is out of range')
+
 export const deploymentVersionParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.coerce.number().int().positive(),
+  version: deploymentVersionPathSchema,
 })
 
 export const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.union([z.coerce.number().int().positive(), z.literal('active')]),
-})
-
-export const deploymentVersionRouteParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.string().min(1, 'Invalid version'),
+  version: z.union([deploymentVersionPathSchema, z.literal('active')]),
 })
 
 export const updatePublicApiBodySchema = z.object({

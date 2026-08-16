@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { booleanQueryFlagSchema, organizationIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  organizationIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v1AuditLogParamsSchema,
@@ -9,6 +13,7 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2PaginationFields,
+  v2RunWindowBoundSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -73,18 +78,27 @@ export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
   .extend({
     action: v1ListAuditLogsQuerySchema.shape.action.describe('Filter by exact action name.'),
     resourceType: v1ListAuditLogsQuerySchema.shape.resourceType.describe(
-      'Filter by exact resource type.'
+      'Filter by resource type. Accepts a comma-separated set; members are trimmed and deduplicated, and member order affects neither the result nor the cursor.'
     ),
     resourceId: v1ListAuditLogsQuerySchema.shape.resourceId.describe(
       'Filter by exact resource identifier.'
     ),
-    workspaceId: v1ListAuditLogsQuerySchema.shape.workspaceId.describe(
-      'Filter to actions in one workspace.'
-    ),
-    startDate: v1ListAuditLogsQuerySchema.shape.startDate.describe(
-      'Inclusive ISO 8601 start timestamp.'
-    ),
-    endDate: v1ListAuditLogsQuerySchema.shape.endDate.describe('Inclusive ISO 8601 end timestamp.'),
+    /**
+     * The one v2 query param still declared as a bare `z.string()` rather than
+     * the shared identifier schema, so `?workspaceId=` parsed and was forwarded
+     * as a real filter — a page of zero rows where every sibling answers 400.
+     */
+    workspaceId: workspaceIdSchema.optional().describe('Filter to actions in one workspace.'),
+    /**
+     * The shared run-window bound rather than the v1 `Date.parse` refine, which
+     * accepts partial and locale-dependent forms whose meaning varies by
+     * runtime. Both bounds are turned into `Date`s before they reach the query,
+     * so the strict UTC form is what keeps an unrepresentable value a 400
+     * instead of a driver-level 500. `GET /logs` and `GET /workflows/{id}/runs`
+     * already share it, and an audit trail is read alongside them.
+     */
+    startDate: v2RunWindowBoundSchema('startDate').optional(),
+    endDate: v2RunWindowBoundSchema('endDate').optional(),
     /**
      * Declared with the shared boolean flag rather than reused from the v1
      * shape: v1 spells it as a `'true'`/`'false'` string enum, and every other

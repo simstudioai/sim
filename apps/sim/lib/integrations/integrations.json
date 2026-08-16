@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-12",
+  "updatedAt": "2026-08-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -1093,7 +1093,7 @@
       "slug": "ashby",
       "name": "Ashby",
       "description": "Manage candidates, jobs, and applications in Ashby",
-      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
+      "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag, anonymize), applications (list, get, create, delete, change stage, change source), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), custom field values (set one or many), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
       "bgColor": "#5D4ED6",
       "iconName": "AshbyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/ashby",
@@ -1147,12 +1147,24 @@
           "description": "Creates a new application for a candidate on a job. Optionally specify interview plan, stage, source, and credited user."
         },
         {
+          "name": "Delete Application",
+          "description": "Permanently deletes an application in Ashby. Requires the candidatesDelete permission, which is a separate module permission from candidatesWrite - a read and write key returns 403 here. There is no equivalent endpoint for deleting a candidate; candidate deletion is UI-only."
+        },
+        {
           "name": "List Offers",
           "description": "Lists all offers with their latest version in an Ashby organization."
         },
         {
           "name": "Change Application Stage",
           "description": "Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage."
+        },
+        {
+          "name": "Change Application Source",
+          "description": "Changes the source attributed to an existing application, so programmatically created applications report correctly on the recruiting side. Requires the candidatesWrite permission."
+        },
+        {
+          "name": "Anonymize Candidate",
+          "description": "Strips personally identifiable information from a candidate in Ashby. This does not delete the candidate - the record and its applications remain, with the PII removed. Ashby exposes no candidate deletion endpoint; true deletion is UI-only, restricted by role, and limited to a 10-day window. Requires the candidatesWrite permission."
         },
         {
           "name": "Add Candidate Tag",
@@ -1183,6 +1195,14 @@
           "description": "Lists all custom field definitions configured in Ashby."
         },
         {
+          "name": "Set Custom Field Value",
+          "description": "Sets the value of a single custom field on an Ashby Application, Candidate, Job, or Opening. Custom fields are the only way to annotate a job or req, since Ashby has no job notes and no job tags. Requires the candidatesWrite permission."
+        },
+        {
+          "name": "Set Custom Field Values",
+          "description": "Sets several custom field values on one Ashby Application, Candidate, Job, or Opening in a single call. Prefer this over repeated single-field writes to the same object - Ashby recommends it because concurrent single-field calls can race and overwrite each other. Requires the candidatesWrite permission."
+        },
+        {
           "name": "List Departments",
           "description": "Lists all departments in Ashby."
         },
@@ -1211,7 +1231,7 @@
           "description": "Lists interview schedules in Ashby, optionally filtered by application or interview stage."
         }
       ],
-      "operationCount": 28,
+      "operationCount": 33,
       "triggers": [
         {
           "id": "ashby_application_submit",
@@ -2149,8 +2169,8 @@
       "type": "microsoft_ad",
       "slug": "azure-ad",
       "name": "Azure AD",
-      "description": "Manage users and groups in Azure AD (Microsoft Entra ID)",
-      "longDescription": "Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.",
+      "description": "Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)",
+      "longDescription": "Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.",
       "bgColor": "#0078D4",
       "iconName": "AzureIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_ad",
@@ -2206,9 +2226,101 @@
         {
           "name": "Remove Group Member",
           "description": "Remove a member from a group in Azure AD (Microsoft Entra ID)"
+        },
+        {
+          "name": "Assign License",
+          "description": "Add or remove subscription licenses (SKUs) on a user in Microsoft Entra ID. Removing a license immediately revokes the access it granted to the associated services."
+        },
+        {
+          "name": "List User Licenses",
+          "description": "List the subscription licenses assigned to a user in Microsoft Entra ID"
+        },
+        {
+          "name": "List Subscribed SKUs",
+          "description": "List the subscription SKUs the tenant owns, including how many license units are prepaid and how many are consumed"
+        },
+        {
+          "name": "Revoke Sign-In Sessions",
+          "description": "Invalidate every refresh token and session cookie issued to a user, forcing them to sign in again on all applications and devices. Revocation can take a few minutes to take effect and does not apply to external users."
+        },
+        {
+          "name": "Set Password",
+          "description": "Set a specific password on a user by updating their password profile. Cannot be used for federated users. Requires an administrator role in Microsoft Entra ID."
+        },
+        {
+          "name": "Reset Password",
+          "description": "Reset another user's password through their password authentication method. Leave the new password empty to have Microsoft generate one and return it. The user is prompted to change the password at their next sign-in. Cannot be run against your own account."
+        },
+        {
+          "name": "List Authentication Methods",
+          "description": "List the authentication methods a user has registered, such as passwords, phone numbers, FIDO2 keys, and authenticator apps"
+        },
+        {
+          "name": "List Sign-Ins",
+          "description": "List sign-in events from the Microsoft Entra ID sign-in logs, newest first. Requires a Microsoft Entra ID P1 or P2 license. Apply a date filter to keep large queries from timing out."
+        },
+        {
+          "name": "List Directory Audits",
+          "description": "List directory audit records showing who changed what in Microsoft Entra ID, such as user creation, group membership changes, and role assignments"
+        },
+        {
+          "name": "List User App Role Assignments",
+          "description": "List the application role assignments granted to a user, including assignments the user inherits from groups they are a direct member of"
+        },
+        {
+          "name": "Grant App Role To User",
+          "description": "Grant a user an application role on a service principal, giving them access to that application"
+        },
+        {
+          "name": "Revoke App Role From User",
+          "description": "Revoke an application role assignment from a user, removing their access to that application. Takes the assignment's own ID, not the app role ID."
+        },
+        {
+          "name": "List Service Principals",
+          "description": "List the enterprise applications and service principals in the tenant, including the app roles each one exposes"
+        },
+        {
+          "name": "List Application Assignments",
+          "description": "List every user, group, and service principal assigned to an application, by reading the app role assignments on its service principal. Recently granted or removed assignments can take time to appear."
+        },
+        {
+          "name": "List Directory Roles",
+          "description": "List the administrator roles that are activated in the tenant, such as Global Administrator and User Administrator. Roles that have never been activated are not returned."
+        },
+        {
+          "name": "List Directory Role Members",
+          "description": "List the principals holding an administrator role. Returns up to 1000 members; this endpoint does not support paging."
+        },
+        {
+          "name": "Add Directory Role Member",
+          "description": "Grant a user an administrator role in Microsoft Entra ID. This is a privileged change that expands what the user can do across the tenant."
+        },
+        {
+          "name": "Remove Directory Role Member",
+          "description": "Revoke an administrator role from a user in Microsoft Entra ID. Removes only the role membership; the user account itself is not deleted."
+        },
+        {
+          "name": "List Devices",
+          "description": "List the devices registered in Microsoft Entra ID"
+        },
+        {
+          "name": "Get Device",
+          "description": "Get a registered device by its object ID from Microsoft Entra ID"
+        },
+        {
+          "name": "List User Devices",
+          "description": "List the devices a user has registered or owns. Devices the caller cannot read are returned with only their ID and the remaining fields null."
+        },
+        {
+          "name": "List Conditional Access Policies",
+          "description": "List the conditional access policies configured in the tenant, including their state and the conditions and controls they enforce. Read-only."
+        },
+        {
+          "name": "Get Conditional Access Policy",
+          "description": "Get a single conditional access policy by ID, including the conditions it matches and the controls it enforces. Read-only."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 36,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -2216,6 +2328,81 @@
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "microsoft-365"]
+    },
+    {
+      "type": "azure_data_explorer",
+      "slug": "azure-data-explorer",
+      "name": "Azure Data Explorer",
+      "description": "Query and manage Azure Data Explorer (Kusto) clusters with KQL",
+      "longDescription": "Run Kusto Query Language queries against Azure Data Explorer and Fabric Eventhouse clusters, discover databases, tables, and schemas, push small batches of rows inline, and run management commands. Authenticates with a Microsoft Entra service principal using client credentials, so no interactive sign-in is needed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "AzureDataExplorerIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/azure_data_explorer",
+      "operations": [
+        {
+          "name": "Run Query",
+          "description": "Run a Kusto Query Language (KQL) query against an Azure Data Explorer database and return the primary result table."
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases on an Azure Data Explorer cluster that the service principal can access."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables in an Azure Data Explorer database, with their folder and docstring."
+        },
+        {
+          "name": "Show Table Schema",
+          "description": "Read the column schema of an Azure Data Explorer table in CSL form (e.g., \"Timestamp:datetime,Level:string\"). Use this before writing a KQL query against an unfamiliar table."
+        },
+        {
+          "name": "Show Database Schema",
+          "description": "Read the full schema of an Azure Data Explorer database as a flat list of every table and column, so an agent can discover the data model in one call."
+        },
+        {
+          "name": "Show Table Details",
+          "description": "Read size, row count, hot-cache footprint, and effective policies for a table — or for every table in the database when no table is given. Use it to see how much data a table actually holds before querying it."
+        },
+        {
+          "name": "List Functions",
+          "description": "List the stored functions in an Azure Data Explorer database, with their parameters and bodies, so an agent can reuse existing logic instead of rewriting it."
+        },
+        {
+          "name": "Ingest Rows Inline",
+          "description": "Push rows directly into an Azure Data Explorer table with .ingest inline. Data is parsed as CSV against the table schema unless an ingestion property says otherwise. Intended for small batches — use queued or streaming ingestion for production volumes."
+        },
+        {
+          "name": "Ingest From Query",
+          "description": "Materialize the result of a KQL query into a table with .set, .append, .set-or-append, or .set-or-replace. Use this to build rollup or summary tables instead of pushing rows from a workflow. Kusto matches the query result to the target table by column type and position, NOT by column name, so project the columns in exactly the table's order or the data lands in the wrong columns."
+        },
+        {
+          "name": "Create Table",
+          "description": "Create a table in an Azure Data Explorer database from a CSL column schema. Succeeds without changing anything if a table of the same name already exists."
+        },
+        {
+          "name": "Drop Table",
+          "description": "Drop a table from an Azure Data Explorer database. This permanently deletes the table and its data, and returns the tables that remain."
+        },
+        {
+          "name": "Show Ingestion Failures",
+          "description": "List ingestion failures recorded for a database, with the failing table, error code, root cause detail, and whether the failure is permanent or transient. Failures are retained for 14 days."
+        },
+        {
+          "name": "Show Operations",
+          "description": "Check the state of administrative operations on a cluster, such as an async ingestion. Given an operation ID it returns that operation latest update; with no ID it returns the operations from the last two weeks."
+        },
+        {
+          "name": "Management Command (advanced)",
+          "description": "Run an Azure Data Explorer management command (a control command starting with \".\") such as .show, .create, .alter, or .drop. Write commands change cluster state permanently; use the Query operation for reads."
+        }
+      ],
+      "operationCount": 14,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics", "data-warehouse", "cloud", "monitoring"]
     },
     {
       "type": "azure_devops",
@@ -3716,8 +3903,8 @@
       "type": "cloudflare",
       "slug": "cloudflare",
       "name": "Cloudflare",
-      "description": "Manage DNS, domains, certificates, and cache",
-      "longDescription": "Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.",
+      "description": "Manage DNS, WAF, Zero Trust access, and edge infrastructure",
+      "longDescription": "Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging. Configure WAF rulesets, managed rule overrides, and rate limiting rules through the current Rulesets engine. Administer Cloudflare Access (Zero Trust) applications, policies, groups, identity providers, and service tokens, and inspect R2 buckets, Workers scripts and routes, and Cloudflare Tunnels.",
       "bgColor": "#F5F6FA",
       "iconName": "CloudflareIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudflare",
@@ -3773,9 +3960,149 @@
         {
           "name": "Purge Cache",
           "description": "Purges cached content for a zone. Can purge everything or specific files/tags/hosts/prefixes."
+        },
+        {
+          "name": "List Rulesets",
+          "description": "Lists every ruleset defined on a zone across all phases (WAF custom rules, managed rules, rate limiting, transform rules, and more). The list response deliberately omits the rules inside each ruleset — use \"Get Ruleset\" to read them. Requires an API token with Zone WAF Read (or another matching ruleset Read permission)."
+        },
+        {
+          "name": "Get Ruleset",
+          "description": "Reads a single zone ruleset including every rule it contains, in evaluation order. Requires an API token with Zone WAF Read (or another matching ruleset Read permission)."
+        },
+        {
+          "name": "Get Phase Entry Point Ruleset",
+          "description": "Reads the entry point ruleset for a phase on a zone, including all of its rules. This is how you find the ruleset ID you need before adding, updating, or deleting a rule — for example http_request_firewall_custom for WAF custom rules, http_request_firewall_managed for managed-ruleset deployments and overrides, or http_ratelimit for rate limiting rules. Requires an API token with Zone WAF Read (or another matching ruleset Read permission)."
+        },
+        {
+          "name": "Create Ruleset",
+          "description": ""
+        },
+        {
+          "name": "Create Ruleset Rule",
+          "description": "Adds a rule to a zone ruleset. Use \"Get Phase Entry Point Ruleset\" first to find the ruleset ID for the phase you want (for example http_request_firewall_custom for a WAF custom rule, or http_request_firewall_managed with action \"execute\" to deploy a managed ruleset). The rule is appended to the end of the ruleset unless a position is given. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission)."
+        },
+        {
+          "name": "Update Ruleset Rule",
+          "description": "Updates a rule in a zone ruleset. Cloudflare replaces the rule definition rather than merging it, so you must send every field you want the rule to keep — any field you omit is reset to its default. Read the current rule with \"Get Ruleset\" first. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission)."
+        },
+        {
+          "name": "Delete Ruleset Rule",
+          "description": "Permanently deletes a rule from a zone ruleset. This takes effect immediately on live traffic and cannot be undone — deleting a WAF custom rule, a managed-ruleset deployment, or a rate limiting rule removes that protection from the zone. Also use this to delete rate limiting rules, which live in the http_ratelimit phase ruleset. Requires an API token with Zone WAF Edit (or another matching ruleset Write permission)."
+        },
+        {
+          "name": "List Managed Ruleset Overrides",
+          "description": "Lists the WAF managed rulesets deployed on a zone together with the overrides applied to each one. Cloudflare has no dedicated overrides endpoint — overrides live on the \"execute\" rules of the http_request_firewall_managed phase entry point ruleset, which this reads. Requires an API token with Zone WAF Read."
+        },
+        {
+          "name": "List Rate Limiting Rules",
+          "description": "Lists the rate limiting rules on a zone by reading the http_ratelimit phase entry point ruleset. This uses the current Rulesets-based rate limiting API; the legacy rate_limits endpoint is no longer available. The returned ruleset ID is what \"Create Rate Limiting Rule\", \"Update Rate Limiting Rule\", and \"Delete Ruleset Rule\" need. Requires an API token with Zone WAF Read."
+        },
+        {
+          "name": "Create Rate Limiting Rule",
+          "description": "Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API (the legacy rate_limits endpoint is no longer available). Run \"List Rate Limiting Rules\" first to get the ruleset ID. Requires an API token with Zone WAF Edit."
+        },
+        {
+          "name": "Update Rate Limiting Rule",
+          "description": "Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of a zone, using the current Rulesets-based rate limiting API. Cloudflare replaces the rule definition rather than merging it, so send the complete rule — every field you omit is reset. Run \"List Rate Limiting Rules\" first to read the current definition and get the ruleset ID. Requires an API token with Zone WAF Edit."
+        },
+        {
+          "name": "List Access Applications",
+          "description": "Lists the Cloudflare Access (Zero Trust) applications protecting an account. Requires an API token with Account Access: Apps and Policies Read."
+        },
+        {
+          "name": "Get Access Application",
+          "description": "Reads a single Cloudflare Access (Zero Trust) application, including its attached policies. Requires an API token with Account Access: Apps and Policies Read."
+        },
+        {
+          "name": "Create Access Application",
+          "description": "Creates a Cloudflare Access (Zero Trust) application that puts an identity check in front of a hostname. Until at least one policy is attached the application denies everyone, so pair this with \"Create Access Policy\". Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Update Access Application",
+          "description": "Updates a Cloudflare Access (Zero Trust) application. This replaces the application definition rather than merging it, so send every field the application should keep — anything you omit reverts to its default, which can widen or break access. Read the current configuration with \"Get Access Application\" first. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Delete Access Application",
+          "description": "Permanently deletes a Cloudflare Access (Zero Trust) application and every policy attached to it. The hostname it protected is immediately left without an Access identity check, so anyone who can reach it can reach the origin. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "List Access Policies",
+          "description": "Lists the Cloudflare Access (Zero Trust) policies attached to an application, in precedence order. Requires an API token with Account Access: Apps and Policies Read."
+        },
+        {
+          "name": "Create Access Policy",
+          "description": "Creates a Cloudflare Access (Zero Trust) policy on an application, deciding who may reach it. A policy takes effect on live traffic as soon as it is created — an allow policy with a broad include rule grants access immediately. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Update Access Policy",
+          "description": "Updates a Cloudflare Access (Zero Trust) policy on an application. This replaces the policy definition rather than merging it, so send every rule the policy should keep — omitted exclude or require rules are dropped, which can widen who gets in. The change applies to live traffic immediately. Read the current policy with \"List Access Policies\" first. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "Delete Access Policy",
+          "description": "Permanently deletes a Cloudflare Access (Zero Trust) policy from an application. This changes who can reach the application the moment it runs: removing an allow policy locks out everyone it covered, and removing a deny or require policy drops that restriction. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit."
+        },
+        {
+          "name": "List Access Groups",
+          "description": "Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups bundle identity rules that policies can reference by ID. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read."
+        },
+        {
+          "name": "List Access Identity Providers",
+          "description": "Lists the identity providers configured for Cloudflare Access (Zero Trust) in an account, such as Okta, Entra ID, Google Workspace, or a one-time PIN. Use the returned IDs to restrict an application with allowed_idps. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read."
+        },
+        {
+          "name": "List Access Service Tokens",
+          "description": "Lists the Cloudflare Access (Zero Trust) service tokens in an account, which let machines authenticate to Access-protected applications. Client secrets are never returned by this endpoint — only on creation. Requires an API token with Account Access: Service Tokens Read."
+        },
+        {
+          "name": "Create Access Service Token",
+          "description": "Creates a Cloudflare Access (Zero Trust) service token so a machine can authenticate to Access-protected applications. This is the only response that ever contains the client secret — Cloudflare will not return it again, so capture it in the same run. Requires an API token with Account Access: Service Tokens Edit."
+        },
+        {
+          "name": "Revoke Access Service Token",
+          "description": "Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it. Every machine or integration still presenting that client ID and secret is locked out of the Access-protected applications immediately, and the secret cannot be recovered. This cannot be undone. Requires an API token with Account Access: Service Tokens Edit."
+        },
+        {
+          "name": "List R2 Buckets",
+          "description": "Lists the R2 object storage buckets in an account. Requires an API token with Account Workers R2 Storage Read."
+        },
+        {
+          "name": "Get R2 Bucket",
+          "description": "Reads the metadata of a single R2 object storage bucket. Requires an API token with Account Workers R2 Storage Read."
+        },
+        {
+          "name": "Create R2 Bucket",
+          "description": "Creates an R2 object storage bucket in an account. The location hint and jurisdiction are fixed at creation and cannot be changed later. Requires an API token with Account Workers R2 Storage Edit."
+        },
+        {
+          "name": "Delete R2 Bucket",
+          "description": "Permanently deletes an R2 object storage bucket. Cloudflare only deletes an empty bucket, and the deletion cannot be undone. Requires an API token with Account Workers R2 Storage Edit."
+        },
+        {
+          "name": "List Worker Scripts",
+          "description": "Lists the Workers scripts deployed in an account. Requires an API token with Account Workers Scripts Read."
+        },
+        {
+          "name": "Get Worker Script Settings",
+          "description": "Reads the deployment settings of a single Workers script — bindings, compatibility date and flags, limits, observability, placement, and tail consumers. The plain \"get script\" endpoint in the Cloudflare API returns raw JavaScript source rather than JSON, so this settings endpoint is the structured way to inspect one script. Requires an API token with Account Workers Scripts Read."
+        },
+        {
+          "name": "List Worker Routes",
+          "description": "Lists the Workers routes on a zone, showing which URL patterns are handled by which Worker script. Unlike the Workers script endpoints, routes are zone-scoped. Requires an API token with Zone Workers Routes Read."
+        },
+        {
+          "name": "List Tunnels",
+          "description": "Lists the Cloudflare Tunnels (cloudflared) in an account, with their health status and active connections. Requires an API token with Account Cloudflare Tunnel Read."
+        },
+        {
+          "name": "Get Tunnel",
+          "description": "Reads a single Cloudflare Tunnel (cloudflared), including its health status and active connector connections. Requires an API token with Account Cloudflare Tunnel Read."
+        },
+        {
+          "name": "Get Tunnel Configuration",
+          "description": "Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress rules, origin request settings, and WARP routing. Only tunnels whose configuration source is \"cloudflare\" have a remote configuration; locally-managed tunnels keep it in their own config file. Requires an API token with Account Cloudflare Tunnel Read."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 48,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -4466,32 +4793,112 @@
       "type": "crowdstrike",
       "slug": "crowdstrike",
       "name": "CrowdStrike",
-      "description": "Query CrowdStrike Identity Protection sensors and documented aggregates",
-      "longDescription": "Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.",
+      "description": "Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities",
+      "longDescription": "Integrate CrowdStrike Falcon into workflows to triage alerts, contain hosts, manage host groups and custom indicators of compromise, review Spotlight vulnerabilities, run read-only Real Time Response commands, read Case Management cases, and query Identity Protection sensors.",
       "bgColor": "#E01F3D",
       "iconName": "CrowdStrikeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/crowdstrike",
       "operations": [
         {
+          "name": "Query Alerts",
+          "description": "Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2), which replaced the Detects API decommissioned on September 30, 2025. Requires the \"Alerts: Read\" API scope."
+        },
+        {
+          "name": "Get Alert Details",
+          "description": "Get full CrowdStrike Falcon alert records for one or more composite alert IDs (POST /alerts/entities/alerts/v2). Requires the \"Alerts: Read\" API scope."
+        },
+        {
+          "name": "Update Alerts",
+          "description": "Update CrowdStrike Falcon alerts by composite ID: change status, assign or unassign an analyst, add or remove tags, append a comment, or toggle visibility (PATCH /alerts/entities/alerts/v3). This modifies live alerts in the Falcon console. Requires the \"Alerts: Write\" API scope."
+        },
+        {
+          "name": "Perform Host Action",
+          "description": "Act on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain, lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. contain network-isolates the host so it can only reach the Falcon cloud; hide_host removes the host record from the console. Both are immediately disruptive. Up to 100 host IDs per call. Requires the \"Hosts: Write\" API scope."
+        },
+        {
+          "name": "Query Host Groups",
+          "description": "Search CrowdStrike Falcon host groups with a Falcon Query Language filter and return their IDs (GET /devices/queries/host-groups/v1). Requires the \"Host groups: Read\" API scope."
+        },
+        {
+          "name": "Get Host Group Details",
+          "description": "Get CrowdStrike Falcon host group records for one or more group IDs (GET /devices/entities/host-groups/v1). Requires the \"Host groups: Read\" API scope."
+        },
+        {
+          "name": "Perform Host Group Action",
+          "description": "Add hosts to or remove hosts from a CrowdStrike Falcon static host group (POST /devices/entities/host-group-actions/v1). Group membership drives policy assignment, so changing it changes which policies apply to those hosts. Requires the \"Host groups: Write\" API scope."
+        },
+        {
+          "name": "Query Indicators",
+          "description": "Search custom CrowdStrike Falcon indicators of compromise (IOCs) with a Falcon Query Language filter and return their IDs (GET /iocs/queries/indicators/v1). Requires the \"IOC Management: Read\" API scope."
+        },
+        {
+          "name": "Get Indicator Details",
+          "description": "Get custom CrowdStrike Falcon indicator of compromise (IOC) records for one or more IOC IDs (GET /iocs/entities/indicators/v1). Requires the \"IOC Management: Read\" API scope."
+        },
+        {
+          "name": "Create Indicators",
+          "description": "Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/indicators/v1). Each indicator can allow, detect, or block activity across the fleet, so a wrong value can suppress detections or break legitimate software. Requires the \"IOC Management: Write\" API scope."
+        },
+        {
+          "name": "Update Indicators",
+          "description": "Update custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). DESTRUCTIVE: omitted fields may be cleared, so read each indicator with crowdstrike_get_indicator_details first and resend its full field set with your edits applied. Changing action or scope changes prevention behavior fleet-wide. type and value are immutable. Requires the \"IOC Management: Write\" API scope."
+        },
+        {
+          "name": "Delete Indicators",
+          "description": "Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). Cannot be undone; deleting a blocking indicator removes that protection from every host, and a broad filter can delete far more than intended. Supply an ID list or a filter, never both -- CrowdStrike lets a filter silently override the IDs, so this tool rejects that instead. Requires the \"IOC Management: Write\" API scope."
+        },
+        {
+          "name": "Query Vulnerabilities",
+          "description": "Search CrowdStrike Falcon Spotlight vulnerabilities with a required Falcon Query Language filter and return their IDs (GET /spotlight/queries/vulnerabilities/v1). Requires the spotlight-vulnerabilities:read API scope, shown as \"Vulnerabilities: Read\" in the Falcon API client UI."
+        },
+        {
+          "name": "Get Vulnerability Details",
+          "description": "Get CrowdStrike Falcon Spotlight vulnerability records for one or more vulnerability IDs, including CVE, affected host, application, and remediation details (GET /spotlight/entities/vulnerabilities/v2). Requires the spotlight-vulnerabilities:read API scope, shown as \"Vulnerabilities: Read\" in the Falcon API client UI."
+        },
+        {
+          "name": "Init RTR Session",
+          "description": "Open a CrowdStrike Falcon Real Time Response session against a host so read-only commands can be run on it (POST /real-time-response/entities/sessions/v1). This connects a live remote shell to the endpoint. Requires the \"Real time response: Read\" API scope."
+        },
+        {
+          "name": "Execute RTR Command",
+          "description": "Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). baseCommand names the family only (cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg, users); subcommands go in commandString. Host-modifying commands need the Active Responder or Admin endpoints. Requires the \"Real time response: Read\" API scope."
+        },
+        {
+          "name": "Get RTR Command Status",
+          "description": "Get the status and output of a Real Time Response command by cloud request ID (GET /real-time-response/entities/command/v1). Long output is chunked across sequences, so increment the sequence ID to read the next chunk. Requires the \"Real time response: Read\" API scope."
+        },
+        {
+          "name": "Delete RTR Session",
+          "description": "Close an open CrowdStrike Falcon Real Time Response session (DELETE /real-time-response/entities/sessions/v1). Requires the \"Real time response: Read\" API scope."
+        },
+        {
+          "name": "Query Cases",
+          "description": "Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management supersedes the CrowdScore Incidents API, which CrowdStrike has removed from its published API spec. Requires the \"Cases: Read\" API scope."
+        },
+        {
+          "name": "Get Case Details",
+          "description": "Get CrowdStrike Falcon Case Management case records for one or more case IDs (POST /cases/entities/cases/v2). Requires the \"Cases: Read\" API scope."
+        },
+        {
           "name": "Query Sensors",
-          "description": "Search CrowdStrike identity protection sensors by hostname, IP, or related fields"
+          "description": "Search CrowdStrike Identity Protection sensors -- the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors -- and return their device IDs (GET /identity-protection/queries/devices/v1). Sort uses the dot form, for example status.desc. Requires the \"Identity Protection Entities: Read\" API scope, a separate entitlement from Hosts and Alerts."
         },
         {
           "name": "Get Sensor Details",
-          "description": "Get documented CrowdStrike Identity Protection sensor details for one or more device IDs"
+          "description": "Get CrowdStrike Identity Protection sensor details for one or more device IDs (POST /identity-protection/entities/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the \"Identity Protection Entities: Read\" API scope."
         },
         {
           "name": "Get Sensor Aggregates",
-          "description": "Get documented CrowdStrike Identity Protection sensor aggregates from a JSON aggregate query body"
+          "description": "Aggregate CrowdStrike Identity Protection sensors from a JSON aggregate query body (POST /identity-protection/aggregates/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the \"Identity Protection Entities: Read\" API scope."
         }
       ],
-      "operationCount": 3,
+      "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity", "monitoring"]
+      "tags": ["identity", "monitoring", "incident-management", "automation"]
     },
     {
       "type": "cursor_v2",
@@ -4758,7 +5165,11 @@
         },
         {
           "name": "Mute Monitor",
-          "description": "Mute a monitor to temporarily suppress notifications."
+          "description": "Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window."
+        },
+        {
+          "name": "Unmute Monitor",
+          "description": "Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once."
         },
         {
           "name": "Query Logs",
@@ -4779,9 +5190,121 @@
         {
           "name": "Cancel Downtime",
           "description": "Cancel a scheduled downtime."
+        },
+        {
+          "name": "List Incidents",
+          "description": "List incidents for the organization. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get the details of a single incident by ID. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Create Incident",
+          "description": "Declare a new incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Update Incident",
+          "description": "Partially update an existing incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Add Incident Todo",
+          "description": "Add a follow-up task (todo) to an incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "List SLOs",
+          "description": "List service level objectives, optionally filtered by IDs, name, tags, or underlying metrics query."
+        },
+        {
+          "name": "Get SLO",
+          "description": "Get the configuration of a single service level objective by ID."
+        },
+        {
+          "name": "Create SLO",
+          "description": "Create a service level objective from a metric query, monitors, or a time-slice condition."
+        },
+        {
+          "name": "Update SLO",
+          "description": "Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value."
+        },
+        {
+          "name": "Delete SLO",
+          "description": "Permanently delete a service level objective. Datadog returns a conflict when the SLO is still referenced by a dashboard."
+        },
+        {
+          "name": "Get SLO History",
+          "description": "Get an SLO’s history over a time window, including the overall SLI value and remaining error budget."
+        },
+        {
+          "name": "List Dashboards",
+          "description": "List custom created or cloned dashboards. Datadog preset dashboards are not returned."
+        },
+        {
+          "name": "Get Dashboard",
+          "description": "Get the full definition of a dashboard, including its widgets."
+        },
+        {
+          "name": "Create Dashboard",
+          "description": "Create a dashboard from a title, layout type, and widget definitions."
+        },
+        {
+          "name": "Delete Dashboard",
+          "description": "Delete a dashboard by ID."
+        },
+        {
+          "name": "List Synthetic Tests",
+          "description": "List all Synthetic tests (API, browser, and mobile) with their current status."
+        },
+        {
+          "name": "Get Synthetic Test",
+          "description": "Get the configuration of a Synthetic test by public ID. Browser test steps are not included by this type-agnostic endpoint."
+        },
+        {
+          "name": "Get Synthetic Test Results",
+          "description": "Get the latest result summaries (up to the last 150 runs) for a Synthetic API test."
+        },
+        {
+          "name": "Get Browser Synthetic Test Results",
+          "description": "Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors."
+        },
+        {
+          "name": "Trigger Synthetic Tests",
+          "description": "Trigger an immediate run of one or more Synthetic tests by public ID."
+        },
+        {
+          "name": "Pause Or Start Synthetic Test",
+          "description": "Pause or resume a Synthetic test by setting its status to \"paused\" or \"live\"."
+        },
+        {
+          "name": "List Security Signals",
+          "description": "Search Cloud SIEM security signals by query and time range. Requires the `security_monitoring_signals_read` permission."
+        },
+        {
+          "name": "Get Security Signal",
+          "description": "Get the details of a single Cloud SIEM security signal. Requires the `security_monitoring_signals_read` permission."
+        },
+        {
+          "name": "Update Security Signal State",
+          "description": "Change the triage state of a Cloud SIEM security signal to open, under_review, or archived. Requires the `security_monitoring_signals_write` permission."
+        },
+        {
+          "name": "Assign Security Signal",
+          "description": "Assign a Cloud SIEM security signal to a Datadog user by UUID. Requires the `security_monitoring_signals_write` permission."
+        },
+        {
+          "name": "List Security Rules",
+          "description": "List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` permission."
+        },
+        {
+          "name": "Search Spans",
+          "description": "Search indexed APM spans using the span query syntax, with cursor pagination."
+        },
+        {
+          "name": "List Services",
+          "description": "List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission."
         }
       ],
-      "operationCount": 12,
+      "operationCount": 41,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8932,6 +9455,10 @@
           "description": "Get a specific alert rule by its UID"
         },
         {
+          "name": "Get Alert Rule Group",
+          "description": "Read an alert rule group: its evaluation interval and every rule in it. The interval is the group-level knob that decides how often those rules are evaluated, which the individual alert rule operations do not expose."
+        },
+        {
           "name": "Create Alert Rule",
           "description": "Create a new alert rule"
         },
@@ -8950,6 +9477,14 @@
         {
           "name": "Create Contact Point",
           "description": "Create a notification contact point (e.g., Slack, email, PagerDuty)"
+        },
+        {
+          "name": "Update Contact Point",
+          "description": "Replace a contact point by its UID. Grafana has no partial update for contact points, so every field is rewritten — resend the name, type, and full settings, or the omitted ones are reset."
+        },
+        {
+          "name": "Delete Contact Point",
+          "description": "Permanently delete a contact point by its UID. Grafana refuses the delete while the contact point is still referenced by the notification policy tree or by an alert rule."
         },
         {
           "name": "Create Annotation",
@@ -8976,6 +9511,10 @@
           "description": "Get a data source by its ID or UID"
         },
         {
+          "name": "Query Data Source",
+          "description": "Run one or more queries against a Grafana data source that has a backend implementation, and read the values back. This is how you get actual metric numbers out of Grafana rather than dashboard or alert configuration."
+        },
+        {
           "name": "Check Data Source Health",
           "description": "Test connectivity to a data source by its UID"
         },
@@ -9000,11 +9539,15 @@
           "description": "Delete a folder by its UID"
         },
         {
+          "name": "Move Folder",
+          "description": "Move a folder under a different parent folder, or to the root by leaving the parent empty. Returns the folder with its new ancestry."
+        },
+        {
           "name": "Get Health",
           "description": "Check the health of the Grafana instance (version, database status)"
         }
       ],
-      "operationCount": 25,
+      "operationCount": 30,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -12046,6 +12589,49 @@
       "tags": ["monitoring", "error-tracking", "incident-management"]
     },
     {
+      "type": "logrocket",
+      "slug": "logrocket",
+      "name": "LogRocket",
+      "description": "Summarize sessions, manage users, and tag releases in LogRocket",
+      "longDescription": "Integrate LogRocket into your workflow to request AI session highlights for a user, poll for the result, list exported session files, read the audit log, create or update user profiles, and register releases so source maps decode their stack traces.",
+      "bgColor": "#764ABC",
+      "iconName": "LogRocketIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/logrocket",
+      "operations": [
+        {
+          "name": "Request Highlights",
+          "description": "Start a Galileo session highlights job for a user. Returns a request ID to poll with LogRocket's Get Highlights operation."
+        },
+        {
+          "name": "Get Highlights",
+          "description": "Retrieve the result of a Galileo session highlights request. Status is PENDING until generation finishes, then READY or FAILED."
+        },
+        {
+          "name": "List Exported Sessions",
+          "description": "List exported session files from the LogRocket Data Export API. Returns download URLs for JSON Lines exports, oldest first, plus a cursor for the next page."
+        },
+        {
+          "name": "Get Audit Logs",
+          "description": "Export audit log entries from LogRocket, recording who viewed sessions and what actions were taken. Paginated with a cursor."
+        },
+        {
+          "name": "Identify User",
+          "description": "Create or update a LogRocket user profile with demographic, financial, and engagement traits."
+        },
+        {
+          "name": "Create Release",
+          "description": "Register a release version in LogRocket so uploaded source maps can decode stack traces for it. Fails with a conflict if the version already exists."
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "error-tracking", "data-analytics"]
+    },
+    {
       "type": "loops",
       "slug": "loops",
       "name": "Loops",
@@ -12846,6 +13432,49 @@
       "tags": ["project-management", "microsoft-365"]
     },
     {
+      "type": "mssql",
+      "slug": "microsoft-sql-server",
+      "name": "Microsoft SQL Server",
+      "description": "Connect to Microsoft SQL Server database",
+      "longDescription": "Integrate Microsoft SQL Server into the workflow. Can query, insert, update, delete, execute raw T-SQL, and introspect schemas.",
+      "bgColor": "#FFFFFF",
+      "iconName": "MicrosoftSqlIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mssql",
+      "operations": [
+        {
+          "name": "Query (SELECT)",
+          "description": "Execute a SELECT query on a Microsoft SQL Server database"
+        },
+        {
+          "name": "Insert Data",
+          "description": "Insert data into a Microsoft SQL Server table"
+        },
+        {
+          "name": "Update Data",
+          "description": "Update rows in a Microsoft SQL Server table"
+        },
+        {
+          "name": "Delete Data",
+          "description": "Delete rows from a Microsoft SQL Server table"
+        },
+        {
+          "name": "Execute Raw SQL",
+          "description": "Execute a raw T-SQL statement on a Microsoft SQL Server database"
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Introspect a Microsoft SQL Server schema to retrieve table structures, columns, keys, and indexes. Results only cover objects the login can see, so a low-privilege account returns a partial schema rather than an error"
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "none",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-analytics"]
+    },
+    {
       "type": "microsoft_teams",
       "slug": "microsoft-teams",
       "name": "Microsoft Teams",
@@ -13565,15 +14194,15 @@
       "type": "okta",
       "slug": "okta",
       "name": "Okta",
-      "description": "Manage users and groups in Okta",
-      "longDescription": "Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.",
+      "description": "Manage users, groups, apps, and MFA in Okta",
+      "longDescription": "Integrate Okta identity management into your workflow. Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.",
       "bgColor": "#191919",
       "iconName": "OktaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/okta",
       "operations": [
         {
           "name": "List Users",
-          "description": "List all users in your Okta organization with optional search and filtering"
+          "description": "List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them."
         },
         {
           "name": "Get User",
@@ -13625,7 +14254,7 @@
         },
         {
           "name": "Update Group",
-          "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement)."
+          "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value."
         },
         {
           "name": "Delete Group",
@@ -13642,9 +14271,113 @@
         {
           "name": "List Group Members",
           "description": "List all members of a specific group in your Okta organization"
+        },
+        {
+          "name": "List Group Rules",
+          "description": "List the group rules in your Okta organization. Each rule assigns users to groups automatically based on an expression over their profile, so this shows how group membership is being driven."
+        },
+        {
+          "name": "Get Group Rule",
+          "description": "Retrieve a single Okta group rule by ID, including the expression that decides which users it matches and the groups those users are assigned to."
+        },
+        {
+          "name": "Create Group Rule",
+          "description": "Create a group rule that automatically assigns users matching an Okta expression to one or more groups. New rules are created INACTIVE, so run Activate Group Rule afterwards to start applying it."
+        },
+        {
+          "name": "Activate Group Rule",
+          "description": "Activate a group rule so Okta starts applying it, assigning every matching user to the target groups."
+        },
+        {
+          "name": "Deactivate Group Rule",
+          "description": "Deactivate a group rule so Okta stops applying it. Existing memberships the rule created are left in place. A rule must be INACTIVE before it can be edited."
+        },
+        {
+          "name": "Delete Group Rule",
+          "description": "Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant."
+        },
+        {
+          "name": "List Factors",
+          "description": "List the MFA factors a user has enrolled, with each factor type, provider, and enrollment status. Use this before resetting a factor to confirm which one to target."
+        },
+        {
+          "name": "Get Factor",
+          "description": "Retrieve a single enrolled MFA factor for a user, including its type, provider, enrollment status, and factor-specific profile."
+        },
+        {
+          "name": "Enroll Factor",
+          "description": "Enroll an MFA factor for a user. The profile fields required depend on the factor type: a phone number for sms and call, an email address for email, and a question and answer for question. Factors that enroll from the user device, such as webauthn and push, need no profile fields."
+        },
+        {
+          "name": "Reset Factor",
+          "description": "Unenroll one specific MFA factor for a user so they can re-enroll it. Destructive and irreversible: the existing enrollment is removed. Unenrolling a push or signed_nonce factor also unenrolls the related Okta Verify factors. Factors cannot be unenrolled from a deactivated user."
+        },
+        {
+          "name": "Reset All Factors",
+          "description": "Reset every MFA factor for a user, returning all enrollments to the unenrolled state. Destructive and irreversible: the user must re-enroll each factor before they can complete MFA again. The user status stays ACTIVE."
+        },
+        {
+          "name": "Clear User Sessions",
+          "description": "Revoke every active Okta session for a user, signing them out of all devices immediately. Destructive and irreversible: the user must sign in again. Optionally also revokes their OAuth and OpenID Connect tokens, and clears remembered factors."
+        },
+        {
+          "name": "Get Session",
+          "description": "Retrieve an Okta session by ID, including who it belongs to, when it expires, and which authentication methods were used to establish it."
+        },
+        {
+          "name": "Revoke Session",
+          "description": "Revoke a single Okta session by ID, ending that sign-in immediately. Destructive and irreversible: the affected user must sign in again on that device."
+        },
+        {
+          "name": "List Applications",
+          "description": "List the applications configured in your Okta organization, with optional name search, filtering, and cursor pagination."
+        },
+        {
+          "name": "Get Application",
+          "description": "Retrieve a single Okta application by ID, including its sign-on mode, status, enabled provisioning features, and configuration objects."
+        },
+        {
+          "name": "List Application Users",
+          "description": "List the users assigned to an Okta application, including how each assignment was made and its provisioning sync state. Use this to audit who has access to an app."
+        },
+        {
+          "name": "Assign User to Application",
+          "description": "Assign a user to an Okta application, granting them access to it. Applications that require credentials also need the username the user signs in with."
+        },
+        {
+          "name": "Remove User from Application",
+          "description": "Unassign a user from an Okta application, revoking their access. Destructive and irreversible: the app profile for that user is permanently removed, and if provisioning is enabled the downstream account is deactivated."
+        },
+        {
+          "name": "List Application Groups",
+          "description": "List the groups assigned to an Okta application. Every member of an assigned group inherits access to the app, so this is the starting point for an app access review."
+        },
+        {
+          "name": "Assign Group to Application",
+          "description": "Assign a group to an Okta application so every member of the group inherits access to it."
+        },
+        {
+          "name": "Remove Group from Application",
+          "description": "Unassign a group from an Okta application. Destructive: every member who had access only through this group loses access to the app."
+        },
+        {
+          "name": "List User Roles",
+          "description": "List the administrator roles assigned to a user. Returns both standard roles and custom role bindings, so you can review who holds privileged access."
+        },
+        {
+          "name": "Assign User Role",
+          "description": "Grant a user an administrator role. Use a standard role type such as USER_ADMIN or HELP_DESK_ADMIN, or CUSTOM together with a custom role ID and a resource set ID. This grants privileged access, so confirm the role is the least privilege that fits."
+        },
+        {
+          "name": "Remove User Role",
+          "description": "Revoke an administrator role from a user. Destructive: the user immediately loses the admin permissions that role granted. Takes the role assignment ID, not the role type, which List User Roles returns as the role id field."
+        },
+        {
+          "name": "Get System Log Events",
+          "description": "Query the Okta System Log for sign-ins, admin changes, and security events. Supports a time window, SCIM filter expressions, keyword search, and cursor pagination for audit and investigation workflows."
         }
       ],
-      "operationCount": 18,
+      "operationCount": 44,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -13719,6 +14452,133 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
+    },
+    {
+      "type": "netsuite",
+      "slug": "oracle-netsuite",
+      "name": "Oracle NetSuite",
+      "description": "Manage NetSuite records, queries, datasets, batches, and async jobs",
+      "longDescription": "Connect a reusable Oracle NetSuite service-account credential to SuiteTalk REST Web Services. Read and write account-specific records, execute SuiteQL and SuiteAnalytics datasets, run asynchronous record batches, inspect metadata, and monitor async jobs.",
+      "bgColor": "#FFFFFF",
+      "iconName": "NetSuiteIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/netsuite",
+      "operations": [
+        {
+          "name": "List/Search Records",
+          "description": "List one page of a NetSuite record collection, optionally filtered with a q expression."
+        },
+        {
+          "name": "Get Record",
+          "description": "Retrieve one NetSuite record by internal or external ID."
+        },
+        {
+          "name": "Create Record",
+          "description": "Create a NetSuite record using the account-specific record metadata schema."
+        },
+        {
+          "name": "Update Record",
+          "description": "Update fields on an existing NetSuite record with PATCH."
+        },
+        {
+          "name": "Upsert Record",
+          "description": "Create or update a NetSuite record by external ID with PUT."
+        },
+        {
+          "name": "Delete Record",
+          "description": "Delete one NetSuite record by internal or external ID."
+        },
+        {
+          "name": "Get Subresource",
+          "description": "Retrieve a record sublist, subrecord, referenced record, or nested subresource."
+        },
+        {
+          "name": "Get Record Form",
+          "description": "Return a prepopulated create form, or an edit form when a record ID is supplied."
+        },
+        {
+          "name": "Get Select Options",
+          "description": "Retrieve valid select values for one or more fields on a new or existing record."
+        },
+        {
+          "name": "Attach Record or File",
+          "description": "Attach a contact or file to another NetSuite record."
+        },
+        {
+          "name": "Detach Record or File",
+          "description": "Detach a contact or file from another NetSuite record."
+        },
+        {
+          "name": "Execute Record Action",
+          "description": "Execute a supported NetSuite record action such as approve, reject, or confirm."
+        },
+        {
+          "name": "Transform Record",
+          "description": "Transform a supported source record into another NetSuite record type."
+        },
+        {
+          "name": "Batch Get Records",
+          "description": "Submit an asynchronous request to retrieve up to 100 records of one type."
+        },
+        {
+          "name": "Batch Create Records",
+          "description": "Submit an asynchronous batch that creates up to 100 records of one type."
+        },
+        {
+          "name": "Batch Update Records",
+          "description": "Submit an asynchronous batch that updates up to 100 records of one type."
+        },
+        {
+          "name": "Batch Upsert Records",
+          "description": "Submit an asynchronous batch that creates or updates up to 100 records by external ID."
+        },
+        {
+          "name": "Batch Delete Records",
+          "description": "Submit an asynchronous request to delete up to 100 records of one type."
+        },
+        {
+          "name": "Execute SuiteQL",
+          "description": "Execute one page of a SuiteQL query through SuiteTalk REST web services."
+        },
+        {
+          "name": "List SuiteAnalytics Datasets",
+          "description": "List one page of SuiteAnalytics Workbook datasets available to the authenticated role."
+        },
+        {
+          "name": "Execute SuiteAnalytics Dataset",
+          "description": "Execute one page of a standard or custom SuiteAnalytics Workbook dataset."
+        },
+        {
+          "name": "List Record Types",
+          "description": "List record types exposed to the authenticated role by the REST metadata catalog."
+        },
+        {
+          "name": "Get Record Metadata",
+          "description": "Retrieve account-specific metadata for one NetSuite record type."
+        },
+        {
+          "name": "Get Async Status",
+          "description": "Retrieve job status, list job tasks, or retrieve one task status."
+        },
+        {
+          "name": "Get Async Operation Result",
+          "description": "Retrieve the provider response for one task within a completed asynchronous job."
+        },
+        {
+          "name": "Get Server Time",
+          "description": "Retrieve the current UTC time from the NetSuite server."
+        },
+        {
+          "name": "Get Governance Limits",
+          "description": "Retrieve REST web-services concurrency limits for the NetSuite account and integration; NetSuite requires an Administrator role."
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics", "payments"]
     },
     {
       "type": "outlook",
@@ -15032,6 +15892,125 @@
       "category": "tools",
       "integrationType": "ai",
       "tags": ["image-generation"]
+    },
+    {
+      "type": "rabbitmq",
+      "slug": "rabbitmq",
+      "name": "RabbitMQ",
+      "description": "Publish and read messages and manage queues in RabbitMQ",
+      "longDescription": "Connect agents to a RabbitMQ broker through its Management HTTP API. Publish messages to exchanges, read messages off queues, declare queues, exchanges, bindings, and policies, and inspect broker health, queue depth, consumers, connections, and cluster nodes. Works with self-hosted brokers and managed offerings such as CloudAMQP as long as the management plugin is reachable.",
+      "bgColor": "#FFFFFF",
+      "iconName": "RabbitmqIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/rabbitmq",
+      "operations": [
+        {
+          "name": "Publish Message",
+          "description": "Publish a message to a RabbitMQ exchange with a routing key. Reports whether the message was routed to at least one queue."
+        },
+        {
+          "name": "Get Messages",
+          "description": "Retrieve messages from a RabbitMQ queue. Defaults to requeueing the messages so they stay available to real consumers."
+        },
+        {
+          "name": "List Queues",
+          "description": "List queues in a RabbitMQ virtual host with their depth, consumer count, and configuration."
+        },
+        {
+          "name": "Get Queue",
+          "description": "Read a single RabbitMQ queue, including its depth, consumer count, and declaration settings."
+        },
+        {
+          "name": "Create Queue",
+          "description": "Declare a RabbitMQ queue. Declaring a queue that already exists with the same settings succeeds without changing it."
+        },
+        {
+          "name": "Delete Queue",
+          "description": "Delete a RabbitMQ queue and every message still in it. Can be guarded so the delete only happens when the queue is unused or empty."
+        },
+        {
+          "name": "Purge Queue",
+          "description": "Discard every ready message in a RabbitMQ queue while leaving the queue itself in place."
+        },
+        {
+          "name": "List Exchanges",
+          "description": "List exchanges in a RabbitMQ virtual host with their type and declaration settings."
+        },
+        {
+          "name": "Get Exchange",
+          "description": "Read a single RabbitMQ exchange and the settings it was declared with."
+        },
+        {
+          "name": "Create Exchange",
+          "description": "Declare a RabbitMQ exchange. Declaring an exchange that already exists with the same settings succeeds without changing it."
+        },
+        {
+          "name": "Delete Exchange",
+          "description": "Delete a RabbitMQ exchange and every binding attached to it. Publishers targeting it will fail afterwards."
+        },
+        {
+          "name": "List Queue Bindings",
+          "description": "List the bindings that route messages into a RabbitMQ queue, including the implicit default-exchange binding."
+        },
+        {
+          "name": "List Exchange Bindings",
+          "description": "List everything an exchange routes to, so you can see which routing keys reach which queues."
+        },
+        {
+          "name": "Create Binding",
+          "description": "Bind a queue or another exchange to a RabbitMQ exchange so messages matching a routing key are routed to it."
+        },
+        {
+          "name": "Delete Binding",
+          "description": "Remove a binding so an exchange stops routing its matching messages to that destination."
+        },
+        {
+          "name": "Get Overview",
+          "description": "Read broker-wide RabbitMQ status: version, cluster name, object totals, queue depth totals, and message rates."
+        },
+        {
+          "name": "Health Check",
+          "description": "Run one of the broker health checks and report whether it passed. A failing check is a normal result, not a tool error."
+        },
+        {
+          "name": "List Nodes",
+          "description": "List the cluster nodes with memory, disk, file-descriptor, and alarm state. A fired alarm blocks publishers broker-wide."
+        },
+        {
+          "name": "List Virtual Hosts",
+          "description": "List the virtual hosts on the broker with their message totals, so you can discover which scopes exist."
+        },
+        {
+          "name": "List Connections",
+          "description": "List client connections to the broker with their user, state, and channel count. Connections are cluster-wide, not scoped to one virtual host."
+        },
+        {
+          "name": "List Channels",
+          "description": "List open channels with their prefetch limit and unacknowledged message count, which is where stalled consumers show up. Channels are cluster-wide, not scoped to one virtual host."
+        },
+        {
+          "name": "List Consumers",
+          "description": "List the consumers subscribed in a virtual host. An empty result for a queue with a backlog means nothing is processing it."
+        },
+        {
+          "name": "List Policies",
+          "description": "List the policies in a virtual host. Policies are how dead-lettering, TTLs, and length limits get applied to matching queues and exchanges."
+        },
+        {
+          "name": "Create Policy",
+          "description": "Create or replace a RabbitMQ policy, applying settings such as dead-lettering, TTLs, or length limits to every queue or exchange whose name matches a pattern."
+        },
+        {
+          "name": "Delete Policy",
+          "description": "Delete a RabbitMQ policy. Every queue and exchange it matched immediately loses the settings it applied."
+        }
+      ],
+      "operationCount": 25,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["messaging", "automation"]
     },
     {
       "type": "railway",
@@ -17563,6 +18542,114 @@
       "docsUrl": "https://docs.sim.ai/integrations/servicenow",
       "operations": [
         {
+          "name": "Create Incident",
+          "description": "Create an incident in ServiceNow. Reference fields (caller, assignment group, assigned to, configuration item) take sys_ids unless input display value is enabled."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Retrieve a single ServiceNow incident by number (e.g., INC0010001) or sys_id. Reference fields are returned with both their sys_id and their label by default."
+        },
+        {
+          "name": "List Incidents",
+          "description": "Search ServiceNow incidents by state, priority, assignment, caller, or text. All filters are ANDed together."
+        },
+        {
+          "name": "Update Incident",
+          "description": "Update fields on an existing ServiceNow incident. Only the fields you supply are changed. Reference fields take sys_ids unless input display value is enabled."
+        },
+        {
+          "name": "Resolve Incident",
+          "description": "Move a ServiceNow incident to Resolved (state 6) with a resolution code and resolution notes."
+        },
+        {
+          "name": "Close Incident",
+          "description": "Move a ServiceNow incident to Closed (state 7) with a resolution code and resolution notes. Which roles may close an incident is instance-configurable, so the credential may need elevated rights."
+        },
+        {
+          "name": "Add Incident Comment",
+          "description": "Append an internal work note or a customer-visible additional comment to a ServiceNow incident. Both are journal fields, so the text is appended rather than replacing earlier entries."
+        },
+        {
+          "name": "Create Change Request",
+          "description": "Create a change request in ServiceNow. Reference fields (assignment group, assigned to, requested by, configuration item) take sys_ids unless input display value is enabled."
+        },
+        {
+          "name": "Get Change Request",
+          "description": "Retrieve a single ServiceNow change request by number (e.g., CHG0030001) or sys_id. Reference fields are returned with both their sys_id and their label by default."
+        },
+        {
+          "name": "List Change Requests",
+          "description": "Search ServiceNow change requests by state, type, risk, assignment, or text. All filters are ANDed together."
+        },
+        {
+          "name": "Update Change Request",
+          "description": "Update fields on an existing ServiceNow change request. Only the fields you supply are changed. Use Move ServiceNow Change State for state transitions."
+        },
+        {
+          "name": "Move Change State",
+          "description": "Move a ServiceNow change request to another state. Base-system change model states are -5=New, -4=Assess, -3=Authorize, -2=Scheduled, -1=Implement, 0=Review, 3=Closed, 4=Canceled. The state machine rejects transitions whose conditions are not met."
+        },
+        {
+          "name": "List Change Tasks",
+          "description": "List the change tasks belonging to a ServiceNow change request, via the Change Management API. Every field is returned as {value, display_value}, so a reference field carries both its sys_id and its label. This endpoint is not the Table API: the shape is fixed with no display-value option, and the results come back under `tasks` rather than the `records` the other list operations use."
+        },
+        {
+          "name": "Get Change Next States",
+          "description": "Read the states a ServiceNow change request can actually move to next, with the instance's own state-to-label map and the conditions each transition still has to meet. Use this instead of assuming the base-system state codes, which a customized change model can change."
+        },
+        {
+          "name": "List Catalog Items",
+          "description": "Browse or search the ServiceNow service catalog. Returns each item with its sys_id, name, description, type, category, and catalogs, which is what Order ServiceNow Catalog Item needs."
+        },
+        {
+          "name": "Order Catalog Item",
+          "description": "Submit a service catalog request for a catalog item using the Service Catalog API order_now endpoint. Returns the generated request number and sys_id."
+        },
+        {
+          "name": "List Requested Items",
+          "description": "List requested items (RITMs) from the ServiceNow Requested Item [sc_req_item] table, optionally scoped to a parent request or a catalog item. To scope by requester, pass an encoded query against the parent request, for example \"request.requested_for=<sys_id>\"."
+        },
+        {
+          "name": "Get Requested Item",
+          "description": "Retrieve a single ServiceNow requested item (RITM) by number (e.g., RITM0010001) or sys_id from the Requested Item [sc_req_item] table."
+        },
+        {
+          "name": "List Approvals",
+          "description": "List approval records from the ServiceNow Approval [sysapproval_approver] table. Defaults to the \"requested\" state, which is what a user's pending approvals look like."
+        },
+        {
+          "name": "Approve or Reject",
+          "description": "Approve or reject a ServiceNow approval record by setting its state on the Approval [sysapproval_approver] table."
+        },
+        {
+          "name": "Search Configuration Items",
+          "description": "Search the ServiceNow CMDB for configuration items. Defaults to the base cmdb_ci table, which returns CIs of every class; pass a CI class to scope the search to a subclass such as cmdb_ci_linux_server."
+        },
+        {
+          "name": "Get Configuration Item",
+          "description": "Retrieve a configuration item and its CMDB relationships through the CMDB Instance API. Returns the CI attributes plus its inbound and outbound relations, each carrying the related CI and the relationship type."
+        },
+        {
+          "name": "List CI Relationships",
+          "description": "List rows from the CI Relationship [cmdb_rel_ci] table for a configuration item. Each row carries the parent CI, the child CI, and the relationship type."
+        },
+        {
+          "name": "Search Knowledge",
+          "description": "Search ServiceNow knowledge base articles through the Knowledge Management API. Returns ranked results with a snippet and the article number, which Get ServiceNow Knowledge Article accepts to fetch the full body."
+        },
+        {
+          "name": "Get Knowledge Article",
+          "description": "Retrieve the full content of a ServiceNow knowledge article by sys_id or KB number through the Knowledge Management API."
+        },
+        {
+          "name": "Find User",
+          "description": "Look up ServiceNow users by email, user name, or display name. Use this to resolve the sys_id needed by reference fields such as caller_id, assigned_to, and approver."
+        },
+        {
+          "name": "List Group Members",
+          "description": "List the members of a ServiceNow group from the Group Member [sys_user_grmember] table. Each row links a user to a group, so use it to find who can be assigned work for an assignment group."
+        },
+        {
           "name": "Create Record",
           "description": "Create a new record in a ServiceNow table"
         },
@@ -17595,7 +18682,7 @@
           "description": "Attach a file to a ServiceNow record"
         }
       ],
-      "operationCount": 8,
+      "operationCount": 35,
       "triggers": [
         {
           "id": "servicenow_incident_created",
@@ -18524,6 +19611,73 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"]
+    },
+    {
+      "type": "splunk",
+      "slug": "splunk",
+      "name": "Splunk",
+      "description": "Run SPL searches and manage saved searches and alerts in Splunk",
+      "longDescription": "Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SplunkIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/splunk",
+      "operations": [
+        {
+          "name": "Run Search",
+          "description": "Run an SPL search synchronously and return its results in a single call (oneshot mode). Use for short searches; use Create Search Job for long-running ones."
+        },
+        {
+          "name": "Create Search Job",
+          "description": "Start a Splunk search job and return its search ID (sid). The search runs asynchronously — poll its status and fetch results separately."
+        },
+        {
+          "name": "Get Search Job",
+          "description": "Get the status and progress of a Splunk search job by search ID, including dispatch state, completion progress, and event/result counts."
+        },
+        {
+          "name": "Get Search Results",
+          "description": "Fetch the transformed results of a completed Splunk search job by search ID, with pagination."
+        },
+        {
+          "name": "Cancel Search Job",
+          "description": "Cancel a running Splunk search job and delete its result cache."
+        },
+        {
+          "name": "List Saved Searches",
+          "description": "List saved searches and reports configured in Splunk, including their SPL, schedule, and alert configuration."
+        },
+        {
+          "name": "Get Saved Search",
+          "description": "Get the configuration of a single Splunk saved search by name, including its SPL, schedule, and alert settings."
+        },
+        {
+          "name": "Dispatch Saved Search",
+          "description": "Run a Splunk saved search immediately and return the search ID (sid) of the dispatched job."
+        },
+        {
+          "name": "List Fired Alerts",
+          "description": "List the saved searches with currently triggered (unexpired) Splunk alerts and how many times each has fired."
+        },
+        {
+          "name": "Get Fired Alerts",
+          "description": "List the unexpired triggered instances of a Splunk alert by saved search name, including severity, trigger time, and the search ID of each firing."
+        },
+        {
+          "name": "List Indexes",
+          "description": "List the indexes configured on the Splunk instance with their size, event count, and retention settings."
+        },
+        {
+          "name": "List Apps",
+          "description": "List the apps installed on the Splunk instance with their label, version, author, and enabled state."
+        }
+      ],
+      "operationCount": 12,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "data-analytics"]
     },
     {
       "type": "sportmonks",

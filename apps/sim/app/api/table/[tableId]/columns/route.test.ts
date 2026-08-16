@@ -49,10 +49,12 @@ vi.mock('@/lib/table/columns/service', () => ({
   updateColumnOptions: mockUpdateColumnOptions,
   updateColumnType: mockUpdateColumnType,
 }))
+vi.mock('@/lib/table/wire', () => ({
+  normalizeColumn: (c: unknown) => c,
+}))
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
-  normalizeColumn: (c: unknown) => c,
   orchestrationOutcomeErrorResponse: (
     outcome: { error?: string; errorCode?: OrchestrationErrorCode },
     fallback: string

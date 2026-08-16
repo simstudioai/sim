@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
@@ -403,7 +404,12 @@ export async function downloadServableFileFromStorage(
   userFile: UserFile,
   requestId: string,
   logger: Logger,
-  options: { maxBytes?: number; signal?: AbortSignal; ownerKey?: string } = {}
+  options: {
+    maxBytes?: number
+    signal?: AbortSignal
+    ownerKey?: string
+    filePrincipal?: Principal
+  } = {}
 ): Promise<ServableFile> {
   const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
     maxBytes: options.maxBytes,
@@ -430,6 +436,7 @@ export async function downloadServableFileFromStorage(
     rawBuffer: buffer,
     fileName: userFile.name,
     workspaceId,
+    filePrincipal: options.filePrincipal,
     ownerKey: options.ownerKey,
     signal: options.signal,
   })

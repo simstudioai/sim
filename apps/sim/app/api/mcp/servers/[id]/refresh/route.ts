@@ -229,11 +229,20 @@ export const POST = withRouteHandler(
 
         const now = new Date()
 
+        /**
+         * Deliberately leaves `updatedAt` alone, matching the invariant
+         * `McpService.updateServerStatus` holds: `updatedAt` means "when the
+         * server's configuration last changed", and it is one of the public
+         * list's keyset sorts. A refresh stamping it moves the row to the head
+         * of `sortBy=updatedAt` under an in-flight page, so a caller walking the
+         * list while anyone presses this button sees servers duplicated across
+         * pages and others skipped. Refresh liveness is already published
+         * through `lastToolsRefresh`, `lastConnected`, and `lastError`.
+         */
         const [refreshedServer] = await db
           .update(mcpServers)
           .set({
             lastToolsRefresh: now,
-            updatedAt: now,
           })
           .where(
             and(

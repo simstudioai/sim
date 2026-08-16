@@ -70,6 +70,12 @@ export const dataverseUploadFileTool: ToolConfig<
   request: {
     url: '/api/tools/microsoft-dataverse/upload-file',
     method: 'POST',
+    /**
+     * Dataverse endpoints redirect (file downloads issue a signed storage URL,
+     * and environment hosts redirect between regional origins), so drop the
+     * bearer token rather than forward it to whatever origin answers.
+     */
+    stripAuthOnRedirect: true,
     headers: () => ({
       'Content-Type': 'application/json',
     }),

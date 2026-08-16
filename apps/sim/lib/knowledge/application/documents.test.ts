@@ -370,6 +370,30 @@ describe('knowledge document application use cases', () => {
     expect(mocks.createDocument).toHaveBeenCalledOnce()
   })
 
+  /**
+   * The size guard was upper-bound only, so a zero-byte file was admitted, put
+   * in storage, and registered — even though every parser refuses an empty
+   * buffer outright, so the document could only ever end up `failed`. An input
+   * the system provably cannot process belongs to the caller, not to storage.
+   */
+  it('rejects a zero-byte upload before it reaches storage', async () => {
+    await expect(
+      uploadKnowledgeDocument.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          file: { ...uploadFile, buffer: Buffer.alloc(0), fileSize: 0 },
+          usageAdmission: 'pre_admitted',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.uploadStoredFile).not.toHaveBeenCalled()
+    expect(mocks.recordKnowledgeBaseFileOwnership).not.toHaveBeenCalled()
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+  })
+
   it('leaves only a sweepable knowledge-base binding when final authorization fails', async () => {
     mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce(null)
 

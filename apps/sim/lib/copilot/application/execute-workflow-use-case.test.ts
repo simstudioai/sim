@@ -14,6 +14,7 @@ import {
   executeCopilotWorkflowUseCase,
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
+import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
@@ -57,7 +58,7 @@ describe('Copilot Workflow application adapter', () => {
         delegationId: 'copilot-tool:tool-call-1',
         audience: 'sim:workflows',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
-        expiresAt: new Date('2026-01-01T00:05:00Z'),
+        expiresAt: new Date(Date.now() + ORCHESTRATION_TIMEOUT_MS),
         resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
       },
       input: { workflowId: 'workflow-1', assertedWorkspaceId: 'workspace-1' },

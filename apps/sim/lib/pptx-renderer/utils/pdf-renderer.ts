@@ -15,9 +15,7 @@
  * fallback, no global state pollution.
  */
 
-// ---------------------------------------------------------------------------
 // Resolved pdfjs URL — computed once from main thread's module resolution
-// ---------------------------------------------------------------------------
 
 let _pdfjsUrl: string | null = null
 
@@ -32,9 +30,7 @@ function getPdfjsUrl(): string | null {
   return _pdfjsUrl || null
 }
 
-// ---------------------------------------------------------------------------
 // Worker-based renderer (fully isolated from main thread pdfjs)
-// ---------------------------------------------------------------------------
 
 /**
  * Inline source for the PDF render worker.
@@ -163,9 +159,7 @@ function renderInWorker(
   })
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /**
  * Render page 1 of a PDF to a blob URL image.

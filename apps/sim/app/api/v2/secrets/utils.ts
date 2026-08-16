@@ -1,4 +1,4 @@
-import type { V2Secret, V2SecretScope } from '@/lib/api/contracts/v2/secrets'
+import type { V2Secret } from '@/lib/api/contracts/v2/secrets'
 import type { VisibleWorkspaceCredential } from '@/lib/credentials/queries'
 
 /** Serialize environment credential metadata as a secret without exposing its stored value. */
@@ -17,10 +17,4 @@ export function toV2Secret(row: VisibleWorkspaceCredential, userId: string): V2S
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
-}
-
-export function secretCredentialTypes(scope?: V2SecretScope) {
-  if (scope === 'workspace') return ['env_workspace'] as const
-  if (scope === 'personal') return ['env_personal'] as const
-  return ['env_workspace', 'env_personal'] as const
 }

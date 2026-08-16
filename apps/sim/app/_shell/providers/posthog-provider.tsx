@@ -42,6 +42,28 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
                 password: true,
                 email: false,
               },
+              /**
+               * None of these nodes are painted, so replay fidelity is
+               * unchanged, while each full snapshot serializes fewer nodes on
+               * the main thread and ships a smaller payload.
+               *
+               * Enumerated rather than `true`/`'all'` on purpose — those
+               * presets also enable `headTitleMutations`, which would drop
+               * `document.title` changes and lose the page identity a replay
+               * viewer reads while scrubbing.
+               */
+              slimDOMOptions: {
+                script: true,
+                comment: true,
+                headFavicon: true,
+                headWhitespace: true,
+                headMetaDescKeywords: true,
+                headMetaSocial: true,
+                headMetaRobots: true,
+                headMetaHttpEquiv: true,
+                headMetaAuthorship: true,
+                headMetaVerification: true,
+              },
               recordCrossOriginIframes: false,
               recordHeaders: false,
               recordBody: false,

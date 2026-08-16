@@ -25,10 +25,28 @@ export const v2OptionalUploadTokenHeadersSchema = z.object({
   'upload-token': z.string().min(1, 'upload-token header cannot be empty').optional(),
 })
 
+/**
+ * What a caller needs about the transfer step, stated in the published document
+ * rather than only in the source.
+ *
+ * The URL a transfer hands back can point at object storage or, on a
+ * self-hosted deployment, at Sim's own local data plane — so the endpoint is
+ * described by this field rather than by an operation of its own, and no
+ * OpenAPI document declares it. That is deliberate (the URL is signed,
+ * short-lived, and never constructed from docs), but it left the one step that
+ * actually moves the bytes with no published status codes at all. This is that
+ * contract.
+ */
+const TRANSFER_STEP_CONTRACT =
+  'Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ "error": { "code", "message" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand.'
+
 export const v2PutUploadTransferSchema = z
   .object({
     method: z.literal('put').describe('Upload strategy discriminator.'),
-    url: z.string().url().describe('Signed URL to which the file bytes are uploaded.'),
+    url: z
+      .string()
+      .url()
+      .describe(`Signed URL to which the file bytes are uploaded. ${TRANSFER_STEP_CONTRACT}`),
     headers: z
       .record(z.string(), z.string())
       .describe('Headers that must be included with the upload request.'),
@@ -82,7 +100,7 @@ export type V2PartUrlsBody = z.input<typeof v2PartUrlsBodySchema>
 export const v2UploadPartUrlSchema = z
   .object({
     partNumber: z.number().int().min(1).describe('Multipart part number.'),
-    url: z.string().url().describe('Signed URL for this upload part.'),
+    url: z.string().url().describe(`Signed URL for this upload part. ${TRANSFER_STEP_CONTRACT}`),
     headers: z
       .record(z.string(), z.string())
       .describe('Headers that must be included with the part upload.'),

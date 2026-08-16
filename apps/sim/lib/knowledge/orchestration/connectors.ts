@@ -155,10 +155,10 @@ export async function performCreateKnowledgeConnector(
   let accessToken: string
 
   if (connectorConfig.auth.mode === 'apiKey') {
-    if (!apiKey) {
+    if (!apiKey && !connectorConfig.auth.optional) {
       return fail('API key is required', 'validation')
     }
-    accessToken = apiKey
+    accessToken = apiKey ?? ''
   } else {
     if (!credentialId) {
       return fail('Credential is required', 'validation')

@@ -404,60 +404,6 @@ export async function getTagDefinitionById(
 }
 
 /**
- * Update tags on all documents and chunks when a tag value is changed
- */
-async function updateTagValuesInDocumentsAndChunks(
-  knowledgeBaseId: string,
-  tagSlot: string,
-  oldValue: string | null,
-  newValue: string | null,
-  requestId: string
-): Promise<{ documentsUpdated: number; chunksUpdated: number }> {
-  validateTagSlot(tagSlot)
-
-  let documentsUpdated = 0
-  let chunksUpdated = 0
-
-  await db.transaction(async (tx) => {
-    if (oldValue) {
-      await tx
-        .update(document)
-        .set({
-          [tagSlot]: newValue,
-        })
-        .where(
-          and(
-            eq(document.knowledgeBaseId, knowledgeBaseId),
-            eq(sql.raw(`${document}.${tagSlot}`), oldValue)
-          )
-        )
-      documentsUpdated = 1
-    }
-
-    if (oldValue) {
-      await tx
-        .update(embedding)
-        .set({
-          [tagSlot]: newValue,
-        })
-        .where(
-          and(
-            eq(embedding.knowledgeBaseId, knowledgeBaseId),
-            eq(sql.raw(`${embedding}.${tagSlot}`), oldValue)
-          )
-        )
-      chunksUpdated = 1
-    }
-  })
-
-  logger.info(
-    `[${requestId}] Updated tag values: ${documentsUpdated} documents, ${chunksUpdated} chunks`
-  )
-
-  return { documentsUpdated, chunksUpdated }
-}
-
-/**
  * Cleanup unused tag definitions for a knowledge base
  */
 export async function cleanupUnusedTagDefinitions(

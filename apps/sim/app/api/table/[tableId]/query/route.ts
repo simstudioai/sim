@@ -10,7 +10,7 @@ import type { Sort, TableSchema } from '@/lib/table'
 import { buildIdByName, sortSpecNamesToIds } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
-import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import { queryRows } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
 import { createTableRowsResponse } from '@/app/api/table/row-secret-provenance'
@@ -84,7 +84,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: RowQu
 
     // Cursor↔sort binding: keyset cursors are default-order only; an offset
     // cursor must be replayed under the exact sort it was minted with.
-    if (cursor) assertCursorSortBinding(cursor, sort)
+    if (cursor) assertCursorQueryBinding(cursor, { sort, predicate })
 
     const result = await queryRows(
       table,

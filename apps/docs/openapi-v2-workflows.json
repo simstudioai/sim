@@ -40,7 +40,7 @@
       "get": {
         "operationId": "listWorkflows",
         "summary": "List Workflows",
-        "description": "List workflows in a workspace with folder and deployment filters, search, sorting, and opaque cursor pagination. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List workflows in a workspace with folder and deployment filters, search, sorting, and opaque cursor pagination. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -51,6 +51,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose workflows should be listed."
             }
           },
@@ -58,10 +59,10 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to workflows in this folder path.",
+            "description": "Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to workflows in this folder path.",
-              "type": "string"
+              "description": "Restrict results to workflows in this folder path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -91,9 +92,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -102,9 +103,9 @@
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive substring search on the resource name.",
+            "description": "Case-insensitive substring match against the resource name.",
             "schema": {
-              "description": "Case-insensitive substring search on the resource name.",
+              "description": "Case-insensitive substring match against the resource name.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -114,10 +115,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "position",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["position", "name", "createdAt", "updatedAt", "runCount"]
             }
@@ -186,7 +187,7 @@
       "post": {
         "operationId": "createWorkflowV2",
         "summary": "Create Workflow",
-        "description": "Create a workflow in a workspace root or canonical workflow folder. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Create a workflow in a workspace root or canonical workflow folder. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -258,7 +259,7 @@
       "get": {
         "operationId": "getWorkflow",
         "summary": "Get Workflow",
-        "description": "Get a workflow with its variables and deployed API-trigger inputs. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Get a workflow with its variables and deployed API-trigger inputs. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -325,7 +326,7 @@
       "patch": {
         "operationId": "updateWorkflowV2",
         "summary": "Update Workflow",
-        "description": "Rename, describe, or move a workflow to a canonical folder path. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Rename, describe, or move a workflow to a canonical folder path. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -510,9 +511,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -590,7 +591,7 @@
             "schema": {
               "type": "integer",
               "exclusiveMinimum": 0,
-              "maximum": 9007199254740991,
+              "maximum": 2147483647,
               "description": "Numeric deployment version.",
               "examples": [3]
             }
@@ -646,7 +647,7 @@
       "get": {
         "operationId": "getWorkflowDeployment",
         "summary": "Get Workflow Deployment",
-        "description": "Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only place `needsRedeployment` is published — the deploy, undeploy, and rollback responses cannot carry it, because they answer at the moment the draft and the live version are equal.",
+        "description": "Read the current deployment state of a workflow: whether a version is live, when it went live, the most recent deployment attempt with its readiness and failure payload, and whether the editable draft has since diverged from the live version. This is the only operation that publishes `needsRedeployment`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -712,7 +713,7 @@
       "post": {
         "operationId": "deployWorkflow",
         "summary": "Deploy Workflow",
-        "description": "Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries `latestDeploymentAttempt` for the accepted attempt, but `GET /workflows/{id}` does not expose that field — poll activation with `isDeployed` and `deployedAt` on the workflow, or with `isActive` on `GET /workflows/{id}/versions`. Returns 409 when the deployment would conflict with an existing webhook path. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
+        "description": "Create and asynchronously activate a deployment version. Not idempotent: every call mints a new version, so a retry after a timeout creates a second one. A deployment that would conflict with an existing webhook path is a `409`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -796,7 +797,7 @@
       "delete": {
         "operationId": "undeployWorkflow",
         "summary": "Undeploy Workflow",
-        "description": "Deactivate the currently serving workflow version. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
+        "description": "Deactivate the currently serving workflow version. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -865,7 +866,7 @@
       "post": {
         "operationId": "rollbackWorkflow",
         "summary": "Rollback Workflow",
-        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
+        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -926,6 +927,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
@@ -948,7 +952,7 @@
       "get": {
         "operationId": "exportWorkflow",
         "summary": "Export Workflow",
-        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. Exporting records an audit event, so it is not a safe read. A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1017,7 +1021,7 @@
       "post": {
         "operationId": "importWorkflow",
         "summary": "Import Workflow",
-        "description": "Create a workflow from a portable export object, bare state, or JSON string.",
+        "description": "Create a workflow from a portable export object, bare state, or JSON string. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -1089,7 +1093,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute Workflow",
-        "description": "Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. The optional `X-Run-Id` header is a one-shot uniqueness claim, not an idempotency key: reusing a value returns 409 with `error.details.code: \"RUN_ID_CONFLICT\"` and never replays the earlier run. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
+        "description": "Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"` rather than an HTTP error, so branch on `status`. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
         "tags": ["Workflows"],
         "security": [
           {
@@ -1114,9 +1118,9 @@
             "name": "x-run-id",
             "in": "header",
             "required": false,
-            "description": "Caller-supplied run identifier, available only to API-key callers. This is a one-shot uniqueness claim, NOT an idempotency key: the first request to use a value starts a run, and any later request reusing it fails with 409 and `error.details.code: \"RUN_ID_CONFLICT\"` instead of replaying the original result. To retry safely, generate a fresh value per attempt and reconcile duplicates yourself, or omit the header and let the server allocate the run identifier.",
+            "description": "Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: \"RUN_ID_CONFLICT\"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.",
             "schema": {
-              "description": "Caller-supplied run identifier, available only to API-key callers. This is a one-shot uniqueness claim, NOT an idempotency key: the first request to use a value starts a run, and any later request reusing it fails with 409 and `error.details.code: \"RUN_ID_CONFLICT\"` instead of replaying the original result. To retry safely, generate a fresh value per attempt and reconcile duplicates yourself, or omit the header and let the server allocate the run identifier.",
+              "description": "Caller-supplied run identifier, available only to API-key callers. A one-shot uniqueness claim, NOT an idempotency key: reusing a value fails with `409` and `error.details.code: \"RUN_ID_CONFLICT\"` rather than replaying the original result. To retry safely, send a fresh value per attempt, or omit the header and let the server allocate one.",
               "type": "string",
               "minLength": 1,
               "maxLength": 128,
@@ -1128,16 +1132,16 @@
             "name": "x-sim-via",
             "in": "header",
             "required": false,
-            "description": "Comma-separated workflow identifiers describing the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically when one workflow calls another; supply it yourself only when relaying an existing chain. A chain already at the maximum depth is rejected with 409 and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`, which is how runaway recursion between workflows is stopped.",
+            "description": "Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`.",
             "schema": {
-              "description": "Comma-separated workflow identifiers describing the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically when one workflow calls another; supply it yourself only when relaying an existing chain. A chain already at the maximum depth is rejected with 409 and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`, which is how runaway recursion between workflows is stopped.",
+              "description": "Comma-separated workflow identifiers naming the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically; supply it yourself only when relaying an existing chain. A chain at the maximum depth is rejected with `409` and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`.",
               "type": "string"
             }
           }
         ],
         "requestBody": {
           "required": true,
-          "description": "Input and execution-mode options for a deployed workflow. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
+          "description": "Input and execution-mode options for a deployed workflow. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
           "content": {
             "application/json": {
               "schema": {
@@ -1240,7 +1244,7 @@
       "get": {
         "operationId": "listWorkflowRunsV2",
         "summary": "List Workflow Runs",
-        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so direction is carried by the single `order` param.",
+        "description": "List recorded runs of a workflow with filtering and opaque cursor pagination. Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -1281,24 +1285,24 @@
             "name": "startDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
+            "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
+              "description": "Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
             "name": "endDate",
             "in": "query",
             "required": false,
-            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected.",
+            "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.",
             "schema": {
               "type": "string",
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected."
+              "description": "Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant."
             }
           },
           {
@@ -1318,9 +1322,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -1329,10 +1333,10 @@
             "name": "order",
             "in": "query",
             "required": false,
-            "description": "Sort direction by run start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.",
+            "description": "Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
             "schema": {
               "default": "desc",
-              "description": "Sort direction by run start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.",
+              "description": "Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects.",
               "type": "string",
               "enum": ["asc", "desc"]
             }
@@ -1420,9 +1424,9 @@
             "name": "includeOutput",
             "in": "query",
             "required": false,
-            "description": "Include final and block outputs when true.",
+            "description": "Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.",
             "schema": {
-              "description": "Include final and block outputs when true.",
+              "description": "Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.",
               "type": "boolean"
             }
           },
@@ -1430,9 +1434,9 @@
             "name": "selectedOutputs",
             "in": "query",
             "required": false,
-            "description": "Comma-separated block output references to include.",
+            "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
             "schema": {
-              "description": "Comma-separated block output references to include.",
+              "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
               "type": "string"
             }
           }
@@ -1616,7 +1620,7 @@
       "post": {
         "operationId": "cancelRunV2",
         "summary": "Cancel Workflow Run",
-        "description": "Request cancellation of a running, queued, or paused workflow run. Cancelling a run that has already reached a terminal state succeeds with no effect rather than returning an error. The `reason` field is present on every response, including full successes — `recorded` is the success value; it is not a partial-failure marker. A run produced by a table workflow group is a 409 when its cell can no longer accept the cancellation, because the run and its cell must reach the cancelled state together.",
+        "description": "Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state succeeds with no effect. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.",
         "tags": ["Workflow Runs"],
         "parameters": [
           {
@@ -1698,7 +1702,7 @@
       "get": {
         "operationId": "listWorkflowsFolders",
         "summary": "List Workflow Folders",
-        "description": "List canonical workflow folders in a workspace. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List canonical workflow folders in a workspace. The bounded set is returned in one page; `nextCursor` is always null. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1709,6 +1713,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose folders should be listed."
             }
           },
@@ -1719,7 +1724,7 @@
             "description": "Restrict results to direct children of this parent path.",
             "schema": {
               "description": "Restrict results to direct children of this parent path.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -1738,10 +1743,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -1810,7 +1815,7 @@
       "post": {
         "operationId": "createWorkflowsFolder",
         "summary": "Create Workflow Folder",
-        "description": "Create a canonical workflow folder in a workspace.",
+        "description": "Create a canonical workflow folder in a workspace. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -1880,7 +1885,7 @@
       "patch": {
         "operationId": "relocateWorkflowsFolder",
         "summary": "Rename or Move Workflow Folder",
-        "description": "Rename or move a workflow folder and its descendants to a canonical path.",
+        "description": "Rename or move a workflow folder and its descendants to a canonical path. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -1961,6 +1966,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace containing the folder."
             }
           },
@@ -1971,16 +1977,30 @@
             "description": "Path of the folder to delete.",
             "schema": {
               "description": "Path of the folder to delete.",
-              "type": "string"
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
             }
           },
           {
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete nested files and folders when true.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Delete nested files and folders when true.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
               "default": "false",
               "type": "string"
             }
@@ -2048,7 +2068,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       }
     },
     "headers": {
@@ -2083,13 +2103,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -2104,7 +2124,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
@@ -2134,7 +2154,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\nA resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.",
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
         "content": {
           "application/json": {
             "schema": {
@@ -2164,7 +2184,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -2178,18 +2198,8 @@
           }
         }
       },
-      "Gone": {
-        "description": "The requested generated resource has expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2234,7 +2244,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -2254,7 +2264,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -2285,7 +2295,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Optional structured error details."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -2305,6 +2315,12 @@
             }
           }
         ]
+      },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
       },
       "WorkflowListItem": {
         "type": "object",
@@ -2332,7 +2348,9 @@
           },
           "folderPath": {
             "type": "string",
+            "title": "Folder path",
             "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "maxLength": 4096,
             "examples": ["/Operations"]
           },
           "workspaceId": {
@@ -2359,7 +2377,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Total recorded workflow runs."
+            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction."
           },
           "lastRunAt": {
             "anyOf": [
@@ -2370,7 +2388,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp of the latest run, or null when never run.",
+            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
             "format": "date-time"
           },
           "createdAt": {
@@ -2420,7 +2438,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2484,6 +2502,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the workflow."
           },
           "name": {
@@ -2505,8 +2524,7 @@
             ]
           },
           "folderPath": {
-            "description": "Folder path. A missing leading slash is normalized before validation.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "name"],
@@ -2561,7 +2579,9 @@
           },
           "folderPath": {
             "type": "string",
+            "title": "Folder path",
             "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "maxLength": 4096,
             "examples": ["/Operations"]
           },
           "workspaceId": {
@@ -2588,7 +2608,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Total recorded workflow runs."
+            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction."
           },
           "lastRunAt": {
             "anyOf": [
@@ -2599,7 +2619,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 timestamp of the latest run, or null when never run.",
+            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
             "format": "date-time"
           },
           "createdAt": {
@@ -2734,7 +2754,7 @@
           },
           "folderPath": {
             "description": "Destination folder path; `/` moves the workflow to the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "additionalProperties": false,
@@ -2872,7 +2892,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2948,7 +2968,7 @@
             "format": "date-time"
           },
           "state": {
-            "description": "Deployed workflow graph snapshot pinned by this version. Credential-bearing values are redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null.",
+            "description": "Deployed workflow graph snapshot pinned by this version, with credential-bearing values redacted to null: `oauth-input`, `password: true`, table sub-block values, sensitive nested tool parameters, and any parameter without authoritative codec metadata.",
             "$ref": "#/components/schemas/DeployedWorkflowState"
           }
         },
@@ -3321,7 +3341,7 @@
         ],
         "additionalProperties": false,
         "title": "Deploy result",
-        "description": "Deployment attempt accepted for processing. Activation is asynchronous; `latestDeploymentAttempt` on this response is the attempt handle. The request is NOT idempotent — every POST mints a new deployment version, so a retry after a timeout creates a second version rather than returning the first. `latestDeploymentAttempt` is returned only here: `GET /workflows/{id}` does not carry it, so poll activation with `isDeployed` and `deployedAt` on the workflow, or with `isActive` on `GET /workflows/{id}/versions`."
+        "description": "Deployment attempt accepted for processing. Activation is asynchronous, and `latestDeploymentAttempt` is the attempt handle — returned only here. Poll activation with `isDeployed` and `deployedAt` on the workflow, or `isActive` on `GET /workflows/{id}/versions`."
       },
       "DeployWorkflowResponse": {
         "type": "object",
@@ -3394,7 +3414,8 @@
               }
             ]
           }
-        }
+        },
+        "additionalProperties": false
       },
       "UndeployResult": {
         "type": "object",
@@ -3620,7 +3641,8 @@
             "minimum": 1,
             "maximum": 2147483647
           }
-        }
+        },
+        "additionalProperties": false
       },
       "WorkflowExportPayload": {
         "type": "object",
@@ -3670,7 +3692,9 @@
               },
               "folderPath": {
                 "type": "string",
-                "description": "Canonical containing-folder path; `/` is the workspace root."
+                "title": "Folder path",
+                "description": "Canonical containing-folder path; `/` is the workspace root.",
+                "maxLength": 4096
               }
             },
             "required": ["id", "name", "description", "workspaceId", "folderPath"],
@@ -3748,7 +3772,9 @@
           },
           "folderPath": {
             "type": "string",
-            "description": "Canonical containing-folder path."
+            "title": "Folder path",
+            "description": "Canonical containing-folder path.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -3806,6 +3832,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to import the workflow."
           },
           "workflow": {
@@ -3825,7 +3852,7 @@
           },
           "folderPath": {
             "description": "Destination folder path; omit for the workspace root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           },
           "name": {
             "description": "Override for the imported workflow name.",
@@ -3860,21 +3887,20 @@
               "INVALID_INPUT",
               "BLOCK_EXECUTION_FAILED",
               "CHILD_WORKFLOW_FAILED",
-              "OUTPUT_TOO_LARGE",
               "EXECUTION_FAILED"
             ],
-            "description": "Stable machine-readable execution failure code."
+            "description": "Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`."
           },
           "blockId": {
-            "description": "Identifier of the failing block, when attributable.",
+            "description": "Identifier of the failing block. Present on the synchronous execute response only; the polled run resource and the resume response cannot attribute a block.",
             "type": "string"
           },
           "blockName": {
-            "description": "Display name of the failing block.",
+            "description": "Display name of the failing block. Present on the synchronous execute response only.",
             "type": "string"
           },
           "blockType": {
-            "description": "Integration or block type that failed.",
+            "description": "Integration or block type that failed. Present on the synchronous execute response only.",
             "type": "string"
           }
         },
@@ -3936,7 +3962,7 @@
         "required": ["runId", "workflowId", "status", "output", "error"],
         "additionalProperties": false,
         "title": "Workflow run result",
-        "description": "Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a synchronous run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"`, so always branch on `status` rather than on the HTTP status alone."
+        "description": "Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a run that exceeds its execution timeout returns HTTP 200 with `status: \"failed\"` and `error.code: \"TIMEOUT\"`, so branch on `status`."
       },
       "ExecuteWorkflowSyncResponse": {
         "type": "object",
@@ -4029,7 +4055,7 @@
             "type": "boolean"
           },
           "executionTimeoutSeconds": {
-            "description": "Requested server-side timeout for an asynchronous run, in seconds. This is an upper bound on the request, not the effective timeout: the run uses the smaller of this value and the account plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout with no warning. Rejected with 400 unless `async` is true.",
+            "description": "Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true.",
             "type": "integer",
             "minimum": 1,
             "maximum": 604800
@@ -4059,11 +4085,11 @@
             "type": "boolean"
           },
           "includeFileBase64": {
-            "description": "Inline eligible output files as base64 content.",
+            "description": "Inline eligible output files as base64 content. Rejected when `async` is true.",
             "type": "boolean"
           },
           "base64MaxBytes": {
-            "description": "Maximum total bytes of file content to inline as base64.",
+            "description": "Maximum total bytes of file content to inline as base64. Rejected when `async` is true.",
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 10485760
@@ -4071,7 +4097,7 @@
         },
         "additionalProperties": false,
         "title": "Execute workflow request",
-        "description": "Input and execution-mode options for a deployed workflow. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.",
+        "description": "Input and execution-mode options for a deployed workflow. Each option carries the modes it requires and the modes that reject it; a violated combination is a 400.",
         "examples": [
           {
             "input": {
@@ -4118,7 +4144,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` means the run is not executing and is waiting to be resumed: either held at a human-in-the-loop pause point, or left paused because a resume attempt did not run to completion. The status alone does not say which. On the single-run response `paused.automaticResumeWaitingReason` distinguishes them: it is recorded whenever a resume attempt fails and cleared once a resume succeeds, so a null value means the run is waiting on human input. When the failure is not retryable or the automatic retries are exhausted, the reason is prefixed `Automatic resume requires manual intervention: `. Run-list items carry no `paused` object, so the two cases are indistinguishable there."
+            "description": "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting to be resumed — either held at a human-in-the-loop pause point, or left paused by a resume attempt that did not complete. Only the single-run response distinguishes the two, through `paused.automaticResumeWaitingReason`."
           },
           "trigger": {
             "type": "string",
@@ -4205,7 +4231,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4259,7 +4285,7 @@
               "cancelled",
               "queued"
             ],
-            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` means the run is not executing and is waiting to be resumed: either held at a human-in-the-loop pause point, or left paused because a resume attempt did not run to completion. The status alone does not say which. On the single-run response `paused.automaticResumeWaitingReason` distinguishes them: it is recorded whenever a resume attempt fails and cleared once a resume succeeds, so a null value means the run is waiting on human input. When the failure is not retryable or the automatic retries are exhausted, the reason is prefixed `Automatic resume requires manual intervention: `. Run-list items carry no `paused` object, so the two cases are indistinguishable there."
+            "description": "Current or terminal run status. `redacting` is transient, reported while a finished run's output is being scrubbed. `paused` means the run is waiting to be resumed — either held at a human-in-the-loop pause point, or left paused by a resume attempt that did not complete. Only the single-run response distinguishes the two, through `paused.automaticResumeWaitingReason`."
           },
           "trigger": {
             "anyOf": [
@@ -4270,7 +4296,7 @@
                 "type": "null"
               }
             ],
-            "description": "Trigger type, or null before the run is recorded."
+            "description": "Trigger type that started the run. Backfilled as `api` for a run that is still queued, so it is populated from the first poll."
           },
           "startedAt": {
             "anyOf": [
@@ -4281,7 +4307,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 start timestamp, or null while queued.",
+            "description": "ISO 8601 start timestamp. A queued run reports the time it was enqueued, so it is populated from the first poll.",
             "format": "date-time"
           },
           "endedAt": {
@@ -4374,7 +4400,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Reason automatic resume is waiting, or null when it is not waiting."
+                    "description": "Why automatic resume is waiting, or null when it is not — on a paused run, null means it is waiting on human input. Recorded whenever a resume attempt fails and cleared once one succeeds. A non-retryable or exhausted failure is prefixed `Automatic resume requires manual intervention: `."
                   },
                   "pausePointCount": {
                     "type": "number",
@@ -4431,7 +4457,7 @@
                 "type": "null"
               }
             ],
-            "description": "Structured execution failure, or null when none occurred."
+            "description": "Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response."
           },
           "output": {
             "anyOf": [
@@ -4459,7 +4485,7 @@
                 "type": "null"
               }
             ],
-            "description": "Selected block outputs when requested, otherwise null."
+            "description": "Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only."
           }
         },
         "required": [
@@ -4639,7 +4665,7 @@
           },
           "durablyRecorded": {
             "type": "boolean",
-            "description": "Whether cancellation was recorded durably."
+            "description": "Whether this request durably recorded a cancellation. Always false for a run that was already terminal, where the request is satisfied but nothing was written."
           },
           "locallyAborted": {
             "type": "boolean",
@@ -4650,10 +4676,13 @@
             "description": "Whether a paused execution was cancelled."
           },
           "reason": {
-            "description": "Machine-readable cancellation outcome. Present on every cancellation, including full successes — it is not a partial-failure marker. `recorded` means cancellation was durably recorded (the normal success value). `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal could not be written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step when cancelling a paused human-in-the-loop run.",
+            "description": "Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.",
             "type": "string",
             "enum": [
               "recorded",
+              "already_cancelled",
+              "already_completed",
+              "already_failed",
               "redis_unavailable",
               "redis_write_failed",
               "paused_event_publish_failed",
@@ -4671,7 +4700,7 @@
         ],
         "additionalProperties": false,
         "title": "Cancel workflow run result",
-        "description": "Outcome of a workflow run cancellation request. Cancelling a run that has already reached a terminal state (completed, failed, or cancelled) succeeds with no effect rather than returning an error — treat this endpoint as best-effort and poll the run to observe the final state."
+        "description": "Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed."
       },
       "CancelWorkflowRunResponse": {
         "type": "object",
@@ -4708,11 +4737,15 @@
           },
           "path": {
             "type": "string",
-            "description": "Canonical folder path used as the public folder identifier."
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
           },
           "parentPath": {
             "type": "string",
-            "description": "Canonical parent path; `/` is the root."
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -4753,7 +4786,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4801,17 +4834,24 @@
           }
         ]
       },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "CreateWorkflowFolderRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the folder."
           },
           "path": {
             "description": "Path of the folder to create.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path"],
@@ -4850,15 +4890,16 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the folder."
           },
           "path": {
             "description": "Current folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
             "description": "New full path for the folder and its descendants.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -4871,7 +4912,9 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Path of the deleted workflow folder."
+            "title": "Folder path",
+            "description": "Path of the deleted workflow folder.",
+            "maxLength": 4096
           },
           "deleted": {
             "type": "boolean",

@@ -15,7 +15,6 @@ import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { getProviderFromModel } from '@/providers/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
@@ -108,30 +107,18 @@ export const ComboBox = memo(function ComboBox({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Permission-based filtering for model dropdowns
-  const {
-    isProviderAllowed,
-    isModelAllowed,
-    isLoading: isPermissionLoading,
-  } = usePermissionConfig()
+  const { isModelUsable, isLoading: isPermissionLoading } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
   const staticOptions = useMemo(() => {
     const opts = typeof options === 'function' ? options() : options
 
     if (subBlockId === 'model') {
-      return opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+      return opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     return opts
-  }, [options, subBlockId, isProviderAllowed, isModelAllowed])
+  }, [options, subBlockId, isModelUsable])
 
   const {
     fetchedOptions,
@@ -210,15 +197,7 @@ export const ComboBox = memo(function ComboBox({
       fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
 
     if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
-      opts = opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+      opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     // Merge hydrated option if not already present
@@ -251,8 +230,7 @@ export const ComboBox = memo(function ComboBox({
     hydratedOption,
     createdOption,
     subBlockId,
-    isProviderAllowed,
-    isModelAllowed,
+    isModelUsable,
   ])
 
   // Convert options to Combobox format

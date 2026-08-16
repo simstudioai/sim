@@ -51,8 +51,10 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
-  normalizeColumn: (column: unknown) => column,
   tableLockErrorResponse: () => null,
+}))
+vi.mock('@/lib/table/wire', () => ({
+  normalizeColumn: (column: unknown) => column,
 }))
 
 import { GET, PATCH } from '@/app/api/table/[tableId]/route'

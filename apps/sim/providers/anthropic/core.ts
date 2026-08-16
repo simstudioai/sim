@@ -974,10 +974,7 @@ function enrichLastModelSegmentFromAnthropicResponse(
   const toolCalls: IterationToolCall[] = toolUseBlocks.map((t) => ({
     id: t.id,
     name: t.name,
-    arguments:
-      t.input && typeof t.input === 'object' && !Array.isArray(t.input)
-        ? (t.input as Record<string, unknown>)
-        : {},
+    arguments: isRecordLike(t.input) ? (t.input as Record<string, unknown>) : {},
   }))
 
   const usage = createAnthropicUsageAccumulator()

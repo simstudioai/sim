@@ -993,11 +993,15 @@ After adding or changing one, run:
 ```bash
 bun run scripts/generate-docs.ts
 bun run integration-catalog:check
+bun run docs:check
 ```
 
 The catalog check independently derives deployment metadata from the executable block registry and
-compares it with the committed `apps/sim/lib/integrations/integrations.json`. Review the generated
-diff and keep only intentional changes.
+compares it with the committed `apps/sim/lib/integrations/integrations.json`. `docs:check` re-renders
+every generated docs artifact in memory and fails on any committed file that differs — it runs in CI
+via `check:audits`, so commit the full generator output. If the generator also trues up pages an
+earlier PR left stale, commit that catch-up too; reverting it as "unrelated drift" makes `docs:check`
+fail.
 ## Checklist Before Finishing
 
 - [ ] `integrationType` is set to the correct `IntegrationType` enum value
@@ -1018,6 +1022,7 @@ diff and keep only intentional changes.
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run tool-metadata:generate` and committed the artifacts
 - [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
 - [ ] `bun run integration-catalog:check` passes
+- [ ] `bun run docs:check` passes (CI gate — fails on any stale generated docs page)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

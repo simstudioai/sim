@@ -6,10 +6,21 @@ import { WorkflowTypeIcon } from '@sim/workflow-renderer'
 import { getBlockTileColor, getBlockTileIcon, hasBlockAccent } from '@/blocks/accent'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
-/** Slot sizes the tile ships in: the canvas 16px chip, or 14px for dense rows. */
+/**
+ * Slot sizes the tile ships in: the 18px detail header, the canvas 16px chip,
+ * or 14px for dense rows.
+ */
 const TILE_SIZE_CLASS = {
+  lg: 'size-[18px]',
   md: 'size-[16px]',
   sm: 'size-[14px]',
+} as const
+
+/** Icon drawn inside each slot. Only the header tile takes the larger glyph. */
+const TILE_ICON_SIZE_CLASS = {
+  lg: 'size-[12px]',
+  md: 'size-[10px]',
+  sm: 'size-[10px]',
 } as const
 
 export interface BlockTileProps extends Omit<HTMLAttributes<HTMLElement>, 'children' | 'style'> {
@@ -54,9 +65,18 @@ export function BlockTile({
 }: BlockTileProps) {
   const Icon = icon ?? (blockType ? getBlockTileIcon(blockType) : undefined)
   const sizeClass = cn(TILE_SIZE_CLASS[size], className)
+  const iconSizeClass = TILE_ICON_SIZE_CLASS[size]
 
   if (blockType && Icon && hasBlockAccent(blockType)) {
-    return <WorkflowTypeIcon type={blockType} Icon={Icon} className={sizeClass} {...props} />
+    return (
+      <WorkflowTypeIcon
+        type={blockType}
+        Icon={Icon}
+        className={sizeClass}
+        iconClassName={iconSizeClass}
+        {...props}
+      />
+    )
   }
 
   const fill = bgColor ?? (blockType ? getBlockTileColor(blockType) : undefined)
@@ -70,7 +90,8 @@ export function BlockTile({
       {Icon ? (
         <Icon
           className={cn(
-            'size-[10px] transition-transform duration-100 group-hover:scale-110',
+            iconSizeClass,
+            'transition-transform duration-100 group-hover:scale-110',
             getTileIconColorClass(fill, true)
           )}
         />

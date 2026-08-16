@@ -712,45 +712,6 @@ async function verifyRegularFileAccess(
 }
 
 /**
- * Unified authorization function that returns structured result
- */
-async function authorizeFileAccess(
-  key: string,
-  userId: string,
-  context?: StorageContext,
-  storageConfig?: StorageConfig,
-  isLocal?: boolean
-): Promise<AuthorizationResult> {
-  const granted = await verifyFileAccess(key, userId, storageConfig, context, isLocal)
-
-  if (granted) {
-    let workspaceId: string | undefined
-    const inferredContext = context || inferContextFromKey(key)
-
-    if (inferredContext === 'workspace') {
-      const record = await lookupWorkspaceFileByKey(key)
-      workspaceId = record?.workspaceId
-    } else {
-      const extracted = extractWorkspaceIdFromKey(key)
-      if (extracted) {
-        workspaceId = extracted
-      }
-    }
-
-    return {
-      granted: true,
-      reason: 'Access granted',
-      workspaceId,
-    }
-  }
-
-  return {
-    granted: false,
-    reason: 'Access denied - insufficient permissions or file not found',
-  }
-}
-
-/**
  * Guard helper for tool routes that download user files from storage.
  *
  * Validates that `key` is a non-empty string, that `userId` is present, and

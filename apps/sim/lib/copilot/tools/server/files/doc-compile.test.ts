@@ -8,6 +8,7 @@ const {
   executeInSandboxMock,
   executeShellInSandboxMock,
   loadCompiledDocMock,
+  publishCompiledDocArtifactMock,
   readWorkspaceFileContentMock,
   readWorkspaceFileMetadataMock,
   storeCompiledDocMock,
@@ -15,6 +16,7 @@ const {
   executeInSandboxMock: vi.fn(),
   executeShellInSandboxMock: vi.fn(),
   loadCompiledDocMock: vi.fn(),
+  publishCompiledDocArtifactMock: vi.fn(),
   readWorkspaceFileContentMock: vi.fn(),
   readWorkspaceFileMetadataMock: vi.fn(),
   storeCompiledDocMock: vi.fn(),
@@ -35,6 +37,8 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
 }))
 vi.mock('./doc-compiled-store', () => ({
   loadCompiledDoc: loadCompiledDocMock,
+  loadPublishedCompiledDoc: vi.fn(),
+  publishCompiledDocArtifact: publishCompiledDocArtifactMock,
   storeCompiledDoc: storeCompiledDocMock,
 }))
 
@@ -245,5 +249,11 @@ describe('collectReferencedFileIds', () => {
     )
     expect(readWorkspaceFileContentMock).not.toHaveBeenCalled()
     expect(executeInSandboxMock).not.toHaveBeenCalled()
+    expect(publishCompiledDocArtifactMock).toHaveBeenCalledWith(
+      'workspace-1',
+      `image = await getFileBase64('${ID}')`,
+      'pdf',
+      expect.stringContaining(ID)
+    )
   })
 })

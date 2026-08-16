@@ -2,6 +2,7 @@ import { db, webhook, webhookPathClaim, workflow, workflowDeploymentVersion } fr
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -297,84 +298,6 @@ export function handlePreDeploymentVerification(
       message: 'Webhook endpoint verified',
     })
   }
-  return null
-}
-
-async function findWebhookAndWorkflow(
-  options: WebhookProcessorOptions
-): Promise<WebhookTarget | null> {
-  if (options.webhookId) {
-    const results = await db
-      .select({
-        webhook: webhook,
-        workflow: workflow,
-      })
-      .from(webhook)
-      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .leftJoin(
-        workflowDeploymentVersion,
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflow.id),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      )
-      .where(
-        and(
-          eq(webhook.id, options.webhookId),
-          deliverableWebhookPredicate(webhook),
-          isNull(workflow.archivedAt),
-          or(
-            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
-            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
-          )
-        )
-      )
-      .limit(1)
-
-    if (results.length === 0) {
-      logger.warn(`[${options.requestId}] No active webhook found for id: ${options.webhookId}`)
-      return null
-    }
-
-    return { webhook: results[0].webhook, workflow: results[0].workflow }
-  }
-
-  if (options.path) {
-    const results = await db
-      .select({
-        webhook: webhook,
-        workflow: workflow,
-      })
-      .from(webhook)
-      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .leftJoin(
-        workflowDeploymentVersion,
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflow.id),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      )
-      .where(
-        and(
-          eq(webhook.path, options.path),
-          deliverableWebhookPredicate(webhook),
-          isNull(workflow.archivedAt),
-          or(
-            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
-            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
-          )
-        )
-      )
-      .limit(1)
-
-    if (results.length === 0) {
-      logger.warn(`[${options.requestId}] No active webhook found for path: ${options.path}`)
-      return null
-    }
-
-    return { webhook: results[0].webhook, workflow: results[0].workflow }
-  }
-
   return null
 }
 
@@ -693,9 +616,7 @@ export interface WebhookDispatchResult {
 }
 
 function parseProviderConfig(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function getCredentialId(providerConfig: Record<string, unknown>): string | undefined {

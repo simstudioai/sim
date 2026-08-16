@@ -1,8 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { CursorKey } from '@/lib/api/list-query'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
-import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -37,19 +36,19 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
       undefined,
       { maxRows: MAX_FOLDERS_PER_WORKSPACE }
     )
-    const folderId =
-      input.folderPath === undefined
-        ? undefined
-        : input.folderPath === '/'
-          ? null
-          : folderIndex.idByPath.get(input.folderPath)
-    if (input.folderPath !== undefined && folderId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
+    const folderFilter = resolveFolderPathFilter(folderIndex, input.folderPath)
+    if (folderFilter.kind === 'noMatch') {
+      return {
+        workflows: [],
+        nextCursorKeys: null,
+        sortBy: input.sortBy,
+        sortOrder: input.sortOrder,
+      }
     }
 
     const page = await listWorkspaceWorkflows({
       workspaceId: context.workspaceId,
-      folderId,
+      folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
       deployedOnly: input.deployedOnly,
       search: input.search,
       sortBy: input.sortBy,

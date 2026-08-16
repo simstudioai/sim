@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 
@@ -15,6 +16,16 @@ interface Backing {
   seq: number
   /** Number of upcoming xAdd calls to fail with a transient error (to exercise publish retry). */
   failXAdd: number
+  /** Set to fail every xRead the way node-redis does once a client has been closed. */
+  readerClosed: boolean
+  /** Failed reads served, so a test can prove the loop is not spinning at the read cadence. */
+  reads: number
+  /** When each FAILED read was attempted, so a test can measure one backoff interval exactly. */
+  failedReadTimes: number[]
+  /** Reads that returned (the idle steady state) — the event that ends a failure streak. */
+  idleReads: number
+  /** `connect()` calls, so a test can prove a closed reader is re-opened rather than abandoned. */
+  connects: number
 }
 
 const state = vi.hoisted(() => ({ backing: null as Backing | null }))
@@ -27,7 +38,11 @@ function makeClient(): any {
     return state.backing
   }
   const client: any = {
-    connect: async () => {},
+    isOpen: true,
+    connect: async () => {
+      client.isOpen = true
+      b().connects++
+    },
     quit: async () => {},
     on: () => client,
     duplicate: () => makeClient(),
@@ -52,14 +67,24 @@ function makeClient(): any {
       )
     },
     xRead: async (streams: { key: string; id: string }[]) => {
+      b().reads++
+      if (b().readerClosed) {
+        b().failedReadTimes.push(Date.now())
+        client.isOpen = false
+        throw new Error('The client is closed')
+      }
       const res: { name: string; messages: { id: string; message: Record<string, string> }[] }[] =
         []
       for (const { key, id } of streams) {
         const after = (b().streams.get(key) ?? []).filter((e) => seqOf(e.id) > seqOf(id))
         if (after.length) res.push({ name: key, messages: after.map((e) => ({ ...e })) })
       }
-      if (res.length) return res
-      await new Promise((r) => setTimeout(r, 5))
+      if (res.length) {
+        b().idleReads++
+        return res
+      }
+      await sleep(5)
+      b().idleReads++
       return null
     },
     set: async (key: string, val: string, opts?: { NX?: boolean }) => {
@@ -129,12 +154,101 @@ async function newStore(): Promise<FileDocStore> {
 
 describe('FileDocStore', () => {
   beforeEach(() => {
-    state.backing = { streams: new Map(), kv: new Map(), seq: 0, failXAdd: 0 }
+    state.backing = {
+      streams: new Map(),
+      kv: new Map(),
+      seq: 0,
+      failXAdd: 0,
+      readerClosed: false,
+      reads: 0,
+      failedReadTimes: [],
+      idleReads: 0,
+      connects: 0,
+    }
     stores = []
   })
 
   afterEach(async () => {
     await Promise.all(stores.map((s) => s.shutdown()))
+  })
+
+  /**
+   * A connection that stops serving reads used to spin the tailer at the read cadence — two attempts a
+   * second, one warning each, forever — while the task quietly stopped converging with every other one.
+   * The loop must back off instead, and re-open a client that was closed rather than reading a dead one.
+   */
+  it('backs off and re-opens the reader when its connection is closed, instead of spinning', async () => {
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+    state.backing!.readerClosed = true
+
+    state.backing!.connects = 0 // ignore the two `init` connects; count only recovery attempts
+    const before = state.backing!.reads
+    await sleep(3000)
+    const attempts = state.backing!.reads - before
+
+    // A fixed 500ms retry manages 6–7 attempts in this window; backing off (500 → 1s → 2s → …) manages
+    // about 3. Exact counts are timing-dependent, so assert the property — it slowed down — not a number.
+    expect(attempts).toBeGreaterThan(0)
+    expect(attempts).toBeLessThanOrEqual(4)
+    // …and it tried to bring the connection back rather than leaving the tailer dead forever.
+    expect(state.backing!.connects).toBeGreaterThan(0)
+    doc.destroy()
+  })
+
+  /**
+   * The streak has to end on a read that RETURNS, not on one that carries messages: a blocking read
+   * timing out with nothing new is the idle steady state. Counting only message-bearing reads would
+   * keep a healed outage's streak alive through normal polling, so the next unrelated blip would open
+   * at the backoff cap — minutes of unnecessary split-brain — and log a count it never earned.
+   */
+  it('ends the failure streak on an idle read, so a later blip starts over', async () => {
+    const store = await newStore()
+    const doc = new Y.Doc()
+    await store.attachRoom(NAME, doc)
+
+    // Build a streak of two failures (the retries back off ~0.5s, then ~1s).
+    state.backing!.readerClosed = true
+    await vi.waitFor(
+      () => expect(state.backing!.failedReadTimes.length).toBeGreaterThanOrEqual(2),
+      {
+        timeout: 5000,
+        interval: 25,
+      }
+    )
+
+    // Redis comes back. Wait for a read to actually RETURN — waiting a fixed span instead is a race:
+    // the pending backoff can outlast it, no idle read lands, and the streak survives into the phase
+    // below, which then measures the wrong backoff and fails. That is an event, so wait on the event.
+    state.backing!.readerClosed = false
+    const idleBefore = state.backing!.idleReads
+    await vi.waitFor(() => expect(state.backing!.idleReads).toBeGreaterThan(idleBefore), {
+      timeout: 5000,
+      interval: 25,
+    })
+
+    // A fresh blip must retry at the START of the backoff curve, not partway up it. Assert the DELAY
+    // itself: counting attempts inside a fixed window cannot tell the two apart, because the jittered
+    // delay for a carried streak (1.6–2.4s) overlaps any window wide enough to catch a reset one.
+    // Measure FAILURE to FAILURE so the sample is exactly one backoff — a straggler successful read
+    // landing just after the flag flips would otherwise become the first sample and pass trivially.
+    state.backing!.readerClosed = true
+    state.backing!.failedReadTimes.length = 0
+    await vi.waitFor(
+      () => expect(state.backing!.failedReadTimes.length).toBeGreaterThanOrEqual(2),
+      {
+        timeout: 6000,
+        interval: 25,
+      }
+    )
+    const [first, second] = state.backing!.failedReadTimes
+
+    // Streak reset ⇒ the first delay is 500ms ±20% ⇒ at most 600ms. Streak carried over ⇒ it is the
+    // third delay, 2000ms ±20% ⇒ at least 1600ms. The bound sits between them with room on both
+    // sides, so a loaded machine stretching the short sleep does not flip the verdict.
+    expect(second - first).toBeLessThan(1200)
+    doc.destroy()
   })
 
   it('elects exactly one seeder across tasks (no split-brain seed)', async () => {

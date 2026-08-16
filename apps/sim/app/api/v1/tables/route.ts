@@ -12,7 +12,8 @@ import {
   TableConflictError,
   type TableSchema,
 } from '@/lib/table'
-import { normalizeColumn, orchestrationErrorResponse } from '@/app/api/table/utils'
+import { normalizeColumn } from '@/lib/table/wire'
+import { orchestrationErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   createRateLimitResponse,

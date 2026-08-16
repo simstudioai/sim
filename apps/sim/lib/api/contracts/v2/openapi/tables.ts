@@ -13,6 +13,7 @@ import {
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_ERRORS,
+  withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2AddTableColumnContract,
@@ -93,10 +94,11 @@ const TABLE_MUTATION_ERRORS = [
 ] as const satisfies readonly ErrorResponseId[]
 
 /**
- * The two table query reads declare `maxBodyBytes`, which the route builder
- * turns into a real `413`, so their set is the base plus that status. Every
- * other table read carries its input in the query string and has no body
- * ceiling to exceed.
+ * The two table query reads declare their own `maxBodyBytes` — 1 MiB, far below
+ * the 50 MB default every JSON body is held to — so their `413` is a routine
+ * answer to an oversized predicate rather than an abuse ceiling, and it is named
+ * here and in their descriptions. Every other table read carries its input in
+ * the query string and has no body ceiling to exceed.
  */
 const TABLE_QUERY_ERRORS = [
   ...RESOURCE_ERRORS,
@@ -119,7 +121,7 @@ function tableOperation(
   }
 }
 
-const routes = [
+const declaredRoutes = [
   defineOpenApiRoute(
     v2ListTablesContract,
     tableOperation({
@@ -154,6 +156,7 @@ const routes = [
       success: { description: 'The created table.' },
     }),
     {
+      query: v2CreateTableContract.query,
       body: documentedSchema(
         v2CreateTableContract.body,
         'CreateTableRequest',
@@ -246,11 +249,12 @@ const routes = [
     tableOperation({
       operationId: 'updateTable',
       summary: 'Update Table',
-      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. The name, description, and folder changes are written independently in that order, so a failure part-way through leaves the earlier writes committed — a 4xx does NOT mean nothing changed. When at least one field landed before the failure, the error body carries \`details.applied\`: the list of fields (\`name\`, \`description\`, \`folderPath\`) that were successfully written. Re-read the table, or retry with only the fields missing from \`details.applied\`.\n\n${FOLDER_TREE_TOO_LARGE}`,
+      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. The error body carries \`details.applied\` naming the fields that landed — retry with only the ones missing from it.\n\n${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
     }),
     {
+      query: v2UpdateTableContract.query,
       params: documentedSchema(
         v2UpdateTableContract.params,
         'UpdateTableParams',
@@ -282,6 +286,7 @@ const routes = [
       success: { description: 'The updated table columns.' },
     }),
     {
+      query: v2AddTableColumnContract.query,
       params: documentedSchema(
         v2AddTableColumnContract.params,
         'AddTableColumnParams',
@@ -313,6 +318,7 @@ const routes = [
       success: { description: 'The updated table columns.' },
     }),
     {
+      query: v2UpdateTableColumnContract.query,
       params: documentedSchema(
         v2UpdateTableColumnContract.params,
         'UpdateTableColumnParams',
@@ -344,6 +350,7 @@ const routes = [
       success: { description: 'The surviving table columns.' },
     }),
     {
+      query: v2DeleteTableColumnContract.query,
       params: documentedSchema(
         v2DeleteTableColumnContract.params,
         'DeleteTableColumnParams',
@@ -407,6 +414,7 @@ const routes = [
       success: { description: 'The inserted row or rows.' },
     }),
     {
+      query: v2CreateTableRowsContract.query,
       params: documentedSchema(
         v2CreateTableRowsContract.params,
         'CreateTableRowsParams',
@@ -438,6 +446,7 @@ const routes = [
       success: { description: 'The bulk update result.' },
     }),
     {
+      query: v2UpdateRowsByFilterContract.query,
       params: documentedSchema(
         v2UpdateRowsByFilterContract.params,
         'UpdateTableRowsParams',
@@ -476,6 +485,7 @@ const routes = [
       success: { description: 'The bulk deletion result.' },
     }),
     {
+      query: v2DeleteTableRowsContract.query,
       params: documentedSchema(
         v2DeleteTableRowsContract.params,
         'DeleteTableRowsParams',
@@ -537,6 +547,7 @@ const routes = [
       success: { description: 'The updated table row.' },
     }),
     {
+      query: v2UpdateTableRowContract.query,
       params: documentedSchema(
         v2UpdateTableRowContract.params,
         'UpdateTableRowParams',
@@ -594,11 +605,12 @@ const routes = [
       operationId: 'upsertTableRow',
       summary: 'Upsert Row',
       description:
-        'Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is treated as the complete new row value, so every column you omit is cleared on the matched row. Upserting 2 of 10 columns blanks the other 8. This differs from `PATCH /api/v2/tables/{tableId}/rows/{rowId}`, which merges the patch into the existing row data. Send the full row here, or use PATCH when you only mean to change a subset.',
+        'Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is the complete new row value, so every column you omit is cleared on the matched row. Send the full row here, or use `PATCH /api/v2/tables/{tableId}/rows/{rowId}` to change a subset.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The upserted row and operation performed.' },
     }),
     {
+      query: v2UpsertTableRowContract.query,
       params: documentedSchema(
         v2UpsertTableRowContract.params,
         'UpsertTableRowParams',
@@ -632,11 +644,12 @@ const routes = [
       operationId: 'queryTableRows',
       summary: 'Query Rows',
       description:
-        'Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null.',
-      errors: RESOURCE_ERRORS,
+        'Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`.',
+      errors: TABLE_QUERY_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
     {
+      query: v2QueryRowsContract.query,
       params: documentedSchema(
         v2QueryRowsContract.params,
         'QueryTableRowsParams',
@@ -671,11 +684,12 @@ const routes = [
       operationId: 'countTableRows',
       summary: 'Count Rows',
       description:
-        'Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and rowCount on the table resource counts every row rather than the predicate matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.',
+        'Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.',
       errors: TABLE_QUERY_ERRORS,
       success: { description: 'The number of matching table rows.' },
     }),
     {
+      query: v2QueryRowsCountContract.query,
       params: documentedSchema(
         v2QueryRowsCountContract.params,
         'CountTableRowsParams',
@@ -742,6 +756,7 @@ const routes = [
       success: { description: 'The created table view.' },
     }),
     {
+      query: v2CreateTableViewContract.query,
       params: documentedSchema(
         v2CreateTableViewContract.params,
         'CreateTableViewParams',
@@ -814,6 +829,7 @@ const routes = [
       success: { description: 'The updated table view.' },
     }),
     {
+      query: v2UpdateTableViewContract.query,
       params: documentedSchema(
         v2UpdateTableViewContract.params,
         'UpdateTableViewParams',
@@ -906,6 +922,7 @@ const routes = [
       success: { description: 'The created workflow group and resulting columns.' },
     }),
     {
+      query: v2AddWorkflowGroupContract.query,
       params: documentedSchema(
         v2AddWorkflowGroupContract.params,
         'AddTableWorkflowGroupParams',
@@ -943,11 +960,12 @@ const routes = [
       operationId: 'updateTableWorkflowGroup',
       summary: 'Update Workflow Group',
       description:
-        'Restructure a workflow group, its producer, outputs, or execution behavior.\n\nOutput leaf types are resolved against the group\u2019s workflow outside the write lock. If the group is repointed at a different workflow concurrently, that snapshot is invalidated and the request returns `409` — retry the update.',
+        'Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.',
       errors: RESOURCE_MUTATION_ERRORS,
       success: { description: 'The updated workflow group and resulting columns.' },
     }),
     {
+      query: v2UpdateWorkflowGroupContract.query,
       params: documentedSchema(
         v2UpdateWorkflowGroupContract.params,
         'UpdateTableWorkflowGroupParams',
@@ -979,6 +997,7 @@ const routes = [
       success: { description: 'Workflow-group deletion acknowledgement and surviving columns.' },
     }),
     {
+      query: v2DeleteWorkflowGroupContract.query,
       params: documentedSchema(
         v2DeleteWorkflowGroupContract.params,
         'DeleteTableWorkflowGroupParams',
@@ -1011,6 +1030,7 @@ const routes = [
       success: { description: 'The accepted table-column dispatch.' },
     }),
     {
+      query: v2RunTableColumnContract.query,
       params: documentedSchema(
         v2RunTableColumnContract.params,
         'RunTableColumnsParams',
@@ -1042,6 +1062,7 @@ const routes = [
       success: { description: 'The accepted row enrichment dispatch.' },
     }),
     {
+      query: v2RunRowEnrichmentContract.query,
       params: documentedSchema(
         v2RunRowEnrichmentContract.params,
         'RunRowEnrichmentParams',
@@ -1074,6 +1095,7 @@ const routes = [
       success: { description: 'The matching table cells.' },
     }),
     {
+      query: v2FindTableRowsContract.query,
       params: documentedSchema(
         v2FindTableRowsContract.params,
         'FindTableRowsParams',
@@ -1112,6 +1134,7 @@ const routes = [
       success: { description: 'The created table import and optional transfer instructions.' },
     }),
     {
+      query: v2CreateTableImportContract.query,
       body: documentedSchema(
         v2CreateTableImportContract.body,
         'CreateTableImportRequest',
@@ -1139,7 +1162,8 @@ const routes = [
     tableOperation({
       operationId: 'getTableImport',
       summary: 'Get Table Import',
-      description: 'Read progress and terminal state for a durable table import.',
+      description:
+        'Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase is a `404`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'The requested table import.' },
     }),
@@ -1157,6 +1181,12 @@ const routes = [
         'Get table import query',
         'Workspace scope for the import.'
       ),
+      headers: documentedSchema(
+        v2GetTableImportContract.headers,
+        'GetTableImportHeaders',
+        'Get table import headers',
+        'Optional signed upload control token for an upload-backed import.'
+      ),
       response: documentedSchema(
         v2GetTableImportContract.response.schema,
         'V2TableImportResponse',
@@ -1171,7 +1201,7 @@ const routes = [
       operationId: 'cancelTableImport',
       summary: 'Cancel Table Import',
       description:
-        'Cancel an upload or processing import without rolling back committed row batches.\n\nCanceling an import that is not in a cancelable state returns `409` naming the current status, and that includes an expired import — `expired` is a terminal import status, not a `410`. An import id that never existed, or one whose retention window already purged the record, returns `404`.',
+        'Cancel an upload or processing import without rolling back committed row batches.\n\nAn import that is not in a cancelable state, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The canceled table import.' },
     }),
@@ -1208,7 +1238,7 @@ const routes = [
       operationId: 'createTableImportPartUrls',
       summary: 'Create Table Import Part URLs',
       description:
-        'Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be in the `uploading` state. An import that has moved on — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.',
+        'Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be `uploading`; one that has moved on, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The signed multipart upload URLs.' },
     }),
@@ -1252,7 +1282,7 @@ const routes = [
       operationId: 'completeTableImportUpload',
       summary: 'Complete Table Import Upload',
       description:
-        'Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nCompleting an import that is no longer awaiting an upload — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.',
+        'Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nAn import no longer awaiting an upload, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.',
       errors: [...RESOURCE_CONFLICT_ERRORS, 'Locked'],
       success: { description: 'The table import after upload completion.' },
     }),
@@ -1294,6 +1324,7 @@ const routes = [
       success: { description: 'The created table export.' },
     }),
     {
+      query: v2CreateTableExportContract.query,
       params: documentedSchema(
         v2CreateTableExportContract.params,
         'CreateTableExportParams',
@@ -1382,7 +1413,7 @@ const routes = [
       operationId: 'downloadTableExport',
       summary: 'Download Table Export',
       description:
-        'Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached the `completed` status. An export still processing, or one that failed or was canceled, returns `409` naming the current status. An export whose generated file is no longer available — the retention window elapsed, or the object was purged — returns `404` (`Export file is no longer available`), not `410`.',
+        'Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Signed table-export download information.' },
     }),
@@ -1418,6 +1449,7 @@ const routes = [
       success: { description: 'The number of canceled cell runs.' },
     }),
     {
+      query: v2CancelTableRunsContract.query,
       params: documentedSchema(
         v2CancelTableRunsContract.params,
         'CancelTableRunsParams',
@@ -1473,6 +1505,7 @@ const routes = [
       success: { description: 'The created table folder.' },
     }),
     {
+      query: v2CreateTableFolderContract.query,
       body: documentedSchema(
         v2CreateTableFolderContract.body,
         'CreateTableFolderRequest',
@@ -1498,6 +1531,7 @@ const routes = [
       success: { description: 'The relocated table folder.' },
     }),
     {
+      query: v2RelocateTableFolderContract.query,
       body: documentedSchema(
         v2RelocateTableFolderContract.body,
         'RelocateTableFolderRequest',
@@ -1546,12 +1580,14 @@ const routes = [
   ),
 ] as const
 
+const routes = declaredRoutes.map(withRequestBodyErrors)
+
 export const tablesOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-tables.json',
   info: {
     title: 'Sim Tables API v2',
     description:
-      'Manage tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports through the public v2 API. Row data is keyed by column name.',
+      'Version 2 of the Sim REST API for tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports. Row data is keyed by column name.',
     version: '2.0.0',
     contact: { name: 'Sim Support', email: 'help@sim.ai', url: 'https://www.sim.ai' },
     license: { name: 'Apache 2.0', url: 'https://www.apache.org/licenses/LICENSE-2.0.html' },

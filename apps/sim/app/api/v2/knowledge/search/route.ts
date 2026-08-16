@@ -52,6 +52,7 @@ export const POST = defineV2JsonRoute({
       knowledgeBaseIds: result.knowledgeBaseIds,
       topK: result.topK,
       totalResults: result.totalResults,
+      rerankerStatus: result.rerankerStatus,
     },
   }),
 })

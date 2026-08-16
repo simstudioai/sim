@@ -21,6 +21,9 @@ export const revalidate = 0
  * fallback: it retains the timestamp of a deployment that has since been
  * undeployed, so reading it would report a deploy time alongside
  * `isDeployed: false`.
+ *
+ * Deliberately head-safe despite the migrate-on-read write, for the reasons on
+ * `GET /api/v2/workflows/[id]`.
  */
 export const GET = defineV2JsonRoute({
   contract: v2GetWorkflowDeploymentContract,

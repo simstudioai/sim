@@ -6,6 +6,7 @@ interface AshbyListJobPostingsParams {
   location?: string
   department?: string
   listedOnly?: boolean
+  includeUnpublishedJobPostings?: boolean
   jobBoardId?: string
 }
 
@@ -22,6 +23,7 @@ interface AshbyJobPostingSummary {
   } | null
   workplaceType: string | null
   employmentType: string | null
+  status: string | null
   isListed: boolean
   publishedDate: string | null
   applicationDeadline: string | null
@@ -72,6 +74,13 @@ export const listJobPostingsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'When true, only returns listed (publicly visible) job postings (default false)',
     },
+    includeUnpublishedJobPostings: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'When true, also returns unpublished (Draft) job postings. The endpoint already returns both listed and unlisted published postings by default, so this only adds drafts.',
+    },
     jobBoardId: {
       type: 'string',
       required: false,
@@ -90,6 +99,9 @@ export const listJobPostingsTool: ToolConfig<
       if (params.location) body.location = params.location
       if (params.department) body.department = params.department
       if (params.listedOnly !== undefined) body.listedOnly = params.listedOnly
+      if (params.includeUnpublishedJobPostings !== undefined) {
+        body.includeUnpublishedJobPostings = params.includeUnpublishedJobPostings
+      }
       if (params.jobBoardId) body.jobBoardId = params.jobBoardId.trim()
       return body
     },
@@ -127,6 +139,7 @@ export const listJobPostingsTool: ToolConfig<
               : null,
             workplaceType: (jp.workplaceType as string) ?? null,
             employmentType: (jp.employmentType as string) ?? null,
+            status: (jp.status as string) ?? null,
             isListed: (jp.isListed as boolean) ?? false,
             publishedDate: (jp.publishedDate as string) ?? null,
             applicationDeadline: (jp.applicationDeadline as string) ?? null,
@@ -184,6 +197,11 @@ export const listJobPostingsTool: ToolConfig<
           employmentType: {
             type: 'string',
             description: 'Employment type (FullTime, PartTime, Intern, Contract, Temporary)',
+            optional: true,
+          },
+          status: {
+            type: 'string',
+            description: 'Posting status (Draft or Published)',
             optional: true,
           },
           isListed: { type: 'boolean', description: 'Whether the posting is publicly listed' },

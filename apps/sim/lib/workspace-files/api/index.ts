@@ -3,5 +3,6 @@ export { internalFileErrorPolicies } from '@/lib/workspace-files/api/internal-er
 export { internalFilePresenters } from '@/lib/workspace-files/api/internal-presenters'
 export {
   internalSessionOrExecutorAuth,
+  internalWorkspaceFileServeAuth,
   v2FileErrorPolicies,
 } from '@/lib/workspace-files/api/route-policies'

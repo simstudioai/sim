@@ -103,6 +103,15 @@ interface ContextMenuProps {
 /**
  * Context menu component for workflow, folder, and workspace items.
  * Uses DropdownMenu for accessible, hover-expandable submenus.
+ *
+ * A non-modal Radix menu dismisses itself whenever focus lands outside it, and this
+ * menu is routinely opened on top of another Radix menu — the collapsed sidebar's
+ * chat flyout. Radix menu rows call `focus()` on `pointermove` and a menu refocuses
+ * its own content when the pointer leaves a row, so the first mouse movement after a
+ * right-click inside the flyout pulled focus back into the flyout and closed this
+ * menu before the cursor could reach it. `onFocusOutside` therefore ignores focus
+ * that lands in a surrounding menu; focus leaving to anything else (tabbing away)
+ * still dismisses, as do pointer-down outside, Escape, and selecting an item.
  */
 export function ContextMenu({
   isOpen,
@@ -200,6 +209,12 @@ export function ContextMenu({
         side='bottom'
         sideOffset={4}
         className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
+        onFocusOutside={(e) => {
+          const target = e.target
+          if (target instanceof Element && target.closest('[role="menu"]')) {
+            e.preventDefault()
+          }
+        }}
         onCloseAutoFocus={(e) => {
           e.preventDefault()
           const shouldFocusRenameInput = justSelectedRenameRef.current

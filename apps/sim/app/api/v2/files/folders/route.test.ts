@@ -272,6 +272,31 @@ describe('/api/v2/files/folders', () => {
     expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 
+  it('rejects a percent-encoded NUL in a canonical path before the write reaches Postgres', async () => {
+    const created = await POST(
+      request('POST', '/api/v2/files/folders', {
+        workspaceId: WORKSPACE_ID,
+        path: '/apitest_%00x',
+      }),
+      context
+    )
+    const relocated = await PATCH(
+      request('PATCH', '/api/v2/files/folders', {
+        workspaceId: WORKSPACE_ID,
+        path: '/Reports',
+        destinationPath: '/apitest_%00b',
+      }),
+      context
+    )
+
+    expect(created.status).toBe(400)
+    expect((await created.json()).error.code).toBe('BAD_REQUEST')
+    expect(relocated.status).toBe(400)
+    expect((await relocated.json()).error.code).toBe('BAD_REQUEST')
+    expect(mocks.createFolder).not.toHaveBeenCalled()
+    expect(mocks.updateFolder).not.toHaveBeenCalled()
+  })
+
   it('authenticates before parsing folder input', async () => {
     v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
 

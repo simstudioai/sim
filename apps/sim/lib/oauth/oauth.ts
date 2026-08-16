@@ -40,6 +40,7 @@ import {
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
   MondayIcon,
+  NetSuiteIcon,
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
@@ -258,6 +259,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/ediscovery',
+          // Least-privilege scope for read-only consumers. The knowledge base
+          // connector only lists matters, holds, and saved queries, all of which
+          // accept ediscovery.readonly; the block's export tools still need the
+          // read-write scope above.
+          'https://www.googleapis.com/auth/ediscovery.readonly',
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
         serviceAccountProviderId: 'google-service-account',
@@ -328,11 +334,18 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'openid',
           'profile',
           'email',
-          'User.Read.All',
           'User.ReadWrite.All',
           'Group.ReadWrite.All',
           'GroupMember.ReadWrite.All',
           'Directory.Read.All',
+          'LicenseAssignment.ReadWrite.All',
+          'UserAuthenticationMethod.ReadWrite.All',
+          'AuditLog.Read.All',
+          'Application.Read.All',
+          'AppRoleAssignment.ReadWrite.All',
+          'RoleManagement.ReadWrite.Directory',
+          'Device.Read.All',
+          'Policy.Read.All',
           'offline_access',
         ],
       },
@@ -861,6 +874,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  netsuite: {
+    name: 'Oracle NetSuite',
+    icon: NetSuiteIcon,
+    services: {
+      netsuite: {
+        name: 'Oracle NetSuite',
+        description:
+          'Manage NetSuite records, queries, datasets, batches, metadata, and asynchronous jobs.',
+        providerId: 'netsuite',
+        serviceAccountProviderId: 'netsuite-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'netsuite',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
@@ -1165,6 +1196,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Desk.tickets.READ',
           'Desk.tickets.UPDATE',
           'Desk.contacts.READ',
+          // READ only: the knowledge base connector syncs Help Center articles
+          // via GET /articles and GET /articles/{id}; nothing authors one.
+          'Desk.articles.READ',
+          // GET /organizations documents `Desk.organization.READ , Desk.basic.READ`.
+          // Sibling endpoints spell the same construction "requires X and Y"
+          // (dependencyMappings, roles), so the comma is AND, not OR.
+          'Desk.organization.READ',
           // READ only: the agent picker for `assigneeId` lists agents, and no
           // tool creates, edits or deletes one.
           'Desk.agents.READ',
@@ -1972,7 +2010,6 @@ export async function refreshOAuthToken(
         hasClientId: !!config.clientId,
         hasClientSecret: !!config.clientSecret,
         hasRefreshToken: !!refreshToken,
-        refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
       })
       return {
         ok: false,

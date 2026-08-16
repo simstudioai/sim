@@ -69,7 +69,6 @@ vi.mock('@/app/api/v2/knowledge/[id]/documents/uploads/utils', () => ({
         }
       : null,
   }),
-  v2KnowledgeDocumentUploadError: vi.fn(() => null),
 }))
 
 import { POST } from '@/app/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete/route'

@@ -20,7 +20,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import {
   and,
   asc,
@@ -71,7 +71,7 @@ import {
   recordKnowledgeBaseFileOwnership,
 } from '@/lib/uploads/server/metadata'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import { isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
 import {
   deleteCopiedResourceMappingsByTargets,
   type ForkMappingUpsert,
@@ -334,6 +334,11 @@ export interface CopyResourcesResult {
   contentPlan: ForkContentPlan
   /** Names of the copied resources, by kind, for the fork report breakdown. */
   names: ForkCopiedResourceNames
+  /**
+   * source folder id -> target folder id for every family mirrored here (tables, knowledge
+   * bases). Merged by the caller with the workflow and file maps for content-ref rewriting.
+   */
+  folderIdMap: Map<string, string>
 }
 
 function setId(idMap: Map<ForkResourceType, Map<string, string>>, type: ForkResourceType) {
@@ -372,6 +377,12 @@ export async function copyForkResourceContainers(
   const resolveEnvName = params.resolveEnvName
   const idMap = new Map<ForkResourceType, Map<string, string>>()
   const mappingEntries: ForkMappingUpsert[] = []
+  /**
+   * Mirrored folder ids across every family copied here. Table and knowledge-base folders live
+   * in disjoint trees, and folder ids are globally unique, so merging them into one map is
+   * unambiguous and lets callers rewrite `sim:folder/<id>` refs in a single pass.
+   */
+  const folderIdMap = new Map<string, string>()
   const contentPlan: ForkContentPlan = {
     sourceWorkspaceId,
     childWorkspaceId,
@@ -538,7 +549,7 @@ export async function copyForkResourceContainers(
     const inserts: (typeof mcpServers.$inferInsert)[] = []
     for (const row of rows) {
       const childId = generateId()
-      const headers = isRecord(row.headers)
+      const headers = isRecordLike(row.headers)
         ? Object.fromEntries(
             Object.entries(row.headers).map(([key, value]) => [
               key,
@@ -619,6 +630,17 @@ export async function copyForkResourceContainers(
           isNull(userTableDefinitions.archivedAt)
         )
       )
+    const tableFolderIdMap = await resolveForkFolderMapping({
+      tx,
+      sourceWorkspaceId,
+      targetWorkspaceId: childWorkspaceId,
+      userId,
+      now,
+      resourceType: 'table',
+      contentFolderIds: definitions.map((definition) => definition.folderId),
+    })
+    for (const [source, target] of tableFolderIdMap) folderIdMap.set(source, target)
+
     const inserts: (typeof userTableDefinitions.$inferInsert)[] = []
     for (const definition of definitions) {
       const childTableId = generateId()
@@ -632,13 +654,13 @@ export async function copyForkResourceContainers(
         id: childTableId,
         workspaceId: childWorkspaceId,
         /**
-         * Folders never transit a fork edge. `folder_id` is a global id with no workspace in
-         * it, so the spread above would leave the child's table pointing at a folder owned by
-         * the SOURCE workspace — invisible in the fork, and mutated from under it if the
-         * source later deletes that folder (`ON DELETE SET NULL`). Forked tables land at the
-         * root, like forked files already do.
+         * `folder_id` is a global id with no workspace in it, so the spread above would leave
+         * the child's table pointing at a folder owned by the SOURCE workspace — invisible in
+         * the fork, and mutated from under it if the source later deletes that folder
+         * (`ON DELETE SET NULL`). Remap it onto the mirrored target subtree instead; an
+         * unmapped folder re-roots the table.
          */
-        folderId: null,
+        folderId: definition.folderId ? (tableFolderIdMap.get(definition.folderId) ?? null) : null,
         schema: remappedSchema,
         createdBy: userId,
         rowsVersion: 0,
@@ -675,6 +697,17 @@ export async function copyForkResourceContainers(
           isNull(knowledgeBase.deletedAt)
         )
       )
+    const kbFolderIdMap = await resolveForkFolderMapping({
+      tx,
+      sourceWorkspaceId,
+      targetWorkspaceId: childWorkspaceId,
+      userId,
+      now,
+      resourceType: 'knowledge_base',
+      contentFolderIds: bases.map((base) => base.folderId),
+    })
+    for (const [source, target] of kbFolderIdMap) folderIdMap.set(source, target)
+
     const inserts: (typeof knowledgeBase.$inferInsert)[] = []
     const kbEntryBySourceId = new Map<string, ForkContentKbEntry>()
     for (const base of bases) {
@@ -683,8 +716,8 @@ export async function copyForkResourceContainers(
         ...base,
         id: childKbId,
         workspaceId: childWorkspaceId,
-        /** Same reasoning as the table copy above: folders do not transit a fork edge. */
-        folderId: null,
+        /** Same reasoning as the table copy above: remapped, never carried across verbatim. */
+        folderId: base.folderId ? (kbFolderIdMap.get(base.folderId) ?? null) : null,
         userId,
         deletedAt: null,
         createdAt: now,
@@ -742,7 +775,7 @@ export async function copyForkResourceContainers(
     })
   }
 
-  return { idMap, mappingEntries, contentPlan, names }
+  return { idMap, mappingEntries, contentPlan, names, folderIdMap }
 }
 
 /**
@@ -942,7 +975,7 @@ function remapTableRowResourceUrls(value: unknown, maps: ForkContentRefMaps): un
     })
     return changed ? next : value
   }
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     let changed = false
     const next: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(value)) {

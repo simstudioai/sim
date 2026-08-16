@@ -1,0 +1,144 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
+import { MicrosoftAdBlock } from '@/blocks/blocks/microsoft_ad'
+
+/**
+ * The tri-state assertions run against `{ ...inputs, ...buildParams(inputs) }`, the shape the
+ * generic tool handler actually forwards. A key the mapper merely omits is *not* dropped by that
+ * merge — the raw subBlock string survives — so asserting on the mapper's return alone would
+ * pass against the broken code.
+ */
+describe('MicrosoftAdBlock', () => {
+  const buildParams = MicrosoftAdBlock.tools.config.params!
+
+  const subBlock = (id: string) =>
+    MicrosoftAdBlock.subBlocks.find((candidate) => candidate.id === id)!
+
+  describe('accountEnabled tri-state', () => {
+    it('clears the "No Change" default instead of forwarding an empty string', () => {
+      const inputs = { operation: 'update_user', userId: 'user-1', accountEnabled: '' }
+      const finalInputs = { ...inputs, ...buildParams(inputs) }
+
+      expect(finalInputs.accountEnabled).toBeUndefined()
+    })
+
+    it('is the serialized default, so the empty case is the common case', () => {
+      const accountEnabled = subBlock('accountEnabled')
+
+      expect(accountEnabled.value?.()).toBe('')
+      expect(accountEnabled.mode).toBeUndefined()
+    })
+
+    it('coerces an explicit update_user choice to a boolean', () => {
+      const enabled = { operation: 'update_user', userId: 'user-1', accountEnabled: 'true' }
+      const disabled = { operation: 'update_user', userId: 'user-1', accountEnabled: 'false' }
+
+      expect({ ...enabled, ...buildParams(enabled) }.accountEnabled).toBe(true)
+      expect({ ...disabled, ...buildParams(disabled) }.accountEnabled).toBe(false)
+    })
+
+    it('coerces the create_user choice to a boolean and clears the update-side value', () => {
+      const inputs = {
+        operation: 'create_user',
+        displayName: 'Ada',
+        accountEnabled: '',
+        accountEnabledCreate: 'false',
+      }
+      const finalInputs = { ...inputs, ...buildParams(inputs) }
+
+      expect(finalInputs.accountEnabled).toBe(false)
+    })
+  })
+
+  describe('visibility tri-state', () => {
+    it('clears the "No Change" default instead of forwarding an empty string', () => {
+      const inputs = { operation: 'update_group', groupId: 'group-1', visibility: '' }
+      const finalInputs = { ...inputs, ...buildParams(inputs) }
+
+      expect(finalInputs.visibility).toBeUndefined()
+    })
+
+    it('passes an explicit visibility through on both operations', () => {
+      const update = { operation: 'update_group', groupId: 'group-1', visibility: 'Public' }
+      const create = {
+        operation: 'create_group',
+        visibility: '',
+        visibilityCreate: 'HiddenMembership',
+      }
+
+      expect({ ...update, ...buildParams(update) }.visibility).toBe('Public')
+      expect({ ...create, ...buildParams(create) }.visibility).toBe('HiddenMembership')
+    })
+  })
+
+  describe('top coercion', () => {
+    it('never forwards NaN for a non-numeric page size', () => {
+      const inputs = { operation: 'list_users', top: 'all' }
+      const finalInputs = { ...inputs, ...buildParams(inputs) }
+
+      expect(finalInputs.top).toBeUndefined()
+    })
+
+    it('coerces a numeric page size', () => {
+      const inputs = { operation: 'list_users', top: '100' }
+
+      expect({ ...inputs, ...buildParams(inputs) }.top).toBe(100)
+    })
+  })
+
+  describe('groupId requirement', () => {
+    it('requires a Group ID for list_group_members on the first page', () => {
+      const required = subBlock('groupId').required as (values?: Record<string, unknown>) => {
+        field: string
+        value: string[]
+      }
+
+      expect(required({}).value).toContain('list_group_members')
+    })
+
+    it('drops the requirement only while continuing from a nextLink', () => {
+      const required = subBlock('groupId').required as (values?: Record<string, unknown>) => {
+        field: string
+        value: string[]
+      }
+      const { value } = required({ nextLink: 'https://graph.microsoft.com/v1.0/groups/g/members' })
+
+      expect(value).not.toContain('list_group_members')
+      expect(value).toEqual(
+        expect.arrayContaining([
+          'get_group',
+          'update_group',
+          'delete_group',
+          'add_group_member',
+          'remove_group_member',
+        ])
+      )
+    })
+  })
+
+  /**
+   * `User.ReadWrite.All` is listed on every `/users` read this block performs — list, get,
+   * licenseDetails, registeredDevices, and ownedDevices — so `User.Read.All` was pure consent
+   * noise. `Directory.Read.All` and `GroupMember.ReadWrite.All` are deliberately retained:
+   * `GET /subscribedSkus` names neither `LicenseAssignment.ReadWrite.All` nor any scope left in
+   * this list, and `POST /groups/{id}/members/$ref` accepts `GroupMember.ReadWrite.All` only.
+   */
+  describe('requested OAuth scopes', () => {
+    const requiredScopes =
+      MicrosoftAdBlock.subBlocks.find((candidate) => candidate.id === 'credential')
+        ?.requiredScopes ?? []
+
+    it('does not request User.Read.All, which User.ReadWrite.All subsumes', () => {
+      expect(requiredScopes).toContain('User.ReadWrite.All')
+      expect(requiredScopes).not.toContain('User.Read.All')
+    })
+
+    it('keeps the scopes no retained scope covers', () => {
+      expect(requiredScopes).toEqual(
+        expect.arrayContaining(['Directory.Read.All', 'GroupMember.ReadWrite.All'])
+      )
+    })
+  })
+})

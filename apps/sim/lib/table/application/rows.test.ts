@@ -475,7 +475,7 @@ describe('replaceTableRows application use case', () => {
         tableId: TABLE.id,
         assertedWorkspaceId: TABLE.workspaceId,
         requestId: 'request-1',
-        rows: [{ name: 'Ada', unknown: 'dropped' }],
+        rows: [{ name: 'Ada' }],
       },
     })
 
@@ -493,10 +493,21 @@ describe('replaceTableRows application use case', () => {
         ],
       },
       TABLE,
-      'request-1'
+      'request-1',
+      {}
     )
     expect(result).toMatchObject({ deletedCount: 2, insertedCount: 1 })
     expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
+  })
+
+  it('refuses a replacement row naming an unknown column for a strict caller', async () => {
+    await expect(
+      replaceTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rows: [{ name: 'Ada', unknown: 'x' }], strictWrite: true },
+      })
+    ).rejects.toThrow(/Row 1: Unknown column: unknown/)
+    expect(mockReplaceRowsPrimitive).not.toHaveBeenCalled()
   })
 
   it('rejects more than 10,000 rows before opening the atomic primitive', async () => {
@@ -629,6 +640,64 @@ describe('row query and upsert application semantics', () => {
     expect(result.nextCursor).toBe('native-next-cursor')
   })
 
+  /**
+   * An offset cursor names a position in one filtered sequence. Replayed under a
+   * different predicate that ordinal belongs to a sequence the caller never asked
+   * for — page 2 of the archived rows, or an empty page the caller reads as "no
+   * more matches". It must be refused, exactly as a changed sort already is.
+   */
+  it('refuses an offset cursor replayed under a different predicate', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-100', orderKey: null },
+      keysetValid: false,
+      nextOffset: 100,
+      predicate: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+    })
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          cursor,
+          predicate: { all: [{ field: 'name', op: 'eq', value: 'Grace' }] },
+        },
+      })
+    ).rejects.toMatchObject({ details: { code: 'CURSOR_FILTER_CONFLICT' } })
+    expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('resumes the same offset page under the identical predicate', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row-100', orderKey: null },
+      keysetValid: false,
+      nextOffset: 100,
+      predicate: { all: [{ field: 'column-name', op: 'eq', value: 'Ada' }] },
+    })
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: null,
+      nextCursor: null,
+    })
+
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          cursor,
+          predicate: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
+        },
+      })
+    ).resolves.toMatchObject({ rowCount: 0 })
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ offset: 100 }),
+      expect.any(String)
+    )
+  })
+
   it('loads requested persisted provenance inside the authorized application query', async () => {
     const row = {
       id: 'row-1',
@@ -735,7 +804,8 @@ describe('row query and upsert application semantics', () => {
         userId: PRINCIPAL.userId,
       }),
       TABLE,
-      'request-1'
+      'request-1',
+      {}
     )
   })
 })
@@ -782,7 +852,8 @@ describe('table row write secret provenance defaulting', () => {
     expect(mockInsertRow).toHaveBeenCalledWith(
       expect.objectContaining({ secretProvenance: EXACT_EMPTY_NAME }),
       TABLE,
-      expect.any(String)
+      expect.any(String),
+      {}
     )
   })
 
@@ -797,7 +868,8 @@ describe('table row write secret provenance defaulting', () => {
         secretProvenance: [EXACT_EMPTY_NAME, EXACT_EMPTY_NAME],
       }),
       TABLE,
-      expect.any(String)
+      expect.any(String),
+      {}
     )
   })
 
@@ -810,7 +882,8 @@ describe('table row write secret provenance defaulting', () => {
     expect(mockUpdateRow).toHaveBeenCalledWith(
       expect.objectContaining({ secretProvenance: EXACT_EMPTY_NAME }),
       TABLE,
-      expect.any(String)
+      expect.any(String),
+      {}
     )
   })
 
@@ -845,7 +918,8 @@ describe('table row write secret provenance defaulting', () => {
           columns: { column_name: { version: 1, complete: true, entries: [] } },
         },
       }),
-      expect.any(String)
+      expect.any(String),
+      {}
     )
   })
 
@@ -858,7 +932,8 @@ describe('table row write secret provenance defaulting', () => {
     expect(mockUpsertRow).toHaveBeenCalledWith(
       expect.objectContaining({ secretProvenance: EXACT_EMPTY_NAME }),
       TABLE,
-      expect.any(String)
+      expect.any(String),
+      {}
     )
   })
 
@@ -871,7 +946,8 @@ describe('table row write secret provenance defaulting', () => {
     expect(mockReplaceRowsPrimitive).toHaveBeenCalledWith(
       expect.objectContaining({ secretProvenance: [EXACT_EMPTY_NAME] }),
       TABLE,
-      expect.any(String)
+      expect.any(String),
+      {}
     )
   })
 
@@ -891,7 +967,156 @@ describe('table row write secret provenance defaulting', () => {
     expect(mockUpdateRow).toHaveBeenCalledWith(
       expect.objectContaining({ secretProvenance: unknown }),
       TABLE,
-      expect.any(String)
+      expect.any(String),
+      {}
     )
+  })
+})
+
+/**
+ * The name→id remap drops keys naming no column, and nothing upstream had
+ * checked that there were none to drop. An insert of `{"nosuchcol":"x"}`
+ * therefore answered 201 having created an empty row, and a patch of
+ * `{"zzz":"x"}` answered `updatedCount: 0` — the same answer a predicate that
+ * matched nothing gives, so a caller could not tell a typo from an empty match.
+ *
+ * The refusal is scoped to `strictWrite`, which only `/api/v2` sets. A
+ * first-party caller still has the key dropped: Copilot feeds the model's raw
+ * arguments in unfiltered, so a hallucinated key, an echoed `id`, or a name
+ * left over from a rename would otherwise refuse the whole write.
+ */
+describe('unknown column names under strictWrite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockValidateRowData.mockResolvedValue({ valid: true })
+    mockValidateBatchRows.mockResolvedValue({ valid: true })
+    mockInsertRow.mockResolvedValue({ id: 'row-1', data: {} })
+    mockBatchInsertRows.mockResolvedValue([{ id: 'row-1', data: {} }])
+    mockUpdateRow.mockResolvedValue({ id: 'row-1', data: {} })
+    mockUpdateRowsByFilter.mockResolvedValue({ affectedCount: 0 })
+    mockUpsertRow.mockResolvedValue({ operation: 'insert', row: { id: 'row-1', data: {} } })
+  })
+
+  it('refuses a single insert naming a column the table does not have', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { nosuchcol: 'x' }, strictWrite: true },
+      })
+    ).rejects.toThrow(/Unknown column: nosuchcol/)
+    expect(mockInsertRow).not.toHaveBeenCalled()
+  })
+
+  it('drops the same key for a first-party caller instead of refusing the write', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada', nosuchcol: 'x' } },
+      })
+    ).resolves.toBeDefined()
+    expect(mockInsertRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      {}
+    )
+  })
+
+  it('names every unknown column at once', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'single',
+          tableId: TABLE.id,
+          data: { zzz: 'x', qqq: 'y' },
+          strictWrite: true,
+        },
+      })
+    ).rejects.toThrow(/Unknown columns: zzz, qqq/)
+  })
+
+  it('refuses a batch insert and says which row was wrong', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'batch',
+          tableId: TABLE.id,
+          rows: [{ name: 'Ada' }, { zzz: 'x' }],
+          strictWrite: true,
+        },
+      })
+    ).rejects.toThrow(/Row 2: Unknown column: zzz/)
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
+  })
+
+  it('refuses a predicate update rather than reporting an empty match', async () => {
+    await expect(
+      updateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          filter: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
+          data: { zzz: 'x' },
+          strictWrite: true,
+        },
+      })
+    ).rejects.toThrow(/Unknown column: zzz/)
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+  })
+
+  it('refuses a single-row update naming an unknown column', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' }, strictWrite: true },
+      })
+    ).rejects.toThrow(/Unknown column: zzz/)
+    expect(mockUpdateRow).not.toHaveBeenCalled()
+  })
+
+  it('reports an empty match for the same first-party update instead of refusing', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' } },
+      })
+    ).resolves.toBeDefined()
+    expect(mockUpdateRow).toHaveBeenCalled()
+  })
+
+  it('still accepts a write naming only known columns', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
+      })
+    ).resolves.toBeDefined()
+  })
+
+  it('carries the strict value policy to the primitive, and nothing without it', async () => {
+    await createTableRows.execute({
+      principal: PRINCIPAL,
+      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' }, strictWrite: true },
+    })
+    expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {
+      uncoercibleValues: 'reject',
+    })
+
+    await createTableRows.execute({
+      principal: PRINCIPAL,
+      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
+    })
+    expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {})
   })
 })

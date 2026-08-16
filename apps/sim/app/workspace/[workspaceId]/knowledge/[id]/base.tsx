@@ -50,7 +50,11 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  FILTER_SECTION_LABEL_CLASS,
+  FloatingOverflowText,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
@@ -124,8 +128,6 @@ const STATUS_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'enabled', label: 'Enabled' },
   { value: 'disabled', label: 'Disabled' },
 ]
-
-const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
 interface KnowledgeBaseProps {
   id: string

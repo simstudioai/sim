@@ -18,11 +18,11 @@ import {
   performUpdateTableLocks,
 } from '@/lib/table/orchestration'
 import { TABLE_LOCK_FLAGS, TABLE_LOCK_KINDS } from '@/lib/table/types'
+import { normalizeColumn } from '@/lib/table/wire'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
   orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'

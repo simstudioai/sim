@@ -285,6 +285,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               kind: 'single',
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
+              strictWrite: false,
               data: args.data,
               position: args.position as number | undefined,
               secretProvenance: createExactEmptyTableRowSecretProvenance(args.data),
@@ -327,6 +328,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               kind: 'batch',
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
+              strictWrite: false,
               rows: sourceRows,
               secretProvenance: sourceRows.map(createExactEmptyTableRowSecretProvenance),
             },
@@ -473,6 +475,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
+              strictWrite: false,
               rowId: args.rowId,
               data: args.data,
               secretProvenance: createExactEmptyTableRowSecretProvenance(args.data),

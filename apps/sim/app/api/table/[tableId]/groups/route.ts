@@ -12,7 +12,7 @@ import {
 } from '@/lib/table/application/groups'
 import { tableOperations } from '@/lib/table/application/operations'
 import type { TableDefinition } from '@/lib/table/types'
-import { normalizeColumn } from '@/app/api/table/utils'
+import { normalizeColumn } from '@/lib/table/wire'
 
 const rateLimit = internalRateLimits.none({
   reason: 'Existing authenticated table group mutations have no request-rate policy',

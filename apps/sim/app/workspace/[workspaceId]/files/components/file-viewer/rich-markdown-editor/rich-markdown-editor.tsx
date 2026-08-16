@@ -721,6 +721,15 @@ export function LoadedRichMarkdownEditor({
    * is latched, so a fatal rejection that fired before this subscription is not missed.
    */
   useEffect(() => {
+    /**
+     * Readiness is a protocol fact, never a timing guess: the relay attaches a client only once its
+     * room holds the whole document (it awaits the shared-stream catch-up and the server seed before
+     * answering a join), so a completed sync IS the finished document and revealing on it cannot show
+     * an intermediate state. This deliberately does NOT wait for the document to "stop moving" — a
+     * quiet-frame gate was tried and it is unsound in both directions: it delays the reveal of a
+     * document that was already correct, and it opens mid-flight anyway whenever the updates arrive
+     * more than a frame apart (which is what a remote Redis and a long room history produce).
+     */
     const setReady = (ready: boolean) => {
       // Child-local: gates editability (a user must never type into an unsynced/unseeded doc).
       setCollabReady(ready)
@@ -766,12 +775,21 @@ export function LoadedRichMarkdownEditor({
     const report = () => {
       const synced = provider.synced
       const seeded = config.get(FILE_DOC_SEED.flag) === true
-      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed })
+      // `joinError` is latched ONLY on the provider's fatal paths (non-retryable rejection, access
+      // revocation, readiness deadline), so it is exactly "this document is abandoned".
+      const fatal = provider.joinError !== null
+      const next = nextCollabReadiness(syncedOnce, { synced, seeded, offlineSeed, fatal })
       syncedOnce = next.syncedOnce
       setReady(next.ready)
     }
+    /**
+     * Re-report unconditionally, not just when the fallback seeds. A fatal that arrives on an ALREADY
+     * seeded doc (access revoked mid-session) leaves `seedFromLoaded` a no-op, so nothing else would
+     * fire an observer and the editor would stay editable on a document the provider has abandoned.
+     */
     const onJoinError = (error: JoinFileDocError) => {
       if (error.retryable === false) seedFromLoaded()
+      report()
     }
 
     // A server edit that changes ONLY the frontmatter (e.g. copilot) updates the config map but not

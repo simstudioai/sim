@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listKnowledgeBases",
         "summary": "List Knowledge Bases",
-        "description": "List knowledge bases in a workspace with folder filtering, search, and sorting. Paginate with `limit` and `cursor`, stopping when `nextCursor` is null. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List knowledge bases in a workspace with folder filtering, search, sorting, and opaque cursor pagination. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -47,6 +47,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose knowledge bases should be listed."
             }
           },
@@ -54,19 +55,19 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to knowledge bases in this folder.",
+            "description": "Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to knowledge bases in this folder.",
-              "type": "string"
+              "description": "Restrict results to knowledge bases in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive substring search on the resource name.",
+            "description": "Case-insensitive substring match against the resource name.",
             "schema": {
-              "description": "Case-insensitive substring search on the resource name.",
+              "description": "Case-insensitive substring match against the resource name.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -76,10 +77,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -113,9 +114,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -172,7 +173,7 @@
       "post": {
         "operationId": "createKnowledgeBase",
         "summary": "Create Knowledge Base",
-        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a `404`. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -241,7 +242,7 @@
       "get": {
         "operationId": "getKnowledgeBase",
         "summary": "Get Knowledge Base",
-        "description": "Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -318,7 +319,7 @@
       "patch": {
         "operationId": "updateKnowledgeBase",
         "summary": "Update Knowledge Base",
-        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -474,7 +475,7 @@
       "post": {
         "operationId": "searchKnowledge",
         "summary": "Search Knowledge",
-        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Set `rerankerEnabled` with a `rerankerModel` to re-order the retrieved chunks with a reranking model before truncating to `topK`; reranked results carry a `rerankerScore` and are ordered by it, and reranking is billed as an additional search unit. Every result names the `knowledgeBaseId` it came from. The request body is capped at 2 MiB; a larger body is a 413.",
+        "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -543,7 +544,7 @@
       "get": {
         "operationId": "listKnowledgeTags",
         "summary": "List Tags",
-        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Display names are what tag filters and the tag values on document reads use; slots are what document writes set. Every slot listed here is writable, in its declared type: `tag1`..`tag7` take a string, `number1`..`number5` a number, `date1`..`date2` a `YYYY-MM-DD` string, and `boolean1`..`boolean3` a boolean. The vocabulary is bounded by the fixed slot table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List the knowledge base's tag vocabulary: each tag's display name, the slot it is stored in, and its field type. Filters and document reads use display names; document writes address slots. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -619,7 +620,7 @@
       "get": {
         "operationId": "listKnowledgeDocuments",
         "summary": "List Documents",
-        "description": "List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Each document carries its tag values keyed by tag display name; resolve those names to write slots with `GET /api/v2/knowledge/{id}/tags`.",
+        "description": "List documents in a knowledge base with filename search, state filtering, tag filtering, sorting, and opaque cursor pagination. Tag values are keyed by display name; resolve those to write slots with `GET /api/v2/knowledge/{id}/tags`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -648,10 +649,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum documents to return, between 1 and 100.",
+            "description": "Maximum documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum documents to return, between 1 and 100.",
+              "description": "Maximum documents to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -661,10 +662,12 @@
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive filename search.",
+            "description": "Case-insensitive substring match against the document filename.",
             "schema": {
-              "description": "Case-insensitive filename search.",
-              "type": "string"
+              "description": "Case-insensitive substring match against the document filename.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
             }
           },
           {
@@ -683,10 +686,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Document field used to sort results.",
+            "description": "Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "uploadedAt",
-              "description": "Document field used to sort results.",
+              "description": "Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": [
                 "filename",
@@ -715,9 +718,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -726,9 +729,9 @@
             "name": "tagFilters",
             "in": "query",
             "required": false,
-            "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. A name that is not defined in this knowledge base is rejected, never ignored.",
+            "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored.",
             "schema": {
-              "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. A name that is not defined in this knowledge base is rejected, never ignored.",
+              "description": "A JSON-encoded array of at most 10 tag filters, using the same display-name shape as knowledge search: `[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]`. Every filter must hold, including two that name the same tag. A name that is not defined in this knowledge base is rejected, never ignored.",
               "examples": [
                 "[{\"tagName\":\"category\",\"operator\":\"eq\",\"value\":\"billing\"}]"
               ],
@@ -784,7 +787,7 @@
       "patch": {
         "operationId": "bulkUpdateKnowledgeDocuments",
         "summary": "Bulk Enable or Disable Documents",
-        "description": "Enable or disable many documents in one request, either by identifier (up to 100) or, with `selectAll`, every document in the knowledge base optionally narrowed by `enabledFilter`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through `DELETE /api/v2/knowledge/{id}/documents/{documentId}`, which audits each one. An identifier request echoes the documents it changed in `documentIds`; a `selectAll` request omits that field because the selection is unbounded, and reports `updatedCount` alone. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Enable or disable many documents in one request, either by identifier or, with `selectAll`, every document in the knowledge base. Bulk delete is not offered; delete documents one at a time with `DELETE /api/v2/knowledge/{id}/documents/{documentId}`. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -844,6 +847,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -880,6 +886,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the knowledge base."
             }
           }
@@ -1072,6 +1079,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the knowledge base."
             }
           },
@@ -1173,6 +1181,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the knowledge base."
             }
           },
@@ -1236,6 +1245,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1285,6 +1297,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the knowledge base."
             }
           },
@@ -1441,7 +1454,7 @@
       "patch": {
         "operationId": "updateKnowledgeDocument",
         "summary": "Update Document",
-        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. A tag slot takes its declared type — a string for `tag1`..`tag7`, a number for `number1`..`number5`, a `YYYY-MM-DD` string for `date1`..`date2`, a boolean for `boolean1`..`boolean3` — and a value that is not valid for the slot is a `400` rather than a silently cleared tag. Resolve a display name to its slot with `GET /api/v2/knowledge/{id}/tags`. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (`chunkCount`, `tokenCount`, `characterCount`, `processingStatus`, `processingError`) is written by the processing pipeline and cannot be asserted here. `retryProcessing: true` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
+        "description": "Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. Absent fields are unchanged, and derived indexing state is read-only. Resolve a tag display name to its slot with `GET /api/v2/knowledge/{id}/tags`. The returned document omits the connector provenance the detail read carries. A workspace API key is rejected with `403`; use a personal API key.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1512,6 +1525,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1526,7 +1542,7 @@
       "delete": {
         "operationId": "deleteKnowledgeDocument",
         "summary": "Delete Document",
-        "description": "Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.",
+        "description": "Remove one document from a knowledge base. An uploaded document is deleted outright with its indexed chunks. A connector-backed document is instead excluded — its row and embeddings survive, but it stops being searchable and a later sync does not re-add it. Either way it no longer appears in listings or search results.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1613,7 +1629,7 @@
       "get": {
         "operationId": "listKnowledgeFolders",
         "summary": "List Folders",
-        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page; `nextCursor` is always null. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1624,6 +1640,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose folders should be listed."
             }
           },
@@ -1634,7 +1651,7 @@
             "description": "Restrict results to direct children of this parent path.",
             "schema": {
               "description": "Restrict results to direct children of this parent path.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -1653,10 +1670,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -1725,7 +1742,7 @@
       "post": {
         "operationId": "createKnowledgeFolder",
         "summary": "Create Folder",
-        "description": "Create a folder in the knowledge-base folder tree. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Create a folder in the knowledge-base folder tree. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -1792,7 +1809,7 @@
       "patch": {
         "operationId": "relocateKnowledgeFolder",
         "summary": "Rename or Move Folder",
-        "description": "Rename or move a folder and atomically rewrite descendant paths. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Rename or move a folder and atomically rewrite descendant paths. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -1870,6 +1887,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace containing the folder."
             }
           },
@@ -1880,16 +1898,30 @@
             "description": "Path of the folder to delete.",
             "schema": {
               "description": "Path of the folder to delete.",
-              "type": "string"
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
             }
           },
           {
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete nested files and folders when true.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Delete nested files and folders when true.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
               "default": "false",
               "type": "string"
             }
@@ -1954,7 +1986,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       }
     },
     "headers": {
@@ -1989,13 +2021,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -2010,7 +2042,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
@@ -2040,7 +2072,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\nA resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.",
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
         "content": {
           "application/json": {
             "schema": {
@@ -2070,7 +2102,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -2084,18 +2116,8 @@
           }
         }
       },
-      "Gone": {
-        "description": "The requested generated resource has expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2140,7 +2162,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -2160,7 +2182,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -2191,7 +2213,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Optional structured error details."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -2211,6 +2233,12 @@
             }
           }
         ]
+      },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
       },
       "V2KnowledgeBase": {
         "type": "object",
@@ -2289,7 +2317,9 @@
           },
           "folderPath": {
             "type": "string",
+            "title": "Folder path",
             "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "maxLength": 4096,
             "examples": ["/Product"]
           }
         },
@@ -2388,7 +2418,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2446,6 +2476,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the knowledge base."
           },
           "name": {
@@ -2472,7 +2503,7 @@
           },
           "folderPath": {
             "description": "Containing folder path; omission creates the knowledge base at the root.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "name"],
@@ -2486,6 +2517,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the knowledge base."
           },
           "name": {
@@ -2507,7 +2539,7 @@
           },
           "folderPath": {
             "description": "New containing-folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId"],
@@ -2672,9 +2704,22 @@
             "maximum": 9007199254740991,
             "description": "Number of results returned.",
             "examples": [4]
+          },
+          "rerankerStatus": {
+            "type": "string",
+            "enum": ["not_requested", "skipped", "unavailable", "applied"],
+            "description": "What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means it was attempted but could not complete, so results are in vector order with no `rerankerScore` — the search still succeeded, and is worth retrying. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.",
+            "examples": ["applied"]
           }
         },
-        "required": ["results", "query", "knowledgeBaseIds", "topK", "totalResults"],
+        "required": [
+          "results",
+          "query",
+          "knowledgeBaseIds",
+          "topK",
+          "totalResults",
+          "rerankerStatus"
+        ],
         "additionalProperties": false,
         "title": "Knowledge search data",
         "description": "Results and execution context for a knowledge search."
@@ -2707,9 +2752,22 @@
           },
           "operator": {
             "default": "eq",
-            "description": "Comparison operator; valid operators depend on the field type.",
+            "description": "Comparison operator; valid operators depend on the field type. Text tags accept eq, neq, contains, not_contains, starts_with, ends_with; number and date tags accept eq, neq, gt, gte, lt, lte, between; boolean tags accept eq, neq. An operator the tag's field type does not implement is rejected, never ignored.",
             "examples": ["eq"],
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "eq",
+              "neq",
+              "contains",
+              "not_contains",
+              "starts_with",
+              "ends_with",
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "between"
+            ]
           },
           "value": {
             "anyOf": [
@@ -2727,7 +2785,7 @@
             "examples": ["billing"]
           },
           "valueTo": {
-            "description": "Upper bound for the `between` operator.",
+            "description": "Upper bound for the `between` operator, and required whenever that operator is used.",
             "anyOf": [
               {
                 "type": "string"
@@ -2739,6 +2797,7 @@
           }
         },
         "required": ["tagName", "value"],
+        "additionalProperties": false,
         "title": "Knowledge search tag filter",
         "description": "A structured tag filter applied to knowledge search."
       },
@@ -2748,6 +2807,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the knowledge bases."
           },
           "knowledgeBaseIds": {
@@ -2770,9 +2830,10 @@
             "examples": [["7c9e6679-7425-40de-944b-e07fc1f90ae7"]]
           },
           "query": {
-            "description": "Natural-language query; required when tag filters are omitted.",
+            "description": "Natural-language query; required when tag filters are omitted. At most 32768 characters — longer text exceeds the embedding model's per-input token ceiling and would be truncated before the billed search ran.",
             "examples": ["How do I reset my password?"],
-            "type": "string"
+            "type": "string",
+            "maxLength": 32768
           },
           "topK": {
             "default": 10,
@@ -2782,7 +2843,8 @@
             "maximum": 100
           },
           "tagFilters": {
-            "description": "Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. A tag name defined in none of the selected knowledge bases is rejected, never ignored; list the available names with GET /api/v2/knowledge/{id}/tags.",
+            "description": "Structured tag filters, at most 10 of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching `GET /api/v2/knowledge/{id}/documents`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with `GET /api/v2/knowledge/{id}/tags`.",
+            "maxItems": 10,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V2KnowledgeSearchTagFilter"
@@ -2802,11 +2864,12 @@
             ]
           },
           "rerankerEnabled": {
-            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, which has no query to rank against. Reranking is billed as an additional search unit.",
+            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.",
             "type": "boolean"
           },
           "rerankerModel": {
-            "description": "Reranking model to use; required for reranking to run.",
+            "default": "rerank-v4.0-fast",
+            "description": "Reranking model to use when `rerankerEnabled` is true. Defaults to `rerank-v4.0-fast`.",
             "type": "string",
             "enum": ["rerank-v4.0-pro", "rerank-v4.0-fast", "rerank-v3.5"]
           },
@@ -2818,6 +2881,7 @@
           }
         },
         "required": ["workspaceId", "knowledgeBaseIds"],
+        "additionalProperties": false,
         "title": "Search knowledge request",
         "description": "Knowledge bases, query, result limit, retrieval mode, and optional tag filters."
       },
@@ -2864,7 +2928,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3007,7 +3071,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3062,6 +3126,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the knowledge base."
           },
           "operation": {
@@ -3324,7 +3389,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -3413,6 +3478,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the knowledge base."
           },
           "name": {
@@ -3527,7 +3593,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -3864,6 +3930,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the knowledge base."
           },
           "filename": {
@@ -3955,7 +4022,7 @@
             "type": "boolean"
           },
           "retryProcessing": {
-            "description": "Requeue the document for processing. Send it alone: no other field may accompany it.",
+            "description": "Requeue a failed or stuck document for processing. Send it alone — no other field may accompany it — and it answers with a queue acknowledgement rather than the document.",
             "type": "boolean",
             "const": true
           }
@@ -3981,11 +4048,15 @@
           },
           "path": {
             "type": "string",
-            "description": "Canonical folder path used as the public folder identifier."
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
           },
           "parentPath": {
             "type": "string",
-            "description": "Canonical parent path; `/` is the root."
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -4022,13 +4093,13 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
         "title": "Knowledge folder list response",
-        "description": "A cursor-paginated page of knowledge-base folders."
+        "description": "The whole bounded set of knowledge-base folders, in one page."
       },
       "V2KnowledgeFolderResponse": {
         "type": "object",
@@ -4043,17 +4114,24 @@
         "title": "Knowledge folder response",
         "description": "A single knowledge-base folder."
       },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "CreateKnowledgeFolderRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the folder."
           },
           "path": {
             "description": "Path of the folder to create.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path"],
@@ -4067,15 +4145,16 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the folder."
           },
           "path": {
             "description": "Current folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
             "description": "New full path for the folder and its descendants.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -4088,7 +4167,9 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Canonical path of the deleted folder."
+            "title": "Folder path",
+            "description": "Canonical path of the deleted folder.",
+            "maxLength": 4096
           },
           "deleted": {
             "type": "boolean",

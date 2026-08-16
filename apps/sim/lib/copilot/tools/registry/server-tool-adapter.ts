@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ToolExecutionResult, ToolHandler } from '@/lib/copilot/tool-executor/types'
@@ -30,10 +31,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
       })
 
-      const rec =
-        result && typeof result === 'object' && !Array.isArray(result)
-          ? (result as Record<string, unknown>)
-          : null
+      const rec = isRecordLike(result) ? (result as Record<string, unknown>) : null
       if (rec?.success === false) {
         const message =
           (typeof rec.error === 'string' && rec.error) ||

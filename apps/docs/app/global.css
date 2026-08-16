@@ -42,6 +42,13 @@ body {
   --text-small: 13px;
   --text-base: 15px;
   --text-md: 16px;
+
+  /* Code-token size for the API reference — a deliberate sixth step, between
+     --text-caption and --text-small, because the mono face reads small at 12px. */
+  --text-code: 0.78125rem;
+
+  --font-mono-stack: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 /* Pure white light mode background */
@@ -134,7 +141,6 @@ body {
   --selection-dark: #264f78;
   --highlight-search-active: #f6ad55;
   --scrollbar-thumb-color: #c0c0c0;
-  --scrollbar-thumb-hover-color: #a8a8a8;
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
   --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
   --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.11);
@@ -216,32 +222,16 @@ body {
   --code-line-number: #a8a8a8;
   --selection-bg: #264f78;
   --scrollbar-thumb-color: #5a5a5a;
-  --scrollbar-thumb-hover-color: #6a6a6a;
   --shadow-overlay: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-/* Scrollbars — platform thumb tokens, transparent track */
+/* Scrollbars — platform thumb tokens, transparent track. A non-auto
+   `scrollbar-width`/`scrollbar-color` makes Chromium ignore every
+   `::-webkit-scrollbar*` rule on the element, so no webkit block here. Hover
+   shading is not expressible through the standard properties. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb-color) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: var(--scrollbar-thumb-color);
-  border-radius: 9999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: var(--scrollbar-thumb-hover-color);
 }
 
 /* Font family utilities */
@@ -251,8 +241,7 @@ body {
 }
 
 .font-mono {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 
 /* Platform UI font — Season Sans, used by the chip chrome to match the main app */
@@ -500,12 +489,6 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   padding: 0 !important;
 }
 
-/* The first group sits flush against the top padding — it has nothing to be
-   separated from. */
-[data-separator]:not([data-separator] ~ [data-separator]) {
-  margin-top: 0;
-}
-
 /* Active state — aligned with platform --surface-active */
 #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
 #nd-sidebar button[data-active="true"] {
@@ -672,8 +655,7 @@ aside[data-sidebar],
 code,
 pre,
 pre code {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono-stack);
 }
 
 /* Inline code — neutral colors aligned with sim design system */
@@ -912,16 +894,18 @@ video {
   display: none !important;
 }
 
-/* Ensure API reference pages use the same font as the rest of the docs */
+/* Ensure API reference pages use the same font as the rest of the docs.
+   `.font-mono` is excluded: this selector (id + element) outranks the
+   `.font-mono` class rule, so without it every code identifier renders sans. */
 #nd-page:has(.api-page-header),
 #nd-page:has(.api-page-header) h2,
 #nd-page:has(.api-page-header) h3,
 #nd-page:has(.api-page-header) h4,
-#nd-page:has(.api-page-header) p,
-#nd-page:has(.api-page-header) span,
-#nd-page:has(.api-page-header) div,
-#nd-page:has(.api-page-header) label,
-#nd-page:has(.api-page-header) button {
+#nd-page:has(.api-page-header) p:not(.font-mono),
+#nd-page:has(.api-page-header) span:not(.font-mono),
+#nd-page:has(.api-page-header) div:not(.font-mono),
+#nd-page:has(.api-page-header) label:not(.font-mono),
+#nd-page:has(.api-page-header) button:not(.font-mono) {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -1162,23 +1146,45 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   position: relative;
 }
 
+/* API-reference metadata face — the status trigger, the content-type label, the
+   `required` / `header` markers, and the status-code tabs. Defined once; each
+   consumer below adds only its own colour, content, and order. The `code.text-xs`
+   label further down needs `!important` to beat fumadocs and stays separate. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger,
+.response-section-dropdown-trigger,
+#nd-page:has(.api-page-header) span.response-section-content-type,
+.response-section-content-type,
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after,
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before,
+#nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after,
+#nd-page:has(.api-page-header) .flex.gap-3\.5.overflow-x-auto.not-prose > button {
+  font-size: var(--text-code);
+  line-height: 1.25rem;
+  font-weight: 400;
+  font-family: var(--font-mono-stack);
+}
+
+/* Status-code trigger — matches the content-type label beside it. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger,
 .response-section-dropdown-trigger {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.125rem 0.25rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-fd-muted-foreground);
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  color: var(--text-secondary);
   background: none;
   border: none;
   cursor: pointer;
   border-radius: 0.375rem;
   transition: color 0.15s;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
+/* Carries the same id-qualified prefix as the base rule above; without it the
+   base rule outranks this one and the trigger never changes colour on hover. */
+#nd-page:has(.api-page-header) button.response-section-dropdown-trigger:hover,
 .response-section-dropdown-trigger:hover {
-  color: var(--color-fd-foreground);
+  color: var(--text-primary);
 }
 
 .response-section-chevron {
@@ -1226,7 +1232,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   color: var(--text-primary);
 }
 .response-section-dropdown-item-selected {
-  color: var(--color-fd-foreground);
+  color: var(--text-primary);
 }
 
 .response-section-check {
@@ -1234,10 +1240,15 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   height: 0.875rem;
 }
 
+/* Content-type label. The Response header renders this class; the Request Body
+   header renders a fumadocs `code.text-xs`. Keep the two in sync — the same
+   string at different weights reads as one being lighter than the other. */
+#nd-page:has(.api-page-header) span.response-section-content-type,
 .response-section-content-type {
-  font-size: 0.875rem;
-  color: var(--color-fd-muted-foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: 0;
 }
 
 /* Response schema container — remove border to match Path Parameters style */
@@ -1262,25 +1273,80 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   order: 1;
 }
 
-/* Type badge — order 2, grey pill */
+/* Type token — order 2. Covers every shape the slot takes: scalar span, union
+   wrapper, schema-reference button, and the auth row's `::after` label. Reuses
+   the docs inline-code recipe, so a type reads as code wherever it appears; the
+   explicit 20px height keeps a union level with a scalar, which its nested
+   links would otherwise push to 26px. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground {
+  > span.text-sm.font-mono.text-fd-muted-foreground,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
+#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button),
+#nd-page:has(.api-page-header)
+  div.my-4
+  > .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground::after {
   order: 2;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground {
+  display: inline-flex;
+  align-items: center;
+  height: 1.25rem;
+  /* No gap: an `array<T>` slot holds its brackets as bare text nodes, which
+     become anonymous flex items, so any gap here would prise `array<` and `>`
+     away from the type they wrap. The union separator spaces itself instead. */
+  gap: 0;
   background-color: var(--surface-4);
+  border: 1px solid var(--border-1);
+  color: var(--text-body);
+  padding: 0 0.3125rem;
+  border-radius: 0.375rem;
+  font-size: var(--text-code);
+  line-height: 1;
+  font-weight: 400;
+  font-family: var(--font-mono-stack);
+}
+
+/* Everything inside a type token inherits the token's own face, size, and ink.
+   Applied to every descendant, not just the links: a union's `|` separator is a
+   classless `span`, so the page-wide `span:not(.font-mono)` rule assigned it the
+   body sans face and one chip rendered in two faces. Anything fumadocs nests in
+   here later is covered by the same reset.
+   Underline is deferred to hover so links don't read heavier than a plain scalar
+   in the same box. The button that *is* the slot needs its own rule below: it
+   cannot `inherit`, which would pull the row's 14px sans back in. */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  * {
+  text-decoration: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+}
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > button.text-sm.font-mono.text-fd-muted-foreground {
+  text-decoration: none;
+}
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  :is(a, button):hover,
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > button.text-sm.font-mono.text-fd-muted-foreground:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Union separator — dimmed one step, no further: `string | null` started
+   reading as `string null` on the chip fill. Own margin; the slot has no gap. */
+#nd-page:has(.api-page-header)
+  .flex.flex-wrap.items-center.gap-3.not-prose
+  > span.text-sm.font-mono.text-fd-muted-foreground
+  > span {
+  margin: 0 0.375rem;
+  color: var(--text-muted);
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
@@ -1288,21 +1354,15 @@ html.dark
   display: none;
 }
 
-/* Required badge — order 3, red pill */
+/* Required marker — order 3. Error text colour but no fill: eight required
+   params on one page should not read as eight alarms. */
 #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
   content: "required";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: var(--badge-error-bg);
   color: var(--badge-error-text);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 /* Optional "?" indicator — hide it */
 #nd-page:has(.api-page-header)
@@ -1326,79 +1386,52 @@ html.dark
   > span.font-medium.font-mono.text-fd-primary {
   order: 1;
 }
+/* Auth rows collapse the real `<token>` text to zero and draw the chip in the
+   `::after` below, so this span is a bare wrapper: it must drop the type-token
+   box it matches, or the chip renders inside a second, empty bordered box. */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   order: 2;
   font-size: 0;
-  padding: 0 !important;
-  background: none !important;
+  padding: 0;
+  background: none;
+  border: none;
+  height: auto;
   line-height: 0;
 }
+/* Only the label — the box comes from the shared type-token rule above, which
+   this pseudo-element is a member of. */
 #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
   content: "string";
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  display: inline-flex;
-  align-items: center;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.my-4
-  > .flex.flex-wrap.items-center.gap-3.not-prose
-  > span.text-sm.font-mono.text-fd-muted-foreground::after {
-  background-color: var(--surface-4);
 }
 
-/* "header" badge via ::before on the auth flex row */
+/* "header" location via ::before on the auth flex row — uncontained metadata,
+   matching the `required` marker rather than the type token. */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::before {
   content: "header";
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: var(--surface-5);
   color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.my-4
-  > .flex.flex-wrap.items-center.gap-3.not-prose::before {
-  background-color: var(--surface-4);
 }
 
-/* "required" badge via ::after on the auth flex row — red pill */
+/* "required" marker via ::after on the auth flex row */
 #nd-page:has(.api-page-header) div.my-4 > .flex.flex-wrap.items-center.gap-3.not-prose::after {
   content: "required";
   order: 4;
   display: inline-flex;
   align-items: center;
-  background-color: var(--badge-error-bg);
   color: var(--badge-error-text);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-/* Hide "In: header" text below auth property — redundant with the header badge */
-#nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
+/* Hide the trailing "In: header" line — redundant with the header marker.
+   Matched by position, not shape: descriptions contain a `code` too (status
+   codes), so a bare `p:has(> code)` also hid the API-key description. */
+#nd-page:has(.api-page-header) div.my-4 .prose-no-margin > p:last-child:has(> code) {
   display: none !important;
 }
 
@@ -1425,36 +1458,18 @@ html.dark
   border-color: var(--surface-active);
 }
 
-/* Body/Callback section "application/json" label — remove inline code styling */
+/* Body/Callback "application/json" label — strip inline-code chrome and keep in
+   sync with `.response-section-content-type`; same string, two headers. */
 #nd-page:has(.api-page-header) .flex.gap-2.items-center.justify-between p.not-prose code.text-xs,
 #nd-page:has(.api-page-header) .flex.justify-between.gap-2.items-end p.not-prose code.text-xs {
   background: none !important;
   border: none !important;
   padding: 0 !important;
-  color: var(--color-fd-muted-foreground) !important;
-  font-size: 0.875rem !important;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif !important;
-}
-
-/* Object/array type triggers in property rows — order 2 + badge chip styling */
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-#nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
-  order: 2;
-  background-color: var(--surface-5);
-  color: var(--text-secondary);
-  padding: 0.1875rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: var(--text-xs);
-  line-height: 1.125rem;
-  font-weight: 500;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-}
-html.dark #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
-html.dark
-  #nd-page:has(.api-page-header)
-  .flex.flex-wrap.items-center.gap-3.not-prose
-  > span:has(> button) {
-  background-color: var(--surface-4);
+  color: var(--text-secondary) !important;
+  font-size: var(--text-code) !important;
+  line-height: 1.25rem !important;
+  font-weight: 400 !important;
+  font-family: var(--font-mono-stack) !important;
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
@@ -1463,15 +1478,15 @@ html.dark
   margin-bottom: 0.25rem !important;
 }
 
-/* Code examples in right column — wrap long lines instead of horizontal scroll */
-#nd-page:has(.api-page-header) pre {
-  white-space: pre-wrap !important;
-  word-break: break-all !important;
-}
-#nd-page:has(.api-page-header) pre code {
-  width: 100% !important;
-  word-break: break-all !important;
-  overflow-wrap: break-word !important;
+/* Example-panel code overflows rather than wraps: a wrapped line restarts at
+   column zero and misreports the JSON nesting depth. */
+
+/* fumadocs' own lucide glyphs (heading anchor, copy button) ship at stroke-width
+   2 while emcn strokes at 1.55, so they read heavier than everything near them.
+   Layout-wide on purpose: one icon weight across the docs. Retired once
+   createAPIPage is given renderHeading/renderCodeBlock. */
+#nd-docs-layout svg[class*="lucide"] {
+  stroke-width: 1.55;
 }
 
 /* Callout/alert — transparent background, no shadow, hide colored bar, add padding */
@@ -1497,7 +1512,7 @@ div.not-prose.rounded-md.border.bg-fd-card.p-2 {
 div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) > svg {
   fill: none !important;
   color: var(--color-fd-foreground) !important;
-  stroke-width: 1.75 !important;
+  stroke-width: 1.55 !important;
   flex-shrink: 0;
   width: 1rem !important;
   height: 1rem !important;

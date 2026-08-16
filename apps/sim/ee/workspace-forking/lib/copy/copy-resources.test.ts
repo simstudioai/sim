@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { folder as folderTable } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import {
   dbChainMockFns,
@@ -1343,12 +1344,31 @@ describe('copyForkResourceContainers skill copy', () => {
 
 describe('copyForkResourceContainers knowledge-base tag definitions', () => {
   /** Sequential tx mock: each select resolves the next queued row set; inserts are captured per call. */
-  function makeKbTx(selects: Array<Array<Record<string, unknown>>>) {
+  /**
+   * Sequential tx mock over the KB-copy selects, with the folder-mirroring reads served
+   * separately: the copy resolves the source KB folder subtree before inserting, and dispatching
+   * on the queried table keeps the queue positional over the KB selects alone instead of
+   * silently shifting whenever that mapping issues a query.
+   */
+  function makeKbTx(
+    selects: Array<Array<Record<string, unknown>>>,
+    sourceFolders: Array<Record<string, unknown>> = []
+  ) {
     let call = 0
+    // The mapper reads the source tree first, then the target's; serving the same rows to both
+    // would make every source folder look already-present and suppress the mirroring.
+    let folderCall = 0
     const inserts: Array<Array<Record<string, unknown>>> = []
     const tx = {
       select: () => ({
-        from: () => ({ where: () => Promise.resolve(selects[call++] ?? []) }),
+        from: (table: unknown) => ({
+          where: () => {
+            if (table === folderTable) {
+              return Promise.resolve(folderCall++ === 0 ? sourceFolders : [])
+            }
+            return Promise.resolve(selects[call++] ?? [])
+          },
+        }),
       }),
       insert: () => ({
         values: (rows: Array<Record<string, unknown>>) => {
@@ -1436,6 +1456,45 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
 
     // Only the KB row itself is inserted - no empty tag-definition insert.
     expect(inserts).toHaveLength(1)
+  })
+
+  it('mirrors the source knowledge-base folder and copies the KB into it, not the target root', async () => {
+    const foldered = { ...sourceBase, folderId: 'kb-folder' }
+    const { tx, inserts } = makeKbTx(
+      [[foldered], []],
+      [
+        {
+          id: 'kb-folder',
+          name: 'Policies',
+          parentId: null,
+          workspaceId: 'src-ws',
+          resourceType: 'knowledge_base',
+          deletedAt: null,
+        },
+      ]
+    )
+
+    await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: kbSelection,
+      workflowIdMap: new Map(),
+      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+    })
+
+    // insert #0 is the mirrored folder, #1 the KB row placed inside it.
+    const newFolder = inserts[0][0]
+    expect(newFolder).toMatchObject({
+      name: 'Policies',
+      workspaceId: 'child-ws',
+      resourceType: 'knowledge_base',
+    })
+    // A fresh id: reusing the source's would point the child KB at a folder it cannot see.
+    expect(newFolder.id).not.toBe('kb-folder')
+    expect(inserts[1][0].folderId).toBe(newFolder.id)
   })
 })
 

@@ -15,7 +15,7 @@ import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
 import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
-import { subscriptionKeys } from '@/hooks/queries/subscription'
+import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('InviteById')

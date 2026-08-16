@@ -14,6 +14,7 @@ import {
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
 import {
+  isMultipartFieldValidationError,
   isPayloadSizeLimitError,
   MAX_MULTIPART_OVERHEAD_BYTES,
   readFormDataWithLimit,
@@ -116,6 +117,9 @@ export const POST = withRouteHandler(
       } catch (error) {
         if (isPayloadSizeLimitError(error)) {
           return NextResponse.json({ error: error.message }, { status: 413 })
+        }
+        if (isMultipartFieldValidationError(error)) {
+          return NextResponse.json({ error: error.message }, { status: 400 })
         }
         return NextResponse.json(
           { error: 'Request body must be valid multipart form data' },

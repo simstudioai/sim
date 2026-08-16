@@ -10,19 +10,24 @@ const HUMAN_PRINCIPAL_POLICY = {
 } as const
 
 /**
- * Skill operations split on workspace API keys, and the split is structural
- * rather than an oversight.
+ * Every skill write is human-subject-only. Reads are not.
  *
- * `create` is gated on workspace `write`, which a workspace key can express, so
- * it allows one. `update`, `upsert`, and `delete` are not gated on workspace
- * role at all — their floor is `read` because the real authority is the
- * per-skill editor row that `resolveEditableSkill` checks against the acting
- * user. A workspace key has no user subject to check, so those operations deny
- * it: `requirePrincipalSubjectUserId` would otherwise throw an unclassified
- * error and surface as a caller-reachable `500` instead of a `403`.
+ * `update`, `upsert`, and `delete` are not gated on workspace role at all —
+ * their floor is `read` because the real authority is the per-skill editor row
+ * that `resolveEditableSkill` checks against the acting user. A workspace key
+ * has no user subject to check, so those operations deny it:
+ * `requirePrincipalSubjectUserId` would otherwise throw an unclassified error
+ * and surface as a caller-reachable `500` instead of a `403`. Widening them is
+ * not a policy flip — it needs an authorization model for a keyless principal
+ * against per-skill editors, which does not exist.
  *
- * Widening them therefore is not a policy flip — it needs an authorization model
- * for a keyless principal against per-skill editors, which does not exist.
+ * `create` denies a workspace key too, even though workspace `write` is a role
+ * a key can express. A key that created a skill could never update or delete
+ * it, so it could only accumulate rows beyond its own reach — and the row would
+ * not be attributable to it either: `create` attributes through
+ * `resolvePrincipalAttribution`, which maps a workspace key to the workspace's
+ * billing owner, minting a `skill_member` editor grant for a human who did not
+ * act. Denying it keeps the whole lifecycle under one authorization model.
  * Pinned in `operations.test.ts`.
  */
 export const skillOperations = {
@@ -47,8 +52,8 @@ export const skillOperations = {
   create: defineWorkspaceOperation({
     id: 'skills.create',
     minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    workspaceApiKey: 'deny',
+    ...HUMAN_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
     id: 'skills.update',

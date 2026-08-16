@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { folder as folderTable } from '@sim/db/schema'
 import {
   dbChainMockFns,
   resetDbChainMock,
@@ -236,5 +237,96 @@ describe('planForkFileCopies', () => {
       workspaceId: 'child-ws',
     })
     expect(tx.insert).not.toHaveBeenCalled()
+  })
+
+  it('mirrors the source file-folder subtree and places each copy inside it', async () => {
+    const sourceMeta = {
+      id: 'wf_src1',
+      key: 'workspace/src-ws/1-abc-a.txt',
+      userId: 'uploader-1',
+      workspaceId: 'src-ws',
+      folderId: 'child-folder',
+      context: 'workspace',
+      chatId: null,
+      originalName: 'a.txt',
+      displayName: null,
+      contentType: 'text/plain',
+      size: 4321,
+      deletedAt: null,
+      uploadedAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      contentUpdatedAt: new Date('2026-01-01'),
+    }
+    // A two-level source tree; only the branch holding the copied file is mirrored.
+    const sourceFolders = [
+      {
+        id: 'root-folder',
+        name: 'Reports',
+        parentId: null,
+        workspaceId: 'src-ws',
+        resourceType: 'file',
+        deletedAt: null,
+      },
+      {
+        id: 'child-folder',
+        name: 'Q1',
+        parentId: 'root-folder',
+        workspaceId: 'src-ws',
+        resourceType: 'file',
+        deletedAt: null,
+      },
+      {
+        id: 'unrelated',
+        name: 'Archive',
+        parentId: null,
+        workspaceId: 'src-ws',
+        resourceType: 'file',
+        deletedAt: null,
+      },
+    ]
+    const insertedFolders: Array<Record<string, unknown>> = []
+    let folderSelectCall = 0
+    const tx = {
+      select: vi.fn(() => ({
+        from: (table: unknown) => ({
+          where: () => {
+            if (table !== folderTable) return Promise.resolve([sourceMeta])
+            // First folder read is the source tree; the second is the (empty) target tree.
+            return Promise.resolve(folderSelectCall++ === 0 ? sourceFolders : [])
+          },
+        }),
+      })),
+      insert: vi.fn(() => ({
+        values: (rows: Array<Record<string, unknown>>) => {
+          insertedFolders.push(...rows)
+          return Promise.resolve()
+        },
+      })),
+    } as unknown as DbOrTx
+
+    const result = await planForkFileCopies({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      fileIds: ['wf_src1'],
+      now: new Date('2026-02-01'),
+    })
+
+    // The file's folder and its ancestor are recreated; the unrelated branch is pruned.
+    expect(insertedFolders).toHaveLength(2)
+    const byName = new Map(insertedFolders.map((row) => [row.name, row]))
+    expect(byName.has('Archive')).toBe(false)
+    const newRoot = byName.get('Reports')!
+    const newChild = byName.get('Q1')!
+    expect(newRoot).toMatchObject({ parentId: null, workspaceId: 'child-ws' })
+    // Nesting survives: the copied child points at the copied parent, not the source's.
+    expect(newChild.parentId).toBe(newRoot.id)
+    expect(newChild.id).not.toBe('child-folder')
+
+    // The copied file lands in the mirrored folder rather than the target root.
+    expect(result.blobTasks[0].targetFolderId).toBe(newChild.id)
+    expect(result.folderIdMap.get('child-folder')).toBe(newChild.id)
+    expect(result.folderIdMap.get('root-folder')).toBe(newRoot.id)
   })
 })

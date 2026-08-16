@@ -1,7 +1,9 @@
 import type {
   CloudflareDnsAnalyticsParams,
   CloudflareDnsAnalyticsResponse,
+  CloudflareRawDnsAnalyticsReport,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const dnsAnalyticsTool: ToolConfig<
@@ -36,10 +38,10 @@ export const dnsAnalyticsTool: ToolConfig<
     },
     metrics: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated metrics to retrieve (e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th")',
+        'Comma-separated metrics to retrieve (e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"). Optional — Cloudflare returns its default metric set when it is omitted',
     },
     dimensions: {
       type: 'string',
@@ -78,7 +80,7 @@ export const dnsAnalyticsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId}/dns_analytics/report`
+        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_analytics/report`
       )
       if (params.since) url.searchParams.append('since', params.since)
       if (params.until) url.searchParams.append('until', params.until)
@@ -97,7 +99,7 @@ export const dnsAnalyticsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawDnsAnalyticsReport>(response)
 
     if (!data.success) {
       return {
@@ -179,7 +181,7 @@ export const dnsAnalyticsTool: ToolConfig<
           responseTime99th: result?.max?.responseTime99th ?? 0,
         },
         data:
-          result?.data?.map((entry: any) => ({
+          result?.data?.map((entry) => ({
             dimensions: entry.dimensions ?? [],
             metrics: entry.metrics ?? [],
           })) ?? [],

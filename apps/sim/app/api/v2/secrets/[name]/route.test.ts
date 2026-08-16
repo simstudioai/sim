@@ -86,19 +86,22 @@ const secret = {
 }
 const context = { params: Promise.resolve({ name: SECRET_NAME }) }
 
+/**
+ * The read and delete verbs scope themselves with `?workspaceId=`; the write
+ * verb carries `workspaceId` in its body. Sending the query copy on a write is
+ * now a 400 rather than a silently dropped key, so the helper only appends it
+ * where the contract declares it.
+ */
 function request(method: 'PUT' | 'DELETE', body?: unknown) {
-  const scope = method === 'DELETE' ? '&scope=workspace' : ''
-  return new NextRequest(
-    `http://localhost:3000/api/v2/secrets/${SECRET_NAME}?workspaceId=${WORKSPACE_ID}${scope}`,
-    {
-      method,
-      headers: {
-        'x-api-key': 'key',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }
-  )
+  const query = method === 'DELETE' ? `?workspaceId=${WORKSPACE_ID}&scope=workspace` : ''
+  return new NextRequest(`http://localhost:3000/api/v2/secrets/${SECRET_NAME}${query}`, {
+    method,
+    headers: {
+      'x-api-key': 'key',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
 }
 
 describe('/api/v2/secrets/[name]', () => {
@@ -155,6 +158,25 @@ describe('/api/v2/secrets/[name]', () => {
       input: { workspaceId: WORKSPACE_ID, name: SECRET_NAME, scope: 'workspace' },
       request: expect.anything(),
     })
+  })
+
+  /**
+   * The secrets list rejects a query param it does not implement, so the delete
+   * must too. A caller who mistypes `scope` otherwise gets a 400 for the missing
+   * required param — but a caller who adds a param that does not exist at all
+   * would have had it silently ignored.
+   */
+  it('rejects a query param it does not implement', async () => {
+    const response = await DELETE(
+      new NextRequest(
+        `http://localhost:3000/api/v2/secrets/${SECRET_NAME}?workspaceId=${WORKSPACE_ID}&scope=workspace&scopes=personal`,
+        { method: 'DELETE', headers: { 'x-api-key': 'key' } }
+      ),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.remove).not.toHaveBeenCalled()
   })
 
   it('renders typed application errors without leaking raw errors', async () => {

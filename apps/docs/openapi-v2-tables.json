@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim Tables API v2",
-    "description": "Manage tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports through the public v2 API. Row data is keyed by column name.",
+    "description": "Version 2 of the Sim REST API for tables, typed columns, rows, saved views, workflow groups, folders, imports, and exports. Row data is keyed by column name.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listTables",
         "summary": "List Tables",
-        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -47,6 +47,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose tables should be listed."
             }
           },
@@ -54,19 +55,19 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to tables in this folder.",
+            "description": "Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to tables in this folder.",
-              "type": "string"
+              "description": "Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
-            "description": "Case-insensitive substring search on the resource name.",
+            "description": "Case-insensitive substring match against the resource name.",
             "schema": {
-              "description": "Case-insensitive substring search on the resource name.",
+              "description": "Case-insensitive substring match against the resource name.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -76,10 +77,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -104,8 +105,6 @@
             "schema": {
               "description": "Maximum tables to return per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
-              "minimum": 1,
-              "maximum": 1000,
               "default": 100
             }
           },
@@ -113,9 +112,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -241,7 +240,7 @@
       "get": {
         "operationId": "getTable",
         "summary": "Get Table",
-        "description": "Retrieve a table with its metadata, column schema, locks, and current job. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Retrieve a table with its metadata, column schema, locks, and current job. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -395,7 +394,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. The name, description, and folder changes are written independently in that order, so a failure part-way through leaves the earlier writes committed — a 4xx does NOT mean nothing changed. When at least one field landed before the failure, the error body carries `details.applied`: the list of fields (`name`, `description`, `folderPath`) that were successfully written. Re-read the table, or retry with only the fields missing from `details.applied`.\n\nA workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. The error body carries `details.applied` naming the fields that landed — retry with only the ones missing from it.\n\nA workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -504,7 +503,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The updated table columns.",
             "headers": {
               "X-RateLimit-Limit": {
@@ -536,6 +535,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -614,6 +616,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -691,6 +696,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -732,6 +740,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the table."
             }
           },
@@ -739,10 +748,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum rows to return in the current page.",
+            "description": "Maximum rows to return per page. Must be a whole number from 1 to 1000. Defaults to 100.",
             "schema": {
               "default": 100,
-              "description": "Maximum rows to return in the current page.",
+              "description": "Maximum rows to return per page. Must be a whole number from 1 to 1000. Defaults to 100.",
               "type": "integer",
               "minimum": 1,
               "maximum": 1000
@@ -752,9 +761,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor returned by the previous page.",
+            "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
             "schema": {
-              "description": "Opaque cursor returned by the previous page.",
+              "description": "Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.",
               "type": "string",
               "minLength": 1
             }
@@ -835,7 +844,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The inserted row or rows.",
             "headers": {
               "X-RateLimit-Limit": {
@@ -867,6 +876,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -945,6 +957,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1021,6 +1036,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1197,6 +1215,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1304,7 +1325,7 @@
       "post": {
         "operationId": "upsertTableRow",
         "summary": "Upsert Row",
-        "description": "Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is treated as the complete new row value, so every column you omit is cleared on the matched row. Upserting 2 of 10 columns blanks the other 8. This differs from `PATCH /api/v2/tables/{tableId}/rows/{rowId}`, which merges the patch into the existing row data. Send the full row here, or use PATCH when you only mean to change a subset.",
+        "description": "Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is the complete new row value, so every column you omit is cleared on the matched row. Send the full row here, or use `PATCH /api/v2/tables/{tableId}/rows/{rowId}` to change a subset.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1364,6 +1385,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -1383,7 +1407,7 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null.",
+        "description": "Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1443,6 +1467,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1459,7 +1486,7 @@
       "post": {
         "operationId": "countTableRows",
         "summary": "Count Rows",
-        "description": "Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and rowCount on the table resource counts every row rather than the predicate matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
+        "description": "Count the rows matching a typed predicate across the entire table. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1538,7 +1565,7 @@
       "get": {
         "operationId": "listTableViews",
         "summary": "List Views",
-        "description": "List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1671,6 +1698,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1844,6 +1874,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1945,7 +1978,7 @@
       "get": {
         "operationId": "listTableWorkflowGroups",
         "summary": "List Workflow Groups",
-        "description": "List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2079,6 +2112,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -2096,7 +2132,7 @@
       "patch": {
         "operationId": "updateTableWorkflowGroup",
         "summary": "Update Workflow Group",
-        "description": "Restructure a workflow group, its producer, outputs, or execution behavior.\n\nOutput leaf types are resolved against the group’s workflow outside the write lock. If the group is repointed at a different workflow concurrently, that snapshot is invalidated and the request returns `409` — retry the update.",
+        "description": "Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2158,6 +2194,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2235,6 +2274,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2314,6 +2356,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2413,6 +2458,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2488,6 +2536,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2577,7 +2628,7 @@
       "get": {
         "operationId": "getTableImport",
         "summary": "Get Table Import",
-        "description": "Read progress and terminal state for a durable table import.",
+        "description": "Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2599,7 +2650,19 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
+            }
+          },
+          {
+            "name": "upload-token",
+            "in": "header",
+            "required": false,
+            "description": "Signed upload control token returned when an upload-backed import was created.",
+            "schema": {
+              "description": "Signed upload control token returned when an upload-backed import was created.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -2651,7 +2714,7 @@
       "delete": {
         "operationId": "cancelTableImport",
         "summary": "Cancel Table Import",
-        "description": "Cancel an upload or processing import without rolling back committed row batches.\n\nCanceling an import that is not in a cancelable state returns `409` naming the current status, and that includes an expired import — `expired` is a terminal import status, not a `410`. An import id that never existed, or one whose retention window already purged the record, returns `404`.",
+        "description": "Cancel an upload or processing import without rolling back committed row batches.\n\nAn import that is not in a cancelable state, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2673,6 +2736,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           },
@@ -2741,7 +2805,7 @@
       "post": {
         "operationId": "createTableImportPartUrls",
         "summary": "Create Table Import Part URLs",
-        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be in the `uploading` state. An import that has moved on — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.",
+        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be `uploading`; one that has moved on, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2763,6 +2827,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           },
@@ -2826,6 +2891,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2842,7 +2910,7 @@
       "post": {
         "operationId": "completeTableImportUpload",
         "summary": "Complete Table Import Upload",
-        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nCompleting an import that is no longer awaiting an upload — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.",
+        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nAn import no longer awaiting an upload, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2864,6 +2932,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           },
@@ -2998,6 +3067,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3036,6 +3108,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           }
@@ -3110,6 +3183,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           }
@@ -3167,7 +3241,7 @@
       "get": {
         "operationId": "downloadTableExport",
         "summary": "Download Table Export",
-        "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached the `completed` status. An export still processing, or one that failed or was canceled, returns `409` naming the current status. An export whose generated file is no longer available — the retention window elapsed, or the object was purged — returns `404` (`Export file is no longer available`), not `410`.",
+        "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3189,6 +3263,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace that owns the transfer resource."
             }
           }
@@ -3306,6 +3381,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3322,7 +3400,7 @@
       "get": {
         "operationId": "listTablesFolders",
         "summary": "List Folders",
-        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page; `nextCursor` is always null.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3333,6 +3411,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose folders should be listed."
             }
           },
@@ -3343,7 +3422,7 @@
             "description": "Restrict results to direct children of this parent path.",
             "schema": {
               "description": "Restrict results to direct children of this parent path.",
-              "type": "string"
+              "$ref": "#/components/schemas/FolderPathInput"
             }
           },
           {
@@ -3362,10 +3441,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result.",
+            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result.",
+              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -3579,6 +3658,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace containing the folder."
             }
           },
@@ -3589,16 +3669,30 @@
             "description": "Path of the folder to delete.",
             "schema": {
               "description": "Path of the folder to delete.",
-              "type": "string"
+              "$ref": "#/components/schemas/NonRootFolderPathInput"
             }
           },
           {
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete nested files and folders when true.",
+            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
             "schema": {
-              "description": "Delete nested files and folders when true.",
+              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
               "default": "false",
               "type": "string"
             }
@@ -3666,7 +3760,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       }
     },
     "headers": {
@@ -3701,13 +3795,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
+        "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
+          "description": "Seconds to wait before retrying, sent on `429` and `503`. Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -3722,7 +3816,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "The request is invalid.",
+        "description": "The request is invalid. This includes a query parameter sent with no value (`?limit=`, `?search=`), which is rejected rather than read as zero, empty, or the parameter default — omit the parameter instead.",
         "content": {
           "application/json": {
             "schema": {
@@ -3752,7 +3846,7 @@
         }
       },
       "Forbidden": {
-        "description": "The caller lacks the rights this operation requires. Where the cause is one a caller can act on, `error.details.code` names it, drawn from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\nA resource in a workspace the caller cannot reach at all answers `404`, not `403`, so absence and denial are indistinguishable to a caller who was never entitled to tell them apart.",
+        "description": "The caller lacks the rights this operation requires. When the cause is one a caller can act on, `error.details.code` names it. A resource in a workspace the caller cannot reach at all answers `404` instead, so absence and denial are indistinguishable.",
         "content": {
           "application/json": {
             "schema": {
@@ -3782,7 +3876,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
+        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -3796,18 +3890,8 @@
           }
         }
       },
-      "Gone": {
-        "description": "The requested generated resource has expired.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
       "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -3852,7 +3936,7 @@
         }
       },
       "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced.",
+        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
         "content": {
           "application/json": {
             "schema": {
@@ -3872,7 +3956,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -3903,7 +3987,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Optional structured error details."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -3923,6 +4007,12 @@
             }
           }
         ]
+      },
+      "FolderPathInput": {
+        "title": "Folder path input",
+        "description": "Folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
       },
       "V2ApiTable": {
         "type": "object",
@@ -4045,7 +4135,9 @@
           },
           "folderPath": {
             "type": "string",
-            "description": "Canonical slash-prefixed folder path. `/` is the workspace root."
+            "title": "Folder path",
+            "description": "Canonical slash-prefixed folder path. `/` is the workspace root. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+            "maxLength": 4096
           },
           "locks": {
             "type": "object",
@@ -4184,7 +4276,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4223,6 +4315,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "schema": {
@@ -4289,10 +4382,6 @@
                       "description": "ISO 4217 code for currency columns.",
                       "type": "string",
                       "pattern": "^[A-Za-z]{3}$"
-                    },
-                    "workflowGroupId": {
-                      "description": "Workflow group initially associated with the column.",
-                      "type": "string"
                     }
                   },
                   "required": ["name", "type"],
@@ -4307,7 +4396,7 @@
           },
           "folderPath": {
             "description": "Folder in which to create the table.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["name", "workspaceId", "schema"],
@@ -4378,6 +4467,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "name": {
@@ -4401,8 +4491,7 @@
             "description": "Replacement table description, or null to clear it."
           },
           "folderPath": {
-            "description": "Folder path. A missing leading slash is normalized before validation.",
-            "type": "string"
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId"],
@@ -4512,6 +4601,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the table."
           },
           "column": {
@@ -4604,6 +4694,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace that owns the table."
           },
           "columnName": {
@@ -4692,6 +4783,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "columnName": {
@@ -4779,7 +4871,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4853,6 +4945,7 @@
               "workspaceId": {
                 "type": "string",
                 "minLength": 1,
+                "maxLength": 128,
                 "description": "Unique workspace identifier."
               },
               "rows": {
@@ -4874,6 +4967,7 @@
               "workspaceId": {
                 "type": "string",
                 "minLength": 1,
+                "maxLength": 128,
                 "description": "Unique workspace identifier."
               },
               "data": {
@@ -4940,16 +5034,156 @@
         "title": "Update table rows response",
         "description": "Updated row count and identifiers."
       },
+      "TablePredicate": {
+        "title": "Table predicate",
+        "description": "Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Matches a row when every member matches.",
+            "properties": {
+              "all": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicate"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["all"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Matches a row when at least one member matches.",
+            "properties": {
+              "any": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicate"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["any"],
+            "additionalProperties": false
+          }
+        ]
+      },
       "UpdateTableRowsRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "data": {
             "description": "Row-data patch applied to every matching row.",
@@ -5017,10 +5251,11 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "limit": {
             "description": "Maximum matching rows to delete.",
@@ -5069,6 +5304,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "data": {
@@ -5157,10 +5393,11 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "data": {
-            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging PATCH /rows/{rowId}.",
+            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging `PATCH /api/v2/tables/{tableId}/rows/{rowId}`.",
             "$ref": "#/components/schemas/V2TableRowData"
           },
           "conflictTarget": {
@@ -5203,7 +5440,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -5217,10 +5454,11 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -5317,10 +5555,11 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "$ref": "#/components/schemas/TablePredicate"
           }
         },
         "required": ["workspaceId"],
@@ -5409,7 +5648,7 @@
         "type": "object",
         "properties": {
           "columnWidths": {
-            "description": "Column widths keyed by stable column identifier.",
+            "description": "Column widths keyed by column name.",
             "type": "object",
             "propertyNames": {
               "type": "string"
@@ -5420,21 +5659,21 @@
             }
           },
           "columnOrder": {
-            "description": "Stable column identifiers in display order.",
+            "description": "Column names in display order.",
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "pinnedColumns": {
-            "description": "Stable identifiers of pinned columns.",
+            "description": "Names of pinned columns.",
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "hiddenColumns": {
-            "description": "Stable identifiers of hidden columns.",
+            "description": "Names of hidden columns.",
             "type": "array",
             "items": {
               "type": "string"
@@ -5505,7 +5744,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -5526,6 +5765,188 @@
         "title": "Create table view response",
         "description": "The created saved view."
       },
+      "TablePredicateInput": {
+        "title": "Table predicate input",
+        "description": "A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.",
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Matches a row when every member matches.",
+            "properties": {
+              "all": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["all"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Matches a row when at least one member matches.",
+            "properties": {
+              "any": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
+                "items": {
+                  "description": "A nested group, or a single condition.",
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TablePredicateInput"
+                    },
+                    {
+                      "type": "object",
+                      "title": "Predicate condition",
+                      "description": "One column comparison.",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128,
+                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+                        },
+                        "op": {
+                          "type": "string",
+                          "enum": [
+                            "eq",
+                            "ne",
+                            "gt",
+                            "gte",
+                            "lt",
+                            "lte",
+                            "in",
+                            "nin",
+                            "contains",
+                            "ncontains",
+                            "startsWith",
+                            "endsWith",
+                            "like",
+                            "ilike",
+                            "nlike",
+                            "nilike",
+                            "isEmpty",
+                            "isNotEmpty",
+                            "isNull",
+                            "isNotNull"
+                          ],
+                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                        },
+                        "value": {
+                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+                        }
+                      },
+                      "required": ["field", "op"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["any"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "title": "Predicate condition",
+            "description": "One column comparison.",
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "eq",
+                  "ne",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "in",
+                  "nin",
+                  "contains",
+                  "ncontains",
+                  "startsWith",
+                  "endsWith",
+                  "like",
+                  "ilike",
+                  "nlike",
+                  "nilike",
+                  "isEmpty",
+                  "isNotEmpty",
+                  "isNull",
+                  "isNotNull"
+                ],
+                "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+              },
+              "value": {
+                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+              }
+            },
+            "required": ["field", "op"],
+            "additionalProperties": false
+          }
+        ]
+      },
       "CreateTableViewRequest": {
         "type": "object",
         "properties": {
@@ -5543,7 +5964,7 @@
             "type": "object",
             "properties": {
               "columnWidths": {
-                "description": "Column widths keyed by stable column identifier.",
+                "description": "Column widths keyed by column name or stable column identifier.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -5554,21 +5975,21 @@
                 }
               },
               "columnOrder": {
-                "description": "Stable column identifiers in display order.",
+                "description": "Columns in display order, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "pinnedColumns": {
-                "description": "Stable identifiers of pinned columns.",
+                "description": "Pinned columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "hiddenColumns": {
-                "description": "Stable identifiers of hidden columns.",
+                "description": "Hidden columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -5578,7 +5999,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation."
+                    "$ref": "#/components/schemas/TablePredicateInput"
                   },
                   {
                     "type": "null"
@@ -5656,7 +6077,7 @@
             "type": "object",
             "properties": {
               "columnWidths": {
-                "description": "Column widths keyed by stable column identifier.",
+                "description": "Column widths keyed by column name or stable column identifier.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -5667,21 +6088,21 @@
                 }
               },
               "columnOrder": {
-                "description": "Stable column identifiers in display order.",
+                "description": "Columns in display order, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "pinnedColumns": {
-                "description": "Stable identifiers of pinned columns.",
+                "description": "Pinned columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "hiddenColumns": {
-                "description": "Stable identifiers of hidden columns.",
+                "description": "Hidden columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -5691,7 +6112,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation."
+                    "$ref": "#/components/schemas/TablePredicateInput"
                   },
                   {
                     "type": "null"
@@ -5736,7 +6157,7 @@
             "type": "object",
             "properties": {
               "columnWidths": {
-                "description": "Column widths keyed by stable column identifier.",
+                "description": "Column widths keyed by column name or stable column identifier.",
                 "type": "object",
                 "propertyNames": {
                   "type": "string"
@@ -5747,21 +6168,21 @@
                 }
               },
               "columnOrder": {
-                "description": "Stable column identifiers in display order.",
+                "description": "Columns in display order, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "pinnedColumns": {
-                "description": "Stable identifiers of pinned columns.",
+                "description": "Pinned columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
               "hiddenColumns": {
-                "description": "Stable identifiers of hidden columns.",
+                "description": "Hidden columns, by name or stable identifier.",
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -5771,7 +6192,7 @@
                 "description": "Saved row predicate, or null when the view is unfiltered.",
                 "anyOf": [
                   {
-                    "description": "Recursive predicate condition or group, normalized to a grouped predicate after validation."
+                    "$ref": "#/components/schemas/TablePredicateInput"
                   },
                   {
                     "type": "null"
@@ -5909,7 +6330,7 @@
                 },
                 "columnName": {
                   "type": "string",
-                  "description": "Table column receiving the output."
+                  "description": "Name of the table column receiving the output."
                 }
               },
               "required": ["blockId", "path", "columnName"],
@@ -5929,7 +6350,7 @@
                 },
                 "columnName": {
                   "type": "string",
-                  "description": "Source table column name."
+                  "description": "Name of the source table column."
                 }
               },
               "required": ["inputName", "columnName"],
@@ -5970,7 +6391,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6084,6 +6505,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "group": {
@@ -6095,9 +6517,9 @@
                 "minLength": 1
               },
               "workflowId": {
-                "default": "",
-                "description": "Backing workflow identifier for a manual group.",
-                "type": "string"
+                "description": "Backing workflow identifier. Required when `type` is `manual` (which is also the default when `type` is omitted); omit it for an `enrichment` group.",
+                "type": "string",
+                "minLength": 1
               },
               "enrichmentId": {
                 "description": "Registry enrichment identifier.",
@@ -6214,7 +6636,8 @@
                   "type": "boolean"
                 }
               },
-              "required": ["name", "type"]
+              "required": ["name", "type"],
+              "additionalProperties": false
             },
             "description": "Columns created for producer outputs."
           },
@@ -6270,6 +6693,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "groupId": {
@@ -6353,7 +6777,8 @@
                   "type": "boolean"
                 }
               },
-              "required": ["name", "type"]
+              "required": ["name", "type"],
+              "additionalProperties": false
             }
           },
           "mappingUpdates": {
@@ -6407,7 +6832,7 @@
             "enum": ["live", "deployed"]
           },
           "type": {
-            "description": "Replacement workflow-group producer type.",
+            "description": "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation.",
             "type": "string",
             "enum": ["manual", "enrichment"]
           },
@@ -6539,6 +6964,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "groupId": {
@@ -6597,6 +7023,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "groupIds": {
@@ -6617,6 +7044,7 @@
           "rowIds": {
             "description": "Explicit row subset to run.",
             "minItems": 1,
+            "maxItems": 1000000,
             "type": "array",
             "items": {
               "type": "string",
@@ -6624,7 +7052,7 @@
             }
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "excludeRowIds": {
             "description": "Rows excluded from a select-all run scope.",
@@ -6684,6 +7112,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           }
         },
@@ -6722,15 +7151,16 @@
         "type": "object",
         "properties": {
           "matches": {
+            "maxItems": 1000,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V2TableRowMatch"
             },
-            "description": "Matching table cells."
+            "description": "Matching table cells, at most 1000."
           },
           "truncated": {
             "type": "boolean",
-            "description": "Whether more matches exist beyond the server cap."
+            "description": "Whether more than 1000 cells matched, so the list was cut."
           }
         },
         "required": ["matches", "truncated"],
@@ -6757,15 +7187,17 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "q": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 200,
             "description": "Case-insensitive cell substring to find."
           },
           "predicate": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -6856,15 +7288,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "uploading",
-              "queued",
-              "processing",
-              "completed",
-              "failed",
-              "canceled",
-              "expired"
-            ],
+            "enum": ["uploading", "processing", "completed", "failed", "canceled", "expired"],
             "description": "Current import lifecycle state."
           },
           "source": {
@@ -6889,8 +7313,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7003,7 +7426,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded."
+            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -7085,15 +7508,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "uploading",
-              "queued",
-              "processing",
-              "completed",
-              "failed",
-              "canceled",
-              "expired"
-            ],
+            "enum": ["uploading", "processing", "completed", "failed", "canceled", "expired"],
             "description": "Current import lifecycle state."
           },
           "source": {
@@ -7118,8 +7533,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7259,11 +7673,11 @@
               },
               "uploadToken": {
                 "type": "null",
-                "description": "Always null for workspace-file imports."
+                "description": "Always null; a workspace-file import has no upload to authorize."
               },
               "transfer": {
                 "type": "null",
-                "description": "Always null for workspace-file imports."
+                "description": "Always null; a workspace-file import has no bytes to transfer."
               }
             },
             "required": ["session", "uploadToken", "transfer"],
@@ -7292,6 +7706,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "source": {
@@ -7323,8 +7738,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7409,15 +7823,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "uploading",
-              "queued",
-              "processing",
-              "completed",
-              "failed",
-              "canceled",
-              "expired"
-            ],
+            "enum": ["uploading", "processing", "completed", "failed", "canceled", "expired"],
             "description": "Current import lifecycle state."
           },
           "source": {
@@ -7449,8 +7855,7 @@
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
-                    "description": "Folder path. A missing leading slash is normalized before validation.",
-                    "type": "string"
+                    "$ref": "#/components/schemas/FolderPathInput"
                   }
                 },
                 "required": ["type", "name"],
@@ -7590,7 +7995,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part."
+            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. Success is `204` with an empty body. A failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response: `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. The URL is signed and self-describing — construct it from this field only, never by hand."
           },
           "headers": {
             "type": "object",
@@ -7785,6 +8190,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "format": {
@@ -7900,6 +8306,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Unique workspace identifier."
           },
           "scope": {
@@ -7913,7 +8320,7 @@
             "minLength": 1
           },
           "filter": {
-            "description": "Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node."
+            "$ref": "#/components/schemas/TablePredicate"
           },
           "excludeRowIds": {
             "description": "Rows excluded from an all-scope cancellation.",
@@ -7946,11 +8353,15 @@
           },
           "path": {
             "type": "string",
-            "description": "Canonical folder path used as the public folder identifier."
+            "title": "Non-root folder path",
+            "description": "Canonical folder path used as the public folder identifier.",
+            "maxLength": 4096
           },
           "parentPath": {
             "type": "string",
-            "description": "Canonical parent path; `/` is the root."
+            "title": "Folder path",
+            "description": "Canonical parent path; `/` is the root.",
+            "maxLength": 4096
           },
           "createdAt": {
             "type": "string",
@@ -7987,7 +8398,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page: send it back as `cursor` to continue, and stop when it is null. Most v2 lists page, so null means the last page was reached. A few are full-set lists that return their whole bounded result in one response and therefore always report null; those say so in the operation description. Either way, null means there is nothing further to fetch — never construct a cursor yourself."
+            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
           }
         },
         "required": ["data", "nextCursor"],
@@ -8008,17 +8419,24 @@
         "title": "Create table folder response",
         "description": "The created table folder."
       },
+      "NonRootFolderPathInput": {
+        "title": "Non-root folder path input",
+        "description": "Non-root folder path. A missing leading slash is normalized before validation. Segments are percent-encoded, so a folder shown as \"New folder\" is `/New%20folder`: everything outside `A-Z a-z 0-9 - _ . ~` is escaped as uppercase hex, and only that exact encoding is accepted. A trailing slash, an empty segment, and a literal `.` or `..` segment are rejected. At most 64 segments and 4096 encoded bytes.",
+        "maxLength": 4096,
+        "type": "string"
+      },
       "CreateTableFolderRequest": {
         "type": "object",
         "properties": {
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the folder."
           },
           "path": {
             "description": "Path of the folder to create.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path"],
@@ -8045,15 +8463,16 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the folder."
           },
           "path": {
             "description": "Current folder path.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
             "description": "New full path for the folder and its descendants.",
-            "type": "string"
+            "$ref": "#/components/schemas/NonRootFolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -8066,7 +8485,9 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Canonical path of the deleted folder."
+            "title": "Folder path",
+            "description": "Canonical path of the deleted folder.",
+            "maxLength": 4096
           },
           "deleted": {
             "type": "boolean",

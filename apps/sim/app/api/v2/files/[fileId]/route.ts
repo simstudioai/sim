@@ -28,10 +28,14 @@ export const revalidate = 0
  * Lookups are workspace-scoped (IDOR-safe): a file in another workspace 404s.
  *
  * A generated doc whose artifact is still compiling renders `CONFLICT`; retry.
+ *
+ * `headSafe: false` because downloading records a `FILE_DOWNLOADED` audit event
+ * and pulls the bytes out of object storage.
  */
 export const GET = defineV2BinaryRoute({
   contract: v2DownloadFileContract,
   auth: v2ApiKeyAuth,
+  headSafe: false,
   operation: fileOperations.download,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,

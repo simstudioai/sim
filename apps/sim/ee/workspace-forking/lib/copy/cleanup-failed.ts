@@ -9,8 +9,9 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, exists, gt, inArray, isNull, notExists, sql } from 'drizzle-orm'
-import { isRecord, type SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 import { invalidateDeployedStateCache } from '@/lib/workflows/persistence/utils'
 import {
   FORK_DOCUMENT_ID_PATTERN,
@@ -325,13 +326,13 @@ export function rewriteDeploymentVersionState(
   state: unknown,
   resolve: ForkCopyResolver
 ): { state: unknown; changed: boolean } {
-  if (!isRecord(state) || !isRecord(state.blocks)) return { state, changed: false }
+  if (!isRecordLike(state) || !isRecordLike(state.blocks)) return { state, changed: false }
 
   let nextBlocks: Record<string, unknown> | null = null
   for (const [blockId, block] of Object.entries(state.blocks)) {
-    if (!isRecord(block)) continue
+    if (!isRecordLike(block)) continue
     const blockType = typeof block.type === 'string' ? block.type : undefined
-    if (!blockType || !isRecord(block.subBlocks)) continue
+    if (!blockType || !isRecordLike(block.subBlocks)) continue
     const { subBlocks: cleared, changed } = clearFailedSubBlockReferences(
       block.subBlocks as SubBlockRecord,
       blockType,

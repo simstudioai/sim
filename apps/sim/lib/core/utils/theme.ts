@@ -33,11 +33,3 @@ export function syncThemeToNextThemes(theme: 'system' | 'light' | 'dark') {
     root.classList.add(theme)
   }
 }
-
-/**
- * Gets the current theme from next-themes localStorage
- */
-export function getThemeFromNextThemes(): 'system' | 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'system'
-  return (localStorage.getItem('sim-theme') as 'system' | 'light' | 'dark') || 'system'
-}

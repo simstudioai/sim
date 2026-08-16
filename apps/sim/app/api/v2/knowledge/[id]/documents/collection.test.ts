@@ -117,7 +117,6 @@ describe('GET /api/v2/knowledge/[id]/documents', () => {
       documents: [DOCUMENT],
       tagDefinitions: TAG_DEFINITIONS,
       pagination: { total: 1, limit: 50, offset: 0, hasMore: false },
-      cursorScope: 'scope',
       workspaceId: WORKSPACE_ID,
     })
   })
@@ -151,19 +150,37 @@ describe('GET /api/v2/knowledge/[id]/documents', () => {
     )
   })
 
-  it('stamps the tag filters into the cursor scope so a replayed cursor cannot cross filters', async () => {
+  it('stamps the tag filters into the cursor so a replayed cursor cannot cross filters', async () => {
     const tagFilters = JSON.stringify([{ tagName: 'category', operator: 'eq', value: 'billing' }])
+    mockListDocuments.mockResolvedValue({
+      documents: [DOCUMENT],
+      tagDefinitions: TAG_DEFINITIONS,
+      pagination: { total: 4, limit: 2, offset: 0, hasMore: true },
+      workspaceId: WORKSPACE_ID,
+    })
 
-    await GET(buildListRequest(`?workspaceId=${WORKSPACE_ID}`), context)
-    await GET(
-      buildListRequest(`?workspaceId=${WORKSPACE_ID}&tagFilters=${encodeURIComponent(tagFilters)}`),
+    const unfiltered = await (
+      await GET(buildListRequest(`?workspaceId=${WORKSPACE_ID}`), context)
+    ).json()
+    const filtered = await (
+      await GET(
+        buildListRequest(
+          `?workspaceId=${WORKSPACE_ID}&tagFilters=${encodeURIComponent(tagFilters)}`
+        ),
+        context
+      )
+    ).json()
+
+    expect(unfiltered.nextCursor).not.toEqual(filtered.nextCursor)
+
+    const replayed = await GET(
+      buildListRequest(
+        `?workspaceId=${WORKSPACE_ID}&tagFilters=${encodeURIComponent(tagFilters)}&cursor=${encodeURIComponent(unfiltered.nextCursor)}`
+      ),
       context
     )
 
-    const [unfiltered, filtered] = mockListDocuments.mock.calls.map(
-      ([call]) => call.input.cursorScope
-    )
-    expect(unfiltered).not.toEqual(filtered)
+    expect(replayed.status).toBe(400)
   })
 
   it('rejects malformed and wrongly shaped tag filters with a 400', async () => {

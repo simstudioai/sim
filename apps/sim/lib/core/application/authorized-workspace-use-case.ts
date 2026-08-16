@@ -1,5 +1,5 @@
 import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
-import type { PrincipalAuditAttribution } from '@sim/auth/principal'
+import type { Principal, PrincipalAuditAttribution } from '@sim/auth/principal'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
@@ -56,6 +56,8 @@ export interface AuthorizedWorkspaceUseCaseDefinition<
     | ((
         args: AuthorizedWorkspaceUseCaseContext<O, I, C>
       ) => WorkspaceAuthorizationOptions<C> | Promise<WorkspaceAuthorizationOptions<C>>)
+  /** Applies current domain-resource policy after workspace authorization. */
+  authorizeResource?(args: AuthorizedWorkspaceUseCaseContext<O, I, C>): void | Promise<void>
   execute(args: AuthorizedWorkspaceUseCaseContext<O, I, C>): Promise<R>
   projectAudit?(
     args: AuthorizedWorkspaceUseCaseResultContext<O, I, C, R>
@@ -109,27 +111,55 @@ export function defineAuthorizedWorkspaceUseCase<
   C extends WorkspaceAuthorizationContext,
   R,
 >(definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>): OperationUseCase<O, I, R> {
+  /**
+   * Everything that runs before the business transaction: allowed-principal
+   * check, canonical load, asserted-scope comparison, current workspace and
+   * resource access checks.
+   *
+   * `execute` and `authorize` share it rather than each spelling it out, so a
+   * `HEAD` probe cannot answer a different question from the `GET` it stands
+   * for. It hands back the context it already loaded so the two phases together
+   * cost the same reads `execute` alone used to.
+   */
+  async function authorizePhase({
+    principal,
+    input,
+    request,
+  }: {
+    principal: Principal
+    input: I
+    request?: OrchestrationRequestContext
+  }): Promise<AuthorizedWorkspaceUseCaseContext<O, I, C>> {
+    requireAllowedWorkspacePrincipal(principal, definition.operation)
+    const context = await definition.resolveContext({ principal, input })
+    const executionContext: AuthorizedWorkspaceUseCaseContext<O, I, C> = {
+      principal,
+      input,
+      context,
+      request,
+    }
+    const authorizationOptions = isAuthorizationOptionsResolver(definition.authorizationOptions)
+      ? await definition.authorizationOptions(executionContext)
+      : definition.authorizationOptions
+
+    await authorizeWorkspaceOperation(
+      principal,
+      definition.operation,
+      context,
+      authorizationOptions
+    )
+    await definition.authorizeResource?.(executionContext)
+    return executionContext
+  }
+
   return {
     operation: definition.operation,
-    async execute({ principal, input, request }) {
-      requireAllowedWorkspacePrincipal(principal, definition.operation)
-      const context = await definition.resolveContext({ principal, input })
-      const executionContext: AuthorizedWorkspaceUseCaseContext<O, I, C> = {
-        principal,
-        input,
-        context,
-        request,
-      }
-      const authorizationOptions = isAuthorizationOptionsResolver(definition.authorizationOptions)
-        ? await definition.authorizationOptions(executionContext)
-        : definition.authorizationOptions
-
-      await authorizeWorkspaceOperation(
-        principal,
-        definition.operation,
-        context,
-        authorizationOptions
-      )
+    async authorize(args) {
+      await authorizePhase(args)
+    },
+    async execute(args) {
+      const executionContext = await authorizePhase(args)
+      const { principal, context, request } = executionContext
       const result = await definition.execute(executionContext)
       const resultContext = { ...executionContext, result }
       const projectedAudit = definition.projectAudit?.(resultContext)

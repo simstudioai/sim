@@ -59,12 +59,17 @@ const SPEC_FILES = OPENAPI_SPEC_FILES
  * A stale entry — one whose contract no longer exists, or which has since
  * been documented — also fails, so the list cannot rot into a blanket
  * exemption.
+ *
+ * Being unpublished is about *addressability*, not about behaviour: both
+ * entries below answer in the canonical `{ error: { code, message } }` envelope
+ * like every documented route, and what a caller needs in order to perform the
+ * transfer is published on `transfer.url` in `contracts/v2/uploads.ts`.
  */
 const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
   'PUT /api/v2/uploads/{uploadId}':
-    'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key; carries no v2 feature gate and returns bare error bodies rather than the canonical v2 envelope. The URL is handed to the client by the session response and is never constructed from docs.',
+    'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key, so it carries neither the v2 API-key security scheme nor the rate-limit and feature-gate responses `checkV2Conventions` requires of a published operation. On a cloud deployment the same field points at object storage instead, so the endpoint is described by `transfer.url` — which publishes its method, headers, success status, and error codes — rather than by an operation of its own.',
   'PUT /api/v2/uploads/{uploadId}/parts/{partNumber}':
-    'Local-storage data plane for a signed multipart part upload. Authenticated by a per-part signed `token` query param minted by the documented part-URL operation, not by an API key; same non-canonical envelope and self-describing URL as the whole-object PUT above.',
+    'Local-storage data plane for a signed multipart part upload. Authenticated by a per-part signed `token` query param minted by the documented part-URL operation, not by an API key; same reasoning and same published `transfer.url` contract as the whole-object PUT above.',
 }
 
 /**

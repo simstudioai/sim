@@ -2,6 +2,12 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import {
+  loadCompiledDoc,
+  loadPublishedCompiledDoc,
+  publishCompiledDocArtifact,
+  storeCompiledDoc,
+} from '@/lib/copilot/tools/server/files/doc-compiled-store'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -15,7 +21,6 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
-import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
 
 const logger = createLogger('CopilotDocCompile')
 
@@ -567,6 +572,14 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
     referencedImages.artifactIdentity
   )
   if (existing) {
+    if (referencedImages.artifactIdentity) {
+      await publishCompiledDocArtifact(
+        workspaceId,
+        source,
+        fmt.ext,
+        referencedImages.artifactIdentity
+      )
+    }
     const contributingFiles = referencedImageIdentities(referencedImages)
     return {
       buffer: existing,
@@ -588,6 +601,7 @@ export async function loadCompiledDocByExt(
   ext: string,
   options: {
     allowLegacyReferencedArtifact?: boolean
+    allowPublishedReferencedArtifact?: boolean
     filePrincipal?: Principal
   } = {}
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
@@ -598,6 +612,10 @@ export async function loadCompiledDocByExt(
     if (referencedFileIds.size === 0) {
       const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
       return buffer ? { buffer, contentType: fmt.contentType } : null
+    }
+    if (options.allowPublishedReferencedArtifact) {
+      const publishedBuffer = await loadPublishedCompiledDoc(workspaceId, source, fmt.ext)
+      if (publishedBuffer) return { buffer: publishedBuffer, contentType: fmt.contentType }
     }
     if (!options.allowLegacyReferencedArtifact) return null
     const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
@@ -655,7 +673,7 @@ export async function resolveServableDoc(
       workspaceId,
       storedBytes.toString('utf-8'),
       fmt.ext,
-      { allowLegacyReferencedArtifact: true }
+      { allowLegacyReferencedArtifact: true, allowPublishedReferencedArtifact: true }
     )
     return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
   } catch (error) {
@@ -743,7 +761,16 @@ export async function resolveServableDocBytes(args: {
       return compileDocInLegacySandbox({ source, fileName, workspaceId, ownerKey, signal }, fmt)
     }
     const referencedFileIds = collectReferencedFileIds(source)
-    if (referencedFileIds.size > 0 && filePrincipal) {
+    if (referencedFileIds.size > 0) {
+      if (!filePrincipal) {
+        const published = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
+          allowPublishedReferencedArtifact: true,
+        })
+        if (published) return published
+        throw new Error(
+          'Referenced document resolution requires an authorized workspace file principal'
+        )
+      }
       return compileDoc({ source, fileName, workspaceId, filePrincipal, ownerKey, signal })
     }
     const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot, {

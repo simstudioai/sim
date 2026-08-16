@@ -1,5 +1,6 @@
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import {
@@ -24,12 +25,6 @@ export interface ListWorkspaceCredentialsInput {
 export interface ListWorkspaceCredentialsResult {
   credentials: VisibleWorkspaceCredential[]
   nextCursorKeys: CursorKey[] | null
-  /**
-   * Echoed back because the route's presenter receives only this result, and the
-   * cursor it hands out has to be stamped with the sort that produced it.
-   */
-  sortBy: ListWorkspaceCredentialsInput['sortBy']
-  sortOrder: ListSortOrder
 }
 
 export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
@@ -56,12 +51,19 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
         limit: input.limit,
         cursorKeys: input.cursorKeys,
       })
-      return { credentials: page.data, nextCursorKeys: page.nextCursorKeys, ...sort }
+      return { credentials: page.data, nextCursorKeys: page.nextCursorKeys }
     }
 
     const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, principal.userId)
     if (!workspaceAccess.hasAccess) {
-      throw new OrchestrationError('forbidden', 'Access denied')
+      /**
+       * `hasAccess` is `permission !== null` — the same condition
+       * `requirePermission` classifies as no reach into the workspace at all —
+       * so it raises the canonical error rather than a bare `forbidden`. It
+       * stays codeless deliberately: this is the concealed cross-tenant class,
+       * not one a caller can act on.
+       */
+      throw new NoWorkspaceAccessError()
     }
     const page = await listVisibleWorkspaceCredentials({
       workspaceId: context.workspaceId,
@@ -74,6 +76,6 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
       limit: input.limit,
       cursorKeys: input.cursorKeys,
     })
-    return { credentials: page.data, nextCursorKeys: page.nextCursorKeys, ...sort }
+    return { credentials: page.data, nextCursorKeys: page.nextCursorKeys }
   },
 })

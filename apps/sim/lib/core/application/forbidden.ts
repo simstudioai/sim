@@ -42,6 +42,14 @@ export const FORBIDDEN_DETAIL_CODES = [
   'AUDIT_LOGS_DISABLED',
   /** The caller holds workspace write but is not an editor of this skill. */
   'SKILL_EDITOR_ACCESS_REQUIRED',
+  /** The caller holds workspace write but is not an admin of this secret. */
+  'SECRET_ADMIN_ACCESS_REQUIRED',
+  /** The workspace is already at its ceiling for this kind of resource. */
+  'WORKSPACE_RESOURCE_LIMIT_REACHED',
+  /** The workspace's organization does not permit public sharing. */
+  'PUBLIC_SHARING_NOT_ALLOWED',
+  /** The caller can reach the workspace but cannot administer this credential. */
+  'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
   /** The MCP server URL is outside the allowed domains or resolves internally. */
   'MCP_SERVER_URL_NOT_ALLOWED',
 ] as const
@@ -71,6 +79,14 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
   AUDIT_LOGS_DISABLED: 'Audit logging is not enabled for this deployment.',
   SKILL_EDITOR_ACCESS_REQUIRED:
     'The caller can write in the workspace but is not an editor of this skill.',
+  SECRET_ADMIN_ACCESS_REQUIRED:
+    'The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.',
+  WORKSPACE_RESOURCE_LIMIT_REACHED:
+    'The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.',
+  PUBLIC_SHARING_NOT_ALLOWED:
+    "The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.",
+  CREDENTIAL_ADMIN_ACCESS_REQUIRED:
+    'The caller can reach the workspace but cannot administer this credential.',
   MCP_SERVER_URL_NOT_ALLOWED:
     'The supplied MCP server URL is outside the allowed domains or resolves to an internal address.',
 }

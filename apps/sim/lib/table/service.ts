@@ -28,6 +28,7 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
@@ -45,6 +46,7 @@ import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
+import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -55,7 +57,7 @@ import {
   UNLOCKED_TABLE_LOCKS,
 } from '@/lib/table/types'
 import { validateTableName, validateTableSchema } from '@/lib/table/validation'
-import { stripGroupDeps } from '@/lib/table/workflow-columns'
+import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
 
 const logger = createLogger('TableService')
 
@@ -464,6 +466,54 @@ export async function queryTables(
 }
 
 /**
+ * The refusal {@link createTable} raises when a workspace is at its table
+ * ceiling. Shared so the advisory pre-check answers with the identical code,
+ * status, and message as the authoritative one inside the transaction.
+ */
+function workspaceTableLimitReached(maxTables: number): ForbiddenOperationError {
+  /**
+   * A quota ceiling, not bad input — both create routes have always answered
+   * 403 for it. It names its cause so a client can tell a ceiling apart from a
+   * role or key-kind refusal: one is cleared by deleting a table, the other by
+   * changing who is calling. The status is left as it shipped, and it disagrees
+   * with the row ceiling's 400 — see `TableRowLimitError` in `lib/table/billing`
+   * for why both are recorded rather than unified here.
+   */
+  return new ForbiddenOperationError(
+    'WORKSPACE_RESOURCE_LIMIT_REACHED',
+    `Workspace has reached maximum table limit (${maxTables})`
+  )
+}
+
+/**
+ * Advisory table-quota check for a caller that is about to make the user pay
+ * for work before {@link createTable} would run.
+ *
+ * The authoritative check is the `FOR UPDATE` count inside `createTable`'s
+ * transaction and stays there — this one races, by construction, because the
+ * ceiling can be reached (or cleared) during whatever the caller does next. It
+ * exists so that "next" is not a multi-gigabyte upload: the CSV import used to
+ * hand out a presigned PUT for a table it already knew it could not create, and
+ * only answered 403 after the whole file had crossed the wire, leaving an
+ * orphaned object behind.
+ */
+export async function assertWorkspaceTableCapacity(
+  workspaceId: string,
+  maxTables: number
+): Promise<void> {
+  const [{ count: existingCount }] = await db
+    .select({ count: count() })
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+  if (Number(existingCount) >= maxTables) throw workspaceTableLimitReached(maxTables)
+}
+
+/**
  * Creates a new table.
  *
  * @param data - Table creation data
@@ -498,6 +548,16 @@ export async function createTable(
 
   // Stamp stable ids so the table is id-keyed from its first row write.
   const schema = withGeneratedColumnIds(data.schema)
+
+  // The same invariants every later schema mutation enforces, run over what is
+  // about to be persisted. `validateTableSchema` above only checks columns in
+  // isolation, so a create could store a column naming a workflow group the
+  // schema does not declare — which no update path can clear, and which then
+  // fails every subsequent add-column and add-group with a 400. Imported lazily
+  // because `workflow-columns` transitively reaches the executable tool
+  // registry, which a static edge would pull into every page graph that renders
+  // a table.
+  assertValidSchema(schema, undefined)
 
   // Row limits are enforced per-write against the current plan (see assertRowCapacity); the stored
   // column is vestigial, so it just takes the caller's value (if any) or the default.
@@ -553,14 +613,7 @@ export async function createTable(
           )
         )
 
-      if (Number(existingCount) >= maxTables) {
-        // A quota ceiling, not bad input — both create routes have always
-        // answered 403 for it.
-        throw new OrchestrationError(
-          'forbidden',
-          `Workspace has reached maximum table limit (${maxTables})`
-        )
-      }
+      if (Number(existingCount) >= maxTables) throw workspaceTableLimitReached(maxTables)
 
       const duplicateName = await trx
         .select({ id: userTableDefinitions.id })
@@ -892,7 +945,15 @@ export async function moveTableToFolder(
   tableId: string,
   workspaceId: string,
   folderId: string | null,
-  requestId: string
+  requestId: string,
+  /**
+   * `notify: false` for a caller moving several tables in one gesture that
+   * sends a single batch notification of its own. Each notify is an internal
+   * HTTP round trip with an identical body and triggers an identical
+   * workspace-wide invalidation, so a per-item fan-out makes every connected
+   * client refetch the same list once per moved table.
+   */
+  options?: { notify?: boolean }
 ): Promise<{ name: string }> {
   const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
     folderId,
@@ -928,7 +989,7 @@ export async function moveTableToFolder(
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
   // Live tables list: a move changes each table's folder placement in the list result.
-  await notifyWorkspaceTablesChanged(workspaceId)
+  if (options?.notify ?? true) await notifyWorkspaceTablesChanged(workspaceId)
 
   return { name }
 }

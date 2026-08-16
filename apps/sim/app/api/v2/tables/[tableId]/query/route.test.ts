@@ -39,7 +39,15 @@ vi.mock('@/lib/table/application/rows', () => ({
   queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
 }))
 
+import { v2QueryRowsContract } from '@/lib/api/contracts/v2/tables'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { POST } from '@/app/api/v2/tables/[tableId]/query/route'
+
+/** A query cursor exactly as the route mints one, for the table given. */
+function queryCursor(tableId: string, inner: string): string {
+  return encodeScopedCursor(cursorScopeKey(cursorRoute(v2QueryRowsContract, { tableId })), inner)
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -152,10 +160,29 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
       new MockTableRowsValidationError('Invalid cursor', { code: 'INVALID_CURSOR' })
     )
 
-    const response = await call({ workspaceId: WORKSPACE_ID, cursor: 'malformed' }).response
+    const response = await call({
+      workspaceId: WORKSPACE_ID,
+      cursor: queryCursor('table-1', 'malformed'),
+    }).response
 
     expect(response.status).toBe(400)
     expect((await response.json()).error.details).toEqual({ code: 'INVALID_CURSOR' })
+  })
+
+  /**
+   * The row codec binds the predicate and sort a page was produced under but
+   * carries no table identity, so an unfiltered token from one table decoded
+   * cleanly against another and answered 200 with that other table's rows.
+   */
+  it('refuses a query cursor minted on a different table', async () => {
+    const response = await call({
+      workspaceId: WORKSPACE_ID,
+      cursor: queryCursor('table-2', 'native-row-cursor'),
+    }).response
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toMatch(/requested filters/)
+    expect(mocks.queryRows).not.toHaveBeenCalled()
   })
 
   it('enforces the one MiB body cap before delegation', async () => {

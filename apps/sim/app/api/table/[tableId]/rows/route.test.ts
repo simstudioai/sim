@@ -208,6 +208,33 @@ describe('GET /api/table/[tableId]/rows', () => {
     expect(body.data.rows[0].data).toEqual({ Name: 'Ada', Age: 36 })
   })
 
+  it('keeps counts but skips execution metadata for an omitted or expanded limit', async () => {
+    authAs('internal_jwt')
+
+    const omitted = await callGet({ workspaceId: 'workspace-1' })
+    expect(omitted.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ limit: undefined, includeTotal: true, withExecutions: false })
+    )
+
+    const expanded = await callGet({ workspaceId: 'workspace-1', limit: '1000000' })
+    expect(expanded.status).toBe(200)
+    expect(mockQueryRows.mock.calls[1][1]).toEqual(
+      expect.objectContaining({ limit: 1000000, includeTotal: true, withExecutions: false })
+    )
+  })
+
+  it('retains metadata loading within the former query limit', async () => {
+    authAs('internal_jwt')
+
+    const res = await callGet({ workspaceId: 'workspace-1', limit: '1000' })
+
+    expect(res.status).toBe(200)
+    expect(mockQueryRows.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ limit: 1000, includeTotal: true, withExecutions: true })
+    )
+  })
+
   it('passes id-keyed filter and rows through untouched for session callers', async () => {
     authAs('session')
 

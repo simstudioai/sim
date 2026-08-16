@@ -1,0 +1,232 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/triggers', () => ({
+  getTrigger: () => ({ subBlocks: [] }),
+}))
+
+import { SplunkBlock } from '@/blocks/blocks/splunk'
+
+const toParams = SplunkBlock.tools.config?.params
+
+function mapParams(params: Record<string, unknown>) {
+  if (!toParams) throw new Error('SplunkBlock is missing tools.config.params')
+  return toParams(params as Parameters<typeof toParams>[0])
+}
+
+/**
+ * What the tool actually receives. The generic handler merges the mapper's return
+ * over the raw serialized subBlock values (`{ ...inputs, ...transformedParams }`), so a
+ * key the mapper only assigns conditionally leaves the raw subBlock string in place.
+ * Assertions about dropping a value are only meaningful against this merged result.
+ */
+function mergedInputs(params: Record<string, unknown>) {
+  return { ...params, ...mapParams(params) }
+}
+
+describe('SplunkBlock tools.config.params', () => {
+  describe('search-job toggles', () => {
+    it('preserves a typed boolean false from a variable or agent tool call', () => {
+      const result = mapParams({
+        operation: 'splunk_create_search_job',
+        enableLookups: false,
+        allowPartialResults: false,
+      })
+
+      expect(result.enableLookups).toBe(false)
+      expect(result.allowPartialResults).toBe(false)
+    })
+
+    it('reads the dropdown string form', () => {
+      expect(
+        mapParams({
+          operation: 'splunk_create_search_job',
+          enableLookups: 'false',
+          allowPartialResults: 'true',
+        })
+      ).toMatchObject({ enableLookups: false, allowPartialResults: true })
+    })
+
+    it('leaves an untouched toggle undefined so Splunk applies its own default', () => {
+      const result = mapParams({
+        operation: 'splunk_create_search_job',
+        enableLookups: null,
+        allowPartialResults: '',
+      })
+
+      expect(result.enableLookups).toBeUndefined()
+      expect(result.allowPartialResults).toBeUndefined()
+    })
+  })
+
+  describe('pagination', () => {
+    it('omits Max Results when untouched rather than asking for every row', () => {
+      const result = mapParams({ operation: 'splunk_list_indexes', count: null, offset: null })
+
+      expect(result).not.toHaveProperty('count')
+      expect(result).not.toHaveProperty('offset')
+    })
+
+    it('coerces a typed Max Results, including an explicit 0', () => {
+      expect(
+        mapParams({ operation: 'splunk_list_indexes', count: '50', offset: '10' })
+      ).toMatchObject({ count: 50, offset: 10 })
+      expect(mapParams({ operation: 'splunk_list_indexes', count: '0' })).toMatchObject({
+        count: 0,
+      })
+    })
+  })
+
+  describe('switch-typed toggles', () => {
+    it('converts the switch string form so the tool sees a real boolean', () => {
+      expect(
+        mergedInputs({
+          operation: 'splunk_dispatch_saved_search',
+          savedSearchName: 'Errors',
+          triggerActions: 'true',
+          forceDispatch: 'false',
+        })
+      ).toMatchObject({ triggerActions: true, forceDispatch: false })
+
+      expect(
+        mergedInputs({
+          operation: 'splunk_get_search_results',
+          sid: '1.1',
+          addSummaryToMetadata: 'false',
+        })
+      ).toMatchObject({ addSummaryToMetadata: false })
+    })
+
+    it('drops an untouched switch from the merged inputs, not just from the mapper', () => {
+      const merged = mergedInputs({
+        operation: 'splunk_dispatch_saved_search',
+        savedSearchName: 'Errors',
+        triggerActions: null,
+        forceDispatch: null,
+      })
+
+      expect(merged.triggerActions).toBeUndefined()
+      expect(merged.forceDispatch).toBeUndefined()
+    })
+  })
+
+  describe('subBlock to tool param remapping', () => {
+    it('maps the saved-search and alert name subBlocks onto the tool name param', () => {
+      expect(
+        mapParams({ operation: 'splunk_dispatch_saved_search', savedSearchName: 'Errors' })
+      ).toMatchObject({ name: 'Errors' })
+      expect(
+        mapParams({ operation: 'splunk_get_fired_alerts', alertName: 'Errors' })
+      ).toMatchObject({ name: 'Errors' })
+    })
+  })
+})
+
+describe('SplunkBlock subBlocks', () => {
+  it('has no duplicate subBlock ids', () => {
+    const ids = SplunkBlock.subBlocks.map((subBlock) => subBlock.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('exposes every tool in tools.access as an operation option', () => {
+    const operation = SplunkBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')
+    const optionIds = (operation?.options as { id: string }[]).map((option) => option.id)
+    expect([...optionIds].sort()).toEqual([...SplunkBlock.tools.access].sort())
+  })
+})
+
+describe('SplunkBlock subBlock placeholders', () => {
+  function subBlock(id: string) {
+    const found = SplunkBlock.subBlocks.find((block) => block.id === id)
+    if (!found) throw new Error(`SplunkBlock is missing the ${id} subBlock`)
+    return found
+  }
+
+  function subBlocksFor(id: string, operation: string) {
+    return SplunkBlock.subBlocks.filter((block) => {
+      if (block.id !== id) return false
+      const value = block.condition?.value
+      return Array.isArray(value) ? value.includes(operation) : value === operation
+    })
+  }
+
+  /**
+   * `nobody` names the shared-application owner, so it is one specific owner
+   * rather than a neutral filler — and users copy placeholders. `-` is the
+   * documented wildcard for all users, which is what the namespace builder
+   * already substitutes.
+   */
+  it('offers the - wildcard as the namespace owner, not nobody', () => {
+    expect(subBlock('owner').placeholder).toBe('-')
+  })
+
+  /**
+   * The old placeholder claimed a default of 100 for all five operations (the real
+   * default is 30 for the four collection endpoints) and advertised `0 returns
+   * all` — an unbounded read that Get Search Results now rejects outright. Because
+   * this block keeps subBlock ids unique, one field serves every operation, so it
+   * must not state a rule that holds for only some of them.
+   */
+  it('does not advertise a wrong default or an unbounded read on Max Results', () => {
+    const shown = subBlocksFor('count', 'splunk_get_search_results')
+    expect(shown).toHaveLength(1)
+
+    const placeholder = String(shown[0].placeholder)
+    expect(placeholder).not.toContain('100')
+    expect(placeholder).not.toMatch(/0 returns all/)
+  })
+
+  /** The per-operation detail the placeholder can no longer carry. */
+  it('documents the differing defaults and the 0 rule on the count input', () => {
+    const description = String(SplunkBlock.inputs.count.description)
+
+    expect(description).toContain('30')
+    expect(description).toContain('100')
+    expect(description).toMatch(/reject/i)
+  })
+})
+
+describe('SplunkBlock numeric coercion', () => {
+  /**
+   * A bare `Number()` sent `NaN` for an unparseable value, which serializes as the
+   * literal `NaN` and makes Splunk reject the request with an error that names the
+   * field but not the cause. Omitting it lets Splunk apply its own default.
+   */
+  it.each(['abc', 'twenty', '12px'])('omits an unparseable Max Results (%s)', (count) => {
+    const merged = mergedInputs({ operation: 'splunk_list_indexes', count })
+
+    expect(merged.count).not.toBe(Number.NaN)
+    expect(mapParams({ operation: 'splunk_list_indexes', count })).not.toHaveProperty('count')
+  })
+
+  it('omits an unparseable value on every numeric field it maps', () => {
+    const result = mapParams({
+      operation: 'splunk_dispatch_saved_search',
+      savedSearchName: 'Errors',
+      dispatchMaxCount: 'abc',
+      dispatchMaxTime: 'abc',
+      dispatchTtl: 'abc',
+      offset: 'abc',
+    })
+
+    expect(result).not.toHaveProperty('dispatchMaxCount')
+    expect(result).not.toHaveProperty('dispatchMaxTime')
+    expect(result).not.toHaveProperty('dispatchTtl')
+    expect(result).not.toHaveProperty('offset')
+  })
+
+  it('still coerces the numeric forms it is given', () => {
+    expect(
+      mapParams({ operation: 'splunk_create_search_job', autoCancel: '300', maxCount: 5000 })
+    ).toMatchObject({ autoCancel: 300, maxCount: 5000 })
+  })
+})
+
+describe('SplunkBlock outputs', () => {
+  it('declares the paging total and offset the list tools now project', () => {
+    expect(SplunkBlock.outputs).toHaveProperty('total')
+    expect(SplunkBlock.outputs).toHaveProperty('offset')
+  })
+})

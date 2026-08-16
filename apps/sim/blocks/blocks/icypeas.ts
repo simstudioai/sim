@@ -45,9 +45,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       value: () => 'icypeas_find_email',
     },
 
-    // -----------------------------------------------------------------------
     // Find Email
-    // -----------------------------------------------------------------------
     {
       id: 'fe_firstname',
       title: 'First Name',
@@ -71,9 +69,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       condition: { field: 'operation', value: 'icypeas_find_email' },
     },
 
-    // -----------------------------------------------------------------------
     // Verify Email
-    // -----------------------------------------------------------------------
     {
       id: 've_email',
       title: 'Email Address',
@@ -83,9 +79,7 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
       condition: { field: 'operation', value: 'icypeas_verify_email' },
     },
 
-    // -----------------------------------------------------------------------
     // API Key — hidden on hosted Sim for all operations (hosted-key supported)
-    // -----------------------------------------------------------------------
     {
       id: 'apiKey',
       title: 'API Key',

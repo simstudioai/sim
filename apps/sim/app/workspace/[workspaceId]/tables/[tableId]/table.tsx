@@ -12,6 +12,7 @@ import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/table
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
+  Predicate,
   SortDirection,
   SortSpec,
   TableMetadata,
@@ -21,6 +22,7 @@ import type {
   WorkflowGroup,
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { withCellValueFilter } from '@/lib/table/query-builder/cell-filter'
 import {
   type BreadcrumbItem,
   type ColumnOption,
@@ -270,6 +272,9 @@ export function Table({
   })
   const [filter, setFilter] = useState<TablePredicate | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
+  /** Bumped whenever the filter is replaced from outside the panel, to re-seed
+   *  its rule rows. See {@link replaceFilter}. */
+  const [filterSeed, setFilterSeed] = useState(0)
   /** Hidden **column ids**. Lives here (not in the grid) because the filter
    *  panel's Columns section edits it and the active view persists it. */
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
@@ -424,6 +429,20 @@ export function Table({
   const pendingCreatedViewIdRef = useRef<string | null>(null)
 
   /**
+   * Replaces the filter from OUTSIDE the filter panel — a view switch, or
+   * "Filter by cell value". Bumps {@link filterSeed} so the panel re-seeds: it
+   * builds its draft rule rows from the predicate once at mount, so without
+   * this an open panel keeps showing the rules of the filter it replaced.
+   *
+   * The remount discards an unapplied draft, which is the point — the rules on
+   * screen must be the rules in effect.
+   */
+  const replaceFilter = useCallback((next: TablePredicate | null) => {
+    setFilter(next)
+    setFilterSeed((seed) => seed + 1)
+  }, [])
+
+  /**
    * Applies a view's config to the live state. `keep` marks slices the user has
    * already set by hand, which win over the view's stored values on the FIRST
    * resolve only — a deep-linked `?sort=` is more specific than the view's default,
@@ -436,7 +455,7 @@ export function Table({
       config: TableViewConfig | null,
       keep?: { sort?: boolean; filter?: boolean; hiddenColumns?: boolean }
     ) => {
-      if (!keep?.filter) setFilter(config?.filter ?? null)
+      if (!keep?.filter) replaceFilter(config?.filter ?? null)
       if (!keep?.hiddenColumns) setHiddenColumns(config?.hiddenColumns ?? [])
       if (keep?.sort) return
       const sortEntry = config?.sort?.[0]
@@ -445,7 +464,7 @@ export function Table({
         dir: sortEntry ? (sortEntry.direction as SortDirection) : null,
       })
     },
-    [setTableParams]
+    [replaceFilter, setTableParams]
   )
 
   /** Reader for the grid's CURRENT column layout, populated by the grid itself.
@@ -1103,22 +1122,43 @@ export function Table({
     [columns]
   )
 
+  const handleSortColumn = useCallback(
+    (column: string, direction: SortDirection) => setTableParams({ sort: column, dir: direction }),
+    [setTableParams]
+  )
+
+  /**
+   * Clearing writes the default direction (stripped by clearOnDefault) and
+   * drops the column, leaving a clean URL with no active sort.
+   */
+  const handleClearSort = useCallback(
+    () => setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
+    [setTableParams]
+  )
+
   const sortConfig = useMemo<SortConfig>(
     () => ({
       options: columnOptions,
       active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
-      onSort: (column, direction) => setTableParams({ sort: column, dir: direction }),
-      /**
-       * Clearing writes the default direction (stripped by clearOnDefault) and
-       * drops the column, leaving a clean URL with no active sort.
-       */
-      onClear: () => setTableParams({ sort: null, dir: DEFAULT_TABLE_DETAIL_SORT_DIRECTION }),
+      onSort: handleSortColumn,
+      onClear: handleClearSort,
     }),
-    [columnOptions, sortColumn, sortDirection, setTableParams]
+    [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort]
   )
 
   const handleFilterApply = (next: TablePredicate | null) => {
     setFilter(next)
+  }
+
+  /**
+   * "Filter by cell value" from the grid's cell context menu. Narrows the
+   * PRUNED filter, so a condition the current schema already invalidated is not
+   * resurrected, and opens the panel — a silently narrowed table would leave the
+   * user no way to see what was applied.
+   */
+  const handleFilterByCellValue = (conditions: readonly Predicate[]) => {
+    replaceFilter(withCellValueFilter(effectiveFilter, conditions))
+    setFilterOpen(true)
   }
 
   const breadcrumbs = useMemo(
@@ -1448,6 +1488,7 @@ export function Table({
       />
       {filterOpen && (
         <TableFilter
+          key={filterSeed}
           columns={columns}
           filter={effectiveFilter}
           onApply={handleFilterApply}
@@ -1481,6 +1522,9 @@ export function Table({
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
         onRequestDeleteColumns={onRequestDeleteColumns}
+        onFilterByCellValue={handleFilterByCellValue}
+        onSortColumn={handleSortColumn}
+        onClearSort={handleClearSort}
         onRunColumn={onRunColumn}
         onRunRow={onRunRow}
         onRunRows={onRunRows}
