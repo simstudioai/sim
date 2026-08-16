@@ -73,10 +73,11 @@ const ADF_INLINE_NODE_TYPES = new Set([
   'mediaInline',
 ])
 
-function isInlineAdfNode(node: any): boolean {
+function isInlineAdfNode(node: unknown): boolean {
   if (typeof node === 'string') return true
   if (!node || typeof node !== 'object' || Array.isArray(node)) return false
-  return typeof node.type === 'string' && ADF_INLINE_NODE_TYPES.has(node.type)
+  const { type } = node as { type?: unknown }
+  return typeof type === 'string' && ADF_INLINE_NODE_TYPES.has(type)
 }
 
 /**
@@ -84,7 +85,7 @@ function isInlineAdfNode(node: any): boolean {
  * separator (ADF `text` nodes carry their own surrounding whitespace), while any
  * boundary touching a block-level node gets a newline.
  */
-function joinAdfNodes(nodes: any[]): string {
+function joinAdfNodes(nodes: readonly unknown[]): string {
   let out = ''
   let started = false
   let previousWasBlock = false
