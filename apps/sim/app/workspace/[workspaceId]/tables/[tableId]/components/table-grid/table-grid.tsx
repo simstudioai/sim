@@ -1315,8 +1315,16 @@ export function TableGrid({
     // trusting the check `goToMatch` made before its await.
     if (!isStillAMatch(match)) {
       pendingMatchRef.current = null
-      activeMatchRef.current = null
-      cursorIsOnMatchRef.current = false
+      // Release the cursor only if this reveal still owns it. A pending reveal
+      // waits here for its row to load, and the user can start a newer jump in
+      // that window — which has already claimed the ref. Clearing it blindly
+      // would strand that newer jump with no identity to re-point from, which
+      // is the skip-on-next failure this guard exists to prevent.
+      const active = activeMatchRef.current
+      if (active && active.rowId === match.rowId && active.column === match.column) {
+        activeMatchRef.current = null
+        cursorIsOnMatchRef.current = false
+      }
       return
     }
     const rowIndex = rows.findIndex((r) => r.id === match.rowId)
