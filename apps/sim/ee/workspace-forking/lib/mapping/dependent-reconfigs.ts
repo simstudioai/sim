@@ -109,7 +109,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     chaining,
     out,
   } = params
-  const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks)
+  const fullContext = buildSelectorContextFromBlock(contextBlockType, contextSubBlocks, {
+    canonicalModes,
+  })
   const canonicalIndex = buildCanonicalIndex(config.subBlocks)
   const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
   const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))

@@ -20,10 +20,19 @@ const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
 
 const sourceState = (
   blockType: string,
-  subBlocks: Record<string, { value: unknown }>
+  subBlocks: Record<string, { value: unknown }>,
+  data?: Record<string, unknown>
 ): WorkflowState =>
   ({
-    blocks: { 'block-1': { id: 'block-1', type: blockType, name: 'Block', subBlocks } },
+    blocks: {
+      'block-1': {
+        id: 'block-1',
+        type: blockType,
+        name: 'Block',
+        subBlocks,
+        ...(data && { data }),
+      },
+    },
     edges: [],
     loops: {},
     parallels: {},
@@ -323,6 +332,67 @@ describe('collectForkDependentReconfigs', () => {
     expect(sheet?.consumesContextKeys).toEqual(['spreadsheetId'])
     // The source spreadsheet rides in context; the modal overlays the re-picked one.
     expect(sheet?.context.spreadsheetId).toBe('ss-src')
+  })
+
+  it('uses the persisted canonical mode when building a dependent selector context', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'credential', title: 'Credential', type: 'oauth-input' },
+        { id: 'domain', title: 'Domain', type: 'short-input' },
+        {
+          id: 'projectId',
+          title: 'Project',
+          type: 'project-selector',
+          canonicalParamId: 'projectId',
+          mode: 'basic',
+          selectorKey: 'jira.projects',
+          dependsOn: ['credential', 'domain'],
+        },
+        {
+          id: 'manualProjectId',
+          title: 'Project ID',
+          type: 'short-input',
+          canonicalParamId: 'projectId',
+          mode: 'advanced',
+          dependsOn: ['credential', 'domain'],
+        },
+        {
+          id: 'issueKey',
+          title: 'Issue',
+          type: 'file-selector',
+          selectorKey: 'jira.issues',
+          dependsOn: ['credential', 'domain', 'projectId'],
+          required: true,
+        },
+      ])
+    )
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState(
+          'jira',
+          {
+            credential: { value: 'cred-src' },
+            domain: { value: 'example.atlassian.net' },
+            projectId: { value: 'project-basic-stale' },
+            manualProjectId: { value: 'project-advanced' },
+            issueKey: { value: 'ADV-1' },
+          },
+          { canonicalModes: { projectId: 'advanced' } }
+        ),
+      ],
+    ])
+
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      subBlockKey: 'issueKey',
+      context: {
+        domain: 'example.atlassian.net',
+        projectId: 'project-advanced',
+      },
+    })
   })
 
   it('emits a credential-dependent selector nested inside a tool-input tool', () => {
