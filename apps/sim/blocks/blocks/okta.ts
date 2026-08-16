@@ -17,6 +17,11 @@ function toFiniteNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+/** Operations where Okta sends the notification email unless told otherwise. */
+const SEND_EMAIL_DEFAULT_ON_OPERATIONS = ['okta_activate_user', 'okta_reset_password']
+
+const SEND_EMAIL_DEFAULT_ON = new Set(SEND_EMAIL_DEFAULT_ON_OPERATIONS)
+
 /** Treats a blank subBlock value as absent. */
 function blankToUndefined(value: unknown): unknown {
   return value === null || value === '' ? undefined : value
@@ -157,7 +162,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         ],
         okta_list_group_rules: [
           'List group rules',
-          { text: ', matching', field: 'search' },
+          { text: ', matching', field: 'ruleSearch' },
           { text: ', up to', field: 'limit' },
         ],
         okta_get_group_rule: [{ text: 'Read group rule', field: 'groupRuleId', core: true }],
@@ -252,7 +257,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       placeholder: 'profile.firstName eq "John"',
       condition: {
         field: 'operation',
-        value: ['okta_list_users', 'okta_list_groups', 'okta_list_group_rules'],
+        value: ['okta_list_users', 'okta_list_groups'],
       },
       wandConfig: {
         enabled: true,
@@ -287,6 +292,19 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         field: 'operation',
         value: ['okta_get_logs', 'okta_list_apps', 'okta_list_app_users', 'okta_list_app_groups'],
       },
+    },
+    {
+      /**
+       * Group rules take a plain keyword on `search`, not the SCIM-style
+       * expression the Search field's wand generates, so they get their own
+       * field rather than sharing one that would produce a silently
+       * non-matching query.
+       */
+      id: 'ruleSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Keyword to search rules for',
+      condition: { field: 'operation', value: 'okta_list_group_rules' },
     },
     // User ID (shared across user operations that need it)
     {
@@ -469,20 +487,30 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       placeholder: 'Description for the group',
       condition: { field: 'operation', value: ['okta_create_group', 'okta_update_group'] },
     },
-    // Send email option (activate, reset password, delete)
+    /**
+     * Okta's `sendEmail` default is not uniform: activation and password reset
+     * default to sending, deactivation and removal default to not sending. One
+     * shared switch could only be seeded for one of those, so the two groups get
+     * their own field and the params mapper picks by operation.
+     */
     {
       id: 'sendEmail',
       title: 'Send Email',
       type: 'switch',
+      value: () => 'true',
       condition: {
         field: 'operation',
-        value: [
-          'okta_activate_user',
-          'okta_deactivate_user',
-          'okta_reset_password',
-          'okta_delete_user',
-          'okta_remove_user_from_app',
-        ],
+        value: SEND_EMAIL_DEFAULT_ON_OPERATIONS,
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'sendDeactivationEmail',
+      title: 'Send Email',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['okta_deactivate_user', 'okta_delete_user', 'okta_remove_user_from_app'],
       },
       mode: 'advanced',
     },
@@ -658,6 +686,11 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       id: 'forgetDevices',
       title: 'Forget Devices',
       type: 'switch',
+      /**
+       * Okta defaults this to true, so an unseeded switch would render off while
+       * remembered factors were in fact being cleared.
+       */
+      value: () => 'true',
       condition: { field: 'operation', value: 'okta_clear_user_sessions' },
       mode: 'advanced',
     },
@@ -945,9 +978,23 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           domain: params.domain,
           limit: toFiniteNumber(params.limit),
           priority: toFiniteNumber(params.priority),
-          // Group-specific UI fields carry the tool's generic param names.
+          /** Group-specific UI fields carry the tool's generic param names. */
           name: blankToUndefined(params.groupName),
           description: blankToUndefined(params.groupDescription),
+          /** Group rules get their own keyword field but the same wire param. */
+          search:
+            params.operation === 'okta_list_group_rules'
+              ? blankToUndefined(params.ruleSearch)
+              : blankToUndefined(params.search),
+          /**
+           * Keyed off the operation rather than `??`: both switches are advanced,
+           * and `shouldSerializeSubBlock` skips `condition` for advanced fields,
+           * so a stale value from a previously selected operation can still be
+           * present here.
+           */
+          sendEmail: SEND_EMAIL_DEFAULT_ON.has(String(params.operation))
+            ? blankToUndefined(params.sendEmail)
+            : blankToUndefined(params.sendDeactivationEmail),
         }
 
         const mappedKeys = new Set([
@@ -958,6 +1005,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'priority',
           'groupName',
           'groupDescription',
+          'search',
+          'ruleSearch',
+          'sendEmail',
+          'sendDeactivationEmail',
         ])
         for (const [key, value] of Object.entries(params)) {
           if (!mappedKeys.has(key)) result[key] = blankToUndefined(value)
@@ -975,6 +1026,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     userId: { type: 'string', description: 'User ID or login' },
     groupId: { type: 'string', description: 'Group ID' },
     search: { type: 'string', description: 'Search expression' },
+    ruleSearch: { type: 'string', description: 'Keyword to search group rules for' },
     filter: { type: 'string', description: 'Filter expression' },
     limit: { type: 'number', description: 'Max results to return' },
     firstName: { type: 'string', description: 'First name' },
@@ -989,6 +1041,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     groupName: { type: 'string', description: 'Group name' },
     groupDescription: { type: 'string', description: 'Group description' },
     sendEmail: { type: 'boolean', description: 'Whether to send email notification' },
+    sendDeactivationEmail: {
+      type: 'boolean',
+      description: 'Whether to send the deactivation or removal email notification',
+    },
     q: { type: 'string', description: 'Keyword search query' },
     after: { type: 'string', description: 'Cursor for the next page of results' },
     since: { type: 'string', description: 'Start of the System Log time window' },
@@ -1137,7 +1193,11 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     accessibility: { type: 'json', description: 'Application accessibility settings' },
     assignUserToGroupIds: { type: 'json', description: 'Groups a rule assigns matching users to' },
     excludedUserIds: { type: 'json', description: 'Users excluded from a group rule' },
-    excludedGroupIds: { type: 'json', description: 'Groups excluded from a group rule' },
+    excludedGroupIds: {
+      type: 'json',
+      description:
+        'Groups excluded from a group rule. Always empty — Okta does not currently support group exclusions.',
+    },
     amr: { type: 'json', description: 'Authentication methods used to establish a session' },
     features: { type: 'json', description: 'Provisioning features enabled on an application' },
     label: { type: 'string', description: 'Application or role label' },

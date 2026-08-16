@@ -9,7 +9,8 @@ const logger = createLogger('OktaListUsers')
 export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersResponse> = {
   id: 'okta_list_users',
   name: 'List Users from Okta',
-  description: 'List all users in your Okta organization with optional search and filtering',
+  description:
+    'List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them.',
   version: '1.0.0',
 
   params: {

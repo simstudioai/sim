@@ -1,5 +1,5 @@
 import type { Logger } from '@sim/logger'
-import type { OktaApiError, OktaGroupRule } from '@/tools/okta/types'
+import type { OktaApiError, OktaGroupProfile, OktaGroupRule } from '@/tools/okta/types'
 
 /**
  * Standard headers for every Okta Management API request.
@@ -63,6 +63,26 @@ export function parseOktaPagination(response: Response): {
   }
 
   return { nextCursor, hasMore: true }
+}
+
+/**
+ * Overlays the fields a caller supplied onto a group's stored profile.
+ *
+ * `PUT /api/v1/groups/{groupId}` replaces the profile wholesale, and the
+ * profile is extensible, so anything left out is erased — the stored
+ * description on a rename, and every org-defined custom attribute on any
+ * update. Merging over the current profile is what makes an omitted field mean
+ * "leave it alone" instead of "delete it".
+ */
+export function mergeOktaGroupProfile(
+  existing: OktaGroupProfile | undefined,
+  updates: { name: string; description?: string }
+): Record<string, unknown> {
+  return {
+    ...existing,
+    name: updates.name,
+    ...(updates.description === undefined ? {} : { description: updates.description }),
+  }
 }
 
 /**
