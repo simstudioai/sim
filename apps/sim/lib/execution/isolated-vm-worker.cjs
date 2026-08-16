@@ -315,7 +315,7 @@ async function executeCode(request, executionId) {
       // can undefine the global without breaking fetch().
       (() => {
       const __fetch = globalThis.__fetchRef;
-      globalThis.fetch = async function fetch(url, options) {
+      const fetchImpl = async function fetch(url, options) {
         let optionsJson;
         if (options) {
           try {
@@ -360,6 +360,14 @@ async function executeCode(request, executionId) {
           arrayBuffer: async () => { throw new Error('arrayBuffer() not supported in sandbox'); },
         };
       };
+      // Same property attributes a top-level \`function fetch\` declaration
+      // produced, so user code sees an unchanged global.
+      Object.defineProperty(global, 'fetch', {
+        value: fetchImpl,
+        writable: true,
+        enumerable: true,
+        configurable: false
+      });
       })();
 
       const sim = (() => {
