@@ -708,12 +708,18 @@ async function listDocumentsViaCql(
   }
 
   const fetchedSoFar = (syncContext?.totalDocsFetched as number) ?? 0
-  const remaining = maxPages > 0 ? maxPages - fetchedSoFar : CQL_PAGE_SIZE
-  const limit = Math.max(Math.min(CQL_PAGE_SIZE, remaining), 1)
+  const remaining = maxPages > 0 ? maxPages - fetchedSoFar : Number.POSITIVE_INFINITY
 
+  /**
+   * The page size stays constant for every request of a run. This endpoint
+   * paginates by opaque cursor, and Atlassian does not document that a cursor
+   * issued against one `limit` stays valid when the following request asks for a
+   * different one, so narrowing `limit` to the remaining budget risks skipping or
+   * repeating results. The cap is applied by trimming the returned page instead.
+   */
   const queryParams = new URLSearchParams()
   queryParams.append('cql', cql)
-  queryParams.append('limit', String(limit))
+  queryParams.append('limit', String(CQL_PAGE_SIZE))
   queryParams.append('expand', 'version,metadata.labels')
   /**
    * `/wiki/rest/api/content/search` paginates by opaque cursor only — it has no
@@ -724,7 +730,10 @@ async function listDocumentsViaCql(
 
   const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content/search?${queryParams.toString()}`
 
-  logger.info(`Searching Confluence via CQL: ${cql}`, { limit, hasCursor: Boolean(cursor) })
+  logger.info(`Searching Confluence via CQL: ${cql}`, {
+    limit: CQL_PAGE_SIZE,
+    hasCursor: Boolean(cursor),
+  })
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -746,16 +755,30 @@ async function listDocumentsViaCql(
   const data = await response.json()
   const results = data.results || []
 
-  const documents: ExternalDocument[] = (results as Record<string, unknown>[])
+  const allDocuments: ExternalDocument[] = (results as Record<string, unknown>[])
     .filter(isCurrentContent)
     .map((item) => cqlResultToStub(item, domain))
+
+  /**
+   * Trim to the remaining budget. Trimming stops the walk (`hitLimit` below is
+   * then true), so the discarded tail is never skipped over — the run simply
+   * ends here.
+   */
+  const documents =
+    allDocuments.length > remaining ? allDocuments.slice(0, remaining) : allDocuments
+  const trimmedByCap = documents.length < allDocuments.length
 
   const nextCursor = extractCursor((data._links as Record<string, unknown> | undefined)?.next)
 
   const totalFetched = fetchedSoFar + documents.length
   if (syncContext) syncContext.totalDocsFetched = totalFetched
   const hitLimit = maxPages > 0 && totalFetched >= maxPages
-  if (hitLimit && nextCursor && syncContext) syncContext.listingCapped = true
+  /**
+   * Both truncation shapes count: pages this run trimmed off, and a page left
+   * unread behind a live cursor. A cap that lands exactly on source exhaustion
+   * is a complete listing and must still reconcile deletions.
+   */
+  if (hitLimit && (trimmedByCap || nextCursor) && syncContext) syncContext.listingCapped = true
 
   const hasMore = !hitLimit && Boolean(nextCursor)
 

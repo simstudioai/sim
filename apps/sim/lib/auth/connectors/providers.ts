@@ -17,6 +17,7 @@ import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
@@ -1532,11 +1533,11 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
       getUserInfo: async (tokens) => {
         try {
-          const response = await fetch('https://api.monday.com/v2', {
+          const response = await fetch(MONDAY_API_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'API-Version': '2024-10',
+              'API-Version': MONDAY_API_VERSION,
               Authorization: tokens.accessToken ?? '',
             },
             body: JSON.stringify({ query: '{ me { id name email } }' }),
