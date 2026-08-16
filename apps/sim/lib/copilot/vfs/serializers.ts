@@ -14,6 +14,7 @@ import {
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
+import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
@@ -692,6 +693,15 @@ export function serializeBlockSchema(
       longDescription: block.longDescription || undefined,
       bestPractices: block.bestPractices || undefined,
       triggerAllowed: block.triggerAllowed || undefined,
+      // Retry is block STATE (like `enabled`), not a subBlock input — set it via
+      // edit_workflow's `retry` param, never through `inputs`. Emitted only when
+      // eligible so the agent never proposes a policy the executor would ignore.
+      retryAllowed:
+        isRetryEligibleBlock({
+          blockType: block.type,
+          category: block.category,
+          triggerMode: undefined,
+        }) || undefined,
       singleInstance: block.singleInstance || undefined,
       authMode: block.authMode || undefined,
       // Custom (deploy-as-block) blocks execute via a baked `workflow_executor`

@@ -2259,7 +2259,7 @@ export const EditWorkflow: ToolCatalogEntry = {
             params: {
               type: 'object',
               description:
-                'Parameters for the operation (optional).\nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "<model-id from agent.json>"}}\nFor delete: omit params entirely (none needed)',
+                'Parameters for the operation (optional).\nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "<model-id from agent.json>"}}\nFor delete: omit params entirely (none needed)\nBlock-level settings (retry, triggerMode, advancedMode) go beside "inputs", never inside it.',
             },
           },
           required: ['operation_type', 'block_id'],

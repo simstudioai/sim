@@ -1,9 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { sortObjectKeysDeep } from '@sim/utils/object'
+import {
+  type BlockRetryConfig,
+  normalizeBlockRetryTries,
+  normalizeBlockRetryWaitMs,
+} from '@sim/workflow-types/workflow'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
   buildDefaultCanonicalModes,
@@ -21,6 +27,73 @@ import {
   validateSourceHandleForBlock,
   validateTargetHandle,
 } from './validation'
+
+/**
+ * Merges a requested retry policy onto whatever the block already had, clamped
+ * to the executor's bounds.
+ *
+ * `enabled` is optional and falls back to the block's current state (or `true`
+ * for a block with no policy yet), so `{maxTries: 4}` reads as "retry four
+ * times" rather than silently storing a disabled policy. Numbers are kept when
+ * only `enabled` changes, matching the editor: toggling retry off and back on
+ * restores what was configured instead of resetting to the defaults.
+ *
+ * Clamped through the shared normalizers rather than rejected, so a value that
+ * drifts outside the bounds still yields a runnable policy — same contract the
+ * editor and executor already follow.
+ */
+export function resolveBlockRetryUpdate(
+  requested: Partial<BlockRetryConfig>,
+  existing: BlockRetryConfig | undefined
+): BlockRetryConfig {
+  return {
+    enabled:
+      typeof requested.enabled === 'boolean' ? requested.enabled : (existing?.enabled ?? true),
+    maxTries: normalizeBlockRetryTries(requested.maxTries ?? existing?.maxTries),
+    waitBetweenTriesMs: normalizeBlockRetryWaitMs(
+      requested.waitBetweenTriesMs ?? existing?.waitBetweenTriesMs
+    ),
+  }
+}
+
+/**
+ * Applies a requested retry policy to a block, or records why it could not be.
+ *
+ * Eligibility is checked with the same predicate the executor uses, so a policy
+ * the runtime would ignore (triggers, human-in-the-loop, sentinels) is reported
+ * back instead of being written as dead configuration.
+ */
+export function applyBlockRetry(
+  block: any,
+  requested: unknown,
+  context: { operationType: string; blockId: string; skippedItems?: SkippedItem[] }
+): void {
+  if (requested === null) {
+    block.retry = undefined
+    return
+  }
+  if (typeof requested !== 'object' || Array.isArray(requested)) return
+
+  if (
+    !isRetryEligibleBlock({
+      blockType: block.type,
+      category: getBlock(block.type)?.category,
+      triggerMode: block.triggerMode,
+    })
+  ) {
+    if (context.skippedItems) {
+      logSkippedItem(context.skippedItems, {
+        type: 'retry_not_supported',
+        operationType: context.operationType,
+        blockId: context.blockId,
+        reason: `Block "${context.blockId}" (${block.type}) cannot retry - triggers, human-in-the-loop, and container blocks always run once`,
+      })
+    }
+    return
+  }
+
+  block.retry = resolveBlockRetryUpdate(requested as Partial<BlockRetryConfig>, block.retry)
+}
 
 /**
  * Helper to create a block state from operation params
@@ -86,6 +159,16 @@ export function createBlockFromParams(
     outputs: outputs,
     data: parentId ? { parentId, extent: 'parent' as const } : {},
     locked: false,
+  }
+
+  // Block-level setting like `enabled`, not a subBlock input — the executor
+  // reads it from block state when wrapping the run, never from the tool params.
+  if (params.retry !== undefined) {
+    applyBlockRetry(blockState, params.retry, {
+      operationType: 'add',
+      blockId,
+      skippedItems,
+    })
   }
 
   // Add validated inputs as subBlocks
