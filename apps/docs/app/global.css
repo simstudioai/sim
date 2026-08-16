@@ -489,19 +489,6 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   padding: 0 !important;
 }
 
-/* The first group sits flush against the top padding — it has nothing to be
-   separated from.
-
-   Scoped to a separator that opens its container, not to one with no separator
-   above it: `~` only reaches siblings, so the previous form also matched the
-   first separator inside every expanded folder. "Install" under Self-Hosting
-   lost its top margin and crowded the "Architecture" link above it, while
-   "Configure" and "Operate" below kept theirs. Only the four sidebar roots open
-   with a separator, so this leaves the intended case and nothing else. */
-[data-separator]:first-child {
-  margin-top: 0;
-}
-
 /* Active state — aligned with platform --surface-active */
 #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
 #nd-sidebar button[data-active="true"] {
