@@ -184,7 +184,7 @@ async function materializeDeploymentState(
    */
   const edges = normalizeWorkflowEdgeHandles(state.edges)
 
-  /*
+  /**
    * An error edge means the error output is on. Every version before the toggle
    * drew that port unconditionally, so a snapshot with such an edge was taken
    * from a block that had the output — and the migration backfilling the flag

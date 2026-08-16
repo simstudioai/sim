@@ -179,7 +179,7 @@ export function generateWorkflowDiffSummary(
       subBlocks: previousSubBlocks,
     } = extractBlockFieldsForComparison(previousBlock)
 
-    /*
+    /**
      * Outside the structural gate below: the flag alone can match while the edges
      * disagree, and reading it alone pins a block with a stale `errorEnabled: false`
      * and a live error edge to "needs redeploy" forever.
