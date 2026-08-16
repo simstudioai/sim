@@ -49,7 +49,7 @@ Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/i
 | `clientId` | string | Yes | CrowdStrike Falcon API client ID |
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
-| `indicators` | json | Yes | JSON array of indicators to create. applied_globally \(boolean\) is the only required per-indicator field. Other documented fields: type, value, action, severity, platforms \(array\), host_groups \(array\), description, source, tags \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). Either applied_globally must be true or host_groups must be supplied. |
+| `indicators` | json | Yes | JSON array of indicators to create. Each entry requires type, value, and applied_globally \(boolean\). type is one of sha256, md5, domain, ipv4, ipv6; action is one of no_action, allow, prevent_no_ui, prevent, detect; severity is one of informational, low, medium, high, critical; platforms entries are windows, mac, or linux. Other documented fields: host_groups \(array\), description, source, tags \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). Either applied_globally must be true or host_groups must be supplied. Tenants can extend these value sets, so treat them as the documented defaults rather than a closed list. |
 | `comment` | string | No | Audit comment explaining why these indicators were created |
 | `retrodetects` | boolean | No | Whether to generate retroactive detections for the new indicators |
 | `ignoreWarnings` | boolean | No | Whether to create the indicators even when CrowdStrike returns warnings |
@@ -98,7 +98,7 @@ Create custom CrowdStrike Falcon indicators of compromise (POST /iocs/entities/i
 
 ### CrowdStrike Delete Indicators
 
-Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). This cannot be undone, and deleting a blocking indicator removes that protection from every host. If a filter is supplied it takes precedence and the ID list is ignored, so a broad filter can delete far more than intended. Requires the "IOC Management: Write" API scope.
+Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). Cannot be undone; deleting a blocking indicator removes that protection from every host, and a broad filter can delete far more than intended. Supply an ID list or a filter, never both -- CrowdStrike lets a filter silently override the IDs, so this tool rejects that instead. Requires the "IOC Management: Write" API scope.
 
 #### Input
 
@@ -107,8 +107,8 @@ Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /i
 | `clientId` | string | Yes | CrowdStrike Falcon API client ID |
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
-| `indicatorIds` | json | No | JSON array of CrowdStrike IOC IDs to delete. Ignored when a filter is also supplied. |
-| `filter` | string | No | Falcon Query Language filter selecting indicators to delete in bulk. Takes precedence over the ID list. |
+| `indicatorIds` | json | No | JSON array of CrowdStrike IOC IDs to delete. Cannot be combined with a filter. |
+| `filter` | string | No | Falcon Query Language filter selecting indicators to delete in bulk. Cannot be combined with an ID list. |
 | `comment` | string | No | Audit comment explaining why these indicators were deleted |
 
 #### Output
@@ -148,7 +148,7 @@ Close an open CrowdStrike Falcon Real Time Response session (DELETE /real-time-r
 
 ### CrowdStrike Execute RTR Command
 
-Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Read-only base commands: cat, cd, clear, csrutil, env, eventlog backup/export/list/view, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg query, users. Host-modifying commands need the Active Responder or Admin RTR endpoints, which this tool does not expose. Requires the "Real time response: Read" API scope.
+Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). baseCommand names the family only (cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, reg); subcommands go in commandString. Host-modifying commands need the Active Responder or Admin endpoints. Requires the "Real time response: Read" API scope.
 
 #### Input
 
@@ -158,7 +158,7 @@ Run a read-only Real Time Response command in an open CrowdStrike Falcon session
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
 | `sessionId` | string | Yes | RTR session ID returned by Init RTR Session |
-| `baseCommand` | string | Yes | Read-only RTR base command, one of: cat, cd, clear, csrutil, env, "eventlog backup", "eventlog export", "eventlog list", "eventlog view", filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, "reg query", and users |
+| `baseCommand` | string | Yes | Read-only RTR base command family, one of: cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, reg. Subcommands belong in commandString, not here. |
 | `commandString` | string | Yes | Full command line to run, such as "ls C:\\Windows" or "reg query HKLM\\Software" |
 
 #### Output
@@ -614,7 +614,7 @@ Open a CrowdStrike Falcon Real Time Response session against a host so read-only
 
 ### CrowdStrike Perform Host Action
 
-Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain (network-isolates the host so it can only reach the Falcon cloud), lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. Containment is immediately disruptive to the endpoint. CrowdStrike accepts up to 100 host IDs per call. Requires the "Hosts: Write" API scope.
+Act on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain, lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. contain network-isolates the host so it can only reach the Falcon cloud; hide_host removes the host record from the console. Both are immediately disruptive. Up to 100 host IDs per call. Requires the "Hosts: Write" API scope.
 
 #### Input
 
@@ -623,7 +623,7 @@ Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devic
 | `clientId` | string | Yes | CrowdStrike Falcon API client ID |
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
-| `actionName` | string | Yes | Action to take: contain, lift_containment, hide_host, unhide_host, detection_suppress, or detection_unsuppress. "contain" network-isolates the host. |
+| `actionName` | string | Yes | Action to take: contain, lift_containment, hide_host, unhide_host, detection_suppress, or detection_unsuppress. "contain" network-isolates the host; "hide_host" removes it from the Falcon console. |
 | `deviceIds` | json | Yes | JSON array of up to 100 CrowdStrike host agent IDs \(AIDs\) to act on |
 
 #### Output
@@ -676,7 +676,7 @@ Add hosts to or remove hosts from a CrowdStrike Falcon static host group (POST /
 
 ### CrowdStrike Query Alerts
 
-Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2); the legacy Detects API is decommissioned. Requires the "Alerts: Read" API scope.
+Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2), which supersedes the deprecated Detects API. Requires the "Alerts: Read" API scope.
 
 #### Input
 
@@ -705,7 +705,7 @@ Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return 
 
 ### CrowdStrike Query Cases
 
-Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the "Cases: Read" API scope.
+Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management supersedes the CrowdScore Incidents API, which CrowdStrike has removed from its published API spec. Requires the "Cases: Read" API scope.
 
 #### Input
 
@@ -902,7 +902,7 @@ Update CrowdStrike Falcon alerts by composite ID: change status, assign or unass
 
 ### CrowdStrike Update Indicators
 
-Update existing custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). Changing an indicator action or scope changes prevention behavior across the fleet. Indicator type and value are immutable. Requires the "IOC Management: Write" API scope.
+Update custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). DESTRUCTIVE: CrowdStrike blanks out any field you omit, so read each indicator with crowdstrike_get_indicator_details first and resend its full field set with your edits applied. Changing action or scope changes prevention behavior fleet-wide. type and value are immutable. Requires the "IOC Management: Write" API scope.
 
 #### Input
 
@@ -911,7 +911,7 @@ Update existing custom CrowdStrike Falcon indicators of compromise by ID (PATCH 
 | `clientId` | string | Yes | CrowdStrike Falcon API client ID |
 | `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
 | `cloud` | string | Yes | CrowdStrike Falcon cloud region |
-| `indicators` | json | Yes | JSON array of indicators to update. Each entry requires id. Documented updatable fields: action, severity, description, source, tags \(array\), platforms \(array\), applied_globally \(boolean\), host_groups \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). type and value cannot be changed. |
+| `indicators` | json | Yes | JSON array of indicators to update. Each entry requires id, and must also repeat every field it wants to keep: CrowdStrike blanks out any updatable field the entry omits. Updatable fields: action, severity, description, source, tags \(array\), platforms \(array\), applied_globally \(boolean\), host_groups \(array\), expiration \(ISO 8601\), mobile_action, metadata \(\{ filename \}\). type and value cannot be changed. |
 | `comment` | string | No | Audit comment explaining why these indicators were updated |
 | `retrodetects` | boolean | No | Whether to generate retroactive detections for the updated indicators |
 | `ignoreWarnings` | boolean | No | Whether to apply the updates even when CrowdStrike returns warnings |

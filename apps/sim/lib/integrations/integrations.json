@@ -4569,7 +4569,7 @@
       "operations": [
         {
           "name": "Query Alerts",
-          "description": "Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2); the legacy Detects API is decommissioned. Requires the \"Alerts: Read\" API scope."
+          "description": "Search CrowdStrike Falcon alerts with a Falcon Query Language filter and return their composite IDs. Uses the current Alerts API (GET /alerts/queries/alerts/v2), which supersedes the deprecated Detects API. Requires the \"Alerts: Read\" API scope."
         },
         {
           "name": "Get Alert Details",
@@ -4581,7 +4581,7 @@
         },
         {
           "name": "Perform Host Action",
-          "description": "Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain (network-isolates the host so it can only reach the Falcon cloud), lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. Containment is immediately disruptive to the endpoint. CrowdStrike accepts up to 100 host IDs per call. Requires the \"Hosts: Write\" API scope."
+          "description": "Act on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain, lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. contain network-isolates the host so it can only reach the Falcon cloud; hide_host removes the host record from the console. Both are immediately disruptive. Up to 100 host IDs per call. Requires the \"Hosts: Write\" API scope."
         },
         {
           "name": "Query Host Groups",
@@ -4609,11 +4609,11 @@
         },
         {
           "name": "Update Indicators",
-          "description": "Update existing custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). Changing an indicator action or scope changes prevention behavior across the fleet. Indicator type and value are immutable. Requires the \"IOC Management: Write\" API scope."
+          "description": "Update custom CrowdStrike Falcon indicators of compromise by ID (PATCH /iocs/entities/indicators/v1). DESTRUCTIVE: CrowdStrike blanks out any field you omit, so read each indicator with crowdstrike_get_indicator_details first and resend its full field set with your edits applied. Changing action or scope changes prevention behavior fleet-wide. type and value are immutable. Requires the \"IOC Management: Write\" API scope."
         },
         {
           "name": "Delete Indicators",
-          "description": "Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). This cannot be undone, and deleting a blocking indicator removes that protection from every host. If a filter is supplied it takes precedence and the ID list is ignored, so a broad filter can delete far more than intended. Requires the \"IOC Management: Write\" API scope."
+          "description": "Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). Cannot be undone; deleting a blocking indicator removes that protection from every host, and a broad filter can delete far more than intended. Supply an ID list or a filter, never both -- CrowdStrike lets a filter silently override the IDs, so this tool rejects that instead. Requires the \"IOC Management: Write\" API scope."
         },
         {
           "name": "Query Vulnerabilities",
@@ -4629,7 +4629,7 @@
         },
         {
           "name": "Execute RTR Command",
-          "description": "Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). Read-only base commands: cat, cd, clear, csrutil, env, eventlog backup/export/list/view, filehash, getsid, help, history, ifconfig, ipconfig, ls, mount, netstat, ps, reg query, users. Host-modifying commands need the Active Responder or Admin RTR endpoints, which this tool does not expose. Requires the \"Real time response: Read\" API scope."
+          "description": "Run a read-only Real Time Response command in an open CrowdStrike Falcon session (POST /real-time-response/entities/command/v1). baseCommand names the family only (cat, cd, clear, csrutil, env, eventlog, filehash, getsid, help, history, ipconfig, ls, mount, netstat, ps, reg); subcommands go in commandString. Host-modifying commands need the Active Responder or Admin endpoints. Requires the \"Real time response: Read\" API scope."
         },
         {
           "name": "Get RTR Command Status",
@@ -4641,7 +4641,7 @@
         },
         {
           "name": "Query Cases",
-          "description": "Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the \"Cases: Read\" API scope."
+          "description": "Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management supersedes the CrowdScore Incidents API, which CrowdStrike has removed from its published API spec. Requires the \"Cases: Read\" API scope."
         },
         {
           "name": "Get Case Details",

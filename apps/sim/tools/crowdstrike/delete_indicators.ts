@@ -11,7 +11,7 @@ export const crowdstrikeDeleteIndicatorsTool: ToolConfig<
   id: 'crowdstrike_delete_indicators',
   name: 'CrowdStrike Delete Indicators',
   description:
-    'Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). This cannot be undone, and deleting a blocking indicator removes that protection from every host. If a filter is supplied it takes precedence and the ID list is ignored, so a broad filter can delete far more than intended. Requires the "IOC Management: Write" API scope.',
+    'Permanently delete custom CrowdStrike Falcon indicators of compromise (DELETE /iocs/entities/indicators/v1). Cannot be undone; deleting a blocking indicator removes that protection from every host, and a broad filter can delete far more than intended. Supply an ID list or a filter, never both -- CrowdStrike lets a filter silently override the IDs, so this tool rejects that instead. Requires the "IOC Management: Write" API scope.',
   version: '1.0.0',
 
   params: {
@@ -37,15 +37,14 @@ export const crowdstrikeDeleteIndicatorsTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'JSON array of CrowdStrike IOC IDs to delete. Ignored when a filter is also supplied.',
+      description: 'JSON array of CrowdStrike IOC IDs to delete. Cannot be combined with a filter.',
     },
     filter: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Falcon Query Language filter selecting indicators to delete in bulk. Takes precedence over the ID list.',
+        'Falcon Query Language filter selecting indicators to delete in bulk. Cannot be combined with an ID list.',
     },
     comment: {
       type: 'string',

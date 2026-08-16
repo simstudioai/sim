@@ -5,7 +5,7 @@ import {
   getBoolean,
   getCursorPagination,
   getEnvelopeErrors,
-  getErrorMessage,
+  getFalconErrorMessage,
   getFirstRecordResource,
   getNumber,
   getPagination,
@@ -68,7 +68,7 @@ function fail(result: CrowdStrikeCallResult, fallback: string): OperationFailure
   return {
     ok: false,
     status: failureStatus(result),
-    error: getErrorMessage(result.data, fallback),
+    error: getFalconErrorMessage(result.data, fallback),
   }
 }
 

@@ -38,7 +38,7 @@ export const crowdstrikeCreateIndicatorsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of indicators to create. applied_globally (boolean) is the only required per-indicator field. Other documented fields: type, value, action, severity, platforms (array), host_groups (array), description, source, tags (array), expiration (ISO 8601), mobile_action, metadata ({ filename }). Either applied_globally must be true or host_groups must be supplied.',
+        'JSON array of indicators to create. Each entry requires type, value, and applied_globally (boolean). type is one of sha256, md5, domain, ipv4, ipv6; action is one of no_action, allow, prevent_no_ui, prevent, detect; severity is one of informational, low, medium, high, critical; platforms entries are windows, mac, or linux. Other documented fields: host_groups (array), description, source, tags (array), expiration (ISO 8601), mobile_action, metadata ({ filename }). Either applied_globally must be true or host_groups must be supplied. Tenants can extend these value sets, so treat them as the documented defaults rather than a closed list.',
     },
     comment: {
       type: 'string',

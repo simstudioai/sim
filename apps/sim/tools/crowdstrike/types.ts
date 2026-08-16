@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type CrowdStrikeCloud = 'us-1' | 'us-2' | 'eu-1' | 'us-gov-1' | 'us-gov-2'
+export type CrowdStrikeCloud = 'us-1' | 'us-2' | 'us-3' | 'eu-1' | 'us-gov-1' | 'us-gov-2'
 
 export interface CrowdStrikeBaseParams {
   clientId: string
@@ -35,12 +35,20 @@ interface CrowdStrikeAggregateRangeSpec {
   To: number
 }
 
+/** CrowdStrike's `MsaAPIFiltersSpec`: an FQL-per-bucket map plus the catch-all bucket controls. */
+export interface CrowdStrikeAggregateFiltersSpec {
+  filters: Record<string, string>
+  other_bucket?: boolean
+  other_bucket_key?: string
+}
+
 export interface CrowdStrikeAggregateQuery {
   date_ranges?: CrowdStrikeAggregateDateRangeSpec[]
   exclude?: string
   extended_bounds?: CrowdStrikeAggregateExtendedBoundsSpec
   field?: string
   filter?: string
+  filters_spec?: CrowdStrikeAggregateFiltersSpec
   from?: number
   include?: string
   interval?: string
@@ -48,6 +56,7 @@ export interface CrowdStrikeAggregateQuery {
   min_doc_count?: number
   missing?: string
   name?: string
+  percents?: number[]
   q?: string
   ranges?: CrowdStrikeAggregateRangeSpec[]
   size?: number

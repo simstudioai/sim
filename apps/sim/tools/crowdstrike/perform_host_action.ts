@@ -11,7 +11,7 @@ export const crowdstrikePerformHostActionTool: ToolConfig<
   id: 'crowdstrike_perform_host_action',
   name: 'CrowdStrike Perform Host Action',
   description:
-    'Take a containment or visibility action on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain (network-isolates the host so it can only reach the Falcon cloud), lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. Containment is immediately disruptive to the endpoint. CrowdStrike accepts up to 100 host IDs per call. Requires the "Hosts: Write" API scope.',
+    'Act on CrowdStrike Falcon hosts (POST /devices/entities/devices-actions/v2). Actions: contain, lift_containment, hide_host, unhide_host, detection_suppress, detection_unsuppress. contain network-isolates the host so it can only reach the Falcon cloud; hide_host removes the host record from the console. Both are immediately disruptive. Up to 100 host IDs per call. Requires the "Hosts: Write" API scope.',
   version: '1.0.0',
 
   params: {
@@ -38,7 +38,7 @@ export const crowdstrikePerformHostActionTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Action to take: contain, lift_containment, hide_host, unhide_host, detection_suppress, or detection_unsuppress. "contain" network-isolates the host.',
+        'Action to take: contain, lift_containment, hide_host, unhide_host, detection_suppress, or detection_unsuppress. "contain" network-isolates the host; "hide_host" removes it from the Falcon console.',
     },
     deviceIds: {
       type: 'json',

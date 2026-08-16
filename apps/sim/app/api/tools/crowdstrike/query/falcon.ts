@@ -7,6 +7,7 @@ const CLOUD_BASE_URLS: Record<CrowdStrikeCloud, string> = {
   'eu-1': 'https://api.eu-1.crowdstrike.com',
   'us-1': 'https://api.crowdstrike.com',
   'us-2': 'https://api.us-2.crowdstrike.com',
+  'us-3': 'https://api.us-3.crowdstrike.com',
   'us-gov-1': 'https://api.laggar.gcw.crowdstrike.com',
   'us-gov-2': 'https://api.us-gov-2.crowdstrike.mil',
 }
@@ -47,25 +48,17 @@ export function getRecord(value: unknown): JsonRecord | null {
   return isRecordLike(value) ? value : null
 }
 
-export function getResponseRoot(data: unknown): unknown {
-  if (!isRecordLike(data)) {
-    return null
-  }
-
-  if (isRecordLike(data.body)) {
-    return data.body
-  }
-
-  return data
-}
-
+/**
+ * Every Falcon endpoint this integration calls answers with a flat
+ * `{ meta, resources, errors }` envelope, so the envelope readers below and
+ * `getFalconErrorMessage` both read the payload root directly.
+ */
 export function getResourcesArray(data: unknown): unknown[] {
-  const root = getResponseRoot(data)
-  if (!isRecordLike(root) || !Array.isArray(root.resources)) {
+  if (!isRecordLike(data) || !Array.isArray(data.resources)) {
     return []
   }
 
-  return root.resources
+  return data.resources
 }
 
 export function getRecordResources(data: unknown): JsonRecord[] {
@@ -81,44 +74,47 @@ export function getFirstRecordResource(data: unknown): JsonRecord | null {
 }
 
 export function getPagination(data: unknown) {
-  const root = getResponseRoot(data)
-  if (!isRecordLike(root) || !isRecordLike(root.meta) || !isRecordLike(root.meta.pagination)) {
+  if (!isRecordLike(data) || !isRecordLike(data.meta) || !isRecordLike(data.meta.pagination)) {
     return null
   }
 
+  const { pagination } = data.meta
+
   return {
-    limit: getNumber(root.meta.pagination.limit),
-    offset: getNumber(root.meta.pagination.offset),
-    total: getNumber(root.meta.pagination.total),
+    limit: getNumber(pagination.limit),
+    offset: getNumber(pagination.offset),
+    total: getNumber(pagination.total),
   }
 }
 
 /** Offset pagination plus the `after` cursor the IOC Management API returns. */
 export function getCursorPagination(data: unknown) {
-  const root = getResponseRoot(data)
-  if (!isRecordLike(root) || !isRecordLike(root.meta) || !isRecordLike(root.meta.pagination)) {
+  if (!isRecordLike(data) || !isRecordLike(data.meta) || !isRecordLike(data.meta.pagination)) {
     return null
   }
 
+  const { pagination } = data.meta
+
   return {
-    after: getString(root.meta.pagination.after),
-    limit: getNumber(root.meta.pagination.limit),
-    offset: getNumber(root.meta.pagination.offset),
-    total: getNumber(root.meta.pagination.total),
+    after: getString(pagination.after),
+    limit: getNumber(pagination.limit),
+    offset: getNumber(pagination.offset),
+    total: getNumber(pagination.total),
   }
 }
 
 /** Spotlight paginates by cursor only — it returns no offset. */
 export function getSpotlightPagination(data: unknown) {
-  const root = getResponseRoot(data)
-  if (!isRecordLike(root) || !isRecordLike(root.meta) || !isRecordLike(root.meta.pagination)) {
+  if (!isRecordLike(data) || !isRecordLike(data.meta) || !isRecordLike(data.meta.pagination)) {
     return null
   }
 
+  const { pagination } = data.meta
+
   return {
-    after: getString(root.meta.pagination.after),
-    limit: getNumber(root.meta.pagination.limit),
-    total: getNumber(root.meta.pagination.total),
+    after: getString(pagination.after),
+    limit: getNumber(pagination.limit),
+    total: getNumber(pagination.total),
   }
 }
 
@@ -127,19 +123,18 @@ export function getSpotlightPagination(data: unknown) {
  * can still carry a populated `errors` array for the IDs that failed.
  */
 export function getEnvelopeErrors(data: unknown) {
-  const root = getResponseRoot(data)
-  if (!isRecordLike(root)) {
+  if (!isRecordLike(data)) {
     return []
   }
 
-  return getRecordArray(root.errors).map((entry) => ({
+  return getRecordArray(data.errors).map((entry) => ({
     code: getNumber(entry.code),
     id: getString(entry.id),
     message: getString(entry.message),
   }))
 }
 
-export function getErrorMessage(data: unknown, fallback: string): string {
+export function getFalconErrorMessage(data: unknown, fallback: string): string {
   if (!isRecordLike(data)) {
     return fallback
   }
@@ -179,7 +174,7 @@ export async function getAccessToken(params: CrowdStrikeBaseParams): Promise<str
 
   const data: unknown = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(getErrorMessage(data, 'Failed to authenticate with CrowdStrike'))
+    throw new Error(getFalconErrorMessage(data, 'Failed to authenticate with CrowdStrike'))
   }
 
   if (!isRecordLike(data) || typeof data.access_token !== 'string') {
@@ -204,8 +199,7 @@ export interface CrowdStrikeCallResult {
 }
 
 export function buildUrl(baseUrl: string, options: CrowdStrikeRequestOptions): string {
-  const url = new URL(baseUrl)
-  url.pathname = options.path
+  const url = new URL(options.path, baseUrl)
 
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined) {

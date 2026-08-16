@@ -11,7 +11,7 @@ export const crowdstrikeQueryCasesTool: ToolConfig<
   id: 'crowdstrike_query_cases',
   name: 'CrowdStrike Query Cases',
   description:
-    'Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management replaced the CrowdScore Incidents API, which CrowdStrike decommissioned. Requires the "Cases: Read" API scope.',
+    'Search CrowdStrike Falcon Case Management cases with a Falcon Query Language filter and return their IDs (GET /cases/queries/cases/v1). Case Management supersedes the CrowdScore Incidents API, which CrowdStrike has removed from its published API spec. Requires the "Cases: Read" API scope.',
   version: '1.0.0',
 
   params: {

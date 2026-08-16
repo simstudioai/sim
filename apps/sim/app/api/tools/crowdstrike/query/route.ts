@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { crowdstrikeQueryContract } from '@/lib/api/contracts/tools/crowdstrike'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -12,7 +11,7 @@ import {
   getAccessToken,
   getCloudBaseUrl,
   getEnvelopeErrors,
-  getErrorMessage,
+  getFalconErrorMessage,
   getNumber,
   getPagination,
   getRecordArray,
@@ -33,7 +32,7 @@ import type {
   CrowdStrikeSensorAggregateResult,
 } from '@/tools/crowdstrike/types'
 
-const logger = createLogger('CrowdStrikeIdentityProtectionAPI')
+const logger = createLogger('CrowdStrikeAPI')
 
 function normalizeSensor(resource: JsonRecord) {
   return {
@@ -85,7 +84,7 @@ function envelopeFailureResponse(
   }
 
   return NextResponse.json(
-    { success: false, error: getErrorMessage(result.data, fallback) },
+    { success: false, error: getFalconErrorMessage(result.data, fallback) },
     { status: failureStatus(result) }
   )
 }
@@ -133,9 +132,12 @@ function sensorQuery(params: CrowdStrikeQuerySensorsParams) {
   }
 }
 
+/**
+ * Special route: this proxies workflow tool calls to CrowdStrike Falcon with the
+ * caller's own API credentials, so it authenticates through `checkInternalAuth`
+ * rather than an application use case and uses raw `withRouteHandler`.
+ */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json(
@@ -166,7 +168,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const baseUrl = getCloudBaseUrl(params.cloud)
     const accessToken = await getAccessToken(params)
 
-    logger.info(`[${requestId}] CrowdStrike request`, {
+    logger.info('CrowdStrike request', {
       cloud: params.cloud,
       operation: params.operation,
     })
@@ -182,7 +184,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: getErrorMessage(queryResponse.data, 'CrowdStrike request failed'),
+            error: getFalconErrorMessage(queryResponse.data, 'CrowdStrike request failed'),
           },
           { status: queryResponse.status }
         )
@@ -213,7 +215,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: getErrorMessage(
+            error: getFalconErrorMessage(
               detailResponse.data,
               'Failed to fetch CrowdStrike sensor details'
             ),
@@ -246,7 +248,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: getErrorMessage(
+            error: getFalconErrorMessage(
               detailResponse.data,
               'Failed to fetch CrowdStrike sensor details'
             ),
@@ -279,7 +281,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: getErrorMessage(
+            error: getFalconErrorMessage(
               aggregateResponse.data,
               'Failed to fetch CrowdStrike sensor aggregates'
             ),
@@ -312,7 +314,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ success: true, output: result.output })
   } catch (error) {
     const message = toError(error).message
-    logger.error(`[${requestId}] CrowdStrike request failed`, { error: message })
+    logger.error('CrowdStrike request failed', { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 })

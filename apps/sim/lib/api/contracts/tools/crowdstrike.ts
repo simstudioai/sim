@@ -101,7 +101,7 @@ const crowdstrikeAggregatesResponseSchema = z.object({
   }),
 })
 
-const CROWDSTRIKE_CLOUDS = ['us-1', 'us-2', 'eu-1', 'us-gov-1', 'us-gov-2'] as const
+const CROWDSTRIKE_CLOUDS = ['us-1', 'us-2', 'us-3', 'eu-1', 'us-gov-1', 'us-gov-2'] as const
 
 const baseRequestSchema = z.object({
   clientId: z.string().min(1, 'Client ID is required'),
@@ -125,28 +125,49 @@ const rangeSpecSchema = z.object({
   To: z.number(),
 })
 
+/** `MsaAPIFiltersSpec` — an FQL-per-bucket map plus the catch-all bucket controls. */
+const filtersSpecSchema = z.object({
+  filters: z.record(z.string(), z.string()),
+  other_bucket: z.boolean().optional(),
+  other_bucket_key: z.string().optional(),
+})
+
+/**
+ * `MsaAggregateQueryRequest` marks nearly every property `Required: true`, which
+ * cannot be literally true of an aggregation body, so the fields stay optional
+ * here. Demanding at least a `field` or a `type` is strictly weaker than the
+ * published spec, so it cannot reject an aggregation CrowdStrike would accept,
+ * and it turns "aggregate query says nothing" into a message the caller can act
+ * on instead of an opaque 400.
+ */
 const aggregateQuerySchema: z.ZodType<CrowdStrikeAggregateQuery> = z.lazy(() =>
-  z.object({
-    date_ranges: z.array(dateRangeSchema).optional(),
-    exclude: z.string().optional(),
-    extended_bounds: extendedBoundsSchema.optional(),
-    field: z.string().optional(),
-    filter: z.string().optional(),
-    from: z.number().int().nonnegative().optional(),
-    include: z.string().optional(),
-    interval: z.string().optional(),
-    max_doc_count: z.number().int().nonnegative().optional(),
-    min_doc_count: z.number().int().nonnegative().optional(),
-    missing: z.string().optional(),
-    name: z.string().optional(),
-    q: z.string().optional(),
-    ranges: z.array(rangeSpecSchema).optional(),
-    size: z.number().int().nonnegative().optional(),
-    sort: z.string().optional(),
-    sub_aggregates: z.array(aggregateQuerySchema).optional(),
-    time_zone: z.string().optional(),
-    type: z.string().optional(),
-  })
+  z
+    .object({
+      date_ranges: z.array(dateRangeSchema).optional(),
+      exclude: z.string().optional(),
+      extended_bounds: extendedBoundsSchema.optional(),
+      field: z.string().optional(),
+      filter: z.string().optional(),
+      filters_spec: filtersSpecSchema.optional(),
+      from: z.number().int().nonnegative().optional(),
+      include: z.string().optional(),
+      interval: z.string().optional(),
+      max_doc_count: z.number().int().nonnegative().optional(),
+      min_doc_count: z.number().int().nonnegative().optional(),
+      missing: z.string().optional(),
+      name: z.string().optional(),
+      percents: z.array(z.number()).optional(),
+      q: z.string().optional(),
+      ranges: z.array(rangeSpecSchema).optional(),
+      size: z.number().int().nonnegative().optional(),
+      sort: z.string().optional(),
+      sub_aggregates: z.array(aggregateQuerySchema).optional(),
+      time_zone: z.string().optional(),
+      type: z.string().optional(),
+    })
+    .refine((value) => Boolean(value.field ?? value.type), {
+      message: 'aggregateQuery must set at least a field or a type',
+    })
 )
 
 /**
@@ -181,6 +202,22 @@ const getSensorAggregatesSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_get_sensor_aggregates'),
   aggregateQuery: aggregateQuerySchema,
 })
+
+/**
+ * Falcon agent IDs are 32-character hex AIDs. Constraining them keeps a crafted
+ * value out of the FQL `device_id` filter the host-group action builds, and bounds
+ * the length of that generated filter.
+ */
+const agentIdsSchema = (max: number, limitReason: string) =>
+  z
+    .array(
+      z
+        .string()
+        .trim()
+        .regex(/^[0-9a-fA-F]{32}$/, 'Host agent IDs must be 32 hexadecimal characters')
+    )
+    .min(1, 'At least one host agent ID is required')
+    .max(max, `${limitReason} (limit ${max})`)
 
 const idsSchema = (max: number, label: string) =>
   z
@@ -621,6 +658,19 @@ const updateAlertsSchema = baseRequestSchema
     includeHidden: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
+    const assignsSomeone =
+      value.assignToUuid !== undefined ||
+      value.assignToUserId !== undefined ||
+      value.assignToName !== undefined
+    if (value.unassign === true && assignsSomeone) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['unassign'],
+        message:
+          'unassign cannot be combined with assignToUuid, assignToUserId, or assignToName; CrowdStrike does not define which wins',
+      })
+    }
+
     const hasAction =
       value.updateStatus !== undefined ||
       value.assignToUuid !== undefined ||
@@ -658,7 +708,7 @@ const performHostActionSchema = baseRequestSchema.extend({
   actionName: z.enum(HOST_ACTIONS, {
     message: `actionName must be one of ${HOST_ACTIONS.join(', ')}`,
   }),
-  deviceIds: idsSchema(100, 'host agent ID'),
+  deviceIds: agentIdsSchema(100, 'CrowdStrike accepts at most 100 host agent IDs per host action'),
 })
 
 const queryHostGroupsSchema = baseRequestSchema.extend({
@@ -681,13 +731,42 @@ const getHostGroupDetailsSchema = baseRequestSchema.extend({
 
 const HOST_GROUP_ACTIONS = ['add-hosts', 'remove-hosts'] as const
 
+/**
+ * `RTR-ExecuteCommand` is the Read-scoped tier of the three RTR command endpoints,
+ * and it accepts only these base commands. Subcommands ride in `command_string`
+ * (`eventlog view ...`, `reg query ...`), never in `base_command`; the write-tier
+ * variants such as `eventlog backup` belong to `/entities/active-responder-command/v1`
+ * and would fail here on scope.
+ */
+export const RTR_READ_ONLY_BASE_COMMANDS = [
+  'cat',
+  'cd',
+  'clear',
+  'csrutil',
+  'env',
+  'eventlog',
+  'filehash',
+  'getsid',
+  'help',
+  'history',
+  'ipconfig',
+  'ls',
+  'mount',
+  'netstat',
+  'ps',
+  'reg',
+] as const
+
 const performHostGroupActionSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_perform_host_group_action'),
   actionName: z.enum(HOST_GROUP_ACTIONS, {
     message: 'actionName must be add-hosts or remove-hosts',
   }),
   hostGroupId: z.string().trim().min(1, 'hostGroupId is required'),
-  deviceIds: idsSchema(5000, 'host agent ID'),
+  deviceIds: agentIdsSchema(
+    500,
+    'CrowdStrike documents no host cap for this endpoint, so Sim bounds the generated device_id FQL filter'
+  ),
 })
 
 const queryIndicatorsSchema = baseRequestSchema
@@ -724,6 +803,11 @@ const getIndicatorDetailsSchema = baseRequestSchema.extend({
  * value and clears the stored field, so the fields a blank would clobber are
  * constrained here. Unknown keys pass through so newly documented IOC fields keep
  * working without a contract change.
+ *
+ * This guards blanks only. CrowdStrike separately documents that *omitting* a
+ * field on PATCH also overwrites it with a blank value, and no schema can detect
+ * an absent key — that hazard is carried in the `crowdstrike_update_indicators`
+ * tool and parameter descriptions instead.
  */
 const indicatorPayloadSchema = z
   .object({
@@ -744,10 +828,45 @@ const indicatorPayloadSchema = z
   })
   .catchall(z.unknown())
 
+/**
+ * `api.IndicatorCreateReqV1` carries no `id` — the ID is assigned by CrowdStrike —
+ * and identifies the indicator by `type` plus `value`. `applied_globally` is the
+ * one property the spec marks `Required: true`, and it decides whether the
+ * indicator applies to the whole fleet, so it must be stated rather than defaulted.
+ */
+const createIndicatorPayloadSchema = indicatorPayloadSchema.extend({
+  type: z.string().trim().min(1, 'Indicator type is required to create an indicator'),
+  value: z.string().trim().min(1, 'Indicator value is required to create an indicator'),
+  applied_globally: z.boolean({
+    message: 'applied_globally is required; set it to false to scope the indicator to host_groups',
+  }),
+})
+
+/**
+ * `api.IndicatorUpdateReqV1` identifies the record by `id` and exposes no `type`
+ * or `value` — those are immutable — so an update missing an `id` cannot name a
+ * record and must be rejected before it reaches Falcon.
+ */
+const updateIndicatorPayloadSchema = indicatorPayloadSchema
+  .extend({
+    id: z.string().trim().min(1, 'Each indicator to update requires an id'),
+  })
+  .superRefine((value, ctx) => {
+    for (const immutable of ['type', 'value'] as const) {
+      if (value[immutable] !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [immutable],
+          message: `${immutable} cannot be changed on an existing indicator; delete and recreate it instead`,
+        })
+      }
+    }
+  })
+
 const createIndicatorsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_create_indicators'),
   indicators: z
-    .array(indicatorPayloadSchema)
+    .array(createIndicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
     .max(200, 'CrowdStrike supports up to 200 indicators per request'),
   comment: nonBlankQuerySchema('Comment'),
@@ -758,7 +877,7 @@ const createIndicatorsSchema = baseRequestSchema.extend({
 const updateIndicatorsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_update_indicators'),
   indicators: z
-    .array(indicatorPayloadSchema)
+    .array(updateIndicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
     .max(200, 'CrowdStrike supports up to 200 indicators per request'),
   comment: nonBlankQuerySchema('Comment'),
@@ -779,6 +898,15 @@ const deleteIndicatorsSchema = baseRequestSchema
         code: 'custom',
         path: ['indicatorIds'],
         message: 'Supply indicatorIds or a filter selecting the indicators to delete',
+      })
+    }
+
+    if (value.filter && value.indicatorIds?.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filter'],
+        message:
+          'Supply indicatorIds or a filter, not both; CrowdStrike ignores the ID list whenever a filter is present',
       })
     }
   })
@@ -811,7 +939,9 @@ const initRtrSessionSchema = baseRequestSchema.extend({
 const executeRtrCommandSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_execute_rtr_command'),
   sessionId: z.string().trim().min(1, 'sessionId is required'),
-  baseCommand: z.string().trim().min(1, 'baseCommand is required'),
+  baseCommand: z.enum(RTR_READ_ONLY_BASE_COMMANDS, {
+    message: `baseCommand must be one of ${RTR_READ_ONLY_BASE_COMMANDS.join(', ')}`,
+  }),
   commandString: z.string().trim().min(1, 'commandString is required'),
 })
 
