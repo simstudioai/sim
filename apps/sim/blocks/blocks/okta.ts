@@ -511,7 +511,13 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       type: 'short-input',
       placeholder: 'Engineering Team',
       condition: { field: 'operation', value: ['okta_create_group', 'okta_update_group'] },
-      required: { field: 'operation', value: ['okta_create_group', 'okta_update_group'] },
+      /**
+       * Required only on create, where Okta has no stored name to fall back on.
+       * An update is a read-modify-write that carries the stored name through, so
+       * a blank name means "leave it alone" — requiring it here would block a
+       * description-only update the tool and API both accept.
+       */
+      required: { field: 'operation', value: ['okta_create_group'] },
     },
     {
       id: 'groupDescription',

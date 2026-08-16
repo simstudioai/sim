@@ -117,17 +117,20 @@ export const updateRulesetRuleTool: ToolConfig<
       if (params.ref) body.ref = params.ref
 
       const actionParameters = parseJsonObjectParam(params.actionParameters, 'Action Parameters')
-      if (actionParameters) body.action_parameters = actionParameters
       /**
-       * PATCH replaces the rule, so an omitted action_parameters falls back to
-       * the schema default of {}. On an execute rule that drops the managed
+       * PATCH replaces the rule, so action_parameters that is omitted falls back
+       * to the schema default of {}. On an execute rule that drops the managed
        * ruleset ID, unbinding the WAF managed ruleset and every override under
-       * it. Refuse rather than silently tear the rule down.
-       */ else if (params.action === 'execute') {
+       * it. An explicit `{}` is the same payload by a different route and does
+       * the same damage, so emptiness is what is checked rather than presence.
+       * Refuse rather than silently tear the rule down.
+       */
+      if (params.action === 'execute' && Object.keys(actionParameters ?? {}).length === 0) {
         throw new Error(
-          'Action Parameters is required when the action is "execute". This endpoint replaces the rule, so omitting it would reset action_parameters and unbind the managed ruleset. Read the rule with "Get Ruleset" and resend its action_parameters.'
+          'Action Parameters is required when the action is "execute". This endpoint replaces the rule, so sending it empty or omitting it would reset action_parameters and unbind the managed ruleset. Read the rule with "Get Ruleset" and resend its action_parameters.'
         )
       }
+      if (actionParameters) body.action_parameters = actionParameters
 
       const ratelimit = parseJsonObjectParam(params.ratelimit, 'Rate Limiting Configuration')
       if (ratelimit) body.ratelimit = ratelimit

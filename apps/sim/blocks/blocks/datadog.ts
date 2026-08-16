@@ -15,6 +15,20 @@ function toSwitchBoolean(value: unknown): boolean | undefined {
   return undefined
 }
 
+/**
+ * Coerce a List Monitors pagination input, dropping anything that is not a finite
+ * number. These are advanced free-text fields, so they can carry a typo or an
+ * unresolved reference, and a bare `Number()` would put the literal `NaN` in the
+ * query string instead of omitting the parameter. An untouched subBlock resolves
+ * to `null` and an empty one to `''`; both are omissions rather than zeros, while
+ * an explicit `0` is Datadog's own first page and is kept.
+ */
+function datadogPageNumber(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export const DatadogBlock: BlockConfig<DatadogResponse> = {
   type: 'datadog',
   name: 'Datadog',
@@ -2011,8 +2025,8 @@ Return ONLY the search query string - no explanations.`,
                * leftover value would filter this list while presenting it as complete.
                */
               monitorTags: undefined,
-              pageSize: params.listMonitorPageSize ? Number(params.listMonitorPageSize) : undefined,
-              page: params.listMonitorPage ? Number(params.listMonitorPage) : undefined,
+              pageSize: datadogPageNumber(params.listMonitorPageSize),
+              page: datadogPageNumber(params.listMonitorPage),
             }
 
           case 'datadog_mute_monitor':

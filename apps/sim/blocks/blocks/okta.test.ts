@@ -59,6 +59,22 @@ describe('Okta block params transform', () => {
     expect(merged.description).toBe('Eng team')
   })
 
+  /**
+   * The update tool declares `name` optional and its merge helper carries the
+   * stored name through when the field is blank, so requiring it on the block
+   * would block a description-only update the tool and the API both accept.
+   * Create has no stored name to fall back on and still requires it.
+   */
+  it('requires the group name only when creating a group', () => {
+    const groupName = OktaBlock.subBlocks.find((subBlock) => subBlock.id === 'groupName')
+
+    expect(groupName?.condition).toEqual({
+      field: 'operation',
+      value: ['okta_create_group', 'okta_update_group'],
+    })
+    expect(groupName?.required).toEqual({ field: 'operation', value: ['okta_create_group'] })
+  })
+
   it('keeps a false toggle, which is a real choice rather than a blank field', () => {
     const merged = merge({
       ...BASE,

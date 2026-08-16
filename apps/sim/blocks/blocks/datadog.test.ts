@@ -68,6 +68,33 @@ describe('datadog list_monitors params', () => {
     expect(params.page).toBe(2)
   })
 
+  /**
+   * These are advanced free-text fields, so they can carry a typo or an unresolved
+   * reference. A bare `Number()` would put the literal `NaN` in the query string
+   * rather than omitting the parameter.
+   */
+  it('drops a non-numeric pagination value instead of sending NaN', () => {
+    const params = mergedParams({
+      ...baseInputs,
+      operation: 'datadog_list_monitors',
+      listMonitorPageSize: 'fifty',
+      listMonitorPage: '{{unresolved}}',
+    })
+
+    expect(params.pageSize).toBeUndefined()
+    expect(params.page).toBeUndefined()
+  })
+
+  it('keeps an explicit page 0, which is Datadog’s first page', () => {
+    const params = mergedParams({
+      ...baseInputs,
+      operation: 'datadog_list_monitors',
+      listMonitorPage: '0',
+    })
+
+    expect(params.page).toBe(0)
+  })
+
   it('exposes pagination subBlocks gated on List Monitors', () => {
     const paginationIds = ['listMonitorPageSize', 'listMonitorPage']
     for (const id of paginationIds) {

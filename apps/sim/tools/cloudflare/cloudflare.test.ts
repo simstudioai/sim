@@ -541,6 +541,39 @@ describe('an update that would tear down the rule it edits is refused', () => {
     ).toThrow(/Action Parameters is required/)
   })
 
+  /**
+   * An explicit `{}` is the same payload Cloudflare's schema default produces, so
+   * it does the same damage as omitting the field. Checking presence rather than
+   * emptiness let it through the guard.
+   */
+  it('refuses an execute rule whose action parameters are an empty object', () => {
+    expect(() =>
+      updateRule.request.body?.({
+        zoneId: 'z1',
+        rulesetId: 'rs1',
+        ruleId: 'r1',
+        apiKey,
+        action: 'execute',
+        expression: 'true',
+        actionParameters: '{}',
+      } as never)
+    ).toThrow(/Action Parameters is required/)
+  })
+
+  it('leaves an empty action parameters object alone on a non-execute action', () => {
+    const body = updateRule.request.body?.({
+      zoneId: 'z1',
+      rulesetId: 'rs1',
+      ruleId: 'r1',
+      apiKey,
+      action: 'block',
+      expression: 'true',
+      actionParameters: '{}',
+    } as never) as Record<string, unknown>
+
+    expect(body.action_parameters).toEqual({})
+  })
+
   it('accepts an execute rule that resends its action parameters', () => {
     const body = updateRule.request.body?.({
       zoneId: 'z1',
