@@ -195,7 +195,7 @@ const getSensorDetailsSchema = baseRequestSchema.extend({
   ids: z
     .array(z.string().trim().min(1, 'Sensor IDs must not be empty'))
     .min(1, 'At least one sensor ID is required')
-    .max(5000, 'CrowdStrike supports up to 5000 sensor IDs per request'),
+    .max(5000, 'CrowdStrike accepts at most 5000 sensor IDs per request'),
 })
 
 const getSensorAggregatesSchema = baseRequestSchema.extend({
@@ -219,11 +219,21 @@ const agentIdsSchema = (max: number, limitReason: string) =>
     .min(1, 'At least one host agent ID is required')
     .max(max, `${limitReason} (limit ${max})`)
 
-const idsSchema = (max: number, label: string) =>
+/**
+ * `documented` distinguishes a cap CrowdStrike publishes from one Sim imposes so
+ * a single request cannot balloon without bound. Only the published caps may
+ * claim CrowdStrike as their source.
+ */
+const idsSchema = (max: number, label: string, documented = false) =>
   z
     .array(z.string().trim().min(1, `${label} must not be empty`))
     .min(1, `At least one ${label} is required`)
-    .max(max, `CrowdStrike supports up to ${max} ${label} values per request`)
+    .max(
+      max,
+      documented
+        ? `CrowdStrike accepts at most ${max} ${label} values per request`
+        : `Sim caps this request at ${max} ${label} values; CrowdStrike publishes no limit for this endpoint`
+    )
 
 const crowdstrikeCursorPaginationSchema = z
   .object({
@@ -868,7 +878,7 @@ const createIndicatorsSchema = baseRequestSchema.extend({
   indicators: z
     .array(createIndicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
-    .max(200, 'CrowdStrike supports up to 200 indicators per request'),
+    .max(200, 'CrowdStrike accepts at most 200 indicators per request'),
   comment: nonBlankQuerySchema('Comment'),
   retrodetects: z.boolean().optional(),
   ignoreWarnings: z.boolean().optional(),
@@ -879,7 +889,7 @@ const updateIndicatorsSchema = baseRequestSchema.extend({
   indicators: z
     .array(updateIndicatorPayloadSchema)
     .min(1, 'At least one indicator is required')
-    .max(200, 'CrowdStrike supports up to 200 indicators per request'),
+    .max(200, 'CrowdStrike accepts at most 200 indicators per request'),
   comment: nonBlankQuerySchema('Comment'),
   retrodetects: z.boolean().optional(),
   ignoreWarnings: z.boolean().optional(),
@@ -926,7 +936,7 @@ const queryVulnerabilitiesSchema = baseRequestSchema.extend({
 
 const getVulnerabilityDetailsSchema = baseRequestSchema.extend({
   operation: z.literal('crowdstrike_get_vulnerability_details'),
-  vulnerabilityIds: idsSchema(400, 'vulnerability ID'),
+  vulnerabilityIds: idsSchema(400, 'vulnerability ID', true),
 })
 
 const initRtrSessionSchema = baseRequestSchema.extend({
