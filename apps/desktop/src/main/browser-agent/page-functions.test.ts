@@ -1428,6 +1428,38 @@ describe('describeFocusedEditable', () => {
     expect(describeFocusedEditable()).toEqual({ editable: false, reason: 'none' })
   })
 
+  // The bug this pins: focus inside a same-origin frame surfaces on the outer
+  // document as the FRAME element, which is not an input, not contentEditable,
+  // not a canvas, and carries no textbox role — so a composer that press-key
+  // typed into fine was reported `not-editable` and insert_text refused. The
+  // descent here must match activeElementReadback's exactly.
+  it('descends a same-origin frame to the editable that really holds focus', () => {
+    document.body.innerHTML = ''
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = '<div contenteditable="true">composer</div>'
+    const composer = inner.querySelector('div') as HTMLElement
+    Object.defineProperty(composer, 'isContentEditable', { value: true, configurable: true })
+    setActiveElement(inner, composer)
+    setActiveElement(document, frame)
+
+    expect(describeFocusedEditable()).toEqual({ editable: true, kind: 'contenteditable' })
+  })
+
+  it('names the focused element when it refuses, so the agent can recover', () => {
+    document.body.innerHTML = '<div role="button">Send</div>'
+    setActiveElement(document, document.querySelector('div'))
+
+    expect(describeFocusedEditable()).toEqual({
+      editable: false,
+      reason: 'not-editable',
+      focusedTag: 'div',
+      focusedRole: 'button',
+      contentEditable: 'unset',
+    })
+  })
+
   it('reports a writable input as insertable', () => {
     document.body.innerHTML = '<input type="text" />'
     setActiveElement(document, document.querySelector('input'))

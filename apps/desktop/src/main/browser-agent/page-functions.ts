@@ -2782,12 +2782,32 @@ export function describePointTarget(x: number, y: number): unknown {
  * activeElementSecrecy before any insertion.
  */
 export function describeFocusedEditable(): unknown {
+  // Descend shadow roots AND same-origin frames, matching activeElementReadback
+  // exactly. Focus inside a frame surfaces on the outer document as the FRAME
+  // element, which is not an input, not contentEditable, not a canvas and has no
+  // textbox role — so stopping here reported a perfectly writable field as
+  // `not-editable`, while press-key (which does descend) typed into it fine.
+  // Any divergence between these two loops is a tool that refuses what its
+  // sibling accepts on the same page state.
   let active = document.activeElement as HTMLElement | null
   for (let depth = 0; active && depth < 10; depth++) {
     const shadow = active.shadowRoot
     if (shadow?.activeElement) {
       active = shadow.activeElement as HTMLElement
       continue
+    }
+    const activeTag = String(active.tagName || '').toUpperCase()
+    if (activeTag === 'IFRAME' || activeTag === 'FRAME') {
+      try {
+        const inner = (active as HTMLIFrameElement).contentDocument
+        if (inner?.activeElement && inner.activeElement !== inner.body) {
+          active = inner.activeElement as HTMLElement
+          continue
+        }
+      } catch {
+        // Cross-origin frame — not inspectable. The caller refuses separately on
+        // opaque secrecy, so report the frame itself rather than guessing.
+      }
     }
     break
   }
@@ -2826,5 +2846,14 @@ export function describeFocusedEditable(): unknown {
   if (tag === 'CANVAS' || active.getAttribute('role') === 'textbox') {
     return { editable: true, kind: tag === 'CANVAS' ? 'canvas' : 'textbox-role' }
   }
-  return { editable: false, reason: 'not-editable' }
+  // Describe what actually held focus. A bare "not-editable" tells the agent
+  // nothing it can act on, so it guesses at the cause and burns rounds on the
+  // wrong recovery; naming the element lets it click the real field instead.
+  return {
+    editable: false,
+    reason: 'not-editable',
+    focusedTag: tag.toLowerCase(),
+    ...(active.getAttribute('role') ? { focusedRole: active.getAttribute('role') } : {}),
+    contentEditable: String(active.getAttribute('contenteditable') ?? 'unset'),
+  }
 }

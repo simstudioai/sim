@@ -3224,10 +3224,26 @@ async function executeToolInner(
       )
       if (!isRecordLike(focusState) || focusState.editable !== true) {
         const reason = isRecordLike(focusState) ? String(focusState.reason || '') : ''
+        // Name the element that actually held focus. Without it the agent
+        // cannot tell "I focused the wrong thing" from "this tool cannot type
+        // here", and it retries variations of the same failing approach.
+        const focused = isRecordLike(focusState)
+          ? [
+              focusState.focusedTag ? `<${String(focusState.focusedTag)}>` : '',
+              focusState.focusedRole ? `role="${String(focusState.focusedRole)}"` : '',
+              focusState.contentEditable && focusState.contentEditable !== 'unset'
+                ? `contenteditable="${String(focusState.contentEditable)}"`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
+          : ''
         throw new ToolError(
           reason === 'none'
             ? 'No element is focused. Click the field first (browser_click or browser_click_at), then insert text.'
-            : `The focused element does not accept text${reason ? ` (${reason})` : ''}. Focus an editable field first.`
+            : `The focused element does not accept text${reason ? ` (${reason})` : ''}${
+                focused ? `; focus is on ${focused}` : ''
+              }. Click the field you want to type into, then insert text.`
         )
       }
       const beforePage = await pageActionState(target, true)
