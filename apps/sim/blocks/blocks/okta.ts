@@ -17,6 +17,11 @@ function toFiniteNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+/** Operations where Okta sends the notification email unless told otherwise. */
+const SEND_EMAIL_DEFAULT_ON_OPERATIONS = ['okta_activate_user', 'okta_reset_password']
+
+const SEND_EMAIL_DEFAULT_ON = new Set(SEND_EMAIL_DEFAULT_ON_OPERATIONS)
+
 /** Treats a blank subBlock value as absent. */
 function blankToUndefined(value: unknown): unknown {
   return value === null || value === '' ? undefined : value
@@ -480,20 +485,30 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
       placeholder: 'Description for the group',
       condition: { field: 'operation', value: ['okta_create_group', 'okta_update_group'] },
     },
-    // Send email option (activate, reset password, delete)
+    /*
+     * Okta's `sendEmail` default is not uniform: activation and password reset
+     * default to sending, deactivation and removal default to not sending. One
+     * shared switch could only be seeded for one of those, so the two groups get
+     * their own field and the params mapper picks by operation.
+     */
     {
       id: 'sendEmail',
       title: 'Send Email',
       type: 'switch',
+      value: () => 'true',
       condition: {
         field: 'operation',
-        value: [
-          'okta_activate_user',
-          'okta_deactivate_user',
-          'okta_reset_password',
-          'okta_delete_user',
-          'okta_remove_user_from_app',
-        ],
+        value: SEND_EMAIL_DEFAULT_ON_OPERATIONS,
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'sendDeactivationEmail',
+      title: 'Send Email',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['okta_deactivate_user', 'okta_delete_user', 'okta_remove_user_from_app'],
       },
       mode: 'advanced',
     },
@@ -963,7 +978,19 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           name: blankToUndefined(params.groupName),
           description: blankToUndefined(params.groupDescription),
           // Group rules get their own keyword field but the same wire param.
-          search: blankToUndefined(params.search) ?? blankToUndefined(params.ruleSearch),
+          search:
+            params.operation === 'okta_list_group_rules'
+              ? blankToUndefined(params.ruleSearch)
+              : blankToUndefined(params.search),
+          /*
+           * Keyed off the operation rather than `??`: both switches are advanced,
+           * and `shouldSerializeSubBlock` skips `condition` for advanced fields,
+           * so a stale value from a previously selected operation can still be
+           * present here.
+           */
+          sendEmail: SEND_EMAIL_DEFAULT_ON.has(String(params.operation))
+            ? blankToUndefined(params.sendEmail)
+            : blankToUndefined(params.sendDeactivationEmail),
         }
 
         const mappedKeys = new Set([
@@ -976,6 +1003,8 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'groupDescription',
           'search',
           'ruleSearch',
+          'sendEmail',
+          'sendDeactivationEmail',
         ])
         for (const [key, value] of Object.entries(params)) {
           if (!mappedKeys.has(key)) result[key] = blankToUndefined(value)
@@ -1008,6 +1037,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     groupName: { type: 'string', description: 'Group name' },
     groupDescription: { type: 'string', description: 'Group description' },
     sendEmail: { type: 'boolean', description: 'Whether to send email notification' },
+    sendDeactivationEmail: {
+      type: 'boolean',
+      description: 'Whether to send the deactivation or removal email notification',
+    },
     q: { type: 'string', description: 'Keyword search query' },
     after: { type: 'string', description: 'Cursor for the next page of results' },
     since: { type: 'string', description: 'Start of the System Log time window' },
@@ -1107,7 +1140,6 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
     suspended: { type: 'boolean', description: 'Whether user was suspended' },
     unsuspended: { type: 'boolean', description: 'Whether user was unsuspended' },
     activated: { type: 'boolean', description: 'Whether user was activated' },
-    activatedAt: { type: 'string', description: 'User activation timestamp' },
     deleted: { type: 'boolean', description: 'Whether resource was deleted' },
     activationUrl: { type: 'string', description: 'Activation URL (when sendEmail is false)' },
     activationToken: { type: 'string', description: 'Activation token (when sendEmail is false)' },

@@ -180,6 +180,32 @@ describe('okta block params mapping', () => {
     expect(merged.lastName).toBeUndefined()
   })
 
+  it('reads the send-email toggle that belongs to the selected operation', () => {
+    expect(
+      mergedBlockParams({ operation: 'okta_activate_user', ...AUTH, sendEmail: false }).sendEmail
+    ).toBe(false)
+    expect(
+      mergedBlockParams({
+        operation: 'okta_deactivate_user',
+        ...AUTH,
+        sendDeactivationEmail: true,
+      }).sendEmail
+    ).toBe(true)
+  })
+
+  it('ignores a stale advanced toggle left over from another operation', () => {
+    // `shouldSerializeSubBlock` skips `condition` for advanced fields, so both
+    // switches can reach the mapper at once.
+    const merged = mergedBlockParams({
+      operation: 'okta_deactivate_user',
+      ...AUTH,
+      sendEmail: true,
+      sendDeactivationEmail: false,
+    })
+
+    expect(merged.sendEmail).toBe(false)
+  })
+
   it('drops a non-numeric limit instead of forwarding the raw string', () => {
     const merged = mergedBlockParams({
       operation: 'okta_list_users',
@@ -192,11 +218,10 @@ describe('okta block params mapping', () => {
 })
 
 describe('okta block output contract', () => {
-  it('declares the user activation timestamp separately from the lifecycle boolean', () => {
-    expect(oktaGetUserTool.outputs?.activatedAt).toMatchObject({ type: 'string' })
-    expect(oktaGetUserTool.outputs?.activated).toBeUndefined()
-    expect(OktaBlock.outputs.activatedAt).toMatchObject({ type: 'string' })
-    expect(OktaBlock.outputs.activated).toMatchObject({ type: 'boolean' })
+  it('keeps the get_user activation timestamp on its published output name', () => {
+    // Renaming it would break saved `<Okta.activated>` references, so the tool
+    // keeps the name and declares the real type.
+    expect(oktaGetUserTool.outputs?.activated).toMatchObject({ type: 'string' })
   })
 
   it('declares every subBlock the params mapper reads', () => {

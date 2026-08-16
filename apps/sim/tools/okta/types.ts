@@ -157,7 +157,7 @@ export interface OktaGetUserResponse extends ToolResponse {
     employeeNumber: string | null
     userType: string | null
     created: string
-    activatedAt: string | null
+    activated: string | null
     lastLogin: string | null
     lastUpdated: string
     statusChanged: string | null
