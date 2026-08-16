@@ -69,6 +69,20 @@ describe('resolveOAuthMessage', () => {
     })
   })
 
+  it('keeps explicit update-access flows on the reconnect success path without a baseline', async () => {
+    await expect(
+      resolveOAuthMessage({
+        ...context,
+        baselineCredentials: undefined,
+        reconnect: true,
+      })
+    ).resolves.toEqual({
+      kind: 'success',
+      text: '"New Gmail" reconnected successfully.',
+    })
+    expect(mocks.requestJson).not.toHaveBeenCalled()
+  })
+
   it('does not report success when the credential list is unchanged', async () => {
     mocks.requireWorkspaceCredentialListResponse.mockReturnValue([
       {

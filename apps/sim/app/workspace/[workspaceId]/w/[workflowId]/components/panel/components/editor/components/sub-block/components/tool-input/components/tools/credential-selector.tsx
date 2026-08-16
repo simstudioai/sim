@@ -251,6 +251,7 @@ export function ToolCredentialSelector({
                 providerId: effectiveProviderId,
                 preCount: credentials.length,
                 workspaceId,
+                reconnect: true,
                 requestedAt: Date.now(),
               })
               setShowOAuthModal(true)
