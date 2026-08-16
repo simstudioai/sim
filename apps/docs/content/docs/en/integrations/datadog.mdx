@@ -95,7 +95,7 @@ Post an event to the Datadog event stream. Use for deployment notifications, ale
 | `tags` | string | No | Comma-separated list of tags \(e.g., "env:production,service:api", "team:backend,priority:high"\) |
 | `aggregationKey` | string | No | Key to aggregate events together |
 | `sourceTypeName` | string | No | Source type name for the event |
-| `dateHappened` | number | No | Unix timestamp in seconds when the event occurred \(e.g., 1705320000, defaults to now\) |
+| `dateHappened` | number | No | Unix timestamp in seconds when the event occurred \(e.g., 1705320000, defaults to now\). Datadog limits this to events no older than 18 hours. |
 | `apiKey` | string | Yes | Datadog API key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
 
@@ -197,8 +197,8 @@ List all monitors in Datadog with optional filtering by name, tags, or state.
 | `tags` | string | No | Comma-separated list of tags to filter by \(e.g., "env:prod,team:backend"\) |
 | `monitorTags` | string | No | Comma-separated list of monitor tags to filter by \(e.g., "service:api,priority:high"\) |
 | `withDowntimes` | boolean | No | Include downtime data with monitors |
-| `page` | number | No | Page number for pagination \(0-indexed, e.g., 0, 1, 2\) |
-| `pageSize` | number | No | Number of monitors per page \(e.g., 50, max: 1000\) |
+| `page` | number | No | Page to start paginating from \(0-indexed, e.g., 0, 1, 2\). Datadog returns every monitor in the org without pagination when this is not specified, so set it to bound the response. Setting Page Size alone implies page 0. |
+| `pageSize` | number | No | Number of monitors per page \(e.g., 50, max: 1000\). Datadog only applies this when a page is specified — otherwise it returns all monitors with no page size limit — so setting this alone sends page 0. With a page but no page size, Datadog defaults to 100. |
 | `apiKey` | string | Yes | Datadog API key |
 | `applicationKey` | string | Yes | Datadog Application key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
@@ -312,7 +312,7 @@ Send log entries to Datadog for centralized logging and analysis.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `logs` | string | Yes | JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service. |
+| `logs` | string | Yes | JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service. Sim fills in ddsource="custom" when an entry omits it — that is a Sim default, not a Datadog one; set ddsource yourself to have Datadog apply the matching integration log pipeline. |
 | `apiKey` | string | Yes | Datadog API key |
 | `site` | string | No | Datadog site/region \(default: datadoghq.com\) |
 

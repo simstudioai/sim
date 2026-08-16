@@ -19815,7 +19815,7 @@
       "operations": [
         {
           "name": "Run Search",
-          "description": "Run an SPL search synchronously and return its results in a single call (oneshot mode). Use for short searches; use Create Search Job for long-running ones."
+          "description": "Run an SPL search synchronously and return its results in a single call (oneshot mode). A oneshot search buffers the whole result set in one response with no paging, so use it for short searches; for anything large use Create Search Job with Get Search Results, which defaults to 100 rows and pages with offset."
         },
         {
           "name": "Create Search Job",

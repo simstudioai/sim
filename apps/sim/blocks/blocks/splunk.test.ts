@@ -239,6 +239,18 @@ describe('SplunkBlock outputs', () => {
     expect(SplunkBlock.outputs.searchEarliestTime).toMatchObject({ type: 'number' })
     expect(SplunkBlock.outputs.searchLatestTime).toMatchObject({ type: 'number' })
   })
+
+  /**
+   * `[{type, text}]` holds for the search and job-control operations, but Get
+   * Search Job projects the job entry's `messages` object. One shared union
+   * output cannot promise the array shape for all of them.
+   */
+  it('does not promise an array shape that get_search_job does not return', () => {
+    const description = String(SplunkBlock.outputs.messages.description)
+
+    expect(description).toMatch(/Get Search Job/)
+    expect(description).toMatch(/object/i)
+  })
 })
 
 describe('SplunkBlockMeta skills', () => {
@@ -256,5 +268,17 @@ describe('SplunkBlockMeta skills', () => {
   it('gives every skill a distinct name', () => {
     const names = (SplunkBlockMeta.skills ?? []).map((skill) => skill.name)
     expect(new Set(names).size).toBe(names.length)
+  })
+
+  /**
+   * Run Search applies no Sim-side `max_count`, so a skill that tells the model
+   * "at most 1000 rows by default" states a bound that does not exist.
+   */
+  it('does not claim a row cap Run Search no longer applies', () => {
+    const skill = SplunkBlockMeta.skills?.find((entry) => entry.name === 'search-splunk-logs')
+
+    expect(skill).toBeDefined()
+    expect(skill?.content).not.toMatch(/1000/)
+    expect(skill?.content).toMatch(/cannot page/)
   })
 })

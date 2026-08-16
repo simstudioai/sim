@@ -11,37 +11,21 @@ import {
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Bound applied when the caller leaves `maxCount` unset.
- *
- * Splunk's own default is 10000, and a oneshot search has no paging escape
- * hatch — the whole response is buffered and materialized in one call, unlike
- * `get_search_results`, which defaults to 100 and pages with `offset`. A modest
- * default keeps an exploratory search from returning ten thousand rows; callers
- * who want more raise it deliberately.
- */
-const RUN_SEARCH_DEFAULT_MAX_COUNT = 1000
-
-/**
- * Resolve the caller-supplied `maxCount`. An untouched subBlock arrives as
- * `null` or `''` rather than `undefined`, and either would otherwise be sent as
- * a literal that Splunk rejects or ignores, so anything that is not a finite
- * number counts as unset.
- */
-function resolveMaxCount(value: unknown): number {
-  if (value === null || value === undefined || value === '') return RUN_SEARCH_DEFAULT_MAX_COUNT
-  const parsed = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(parsed) ? parsed : RUN_SEARCH_DEFAULT_MAX_COUNT
-}
-
-/**
  * Runs SPL with `exec_mode=oneshot`, the documented synchronous mode in which
  * `POST search/jobs` returns the results directly instead of a search ID.
+ *
+ * `max_count` is deliberately left to Splunk's own default. The endpoint
+ * documents it as "the number of events that can be accessible in any given
+ * status bucket. Also, in transforming mode, the maximum number of results to
+ * store" — so for a transforming search (`| stats`, `| timechart`) it caps the
+ * stored result set, and imposing a house default here would silently truncate
+ * those searches with no error and no message.
  */
 export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResultsResponse> = {
   id: 'splunk_run_search',
   name: 'Splunk Run Search',
   description:
-    'Run an SPL search synchronously and return its results in a single call (oneshot mode). Use for short searches; use Create Search Job for long-running ones.',
+    'Run an SPL search synchronously and return its results in a single call (oneshot mode). A oneshot search buffers the whole result set in one response with no paging, so use it for short searches; for anything large use Create Search Job with Get Search Results, which defaults to 100 rows and pages with offset.',
   version: '1.0.0',
 
   params: {
@@ -84,7 +68,7 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum number of results the search stores and returns. Defaults to 1000 here; Splunk itself defaults to 10000, which a oneshot search returns in a single unbounded response. Raise it deliberately.',
+        'Number of events accessible in any given status bucket, and in transforming mode the maximum number of results to store. Defaults to 10000.',
     },
   },
 
@@ -101,7 +85,7 @@ export const runSearchTool: ToolConfig<SplunkRunSearchParams, SplunkSearchResult
         latest_time: params.latestTime,
         adhoc_search_level: params.adhocSearchLevel,
         auto_cancel: params.autoCancel,
-        max_count: resolveMaxCount(params.maxCount),
+        max_count: params.maxCount,
       }),
   },
 

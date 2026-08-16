@@ -38,7 +38,7 @@ export const getFiredAlertsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Name of the alerting saved search (e.g. Errors in the last 24 hours). Use - to return the fired alerts of every saved search.',
+        'Name of the alerting saved search (e.g. Errors in the last 24 hours). Use - to return the fired alerts of every saved search — this endpoint documents "Request parameters: None", so there is no count or offset to bound that with. Name one saved search unless you really want all of them.',
     },
   },
 

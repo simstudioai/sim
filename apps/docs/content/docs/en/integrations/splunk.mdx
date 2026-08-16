@@ -20,7 +20,7 @@ Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches syn
 
 ### Splunk Run Search
 
-Run an SPL search synchronously and return its results in a single call (oneshot mode). Use for short searches; use Create Search Job for long-running ones.
+Run an SPL search synchronously and return its results in a single call (oneshot mode). A oneshot search buffers the whole result set in one response with no paging, so use it for short searches; for anything large use Create Search Job with Get Search Results, which defaults to 100 rows and pages with offset.
 
 #### Input
 
@@ -37,7 +37,7 @@ Run an SPL search synchronously and return its results in a single call (oneshot
 | `latestTime` | string | No | Latest \(exclusive\) time bound — relative \(e.g. now\) or absolute time |
 | `adhocSearchLevel` | string | No | Search mode: verbose, fast, or smart. Defaults to fast. |
 | `autoCancel` | number | No | Cancel the search after this many seconds of inactivity \(e.g. 60\). 0 never auto-cancels. |
-| `maxCount` | number | No | Maximum number of results the search stores and returns. Defaults to 1000 here; Splunk itself defaults to 10000, which a oneshot search returns in a single unbounded response. Raise it deliberately. |
+| `maxCount` | number | No | Number of events accessible in any given status bucket, and in transforming mode the maximum number of results to store. Defaults to 10000. |
 
 #### Output
 
@@ -336,7 +336,7 @@ List the unexpired triggered instances of a Splunk alert by saved search name, i
 | `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
 | `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
 | `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
-| `name` | string | Yes | Name of the alerting saved search \(e.g. Errors in the last 24 hours\). Use - to return the fired alerts of every saved search. |
+| `name` | string | Yes | Name of the alerting saved search \(e.g. Errors in the last 24 hours\). Use - to return the fired alerts of every saved search — this endpoint documents "Request parameters: None", so there is no count or offset to bound that with. Name one saved search unless you really want all of them. |
 
 #### Output
 

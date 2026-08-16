@@ -51,6 +51,18 @@ describe('listSavedSearchesTool', () => {
 })
 
 describe('getFiredAlertsTool', () => {
+  /**
+   * `name=-` returns the fired alerts of every saved search, and this endpoint
+   * documents "Request parameters: None" — there is no `count`/`offset` to bound
+   * that read, so the wildcard has to be disclosed rather than offered flatly.
+   */
+  it('warns that the - wildcard has no count or offset to bound it', () => {
+    const description = String(getFiredAlertsTool.params.name.description)
+
+    expect(description).toMatch(/Request parameters: None/)
+    expect(description).toMatch(/count|offset/)
+  })
+
   it('sends no pagination to an endpoint documented as taking no request parameters', () => {
     const url = getFiredAlertsTool.request.url({ ...BASE, name: 'Errors' } as never)
     expect(url).toBe(
@@ -231,29 +243,36 @@ describe('getSearchJobTool time bounds', () => {
 })
 
 /**
- * A oneshot search has no paging escape hatch — `max_count` is its only bound, and
- * Splunk defaults it to 10000 rows returned in a single buffered response.
+ * `max_count` is not a house-defaulted memory bound. Splunk documents it as "the
+ * number of events that can be accessible in any given status bucket. Also, in
+ * transforming mode, the maximum number of results to store" — so sending an
+ * unrequested default truncates a transforming search (`| stats`, `| timechart`)
+ * below what Splunk would have stored, with no error and no message.
  */
 describe('runSearchTool max_count', () => {
-  it('applies a modest default when the caller leaves it unset', () => {
-    expect(buildBody(runSearchTool, { ...BASE, search: 'index=main' })).toContain('max_count=1000')
+  it('sends no max_count at all when the caller sets nothing', () => {
+    expect(buildBody(runSearchTool, { ...BASE, search: 'index=main' })).not.toContain('max_count')
   })
 
   it.each([
     ['null', null],
     ['empty string', ''],
-    ['a non-numeric string', 'lots'],
-  ])('treats %s as unset rather than sending it', (_label, maxCount) => {
+  ])('treats %s as unset rather than sending a literal', (_label, maxCount) => {
     const body = buildBody(runSearchTool, { ...BASE, search: 'index=main', maxCount })
 
-    expect(body).toContain('max_count=1000')
-    expect(body).not.toContain('max_count=null')
+    expect(body).not.toContain('max_count')
   })
 
-  it('honors an explicit bound', () => {
+  it('sends the caller-supplied bound verbatim', () => {
     expect(buildBody(runSearchTool, { ...BASE, search: 'index=main', maxCount: 50 })).toContain(
       'max_count=50'
     )
+  })
+
+  it('does not claim a Sim-specific default in the parameter description', () => {
+    expect(runSearchTool.params.maxCount.description).not.toMatch(/\b1000\b/)
+    expect(runSearchTool.params.maxCount.description).toMatch(/Defaults to 10000/)
+    expect(runSearchTool.params.maxCount.description).toMatch(/transforming mode/)
   })
 })
 

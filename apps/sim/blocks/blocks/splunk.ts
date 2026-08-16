@@ -597,7 +597,11 @@ Examples:
     resultCount: { type: 'number', description: 'Number of result rows returned' },
     preview: { type: 'boolean', description: 'Whether the results are previews' },
     initOffset: { type: 'number', description: 'Offset of the first returned row' },
-    messages: { type: 'json', description: 'Messages returned with the response ([{type, text}])' },
+    messages: {
+      type: 'json',
+      description:
+        'Messages returned with the response. An array of {type, text} for the search and job-control operations; Get Search Job instead returns the job entry messages object.',
+    },
     sid: { type: 'string', description: 'Search ID of the job' },
     label: { type: 'string', description: 'Custom name of the search job' },
     dispatchState: { type: 'string', description: 'Current state of the search job' },
@@ -686,7 +690,7 @@ export const SplunkBlockMeta = {
       name: 'search-splunk-logs',
       description: 'Answer a question about production behavior by running an SPL search.',
       content:
-        '# Search Splunk Logs\n\nTurn a question about production into an SPL search and answer from the rows.\n\n## Steps\n1. Write a single SPL search scoped to one index and a bounded time range (for example `index=main error earliest=-1h`).\n2. Run the run search operation, which executes the search synchronously and returns the rows in one call.\n3. Read resultCount and results to gather the evidence.\n4. Summarize what the rows show, quoting the fields that matter.\n\n## Notes\nRun search stores at most 1000 rows by default. For a larger result set, create a search job and page through get search results with offset instead of raising the limit.\n\n## Output\nReturn the SPL that was run, the row count, and a short answer to the question.',
+        '# Search Splunk Logs\n\nTurn a question about production into an SPL search and answer from the rows.\n\n## Steps\n1. Write a single SPL search scoped to one index and a bounded time range (for example `index=main error earliest=-1h`).\n2. Run the run search operation, which executes the search synchronously and returns the rows in one call.\n3. Read resultCount and results to gather the evidence.\n4. Summarize what the rows show, quoting the fields that matter.\n\n## Notes\nRun search buffers its whole result set in one response and cannot page. For a larger result set, create a search job and page through get search results with offset.\n\n## Output\nReturn the SPL that was run, the row count, and a short answer to the question.',
     },
     {
       name: 'long-running-search-job',

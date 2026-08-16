@@ -55,17 +55,28 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
     },
   },
 
+  /**
+   * `scope` and `end` are query parameters, not a request body: the MuteMonitor
+   * operation declares no `requestBody` and documents both under "Query
+   * Strings". Sent as a body they are dropped, turning a scoped, time-boxed
+   * mute into an indefinite mute across every scope — with a 200 and the full
+   * monitor object back, so the caller never sees it.
+   */
   request: {
-    url: (params) =>
-      datadogApiUrl(params.site, `/api/v1/monitor/${datadogPathSegment(params.monitorId)}/mute`),
+    url: (params) => {
+      const queryParams = new URLSearchParams()
+      if (params.scope) queryParams.set('scope', params.scope)
+      if (params.end !== undefined && params.end !== null)
+        queryParams.set('end', String(params.end))
+
+      const queryString = queryParams.toString()
+      return datadogApiUrl(
+        params.site,
+        `/api/v1/monitor/${datadogPathSegment(params.monitorId)}/mute${queryString ? `?${queryString}` : ''}`
+      )
+    },
     method: 'POST',
     headers: datadogHeaders,
-    body: (params) => {
-      const body: { scope?: string; end?: number } = {}
-      if (params.scope) body.scope = params.scope
-      if (params.end !== undefined) body.end = params.end
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {

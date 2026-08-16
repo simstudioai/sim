@@ -45,13 +45,15 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Page number for pagination (0-indexed, e.g., 0, 1, 2)',
+      description:
+        'Page to start paginating from (0-indexed, e.g., 0, 1, 2). Datadog returns every monitor in the org without pagination when this is not specified, so set it to bound the response. Setting Page Size alone implies page 0.',
     },
     pageSize: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of monitors per page (e.g., 50, max: 1000)',
+      description:
+        'Number of monitors per page (e.g., 50, max: 1000). Datadog only applies this when a page is specified — otherwise it returns all monitors with no page size limit — so setting this alone sends page 0. With a page but no page size, Datadog defaults to 100.',
     },
     apiKey: {
       type: 'string',
@@ -83,7 +85,21 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       if (params.tags) queryParams.set('tags', params.tags)
       if (params.monitorTags) queryParams.set('monitor_tags', params.monitorTags)
       if (params.withDowntimes) queryParams.set('with_downtimes', 'true')
-      if (params.page !== undefined) queryParams.set('page', String(params.page))
+      /**
+       * Datadog ignores `page_size` unless `page` is also sent — without a page
+       * it "returns all monitors without a `page_size` limit". A user who sets
+       * only a page size gets every monitor in the org from a control that reads
+       * as a bound, so imply the first page for them. `page` is not defaulted
+       * when neither is set: that would silently truncate a caller who is
+       * relying on the documented return-everything behavior.
+       */
+      const page =
+        params.page !== undefined && params.page !== null
+          ? params.page
+          : params.pageSize
+            ? 0
+            : undefined
+      if (page !== undefined) queryParams.set('page', String(page))
       if (params.pageSize) queryParams.set('page_size', String(params.pageSize))
 
       const queryString = queryParams.toString()
