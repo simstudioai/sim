@@ -4933,7 +4933,11 @@
         },
         {
           "name": "Mute Monitor",
-          "description": "Mute a monitor to temporarily suppress notifications."
+          "description": "Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window."
+        },
+        {
+          "name": "Unmute Monitor",
+          "description": "Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once."
         },
         {
           "name": "Query Logs",
@@ -4954,9 +4958,121 @@
         {
           "name": "Cancel Downtime",
           "description": "Cancel a scheduled downtime."
+        },
+        {
+          "name": "List Incidents",
+          "description": "List incidents for the organization. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Get Incident",
+          "description": "Get the details of a single incident by ID. Requires the Incident Management `incident_read` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Create Incident",
+          "description": "Declare a new incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Update Incident",
+          "description": "Partially update an existing incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "Add Incident Todo",
+          "description": "Add a follow-up task (todo) to an incident. Requires the Incident Management `incident_write` permission; the Incidents API is in public beta."
+        },
+        {
+          "name": "List SLOs",
+          "description": "List service level objectives, optionally filtered by IDs, name, tags, or underlying metrics query."
+        },
+        {
+          "name": "Get SLO",
+          "description": "Get the configuration of a single service level objective by ID."
+        },
+        {
+          "name": "Create SLO",
+          "description": "Create a service level objective from a metric query, monitors, or a time-slice condition."
+        },
+        {
+          "name": "Update SLO",
+          "description": "Update a service level objective. Reads the current SLO first and applies only the fields you supply, so anything left blank keeps its stored value."
+        },
+        {
+          "name": "Delete SLO",
+          "description": "Permanently delete a service level objective. Datadog returns a conflict when the SLO is still referenced by a dashboard."
+        },
+        {
+          "name": "Get SLO History",
+          "description": "Get an SLO’s history over a time window, including the overall SLI value and remaining error budget."
+        },
+        {
+          "name": "List Dashboards",
+          "description": "List custom created or cloned dashboards. Datadog preset dashboards are not returned."
+        },
+        {
+          "name": "Get Dashboard",
+          "description": "Get the full definition of a dashboard, including its widgets."
+        },
+        {
+          "name": "Create Dashboard",
+          "description": "Create a dashboard from a title, layout type, and widget definitions."
+        },
+        {
+          "name": "Delete Dashboard",
+          "description": "Delete a dashboard by ID."
+        },
+        {
+          "name": "List Synthetic Tests",
+          "description": "List all Synthetic tests (API, browser, and mobile) with their current status."
+        },
+        {
+          "name": "Get Synthetic Test",
+          "description": "Get the configuration of a Synthetic test by public ID. Browser test steps are not included by this type-agnostic endpoint."
+        },
+        {
+          "name": "Get Synthetic Test Results",
+          "description": "Get the latest result summaries (up to the last 150 runs) for a Synthetic API test."
+        },
+        {
+          "name": "Get Browser Synthetic Test Results",
+          "description": "Get the latest result summaries (up to the last 150 runs) for a Synthetic browser test, including step counts and errors."
+        },
+        {
+          "name": "Trigger Synthetic Tests",
+          "description": "Trigger an immediate run of one or more Synthetic tests by public ID."
+        },
+        {
+          "name": "Pause Or Start Synthetic Test",
+          "description": "Pause or resume a Synthetic test by setting its status to \"paused\" or \"live\"."
+        },
+        {
+          "name": "List Security Signals",
+          "description": "Search Cloud SIEM security signals by query and time range. Requires the `security_monitoring_signals_read` permission."
+        },
+        {
+          "name": "Get Security Signal",
+          "description": "Get the details of a single Cloud SIEM security signal. Requires the `security_monitoring_signals_read` permission."
+        },
+        {
+          "name": "Update Security Signal State",
+          "description": "Change the triage state of a Cloud SIEM security signal to open, under_review, or archived. Requires the `security_monitoring_signals_write` permission."
+        },
+        {
+          "name": "Assign Security Signal",
+          "description": "Assign a Cloud SIEM security signal to a Datadog user by UUID. Requires the `security_monitoring_signals_write` permission."
+        },
+        {
+          "name": "List Security Rules",
+          "description": "List Cloud SIEM detection rules. Requires the `security_monitoring_rules_read` permission."
+        },
+        {
+          "name": "Search Spans",
+          "description": "Search indexed APM spans using the span query syntax, with cursor pagination."
+        },
+        {
+          "name": "List Services",
+          "description": "List service definitions from the Datadog Service Catalog. Requires the `apm_service_catalog_read` permission."
         }
       ],
-      "operationCount": 12,
+      "operationCount": 41,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

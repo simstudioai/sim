@@ -1,12 +1,12 @@
-import type { MuteMonitorParams, MuteMonitorResponse } from '@/tools/datadog/types'
+import type { UnmuteMonitorParams, UnmuteMonitorResponse } from '@/tools/datadog/types'
 import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse> = {
-  id: 'datadog_mute_monitor',
-  name: 'Datadog Mute Monitor',
+export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorResponse> = {
+  id: 'datadog_unmute_monitor',
+  name: 'Datadog Unmute Monitor',
   description:
-    'Mute a monitor to temporarily suppress its notifications. Use Unmute Monitor to reverse it, or schedule a downtime instead when you want a planned, auditable maintenance window.',
+    'Unmute a monitor so it resumes sending notifications. Reverses Mute Monitor, either for one scope or for every scope at once.',
   version: '1.0.0',
 
   params: {
@@ -14,21 +14,20 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The ID of the monitor to mute (e.g., "12345678")',
+      description: 'The ID of the monitor to unmute (e.g., "12345678")',
     },
     scope: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Scope to mute (e.g., "host:myhost", "env:prod"). If not specified, mutes all scopes.',
+        'Scope to unmute (e.g., "host:myhost"). Leave blank to unmute the monitor itself rather than a single scope.',
     },
-    end: {
-      type: 'number',
+    allScopes: {
+      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Unix timestamp in seconds when the mute should end (e.g., 1705323600). If not specified, the monitor stays muted until it is unmuted.',
+      description: 'Clear the mute settings for every scope on this monitor',
     },
     apiKey: {
       type: 'string',
@@ -52,13 +51,13 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
 
   request: {
     url: (params) =>
-      datadogApiUrl(params.site, `/api/v1/monitor/${encodeURIComponent(params.monitorId)}/mute`),
+      datadogApiUrl(params.site, `/api/v1/monitor/${encodeURIComponent(params.monitorId)}/unmute`),
     method: 'POST',
     headers: datadogHeaders,
     body: (params) => {
-      const body: { scope?: string; end?: number } = {}
+      const body: { scope?: string; all_scopes?: boolean } = {}
       if (params.scope) body.scope = params.scope
-      if (params.end !== undefined) body.end = params.end
+      if (params.allScopes !== undefined) body.all_scopes = params.allScopes
       return body
     },
   },
@@ -88,21 +87,21 @@ export const muteMonitorTool: ToolConfig<MuteMonitorParams, MuteMonitorResponse>
   outputs: {
     success: {
       type: 'boolean',
-      description: 'Whether the monitor was successfully muted',
+      description: 'Whether the monitor was successfully unmuted',
     },
     monitorId: {
       type: 'number',
-      description: 'ID of the muted monitor',
+      description: 'ID of the unmuted monitor',
       optional: true,
     },
     name: {
       type: 'string',
-      description: 'Name of the muted monitor',
+      description: 'Name of the unmuted monitor',
       optional: true,
     },
     overallState: {
       type: 'string',
-      description: 'Monitor state after muting',
+      description: 'Monitor state after unmuting',
       optional: true,
     },
   },

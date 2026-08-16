@@ -1,8 +1,6 @@
-import { createLogger } from '@sim/logger'
-import type { ListMonitorsParams, ListMonitorsResponse } from '@/tools/datadog/types'
+import type { ListMonitorsParams, ListMonitorsResponse, MonitorData } from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const logger = createLogger('DatadogListMonitors')
 
 export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsResponse> = {
   id: 'datadog_list_monitors',
@@ -16,7 +14,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated group states to filter by (e.g., "alert,warn", "alert,warn,no data,ok")',
+        'Comma-separated group states to filter by. Valid values are "all", "alert", "warn", and "no data" (e.g., "alert,warn").',
     },
     name: {
       type: 'string',
@@ -89,18 +87,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       if (params.pageSize) queryParams.set('page_size', String(params.pageSize))
 
       const queryString = queryParams.toString()
-      const url = `https://api.${site}/api/v1/monitor${queryString ? `?${queryString}` : ''}`
-      logger.info(
-        '[Datadog List Monitors] URL:',
-        url,
-        'Site param:',
-        params.site,
-        'API Key present:',
-        !!params.apiKey,
-        'App Key present:',
-        !!params.applicationKey
-      )
-      return url
+      return `https://api.${site}/api/v1/monitor${queryString ? `?${queryString}` : ''}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -112,18 +99,18 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           monitors: [],
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
     const text = await response.text()
-    let data: any
+    let data: unknown
     try {
       data = JSON.parse(text)
     } catch (e) {
@@ -142,7 +129,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
       }
     }
 
-    const monitors = data.map((m: any) => ({
+    const monitors = (data as MonitorData[]).map((m) => ({
       id: m.id,
       name: m.name,
       type: m.type,
@@ -176,8 +163,17 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
           name: { type: 'string', description: 'Monitor name' },
           type: { type: 'string', description: 'Monitor type' },
           query: { type: 'string', description: 'Monitor query' },
+          message: { type: 'string', description: 'Notification message' },
           overall_state: { type: 'string', description: 'Current state' },
           tags: { type: 'array', description: 'Tags' },
+          priority: { type: 'number', description: 'Monitor priority' },
+          options: {
+            type: 'json',
+            description: 'Monitor options (thresholds, notification settings)',
+          },
+          created: { type: 'string', description: 'Creation timestamp' },
+          modified: { type: 'string', description: 'Last modification timestamp' },
+          creator: { type: 'json', description: 'Monitor creator (email, handle, name)' },
         },
       },
     },

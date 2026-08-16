@@ -1,4 +1,5 @@
 import type { CancelDowntimeParams, CancelDowntimeResponse } from '@/tools/datadog/types'
+import { datadogErrorMessage } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntimeResponse> = {
@@ -49,13 +50,13 @@ export const cancelDowntimeTool: ToolConfig<CancelDowntimeParams, CancelDowntime
 
   transformResponse: async (response: Response) => {
     if (!response.ok && response.status !== 204) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           success: false,
         },
-        error: errorData.errors?.[0]?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 
