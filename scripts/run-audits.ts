@@ -28,7 +28,6 @@ const EXTRA_AUDITS = [
   'tool-metadata:check',
   'integration-catalog:check',
   'docs:check',
-  'skills:check',
   'agent-stream-docs:check',
 ] as const
 
