@@ -380,6 +380,16 @@ let CHECK_ONLY = false
 const staleArtifacts: string[] = []
 const emittedByPath = new Map<string, string>()
 
+/**
+ * Deletion candidates recorded by cleanup in check mode. Judged at the end of
+ * the run, not at cleanup time: generate mode deletes a non-canonical page and
+ * lets the trigger pass recreate it in the same run, so a candidate that was
+ * re-emitted this run is that delete-then-recreate dance — content drift (if
+ * any) is already covered by the overlay comparison — while a candidate nothing
+ * re-emitted is a genuinely stale page regeneration would remove.
+ */
+const wouldDeletePaths: string[] = []
+
 /** Writes a generated artifact, or in check mode records its final content for the end-of-run comparison. */
 function emitGeneratedFile(filePath: string, content: string): void {
   if (CHECK_ONLY) {
@@ -3431,9 +3441,7 @@ function cleanupStaleToolDocs(validToolDocs: Set<string>): void {
     }
 
     if (CHECK_ONLY) {
-      staleArtifacts.push(
-        `${path.relative(rootDir, docPath)} (stale page — regeneration would delete it)`
-      )
+      wouldDeletePaths.push(docPath)
       continue
     }
 
@@ -4073,7 +4081,13 @@ if (import.meta.main) {
         process.exit(1)
       }
       if (CHECK_ONLY) {
-        const stale = [...collectStaleEmissions(), ...staleArtifacts]
+        const genuinelyDeleted = wouldDeletePaths
+          .filter((docPath) => !emittedByPath.has(docPath))
+          .map(
+            (docPath) =>
+              `${path.relative(rootDir, docPath)} (stale page — regeneration would delete it)`
+          )
+        const stale = [...collectStaleEmissions(), ...staleArtifacts, ...genuinelyDeleted]
         if (stale.length > 0) {
           console.error(
             `Generated integration docs are stale:\n- ${stale.join('\n- ')}\n` +
