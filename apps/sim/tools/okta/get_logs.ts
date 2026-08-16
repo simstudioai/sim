@@ -84,7 +84,10 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       if (params.q) queryParams.append('q', params.q)
       if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder)
       if (params.after) queryParams.append('after', params.after)
-      if (params.limit) queryParams.append('limit', params.limit.toString())
+      // `0` is a documented limit on this endpoint, so it must not be treated as absent.
+      if (params.limit !== undefined && params.limit !== null) {
+        queryParams.append('limit', params.limit.toString())
+      }
 
       const queryString = queryParams.toString()
       return queryString

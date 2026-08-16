@@ -40,7 +40,7 @@ Integrate Okta identity management into your workflow. Manage users, groups, and
 
 ### List Users from Okta
 
-List all users in your Okta organization with optional search and filtering
+List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them.
 
 #### Input
 
@@ -111,7 +111,7 @@ Get a specific user by ID or login from your Okta organization
 | `employeeNumber` | string | Employee number |
 | `userType` | string | User type |
 | `created` | string | Creation timestamp |
-| `activated` | string | Activation timestamp |
+| `activatedAt` | string | Activation timestamp |
 | `lastLogin` | string | Last login timestamp |
 | `lastUpdated` | string | Last update timestamp |
 | `statusChanged` | string | Status change timestamp |
@@ -308,7 +308,7 @@ Permanently delete a user from your Okta organization. Can only be performed on 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `userId` | string | Deleted user ID |
-| `deleted` | boolean | Whether the user was deleted |
+| `deleted` | boolean | Whether the delete request was accepted. An ACTIVE user is deactivated by the first call and needs a second call to actually be deleted. |
 | `success` | boolean | Operation success status |
 
 ### List Groups from Okta
@@ -396,7 +396,7 @@ Create a new group in your Okta organization
 
 ### Update Group in Okta
 
-Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement).
+Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value.
 
 #### Input
 
@@ -552,7 +552,7 @@ List the group rules in your Okta organization. Each rule assigns users to group
 |   ↳ `expressionType` | string | Expression language, typically urn:okta:expression:1.0 |
 |   ↳ `assignUserToGroupIds` | array | Groups that matching users are assigned to |
 |   ↳ `excludedUserIds` | array | Users excluded from the rule |
-|   ↳ `excludedGroupIds` | array | Groups excluded from the rule |
+|   ↳ `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
 | `count` | number | Number of rules returned |
 | `nextCursor` | string | Cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether more rules are available |
@@ -584,7 +584,7 @@ Retrieve a single Okta group rule by ID, including the expression that decides w
 | `expressionType` | string | Expression language, typically urn:okta:expression:1.0 |
 | `assignUserToGroupIds` | array | Groups that matching users are assigned to |
 | `excludedUserIds` | array | Users excluded from the rule |
-| `excludedGroupIds` | array | Groups excluded from the rule |
+| `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
 | `success` | boolean | Operation success status |
 
 ### Create Group Rule in Okta
@@ -616,7 +616,7 @@ Create a group rule that automatically assigns users matching an Okta expression
 | `expressionType` | string | Expression language, typically urn:okta:expression:1.0 |
 | `assignUserToGroupIds` | array | Groups that matching users are assigned to |
 | `excludedUserIds` | array | Users excluded from the rule |
-| `excludedGroupIds` | array | Groups excluded from the rule |
+| `excludedGroupIds` | array | Groups excluded from the rule. Always empty — Okta does not currently support group exclusions. |
 | `success` | boolean | Operation success status |
 
 ### Activate Group Rule in Okta
@@ -677,7 +677,7 @@ Permanently delete a group rule. Destructive and irreversible. Optionally also r
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `groupRuleId` | string | Deleted group rule ID |
-| `deleted` | boolean | Whether the rule was deleted |
+| `deleted` | boolean | Whether the deletion was accepted. Okta answers 202 and removes the rule asynchronously. |
 | `success` | boolean | Operation success status |
 
 ### List Factors from Okta

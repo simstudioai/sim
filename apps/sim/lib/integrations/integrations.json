@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-15",
+  "updatedAt": "2026-08-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -13731,7 +13731,7 @@
       "operations": [
         {
           "name": "List Users",
-          "description": "List all users in your Okta organization with optional search and filtering"
+          "description": "List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them."
         },
         {
           "name": "Get User",
@@ -13783,7 +13783,7 @@
         },
         {
           "name": "Update Group",
-          "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement)."
+          "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value."
         },
         {
           "name": "Delete Group",

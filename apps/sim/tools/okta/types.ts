@@ -57,11 +57,16 @@ export interface OktaUser {
 }
 
 /**
- * Okta Group profile from the API
+ * Okta Group profile from the API.
+ *
+ * Okta's group profile is extensible — orgs add custom attributes through the
+ * Schemas API — so the index signature is what keeps those attributes alive
+ * across a read-modify-write instead of dropping them.
  */
-interface OktaGroupProfile {
+export interface OktaGroupProfile {
   name: string
   description?: string | null
+  [attribute: string]: unknown
 }
 
 /**
@@ -152,7 +157,7 @@ export interface OktaGetUserResponse extends ToolResponse {
     employeeNumber: string | null
     userType: string | null
     created: string
-    activated: string | null
+    activatedAt: string | null
     lastLogin: string | null
     lastUpdated: string
     statusChanged: string | null

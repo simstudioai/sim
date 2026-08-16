@@ -71,7 +71,11 @@ export const oktaDeleteGroupRuleTool: ToolConfig<
 
   outputs: {
     groupRuleId: { type: 'string', description: 'Deleted group rule ID' },
-    deleted: { type: 'boolean', description: 'Whether the rule was deleted' },
+    deleted: {
+      type: 'boolean',
+      description:
+        'Whether the deletion was accepted. Okta answers 202 and removes the rule asynchronously.',
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -67,7 +67,11 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
 
   outputs: {
     userId: { type: 'string', description: 'Deleted user ID' },
-    deleted: { type: 'boolean', description: 'Whether the user was deleted' },
+    deleted: {
+      type: 'boolean',
+      description:
+        'Whether the delete request was accepted. An ACTIVE user is deactivated by the first call and needs a second call to actually be deleted.',
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

@@ -132,7 +132,8 @@ export const oktaListGroupRulesTool: ToolConfig<
           },
           excludedGroupIds: {
             type: 'array',
-            description: 'Groups excluded from the rule',
+            description:
+              'Groups excluded from the rule. Always empty — Okta does not currently support group exclusions.',
             items: { type: 'string', description: 'Group ID' },
           },
         },
