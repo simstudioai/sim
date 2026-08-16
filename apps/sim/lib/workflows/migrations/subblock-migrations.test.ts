@@ -423,6 +423,71 @@ describe('migrateSubblockIds', () => {
     expect(blocks.b3.subBlocks.code).toBeDefined()
   })
 
+  /**
+   * The suffixed Cloudflare read-filter ids existed only between #6740 and the
+   * restore, and never shipped in a release. They are dropped rather than renamed
+   * onto `name`/`type`/`content`/`proxied`/`tags`, which every Cloudflare block
+   * already materializes — a rename would hit the collision guard and discard the
+   * value regardless, while leaving the stale key parked in state.
+   */
+  describe('cloudflare block', () => {
+    it('drops the staging-only read-filter ids without disturbing the restored ids', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'cloudflare',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'list_dns_records' },
+            zoneNameFilter: { id: 'zoneNameFilter', type: 'short-input', value: 'example.com' },
+            dnsNameFilter: { id: 'dnsNameFilter', type: 'short-input', value: 'www' },
+            dnsTypeFilter: { id: 'dnsTypeFilter', type: 'dropdown', value: 'A' },
+            dnsContentFilter: { id: 'dnsContentFilter', type: 'short-input', value: '1.2.3.4' },
+            dnsProxiedFilter: { id: 'dnsProxiedFilter', type: 'dropdown', value: 'true' },
+            purgeTags: { id: 'purgeTags', type: 'short-input', value: 'tag-a' },
+            cursor: { id: 'cursor', type: 'short-input', value: 'abc' },
+            name: { id: 'name', type: 'short-input', value: '' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      for (const legacyId of [
+        'zoneNameFilter',
+        'dnsNameFilter',
+        'dnsTypeFilter',
+        'dnsContentFilter',
+        'dnsProxiedFilter',
+        'purgeTags',
+        'cursor',
+      ]) {
+        expect(blocks.b1.subBlocks[legacyId]).toBeUndefined()
+        expect(blocks.b1.subBlocks[`_removed_${legacyId}`]).toBeUndefined()
+      }
+      expect(blocks.b1.subBlocks.operation.value).toBe('list_dns_records')
+      expect(blocks.b1.subBlocks.name.value).toBe('')
+    })
+
+    it('leaves a workflow saved on the restored ids untouched', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'cloudflare',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'list_dns_records' },
+            name: { id: 'name', type: 'short-input', value: 'www' },
+            type: { id: 'type', type: 'dropdown', value: 'A' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.name.value).toBe('www')
+      expect(blocks.b1.subBlocks.type.value).toBe('A')
+    })
+  })
+
   it('should handle blocks with empty subBlocks', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({ type: 'knowledge', subBlocks: {} }),

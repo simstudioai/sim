@@ -1036,6 +1036,58 @@ describe('CrowdStrike extended operations', () => {
       expect(data.error).toBe('Rate limit exceeded')
     })
 
+    /**
+     * A batched delete has no rollback: every batch that answered `ok` really removed
+     * its indicators. Reporting only the failing batch's message would leave the
+     * caller unable to tell what is already gone, and a blind retry would re-target
+     * IDs that no longer exist.
+     */
+    it('names the indicators earlier batches already deleted when a later batch fails', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+      let deleteCall = 0
+      const deletedByFirstBatch: string[] = []
+
+      fetchMock.mockImplementation((rawUrl: string) => {
+        deleteCall += 1
+        if (deleteCall === 2) {
+          return Promise.resolve(
+            jsonResponse({ errors: [{ code: 429, message: 'Rate limit exceeded' }] }, 429)
+          )
+        }
+        const ids = idsFromUrl(rawUrl)
+        deletedByFirstBatch.push(...ids)
+        return Promise.resolve(jsonResponse({ resources: ids }))
+      })
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(429)
+      expect(data.success).toBe(false)
+      expect(deletedByFirstBatch.length).toBeGreaterThan(0)
+      expect(data.error).toContain('Rate limit exceeded')
+      expect(data.error).toContain(`${deletedByFirstBatch.length} ID(s) were already deleted`)
+      expect(data.error).toContain(deletedByFirstBatch[0])
+    })
+
+    it('leaves a first-batch delete failure unannotated — nothing was committed', async () => {
+      const indicatorIds = longIds(300, 'ioc')
+
+      fetchMock.mockImplementation(() =>
+        Promise.resolve(jsonResponse({ errors: [{ code: 403, message: 'Access denied' }] }, 403))
+      )
+
+      const response = await POST(
+        requestFor({ operation: 'crowdstrike_delete_indicators', indicatorIds })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data.error).toBe('Access denied')
+    })
+
     it('splits an oversized vulnerability lookup at the Spotlight cap', async () => {
       const vulnerabilityIds = longIds(400, 'vuln')
 

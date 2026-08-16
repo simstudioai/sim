@@ -160,8 +160,8 @@ export function buildSplunkFormBody(
  * still-running job would surface `Unexpected end of JSON input` instead of an
  * empty result set.
  *
- * A non-JSON body is tolerated the same way because `output_mode` does not appear
- * in the documented parameter table for the dispatching and job-control endpoints,
+ * An XML body is tolerated the same way because `output_mode` does not appear in
+ * the documented parameter table for the dispatching and job-control endpoints,
  * and the only response the reference documents for them is the XML
  * `<response><sid>...</sid></response>`. Throwing on that XML would report a
  * request that succeeded server-side as a failure — cancelling a job really does
@@ -169,16 +169,19 @@ export function buildSplunkFormBody(
  * envelope carries no usable value. Returning `{}` lets that error surface
  * instead, and a JSON body (which these endpoints do return in practice when
  * `output_mode=json` is honored) still parses normally.
+ *
+ * The tolerance stops at XML. A body that is neither empty nor XML is meant to be
+ * JSON, so a parse failure there means the payload is corrupt or truncated —
+ * swallowing it would hand `get_search_results` an empty envelope and report a
+ * lost result set as a successful search with zero events.
  */
 export async function readSplunkJson(response: Response): Promise<unknown> {
   if (response.status === 204) return {}
   const text = await response.text()
-  if (!text.trim()) return {}
-  try {
-    return JSON.parse(text)
-  } catch {
-    return {}
-  }
+  const body = text.trim()
+  if (!body) return {}
+  if (body.startsWith('<')) return {}
+  return JSON.parse(body)
 }
 
 /**

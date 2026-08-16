@@ -96,6 +96,20 @@ describe('readSplunkJson', () => {
       readSplunkJson(new Response('<response><sid>1457683115.100</sid></response>'))
     ).resolves.toEqual({})
   })
+
+  /**
+   * The XML tolerance must not extend to a body that was meant to be JSON.
+   * Swallowing a truncated result payload would hand `get_search_results` an empty
+   * envelope, reporting a lost result set as a search that legitimately matched
+   * nothing.
+   */
+  it('throws on a truncated JSON body rather than reporting an empty result set', async () => {
+    await expect(readSplunkJson(new Response('{"results":[{"_raw":"partial'))).rejects.toThrow()
+  })
+
+  it('throws on a non-JSON, non-XML body', async () => {
+    await expect(readSplunkJson(new Response('upstream connect error'))).rejects.toThrow()
+  })
 })
 
 describe('getSplunkPaging', () => {

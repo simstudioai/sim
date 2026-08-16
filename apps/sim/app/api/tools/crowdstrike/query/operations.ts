@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import type { CrowdstrikeQueryBody } from '@/lib/api/contracts/tools/crowdstrike'
 import {
   buildUrl,
@@ -125,6 +126,45 @@ export function chunkIdsByUrlBudget(ids: string[], budget: number): string[][] {
   return chunks
 }
 
+/**
+ * Caps how much of the already-committed ID list is spelled out in a partial-failure
+ * message. A by-ids delete can carry 1000 IDs at ~68 bytes each, so the full list
+ * would bury the actual failure under ~68 KB of text.
+ */
+const MAX_COMMITTED_IDS_IN_MESSAGE = 400
+
+/**
+ * Rewrites a failed batch's envelope so the reported error names the deletions the
+ * earlier batches already committed.
+ *
+ * Batches run sequentially and each one that answered `ok` really did delete its
+ * indicators — Falcon has no way to roll them back. Short-circuiting on a later
+ * batch would therefore report a bare failure over work that already happened, and
+ * a blind retry would target IDs that no longer exist. Only the message survives to
+ * the caller ({@link fail} keeps `status` and the message, not `data`), so the
+ * committed prefix is written onto `errors[0].message`, which is the first thing
+ * {@link getFalconErrorMessage} reads.
+ */
+function withCommittedIds(
+  result: CrowdStrikeCallResult,
+  committed: string[]
+): CrowdStrikeCallResult {
+  if (committed.length === 0) return result
+
+  const envelope = isRecordLike(result.data) ? result.data : {}
+  const existing = getRecordArray(envelope.errors)
+  const reason = getFalconErrorMessage(result.data, 'CrowdStrike rejected a later batch.')
+  const message =
+    `${reason} This request was split into batches and ${committed.length} ID(s) were already deleted ` +
+    `before the failing batch; they were not rolled back, so retry only the remainder. ` +
+    `Deleted: ${truncate(committed.join(', '), MAX_COMMITTED_IDS_IN_MESSAGE)}`
+
+  return {
+    ...result,
+    data: { ...envelope, errors: [{ ...(existing[0] ?? {}), message }, ...existing.slice(1)] },
+  }
+}
+
 interface ByIdsRequestOptions {
   method: 'GET' | 'DELETE'
   path: string
@@ -139,7 +179,9 @@ interface ByIdsRequestOptions {
  *
  * Batches run sequentially: resource order matches the caller's ID order, the
  * endpoint's rate limit only ever sees one request at a time, and a failing batch
- * short-circuits with its own status instead of being merged away. `meta` comes
+ * short-circuits with its own status instead of being merged away. A `DELETE` that
+ * fails partway also carries the IDs its earlier batches already removed — see
+ * {@link withCommittedIds}. `meta` comes
  * from the first batch — pagination is meaningless for a lookup that names every
  * ID it wants, and no by-ids operation here reads it.
  */
@@ -169,6 +211,7 @@ async function callCrowdStrikeByIds(
 
   const resources: unknown[] = []
   const errors: unknown[] = []
+  const committed: string[] = []
   let meta: unknown
   let status = 200
 
@@ -181,8 +224,10 @@ async function callCrowdStrikeByIds(
     })
 
     if (!result.ok) {
-      return result
+      return options.method === 'DELETE' ? withCommittedIds(result, committed) : result
     }
+
+    committed.push(...chunk)
 
     if (index === 0) {
       status = result.status

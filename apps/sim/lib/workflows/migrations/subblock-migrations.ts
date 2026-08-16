@@ -114,6 +114,35 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     host: '_removed_host',
     apiKey: '_removed_apiKey',
   },
+  /**
+   * The Cloudflare block briefly gave its DNS/zone read filters and its cache-purge
+   * tag list operation-suffixed IDs, and added a single shared `cursor`. This PR
+   * restores the shipped IDs (`name`, `type`, `content`, `proxied`, `tags`) so saved
+   * workflows keep filtering, and splits the cursor per endpoint.
+   *
+   * The suffixed IDs are dropped rather than renamed onto their shipped
+   * counterparts. They existed only between #6740 and this change and never
+   * appeared in a release, so no deployed workflow carries them — and a rename
+   * could not restore a value even for a workflow edited in that window. Block
+   * state materializes an entry for every subblock the config declares, not just
+   * the active operation's, so `name`/`type`/`content`/`proxied`/`tags` are always
+   * already present; {@link migrateBlockSubblockIds} would hit its collision guard
+   * and discard the source value anyway. Mapping them as renames would therefore
+   * claim a recovery that never happens, while leaving the stale value parked in
+   * state and riding along in exports.
+   *
+   * `cursor` split into `r2Cursor` and `rulesetCursor`, so there is no single
+   * replacement to name.
+   */
+  cloudflare: {
+    zoneNameFilter: '_removed_zoneNameFilter',
+    dnsNameFilter: '_removed_dnsNameFilter',
+    dnsTypeFilter: '_removed_dnsTypeFilter',
+    dnsContentFilter: '_removed_dnsContentFilter',
+    dnsProxiedFilter: '_removed_dnsProxiedFilter',
+    purgeTags: '_removed_purgeTags',
+    cursor: '_removed_cursor',
+  },
   rippling: {
     action: '_removed_action',
     candidateDepartment: '_removed_candidateDepartment',
