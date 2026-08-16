@@ -532,7 +532,12 @@ export const zendeskConnector: ConnectorConfig = {
     externalId: string
   ): Promise<ExternalDocument | null> => {
     const subdomain = (sourceConfig.subdomain as string)?.trim()
-    if (!subdomain) return null
+    /**
+     * A misconfigured source is a failure, not an absent document. Returning
+     * `null` reads as documented absence, which on an `add` drops the document
+     * with no counter and no log. `listDocuments` throws on the same condition.
+     */
+    if (!subdomain) throw new Error('Subdomain is required')
 
     try {
       const baseUrl = buildBaseUrl(subdomain)

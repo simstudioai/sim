@@ -481,7 +481,13 @@ export const typeformConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const formId = (sourceConfig.formId as string)?.trim()
-    if (!formId || !externalId) return null
+    /**
+     * A misconfigured source is a failure, not an absent response. Returning
+     * `null` reads as documented absence, which on an `add` drops the document
+     * with no counter and no log. `listDocuments` throws on the same condition.
+     */
+    if (!formId) throw new Error('Form ID is required')
+    if (!externalId) throw new Error('Response ID is required')
 
     const form = await getFormDefinition(accessToken, formId, syncContext)
     const fieldTitles = buildFieldTitleMap(form)
