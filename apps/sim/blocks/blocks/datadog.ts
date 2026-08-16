@@ -783,6 +783,22 @@ Return ONLY the comma-separated tag list - no explanations, no extra text.`,
       condition: { field: 'operation', value: 'datadog_list_downtimes' },
       mode: 'advanced',
     },
+    {
+      id: 'downtimeLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '30',
+      condition: { field: 'operation', value: 'datadog_list_downtimes' },
+      mode: 'advanced',
+    },
+    {
+      id: 'downtimeOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_downtimes' },
+      mode: 'advanced',
+    },
 
     // Cancel Downtime inputs
     {
@@ -2018,7 +2034,12 @@ Return ONLY the search query string - no explanations.`,
             }
 
           case 'datadog_list_downtimes':
-            return { ...baseParams, currentOnly: toSwitchBoolean(params.currentOnly) }
+            return {
+              ...baseParams,
+              currentOnly: toSwitchBoolean(params.currentOnly),
+              limit: params.downtimeLimit ? Number(params.downtimeLimit) : undefined,
+              offset: params.downtimeOffset ? Number(params.downtimeOffset) : undefined,
+            }
 
           case 'datadog_cancel_downtime':
             return { ...baseParams, downtimeId: params.downtimeId }
@@ -2321,6 +2342,8 @@ Return ONLY the search query string - no explanations.`,
       description: 'Comma-separated monitor tags to target',
     },
     downtimeTimezone: { type: 'string', description: 'Display timezone for the downtime' },
+    downtimeLimit: { type: 'number', description: 'Downtimes to return per page' },
+    downtimeOffset: { type: 'number', description: 'Index of the first downtime to return' },
     downtimeMuteFirstRecovery: {
       type: 'boolean',
       description: 'Mute the first recovery notification',
@@ -2441,6 +2464,7 @@ Return ONLY the search query string - no explanations.`,
     // Downtimes
     downtime: { type: 'json', description: 'Downtime data' },
     downtimes: { type: 'json', description: 'List of downtimes' },
+    totalCount: { type: 'number', description: 'Total downtimes matching the filter' },
     // Incidents
     incident: { type: 'json', description: 'Incident data' },
     incidents: { type: 'json', description: 'List of incidents' },

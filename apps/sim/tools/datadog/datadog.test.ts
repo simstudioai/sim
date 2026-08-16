@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createDowntimeTool } from '@/tools/datadog/create_downtime'
 import { createEventTool } from '@/tools/datadog/create_event'
 import { createMonitorTool } from '@/tools/datadog/create_monitor'
 import { getIncidentTool } from '@/tools/datadog/get_incident'
@@ -369,6 +370,36 @@ describe('monitor mute and unmute', () => {
     expect(callUrl(unmuteMonitorTool, { ...auth, monitorId: '123' } as any)).toContain(
       '/api/v1/monitor/123/unmute'
     )
+  })
+})
+
+describe('create_downtime monitor targeting', () => {
+  /** monitor_identifier is a oneOf, so accepting both would silently drop one. */
+  it('rejects a monitor ID and monitor tags together', () => {
+    expect(() =>
+      callBody(createDowntimeTool, {
+        ...auth,
+        scope: '*',
+        monitorId: '123',
+        monitorTags: 'team:backend',
+      } as any)
+    ).toThrow(/either a monitor ID or monitor tags, not both/)
+  })
+
+  it('rejects a non-numeric monitor ID instead of sending null', () => {
+    expect(() =>
+      callBody(createDowntimeTool, { ...auth, scope: '*', monitorId: 'abc' } as any)
+    ).toThrow(/monitorIds must be a comma-separated list of whole numbers/)
+  })
+
+  it('falls back to the wildcard monitor tag when no monitor is named', () => {
+    const body = callBody(createDowntimeTool, { ...auth, scope: '*' } as any)
+    expect(body.data.attributes.monitor_identifier).toEqual({ monitor_tags: ['*'] })
+  })
+
+  it('targets a single monitor by numeric id', () => {
+    const body = callBody(createDowntimeTool, { ...auth, scope: '*', monitorId: '123' } as any)
+    expect(body.data.attributes.monitor_identifier).toEqual({ monitor_id: 123 })
   })
 })
 

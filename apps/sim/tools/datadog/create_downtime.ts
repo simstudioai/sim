@@ -3,7 +3,7 @@ import type {
   CreateDowntimeResponse,
   DowntimeAttributes,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage } from '@/tools/datadog/utils'
+import { datadogErrorMessage, parseMonitorIds, splitCommaList } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntimeResponse> = {
@@ -101,16 +101,25 @@ export const createDowntimeTool: ToolConfig<CreateDowntimeParams, CreateDowntime
       if (params.start) schedule.start = new Date(params.start * 1000).toISOString()
       if (params.end) schedule.end = new Date(params.end * 1000).toISOString()
 
-      const monitorTags = params.monitorTags
-        ?.split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0)
+      const monitorTags = splitCommaList(params.monitorTags)
 
-      // `monitor_identifier` is required. Datadog expresses "every monitor in scope"
-      // as the `*` monitor tag, which is the fallback when no monitor is named.
-      const monitorIdentifier = params.monitorId
-        ? { monitor_id: Number.parseInt(params.monitorId, 10) }
-        : { monitor_tags: monitorTags?.length ? monitorTags : ['*'] }
+      /**
+       * `monitor_identifier` is required and is a `oneOf`: a downtime targets either a
+       * single monitor or a tag set, never both. Accepting both silently would drop one
+       * of them and mute a different set of monitors than the caller asked for.
+       */
+      if (params.monitorId && monitorTags) {
+        throw new Error(
+          'Supply either a monitor ID or monitor tags, not both — a downtime targets one or the other'
+        )
+      }
+
+      const monitorId = parseMonitorIds(params.monitorId)?.[0]
+
+      // Datadog expresses "every monitor in scope" as the `*` monitor tag, which is the
+      // fallback when no monitor is named.
+      const monitorIdentifier =
+        monitorId !== undefined ? { monitor_id: monitorId } : { monitor_tags: monitorTags ?? ['*'] }
 
       const attributes: Record<string, unknown> = {
         scope: params.scope,
