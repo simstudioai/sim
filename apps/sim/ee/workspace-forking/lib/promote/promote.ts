@@ -557,6 +557,7 @@ export async function promoteFork(params: PromoteForkParams): Promise<PromoteFor
       targetWorkspaceId,
       userId,
       now,
+      resourceType: 'workflow',
       contentFolderIds: plan.items.map((item) => item.sourceMeta.folderId),
     })
 

@@ -13831,15 +13831,15 @@
       "type": "okta",
       "slug": "okta",
       "name": "Okta",
-      "description": "Manage users and groups in Okta",
-      "longDescription": "Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.",
+      "description": "Manage users, groups, apps, and MFA in Okta",
+      "longDescription": "Integrate Okta identity management into your workflow. Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.",
       "bgColor": "#191919",
       "iconName": "OktaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/okta",
       "operations": [
         {
           "name": "List Users",
-          "description": "List all users in your Okta organization with optional search and filtering"
+          "description": "List users in your Okta organization with optional search and filtering. Users with a DEPROVISIONED status are omitted unless a search or filter expression selects them."
         },
         {
           "name": "Get User",
@@ -13891,7 +13891,7 @@
         },
         {
           "name": "Update Group",
-          "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. All profile properties must be specified (full replacement)."
+          "description": "Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value."
         },
         {
           "name": "Delete Group",
@@ -13908,9 +13908,113 @@
         {
           "name": "List Group Members",
           "description": "List all members of a specific group in your Okta organization"
+        },
+        {
+          "name": "List Group Rules",
+          "description": "List the group rules in your Okta organization. Each rule assigns users to groups automatically based on an expression over their profile, so this shows how group membership is being driven."
+        },
+        {
+          "name": "Get Group Rule",
+          "description": "Retrieve a single Okta group rule by ID, including the expression that decides which users it matches and the groups those users are assigned to."
+        },
+        {
+          "name": "Create Group Rule",
+          "description": "Create a group rule that automatically assigns users matching an Okta expression to one or more groups. New rules are created INACTIVE, so run Activate Group Rule afterwards to start applying it."
+        },
+        {
+          "name": "Activate Group Rule",
+          "description": "Activate a group rule so Okta starts applying it, assigning every matching user to the target groups."
+        },
+        {
+          "name": "Deactivate Group Rule",
+          "description": "Deactivate a group rule so Okta stops applying it. Existing memberships the rule created are left in place. A rule must be INACTIVE before it can be edited."
+        },
+        {
+          "name": "Delete Group Rule",
+          "description": "Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant."
+        },
+        {
+          "name": "List Factors",
+          "description": "List the MFA factors a user has enrolled, with each factor type, provider, and enrollment status. Use this before resetting a factor to confirm which one to target."
+        },
+        {
+          "name": "Get Factor",
+          "description": "Retrieve a single enrolled MFA factor for a user, including its type, provider, enrollment status, and factor-specific profile."
+        },
+        {
+          "name": "Enroll Factor",
+          "description": "Enroll an MFA factor for a user. The profile fields required depend on the factor type: a phone number for sms and call, an email address for email, and a question and answer for question. Factors that enroll from the user device, such as webauthn and push, need no profile fields."
+        },
+        {
+          "name": "Reset Factor",
+          "description": "Unenroll one specific MFA factor for a user so they can re-enroll it. Destructive and irreversible: the existing enrollment is removed. Unenrolling a push or signed_nonce factor also unenrolls the related Okta Verify factors. Factors cannot be unenrolled from a deactivated user."
+        },
+        {
+          "name": "Reset All Factors",
+          "description": "Reset every MFA factor for a user, returning all enrollments to the unenrolled state. Destructive and irreversible: the user must re-enroll each factor before they can complete MFA again. The user status stays ACTIVE."
+        },
+        {
+          "name": "Clear User Sessions",
+          "description": "Revoke every active Okta session for a user, signing them out of all devices immediately. Destructive and irreversible: the user must sign in again. Optionally also revokes their OAuth and OpenID Connect tokens, and clears remembered factors."
+        },
+        {
+          "name": "Get Session",
+          "description": "Retrieve an Okta session by ID, including who it belongs to, when it expires, and which authentication methods were used to establish it."
+        },
+        {
+          "name": "Revoke Session",
+          "description": "Revoke a single Okta session by ID, ending that sign-in immediately. Destructive and irreversible: the affected user must sign in again on that device."
+        },
+        {
+          "name": "List Applications",
+          "description": "List the applications configured in your Okta organization, with optional name search, filtering, and cursor pagination."
+        },
+        {
+          "name": "Get Application",
+          "description": "Retrieve a single Okta application by ID, including its sign-on mode, status, enabled provisioning features, and configuration objects."
+        },
+        {
+          "name": "List Application Users",
+          "description": "List the users assigned to an Okta application, including how each assignment was made and its provisioning sync state. Use this to audit who has access to an app."
+        },
+        {
+          "name": "Assign User to Application",
+          "description": "Assign a user to an Okta application, granting them access to it. Applications that require credentials also need the username the user signs in with."
+        },
+        {
+          "name": "Remove User from Application",
+          "description": "Unassign a user from an Okta application, revoking their access. Destructive and irreversible: the app profile for that user is permanently removed, and if provisioning is enabled the downstream account is deactivated."
+        },
+        {
+          "name": "List Application Groups",
+          "description": "List the groups assigned to an Okta application. Every member of an assigned group inherits access to the app, so this is the starting point for an app access review."
+        },
+        {
+          "name": "Assign Group to Application",
+          "description": "Assign a group to an Okta application so every member of the group inherits access to it."
+        },
+        {
+          "name": "Remove Group from Application",
+          "description": "Unassign a group from an Okta application. Destructive: every member who had access only through this group loses access to the app."
+        },
+        {
+          "name": "List User Roles",
+          "description": "List the administrator roles assigned to a user. Returns both standard roles and custom role bindings, so you can review who holds privileged access."
+        },
+        {
+          "name": "Assign User Role",
+          "description": "Grant a user an administrator role. Use a standard role type such as USER_ADMIN or HELP_DESK_ADMIN, or CUSTOM together with a custom role ID and a resource set ID. This grants privileged access, so confirm the role is the least privilege that fits."
+        },
+        {
+          "name": "Remove User Role",
+          "description": "Revoke an administrator role from a user. Destructive: the user immediately loses the admin permissions that role granted. Takes the role assignment ID, not the role type, which List User Roles returns as the role id field."
+        },
+        {
+          "name": "Get System Log Events",
+          "description": "Query the Okta System Log for sign-ins, admin changes, and security events. Supports a time window, SCIM filter expressions, keyword search, and cursor pagination for audit and investigation workflows."
         }
       ],
-      "operationCount": 18,
+      "operationCount": 44,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -19036,6 +19140,73 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"]
+    },
+    {
+      "type": "splunk",
+      "slug": "splunk",
+      "name": "Splunk",
+      "description": "Run SPL searches and manage saved searches and alerts in Splunk",
+      "longDescription": "Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SplunkIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/splunk",
+      "operations": [
+        {
+          "name": "Run Search",
+          "description": "Run an SPL search synchronously and return its results in a single call (oneshot mode). Use for short searches; use Create Search Job for long-running ones."
+        },
+        {
+          "name": "Create Search Job",
+          "description": "Start a Splunk search job and return its search ID (sid). The search runs asynchronously — poll its status and fetch results separately."
+        },
+        {
+          "name": "Get Search Job",
+          "description": "Get the status and progress of a Splunk search job by search ID, including dispatch state, completion progress, and event/result counts."
+        },
+        {
+          "name": "Get Search Results",
+          "description": "Fetch the transformed results of a completed Splunk search job by search ID, with pagination."
+        },
+        {
+          "name": "Cancel Search Job",
+          "description": "Cancel a running Splunk search job and delete its result cache."
+        },
+        {
+          "name": "List Saved Searches",
+          "description": "List saved searches and reports configured in Splunk, including their SPL, schedule, and alert configuration."
+        },
+        {
+          "name": "Get Saved Search",
+          "description": "Get the configuration of a single Splunk saved search by name, including its SPL, schedule, and alert settings."
+        },
+        {
+          "name": "Dispatch Saved Search",
+          "description": "Run a Splunk saved search immediately and return the search ID (sid) of the dispatched job."
+        },
+        {
+          "name": "List Fired Alerts",
+          "description": "List the saved searches with currently triggered (unexpired) Splunk alerts and how many times each has fired."
+        },
+        {
+          "name": "Get Fired Alerts",
+          "description": "List the unexpired triggered instances of a Splunk alert by saved search name, including severity, trigger time, and the search ID of each firing."
+        },
+        {
+          "name": "List Indexes",
+          "description": "List the indexes configured on the Splunk instance with their size, event count, and retention settings."
+        },
+        {
+          "name": "List Apps",
+          "description": "List the apps installed on the Splunk instance with their label, version, author, and enabled state."
+        }
+      ],
+      "operationCount": 12,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "data-analytics"]
     },
     {
       "type": "sportmonks",

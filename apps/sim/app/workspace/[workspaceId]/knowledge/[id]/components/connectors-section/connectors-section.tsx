@@ -573,6 +573,7 @@ function ConnectorCard({
                       providerId: providerId!,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }
@@ -607,6 +608,7 @@ function ConnectorCard({
                       providerId: providerId!,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }

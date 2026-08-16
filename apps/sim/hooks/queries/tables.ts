@@ -134,6 +134,14 @@ const logger = createLogger('TableQueries')
 export const TABLE_DETAIL_STALE_TIME = 30 * 1000
 export const TABLE_RUN_STATE_STALE_TIME = 30 * 1000
 export const TABLE_FIND_STALE_TIME = 30 * 1000
+/**
+ * Shorter than the 5-minute default: the grid searches as the user types, so
+ * each typing pause mints its own cache entry holding up to
+ * `TABLE_LIMITS.MAX_FIND_MATCHES` matches. Long enough that backspacing to a
+ * recent term is still instant, short enough that a typed-through term set
+ * doesn't sit resident.
+ */
+export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
@@ -474,9 +482,11 @@ async function fetchTableRowMatches({
 }
 
 /**
- * Server-side find across all cells. `q` is the *submitted* term (search is
- * Enter-triggered), so React Query caches each submitted term and re-searching
- * a prior one is instant. Disabled while `q` is empty.
+ * Server-side find across all cells. `q` is the term the caller has settled on
+ * — the grid debounces the live input before passing it — so React Query caches
+ * each settled term and backspacing to a prior one is instant. Disabled while
+ * `q` is empty; `keepPreviousData` holds the last result set so the match count
+ * doesn't blank between terms.
  */
 export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: FindTableRowsParams) {
   const paramsKey = JSON.stringify({ q, filter: filter ?? null, sort: sort ?? null })
@@ -486,6 +496,7 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
       fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
     staleTime: TABLE_FIND_STALE_TIME,
+    gcTime: TABLE_FIND_GC_TIME,
     placeholderData: keepPreviousData,
   })
 }

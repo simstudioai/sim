@@ -124,6 +124,10 @@ const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'empty', label: 'Empty' },
 ]
 
+/** This list's private drag MIME, so a drag started on another list is never mistaken for one
+ *  of these rows. */
+const KNOWLEDGE_ROW_DRAG_MIME = 'application/x-sim-workspace-knowledge-rows'
+
 const FOLDER_RESOURCE_TYPE = 'knowledge_base' as const
 const ROOT_BREADCRUMB_LABEL = FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootLabel
 
@@ -1078,6 +1082,7 @@ export function Knowledge() {
   )
 
   const rowDragDropConfig = useFolderRowDragDrop({
+    dragMime: KNOWLEDGE_ROW_DRAG_MIME,
     canEdit,
     editingRowId: listRename.editingId,
     descendantsByFolderId,

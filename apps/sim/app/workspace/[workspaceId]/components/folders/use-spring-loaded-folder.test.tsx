@@ -121,19 +121,25 @@ describe('useSpringLoadedFolder', () => {
     expect(onSpringOpen).not.toHaveBeenCalled()
   })
 
-  it('opens a folder at most once per drag', () => {
+  it('opens a folder again when the drag comes back to it', () => {
+    // Descend, walk back out through the breadcrumb, change your mind and descend again — one
+    // gesture, and the second entry has to work. Re-entry costs another full delay, and
+    // `useSpringNavigation` refuses the folder already on screen, so nothing oscillates.
     const onSpringOpen = vi.fn()
     const harness = renderSpringLoad(onSpringOpen)
 
     act(() => harness.get().arm('folder-a'))
     rest()
-    expect(onSpringOpen).toHaveBeenCalledTimes(1)
-
-    // Dragging back out and returning must not re-open it, which would loop at a boundary.
-    act(() => harness.get().arm('folder-b'))
+    act(() => harness.get().arm(null))
+    rest()
     act(() => harness.get().arm('folder-a'))
     rest()
-    expect(onSpringOpen).toHaveBeenCalledTimes(1)
+
+    expect(onSpringOpen.mock.calls).toEqual([
+      ['folder-a', { history: 'push' }],
+      [null, { history: 'replace' }],
+      ['folder-a', { history: 'replace' }],
+    ])
   })
 
   it('pushes the first spring-open of a drag and replaces the rest', () => {
@@ -197,17 +203,21 @@ describe('useSpringLoadedFolder', () => {
     expect(onSpringOpen).toHaveBeenCalledExactlyOnceWith(null, { history: 'push' })
   })
 
-  it('opens the root at most once per drag, like any other folder', () => {
+  it('re-opens the root like any other folder, and only after a full rest', () => {
     const onSpringOpen = vi.fn()
     const harness = renderSpringLoad(onSpringOpen)
 
     act(() => harness.get().arm(null))
     rest()
+
+    // Passing over another row cancels the countdown, so returning to the root has to wait out
+    // the delay again rather than firing on whatever was left of the previous one.
     act(() => harness.get().arm('folder-a'))
     act(() => harness.get().arm(null))
+    expect(onSpringOpen).toHaveBeenCalledTimes(1)
     rest()
 
-    expect(onSpringOpen).toHaveBeenCalledTimes(1)
+    expect(onSpringOpen).toHaveBeenCalledTimes(2)
   })
 
   it('never opens a folder after unmount', () => {

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, drizzleOrmMock, resetDbChainMock, schemaMock } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGenerateId } = vi.hoisted(() => ({
@@ -19,16 +19,15 @@ describe('createConnectDraft', () => {
     mockGenerateId.mockReturnValue('new-draft-id')
   })
 
-  it('refreshes the expiry without changing an active connection intent', async () => {
+  it('supersedes an active connection intent with a new exact draft id', async () => {
     const expiresAt = new Date('2026-08-13T20:15:00.000Z')
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'active-draft-id', expiresAt }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'new-draft-id', expiresAt }])
 
     const result = await createConnectDraft({
       userId: 'user-1',
       workspaceId: 'workspace-1',
       providerId: 'google-email',
       displayName: 'Work Gmail',
-      displayNameDefinesIntent: true,
     })
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
@@ -37,16 +36,20 @@ describe('createConnectDraft', () => {
     const conflict = dbChainMockFns.onConflictDoUpdate.mock.calls[0]?.[0] as
       | { set?: Record<string, unknown>; setWhere?: unknown }
       | undefined
-    expect(conflict?.set).not.toHaveProperty('id')
-    expect(conflict?.set).not.toHaveProperty('displayName')
-    expect(conflict?.set).not.toHaveProperty('credentialId')
-    expect(conflict?.setWhere).toBeDefined()
-    expect(result).toEqual({ id: 'active-draft-id', expiresAt })
+    expect(conflict?.set).toEqual(
+      expect.objectContaining({
+        id: 'new-draft-id',
+        displayName: 'Work Gmail',
+        credentialId: null,
+      })
+    )
+    expect(conflict?.setWhere).toBeUndefined()
+    expect(result).toEqual({ id: 'new-draft-id', expiresAt })
   })
 
-  it('refreshes a reconnect target when its mutable display name changes', async () => {
+  it('supersedes a reconnect target when its mutable display name changes', async () => {
     const expiresAt = new Date('2026-08-13T20:15:00.000Z')
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'active-draft-id', expiresAt }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'new-draft-id', expiresAt }])
 
     await expect(
       createConnectDraft({
@@ -56,15 +59,20 @@ describe('createConnectDraft', () => {
         credentialId: 'credential-1',
         displayName: 'Renamed Gmail',
       })
-    ).resolves.toEqual({ id: 'active-draft-id', expiresAt })
+    ).resolves.toEqual({ id: 'new-draft-id', expiresAt })
 
-    expect(drizzleOrmMock.eq).not.toHaveBeenCalledWith(
-      schemaMock.pendingCredentialDraft.displayName,
-      'Renamed Gmail'
+    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          id: 'new-draft-id',
+          displayName: 'Renamed Gmail',
+          credentialId: 'credential-1',
+        }),
+      })
     )
   })
 
-  it('fails fast when an active draft has a different connection intent', async () => {
+  it('fails when the draft upsert does not return a row', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
     await expect(
@@ -75,9 +83,6 @@ describe('createConnectDraft', () => {
         credentialId: 'credential-1',
         displayName: 'Existing Gmail',
       })
-    ).rejects.toMatchObject({
-      code: 'conflict',
-      message: 'A different OAuth connection flow is already active for this provider',
-    })
+    ).rejects.toThrow('Failed to create OAuth credential draft')
   })
 })

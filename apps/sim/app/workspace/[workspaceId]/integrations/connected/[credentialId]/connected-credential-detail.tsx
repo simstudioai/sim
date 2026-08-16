@@ -111,7 +111,7 @@ export function ConnectedCredentialDetail({
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
     try {
-      await createDraft.mutateAsync({
+      const draft = await createDraft.mutateAsync({
         workspaceId,
         providerId: credential.providerId,
         displayName: credential.displayName,
@@ -135,6 +135,7 @@ export function ConnectedCredentialDetail({
       await connectOAuthService.mutateAsync({
         providerId: credential.providerId,
         callbackURL: window.location.href,
+        draftId: draft.draftId,
       })
     } catch (error: unknown) {
       toast.error("Couldn't start reconnect", {

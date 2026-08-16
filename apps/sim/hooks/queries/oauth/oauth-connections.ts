@@ -8,6 +8,7 @@ import {
   type OAuthConnection,
 } from '@/lib/api/contracts/oauth-connections'
 import { client } from '@/lib/auth/auth-client'
+import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 
@@ -138,6 +139,7 @@ export function useOAuthConnections() {
 interface ConnectServiceParams {
   providerId: string
   callbackURL: string
+  draftId?: string
 }
 
 /**
@@ -148,22 +150,25 @@ export function useConnectOAuthService() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ providerId, callbackURL }: ConnectServiceParams) => {
+    mutationFn: async ({ providerId, callbackURL, draftId }: ConnectServiceParams) => {
       if (providerId === 'trello') {
         const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/trello/authorize?returnUrl=${returnUrl}`
+        const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
+        window.location.href = `/api/auth/trello/authorize?returnUrl=${returnUrl}${draftQuery}`
         return { success: true }
       }
 
       if (providerId === 'instagram') {
         const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/instagram/authorize?returnUrl=${returnUrl}`
+        const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
+        window.location.href = `/api/auth/instagram/authorize?returnUrl=${returnUrl}${draftQuery}`
         return { success: true }
       }
 
       if (providerId === 'shopify') {
         const returnUrl = encodeURIComponent(callbackURL)
-        window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}`
+        const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
+        window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}${draftQuery}`
         return { success: true }
       }
 
@@ -175,16 +180,24 @@ export function useConnectOAuthService() {
       // which refreshes caches and shows the connected toast.
       const desktopBridge = getDesktopBridge()
       if (desktopBridge?.beginOAuthConnect) {
-        const opened = await desktopBridge.beginOAuthConnect(providerId)
+        const opened = await desktopBridge.beginOAuthConnect(
+          providerId,
+          draftId ? { draftId } : undefined
+        )
         if (!opened) {
           throw new Error('Could not open your browser to connect this account.')
         }
         return { success: true }
       }
 
+      const stateCallbackUrl = new URL(callbackURL)
+      if (draftId) {
+        stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
+      }
+
       await client.oauth2.link({
         providerId,
-        callbackURL,
+        callbackURL: stateCallbackUrl.toString(),
       })
 
       return { success: true }

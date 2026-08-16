@@ -106,7 +106,7 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
 export function useCreateCredentialDraft() {
   return useMutation({
     mutationFn: async (payload: ContractBodyInput<typeof createCredentialDraftContract>) => {
-      await requestJson(createCredentialDraftContract, { body: payload })
+      return requestJson(createCredentialDraftContract, { body: payload })
     },
   })
 }

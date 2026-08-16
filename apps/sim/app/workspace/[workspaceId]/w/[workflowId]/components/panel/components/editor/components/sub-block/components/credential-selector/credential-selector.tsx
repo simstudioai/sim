@@ -471,6 +471,7 @@ export function CredentialSelector({
                 providerId: effectiveProviderId,
                 preCount: credentials.filter((c) => c.type !== 'service_account').length,
                 workspaceId,
+                reconnect: true,
                 requestedAt: Date.now(),
               })
               setShowOAuthModal(true)
