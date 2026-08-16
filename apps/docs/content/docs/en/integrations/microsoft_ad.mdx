@@ -449,7 +449,7 @@ Reset another user's password through their password authentication method. Leav
 | --------- | ---- | ----------- |
 | `accepted` | boolean | Whether Microsoft Graph accepted the password reset operation |
 | `userId` | string | ID of the user whose password was reset |
-| `newPassword` | string | The system-generated password, returned only when no new password was supplied in the request |
+| `newPassword` | string | The system-generated password, returned only when no new password was supplied in the request. Like every tool output it appears in workflow outputs and run history, and is sent to the model when an agent calls this tool, so prefer supplying your own password when the value must not leave the workflow. |
 | `operationLocation` | string | URL to poll for the status of the long-running password reset operation |
 
 ### List Microsoft Entra ID Authentication Methods

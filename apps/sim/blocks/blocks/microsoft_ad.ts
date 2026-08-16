@@ -21,6 +21,18 @@ const USER_ID_OPERATIONS = [
   'list_user_devices',
 ]
 
+/**
+ * Per-user operations that page through an `@odata.nextLink`. The continuation URL already
+ * addresses the user, so these are the only per-user operations that can run without a User ID,
+ * and only when continuing from a previous page.
+ */
+const PAGED_USER_ID_OPERATIONS = ['list_user_app_role_assignments', 'list_user_devices']
+
+/** Per-user operations that always require a User ID, whichever page is being fetched. */
+const ALWAYS_USER_ID_OPERATIONS = USER_ID_OPERATIONS.filter(
+  (operation) => !PAGED_USER_ID_OPERATIONS.includes(operation)
+)
+
 /** Collection operations that accept a page size and an @odata.nextLink continuation URL. */
 const PAGED_OPERATIONS = [
   'list_users',
@@ -55,7 +67,10 @@ const SHARED_FILTER_OPERATIONS = ['list_users', 'list_groups']
  *
  * The mapper must write `filter` and `search` on every operation, including as `undefined`. The
  * executor merges `{ ...inputs, ...transformedParams }`, so a key that is merely omitted here
- * leaves the stale serialized value in place rather than clearing it.
+ * leaves the stale serialized value in place rather than clearing it. The same applies to every
+ * optional field the mapper coerces out of a subBlock string, such as
+ * `forceChangePasswordNextSignInWithMfa`: omitting the key on "No Change" would forward the raw
+ * empty string to Graph in place of a boolean.
  */
 const FILTER_FIELD_BY_OPERATION: Record<string, string> = {
   list_users: 'filter',
@@ -268,7 +283,10 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
       type: 'short-input',
       placeholder: 'User ID or user principal name (e.g., user@example.com)',
       condition: { field: 'operation', value: USER_ID_OPERATIONS },
-      required: { field: 'operation', value: USER_ID_OPERATIONS },
+      required: (values) =>
+        values?.nextLink
+          ? { field: 'operation', value: ALWAYS_USER_ID_OPERATIONS }
+          : { field: 'operation', value: USER_ID_OPERATIONS },
     },
     // Create user fields
     {
@@ -797,9 +815,9 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
         result.search = values[SEARCH_FIELD_BY_OPERATION[params.operation]] || undefined
         if (params.operation === 'set_password') {
           result.forceChangePasswordNextSignIn = params.forceChangePasswordNextSignIn !== 'false'
-          if (params.forceChangePasswordNextSignInWithMfa)
-            result.forceChangePasswordNextSignInWithMfa =
-              params.forceChangePasswordNextSignInWithMfa === 'true'
+          result.forceChangePasswordNextSignInWithMfa = params.forceChangePasswordNextSignInWithMfa
+            ? params.forceChangePasswordNextSignInWithMfa === 'true'
+            : undefined
         }
         if (params.operation === 'update_user') {
           if (params.accountEnabled) result.accountEnabled = params.accountEnabled === 'true'

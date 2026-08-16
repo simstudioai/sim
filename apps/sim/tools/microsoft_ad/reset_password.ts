@@ -93,7 +93,7 @@ export const resetPasswordTool: ToolConfig<
     newPassword: {
       type: 'string',
       description:
-        'The system-generated password, returned only when no new password was supplied in the request',
+        'The system-generated password, returned only when no new password was supplied in the request. Like every tool output it appears in workflow outputs and run history, and is sent to the model when an agent calls this tool, so prefer supplying your own password when the value must not leave the workflow.',
       optional: true,
     },
     operationLocation: {
