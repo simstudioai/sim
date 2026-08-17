@@ -52,9 +52,7 @@ async function createAuthorizedWorkspaceFile({
   workspace,
 }: {
   principal: Principal
-  input: Omit<CreateWorkspaceFileInput, 'content' | 'encoding'> & {
-    notifyWorkspaceChange?: boolean
-  }
+  input: Omit<CreateWorkspaceFileBufferInput, 'content'>
   content: Buffer
   workspace: Awaited<ReturnType<typeof resolveCreateWorkspaceFileContext>>
 }): Promise<CreateWorkspaceFileResult> {

@@ -1440,7 +1440,7 @@ export function Files() {
         }
         const file = fileByIdRef.current.get(parsed.id)
         if (file && isArchiveFileName(file.name)) {
-          if (!extractFile.isPending) setExtractTargetId(file.id)
+          setExtractTargetId(file.id)
           return
         }
         router.push(
@@ -1450,7 +1450,7 @@ export function Files() {
         )
       }
     },
-    [router, workspaceId, currentFolderId, setFilesParams, extractFile.isPending]
+    [router, workspaceId, currentFolderId, setFilesParams]
   )
 
   const handleExtract = async () => {
@@ -1923,11 +1923,11 @@ export function Files() {
                 }
               />
               {isDraggingOver ? (
-                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
+                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--white)] transition-colors dark:bg-[var(--surface-4)]'>
                   <Upload className='size-5 text-[var(--brand-secondary)]' />
                   <div className='flex flex-col gap-0.5 text-center'>
-                    <p className='text-[14px] text-[var(--brand-secondary)]'>Drop to upload</p>
-                    <p className='text-[11px] text-[var(--text-tertiary)]'>
+                    <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
+                    <p className='text-[var(--text-tertiary)] text-xs'>
                       Release files here to add them to this workspace
                     </p>
                   </div>

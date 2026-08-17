@@ -2073,6 +2073,17 @@ export async function purgeCreatedWorkspaceFile(params: {
     params.expectedFolderId === null
       ? isNull(workspaceFiles.folderId)
       : eq(workspaceFiles.folderId, params.expectedFolderId)
+  /** The full creation identity. Shared so the lock and the delete can never diverge. */
+  const matchesCreatedFile = and(
+    eq(workspaceFiles.id, params.fileId),
+    eq(workspaceFiles.workspaceId, params.workspaceId),
+    eq(workspaceFiles.key, params.key),
+    eq(workspaceFiles.originalName, params.expectedName),
+    expectedFolder,
+    eq(workspaceFiles.updatedAt, params.expectedUpdatedAt),
+    eq(workspaceFiles.context, 'workspace'),
+    isNull(workspaceFiles.deletedAt)
+  )
   const cleanupEventId = await db.transaction(async (tx) => {
     const [lockedFile] = await tx
       .select({
@@ -2082,36 +2093,14 @@ export async function purgeCreatedWorkspaceFile(params: {
         sizeBytes: workspaceFiles.sizeBytes,
       })
       .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.id, params.fileId),
-          eq(workspaceFiles.workspaceId, params.workspaceId),
-          eq(workspaceFiles.key, params.key),
-          eq(workspaceFiles.originalName, params.expectedName),
-          expectedFolder,
-          eq(workspaceFiles.updatedAt, params.expectedUpdatedAt),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
+      .where(matchesCreatedFile)
       .for('update')
       .limit(1)
     if (!lockedFile) return null
 
     const [deleted] = await tx
       .delete(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.id, params.fileId),
-          eq(workspaceFiles.workspaceId, params.workspaceId),
-          eq(workspaceFiles.key, params.key),
-          eq(workspaceFiles.originalName, params.expectedName),
-          expectedFolder,
-          eq(workspaceFiles.updatedAt, params.expectedUpdatedAt),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
+      .where(matchesCreatedFile)
       .returning({ id: workspaceFiles.id })
     if (!deleted) throw new Error('Locked archive-created file could not be deleted')
 

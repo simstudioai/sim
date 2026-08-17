@@ -522,20 +522,20 @@ export async function createWorkspaceFileFolder(params: {
       }
     }
 
-    const name =
-      params.exactName === false
-        ? await deduplicateFolderName(
-            tx,
-            params.workspaceId,
-            parentId,
-            requestedName,
-            FILE_FOLDER_RESOURCE_TYPE
-          )
-        : requestedName
+    const deduplicate = params.exactName === false
+    const name = deduplicate
+      ? await deduplicateFolderName(
+          tx,
+          params.workspaceId,
+          parentId,
+          requestedName,
+          FILE_FOLDER_RESOURCE_TYPE
+        )
+      : requestedName
 
     params.validateResolvedName?.(name)
 
-    if (params.exactName !== false) {
+    if (!deduplicate) {
       const existingFolders = await tx
         .select({ id: folderTable.id })
         .from(folderTable)
@@ -1594,20 +1594,19 @@ export async function archiveWorkspaceFileFolderIfEmpty(params: {
   workspaceId: string
   folderId: string
 }): Promise<boolean> {
+  const isTargetFolder = and(
+    eq(folderTable.id, params.folderId),
+    eq(folderTable.workspaceId, params.workspaceId),
+    isFileFolder,
+    isNull(folderTable.deletedAt)
+  )
   return db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
 
     const [folder] = await tx
       .select({ id: folderTable.id })
       .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.id, params.folderId),
-          eq(folderTable.workspaceId, params.workspaceId),
-          isFileFolder,
-          isNull(folderTable.deletedAt)
-        )
-      )
+      .where(isTargetFolder)
       .limit(1)
     if (!folder) return false
 
@@ -1640,14 +1639,7 @@ export async function archiveWorkspaceFileFolderIfEmpty(params: {
     const [archived] = await tx
       .update(folderTable)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(folderTable.id, params.folderId),
-          eq(folderTable.workspaceId, params.workspaceId),
-          isFileFolder,
-          isNull(folderTable.deletedAt)
-        )
-      )
+      .where(isTargetFolder)
       .returning({ id: folderTable.id })
     return Boolean(archived)
   })

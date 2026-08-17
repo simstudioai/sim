@@ -8,7 +8,7 @@ import {
 } from '@/lib/api/server/routes'
 import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
-import { ArchiveError } from '@/lib/uploads/archive'
+import { ArchiveError, statusForArchiveError } from '@/lib/uploads/archive'
 import {
   CompiledCheckTooLargeError,
   CompiledCheckUnsupportedError,
@@ -89,7 +89,7 @@ const concealResourceAuthorization = createInternalResourceConcealmentPolicy({
 
 const extractArchive = extendInternalErrorPolicy(concealResourceAuthorization, (error) => {
   if (!(error instanceof ArchiveError)) return null
-  return internalErrorResponse(error.reason === 'invalid' ? 400 : 413, { error: error.message })
+  return internalErrorResponse(statusForArchiveError(error), { error: error.message })
 })
 
 export const internalFileErrorPolicies = {

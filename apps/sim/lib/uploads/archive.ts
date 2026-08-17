@@ -15,6 +15,7 @@ import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/works
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createWorkspaceFileFromBuffer } from '@/lib/workspace-files/application/create-workspace-file'
 import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -85,6 +86,15 @@ export class ArchiveError extends Error {
     this.reason = reason
     this.entryName = entryName
   }
+}
+
+/**
+ * The caller-facing HTTP status for an {@link ArchiveError}. A malformed archive is the
+ * caller's request being wrong (400); every other reason is a cap the payload exceeded (413).
+ * Single-sourced beside the reason union so a new variant is classified in exactly one place.
+ */
+export function statusForArchiveError(error: ArchiveError): number {
+  return error.reason === 'invalid' ? 400 : 413
 }
 
 const MB = 1024 * 1024
@@ -264,13 +274,14 @@ function throwInflateCapError(reason: 'entry' | 'total', entryName: string): nev
  * When `prepareRootFolder` is provided it takes precedence over
  * `rootFolderSegments`: it runs once, only after the caps have been proven and
  * only when at least one safe entry exists, and extraction lands under the
- * segments it returns. Before inserting a deduplicated root, the callback must
- * pass its final segments to the supplied validator so the complete destination
- * path is rejected before any folder mutation. `materializedRootFolderCount`
- * must equal the number of folders that callback will create, so the
- * `maxMaterializedItems` pre-check (files + implied folders + root folders)
- * counts them and rejects an over-limit archive before the callback materializes
- * anything.
+ * segments it returns. It must create exactly one folder, and must pass its
+ * final segments to the supplied validator before inserting it so the complete
+ * destination path is rejected before any folder mutation. That one folder is
+ * counted by the `maxMaterializedItems` pre-check (files + implied folders +
+ * root folder), which rejects an over-limit archive before the callback
+ * materializes anything. That cap always applies — it defaults to
+ * {@link MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} — because the file count alone
+ * does not bound folder creation.
  *
  * Filesystem-noise entries (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are extracted
  * verbatim unless `skipNoiseEntries` is set — the HTTP decompress route preserves
@@ -287,7 +298,6 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     prepareRootFolder?: (
       validateRootFolderSegments: (rootFolderSegments: string[]) => void
     ) => Promise<string[]>
-    materializedRootFolderCount?: number
     maxMaterializedItems?: number
     skipNoiseEntries?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
@@ -299,8 +309,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     principal,
     rootFolderSegments = [],
     prepareRootFolder,
-    materializedRootFolderCount = 0,
-    maxMaterializedItems,
+    maxMaterializedItems = MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
     skipNoiseEntries = false,
     secretProvenance = { status: 'unknown' },
     notifyWorkspaceChange = true,
@@ -366,23 +375,28 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   }
   validateRootFolderSegments(rootFolderSegments)
 
-  if (maxMaterializedItems !== undefined) {
-    const folderPaths = new Set<string>()
-    for (const { segments } of safeEntries) {
-      for (let depth = 1; depth < segments.length; depth += 1) {
-        folderPaths.add(segments.slice(0, depth).join('\0'))
-      }
+  const impliedFolderPaths = new Set<string>()
+  for (const { segments } of safeEntries) {
+    let prefix = ''
+    for (let depth = 0; depth < segments.length - 1; depth += 1) {
+      prefix += `\0${segments[depth]}`
+      impliedFolderPaths.add(prefix)
     }
-    const materializedItems =
-      safeEntries.length +
-      folderPaths.size +
-      (safeEntries.length > 0 ? materializedRootFolderCount : 0)
-    if (materializedItems > maxMaterializedItems) {
-      throw new ArchiveError(
-        'too_many_entries',
-        `Archive would create ${materializedItems} files and folders; the maximum is ${maxMaterializedItems}.`
-      )
-    }
+  }
+  /**
+   * Bounds the whole output tree, not just the file count: 1000 entries nested 64 deep imply
+   * far more folders than files, and nothing else caps folder creation. `prepareRootFolder`
+   * contributes exactly one more folder when it runs.
+   */
+  const materializedItems =
+    safeEntries.length +
+    impliedFolderPaths.size +
+    (safeEntries.length > 0 && prepareRootFolder ? 1 : 0)
+  if (materializedItems > maxMaterializedItems) {
+    throw new ArchiveError(
+      'too_many_entries',
+      `Archive would create ${materializedItems} files and folders; the maximum is ${maxMaterializedItems}.`
+    )
   }
 
   // Cheap declared-size fast-reject for honestly-declared archives.
@@ -412,7 +426,10 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     safeEntries.length > 0 && prepareRootFolder
       ? await prepareRootFolder(validateRootFolderSegments)
       : rootFolderSegments
-  validateRootFolderSegments(resolvedRootFolderSegments)
+  // Re-check what the callback actually returned; identical segments were proven above.
+  if (resolvedRootFolderSegments !== rootFolderSegments) {
+    validateRootFolderSegments(resolvedRootFolderSegments)
+  }
 
   // Pass 2 — extract: the archive is proven within caps; inflate again and upload.
   // Uploads themselves can still fail mid-loop (storage/DB errors, quota crossed

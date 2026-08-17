@@ -152,8 +152,6 @@ describe('extractWorkspaceFile', () => {
       principal,
       rootFolderSegments: ['Projects', 'Imports', 'bundle'],
       prepareRootFolder: expect.any(Function),
-      materializedRootFolderCount: 1,
-      maxMaterializedItems: 5000,
       skipNoiseEntries: true,
       secretProvenance: { status: 'exact', entries: [] },
       notifyWorkspaceChange: false,

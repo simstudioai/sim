@@ -59,6 +59,7 @@ import {
   MAX_ARCHIVE_CENTRAL_DIR_RECORDS,
   MAX_ARCHIVE_ENTRY_BYTES,
 } from '@/lib/uploads/archive'
+import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 
 const TEST_PRINCIPAL = {
   kind: 'session',
@@ -651,7 +652,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
         workspaceId: 'ws',
         principal: TEST_PRINCIPAL,
         prepareRootFolder,
-        materializedRootFolderCount: 1,
         maxMaterializedItems: 2,
       })
     ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'too_many_entries' })
@@ -665,7 +665,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
         workspaceId: 'ws',
         principal: TEST_PRINCIPAL,
         prepareRootFolder,
-        materializedRootFolderCount: 1,
         maxMaterializedItems: 3,
       })
     ).resolves.toMatchObject({ extracted: [expect.objectContaining({ name: 'file.txt' })] })
@@ -694,7 +693,6 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
           workspaceId: 'ws',
           principal: TEST_PRINCIPAL,
           prepareRootFolder,
-          materializedRootFolderCount: 1,
           maxMaterializedItems: 5000,
         })
       ).rejects.toMatchObject({
@@ -732,6 +730,58 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     })
 
     expect(prepareRootFolder).not.toHaveBeenCalled()
+    expect(mockEnsureFolder).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('applies the workspace bulk limit by default, so every caller is bounded', async () => {
+    // 1000 files, each under six folders unique to it: 7000 materialized items from an entry
+    // count that is itself within MAX_ARCHIVE_ENTRIES. No caller opts in to this cap.
+    const entries: Record<string, string> = {}
+    for (let index = 0; index < 1000; index += 1) {
+      entries[`a${index}/b/c/d/e/f/file.txt`] = 'x'
+    }
+    const buffer = await buildZip(entries)
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+      })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      reason: 'too_many_entries',
+      message: expect.stringContaining(`the maximum is ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS}`),
+    })
+
+    expect(mockEnsureFolder).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  it('re-validates the segments prepareRootFolder actually returned, before any upload', async () => {
+    const buffer = await buildZip({ 'nested/file.txt': 'x' })
+    // A callback that validates one path and returns a different, invalid one. The callee
+    // cannot trust the callback to have checked what it returns, so it re-checks itself.
+    const prepareRootFolder = vi.fn(async (validate: (segments: string[]) => void) => {
+      validate(['bundle'])
+      return Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, (_, index) => `deep-${index}`)
+    })
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        prepareRootFolder,
+      })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      reason: 'invalid',
+      message: expect.stringContaining(
+        `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`
+      ),
+    })
+
+    expect(prepareRootFolder).toHaveBeenCalledOnce()
     expect(mockEnsureFolder).not.toHaveBeenCalled()
     expect(mockUpload).not.toHaveBeenCalled()
   })

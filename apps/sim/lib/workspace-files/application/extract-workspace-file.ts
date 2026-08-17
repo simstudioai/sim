@@ -22,16 +22,16 @@ import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/appl
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 
 const logger = createLogger('ExtractWorkspaceFile')
 const EXTRACTION_LEASE_TTL_SECONDS = 6 * 60
+/**
+ * Used only through `atomicallyClaim`/`release`, never `executeWithIdempotency`, so no
+ * result is ever stored — this is a lease, not a memoized operation.
+ */
 const extractionLeases = new IdempotencyService({
   namespace: 'workspace-file',
   ttlSeconds: EXTRACTION_LEASE_TTL_SECONDS,
-  inProgressTtlSeconds: EXTRACTION_LEASE_TTL_SECONDS,
-  retryFailures: true,
-  storeResultBody: false,
   forceStorage: 'database',
 })
 
@@ -91,7 +91,7 @@ async function withExtractionLease<T>(
 async function executeExtractWorkspaceFile(
   useCaseContext: ExtractWorkspaceFileUseCaseContext
 ): Promise<ExtractWorkspaceFileResult> {
-  const { principal, context } = useCaseContext
+  const { context } = useCaseContext
   return withExtractionLease(context.workspaceId, context.fileId, () =>
     extractWorkspaceFileContents(useCaseContext)
   )
@@ -147,8 +147,6 @@ async function extractWorkspaceFileContents({
         })
         return parseWorkspaceFileFolderDisplayPath(rootFolder.path)
       },
-      materializedRootFolderCount: 1,
-      maxMaterializedItems: MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
       skipNoiseEntries: true,
       secretProvenance,
       notifyWorkspaceChange: false,

@@ -45,6 +45,14 @@ import type {
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
 export const UPLOAD_SESSION_PART_SIZE = 8 * 1024 * 1024
+/**
+ * Single-PUT ceiling for the `local` provider. A local PUT is proxied through an app route
+ * rather than sent to object storage, so it must stay under the route's body limit; anything
+ * larger goes multipart, whose parts are already sized to fit. Kept equal to
+ * {@link UPLOAD_SESSION_PART_SIZE} but named separately so tuning part size for cloud
+ * throughput cannot silently move the local proxy threshold.
+ */
+export const UPLOAD_SESSION_LOCAL_PUT_MAX_BYTES = UPLOAD_SESSION_PART_SIZE
 export const UPLOAD_SESSION_MAX_PART_URLS = 100
 export const UPLOAD_SESSION_TTL_MS = 24 * 60 * 60 * 1000
 export const UPLOAD_SESSION_ASSET_MAX_BYTES = 5 * 1024 * 1024
@@ -218,7 +226,8 @@ export async function createUploadSession(
   }
 
   const provider = uploadStorageProvider()
-  const putMaxBytes = provider === 'local' ? UPLOAD_SESSION_PART_SIZE : UPLOAD_SESSION_PUT_MAX_BYTES
+  const putMaxBytes =
+    provider === 'local' ? UPLOAD_SESSION_LOCAL_PUT_MAX_BYTES : UPLOAD_SESSION_PUT_MAX_BYTES
   const method: UploadTransferMethod = params.fileSize <= putMaxBytes ? 'put' : 'multipart'
   const partSize = method === 'multipart' ? UPLOAD_SESSION_PART_SIZE : null
   const partCount =
@@ -627,16 +636,14 @@ export async function completeUploadSession<T>(params: {
       if (claimed.method === 'put') {
         throw new UploadSessionError('conflict', 'Uploaded object not found')
       }
-      const parts = validateProviderParts(
-        claimed,
-        await listMultipartProviderParts({
-          provider: claimed.storageProvider,
-          providerUploadId: claimed.providerUploadId,
-          uploadId: claimed.id,
-          key: claimed.finalKey,
-          context: claimed.storageContext,
-        })
-      )
+      const providerParts = await listMultipartProviderParts({
+        provider: claimed.storageProvider,
+        providerUploadId: claimed.providerUploadId,
+        uploadId: claimed.id,
+        key: claimed.finalKey,
+        context: claimed.storageContext,
+      })
+      const parts = validatedSortedProviderParts(claimed, providerParts)
       try {
         await completeMultipartProviderUpload({
           provider: claimed.storageProvider,
@@ -1038,7 +1045,7 @@ async function claimSession(
   return sessionFromRow(row, '')
 }
 
-function validateProviderParts(
+function validatedSortedProviderParts(
   session: UploadSessionRecord,
   parts: CompletedUploadPart[]
 ): CompletedUploadPart[] {
