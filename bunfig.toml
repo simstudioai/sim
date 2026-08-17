@@ -14,6 +14,12 @@ minimumReleaseAge = 604800
 # removing an entry while its pinned version is still inside the window blocks the bump
 # outright. The mermaid and js-yaml entries aged out on 2026-08-11 and 2026-08-07 and are
 # dropped here per that rule.
+# All eight @next/swc platform packages are listed even though package.json pins only four:
+# next declares all eight as its own optionalDependencies, so every one of them is resolved
+# into bun.lock regardless of which host runs the install. A gated optional dependency does
+# not fail the install — bun drops it silently — so omitting the musl and win32 entries here
+# would quietly strip them from the lockfile, and the Alpine devcontainer and any Windows
+# machine would then have no SWC binary to resolve.
 minimumReleaseAgeExcludes = [
   "@typescript/native-preview",
   "next",
@@ -21,7 +27,11 @@ minimumReleaseAgeExcludes = [
   "@next/swc-darwin-arm64",
   "@next/swc-darwin-x64",
   "@next/swc-linux-arm64-gnu",
+  "@next/swc-linux-arm64-musl",
   "@next/swc-linux-x64-gnu",
+  "@next/swc-linux-x64-musl",
+  "@next/swc-win32-arm64-msvc",
+  "@next/swc-win32-x64-msvc",
 ]
 
 [run]
