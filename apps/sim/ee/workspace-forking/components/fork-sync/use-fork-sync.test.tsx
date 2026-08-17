@@ -2,11 +2,8 @@
  * @vitest-environment jsdom
  *
  * Coverage for the payload {@link useForkSync} actually submits, not just the helpers it calls.
- * `dependent-value.test.ts` proves `submittedDependentValue` omits a field an in-block parent
- * re-pick invalidated; nothing there proves the hook USES it. Reverting the hook back to
- * `dependentValueFor` re-introduces the P0 - a `{ value: '' }` written over the target's stored
- * configuration - while every unit test stays green, so these tests assert on the submitted
- * bodies and on the derived `dirty` / `syncDisabled` gates instead.
+ * The tests distinguish a genuine provider change, which must clear unresolved descendants,
+ * from a provider undo, which must restore them before Save or Sync derives its payload.
  */
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -48,7 +45,6 @@ vi.mock('@/ee/workspace-forking/hooks/workspace-fork', () => ({
 
 import {
   applyDependentRepick,
-  DEPENDENT_CLEARED_BY_PARENT,
   dependentKey,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import {
@@ -126,6 +122,11 @@ const UNTOUCHED_FIELD = dependent({
 })
 
 const DEPENDENTS = [PARENT_FIELD, CHILD_FIELD, CLEARED_FIELD, UNTOUCHED_FIELD]
+
+const mappedRepickContext = (previousValue: string) => ({
+  previousValue,
+  baselineValueFor: (field: ForkDependentReconfig) => field.currentValue,
+})
 
 function diffData(dependentReconfigs: ForkDependentReconfig[]) {
   return {
@@ -233,26 +234,34 @@ afterEach(() => {
 })
 
 describe('useForkSync dependent payload', () => {
-  it('omits a dependent an in-block parent re-pick invalidated, so the target keeps its stored value', () => {
+  it('submits an effective blank for an optional dependent invalidated by a real provider change', () => {
     const { get } = renderForkSync()
 
     act(() => {
       get().setReconfig((prev) =>
-        applyDependentRepick(prev, PARENT_FIELD, DEPENDENTS, 'sheet-2', 'sheet-1')
+        applyDependentRepick(
+          prev,
+          PARENT_FIELD,
+          DEPENDENTS,
+          'sheet-2',
+          mappedRepickContext('sheet-1')
+        )
       )
     })
 
-    expect(get().reconfig[dependentKey(CHILD_FIELD)]).toBe(DEPENDENT_CLEARED_BY_PARENT)
+    expect(get().reconfig[dependentKey(CHILD_FIELD)]).toBeNull()
 
     act(() => get().save())
 
     const submitted = savedDependentValues()
     expect(submitted?.map((entry) => entry.subBlockKey)).toEqual([
       PARENT_FIELD.subBlockKey,
+      CHILD_FIELD.subBlockKey,
       CLEARED_FIELD.subBlockKey,
       UNTOUCHED_FIELD.subBlockKey,
     ])
     expect(valueFor(submitted, PARENT_FIELD)).toBe('sheet-2')
+    expect(valueFor(submitted, CHILD_FIELD)).toBe('')
     expect(valueFor(submitted, UNTOUCHED_FIELD)).toBe('label-3')
   })
 
@@ -269,26 +278,35 @@ describe('useForkSync dependent payload', () => {
     expect(valueFor(submitted, CLEARED_FIELD)).toBe('')
   })
 
-  it('leaves the editor clean when only markers remain, so an undone re-pick is not savable', () => {
+  it('restores the dependent chain when the provider re-pick is undone', () => {
     const { get } = renderForkSync()
 
     act(() => {
       get().setReconfig((prev) =>
-        applyDependentRepick(prev, PARENT_FIELD, DEPENDENTS, 'sheet-2', 'sheet-1')
+        applyDependentRepick(
+          prev,
+          PARENT_FIELD,
+          DEPENDENTS,
+          'sheet-2',
+          mappedRepickContext('sheet-1')
+        )
       )
     })
     expect(get().dirty).toBe(true)
 
-    // The user puts the provider back to its stored value. Their own re-pick is no longer a
-    // change, and the marker it left on the child contributes nothing to the payload - so
-    // nothing is savable, even though `reconfig` is not empty.
     act(() => {
       get().setReconfig((prev) =>
-        applyDependentRepick(prev, PARENT_FIELD, DEPENDENTS, 'sheet-1', 'sheet-2')
+        applyDependentRepick(
+          prev,
+          PARENT_FIELD,
+          DEPENDENTS,
+          'sheet-1',
+          mappedRepickContext('sheet-2')
+        )
       )
     })
 
-    expect(get().reconfig[dependentKey(CHILD_FIELD)]).toBe(DEPENDENT_CLEARED_BY_PARENT)
+    expect(get().reconfig).toEqual({})
     expect(get().dirty).toBe(false)
 
     act(() => get().save())
@@ -314,30 +332,89 @@ describe('useForkSync dependent payload', () => {
           PARENT_FIELD,
           [PARENT_FIELD, requiredChild],
           'sheet-2',
-          'sheet-1'
+          mappedRepickContext('sheet-1')
         )
       )
     })
 
     expect(get().syncDisabled).toBe(true)
     expect(get().syncDisabledReason).toBe('Reconfigure all required fields first')
+
+    act(() => {
+      get().setReconfig((prev) =>
+        applyDependentRepick(
+          prev,
+          PARENT_FIELD,
+          [PARENT_FIELD, requiredChild],
+          'sheet-1',
+          mappedRepickContext('sheet-2')
+        )
+      )
+    })
+
+    expect(get().reconfig).toEqual({})
+    expect(get().syncDisabled).toBe(false)
   })
 
-  it('omits the marked dependent from the promote payload too', async () => {
+  it('submits the invalidated dependent as blank in the promote payload too', async () => {
     const { get } = renderForkSync()
 
     act(() => {
       get().setReconfig((prev) =>
-        applyDependentRepick(prev, PARENT_FIELD, DEPENDENTS, 'sheet-2', 'sheet-1')
+        applyDependentRepick(
+          prev,
+          PARENT_FIELD,
+          DEPENDENTS,
+          'sheet-2',
+          mappedRepickContext('sheet-1')
+        )
       )
     })
     await act(async () => {
       await get().sync()
     })
 
-    expect(promotedDependentValues()?.map((entry) => entry.subBlockKey)).not.toContain(
-      CHILD_FIELD.subBlockKey
-    )
+    expect(valueFor(promotedDependentValues(), CHILD_FIELD)).toBe('')
+  })
+
+  it('clears a stale nested Agent tool child when its provider changes', async () => {
+    const project = dependent({
+      subBlockKey: 'tools[0].projectId',
+      dependencyScope: 'tools[0]',
+      currentValue: 'project-old',
+      providesContextKey: 'projectId',
+    })
+    const issue = dependent({
+      subBlockKey: 'tools[0].issueKey',
+      dependencyScope: 'tools[0]',
+      currentValue: 'OLD-1',
+      consumesContextKeys: ['projectId'],
+    })
+    mockUseForkDiff.mockReturnValue({
+      data: diffData([project, issue]),
+      isError: false,
+      error: null,
+      isPlaceholderData: false,
+    })
+    const { get } = renderForkSync()
+
+    act(() => {
+      get().setReconfig((prev) =>
+        applyDependentRepick(
+          prev,
+          project,
+          [project, issue],
+          'project-new',
+          mappedRepickContext('project-old')
+        )
+      )
+    })
+    await act(async () => {
+      await get().sync()
+    })
+
+    expect(valueFor(promotedDependentValues(), project)).toBe('project-new')
+    expect(valueFor(promotedDependentValues(), issue)).toBe('')
   })
 })
 
@@ -347,7 +424,13 @@ describe('useForkSync post-sync reset', () => {
 
     act(() => {
       get().setReconfig((prev) =>
-        applyDependentRepick(prev, PARENT_FIELD, DEPENDENTS, 'sheet-2', 'sheet-1')
+        applyDependentRepick(
+          prev,
+          PARENT_FIELD,
+          DEPENDENTS,
+          'sheet-2',
+          mappedRepickContext('sheet-1')
+        )
       )
     })
     expect(get().dirty).toBe(true)
@@ -373,7 +456,13 @@ describe('useForkSync post-sync reset', () => {
 
     act(() => {
       get().setReconfig((prev) =>
-        applyDependentRepick(prev, PARENT_FIELD, DEPENDENTS, 'sheet-2', 'sheet-1')
+        applyDependentRepick(
+          prev,
+          PARENT_FIELD,
+          DEPENDENTS,
+          'sheet-2',
+          mappedRepickContext('sheet-1')
+        )
       )
     })
     await act(async () => {

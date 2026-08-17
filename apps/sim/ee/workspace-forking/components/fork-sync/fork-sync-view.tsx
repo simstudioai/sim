@@ -36,6 +36,7 @@ import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-s
 import {
   applyDependentRepick,
   type DependentConfigurationState,
+  type DependentReconfigState,
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
@@ -109,7 +110,7 @@ interface WorkflowDependents {
 function groupDependentsByWorkflow(
   workflows: ForkResourceUsage['workflows'],
   dependents: ForkDependentReconfig[],
-  reconfig: Record<string, string>,
+  reconfig: DependentReconfigState,
   state: DependentConfigurationState,
   showConfigured: boolean
 ): WorkflowDependents[] {
@@ -181,8 +182,8 @@ interface DependentSelectorProps {
   copying: boolean
   workspaceId: string
   sourceWorkspaceId: string
-  reconfig: Record<string, string>
-  setReconfig: Dispatch<SetStateAction<Record<string, string>>>
+  reconfig: DependentReconfigState
+  setReconfig: Dispatch<SetStateAction<DependentReconfigState>>
 }
 
 /**
@@ -204,10 +205,11 @@ function DependentSelector({
   reconfig,
   setReconfig,
 }: DependentSelectorProps) {
-  const effectiveValueIn = (f: ForkDependentReconfig, state: Record<string, string>) =>
+  const effectiveValueIn = (f: ForkDependentReconfig, state: DependentReconfigState) =>
     copying
       ? effectiveCopyDependentValue(f, state)
       : effectiveDependentValue(f, state, parentChanged)
+  const baselineValueFor = (f: ForkDependentReconfig) => effectiveValueIn(f, {})
   const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
   const { providedValues, providedContextKeys } = blockChainState(block, field, effectiveValue)
   // Disabled until every in-block parent it depends on has a value, so a child never queries
@@ -234,13 +236,10 @@ function DependentSelector({
         setReconfig((current) =>
           // The pre-pick value comes from the state being updated, so re-selecting the value
           // already shown is recognised as the no-op it is and leaves descendants intact.
-          applyDependentRepick(
-            current,
-            field,
-            block.fields,
-            value,
-            effectiveValueIn(field, current)
-          )
+          applyDependentRepick(current, field, block.fields, value, {
+            previousValue: effectiveValueIn(field, current),
+            baselineValueFor,
+          })
         )
       }
       title={field.title}
@@ -257,8 +256,8 @@ interface DependentWorkflowCardProps {
   copying: boolean
   workspaceId: string
   sourceWorkspaceId: string
-  reconfig: Record<string, string>
-  setReconfig: Dispatch<SetStateAction<Record<string, string>>>
+  reconfig: DependentReconfigState
+  setReconfig: Dispatch<SetStateAction<DependentReconfigState>>
 }
 
 /**
