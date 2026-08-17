@@ -1394,10 +1394,41 @@ describe('isIndexableConnectorFile', () => {
     }
   })
 
+  /**
+   * A document library holds the whole family, not just the headline extension:
+   * macro-enabled and template variants are the same OOXML packages, `xlsb` is the
+   * binary workbook, and the OpenDocument trio covers LibreOffice/Google exports.
+   */
+  it('accepts macro-enabled, template, binary and OpenDocument variants', () => {
+    for (const name of [
+      'report.docm',
+      'letterhead.dotx',
+      'model.xlsm',
+      'model.xlsb',
+      'budget.xltx',
+      'deck.pptm',
+      'brand.potx',
+      'notes.odt',
+      'sheet.ods',
+      'slides.odp',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
   it('rejects formats with no text to extract', () => {
     for (const name of ['logo.png', 'clip.mp4', 'archive.zip', 'binary.exe']) {
       expect(isIndexableConnectorFile(name)).toBe(false)
     }
+  })
+
+  /**
+   * No bundled library extracts RTF. `DocParser`'s plaintext branch would accept
+   * it and pass its control words through as prose, so it stays out of the set and
+   * is reported as an unsupported extension instead.
+   */
+  it('rejects rtf rather than indexing its control words as prose', () => {
+    expect(isIndexableConnectorFile('policy.rtf')).toBe(false)
   })
 
   it('rejects a name with no extension, and one ending in a bare dot', () => {
@@ -1423,6 +1454,15 @@ describe('extractConnectorText', () => {
 
     expect(content).toBe('extracted docx text')
     expect(mockParseBuffer).toHaveBeenCalledWith(buffer, 'docx')
+  })
+
+  it('passes each parsed variant to the parser under its own extension', async () => {
+    mockParseBuffer.mockResolvedValue({ content: 'text' })
+
+    for (const extension of ['docm', 'xlsm', 'xlsb', 'pptm', 'odt', 'ods', 'odp']) {
+      await extractConnectorText(Buffer.from('PK'), `file.${extension}`)
+      expect(mockParseBuffer).toHaveBeenLastCalledWith(expect.any(Buffer), extension)
+    }
   })
 
   /**

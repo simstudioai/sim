@@ -1,5 +1,4 @@
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
-import { parseBuffer } from '@/lib/file-parsers'
 import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -159,12 +158,39 @@ const CONNECTOR_TEXT_EXTENSIONS = [
 ] as const
 
 /**
- * Binary document formats extracted through the shared knowledge-base file parsers
- * — the same ones a manual upload of the file would use. Listing them separately
- * from {@link CONNECTOR_TEXT_EXTENSIONS} is what keeps this change additive: a
- * format that synced yesterday takes exactly the path it took yesterday.
+ * Binary document formats extracted through the shared knowledge-base file parsers.
+ * Listing them separately from {@link CONNECTOR_TEXT_EXTENSIONS} is what keeps this
+ * additive: a format that synced yesterday takes exactly the path it took yesterday.
+ *
+ * The set covers the variants a real document library actually holds, not just the
+ * headline extension of each family — macro-enabled (`docm`, `xlsm`, `pptm`) and
+ * template (`dotx`, `xltx`, `potx`) files are the same OOXML packages, the binary
+ * workbook (`xlsb`) and legacy BIFF workbook (`xls`) are read by SheetJS, and the
+ * OpenDocument trio covers LibreOffice and Google Docs exports.
+ *
+ * `rtf` is deliberately absent: no bundled library extracts it, and `DocParser`
+ * would pass its control words through as if they were prose. See
+ * {@link CONNECTOR_INDEXABLE_EXTENSIONS} for how an unsupported format surfaces.
  */
-const CONNECTOR_PARSED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'] as const
+const CONNECTOR_PARSED_EXTENSIONS = [
+  'pdf',
+  'doc',
+  'docx',
+  'docm',
+  'dotx',
+  'xls',
+  'xlsx',
+  'xlsm',
+  'xlsb',
+  'xltx',
+  'ppt',
+  'pptx',
+  'pptm',
+  'potx',
+  'odt',
+  'ods',
+  'odp',
+] as const
 
 /**
  * Every extension a file-based connector will download and index.
@@ -212,7 +238,11 @@ export class ConnectorTextExtractionError extends Error {
   }
 }
 
-/** Human-readable skip reason for a document whose text could not be extracted. */
+/**
+ * Human-readable skip reason for a document whose text could not be extracted.
+ * Legacy formats get the concrete remedy — re-saving genuinely fixes them, because
+ * the modern container is one the bundled parsers read.
+ */
 export function extractionFailedSkipReason(extension: string): string {
   const legacyFormats: Record<string, string> = { doc: 'DOCX', ppt: 'PPTX', xls: 'XLSX' }
   const modernFormat = legacyFormats[extension]
@@ -243,6 +273,13 @@ export async function extractConnectorText(buffer: Buffer, fileName: string): Pr
   }
 
   if (extension && (CONNECTOR_PARSED_EXTENSIONS as readonly string[]).includes(extension)) {
+    /**
+     * Imported here rather than at module scope: every connector imports this
+     * file, but only the file-based ones ever reach a binary document, and the
+     * parser registry pulls in SheetJS and friends. Mirrors how the parsers
+     * themselves defer `officeparser`/`mammoth`/`unpdf`.
+     */
+    const { parseBuffer } = await import('@/lib/file-parsers')
     const result = await parseBuffer(buffer, extension)
     if (result.metadata?.degraded || !result.content.trim()) {
       throw new ConnectorTextExtractionError(fileName, extension)
