@@ -70,12 +70,22 @@ export interface SubblockIdMigration {
  * body onto `readFields` would send it as `sysparm_fields`, which is exactly
  * the cross-space leak the rename closed.
  *
- * A projection is a plain field list, so anything opening as JSON is not one.
+ * A body is JSON and a projection is a bare comma-separated field list, which
+ * is never valid JSON — so parsing is the whole test. Checking for a `{` or `[`
+ * prefix instead would miss a stored scalar body like `true` or `"value"`.
+ * Ambiguity resolves to "not a projection", leaving the value on `fields` where
+ * the Create/Update control still owns it.
  */
 function isFieldProjection(value: unknown): boolean {
   if (typeof value !== 'string') return false
   const trimmed = value.trim()
-  return trimmed !== '' && !trimmed.startsWith('{') && !trimmed.startsWith('[')
+  if (trimmed === '') return false
+  try {
+    JSON.parse(trimmed)
+    return false
+  } catch {
+    return true
+  }
 }
 
 /**

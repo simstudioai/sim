@@ -578,6 +578,33 @@ describe('migrateSubblockIds', () => {
       expect(blocks.b1.subBlocks.fields.value).toBe(body)
     })
 
+    /**
+     * A scalar body carries no `{` or `[`, so a prefix check would have read it
+     * as a field list. Parsing is what separates the two spaces.
+     */
+    it.each([
+      ['a boolean', 'true'],
+      ['a quoted string', '"short_description"'],
+      ['a number', '42'],
+      ['null', 'null'],
+    ])('leaves %s under fields rather than promoting it to a projection', (_label, body) => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'servicenow',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_read_record' },
+            fields: { id: 'fields', type: 'code', value: body },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.readFields).toBeUndefined()
+      expect(blocks.b1.subBlocks.fields.value).toBe(body)
+    })
+
     it('leaves a JSON array value under fields as well', () => {
       const input: Record<string, BlockState> = {
         b1: makeBlock({
