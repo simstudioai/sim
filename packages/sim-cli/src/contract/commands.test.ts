@@ -175,4 +175,22 @@ describe('folder-path fields', () => {
     }
     expect(undecoded).toEqual([])
   })
+
+  it('keeps the provider catalogue to what you scan to choose one', () => {
+    // Inferred, this listed eleven columns: the detail-view fields
+    // (`docsUrl`, `helpText`, `requiresClientGeneratedCredentialId`) pushed the
+    // table well past a terminal and read as empty on every OAuth row.
+    const columns = CLI_CONTRACT.listCredentialProviders?.columns ?? []
+    const paths = columns.map((column) => column.path ?? column.header)
+
+    expect(columns.length).toBeLessThanOrEqual(7)
+    for (const detail of ['docsUrl', 'helpText', 'requiresClientGeneratedCredentialId', 'fields']) {
+      expect(paths).not.toContain(detail)
+    }
+    // Both ids stay: `credentials connect` names an OAuth provider by
+    // `serviceId`, `credentials create` matches a service account on
+    // `providerId`, and the catalogue is where you look either up.
+    expect(paths).toContain('serviceId')
+    expect(paths).toContain('providerId')
+  })
 })

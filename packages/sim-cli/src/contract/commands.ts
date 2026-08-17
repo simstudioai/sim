@@ -435,6 +435,26 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },
+  // Inferred, this was eleven columns wide, four of them belonging to a detail
+  // view rather than a catalogue: `docsUrl`, `helpText`,
+  // `requiresClientGeneratedCredentialId` and the nested `fields` are what you
+  // read once you have chosen a provider, not what you scan to choose one.
+  //
+  // Both ids stay, because the next command takes one or the other and which
+  // depends on the row: `credentials connect` names an OAuth provider by
+  // `serviceId`, while `credentials create` matches a service-account provider
+  // on `providerId`. Each is empty on the kind of row that does not use it.
+  listCredentialProviders: {
+    columns: [
+      { header: 'type' },
+      { header: 'service', path: 'serviceId' },
+      { header: 'provider', path: 'providerId' },
+      { header: 'name' },
+      { header: 'family', path: 'providerFamily' },
+      { header: 'available', format: 'bool' },
+      { header: 'description' },
+    ],
+  },
   listSecrets: {
     columns: [
       { header: 'name' },

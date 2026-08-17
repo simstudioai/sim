@@ -20,7 +20,7 @@ Non-secret settings live in `~/.sim/config`:
 
 ```ini
 [default]
-endpoint = https://sim.ai
+endpoint = https://www.sim.ai
 workspace = ws_abc123
 output = table
 
@@ -58,7 +58,7 @@ Each setting resolves independently, first match wins:
 | 1 | Command-line flag (`--endpoint`, `--workspace`, `--output`) |
 | 2 | Environment (`SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT`) |
 | 3 | `~/.sim/config` / `~/.sim/credentials` for the selected profile |
-| 4 | Built-in default (`https://sim.ai`, `table`) |
+| 4 | Built-in default (`https://www.sim.ai`, `table`) |
 
 Formats are listed under [Output formats](#output-formats).
 
