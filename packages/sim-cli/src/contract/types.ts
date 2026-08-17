@@ -35,6 +35,15 @@ export interface FlagSpec {
   /** Short alias, e.g. `w` for `--workspace`. */
   short?: string
   /**
+   * Flag names this field used to answer to, such as `predicate` before the
+   * count command's filter was spelled the same as its six siblings'.
+   *
+   * Kept only so an existing script does not break: hidden from help and from
+   * the generated docs, warns on stderr, and refuses when combined with the
+   * current spelling rather than silently picking one.
+   */
+  renamedFrom?: readonly string[]
+  /**
    * Accept one or more space-separated values, or `@path` / `@-` with one
    * value per line.
    *
@@ -52,10 +61,32 @@ export interface FlagSpec {
   json?: boolean
   /** Overrides the help text otherwise taken from the OpenAPI description. */
   describe?: string
+  /**
+   * Value sent when the caller passes nothing, in place of the server's default.
+   *
+   * For a command whose declared `columns` read a field the API only sends at a
+   * heavier setting: `logs list` shows `workflow.name`, which `details=basic`
+   * omits, so the primary debugging table had a permanently empty column. It is
+   * a request default, not a flag default — whatever the caller types wins,
+   * including a deliberate `--details basic`.
+   */
+  requestDefault?: string
   /** Accepted values when the generated descriptor cannot recover an enum. */
   choices?: readonly string[]
   /** Expose a string-backed API boolean as a conventional terminal toggle. */
   boolean?: true
+  /**
+   * This field carries a folder path, so percent-encode each of its segments.
+   *
+   * The API's canonical folder path is percent-encoded per segment, which made
+   * the terminal the only place a folder had to be spelled `/Folder%201`
+   * instead of the `/Folder 1` shown everywhere else; typing what you see was
+   * rejected with a message that never mentioned encoding. Marked rather than
+   * inferred from the field's name: `files upload` and `knowledge documents
+   * upload` take a `path` that is a LOCAL file, and encoding one of those would
+   * break the read.
+   */
+  folderPath?: true
   /**
    * Never expose this field as a flag, and never send it.
    *
@@ -85,8 +116,24 @@ export interface ColumnSpec {
   header: string
   /** Dot path into the row. Defaults to `header`. */
   path?: string
-  /** Rendering hint; `auto` inspects the value. */
-  format?: 'auto' | 'timestamp' | 'bytes' | 'duration' | 'bool' | 'cost' | 'count' | 'trace-count'
+  /**
+   * Rendering hint; `auto` inspects the value.
+   *
+   * `folder-path` is the display half of `FlagSpec.folderPath`: it undoes the
+   * wire encoding for the human formats, so a folder no longer prints as
+   * `/cli-test-a/nested%20one` in the same row as the `nested one` the server
+   * put in the adjacent name column.
+   */
+  format?:
+    | 'auto'
+    | 'timestamp'
+    | 'bytes'
+    | 'duration'
+    | 'bool'
+    | 'cost'
+    | 'count'
+    | 'trace-count'
+    | 'folder-path'
 }
 
 export interface BodyVariantSpec {
@@ -121,6 +168,16 @@ export interface CommandSpec {
   groupDefault?: boolean
   /** Alternate leaf command names, such as `ls` for `list`. */
   aliases?: readonly string[]
+  /**
+   * Full command paths this operation used to answer to, such as
+   * `tables count create` before it became `tables rows count`.
+   *
+   * Unlike {@link aliases}, these are kept only so an existing script does not
+   * break: each is hidden from help and from the generated docs, and warns on
+   * stderr with the current spelling. Give the whole path, because a rename can
+   * move a command between groups rather than just retitle its leaf.
+   */
+  renamedFrom?: readonly string[]
   /** Route path parameters exposed as required named options instead of positionals. */
   pathFlags?: Record<string, PathFlagSpec>
   /** Friendly placeholders for route path parameters that remain positional. */

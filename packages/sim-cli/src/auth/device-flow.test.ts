@@ -96,6 +96,28 @@ describe('pollForKey', () => {
   it('gives up on a 403', async () => {
     await expect(poll([() => reply(403, { error: 'Forbidden' })])).rejects.toThrow('Forbidden')
   })
+
+  it('asks fetch not to follow a redirect', async () => {
+    // Following one rewrites this POST into a bodyless GET — which the route
+    // answers 405, a status nothing in the login chose — and hands `pollSecret`
+    // to whatever origin `Location` names.
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(reply(200, COMPLETE))
+    await pollForKey(ENDPOINT, createAuthRequest())
+
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'manual' })
+  })
+
+  it('explains a redirected endpoint instead of failing on the method it became', async () => {
+    await expect(
+      poll([
+        () =>
+          new Response(null, {
+            status: 301,
+            headers: { location: 'https://www.sim.test/api/cli/auth/poll' },
+          }),
+      ])
+    ).rejects.toThrow(/redirected the login poll to https:\/\/www\.sim\.test/)
+  })
 })
 
 describe('createAuthRequest', () => {

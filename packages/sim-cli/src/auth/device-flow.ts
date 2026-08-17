@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
-import { SimApiError } from '../http/client'
+import { REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -105,6 +105,45 @@ interface PollResponse {
   workspaceBound?: boolean
 }
 
+/** The route the login poll targets; also the suffix a redirect target is measured against. */
+const POLL_PATH = '/api/cli/auth/poll'
+
+/**
+ * Explains a redirected poll rather than following it.
+ *
+ * The same policy `SimClient` applies, for the same two reasons and one more:
+ * a 301/302/303 rewrites this POST into a bodyless GET, which the route answers
+ * `405` — the login then fails naming a method nobody chose — and a redirect
+ * that IS followed hands `pollSecret`, the one redeemable value in the handoff,
+ * to whatever origin `Location` names.
+ */
+function toRedirectError(endpoint: string, response: Response): SimApiError {
+  const location = response.headers.get('location')?.trim()
+  let target: URL | null = null
+  if (location) {
+    try {
+      target = new URL(location, endpoint)
+    } catch {
+      target = null
+    }
+  }
+
+  if (!target) {
+    return new SimApiError(
+      `${endpoint} answered the login poll with HTTP ${response.status} and no usable redirect target. Check the endpoint.`,
+      response.status
+    )
+  }
+  const refusal = `${endpoint} redirected the login poll to ${target.href}. The CLI does not follow redirects, because a redirect drops the request body and would carry the login secret to another origin.`
+  const suggested = redirectEndpoint(endpoint, POLL_PATH, target)
+  return new SimApiError(
+    suggested
+      ? `${refusal} Re-run with --endpoint ${suggested}, or run: sim configure --set-endpoint ${suggested}`
+      : refusal,
+    response.status
+  )
+}
+
 /**
  * Polls until the user approves in the browser.
  *
@@ -126,17 +165,20 @@ export async function pollForKey(
 
     let response: Response | null = null
     try {
-      response = await fetch(new URL('/api/cli/auth/poll', endpoint), {
+      response = await fetch(new URL(POLL_PATH, endpoint), {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
         signal,
+        redirect: 'manual',
       })
     } catch {
       response = null
     }
 
     if (response) {
+      if (REDIRECT_STATUSES.has(response.status)) throw toRedirectError(endpoint, response)
+
       const raw = await response.text()
 
       if (!response.ok) {

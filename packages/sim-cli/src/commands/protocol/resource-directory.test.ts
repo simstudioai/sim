@@ -144,6 +144,76 @@ describe('resource directory', () => {
     })
   })
 
+  it('encodes the path both commands take, as every contract-driven flag does', async () => {
+    // These two build their own request, so `buildRequest`'s encoding never ran
+    // for them: `--folder '/Folder 1'` worked while `ls '/Folder 1'` was
+    // rejected as non-canonical, and `mkdir` disagreed with the `folders
+    // create` the README calls its long form.
+    mockRequest.mockResolvedValue({ data: [], nextCursor: null })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await program().parseAsync(['node', 'sim', 'table', 'ls', '/Q1 (draft)'])
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
+      query: expect.objectContaining({ parentPath: '/Q1%20%28draft%29' }),
+    })
+
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: { folder: {} } })
+    await program().parseAsync(['node', 'sim', 'table', 'mkdir', '/Q1 (draft)'])
+    expect(mockRequest).toHaveBeenCalledWith('/api/v2/tables/folders', {
+      method: 'POST',
+      body: { workspaceId: 'ws_local', path: '/Q1%20%28draft%29' },
+    })
+  })
+
+  it('decodes folder paths for the human formats but leaves json on the wire form', async () => {
+    // `ls` builds its own columns, so the contract's `folder-path` display
+    // format never reached it: the sibling `folders list` printed `/Folder 2`
+    // while `ls` printed `/Folder%202` for the same folder, one column away
+    // from the decoded `name` it prints beside it.
+    mockRequest.mockImplementation(async (path: string) => {
+      if (path === '/api/v2/tables/folders') {
+        return {
+          data: [
+            {
+              name: 'New folder',
+              path: '/Folder%202/New%20folder',
+              parentPath: '/Folder%202',
+              updatedAt: '2026-08-02T00:00:00.000Z',
+            },
+          ],
+          nextCursor: null,
+        }
+      }
+      return {
+        data: [
+          {
+            id: 'tbl_1',
+            name: 'Revenue',
+            folderPath: '/Folder%202',
+            updatedAt: '2026-08-03T00:00:00.000Z',
+          },
+        ],
+        nextCursor: null,
+      }
+    })
+
+    const logged: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
+
+    output.format = 'text'
+    await program().parseAsync(['node', 'sim', 'table', 'ls', '/Folder 2'])
+    expect(logged.join('\n')).toContain('/Folder 2/New folder')
+    expect(logged.join('\n')).not.toContain('%20')
+
+    logged.length = 0
+    output.format = 'json'
+    await program().parseAsync(['node', 'sim', 'table', 'ls', '/Folder 2'])
+    const entries = JSON.parse(logged[0]) as Array<{ kind: string; ref: string }>
+    expect(entries.find((entry) => entry.kind === 'folder')?.ref).toBe('/Folder%202/New%20folder')
+    expect(entries.find((entry) => entry.kind === 'table')?.ref).toBe('tbl_1')
+  })
+
   it('rejects extra directory arguments instead of silently ignoring them', async () => {
     await expect(
       program().parseAsync(['node', 'sim', 'file', 'ls', 'Reports', 'ignored'])
