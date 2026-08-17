@@ -34,6 +34,8 @@ import {
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
+  isDependentClearedByParent,
+  submittedDependentValue,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import {
   forkDyingTriggerUrls,
@@ -685,7 +687,11 @@ export function useForkSync(params: {
   // effective value: re-pick, stored, or blank-after-change) or copy-selected (re-pick, stored,
   // or the source reference; promote translates a source document id to its copied counterpart
   // at write time). The server persists this verbatim as the stored mapping; fields whose
-  // parent is unresolved are omitted (they can't be configured). This is the whole "what's in
+  // parent is unresolved are omitted (they can't be configured), as are fields an in-block
+  // parent re-pick invalidated and the user never re-picked - submitting those blank writes an
+  // explicit `''` override into the target draft (see `applyDependentOverrides`), which on the
+  // paths `clearDependentsOnRemap` does not cover would clear a value nobody chose to clear.
+  // `DEPENDENT_CLEARED_BY_PARENT` documents which paths those are. This is the whole "what's in
   // the mapping goes in" contract, shared by Save and Sync so the two persist identically.
   const buildDependentValues = () =>
     dependentReconfigs.flatMap((field) => {
@@ -693,12 +699,17 @@ export function useForkSync(params: {
       if (!parent) return []
       const resolution = resolutionFor(parent)
       if (resolution === 'unresolved') return []
+      const value = submittedDependentValue(field, reconfig, {
+        copying: resolution === 'copied',
+        parentChanged: shouldReconfigureEntry(parent, targets),
+      })
+      if (value === undefined) return []
       return [
         {
           workflowId: field.targetWorkflowId,
           blockId: field.targetBlockId,
           subBlockKey: field.subBlockKey,
-          value: dependentValueFor(field, parent, resolution),
+          value,
         },
       ]
     })
@@ -723,9 +734,12 @@ export function useForkSync(params: {
 
   // A dependent re-pick that differs from its stored value also dirties the editor. A re-pick
   // under a changed parent is covered by `targetsDirty` (the parent override is the change).
+  // A field merely invalidated by a parent re-pick is not a change of its own - it contributes
+  // nothing to the payload, so it must not make an otherwise untouched editor savable.
   const reconfigDirty = useMemo(
     () =>
       dependentReconfigs.some((field) => {
+        if (isDependentClearedByParent(field, reconfig)) return false
         const repicked = reconfig[dependentKey(field)]
         return repicked !== undefined && repicked !== field.currentValue
       }),
@@ -921,6 +935,13 @@ export function useForkSync(params: {
         toast.error('Sync did not complete')
         return
       }
+
+      // The run committed the in-session choices: the mapping entries and dependent values are
+      // stored, so keeping the overrides would leave every touched field's card on screen against
+      // a freshly refetched diff - and a `DEPENDENT_CLEARED_BY_PARENT` marker would keep rendering
+      // blank over the value the sync just stored. Drop them exactly as a successful Save does.
+      setTargets({})
+      setReconfig({})
 
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
