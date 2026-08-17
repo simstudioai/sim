@@ -420,3 +420,27 @@ describe('label resources', () => {
     expect(depth).toBeLessThanOrEqual(32)
   })
 })
+
+describe('error envelope robustness', () => {
+  /**
+   * Jotform quotes `responseCode` on some endpoints and not others. A
+   * `typeof === 'number'` test silently skips the check on the quoted ones, turning
+   * an auth failure into a successful tool result with empty output.
+   */
+  it('throws on a quoted non-2xx responseCode', async () => {
+    await expect(
+      parseJotformResponse(
+        jsonResponse({ responseCode: '401', message: 'Invalid API Key' }),
+        'Jotform Get Form'
+      )
+    ).rejects.toThrow('Jotform Get Form error (401): Invalid API Key')
+  })
+
+  /** An upstream gateway can answer with an HTML page instead of the JSON envelope. */
+  it('caps a non-JSON error body instead of inlining the whole page', async () => {
+    const page = `<html>${'x'.repeat(5000)}</html>`
+    await expect(
+      parseJotformResponse(new Response(page, { status: 502 }), 'Jotform Get Form')
+    ).rejects.toThrow(/^Jotform Get Form error \(502\): .{1,320}$/s)
+  })
+})

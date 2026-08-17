@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 
 /**
  * Jotform serves the same REST surface from three regional hosts, and an API key
@@ -75,11 +76,17 @@ export async function parseJotformResponse(
   }
 
   const message = typeof data?.message === 'string' ? data.message : null
-  const responseCode = typeof data?.responseCode === 'number' ? data.responseCode : null
+  /* Jotform types `responseCode` inconsistently across endpoints, quoting it on some,
+     so a `typeof === 'number'` test would skip the check on the quoted ones. */
+  const responseCode = toNumberOrNull(data?.responseCode)
 
   if (!response.ok || (responseCode !== null && (responseCode < 200 || responseCode >= 300))) {
     const status = responseCode ?? response.status
-    throw new Error(`${label} error (${status}): ${message || text || response.statusText}`)
+    /* An error body is not always the documented JSON envelope — an upstream gateway
+       can return an HTML page — so the raw fallback is capped before it becomes the
+       error message. */
+    const detail = message || truncate(text, 300) || response.statusText
+    throw new Error(`${label} error (${status}): ${detail}`)
   }
 
   const rawResultSet = data?.resultSet as Record<string, unknown> | undefined
