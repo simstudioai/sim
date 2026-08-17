@@ -8,6 +8,7 @@ import type {
   WorkflowSearchResourceMeta,
 } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
+import { normalizeName, REFERENCE } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import type { SelectorContext } from '@/hooks/selectors/types'
 
@@ -65,6 +66,58 @@ export function parseInlineReferences(value: string): ParsedInlineReference[] {
   }
 
   return references.sort((a, b) => a.range.start - b.range.start)
+}
+
+/**
+ * Indexes a workflow's block names by the prefix their references carry, so a
+ * parsed reference can be read back as the name the canvas shows.
+ *
+ * Block names are unique by normalized form, so a prefix identifies at most one
+ * block. Blank names are skipped rather than mapped to an empty prefix.
+ */
+export function buildBlockNamesByReferencePrefix(
+  blocks: Record<string, { name?: string }>
+): Map<string, string> {
+  const namesByPrefix = new Map<string, string>()
+
+  for (const block of Object.values(blocks)) {
+    if (typeof block.name !== 'string') continue
+    const prefix = normalizeName(block.name)
+    if (prefix) namesByPrefix.set(prefix, block.name)
+  }
+
+  return namesByPrefix
+}
+
+/**
+ * Rewrites a block reference's search text into the name the block is shown
+ * under, so searching reads the same as the canvas does.
+ *
+ * A reference stores its target as `normalizeName(block.name)` - lowercased with
+ * whitespace and dots stripped - so a block headed "Send Email" is written
+ * `<sendemail.content>`. Searching the two words the card shows found the block
+ * itself but none of its references; only the run-together form found those.
+ *
+ * Only the prefix is rewritten. What follows it is the block's output path, not
+ * a name. A prefix that names no block - a system prefix like `loop`, or a
+ * reference left behind by a deleted block - is left exactly as written, and so
+ * is an environment reference, whose search text is its key rather than a name.
+ */
+export function resolveInlineReferenceSearchText(
+  reference: ParsedInlineReference,
+  blockNamesByReferencePrefix: ReadonlyMap<string, string>
+): string {
+  if (reference.kind !== 'workflow-reference') return reference.searchText
+
+  const delimiterIndex = reference.searchText.indexOf(REFERENCE.PATH_DELIMITER)
+  const prefix =
+    delimiterIndex === -1 ? reference.searchText : reference.searchText.slice(0, delimiterIndex)
+  const blockName = blockNamesByReferencePrefix.get(normalizeName(prefix))
+  if (!blockName || blockName === prefix) return reference.searchText
+
+  return delimiterIndex === -1
+    ? blockName
+    : `${blockName}${reference.searchText.slice(delimiterIndex)}`
 }
 
 export function parseStructuredResourceReferences(
