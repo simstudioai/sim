@@ -70,16 +70,27 @@ export interface SubblockIdMigration {
  * body onto `readFields` would send it as `sysparm_fields`, which is exactly
  * the cross-space leak the rename closed.
  *
- * A body is JSON and a projection is a bare comma-separated field list, which
- * is never valid JSON — so parsing is the whole test. Checking for a `{` or `[`
- * prefix instead would miss a stored scalar body like `true` or `"value"`.
- * Ambiguity resolves to "not a projection", leaving the value on `fields` where
- * the Create/Update control still owns it.
+ * The test is a positive allowlist, not a check for body-shaped input, because
+ * a body is only reliably recognisable when it is well formed. A saved body can
+ * be a half-typed draft (`{"short_description": `) or carry an unquoted
+ * `<block.output>` reference, so neither "opens with a brace" nor "fails to
+ * parse as JSON" identifies one: the first misses a bare scalar body like
+ * `true`, the second misses both of those. Migrating one would move it to
+ * `readFields` AND drop the original key, losing the draft.
+ *
+ * A projection is a comma-separated list of ServiceNow field names, which are
+ * word characters plus the dot of a dotted walk. Anything carrying a brace,
+ * quote, colon, angle bracket or interior space fails that shape. `JSON.parse`
+ * then removes the bare scalars (`true`, `42`, `null`) that satisfy it by
+ * accident. Ambiguity resolves to "not a projection", leaving the value on
+ * `fields` where the Create/Update control still owns it.
  */
+const SERVICENOW_FIELD_LIST = /^[A-Za-z0-9_.]+(?:\s*,\s*[A-Za-z0-9_.]+)*$/
+
 function isFieldProjection(value: unknown): boolean {
   if (typeof value !== 'string') return false
   const trimmed = value.trim()
-  if (trimmed === '') return false
+  if (!SERVICENOW_FIELD_LIST.test(trimmed)) return false
   try {
     JSON.parse(trimmed)
     return false

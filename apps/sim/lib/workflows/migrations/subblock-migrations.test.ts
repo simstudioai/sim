@@ -605,6 +605,52 @@ describe('migrateSubblockIds', () => {
       expect(blocks.b1.subBlocks.fields.value).toBe(body)
     })
 
+    /**
+     * A saved body is not always well-formed JSON — it can be a half-typed
+     * draft or carry an unquoted `<block.output>` reference. Migrating one
+     * moves it to `readFields` AND drops the original key, so the draft is
+     * gone. The field-list shape is what rejects these; parseability cannot.
+     */
+    it.each([
+      ['a half-typed body', '{\n  "short_description": '],
+      ['an unquoted block reference', '{ "short_description": <agent.content> }'],
+      ['a trailing-comma body', '{ "priority": "1", }'],
+      ['a quoted field name', '"short_description"'],
+    ])('leaves %s under fields', (_label, body) => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'servicenow',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_read_record' },
+            fields: { id: 'fields', type: 'code', value: body },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.readFields).toBeUndefined()
+      expect(blocks.b1.subBlocks.fields.value).toBe(body)
+    })
+
+    it('still migrates a dotted-walk projection', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'servicenow',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_read_record' },
+            fields: { id: 'fields', type: 'short-input', value: 'number, cmdb_ci.name, sys_id' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.readFields.value).toBe('number, cmdb_ci.name, sys_id')
+    })
+
     it('leaves a JSON array value under fields as well', () => {
       const input: Record<string, BlockState> = {
         b1: makeBlock({
