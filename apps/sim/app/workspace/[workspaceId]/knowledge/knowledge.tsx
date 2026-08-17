@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChipDropdownOption } from '@sim/emcn'
-import { Button, ChipConfirmModal, ChipDropdown, Plus, Tooltip, toast } from '@sim/emcn'
-import { Database, FolderPlus, Pencil, Trash } from '@sim/emcn/icons'
+import { Button, ChipConfirmModal, ChipDropdown, Tooltip, toast } from '@sim/emcn'
+import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -220,8 +220,8 @@ export function Knowledge() {
   const canEditRef = useRef(canEdit)
   canEditRef.current = canEdit
 
-  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
-  const deleteKnowledgeBase = useDeleteKnowledgeBase(workspaceId)
+  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase()
+  const deleteKnowledgeBase = useDeleteKnowledgeBase()
   const bulkMoveKnowledgeBases = useBulkMoveKnowledgeBases(workspaceId)
   const bulkDeleteKnowledgeBases = useBulkDeleteKnowledgeBases(workspaceId)
 
@@ -694,14 +694,12 @@ export function Knowledge() {
     [selectedRowIds]
   )
 
-  const bulkDeleteLabel = useMemo(() => {
-    const count = selectedKnowledgeBaseIds.length + selectedFolderIds.length
-    const firstName =
-      selectedKnowledgeBaseIds.length > 0
-        ? knowledgeBasesRef.current.find((kb) => kb.id === selectedKnowledgeBaseIds[0])?.name
-        : foldersRef.current.find((folder) => folder.id === selectedFolderIds[0])?.name
-    return selectionLabel(count, firstName)
-  }, [selectedKnowledgeBaseIds, selectedFolderIds])
+  const bulkDeleteCount = selectedKnowledgeBaseIds.length + selectedFolderIds.length
+  const bulkDeleteFirstName =
+    selectedKnowledgeBaseIds.length > 0
+      ? knowledgeBases.find((kb) => kb.id === selectedKnowledgeBaseIds[0])?.name
+      : folders.find((folder) => folder.id === selectedFolderIds[0])?.name
+  const bulkDeleteLabel = selectionLabel(bulkDeleteCount, bulkDeleteFirstName)
 
   const handleRowClick = useCallback(
     (rowId: string) => {
@@ -1422,8 +1420,8 @@ export function Knowledge() {
         onOpenChange={(open) => {
           if (!open) setFolderPendingDelete(null)
         }}
-        srTitle='Delete folder'
-        title='Delete folder'
+        srTitle='Delete Folder'
+        title='Delete Folder'
         text={[
           'Are you sure you want to delete ',
           { text: folderPendingDelete?.name ?? 'this folder', bold: true },
@@ -1440,8 +1438,8 @@ export function Knowledge() {
       <ChipConfirmModal
         open={isBulkDeleteModalOpen}
         onOpenChange={setIsBulkDeleteModalOpen}
-        srTitle='Delete selected'
-        title='Delete selected'
+        srTitle='Delete Selected'
+        title='Delete Selected'
         text={[
           'Are you sure you want to delete ',
           { text: bulkDeleteLabel, bold: true },

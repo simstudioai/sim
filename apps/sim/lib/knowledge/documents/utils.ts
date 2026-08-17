@@ -47,7 +47,6 @@ function isRetryableErrorType(error: unknown): error is RetryableError {
 export function isRetryableError(error: unknown): boolean {
   if (!isRetryableErrorType(error)) return false
 
-  // Check for rate limiting status codes
   if (
     hasStatus(error) &&
     (error.status === 429 || error.status === 502 || error.status === 503 || error.status === 504)
@@ -55,7 +54,6 @@ export function isRetryableError(error: unknown): boolean {
     return true
   }
 
-  // Check for network-level errors (DNS, connection, timeout)
   const errorMessage = toError(error).message
   const lowerMessage = errorMessage.toLowerCase()
 
@@ -77,7 +75,6 @@ export function isRetryableError(error: unknown): boolean {
     return true
   }
 
-  // Check for rate limiting in error messages
   const rateLimitKeywords = [
     'rate limit',
     'rate_limit',
@@ -124,13 +121,11 @@ export async function retryWithExponentialBackoff<T>(
       lastError = toError(error)
       logger.warn(`Operation failed on attempt ${attempt + 1}`, { error })
 
-      // If this is the last attempt, throw the error
       if (attempt === maxRetries) {
         logger.error(`Operation failed after ${maxRetries + 1} attempts`, { error })
         throw lastError
       }
 
-      // Check if error is retryable
       if (!retryCondition(error as RetryableError)) {
         logger.warn('Error is not retryable, throwing immediately', { error })
         throw lastError
@@ -187,7 +182,6 @@ export async function fetchWithRetry(
   return retryWithExponentialBackoff(async () => {
     const response = await fetch(url, options)
 
-    // If response is not ok and status indicates rate limiting, throw an error
     if (!response.ok && isRetryableError({ status: response.status })) {
       const errorText = await response.text()
       const error: HTTPError = new Error(

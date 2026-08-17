@@ -327,6 +327,8 @@ async function fetchAllDocumentChunks(
   const limit = 100
 
   while (hasMore) {
+    /** Throw rather than break: a short list returned here would cache as the complete one. */
+    signal?.throwIfAborted()
     const response = await fetchKnowledgeChunks(
       {
         knowledgeBaseId,
@@ -403,10 +405,11 @@ export function useUpdateChunk() {
     mutationFn: updateChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
     },
   })
@@ -435,10 +438,15 @@ export function useDeleteChunk() {
     mutationFn: deleteChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -472,10 +480,15 @@ export function useCreateChunk() {
     mutationFn: createChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -512,10 +525,11 @@ export function useUpdateDocument() {
     mutationFn: updateDocument,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
     },
   })
@@ -619,7 +633,7 @@ async function createKnowledgeBase(params: CreateKnowledgeBaseParams): Promise<K
   return result.data
 }
 
-export function useCreateKnowledgeBase(workspaceId?: string) {
+export function useCreateKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -655,7 +669,7 @@ async function updateKnowledgeBase({
   return result.data
 }
 
-export function useUpdateKnowledgeBase(workspaceId?: string) {
+export function useUpdateKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -689,8 +703,11 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
+      /** `exact` for the reason {@link useBulkMoveKnowledgeBases} gives: a rename or folder
+       *  move touches the base record, never its documents or chunks. */
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -706,7 +723,7 @@ async function deleteKnowledgeBase({ knowledgeBaseId }: DeleteKnowledgeBaseParam
   })
 }
 
-export function useDeleteKnowledgeBase(workspaceId?: string) {
+export function useDeleteKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -750,10 +767,15 @@ export function useBulkChunkOperation() {
     mutationFn: bulkChunkOperation,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -785,10 +807,11 @@ export function useUpdateDocumentTags() {
     mutationFn: updateDocumentTags,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
     },
   })

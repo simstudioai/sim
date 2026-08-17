@@ -41,9 +41,10 @@ vi.mock('@/lib/billing/core/usage', () => ({
 
 import { MAX_KNOWLEDGE_BASES_PER_WORKSPACE } from '@/lib/knowledge/constants'
 import {
-  getKnowledgeBases,
+  getLegacyPersonalKnowledgeBases,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
+  listWorkspaceAndLegacyKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 
@@ -68,54 +69,95 @@ describe('getWorkspaceKnowledgeBases — bounded reads', () => {
 })
 
 /**
- * The listing query authorizes on current workspace membership, never on stale creator
- * identity: a user removed from a workspace must stop seeing knowledge bases they created
- * there. The creator fallback exists only for legacy knowledge bases with no `workspaceId`.
+ * Legacy knowledge bases predate workspaces and carry no `workspaceId`, so their creator is
+ * the only possible authority. Workspace-owned rows are read by `getWorkspaceKnowledgeBases`
+ * after an application use case authorized the workspace — this query must never widen to
+ * them, and must never re-derive workspace access from a `permissions` row, which would
+ * contradict an authorization that already passed.
  */
-describe('getKnowledgeBases — creator fallback is scoped to legacy non-workspace KBs', () => {
+describe('getLegacyPersonalKnowledgeBases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  /** Every disjunct that grants on `knowledgeBase.userId`, from the last select chain's WHERE. */
-  const capturedCreatorBranches = (): unknown[] => {
+  it('reads only the caller’s workspace-less rows', async () => {
+    await getLegacyPersonalKnowledgeBases('user-a', 'all')
+
     const [condition] = dbChainMockFns.where.mock.calls.at(-1) ?? []
-    const orNode = flattenMockConditions(condition).find((node) => node.type === 'or')
-    expect(orNode, 'WHERE clause has no or(...) branch').toBeDefined()
-    return (orNode?.conditions as unknown[]).filter((disjunct) =>
+    expect(
       hasMockCondition(
-        disjunct,
+        condition,
         (node) =>
           node.type === 'eq' &&
           node.left === schemaMock.knowledgeBase.userId &&
           node.right === 'user-a'
       )
-    )
-  }
-
-  /** The creator fallback must be the sole grant for legacy KBs and never reach workspace KBs. */
-  const expectCreatorBranchIsLegacyOnly = () => {
-    const branches = capturedCreatorBranches()
-    expect(branches).toHaveLength(1)
+    ).toBe(true)
     expect(
       hasMockCondition(
-        branches[0],
+        condition,
         (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.workspaceId
       )
     ).toBe(true)
-  }
-
-  it('requires workspaceId IS NULL on the creator branch when no workspace filter is given', async () => {
-    await getKnowledgeBases('user-a', undefined, 'all')
-
-    expectCreatorBranchIsLegacyOnly()
+    expect(flattenMockConditions(condition).some((node) => node.type === 'or')).toBe(false)
   })
 
-  it('keeps the same guard on the workspace-filtered branch', async () => {
-    await getKnowledgeBases('user-a', 'ws-1', 'active')
+  it('never joins the permissions table', async () => {
+    await getLegacyPersonalKnowledgeBases('user-a')
 
-    expectCreatorBranchIsLegacyOnly()
+    const joinedTables = dbChainMockFns.leftJoin.mock.calls.map(([table]) => table)
+    expect(joinedTables).toContain(schemaMock.document)
+    expect(joinedTables).not.toContain(schemaMock.permissions)
+  })
+
+  it('fails before projecting connector data for an oversized set', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce(
+      Array.from({ length: MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1 }, (_, index) => ({
+        id: `kb-${index}`,
+      }))
+    )
+
+    await expect(getLegacyPersonalKnowledgeBases('user-a')).rejects.toThrow(
+      `Legacy personal knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
+    )
+  })
+})
+
+/**
+ * The workspace list and the legacy personal list are separate reads answering to separate
+ * authorities, but they render as ONE list — so the merge has to order them together and
+ * project connectors once over the result, not once per source.
+ */
+describe('listWorkspaceAndLegacyKnowledgeBases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('orders both sources as one list and projects connectors once', async () => {
+    const workspaceRow = {
+      id: 'kb-workspace',
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+    }
+    const legacyRow = {
+      id: 'kb-legacy',
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([workspaceRow])
+      .mockResolvedValueOnce([legacyRow])
+      .mockResolvedValueOnce([])
+
+    const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1')
+
+    expect(result.map((kb) => kb.id)).toEqual(['kb-legacy', 'kb-workspace'])
+    /** Two row reads and ONE connector projection — three chains, never four. */
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
   })
 })
 

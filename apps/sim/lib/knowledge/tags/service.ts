@@ -261,34 +261,28 @@ export async function createOrUpdateTagDefinitionsBulk(
   const updated: DocumentTagDefinition[] = []
   const errors: string[] = []
 
-  // Get existing definitions to check for conflicts and determine operations
   const existingDefinitions = await getDocumentTagDefinitions(knowledgeBaseId)
   const existingBySlot = new Map(existingDefinitions.map((def) => [def.tagSlot, def]))
   const existingByDisplayName = new Map(existingDefinitions.map((def) => [def.displayName, def]))
 
-  // Process each definition
   for (const defData of definitions) {
     try {
       const { tagSlot, displayName, fieldType, originalDisplayName } = defData
 
-      // Validate field type
       if (!SUPPORTED_FIELD_TYPES.includes(fieldType as (typeof SUPPORTED_FIELD_TYPES)[number])) {
         errors.push(`Invalid field type: ${fieldType}`)
         continue
       }
 
-      // Check if this is an update (has originalDisplayName) or create
       const isUpdate = !!originalDisplayName
 
       if (isUpdate) {
-        // Update existing definition
         const existingDef = existingByDisplayName.get(originalDisplayName!)
         if (!existingDef) {
           errors.push(`Tag definition with display name "${originalDisplayName}" not found`)
           continue
         }
 
-        // Check if new display name conflicts with another definition
         if (displayName !== originalDisplayName && existingByDisplayName.has(displayName)) {
           errors.push(`Display name "${displayName}" already exists`)
           continue
@@ -314,10 +308,8 @@ export async function createOrUpdateTagDefinitionsBulk(
           updatedAt: now,
         })
       } else {
-        // Create new definition
         let finalTagSlot = tagSlot
 
-        // If no slot provided or slot is taken, find next available
         if (!finalTagSlot || existingBySlot.has(finalTagSlot)) {
           const nextSlot = await getNextAvailableSlot(knowledgeBaseId, fieldType, existingBySlot)
           if (!nextSlot) {
@@ -327,13 +319,11 @@ export async function createOrUpdateTagDefinitionsBulk(
           finalTagSlot = nextSlot
         }
 
-        // Check slot conflicts
         if (existingBySlot.has(finalTagSlot)) {
           errors.push(`Tag slot "${finalTagSlot}" is already in use`)
           continue
         }
 
-        // Check display name conflicts
         if (existingByDisplayName.has(displayName)) {
           errors.push(`Display name "${displayName}" already exists`)
           continue
@@ -660,7 +650,6 @@ export async function getTagUsage(
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
-    // Build WHERE conditions based on field type
     // Text columns need both IS NOT NULL and != '' checks
     // Numeric/date/boolean columns only need IS NOT NULL
     const fieldType = getFieldTypeForSlot(tagSlot)
@@ -674,7 +663,6 @@ export async function getTagUsage(
       isNotNull(sql`${sql.raw(tagSlot)}`),
     ]
 
-    // Only add empty string check for text columns
     if (isTextColumn) {
       whereConditions.push(sql`${sql.raw(tagSlot)} != ''`)
     }
