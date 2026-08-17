@@ -15,7 +15,7 @@ globalThis.ResizeObserver = class {
 } as unknown as typeof ResizeObserver
 
 const { SECRET, searchTargetRef } = vi.hoisted(() => ({
-  SECRET: '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjE\n-----END-----',
+  SECRET: 'SIM-TEST-CREDENTIAL-MARKER\nfixture-body-abc123\nend-of-fixture',
   searchTargetRef: { current: null as Record<string, unknown> | null },
 }))
 
@@ -193,7 +193,7 @@ function mount(password: boolean) {
 const highlighted = () => container.querySelector('[data-testid="code-highlight"]')?.innerHTML ?? ''
 
 /** A live workflow-search hit on the base64 body of the secret. */
-const SECRET_MATCH = 'b3BlbnNzaC1rZXktdjE'
+const SECRET_MATCH = 'fixture-body-abc123'
 const SECRET_MATCH_START = SECRET.indexOf(SECRET_MATCH)
 const SECRET_SEARCH_TARGET = {
   subBlockId: 'privateKey',
@@ -208,7 +208,7 @@ describe('Code password masking', () => {
   it('conceals the editor contents while unfocused', () => {
     mount(true)
 
-    expect(highlighted()).not.toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(highlighted()).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(highlighted()).not.toContain('b3BlbnNzaC1rZXktdjE')
     expect(highlighted()).toContain('•')
   })
@@ -220,18 +220,18 @@ describe('Code password masking', () => {
     act(() => {
       textarea.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
     })
-    expect(highlighted()).toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(highlighted()).toContain('SIM-TEST-CREDENTIAL-MARKER')
 
     act(() => {
       textarea.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
     })
-    expect(highlighted()).not.toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(highlighted()).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
   })
 
   it('leaves a non-password code field in plaintext', () => {
     mount(false)
 
-    expect(highlighted()).toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(highlighted()).toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(highlighted()).not.toContain('•')
   })
 
@@ -241,7 +241,7 @@ describe('Code password masking', () => {
     mount(true)
 
     expect(highlighted()).not.toContain('b3BlbnNzaC1rZXktdjE')
-    expect(highlighted()).not.toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(highlighted()).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(highlighted()).toContain('•')
   })
 
@@ -251,6 +251,6 @@ describe('Code password masking', () => {
     mount(false)
 
     expect(highlighted()).toContain('<mark')
-    expect(highlighted()).toContain('b3BlbnNzaC1rZXktdjE')
+    expect(highlighted()).toContain(SECRET_MATCH)
   })
 })

@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { SECRET, searchTargetRef } = vi.hoisted(() => ({
-  SECRET: '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk\n-----END-----',
+  SECRET: 'SIM-TEST-CREDENTIAL-MARKER\nfixture-body-abc\nend-of-fixture',
   searchTargetRef: { current: null as Record<string, unknown> | null },
 }))
 
@@ -99,7 +99,8 @@ import type { SubBlockConfig } from '@/blocks/types'
 const config: SubBlockConfig = { id: 'privateKey', type: 'long-input', password: true }
 
 /** A live workflow-search hit on the base64 body of the secret. */
-const MATCH_START = SECRET.indexOf('b3BlbnNzaC1rZXk')
+const SECRET_MATCH = 'fixture-body-abc'
+const MATCH_START = SECRET.indexOf(SECRET_MATCH)
 
 function render(password: boolean) {
   return renderToStaticMarkup(
@@ -115,7 +116,7 @@ describe('LongInput password masking', () => {
   it('conceals the value in both the textarea and the overlay when unfocused', () => {
     const html = render(true)
 
-    expect(html).not.toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(html).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(html).not.toContain('b3BlbnNzaC1rZXk')
     expect(html).toContain('•')
   })
@@ -123,7 +124,7 @@ describe('LongInput password masking', () => {
   it('renders the plaintext value when the field is not a password field', () => {
     const html = render(false)
 
-    expect(html).toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(html).toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(html).not.toContain('•')
   })
 
@@ -133,15 +134,15 @@ describe('LongInput password masking', () => {
       subBlockId: 'privateKey',
       targetKind: 'subblock',
       valuePath: [],
-      query: 'b3BlbnNzaC1rZXk',
-      rawValue: 'b3BlbnNzaC1rZXk',
-      range: { start: MATCH_START, end: MATCH_START + 'b3BlbnNzaC1rZXk'.length },
+      query: SECRET_MATCH,
+      rawValue: SECRET_MATCH,
+      range: { start: MATCH_START, end: MATCH_START + SECRET_MATCH.length },
     }
 
     const html = render(true)
 
     expect(html).not.toContain('b3BlbnNzaC1rZXk')
-    expect(html).not.toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(html).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(html).toContain('•')
   })
 
@@ -151,14 +152,14 @@ describe('LongInput password masking', () => {
       subBlockId: 'privateKey',
       targetKind: 'subblock',
       valuePath: [],
-      query: 'b3BlbnNzaC1rZXk',
-      rawValue: 'b3BlbnNzaC1rZXk',
-      range: { start: MATCH_START, end: MATCH_START + 'b3BlbnNzaC1rZXk'.length },
+      query: SECRET_MATCH,
+      rawValue: SECRET_MATCH,
+      range: { start: MATCH_START, end: MATCH_START + SECRET_MATCH.length },
     }
 
     const html = render(false)
 
     expect(html).toContain('<mark')
-    expect(html).toContain('b3BlbnNzaC1rZXk')
+    expect(html).toContain(SECRET_MATCH)
   })
 })

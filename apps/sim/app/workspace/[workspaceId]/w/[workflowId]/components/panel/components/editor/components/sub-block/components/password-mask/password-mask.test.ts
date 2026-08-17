@@ -13,16 +13,17 @@ describe('maskSecretText', () => {
   })
 
   it('leaves nothing of the plaintext behind', () => {
-    const secret = '-----BEGIN OPENSSH PRIVATE KEY-----'
+    const secret = 'SIM-TEST-CREDENTIAL-MARKER-value'
     const masked = maskSecretText(secret)
-    expect(masked).not.toContain('BEGIN')
+    expect(masked).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(masked).not.toContain('KEY')
     expect(new Set(masked)).toEqual(new Set(['•']))
   })
 
   it('preserves line breaks so a multi-line secret keeps its shape', () => {
-    const masked = maskSecretText('-----BEGIN-----\nabcd\n-----END-----')
-    expect(masked.split('\n')).toEqual(['•'.repeat(15), '••••', '•'.repeat(13)])
+    const value = 'marker-a\nabcd\nmarker-b'
+    const masked = maskSecretText(value)
+    expect(masked.split('\n')).toEqual(value.split('\n').map((line) => '•'.repeat(line.length)))
   })
 
   it('returns an empty string for an empty value', () => {
