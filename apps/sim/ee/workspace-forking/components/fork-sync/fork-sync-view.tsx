@@ -204,11 +204,10 @@ function DependentSelector({
   reconfig,
   setReconfig,
 }: DependentSelectorProps) {
-  const effectiveValueIn = (f: ForkDependentReconfig, state: Record<string, string>) =>
+  const effectiveValue = (f: ForkDependentReconfig) =>
     copying
-      ? effectiveCopyDependentValue(f, state)
-      : effectiveDependentValue(f, state, parentChanged)
-  const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
+      ? effectiveCopyDependentValue(f, reconfig)
+      : effectiveDependentValue(f, reconfig, parentChanged)
   const { providedValues, providedContextKeys } = blockChainState(block, field, effectiveValue)
   // Disabled until every in-block parent it depends on has a value, so a child never queries
   // a stale upstream value.
@@ -231,17 +230,7 @@ function DependentSelector({
       enabled={parentValue !== '' && ready}
       value={effectiveValue(field)}
       onChange={(value) =>
-        setReconfig((current) =>
-          // The pre-pick value comes from the state being updated, so re-selecting the value
-          // already shown is recognised as the no-op it is and leaves descendants intact.
-          applyDependentRepick(
-            current,
-            field,
-            block.fields,
-            value,
-            effectiveValueIn(field, current)
-          )
-        )
+        setReconfig((current) => applyDependentRepick(current, field, block.fields, value))
       }
       title={field.title}
     />
