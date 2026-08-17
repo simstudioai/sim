@@ -106,13 +106,6 @@ interface SubBlockProps {
   labelSuffix?: React.ReactNode
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
-  /**
-   * Whether workflow search currently targets this field. Supplied by the editor
-   * and used only to keep the memo comparator honest — no renderer consumes it,
-   * because a search hit deliberately does not reveal a masked secret. See
-   * `shouldMaskSecretValue`.
-   */
-  isSearchHighlighted?: boolean
 }
 
 /**
@@ -239,7 +232,6 @@ const renderLabel = (
     onCopy: () => void
   },
   labelSuffix?: React.ReactNode,
-  _isSearchHighlighted?: boolean,
   externalLink?: {
     show: boolean
     onClick: () => void
@@ -447,7 +439,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
     prevProps.allowExpandInPreview === nextProps.allowExpandInPreview &&
     canonicalToggleEqual &&
     prevProps.labelSuffix === nextProps.labelSuffix &&
-    prevProps.isSearchHighlighted === nextProps.isSearchHighlighted &&
     prevProps.dependencyContext === nextProps.dependencyContext
   )
 }
@@ -1217,7 +1208,6 @@ function SubBlockComponent({
           onCopy: handleCopy,
         },
         labelSuffix,
-        false,
         externalLink
       )}
       {renderInput()}
