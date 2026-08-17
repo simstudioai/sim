@@ -1,4 +1,5 @@
 import type { UserFile } from '@/executor/types'
+import type { JiraCustomFieldEntry } from '@/tools/jira/utils'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -899,6 +900,7 @@ export interface JiraUpdateParams {
   environment?: string
   customFieldId?: string
   customFieldValue?: string
+  customFields?: JiraCustomFieldEntry[]
   notifyUsers?: boolean
   cloudId?: string
 }
