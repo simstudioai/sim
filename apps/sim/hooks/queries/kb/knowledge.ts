@@ -327,6 +327,7 @@ async function fetchAllDocumentChunks(
   const limit = 100
 
   while (hasMore) {
+    if (signal?.aborted) break
     const response = await fetchKnowledgeChunks(
       {
         knowledgeBaseId,
@@ -402,9 +403,11 @@ export function useUpdateChunk() {
   return useMutation({
     mutationFn: updateChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
-      queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
+      /**
+       * `document` is a prefix of `detail`, so the wider key added only a refetch of every
+       * other document page, chunk page, tag definition, and connector row cached for this
+       * base. Nothing this mutation writes is rendered from those.
+       */
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
@@ -435,10 +438,15 @@ export function useDeleteChunk() {
     mutationFn: deleteChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /**
+       * `exact`, so the base's own `chunkCount`/`tokenCount` refresh without dragging every
+       * sibling document and chunk page cached beneath `detail` along with them.
+       */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -472,10 +480,15 @@ export function useCreateChunk() {
     mutationFn: createChunk,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /**
+       * `exact`, so the base's own `chunkCount`/`tokenCount` refresh without dragging every
+       * sibling document and chunk page cached beneath `detail` along with them.
+       */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -511,9 +524,11 @@ export function useUpdateDocument() {
   return useMutation({
     mutationFn: updateDocument,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
-      queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
+      /**
+       * `document` is a prefix of `detail`, so the wider key added only a refetch of every
+       * other document page, chunk page, tag definition, and connector row cached for this
+       * base. Nothing this mutation writes is rendered from those.
+       */
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
@@ -619,7 +634,7 @@ async function createKnowledgeBase(params: CreateKnowledgeBaseParams): Promise<K
   return result.data
 }
 
-export function useCreateKnowledgeBase(workspaceId?: string) {
+export function useCreateKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -655,7 +670,7 @@ async function updateKnowledgeBase({
   return result.data
 }
 
-export function useUpdateKnowledgeBase(workspaceId?: string) {
+export function useUpdateKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -689,8 +704,11 @@ export function useUpdateKnowledgeBase(workspaceId?: string) {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.lists(),
       })
+      /** `exact` for the reason {@link useBulkMoveKnowledgeBases} gives: a rename or folder
+       *  move touches the base record, never its documents or chunks. */
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -706,7 +724,7 @@ async function deleteKnowledgeBase({ knowledgeBaseId }: DeleteKnowledgeBaseParam
   })
 }
 
-export function useDeleteKnowledgeBase(workspaceId?: string) {
+export function useDeleteKnowledgeBase() {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -750,10 +768,15 @@ export function useBulkChunkOperation() {
     mutationFn: bulkChunkOperation,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
-      queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /**
+       * `exact`, so the base's own `chunkCount`/`tokenCount` refresh without dragging every
+       * sibling document and chunk page cached beneath `detail` along with them.
+       */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.detail(knowledgeBaseId),
+        exact: true,
       })
     },
   })
@@ -784,9 +807,11 @@ export function useUpdateDocumentTags() {
   return useMutation({
     mutationFn: updateDocumentTags,
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
-      queryClient.invalidateQueries({
-        queryKey: knowledgeKeys.detail(knowledgeBaseId),
-      })
+      /**
+       * `document` is a prefix of `detail`, so the wider key added only a refetch of every
+       * other document page, chunk page, tag definition, and connector row cached for this
+       * base. Nothing this mutation writes is rendered from those.
+       */
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })

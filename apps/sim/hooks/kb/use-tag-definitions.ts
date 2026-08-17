@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AllTagSlot } from '@/lib/knowledge/constants'
 import {
@@ -19,6 +20,9 @@ export interface TagDefinition {
   createdAt: string
   updatedAt: string
 }
+
+/** Stable empty fallback, so a pending query does not hand consumers a new array each render. */
+const EMPTY_TAG_DEFINITIONS: TagDefinition[] = []
 
 export interface TagDefinitionInput {
   tagSlot: AllTagSlot
@@ -40,7 +44,7 @@ export function useTagDefinitions(
   const { mutateAsync: saveTagDefinitionsMutation } = useSaveDocumentTagDefinitions()
   const { mutateAsync: deleteTagDefinitionsMutation } = useDeleteDocumentTagDefinitions()
 
-  const tagDefinitions = useMemo(() => (query.data ?? []) as TagDefinition[], [query.data])
+  const tagDefinitions = (query.data ?? EMPTY_TAG_DEFINITIONS) as TagDefinition[]
 
   const fetchTagDefinitions = useCallback(async () => {
     if (!knowledgeBaseId || !documentId) return
@@ -49,55 +53,23 @@ export function useTagDefinitions(
     })
   }, [queryClient, knowledgeBaseId, documentId])
 
-  const saveTagDefinitions = useCallback(
-    async (definitions: TagDefinitionInput[]) => {
-      if (!knowledgeBaseId || !documentId) {
-        throw new Error('Knowledge base ID and document ID are required')
-      }
-
-      return saveTagDefinitionsMutation({
-        knowledgeBaseId,
-        documentId,
-        definitions: definitions as DocumentTagDefinitionInput[],
-      })
-    },
-    [knowledgeBaseId, documentId, saveTagDefinitionsMutation]
-  )
-
-  const deleteTagDefinitions = useCallback(async () => {
+  const saveTagDefinitions = async (definitions: TagDefinitionInput[]) => {
     if (!knowledgeBaseId || !documentId) {
       throw new Error('Knowledge base ID and document ID are required')
     }
 
-    return deleteTagDefinitionsMutation({
+    return saveTagDefinitionsMutation({
       knowledgeBaseId,
       documentId,
+      definitions: definitions as DocumentTagDefinitionInput[],
     })
-  }, [knowledgeBaseId, documentId, deleteTagDefinitionsMutation])
-
-  const getTagLabel = useCallback(
-    (tagSlot: string): string => {
-      const definition = tagDefinitions.find((def) => def.tagSlot === tagSlot)
-      return definition?.displayName || tagSlot
-    },
-    [tagDefinitions]
-  )
-
-  const getTagDefinition = useCallback(
-    (tagSlot: string): TagDefinition | undefined => {
-      return tagDefinitions.find((def) => def.tagSlot === tagSlot)
-    },
-    [tagDefinitions]
-  )
+  }
 
   return {
     tagDefinitions,
     isLoading: query.isLoading,
-    error: query.error instanceof Error ? query.error.message : null,
+    error: query.error ? getErrorMessage(query.error) : null,
     fetchTagDefinitions,
     saveTagDefinitions,
-    deleteTagDefinitions,
-    getTagLabel,
-    getTagDefinition,
   }
 }

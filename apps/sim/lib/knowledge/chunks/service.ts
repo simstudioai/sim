@@ -206,7 +206,6 @@ export async function createChunk(
       embeddingModel: kbEmbeddingModel,
       startOffset: 0, // Manual chunks don't have document offsets
       endOffset: chunkData.content.length,
-      // Inherit text tags from parent document
       tag1: docTags.tag1 as string | null,
       tag2: docTags.tag2 as string | null,
       tag3: docTags.tag3 as string | null,
@@ -214,16 +213,13 @@ export async function createChunk(
       tag5: docTags.tag5 as string | null,
       tag6: docTags.tag6 as string | null,
       tag7: docTags.tag7 as string | null,
-      // Inherit number tags from parent document (5 slots)
       number1: docTags.number1 as number | null,
       number2: docTags.number2 as number | null,
       number3: docTags.number3 as number | null,
       number4: docTags.number4 as number | null,
       number5: docTags.number5 as number | null,
-      // Inherit date tags from parent document (2 slots)
       date1: docTags.date1 as Date | null,
       date2: docTags.date2 as Date | null,
-      // Inherit boolean tags from parent document (3 slots)
       boolean1: docTags.boolean1 as boolean | null,
       boolean2: docTags.boolean2 as boolean | null,
       boolean3: docTags.boolean3 as boolean | null,
@@ -242,7 +238,6 @@ export async function createChunk(
       )
     }
 
-    // Update document statistics
     await tx
       .update(document)
       .set({
@@ -315,12 +310,10 @@ export async function batchChunkOperation(
       const totalTokensToRemove = chunksToDelete.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
       const totalCharsToRemove = chunksToDelete.reduce((sum, chunk) => sum + chunk.contentLength, 0)
 
-      // Delete chunks
       const deleteResult = await tx
         .delete(embedding)
         .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
 
-      // Update document statistics
       await tx
         .update(document)
         .set({
@@ -333,7 +326,6 @@ export async function batchChunkOperation(
       successCount = chunksToDelete.length
     })
   } else {
-    // Handle enable/disable operations
     const enabled = operation === 'enable'
 
     await db
@@ -529,7 +521,6 @@ export async function updateChunk(
     })
     .where(eq(embedding.id, chunkId))
 
-  // Fetch the updated chunk
   const updatedChunk = await db
     .select({
       id: embedding.id,
@@ -588,10 +579,8 @@ export async function deleteChunk(
 
     const chunk = chunkToDelete[0]
 
-    // Delete the chunk
     await tx.delete(embedding).where(eq(embedding.id, chunkId))
 
-    // Update document statistics
     await tx
       .update(document)
       .set({

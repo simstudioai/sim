@@ -1,7 +1,6 @@
 'use client'
 
-import { Plus } from '@sim/emcn'
-import { Database, FileText } from '@sim/emcn/icons'
+import { Database, FileText, Plus } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
 import {
   type BreadcrumbItem,

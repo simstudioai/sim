@@ -1,8 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { Badge, ChipCombobox, ChipConfirmModal, Plus, Trash } from '@sim/emcn'
-import { ChevronDown, ChevronUp, Database, FileText, Pencil, TagIcon } from '@sim/emcn/icons'
+import { Badge, ChipCombobox, ChipConfirmModal, chipContentLabelClass, cn } from '@sim/emcn'
+import {
+  ChevronDown,
+  ChevronUp,
+  Database,
+  FileText,
+  Pencil,
+  Plus,
+  TagIcon,
+  Trash,
+} from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { useParams, useRouter } from 'next/navigation'
@@ -204,7 +213,6 @@ export function Document({
     chunks: initialChunks,
     currentPage: initialPage,
     totalPages: initialTotalPages,
-    goToPage: initialGoToPage,
     error: initialError,
     updateChunk: initialUpdateChunk,
   } = useDocumentChunks(
@@ -295,13 +303,8 @@ export function Document({
   const goToPage = useCallback(
     async (page: number) => {
       await setDocumentParams({ page })
-
-      if (showingSearch) {
-        return
-      }
-      return initialGoToPage(page)
     },
-    [showingSearch, initialGoToPage, setDocumentParams]
+    [setDocumentParams]
   )
 
   const updateChunk = showingSearch
@@ -309,9 +312,15 @@ export function Document({
     : initialUpdateChunk
 
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [showDeleteDocumentDialog, setShowDeleteDocumentDialog] = useState(false)
-  const [contextMenuChunk, setContextMenuChunk] = useState<ChunkData | null>(null)
+  const [contextMenuChunkId, setContextMenuChunkId] = useState<string | null>(null)
+  /**
+   * The id, not the row: the chunk list polls while a document processes, and a menu that
+   * captured the row on open would keep offering "Enable" for a chunk already enabled.
+   */
+  const contextMenuChunk = contextMenuChunkId
+    ? (displayChunks.find((chunk) => chunk.id === contextMenuChunkId) ?? null)
+    : null
 
   const { mutate: updateChunkMutation } = useUpdateChunk()
   const { mutate: deleteDocumentMutation, isPending: isDeletingDocument } = useDeleteDocument()
@@ -351,15 +360,13 @@ export function Document({
 
   const isInEditorView = selectedChunkId !== null || isCreatingNewChunk
 
-  const selectedChunk = useMemo(
-    () => (selectedChunkId ? (displayChunks.find((c) => c.id === selectedChunkId) ?? null) : null),
-    [selectedChunkId, displayChunks]
-  )
+  const selectedChunk = selectedChunkId
+    ? (displayChunks.find((c) => c.id === selectedChunkId) ?? null)
+    : null
 
-  const currentChunkIndex = useMemo(
-    () => (selectedChunk ? displayChunks.findIndex((c) => c.id === selectedChunk.id) : -1),
-    [selectedChunk, displayChunks]
-  )
+  const currentChunkIndex = selectedChunk
+    ? displayChunks.findIndex((c) => c.id === selectedChunk.id)
+    : -1
   const canNavigatePrev = currentChunkIndex > 0 || currentPage > 1
   const canNavigateNext = currentChunkIndex < displayChunks.length - 1 || currentPage < totalPages
 
@@ -402,14 +409,14 @@ export function Document({
     }
   }, [isDirty, isCreatingNewChunk])
 
-  const handleUnsavedChangesOpenChange = useCallback((open: boolean) => {
+  const handleUnsavedChangesOpenChange = (open: boolean) => {
     if (!open) {
       setShowUnsavedChangesAlert(false)
       setPendingAction(null)
     }
-  }, [])
+  }
 
-  const handleDiscardChanges = useCallback(() => {
+  const handleDiscardChanges = () => {
     setShowUnsavedChangesAlert(false)
     const action = pendingAction
     setPendingAction(null)
@@ -419,7 +426,7 @@ export function Document({
     } else {
       closeEditor()
     }
-  }, [pendingAction, closeEditor])
+  }
 
   const handleSaveEvent = useEffectEvent(handleSave)
 
@@ -646,7 +653,6 @@ export function Document({
         if (found) {
           setSelectedChunkId(chunkId)
         } else if (!navigatedToNewPage && totalPagesRef.current > totalPages) {
-          // A new page was created — navigate to it
           navigatedToNewPage = true
           retries = 0
           void goToPage(totalPagesRef.current)
@@ -681,10 +687,8 @@ export function Document({
       }
     : undefined
 
-  const enabledDisplayLabel = useMemo(() => {
-    if (enabledFilter.length === 0) return 'All'
-    return enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
-  }, [enabledFilter])
+  const enabledDisplayLabel =
+    enabledFilter.length === 0 ? 'All' : enabledFilter[0] === 'enabled' ? 'Enabled' : 'Disabled'
 
   const filterContent = useMemo(
     () => (
@@ -724,7 +728,7 @@ export function Document({
         )}
       </div>
     ),
-    [enabledFilter, enabledDisplayLabel, setEnabledFilter]
+    [enabledFilter, setEnabledFilter]
   )
 
   const filterTags: FilterTag[] = useMemo(
@@ -746,31 +750,22 @@ export function Document({
     [setSelectedChunkId]
   )
 
-  const handleToggleEnabled = useCallback(
-    (chunkId: string) => {
-      const chunk = displayChunks.find((c) => c.id === chunkId)
-      if (!chunk) return
+  const handleToggleEnabled = (chunkId: string) => {
+    const chunk = displayChunks.find((c) => c.id === chunkId)
+    if (!chunk) return
 
-      const newEnabled = !chunk.enabled
-      updateChunk(chunkId, { enabled: newEnabled })
-      updateChunkMutation(
-        { knowledgeBaseId, documentId, chunkId, enabled: newEnabled },
-        { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
-      )
-    },
-    [displayChunks, knowledgeBaseId, documentId, updateChunk]
-  )
+    const newEnabled = !chunk.enabled
+    updateChunk(chunkId, { enabled: newEnabled })
+    updateChunkMutation(
+      { knowledgeBaseId, documentId, chunkId, enabled: newEnabled },
+      { onError: () => updateChunk(chunkId, { enabled: chunk.enabled }) }
+    )
+  }
 
-  const handleDeleteChunk = useCallback(
-    (chunkId: string) => {
-      const chunk = displayChunks.find((c) => c.id === chunkId)
-      if (chunk) {
-        setChunkToDelete(chunk)
-        setIsDeleteModalOpen(true)
-      }
-    },
-    [displayChunks]
-  )
+  const handleDeleteChunk = (chunkId: string) => {
+    const chunk = displayChunks.find((c) => c.id === chunkId)
+    if (chunk) setChunkToDelete(chunk)
+  }
 
   const handleCloseDeleteModal = () => {
     if (chunkToDelete) {
@@ -780,7 +775,6 @@ export function Document({
         return newSet
       })
     }
-    setIsDeleteModalOpen(false)
     setChunkToDelete(null)
   }
 
@@ -863,17 +857,14 @@ export function Document({
     performBulkChunkOperation('delete', chunksToDelete)
   }
 
-  const [enabledCount, disabledCount] = useMemo(() => {
-    let enabled = 0
-    let disabled = 0
-    for (const chunk of displayChunks) {
-      if (selectedChunks.has(chunk.id)) {
-        if (chunk.enabled) enabled++
-        else disabled++
-      }
+  let enabledCount = 0
+  let disabledCount = 0
+  for (const chunk of displayChunks) {
+    if (selectedChunks.has(chunk.id)) {
+      if (chunk.enabled) enabledCount++
+      else disabledCount++
     }
-    return [enabled, disabled]
-  }, [displayChunks, selectedChunks])
+  }
 
   const isAllSelected = displayChunks.length > 0 && selectedChunks.size === displayChunks.length
 
@@ -890,7 +881,7 @@ export function Document({
         }
       }
 
-      setContextMenuChunk(chunk)
+      setContextMenuChunkId(chunk.id)
       baseHandleContextMenu(e)
     },
     [
@@ -902,18 +893,15 @@ export function Document({
     ]
   )
 
-  const handleEmptyContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      setContextMenuChunk(null)
-      baseHandleContextMenu(e)
-    },
-    [baseHandleContextMenu]
-  )
+  const handleEmptyContextMenu = (e: React.MouseEvent) => {
+    setContextMenuChunkId(null)
+    baseHandleContextMenu(e)
+  }
 
-  const handleContextMenuClose = useCallback(() => {
+  const handleContextMenuClose = () => {
     closeContextMenu()
-    setContextMenuChunk(null)
-  }, [closeContextMenu])
+    setContextMenuChunkId(null)
+  }
 
   const selectableConfig: SelectableConfig | undefined = isCompleted
     ? {
@@ -956,6 +944,13 @@ export function Document({
   )
 
   const chunkRows: ResourceRow[] = useMemo(() => {
+    /**
+     * No document yet is "not known", not "not ready". Falling through to the status row
+     * flashed `Document not ready` on every open, for the frame between mount and the
+     * document query resolving — a claim about a document nothing had read yet.
+     */
+    if (!documentData) return []
+
     if (!isCompleted) {
       return [
         {
@@ -966,12 +961,12 @@ export function Document({
                 <div className='flex items-center gap-2'>
                   <FileText className='size-5 flex-shrink-0 text-[var(--text-muted)]' />
                   <span className='text-[var(--text-muted)] text-sm italic'>
-                    {documentData?.processingStatus === 'pending' &&
+                    {documentData.processingStatus === 'pending' &&
                       'Document processing pending...'}
-                    {documentData?.processingStatus === 'processing' &&
+                    {documentData.processingStatus === 'processing' &&
                       'Document processing in progress...'}
-                    {documentData?.processingStatus === 'failed' && 'Document processing failed'}
-                    {!documentData?.processingStatus && 'Document not ready'}
+                    {documentData.processingStatus === 'failed' && 'Document processing failed'}
+                    {!documentData.processingStatus && 'Document not ready'}
                   </span>
                 </div>
               ),
@@ -992,16 +987,14 @@ export function Document({
         cells: {
           content: {
             content: (
-              <span className='block truncate text-[var(--text-primary)] text-sm'>
+              <span className={cn('block', chipContentLabelClass)}>
                 <SearchHighlight text={previewContent} searchQuery={searchQuery} />
               </span>
             ),
           },
           index: {
             content: (
-              <span className='font-mono text-[var(--text-primary)] text-sm'>
-                {chunk.chunkIndex}
-              </span>
+              <span className={cn('font-mono', chipContentLabelClass)}>{chunk.chunkIndex}</span>
             ),
           },
           tokens: {
@@ -1017,7 +1010,7 @@ export function Document({
         },
       }
     })
-  }, [isCompleted, documentData?.processingStatus, displayChunks, searchQuery])
+  }, [isCompleted, documentData, displayChunks, searchQuery])
 
   const saveLabel =
     saveStatus === 'saving'
@@ -1232,7 +1225,7 @@ export function Document({
         chunk={chunkToDelete}
         knowledgeBaseId={knowledgeBaseId}
         documentId={documentId}
-        isOpen={isDeleteModalOpen}
+        isOpen={chunkToDelete !== null}
         onClose={handleCloseDeleteModal}
       />
 
