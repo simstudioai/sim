@@ -7,7 +7,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, exists, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, eq, exists, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -140,14 +140,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     let currentWorkflowBatchSize = 0
 
     try {
-      const staleExecutionPredicate = and(
-        eq(workflowExecutionLogs.status, 'running'),
-        or(
-          lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
-          and(
-            isNull(workflowExecutionLogs.executionDeadlineAt),
-            lt(workflowExecutionLogs.startedAt, staleThreshold)
-          )
+      const staleExecutionTimePredicate = or(
+        lt(workflowExecutionLogs.executionDeadlineAt, staleDeadlineThreshold),
+        and(
+          isNull(workflowExecutionLogs.executionDeadlineAt),
+          lt(workflowExecutionLogs.startedAt, staleThreshold)
         )
       )
       const cleanupTimestamp = sql.param(now, workflowExecutionLogs.startedAt)
@@ -155,70 +152,80 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         EXTRACT(EPOCH FROM (${cleanupTimestamp} - ${workflowExecutionLogs.startedAt})) / 60
       )::integer`
       const totalDurationMs = elapsedDurationMsSql(now)
-      let workflowRowsConsidered = 0
-      while (workflowRowsConsidered < WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
-        const limit = Math.min(
-          WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE,
-          WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN - workflowRowsConsidered
+      for (const executionStatus of ['running', 'redacting'] as const) {
+        const staleExecutionPredicate = and(
+          eq(workflowExecutionLogs.status, executionStatus),
+          staleExecutionTimePredicate
         )
-        currentWorkflowBatchSize = 0
-        const { candidates, updatedExecutions } = await db.transaction(async (tx) => {
-          const candidates = await tx
-            .select({ id: workflowExecutionLogs.id })
-            .from(workflowExecutionLogs)
-            .where(staleExecutionPredicate)
-            .limit(limit)
-            .for('update', { skipLocked: true })
-          currentWorkflowBatchSize = candidates.length
-          if (candidates.length === 0) return { candidates, updatedExecutions: [] }
+        let workflowRowsConsidered = 0
+        while (workflowRowsConsidered < WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
+          const limit = Math.min(
+            WORKFLOW_EXECUTION_MUTATION_BATCH_SIZE,
+            WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN - workflowRowsConsidered
+          )
+          currentWorkflowBatchSize = 0
+          const { candidates, updatedExecutions } = await db.transaction(async (tx) => {
+            const candidates = await tx
+              .select({ id: workflowExecutionLogs.id })
+              .from(workflowExecutionLogs)
+              .where(staleExecutionPredicate)
+              .limit(limit)
+              .for('update', { skipLocked: true })
+            currentWorkflowBatchSize = candidates.length
+            if (candidates.length === 0) return { candidates, updatedExecutions: [] }
 
-          const updatedExecutions = await tx
-            .update(workflowExecutionLogs)
-            .set({
-              status: 'failed',
-              endedAt: now,
-              executionDeadlineAt: null,
-              totalDurationMs,
-              executionData: sql`jsonb_set(
-                COALESCE(execution_data, '{}'::jsonb),
-                ARRAY['error'],
-                to_jsonb(
-                  CASE
-                    WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
-                      THEN ${EXECUTION_DEADLINE_ERROR}::text
-                    ELSE ${'Execution terminated: worker timeout or crash after '}::text
-                      || ${staleDurationMinutes}::text
-                      || ' minutes'
-                  END
-                )
-              )`,
-            })
-            .where(
-              and(
-                staleExecutionPredicate,
-                inArray(
-                  workflowExecutionLogs.id,
-                  candidates.map(({ id }) => id)
+            const updatedExecutions = await tx
+              .update(workflowExecutionLogs)
+              .set({
+                status: 'failed',
+                endedAt: now,
+                executionDeadlineAt: null,
+                totalDurationMs,
+                executionData: sql`jsonb_set(
+                  COALESCE(execution_data, '{}'::jsonb),
+                  ARRAY['error'],
+                  to_jsonb(
+                    CASE
+                      WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
+                        THEN ${EXECUTION_DEADLINE_ERROR}::text
+                      ELSE ${'Execution terminated: worker timeout or crash after '}::text
+                        || ${staleDurationMinutes}::text
+                        || ' minutes'
+                    END
+                  )
+                )`,
+              })
+              .where(
+                and(
+                  staleExecutionPredicate,
+                  inArray(
+                    workflowExecutionLogs.id,
+                    candidates.map(({ id }) => id)
+                  )
                 )
               )
-            )
-            .returning({ id: workflowExecutionLogs.id })
+              .returning({ id: workflowExecutionLogs.id })
 
-          return { candidates, updatedExecutions }
-        })
-        currentWorkflowBatchSize = 0
-        staleExecutionsFound += candidates.length
-        if (candidates.length === 0) break
+            return { candidates, updatedExecutions }
+          })
+          currentWorkflowBatchSize = 0
+          staleExecutionsFound += candidates.length
+          if (candidates.length === 0) break
 
-        cleaned += updatedExecutions.length
-        workflowRowsConsidered += candidates.length
-        if (candidates.length < limit) break
-      }
+          cleaned += updatedExecutions.length
+          workflowRowsConsidered += candidates.length
+          if (candidates.length < limit) break
+        }
 
-      if (workflowRowsConsidered >= WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
-        logger.info('Deferred remaining stale workflow executions after reaching the per-run cap', {
-          maxRowsPerRun: WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN,
-        })
+        if (workflowRowsConsidered >= WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN) {
+          logger.info(
+            'Deferred remaining stale workflow executions after reaching the per-run cap',
+            {
+              status: executionStatus,
+              maxRowsPerRun: WORKFLOW_EXECUTION_MAX_ROWS_PER_RUN,
+            }
+          )
+        }
       }
     } catch (error) {
       logger.error('Failed to clean up stale workflow executions:', {
@@ -253,6 +260,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       END`
       const staleProcessingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PROCESSING),
+        ne(asyncJobs.type, 'schedule-execution'),
         staleProcessingDurationPredicate
       )
       const staleProcessingResult = await runBatchedMutation({
@@ -395,6 +403,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       const stalePendingPredicate = and(
         eq(asyncJobs.status, JOB_STATUS.PENDING),
+        ne(asyncJobs.type, 'schedule-execution'),
         lt(asyncJobs.createdAt, stalePendingThreshold)
       )
       const stalePendingResult = await runBatchedMutation({
@@ -441,6 +450,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     try {
       const retainedJobPredicate = and(
         inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED]),
+        or(
+          ne(asyncJobs.type, 'schedule-execution'),
+          sql`${asyncJobs.metadata}->>'scheduleReconciled' = 'true'`
+        ),
         lt(asyncJobs.completedAt, retentionThreshold)
       )
       const retainedJobResult = await runBatchedMutation({

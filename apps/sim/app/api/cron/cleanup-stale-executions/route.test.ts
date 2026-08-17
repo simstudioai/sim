@@ -27,6 +27,7 @@ interface MockCondition {
   conditions?: unknown[]
   left?: unknown
   right?: unknown
+  column?: unknown
   values?: unknown
   toSQL?: () => { sql: string; params: unknown[] }
 }
@@ -89,8 +90,9 @@ describe('stale execution cleanup deadline grace', () => {
             condition.right.getTime() === expectedThreshold.getTime()
         )
 
-      expect(deadlineComparisons).toHaveLength(2)
+      expect(deadlineComparisons).toHaveLength(3)
       expect(deadlineComparisons.map(({ right }) => right)).toEqual([
+        expectedThreshold,
         expectedThreshold,
         expectedThreshold,
       ])
@@ -129,6 +131,21 @@ describe('stale execution cleanup deadline grace', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('terminalizes stale running and redacting execution logs', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const statusPredicates = dbChainMockFns.where.mock.calls
+      .flatMap(([condition]) => flattenConditions(condition))
+      .filter(
+        (condition) => condition.type === 'eq' && condition.left === workflowExecutionLogs.status
+      )
+
+    expect(statusPredicates.map(({ right }) => right)).toEqual(
+      expect.arrayContaining(['running', 'redacting'])
+    )
   })
 
   it('reports a worker cleanup deadline while preserving the generic stale fallback', async () => {
@@ -173,6 +190,65 @@ describe('stale execution cleanup deadline grace', () => {
     expect(errorExpression.params).toContainEqual(
       expect.stringMatching(/^Job terminated: stuck in processing for more than \d+ minutes$/)
     )
+  })
+
+  it('leaves pending and processing schedule jobs to schedule recovery', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const activeAsyncPredicates = dbChainMockFns.where.mock.calls
+      .map(([condition]) => flattenConditions(condition))
+      .filter((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'ne' &&
+            condition.left === asyncJobs.type &&
+            condition.right === 'schedule-execution'
+        )
+      )
+
+    expect(
+      activeAsyncPredicates.some((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === asyncJobs.status &&
+            condition.right === 'processing'
+        )
+      )
+    ).toBe(true)
+    expect(
+      activeAsyncPredicates.some((conditions) =>
+        conditions.some(
+          (condition) =>
+            condition.type === 'eq' &&
+            condition.left === asyncJobs.status &&
+            condition.right === 'pending'
+        )
+      )
+    ).toBe(true)
+  })
+
+  it('retains terminal schedule carriers until reconciliation is recorded', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const retentionConditions = dbChainMockFns.where.mock.calls.flatMap(([condition]) =>
+      flattenConditions(condition)
+    )
+    const reconciliationMarker = retentionConditions.find((condition) =>
+      condition.toSQL?.().sql.includes('scheduleReconciled')
+    )
+
+    expect(reconciliationMarker?.toSQL?.().params).toContain(asyncJobs.metadata)
+    expect(
+      retentionConditions.some(
+        (condition) =>
+          condition.type === 'ne' &&
+          condition.left === asyncJobs.type &&
+          condition.right === 'schedule-execution'
+      )
+    ).toBe(true)
   })
 
   it('keeps table-job heartbeat cleanup independent from workflow timeout policy', async () => {
@@ -220,8 +296,8 @@ describe('stale execution cleanup deadline grace', () => {
     const response = await GET(createRequest())
 
     expect(response.status).toBe(200)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(7)
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(7)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(8)
+    expect(dbChainMockFns.for).toHaveBeenCalledTimes(8)
     for (const [strength, options] of dbChainMockFns.for.mock.calls) {
       expect(strength).toBe('update')
       expect(options).toEqual({ skipLocked: true })
@@ -291,7 +367,7 @@ describe('stale execution cleanup deadline grace', () => {
     expect(mockDeleteFile).toHaveBeenCalledTimes(1000)
 
     const limits = dbChainMockFns.limit.mock.calls.map(([limit]) => limit)
-    expect(limits.filter((limit) => limit === 100)).toHaveLength(20)
+    expect(limits.filter((limit) => limit === 100)).toHaveLength(21)
     expect(limits.filter((limit) => limit === 1000)).toHaveLength(30)
     expect(limits.filter((limit) => limit === 2000)).toHaveLength(11)
 

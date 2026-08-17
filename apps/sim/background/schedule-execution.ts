@@ -269,6 +269,59 @@ export async function releaseScheduleLock(
   return outcome.updated
 }
 
+/** Applies successful-run accounting only while the caller still owns the claim. */
+export async function applyScheduleSuccessUpdate(params: {
+  scheduleId: string
+  now: Date
+  nextRunAt: Date
+  expectedLastQueuedAt: Date | null
+  requestId: string
+  context: string
+  executor?: DbOrTx
+}): Promise<boolean> {
+  const { scheduleId, now, nextRunAt, expectedLastQueuedAt, requestId, context, executor } = params
+
+  const outcome = await applyScheduleUpdate(
+    scheduleId,
+    {
+      lastRanAt: now,
+      updatedAt: now,
+      nextRunAt,
+      failedCount: 0,
+      lastQueuedAt: null,
+      ...resetScheduleInfraRetryCount(),
+    },
+    requestId,
+    context,
+    { expectedLastQueuedAt, executor }
+  )
+
+  return outcome.updated
+}
+
+/** Applies cancelled-run accounting only while the caller still owns the claim. */
+export async function applyScheduleCancellationUpdate(params: {
+  scheduleId: string
+  now: Date
+  nextRunAt: Date
+  expectedLastQueuedAt: Date | null
+  requestId: string
+  context: string
+  executor?: DbOrTx
+}): Promise<boolean> {
+  const { scheduleId, now, nextRunAt, expectedLastQueuedAt, requestId, context, executor } = params
+
+  const outcome = await applyScheduleUpdate(
+    scheduleId,
+    buildScheduleCancellationUpdate(now, nextRunAt),
+    requestId,
+    context,
+    { expectedLastQueuedAt, executor }
+  )
+
+  return outcome.updated
+}
+
 /**
  * Applies {@link buildScheduleFailureUpdate} through the same guarded write the
  * trigger.dev path uses, and reports whether the row just transitioned to
@@ -1089,17 +1142,14 @@ export async function executeScheduleJob(
 
             const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
 
-            await updateClaimedSchedule(
-              {
-                lastRanAt: now,
-                updatedAt: now,
-                nextRunAt,
-                failedCount: 0,
-                lastQueuedAt: null,
-                ...resetScheduleInfraRetryCount(),
-              },
-              `Error updating schedule ${payload.scheduleId} after success`
-            )
+            await applyScheduleSuccessUpdate({
+              scheduleId: payload.scheduleId,
+              now,
+              nextRunAt,
+              expectedLastQueuedAt: claimedAt,
+              requestId,
+              context: `Error updating schedule ${payload.scheduleId} after success`,
+            })
             return
           }
 
@@ -1107,10 +1157,14 @@ export async function executeScheduleJob(
             logger.info(`[${requestId}] Workflow ${payload.workflowId} execution was cancelled`)
 
             const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
-            await updateClaimedSchedule(
-              buildScheduleCancellationUpdate(now, nextRunAt),
-              `Error updating schedule ${payload.scheduleId} after cancellation`
-            )
+            await applyScheduleCancellationUpdate({
+              scheduleId: payload.scheduleId,
+              now,
+              nextRunAt,
+              expectedLastQueuedAt: claimedAt,
+              requestId,
+              context: `Error updating schedule ${payload.scheduleId} after cancellation`,
+            })
             return
           }
 

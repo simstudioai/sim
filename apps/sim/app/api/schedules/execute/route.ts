@@ -1,4 +1,11 @@
-import { asyncJobs, db, workflow, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
+import {
+  asyncJobs,
+  db,
+  workflow,
+  workflowDeploymentVersion,
+  workflowExecutionLogs,
+  workflowSchedule,
+} from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { toError } from '@sim/utils/errors'
@@ -7,7 +14,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { randomInt } from '@sim/utils/random'
 import { Cron } from 'croner'
-import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { ExecuteSchedulesResponse } from '@/lib/api/contracts/schedules'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -21,7 +28,7 @@ import {
   JOB_PENDING_RETENTION_HOURS,
   shouldExecuteInline,
 } from '@/lib/core/async-jobs'
-import { JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
+import { isAsyncJobEnqueueError, JOB_STATUS, type Job } from '@/lib/core/async-jobs/types'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import {
   getExecutionReservationTtlMs,
@@ -32,6 +39,7 @@ import {
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
@@ -46,7 +54,9 @@ import {
 } from '@/lib/workflows/schedules/execution-limits'
 import { calculateScheduleInfraRetryDelayMs } from '@/lib/workflows/schedules/retry'
 import {
+  applyScheduleCancellationUpdate,
   applyScheduleFailureUpdate,
+  applyScheduleSuccessUpdate,
   executeScheduleJob,
   releaseScheduleLock,
   type ScheduleExecutionPayload,
@@ -67,6 +77,10 @@ const MAX_TICK_DURATION_MS = 3 * 60 * 1000
 const STALE_SCHEDULE_CLAIM_MS = getExecutionReservationTtlMs()
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
 const DATABASE_SCHEDULE_START_TURN_WAIT_MS = 1_000
+const SCHEDULE_CARRIER_RECONCILED_METADATA_KEY = 'scheduleReconciled'
+const SCHEDULE_CARRIER_MIGRATED_METADATA_KEY = 'scheduleCarrierMigrated'
+const SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY = 'scheduleRecoveryIrrecoverable'
+const LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY = 'scheduleRecoveryBlocked'
 type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
 let databaseScheduleStartTurn: Promise<void> | null = null
 
@@ -200,8 +214,21 @@ type DatabaseScheduleExecutionTarget = Pick<
 >
 type ScheduleRecoveryMetadata = Pick<
   ScheduleExecutionPayload,
-  'scheduleId' | 'workflowId' | 'now' | 'cronExpression' | 'timezone' | 'executionTimeoutMs'
+  | 'scheduleId'
+  | 'workflowId'
+  | 'now'
+  | 'cronExpression'
+  | 'timezone'
+  | 'executionTimeoutMs'
+  | 'executionId'
+  | 'scheduledFor'
 >
+type ScheduleRecoveryOutcome = 'success' | 'paused' | 'failure' | 'cancelled' | 'indeterminate'
+type ScheduleRecoveryEvidence = {
+  outcome: ScheduleRecoveryOutcome
+  executionStatus: string | null
+  logFound: boolean
+}
 type SchedulePayloadValidation =
   | { success: true; payload: ScheduleExecutionPayload }
   | { success: false; error: string }
@@ -221,6 +248,10 @@ function getScheduleRecoveryMetadataFromValue(payload: unknown): ScheduleRecover
     scheduleId: candidate.scheduleId,
     workflowId: candidate.workflowId,
     now: candidate.now,
+    executionId:
+      typeof candidate.executionId === 'string' && candidate.executionId.length > 0
+        ? candidate.executionId
+        : undefined,
     cronExpression:
       typeof candidate.cronExpression === 'string' ? candidate.cronExpression : undefined,
     timezone: typeof candidate.timezone === 'string' ? candidate.timezone : undefined,
@@ -230,6 +261,7 @@ function getScheduleRecoveryMetadataFromValue(payload: unknown): ScheduleRecover
       candidate.executionTimeoutMs > 0
         ? candidate.executionTimeoutMs
         : undefined,
+    scheduledFor: typeof candidate.scheduledFor === 'string' ? candidate.scheduledFor : undefined,
   }
 }
 
@@ -304,11 +336,12 @@ async function restoreScheduleClaim(
   requestId: string,
   currentClaim: Date,
   activeClaim: Date,
-  context: string
-): Promise<void> {
-  if (currentClaim.getTime() === activeClaim.getTime()) return
+  context: string,
+  executor: DbOrTx = db
+): Promise<boolean> {
+  if (currentClaim.getTime() === activeClaim.getTime()) return true
 
-  const [restored] = await db
+  const [restored] = await executor
     .update(workflowSchedule)
     .set({ lastQueuedAt: activeClaim, updatedAt: new Date() })
     .where(
@@ -325,14 +358,15 @@ async function restoreScheduleClaim(
     })
 
   if (!restored) {
-    const error = new Error(`Schedule claim restore did not update schedule ${scheduleId}`)
     logger.warn(`[${requestId}] ${context}`, {
       scheduleId,
       currentClaim: currentClaim.toISOString(),
       activeClaim: activeClaim.toISOString(),
     })
-    throw error
+    return false
   }
+
+  return true
 }
 
 function getScheduleExecutionLeaseMs(
@@ -379,8 +413,24 @@ function activeScheduleExecutionJobsFilter() {
 function pendingScheduleExecutionJobsFilter(now: Date) {
   return and(
     sql`${asyncJobs.type} = 'schedule-execution' AND ${asyncJobs.status} = 'pending'`,
-    sql`${asyncJobs.attempts} < ${asyncJobs.maxAttempts}`,
+    eq(asyncJobs.attempts, 0),
     or(isNull(asyncJobs.runAt), lte(asyncJobs.runAt, now))
+  )
+}
+
+function claimedPendingScheduleExecutionJobsFilter(now: Date) {
+  return and(
+    sql`${asyncJobs.type} = 'schedule-execution' AND ${asyncJobs.status} = 'pending'`,
+    gt(asyncJobs.attempts, 0),
+    or(isNull(asyncJobs.runAt), lte(asyncJobs.runAt, now))
+  )
+}
+
+function unreconciledTerminalScheduleExecutionJobsFilter() {
+  return and(
+    sql`${asyncJobs.type} = 'schedule-execution'`,
+    inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED]),
+    sql`COALESCE(${asyncJobs.metadata}->>${SCHEDULE_CARRIER_RECONCILED_METADATA_KEY}, 'false') <> 'true'`
   )
 }
 
@@ -416,6 +466,160 @@ function getScheduleNextRunAt(
   )
 }
 
+function classifyScheduleRecoveryEvidence(
+  status: string | null,
+  logFound = status !== null
+): ScheduleRecoveryEvidence {
+  switch (status) {
+    case 'completed':
+      return { outcome: 'success', executionStatus: status, logFound }
+    case 'pending':
+    case 'paused':
+      return { outcome: 'paused', executionStatus: status, logFound }
+    case 'failed':
+      return { outcome: 'failure', executionStatus: status, logFound }
+    case 'cancelled':
+      return { outcome: 'cancelled', executionStatus: status, logFound }
+    default:
+      return { outcome: 'indeterminate', executionStatus: status, logFound }
+  }
+}
+
+async function getScheduleRecoveryEvidence(
+  payload: ScheduleRecoveryMetadata | null
+): Promise<ScheduleRecoveryEvidence> {
+  if (!payload?.executionId) return classifyScheduleRecoveryEvidence(null, false)
+
+  const [executionLog] = await db
+    .select({
+      workflowId: workflowExecutionLogs.workflowId,
+      status: workflowExecutionLogs.status,
+    })
+    .from(workflowExecutionLogs)
+    .where(eq(workflowExecutionLogs.executionId, payload.executionId))
+    .limit(1)
+
+  if (!executionLog) return classifyScheduleRecoveryEvidence(null, false)
+  if (executionLog.workflowId !== payload.workflowId) return classifyScheduleRecoveryEvidence(null)
+
+  return classifyScheduleRecoveryEvidence(executionLog.status)
+}
+
+async function applyScheduleRecoveryAccounting(params: {
+  payload: ScheduleRecoveryMetadata
+  evidence: ScheduleRecoveryEvidence
+  now: Date
+  requestId: string
+  executor?: DbOrTx
+}): Promise<{ disabled: boolean; updated: boolean }> {
+  const { payload, evidence, now, requestId, executor } = params
+  const claimedAt = getSchedulePayloadClaimedAt(payload)
+  if (!claimedAt) return { disabled: false, updated: false }
+
+  const nextRunAt = getScheduleNextRunAt(payload, now)
+  const context = `Error reconciling schedule ${payload.scheduleId} after ${evidence.outcome} recovery`
+
+  if (evidence.outcome === 'success' || evidence.outcome === 'paused') {
+    const updated = await applyScheduleSuccessUpdate({
+      scheduleId: payload.scheduleId,
+      now,
+      nextRunAt,
+      expectedLastQueuedAt: claimedAt,
+      requestId,
+      context,
+      executor,
+    })
+    return { disabled: false, updated }
+  }
+
+  if (evidence.outcome === 'cancelled') {
+    const updated = await applyScheduleCancellationUpdate({
+      scheduleId: payload.scheduleId,
+      now,
+      nextRunAt,
+      expectedLastQueuedAt: claimedAt,
+      requestId,
+      context,
+      executor,
+    })
+    return { disabled: false, updated }
+  }
+
+  const result = await applyScheduleFailureUpdate({
+    scheduleId: payload.scheduleId,
+    now,
+    nextRunAt,
+    expectedLastQueuedAt: claimedAt,
+    requestId,
+    context,
+    executor,
+  })
+  return { disabled: result.disabled, updated: result.updated }
+}
+
+async function reconcileRecoveredScheduleAccounting(params: {
+  payload: ScheduleRecoveryMetadata
+  evidence: ScheduleRecoveryEvidence
+  now: Date
+  requestId: string
+  executor: DbOrTx
+}): Promise<{ disabled: boolean; reconciled: boolean }> {
+  const firstAttempt = await applyScheduleRecoveryAccounting(params)
+  if (firstAttempt.updated) {
+    return { disabled: firstAttempt.disabled, reconciled: true }
+  }
+
+  const claimedAt = getSchedulePayloadClaimedAt(params.payload)
+  const scheduledFor = params.payload.scheduledFor ? new Date(params.payload.scheduledFor) : null
+  if (!claimedAt || !scheduledFor || Number.isNaN(scheduledFor.getTime())) {
+    return { disabled: false, reconciled: false }
+  }
+
+  const [schedule] = await params.executor
+    .select({
+      archivedAt: workflowSchedule.archivedAt,
+      lastQueuedAt: workflowSchedule.lastQueuedAt,
+      nextRunAt: workflowSchedule.nextRunAt,
+      status: workflowSchedule.status,
+    })
+    .from(workflowSchedule)
+    .where(eq(workflowSchedule.id, params.payload.scheduleId))
+    .for('update')
+
+  if (
+    !schedule ||
+    schedule.archivedAt ||
+    schedule.status === 'disabled' ||
+    schedule.status === 'completed' ||
+    !schedule.nextRunAt ||
+    schedule.nextRunAt.getTime() !== scheduledFor.getTime()
+  ) {
+    return { disabled: false, reconciled: true }
+  }
+
+  if (schedule.lastQueuedAt) {
+    return { disabled: false, reconciled: false }
+  }
+
+  const [restored] = await params.executor
+    .update(workflowSchedule)
+    .set({ lastQueuedAt: claimedAt, updatedAt: params.now })
+    .where(
+      and(
+        eq(workflowSchedule.id, params.payload.scheduleId),
+        isNull(workflowSchedule.archivedAt),
+        eq(workflowSchedule.nextRunAt, scheduledFor),
+        isNull(workflowSchedule.lastQueuedAt)
+      )
+    )
+    .returning({ id: workflowSchedule.id })
+
+  if (!restored) return { disabled: false, reconciled: false }
+
+  const retry = await applyScheduleRecoveryAccounting(params)
+  return { disabled: retry.disabled, reconciled: retry.updated }
+}
+
 async function markClaimedScheduleFailed(
   schedule: DatabaseScheduleExecutionTarget,
   requestId: string,
@@ -430,6 +634,87 @@ async function markClaimedScheduleFailed(
     expectedLastQueuedAt,
     requestId,
     context,
+  })
+
+  if (disabled) {
+    await notifyScheduleAutoDisabled({
+      scheduleId: schedule.id,
+      reason: 'consecutive_failures',
+      requestId,
+    })
+  }
+}
+
+async function reconcileExistingScheduleJob(params: {
+  job: Job
+  schedule: DatabaseScheduleExecutionTarget
+  currentClaim: Date
+  requestId: string
+  jobQueue: JobQueue
+  cancelCarrier: boolean
+}): Promise<void> {
+  const { job, schedule, currentClaim, requestId, jobQueue, cancelCarrier } = params
+  const metadata = getScheduleRecoveryMetadataFromJob(job)
+  const metadataClaim = getSchedulePayloadClaimedAt(metadata)
+  const scheduleWorkflowId = schedule.workflowId
+  const validMetadata =
+    metadata &&
+    metadataClaim &&
+    scheduleWorkflowId &&
+    metadata.scheduleId === schedule.id &&
+    metadata.workflowId === scheduleWorkflowId
+      ? metadata
+      : null
+
+  if (cancelCarrier) {
+    await jobQueue.cancelJob(job.id)
+  }
+
+  if (!scheduleWorkflowId) {
+    logger.warn(`[${requestId}] Cannot reconcile schedule job without a workflow`, {
+      scheduleId: schedule.id,
+      jobId: job.id,
+    })
+    return
+  }
+
+  if (validMetadata && metadataClaim) {
+    const restored = await restoreScheduleClaim(
+      schedule.id,
+      requestId,
+      currentClaim,
+      metadataClaim,
+      `Failed to restore schedule ${schedule.id} claim for recovery`
+    )
+    if (!restored) {
+      logger.info(`[${requestId}] Skipped schedule reconciliation after claim changed`, {
+        scheduleId: schedule.id,
+        jobId: job.id,
+      })
+      return
+    }
+  }
+
+  const recoveryPayload: ScheduleRecoveryMetadata =
+    validMetadata ??
+    ({
+      scheduleId: schedule.id,
+      workflowId: scheduleWorkflowId,
+      now: currentClaim.toISOString(),
+      cronExpression: schedule.cronExpression ?? undefined,
+      timezone: schedule.timezone,
+    } satisfies ScheduleRecoveryMetadata)
+  let evidence = validMetadata
+    ? await getScheduleRecoveryEvidence(validMetadata)
+    : classifyScheduleRecoveryEvidence(null, false)
+  if (!evidence.logFound && job.status === JOB_STATUS.CANCELLED) {
+    evidence = { outcome: 'cancelled', executionStatus: null, logFound: false }
+  }
+  const { disabled } = await applyScheduleRecoveryAccounting({
+    payload: recoveryPayload,
+    evidence,
+    now: new Date(),
+    requestId,
   })
 
   if (disabled) {
@@ -500,7 +785,10 @@ async function handleClaimedScheduleSetupFailure(
   retryContext: string,
   failureContext: string
 ): Promise<void> {
-  if (isRetryableInfrastructureError(error)) {
+  const retryable = isAsyncJobEnqueueError(error)
+    ? error.retryable
+    : isRetryableInfrastructureError(error)
+  if (retryable) {
     await deferClaimedScheduleAfterQueueFailure(
       schedule,
       requestId,
@@ -525,7 +813,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
    * would both notify about writes a rollback discards and issue pooled-client
    * reads while the transaction still holds row locks under the advisory lock.
    */
-  const disabledScheduleIds: string[] = []
+  const disabledScheduleIds = new Set<string>()
 
   await db.transaction(async (tx) => {
     const [lock] = await tx.execute<{ acquired: boolean }>(
@@ -538,78 +826,137 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
       return
     }
 
-    const staleRows = await tx
+    const claimedRows = await tx
       .select({
         id: asyncJobs.id,
         payload: asyncJobs.payload,
-        attempts: asyncJobs.attempts,
-        maxAttempts: asyncJobs.maxAttempts,
+        status: asyncJobs.status,
       })
       .from(asyncJobs)
-      .where(staleScheduleExecutionJobsFilter(now))
-      .orderBy(asc(asyncJobs.startedAt), asc(asyncJobs.id))
+      .where(
+        or(
+          staleScheduleExecutionJobsFilter(now),
+          claimedPendingScheduleExecutionJobsFilter(now),
+          unreconciledTerminalScheduleExecutionJobsFilter()
+        )
+      )
+      .for('update', { skipLocked: true })
+      .orderBy(asc(asyncJobs.updatedAt), asc(asyncJobs.id))
       .limit(STALE_SCHEDULE_RECOVERY_BATCH_SIZE)
 
-    const exhaustedRows = staleRows.filter((row) => row.attempts >= row.maxAttempts)
-    const retryableRows = staleRows.filter((row) => row.attempts < row.maxAttempts)
+    const payloads = new Map(
+      claimedRows.map((row) => [row.id, getScheduleRecoveryMetadataFromValue(row.payload)])
+    )
+    const executionIds = Array.from(
+      new Set(
+        claimedRows.flatMap((row) => {
+          const executionId = payloads.get(row.id)?.executionId
+          return executionId ? [executionId] : []
+        })
+      )
+    )
+    const executionLogs =
+      executionIds.length > 0
+        ? await tx
+            .select({
+              executionId: workflowExecutionLogs.executionId,
+              workflowId: workflowExecutionLogs.workflowId,
+              status: workflowExecutionLogs.status,
+            })
+            .from(workflowExecutionLogs)
+            .where(inArray(workflowExecutionLogs.executionId, executionIds))
+        : []
+    const executionLogsById = new Map(executionLogs.map((log) => [log.executionId, log]))
 
-    if (exhaustedRows.length > 0) {
-      await tx
+    for (const row of claimedRows) {
+      const payload = getScheduleRecoveryMetadataFromValue(row.payload)
+      const executionLog = payload?.executionId
+        ? executionLogsById.get(payload.executionId)
+        : undefined
+      let evidence = classifyScheduleRecoveryEvidence(
+        executionLog && executionLog.workflowId === payload?.workflowId
+          ? executionLog.status
+          : null,
+        Boolean(executionLog)
+      )
+      if (!evidence.logFound && row.status === JOB_STATUS.CANCELLED) {
+        evidence = { outcome: 'cancelled', executionStatus: null, logFound: false }
+      }
+      const knownOutcome = evidence.outcome !== 'indeterminate'
+      const recoveredCarrierStatus =
+        row.status === JOB_STATUS.CANCELLED
+          ? JOB_STATUS.CANCELLED
+          : knownOutcome
+            ? JOB_STATUS.COMPLETED
+            : JOB_STATUS.FAILED
+      const [settledJob] = await tx
         .update(asyncJobs)
         .set({
-          status: JOB_STATUS.FAILED,
+          status: recoveredCarrierStatus,
           completedAt: now,
-          error: 'Stale schedule execution processing lease exhausted retry attempts',
+          error:
+            recoveredCarrierStatus === JOB_STATUS.CANCELLED
+              ? 'Cancelled'
+              : knownOutcome
+                ? null
+                : `Indeterminate schedule execution outcome${evidence.executionStatus ? ` (${evidence.executionStatus})` : ''}`,
+          output: knownOutcome
+            ? {
+                recovered: true,
+                executionId: payload?.executionId ?? null,
+                executionStatus: evidence.executionStatus,
+              }
+            : null,
           updatedAt: now,
         })
-        .where(
-          inArray(
-            asyncJobs.id,
-            exhaustedRows.map((row) => row.id)
-          )
-        )
-    }
+        .where(and(eq(asyncJobs.id, row.id), eq(asyncJobs.status, row.status)))
+        .returning({ id: asyncJobs.id })
 
-    for (const row of exhaustedRows) {
-      const payload = getScheduleRecoveryMetadataFromValue(row.payload)
-      const claimedAt = getSchedulePayloadClaimedAt(payload)
-      if (!payload || !claimedAt) continue
+      if (!settledJob) continue
+      if (!payload) {
+        await tx
+          .update(asyncJobs)
+          .set({
+            metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
+              {
+                [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
+                [SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY]: true,
+              }
+            )}::jsonb`,
+            updatedAt: now,
+          })
+          .where(eq(asyncJobs.id, row.id))
+        continue
+      }
 
-      const { disabled } = await applyScheduleFailureUpdate({
-        scheduleId: payload.scheduleId,
+      const { disabled, reconciled } = await reconcileRecoveredScheduleAccounting({
+        payload,
+        evidence,
         now,
-        nextRunAt: getScheduleNextRunAt(payload, now),
-        expectedLastQueuedAt: claimedAt,
         requestId: 'stale-schedule-recovery',
-        context: `Error updating schedule ${payload.scheduleId} after stale lease recovery`,
         executor: tx,
       })
 
-      if (disabled) disabledScheduleIds.push(payload.scheduleId)
-    }
-
-    if (retryableRows.length > 0) {
-      await tx
-        .update(asyncJobs)
-        .set({
-          status: JOB_STATUS.PENDING,
-          startedAt: null,
-          error: 'Recovered after stale schedule execution processing lease',
-          updatedAt: now,
-        })
-        .where(
-          inArray(
-            asyncJobs.id,
-            retryableRows.map((row) => row.id)
-          )
-        )
+      if (disabled) disabledScheduleIds.add(payload.scheduleId)
+      if (reconciled) {
+        await tx
+          .update(asyncJobs)
+          .set({
+            metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
+              { [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true }
+            )}::jsonb`,
+            updatedAt: now,
+          })
+          .where(eq(asyncJobs.id, row.id))
+      }
     }
   })
 
-  const notifiable = disabledScheduleIds.slice(0, STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT)
-  if (disabledScheduleIds.length > notifiable.length) {
+  const disabledScheduleIdList = Array.from(disabledScheduleIds)
+  const notifiable = disabledScheduleIdList.slice(0, STALE_SCHEDULE_RECOVERY_NOTIFY_LIMIT)
+  if (disabledScheduleIdList.length > notifiable.length) {
     logger.warn('Capped schedule auto-disable notifications for stale recovery batch', {
-      disabled: disabledScheduleIds.length,
+      disabled: disabledScheduleIdList.length,
       notified: notifiable.length,
     })
   }
@@ -675,11 +1022,47 @@ async function tryStartDatabaseScheduleJob(jobId: string): Promise<DatabaseSched
         attempts: sql`${asyncJobs.attempts} + 1`,
         updatedAt: now,
       })
-      .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.status, JOB_STATUS.PENDING)))
+      .where(
+        and(
+          eq(asyncJobs.id, jobId),
+          eq(asyncJobs.type, 'schedule-execution'),
+          eq(asyncJobs.status, JOB_STATUS.PENDING),
+          eq(asyncJobs.attempts, 0)
+        )
+      )
       .returning({ id: asyncJobs.id })
 
     return startedJob ? 'started' : 'not_pending'
   })
+}
+
+async function cancelReleasedPendingDatabaseScheduleCarrier(jobId: string): Promise<boolean> {
+  const now = new Date()
+  const [cancelled] = await db
+    .update(asyncJobs)
+    .set({
+      status: JOB_STATUS.CANCELLED,
+      completedAt: now,
+      error: 'Cancelled after schedule claim was released',
+      metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
+        {
+          [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
+          [SCHEDULE_CARRIER_MIGRATED_METADATA_KEY]: true,
+        }
+      )}::jsonb`,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(asyncJobs.id, jobId),
+        eq(asyncJobs.type, 'schedule-execution'),
+        eq(asyncJobs.status, JOB_STATUS.PENDING),
+        eq(asyncJobs.attempts, 0)
+      )
+    )
+    .returning({ id: asyncJobs.id })
+
+  return Boolean(cancelled)
 }
 
 async function executeDatabaseScheduleJob(
@@ -807,16 +1190,12 @@ async function resumePendingDatabaseScheduleJobs(
 
       const claimState = await getScheduleClaimState(recoveryMetadata, claimedAt)
       if (claimState === 'released') {
-        logger.info(`[${requestId}] Completing stale pending schedule execution job`, {
+        logger.info(`[${requestId}] Cancelling stale pending schedule execution job`, {
           scheduleId: recoveryMetadata.scheduleId,
           workflowId: recoveryMetadata.workflowId,
           jobId: job.id,
         })
-        await jobQueue.completeJob(job.id, {
-          skipped: true,
-          reason: 'schedule claim no longer matches pending job occurrence',
-        })
-        return true
+        return cancelReleasedPendingDatabaseScheduleCarrier(job.id)
       }
       if (claimState === 'claimed_by_other') {
         logger.info(`[${requestId}] Leaving pending schedule execution job for active claimant`, {
@@ -885,6 +1264,123 @@ async function resumePendingDatabaseScheduleJobs(
   return processedCount
 }
 
+type PersistedDatabaseCarrierFenceResult = 'absent' | 'released' | 'blocked'
+
+class ScheduleCarrierMigrationConflictError extends Error {}
+
+async function fencePersistedDatabaseScheduleCarrier(params: {
+  jobId: string
+  schedule: DatabaseScheduleExecutionTarget
+  currentClaim: Date
+  requestId: string
+}): Promise<PersistedDatabaseCarrierFenceResult> {
+  const { jobId, schedule, currentClaim, requestId } = params
+  const now = new Date()
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [migrated] = await tx
+        .update(asyncJobs)
+        .set({
+          status: JOB_STATUS.CANCELLED,
+          completedAt: now,
+          error: 'Migrated unclaimed schedule carrier to active queue backend',
+          metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
+            {
+              [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
+              [SCHEDULE_CARRIER_MIGRATED_METADATA_KEY]: true,
+            }
+          )}::jsonb`,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(asyncJobs.id, jobId),
+            eq(asyncJobs.type, 'schedule-execution'),
+            eq(asyncJobs.status, JOB_STATUS.PENDING),
+            eq(asyncJobs.attempts, 0)
+          )
+        )
+        .returning({ id: asyncJobs.id })
+
+      if (migrated) {
+        const [released] = await tx
+          .update(workflowSchedule)
+          .set({ lastQueuedAt: null, updatedAt: now })
+          .where(
+            and(
+              eq(workflowSchedule.id, schedule.id),
+              isNull(workflowSchedule.archivedAt),
+              eq(workflowSchedule.lastQueuedAt, currentClaim)
+            )
+          )
+          .returning({ id: workflowSchedule.id })
+
+        if (!released) throw new ScheduleCarrierMigrationConflictError()
+        return 'released'
+      }
+
+      const [carrier] = await tx
+        .select({
+          id: asyncJobs.id,
+          metadata: asyncJobs.metadata,
+          payload: asyncJobs.payload,
+          status: asyncJobs.status,
+          attempts: asyncJobs.attempts,
+        })
+        .from(asyncJobs)
+        .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.type, 'schedule-execution')))
+        .for('update')
+
+      if (!carrier) return 'absent'
+      if (
+        isRecordLike(carrier.metadata) &&
+        carrier.metadata[SCHEDULE_CARRIER_MIGRATED_METADATA_KEY] === true
+      ) {
+        return 'absent'
+      }
+
+      const metadata = getScheduleRecoveryMetadataFromValue(carrier.payload)
+      const carrierClaim = getSchedulePayloadClaimedAt(metadata)
+      if (
+        metadata &&
+        carrierClaim &&
+        metadata.scheduleId === schedule.id &&
+        metadata.workflowId === schedule.workflowId
+      ) {
+        const restored = await restoreScheduleClaim(
+          schedule.id,
+          requestId,
+          currentClaim,
+          carrierClaim,
+          `Failed to restore schedule ${schedule.id} claim for persisted database carrier`,
+          tx
+        )
+        if (restored) {
+          await tx
+            .update(asyncJobs)
+            .set({
+              metadata: sql`COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}`,
+              updatedAt: now,
+            })
+            .where(eq(asyncJobs.id, carrier.id))
+        }
+      }
+
+      logger.info(`[${requestId}] Persisted database carrier fenced Trigger enqueue`, {
+        scheduleId: schedule.id,
+        jobId,
+        status: carrier.status,
+        attempts: carrier.attempts,
+      })
+      return 'blocked'
+    })
+  } catch (error) {
+    if (error instanceof ScheduleCarrierMigrationConflictError) return 'blocked'
+    throw error
+  }
+}
+
 async function processScheduleItem(
   schedule: ClaimedSchedule,
   queuedAt: Date,
@@ -893,75 +1389,48 @@ async function processScheduleItem(
   useDatabaseFallback: boolean
 ) {
   const queueTime = schedule.lastQueuedAt ?? queuedAt
-  const executionId = generateId()
-  const workspaceId = schedule.workspaceId ?? undefined
-  let billingAttribution: BillingAttributionSnapshot
-  try {
-    if (!workspaceId) {
-      throw new Error(`Unable to resolve workspace for schedule ${schedule.id}`)
-    }
-    billingAttribution = await resolveSystemBillingAttribution(workspaceId)
-  } catch (error) {
-    await handleClaimedScheduleSetupFailure(
-      schedule,
-      requestId,
-      queueTime,
-      error,
-      `Failed to defer schedule ${schedule.id} after billing attribution failure`,
-      `Failed to mark schedule ${schedule.id} failed after billing attribution failure`
-    )
-    return
-  }
-  const correlation = {
-    executionId,
-    requestId,
-    source: 'schedule' as const,
-    workflowId: schedule.workflowId!,
-    scheduleId: schedule.id,
-    triggerType: 'schedule',
-    scheduledFor: schedule.nextRunAt?.toISOString(),
-  }
-  const executionTimeoutMs = getExecutionTimeout(
-    billingAttribution.payerSubscription?.plan,
-    'async',
-    billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
-  )
-
-  const payload = {
-    scheduleId: schedule.id,
-    workflowId: schedule.workflowId!,
-    executionId,
-    requestId,
-    correlation,
-    blockId: schedule.blockId || undefined,
-    workspaceId,
-    billingAttribution,
-    deploymentVersionId: schedule.deploymentVersionId || undefined,
-    deploymentOperationId: schedule.deploymentOperationId || undefined,
-    cronExpression: schedule.cronExpression || undefined,
-    timezone: schedule.timezone || undefined,
-    lastRanAt: schedule.lastRanAt?.toISOString(),
-    failedCount: schedule.failedCount || 0,
-    infraRetryCount: schedule.infraRetryCount || 0,
-    now: queueTime.toISOString(),
-    scheduledFor: schedule.nextRunAt?.toISOString(),
-    executionTimeoutMs,
-  } satisfies ScheduleExecutionPayload
-
+  const scheduleJobId = buildScheduleExecutionJobId(schedule)
   let enqueuedJobId: string | null = null
+  let carrierObservedOrLookupUncertain = false
 
   try {
+    if (!useDatabaseFallback) {
+      let persistedCarrierFence: PersistedDatabaseCarrierFenceResult
+      try {
+        persistedCarrierFence = await fencePersistedDatabaseScheduleCarrier({
+          jobId: scheduleJobId,
+          schedule,
+          currentClaim: queueTime,
+          requestId,
+        })
+      } catch (error) {
+        carrierObservedOrLookupUncertain = true
+        throw error
+      }
+      if (persistedCarrierFence !== 'absent') return
+    }
+
+    let existingJob: Job | null
+    try {
+      existingJob = await jobQueue.getJob(scheduleJobId)
+      carrierObservedOrLookupUncertain = Boolean(existingJob)
+    } catch (error) {
+      carrierObservedOrLookupUncertain = true
+      throw error
+    }
     const delayMs = randomInt(0, SCHEDULE_JITTER_MAX_MS)
 
-    const scheduleJobId = buildScheduleExecutionJobId(schedule)
-    const existingJob = await jobQueue.getJob(scheduleJobId)
     if (existingJob && ['pending', 'processing'].includes(existingJob.status)) {
       const activeJobPayload = getScheduleRecoveryMetadataFromJob(existingJob)
       const activeJobClaim = getSchedulePayloadClaimedAt(activeJobPayload)
 
-      if (useDatabaseFallback && isStaleDatabaseScheduleJob(existingJob)) {
+      if (
+        useDatabaseFallback &&
+        (isStaleDatabaseScheduleJob(existingJob) ||
+          (existingJob.status === JOB_STATUS.PENDING && existingJob.attempts > 0))
+      ) {
         await recoverStaleDatabaseScheduleJobs(new Date())
-        logger.info(`[${requestId}] Recovered stale database schedule execution jobs`, {
+        logger.info(`[${requestId}] Reconciled claimed database schedule execution jobs`, {
           scheduleId: schedule.id,
           jobId: scheduleJobId,
         })
@@ -982,19 +1451,22 @@ async function processScheduleItem(
           jobId: existingJob.id,
           claimedAt: activeJobClaim.toISOString(),
         })
-        await jobQueue.cancelJob(existingJob.id)
-        await releaseScheduleLock(
-          schedule.id,
+        await reconcileExistingScheduleJob({
+          job: existingJob,
+          schedule,
+          currentClaim: queueTime,
           requestId,
-          queuedAt,
-          `Released stale schedule ${schedule.id} after cancelling stale schedule execution job`,
-          undefined,
-          { expectedLastQueuedAt: queueTime }
-        )
+          jobQueue,
+          cancelCarrier: true,
+        })
         return
       }
 
-      if (useDatabaseFallback && databaseJob?.status === JOB_STATUS.PENDING) {
+      if (
+        useDatabaseFallback &&
+        databaseJob?.status === JOB_STATUS.PENDING &&
+        databaseJob.attempts === 0
+      ) {
         const payloadValidation = getSchedulePayloadValidation(databaseJob.payload)
         if (!payloadValidation.success) {
           const error = `Invalid pending schedule execution payload: ${payloadValidation.error}`
@@ -1022,13 +1494,14 @@ async function processScheduleItem(
           jobId: scheduleJobId,
         })
         if (databaseJobClaim) {
-          await restoreScheduleClaim(
+          const restored = await restoreScheduleClaim(
             schedule.id,
             requestId,
             queueTime,
             databaseJobClaim,
             `Failed to restore schedule ${schedule.id} claim for pending database fallback job`
           )
+          if (!restored) return
         }
         enqueuedJobId = scheduleJobId
         await executeDatabaseScheduleJob(
@@ -1053,24 +1526,14 @@ async function processScheduleItem(
           jobId: scheduleJobId,
           status: databaseJob.status,
         })
-        if (databaseJob.status === JOB_STATUS.FAILED) {
-          await markClaimedScheduleFailed(
-            schedule,
-            requestId,
-            queueTime,
-            `Failed to mark schedule ${schedule.id} failed after terminal database fallback job`
-          )
-          return
-        }
-
-        await releaseScheduleLock(
-          schedule.id,
+        await reconcileExistingScheduleJob({
+          job: databaseJob,
+          schedule,
+          currentClaim: queueTime,
           requestId,
-          queuedAt,
-          `Released stale schedule ${schedule.id} for terminal database fallback job ${scheduleJobId}`,
-          getNextRunFromCronExpression(schedule.cronExpression, schedule.timezone),
-          { expectedLastQueuedAt: queueTime }
-        )
+          jobQueue,
+          cancelCarrier: false,
+        })
         return
       }
 
@@ -1097,21 +1560,75 @@ async function processScheduleItem(
       return
     }
     if (existingJob) {
-      logger.info(`[${requestId}] Releasing stale schedule claim for finished job`, {
+      logger.info(`[${requestId}] Reconciling schedule claim for finished job`, {
         scheduleId: schedule.id,
         jobId: scheduleJobId,
         status: existingJob.status,
       })
-      await releaseScheduleLock(
-        schedule.id,
+      await reconcileExistingScheduleJob({
+        job: existingJob,
+        schedule,
+        currentClaim: queueTime,
         requestId,
-        queuedAt,
-        `Released stale schedule ${schedule.id} for finished job ${scheduleJobId}`,
-        getNextRunFromCronExpression(schedule.cronExpression, schedule.timezone),
-        { expectedLastQueuedAt: queueTime }
+        jobQueue,
+        cancelCarrier: false,
+      })
+      return
+    }
+
+    const executionId = generateId()
+    const workspaceId = schedule.workspaceId ?? undefined
+    let billingAttribution: BillingAttributionSnapshot
+    try {
+      if (!workspaceId) {
+        throw new Error(`Unable to resolve workspace for schedule ${schedule.id}`)
+      }
+      billingAttribution = await resolveSystemBillingAttribution(workspaceId)
+    } catch (error) {
+      await handleClaimedScheduleSetupFailure(
+        schedule,
+        requestId,
+        queueTime,
+        error,
+        `Failed to defer schedule ${schedule.id} after billing attribution failure`,
+        `Failed to mark schedule ${schedule.id} failed after billing attribution failure`
       )
       return
     }
+    const correlation = {
+      executionId,
+      requestId,
+      source: 'schedule' as const,
+      workflowId: schedule.workflowId!,
+      scheduleId: schedule.id,
+      triggerType: 'schedule',
+      scheduledFor: schedule.nextRunAt?.toISOString(),
+    }
+    const executionTimeoutMs = getExecutionTimeout(
+      billingAttribution.payerSubscription?.plan,
+      'async',
+      billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
+    )
+    const payload = {
+      scheduleId: schedule.id,
+      workflowId: schedule.workflowId!,
+      executionId,
+      requestId,
+      correlation,
+      blockId: schedule.blockId || undefined,
+      workspaceId,
+      billingAttribution,
+      deploymentVersionId: schedule.deploymentVersionId || undefined,
+      deploymentOperationId: schedule.deploymentOperationId || undefined,
+      cronExpression: schedule.cronExpression || undefined,
+      timezone: schedule.timezone || undefined,
+      lastRanAt: schedule.lastRanAt?.toISOString(),
+      failedCount: schedule.failedCount || 0,
+      infraRetryCount: schedule.infraRetryCount || 0,
+      now: queueTime.toISOString(),
+      scheduledFor: schedule.nextRunAt?.toISOString(),
+      executionTimeoutMs,
+    } satisfies ScheduleExecutionPayload
 
     let jobId: string
     try {
@@ -1127,10 +1644,17 @@ async function processScheduleItem(
       })
       enqueuedJobId = jobId
     } catch (error) {
+      const classifiedError = isAsyncJobEnqueueError(error) ? error : null
+      const acceptance = classifiedError?.acceptance ?? 'unknown'
       logger.error(
         `[${requestId}] Failed to enqueue schedule execution for workflow ${schedule.workflowId}`,
-        error
+        error,
+        { acceptance, jobId: scheduleJobId }
       )
+      if (acceptance !== 'rejected') {
+        carrierObservedOrLookupUncertain = true
+        return
+      }
       await handleClaimedScheduleSetupFailure(
         schedule,
         requestId,
@@ -1173,14 +1697,14 @@ async function processScheduleItem(
         jobId,
         status: queuedJob.status,
       })
-      await releaseScheduleLock(
-        schedule.id,
+      await reconcileExistingScheduleJob({
+        job: queuedJob,
+        schedule,
+        currentClaim: queueTime,
         requestId,
-        queuedAt,
-        `Released stale schedule ${schedule.id} for finished job ${jobId}`,
-        getNextRunFromCronExpression(schedule.cronExpression, schedule.timezone),
-        { expectedLastQueuedAt: queueTime }
-      )
+        jobQueue,
+        cancelCarrier: false,
+      })
       return
     }
     if (queuedJob) {
@@ -1194,15 +1718,14 @@ async function processScheduleItem(
             jobId,
             claimedAt: queuedJobClaim.toISOString(),
           })
-          await jobQueue.cancelJob(jobId)
-          await releaseScheduleLock(
-            schedule.id,
+          await reconcileExistingScheduleJob({
+            job: queuedJob,
+            schedule,
+            currentClaim: queueTime,
             requestId,
-            queuedAt,
-            `Released stale schedule ${schedule.id} after cancelling stale queued schedule execution job`,
-            undefined,
-            { expectedLastQueuedAt: queueTime }
-          )
+            jobQueue,
+            cancelCarrier: true,
+          })
           return
         }
 
@@ -1229,7 +1752,7 @@ async function processScheduleItem(
       `[${requestId}] Failed after queueing schedule execution for workflow ${schedule.workflowId}`,
       error
     )
-    if (!enqueuedJobId) {
+    if (!enqueuedJobId && !carrierObservedOrLookupUncertain) {
       await handleClaimedScheduleSetupFailure(
         schedule,
         requestId,
@@ -1238,7 +1761,14 @@ async function processScheduleItem(
         `Failed to defer schedule ${schedule.id} after pre-enqueue failure`,
         `Failed to mark schedule ${schedule.id} failed after non-retryable setup failure`
       )
+      return
     }
+
+    logger.warn(`[${requestId}] Preserved schedule occurrence after carrier uncertainty`, {
+      scheduleId: schedule.id,
+      jobId: enqueuedJobId ?? scheduleJobId,
+      error: toError(error).message,
+    })
   }
 }
 
@@ -1268,8 +1798,8 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
     let resumedPendingSchedules = 0
     let databaseScheduleSlots = SCHEDULE_EXECUTION_CONCURRENCY_LIMIT
 
+    await recoverStaleDatabaseScheduleJobs(queuedAt)
     if (useDatabaseFallback) {
-      await recoverStaleDatabaseScheduleJobs(queuedAt)
       databaseScheduleSlots = await getDatabaseScheduleExecutionSlots()
       resumedPendingSchedules = await resumePendingDatabaseScheduleJobs(
         jobQueue,
