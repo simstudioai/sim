@@ -452,7 +452,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         inArray(asyncJobs.status, [JOB_STATUS.COMPLETED, JOB_STATUS.FAILED, JOB_STATUS.CANCELLED]),
         or(
           ne(asyncJobs.type, 'schedule-execution'),
-          sql`${asyncJobs.metadata}->>'scheduleReconciled' = 'true'`
+          and(
+            sql`${asyncJobs.metadata}->>'scheduleReconciled' = 'true'`,
+            sql`COALESCE(${asyncJobs.metadata}->>'scheduleRecoveryIrrecoverable', 'false') <> 'true'`
+          )
         ),
         lt(asyncJobs.completedAt, retentionThreshold)
       )

@@ -78,7 +78,6 @@ const STALE_SCHEDULE_CLAIM_MS = getExecutionReservationTtlMs()
 const STALE_SCHEDULE_RECOVERY_BATCH_SIZE = 100
 const DATABASE_SCHEDULE_START_TURN_WAIT_MS = 1_000
 const SCHEDULE_CARRIER_RECONCILED_METADATA_KEY = 'scheduleReconciled'
-const SCHEDULE_CARRIER_MIGRATED_METADATA_KEY = 'scheduleCarrierMigrated'
 const SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY = 'scheduleRecoveryIrrecoverable'
 const LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY = 'scheduleRecoveryBlocked'
 type DatabaseScheduleStartResult = 'started' | 'capacity_full' | 'not_pending'
@@ -315,6 +314,10 @@ function getSchedulePayloadValidation(payload: unknown): SchedulePayloadValidati
       deploymentVersionId:
         typeof candidate.deploymentVersionId === 'string'
           ? candidate.deploymentVersionId
+          : undefined,
+      deploymentOperationId:
+        typeof candidate.deploymentOperationId === 'string'
+          ? candidate.deploymentOperationId
           : undefined,
       lastRanAt: typeof candidate.lastRanAt === 'string' ? candidate.lastRanAt : undefined,
       failedCount: typeof candidate.failedCount === 'number' ? candidate.failedCount : undefined,
@@ -873,16 +876,18 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
       const executionLog = payload?.executionId
         ? executionLogsById.get(payload.executionId)
         : undefined
-      let evidence = classifyScheduleRecoveryEvidence(
+      const evidence = classifyScheduleRecoveryEvidence(
         executionLog && executionLog.workflowId === payload?.workflowId
           ? executionLog.status
           : null,
         Boolean(executionLog)
       )
-      if (!evidence.logFound && row.status === JOB_STATUS.CANCELLED) {
-        evidence = { outcome: 'cancelled', executionStatus: null, logFound: false }
-      }
-      const knownOutcome = evidence.outcome !== 'indeterminate'
+      const recoveryEvidence =
+        !evidence.logFound && row.status === JOB_STATUS.CANCELLED
+          ? { outcome: 'cancelled' as const, executionStatus: null, logFound: false }
+          : evidence
+
+      const knownOutcome = recoveryEvidence.outcome !== 'indeterminate'
       const recoveredCarrierStatus =
         row.status === JOB_STATUS.CANCELLED
           ? JOB_STATUS.CANCELLED
@@ -899,12 +904,12 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
               ? 'Cancelled'
               : knownOutcome
                 ? null
-                : `Indeterminate schedule execution outcome${evidence.executionStatus ? ` (${evidence.executionStatus})` : ''}`,
+                : `Indeterminate schedule execution outcome${recoveryEvidence.executionStatus ? ` (${recoveryEvidence.executionStatus})` : ''}`,
           output: knownOutcome
             ? {
                 recovered: true,
                 executionId: payload?.executionId ?? null,
-                executionStatus: evidence.executionStatus,
+                executionStatus: recoveryEvidence.executionStatus,
               }
             : null,
           updatedAt: now,
@@ -931,7 +936,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
 
       const { disabled, reconciled } = await reconcileRecoveredScheduleAccounting({
         payload,
-        evidence,
+        evidence: recoveryEvidence,
         now,
         requestId: 'stale-schedule-recovery',
         executor: tx,
@@ -943,7 +948,9 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
           .update(asyncJobs)
           .set({
             metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
-              { [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true }
+              {
+                [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
+              }
             )}::jsonb`,
             updatedAt: now,
           })
@@ -1047,7 +1054,6 @@ async function cancelReleasedPendingDatabaseScheduleCarrier(jobId: string): Prom
       metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
         {
           [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
-          [SCHEDULE_CARRIER_MIGRATED_METADATA_KEY]: true,
         }
       )}::jsonb`,
       updatedAt: now,
@@ -1264,123 +1270,6 @@ async function resumePendingDatabaseScheduleJobs(
   return processedCount
 }
 
-type PersistedDatabaseCarrierFenceResult = 'absent' | 'released' | 'blocked'
-
-class ScheduleCarrierMigrationConflictError extends Error {}
-
-async function fencePersistedDatabaseScheduleCarrier(params: {
-  jobId: string
-  schedule: DatabaseScheduleExecutionTarget
-  currentClaim: Date
-  requestId: string
-}): Promise<PersistedDatabaseCarrierFenceResult> {
-  const { jobId, schedule, currentClaim, requestId } = params
-  const now = new Date()
-
-  try {
-    return await db.transaction(async (tx) => {
-      const [migrated] = await tx
-        .update(asyncJobs)
-        .set({
-          status: JOB_STATUS.CANCELLED,
-          completedAt: now,
-          error: 'Migrated unclaimed schedule carrier to active queue backend',
-          metadata: sql`(COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(
-            {
-              [SCHEDULE_CARRIER_RECONCILED_METADATA_KEY]: true,
-              [SCHEDULE_CARRIER_MIGRATED_METADATA_KEY]: true,
-            }
-          )}::jsonb`,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(asyncJobs.id, jobId),
-            eq(asyncJobs.type, 'schedule-execution'),
-            eq(asyncJobs.status, JOB_STATUS.PENDING),
-            eq(asyncJobs.attempts, 0)
-          )
-        )
-        .returning({ id: asyncJobs.id })
-
-      if (migrated) {
-        const [released] = await tx
-          .update(workflowSchedule)
-          .set({ lastQueuedAt: null, updatedAt: now })
-          .where(
-            and(
-              eq(workflowSchedule.id, schedule.id),
-              isNull(workflowSchedule.archivedAt),
-              eq(workflowSchedule.lastQueuedAt, currentClaim)
-            )
-          )
-          .returning({ id: workflowSchedule.id })
-
-        if (!released) throw new ScheduleCarrierMigrationConflictError()
-        return 'released'
-      }
-
-      const [carrier] = await tx
-        .select({
-          id: asyncJobs.id,
-          metadata: asyncJobs.metadata,
-          payload: asyncJobs.payload,
-          status: asyncJobs.status,
-          attempts: asyncJobs.attempts,
-        })
-        .from(asyncJobs)
-        .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.type, 'schedule-execution')))
-        .for('update')
-
-      if (!carrier) return 'absent'
-      if (
-        isRecordLike(carrier.metadata) &&
-        carrier.metadata[SCHEDULE_CARRIER_MIGRATED_METADATA_KEY] === true
-      ) {
-        return 'absent'
-      }
-
-      const metadata = getScheduleRecoveryMetadataFromValue(carrier.payload)
-      const carrierClaim = getSchedulePayloadClaimedAt(metadata)
-      if (
-        metadata &&
-        carrierClaim &&
-        metadata.scheduleId === schedule.id &&
-        metadata.workflowId === schedule.workflowId
-      ) {
-        const restored = await restoreScheduleClaim(
-          schedule.id,
-          requestId,
-          currentClaim,
-          carrierClaim,
-          `Failed to restore schedule ${schedule.id} claim for persisted database carrier`,
-          tx
-        )
-        if (restored) {
-          await tx
-            .update(asyncJobs)
-            .set({
-              metadata: sql`COALESCE(${asyncJobs.metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}`,
-              updatedAt: now,
-            })
-            .where(eq(asyncJobs.id, carrier.id))
-        }
-      }
-
-      logger.info(`[${requestId}] Persisted database carrier fenced Trigger enqueue`, {
-        scheduleId: schedule.id,
-        jobId,
-        status: carrier.status,
-        attempts: carrier.attempts,
-      })
-      return 'blocked'
-    })
-  } catch (error) {
-    if (error instanceof ScheduleCarrierMigrationConflictError) return 'blocked'
-    throw error
-  }
-}
-
 async function processScheduleItem(
   schedule: ClaimedSchedule,
   queuedAt: Date,
@@ -1394,26 +1283,10 @@ async function processScheduleItem(
   let carrierObservedOrLookupUncertain = false
 
   try {
-    if (!useDatabaseFallback) {
-      let persistedCarrierFence: PersistedDatabaseCarrierFenceResult
-      try {
-        persistedCarrierFence = await fencePersistedDatabaseScheduleCarrier({
-          jobId: scheduleJobId,
-          schedule,
-          currentClaim: queueTime,
-          requestId,
-        })
-      } catch (error) {
-        carrierObservedOrLookupUncertain = true
-        throw error
-      }
-      if (persistedCarrierFence !== 'absent') return
-    }
-
     let existingJob: Job | null
     try {
       existingJob = await jobQueue.getJob(scheduleJobId)
-      carrierObservedOrLookupUncertain = Boolean(existingJob)
+      if (existingJob) carrierObservedOrLookupUncertain = true
     } catch (error) {
       carrierObservedOrLookupUncertain = true
       throw error
@@ -1798,8 +1671,8 @@ export async function runScheduleTick(requestId: string): Promise<ScheduleTickRe
     let resumedPendingSchedules = 0
     let databaseScheduleSlots = SCHEDULE_EXECUTION_CONCURRENCY_LIMIT
 
-    await recoverStaleDatabaseScheduleJobs(queuedAt)
     if (useDatabaseFallback) {
+      await recoverStaleDatabaseScheduleJobs(queuedAt)
       databaseScheduleSlots = await getDatabaseScheduleExecutionSlots()
       resumedPendingSchedules = await resumePendingDatabaseScheduleJobs(
         jobQueue,

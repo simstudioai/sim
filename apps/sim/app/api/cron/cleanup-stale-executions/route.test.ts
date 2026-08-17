@@ -251,6 +251,21 @@ describe('stale execution cleanup deadline grace', () => {
     ).toBe(true)
   })
 
+  it('retains irrecoverable schedule carrier tombstones indefinitely', async () => {
+    const response = await GET(createRequest())
+
+    expect(response.status).toBe(200)
+    const retentionConditions = dbChainMockFns.where.mock.calls.flatMap(([condition]) =>
+      flattenConditions(condition)
+    )
+    const irrecoverableExclusion = retentionConditions.find((condition) =>
+      condition.toSQL?.().sql.includes('scheduleRecoveryIrrecoverable')
+    )
+
+    expect(irrecoverableExclusion?.toSQL?.().sql).toContain("<> 'true'")
+    expect(irrecoverableExclusion?.toSQL?.().params).toContain(asyncJobs.metadata)
+  })
+
   it('keeps table-job heartbeat cleanup independent from workflow timeout policy', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-03T12:00:00.000Z'))
