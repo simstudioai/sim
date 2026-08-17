@@ -460,22 +460,27 @@ export async function requestAllPages<T>(
   const items: T[] = []
   const progress = pageProgress()
   let cursor: string | null = null
-  do {
-    const page: V2Page<T> = await client.request<V2Page<T>>(path, {
-      ...requestOptions,
-      query: {
-        ...query,
-        limit: Math.min(pageSize, limit - items.length),
-        cursor,
-      },
-    })
-    items.push(...page.data)
-    cursor = page.nextCursor
+  // `finally`, because a page that throws part-way through would otherwise skip
+  // the cleanup and leave `fetched 1200…` sitting on the line the error is then
+  // written onto.
+  try {
+    do {
+      const page: V2Page<T> = await client.request<V2Page<T>>(path, {
+        ...requestOptions,
+        query: {
+          ...query,
+          limit: Math.min(pageSize, limit - items.length),
+          cursor,
+        },
+      })
+      items.push(...page.data)
+      cursor = page.nextCursor
 
-    if (cursor && items.length < limit) progress.advance(items.length)
-  } while (cursor && items.length < limit)
-
-  progress.finish()
+      if (cursor && items.length < limit) progress.advance(items.length)
+    } while (cursor && items.length < limit)
+  } finally {
+    progress.finish()
+  }
 
   return items.slice(0, limit)
 }

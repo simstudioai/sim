@@ -93,6 +93,30 @@ describe('cursor pagination', () => {
     expect(stderr.writes[1]).toBe('\r\u001b[K')
   })
 
+  it('clears the progress line when a later page fails', async () => {
+    // Progress is written without a trailing newline so it can be overwritten in
+    // place. Cleaning up only on success left `fetched 2…` on the line the error
+    // was then printed onto, so the two ran together.
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ data: ['a', 'b'], nextCursor: 'next' })
+      .mockRejectedValueOnce(new Error('page two failed'))
+    const stderr = stubStderr(true)
+
+    try {
+      await expect(
+        requestAllPages<string>({ request } as Pick<SimClient, 'request'>, '/api/v2/items', {
+          pageSize: 2,
+        })
+      ).rejects.toThrow('page two failed')
+    } finally {
+      stderr.restore()
+    }
+
+    expect(stderr.writes[0]).toContain('fetched 2')
+    expect(stderr.writes.at(-1)).toBe('\r\u001b[K')
+  })
+
   it('stays silent for a single page, and when stderr is not a terminal', async () => {
     const single = vi.fn().mockResolvedValue({ data: ['a'], nextCursor: null })
     const paged = vi

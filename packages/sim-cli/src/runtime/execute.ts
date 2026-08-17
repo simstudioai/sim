@@ -118,21 +118,25 @@ export async function executeOperation(
     const progress = pageProgress()
     let cursor: string | null = null
 
-    do {
-      const page: V2Page<unknown> = await client.request(request.path, {
-        method: operationSpec.method,
-        query: paging === 'query' ? { ...request.query, ...pageLimit, cursor } : request.query,
-        body:
-          paging === 'body'
-            ? { ...(request.body ?? {}), ...pageLimit, ...(cursor ? { cursor } : {}) }
-            : request.body,
-      })
-      rows.push(...page.data)
-      cursor = page.nextCursor
-      if (cursor && rows.length < limit) progress.advance(rows.length)
-    } while (cursor && rows.length < limit)
-
-    progress.finish()
+    // `finally`, for the same reason as `requestAllPages`: a page that throws
+    // would otherwise leave the progress text on the line the error prints onto.
+    try {
+      do {
+        const page: V2Page<unknown> = await client.request(request.path, {
+          method: operationSpec.method,
+          query: paging === 'query' ? { ...request.query, ...pageLimit, cursor } : request.query,
+          body:
+            paging === 'body'
+              ? { ...(request.body ?? {}), ...pageLimit, ...(cursor ? { cursor } : {}) }
+              : request.body,
+        })
+        rows.push(...page.data)
+        cursor = page.nextCursor
+        if (cursor && rows.length < limit) progress.advance(rows.length)
+      } while (cursor && rows.length < limit)
+    } finally {
+      progress.finish()
+    }
     renderPage(profile.output, Number.isFinite(limit) ? rows.slice(0, limit) : rows, commandSpec)
     return
   }
