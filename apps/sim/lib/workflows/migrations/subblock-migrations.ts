@@ -47,6 +47,35 @@ export interface SubblockIdMigration {
    * Omit for an unconditional rename.
    */
   whenOperation?: readonly string[]
+  /**
+   * Apply only when the stored value passes this check. Needed when the legacy
+   * ID served two incompatible value spaces that the stored `operation` alone
+   * cannot separate, because a value written under one operation survives a
+   * switch to another: subblock values are keyed by ID and are never cleared
+   * when the operation changes.
+   */
+  whenValue?: (value: unknown) => boolean
+}
+
+/**
+ * Whether a stored value could plausibly be a comma-separated field
+ * projection rather than a JSON body.
+ *
+ * The shipped ServiceNow block declared `fields` three times — the Create and
+ * Update Record JSON bodies and the Read Records projection — so one stored
+ * value served both spaces. A block configured for Create Record and later
+ * switched to Read Records without clearing the field carries the JSON body
+ * under `fields` while `operation` already reads `servicenow_read_record`, so
+ * the operation scope alone cannot tell a projection from a body. Promoting a
+ * body onto `readFields` would send it as `sysparm_fields`, which is exactly
+ * the cross-space leak the rename closed.
+ *
+ * A projection is a plain field list, so anything opening as JSON is not one.
+ */
+function isFieldProjection(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  const trimmed = value.trim()
+  return trimmed !== '' && !trimmed.startsWith('{') && !trimmed.startsWith('[')
 }
 
 /**
@@ -182,8 +211,19 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
    * are incompatible — a body sent as `sysparm_fields` goes out as
    * `[object Object]` — so the rename is scoped to Read Records and the body
    * keeps `fields` untouched on create and update.
+   *
+   * The operation scope is not enough on its own: a block configured for
+   * Create Record and then switched to Read Records still holds the JSON body
+   * under `fields`, so the value is guarded as well.
    */
-  servicenow: [{ from: 'fields', to: 'readFields', whenOperation: ['servicenow_read_record'] }],
+  servicenow: [
+    {
+      from: 'fields',
+      to: 'readFields',
+      whenOperation: ['servicenow_read_record'],
+      whenValue: isFieldProjection,
+    },
+  ],
   /**
    * One `sendEmail` switch used to serve activation, password reset,
    * deactivation, and deletion. Okta's API default is not uniform across those
@@ -272,7 +312,7 @@ function migrateBlockSubblockIds(
   const operation = selectedOperation(subBlocks)
   let migrated = false
 
-  for (const { from, to, whenOperation } of migrations) {
+  for (const { from, to, whenOperation, whenValue } of migrations) {
     if (!(from in result)) continue
 
     // A `_removed_` target means the field no longer exists in the block. Drop
@@ -332,6 +372,11 @@ function migrateBlockSubblockIds(
       migrated = true
       continue
     }
+
+    // A value the target's space cannot represent belongs to whichever control
+    // still owns the source ID. Leave it there rather than moving it into a
+    // field that would send it as something it is not.
+    if (whenValue && !whenValue(storedSubblockValue(result[from]))) continue
 
     const oldEntry: unknown = result[from]
     const configuredType = blockConfig?.subBlocks?.find((config) => config.id === to)?.type

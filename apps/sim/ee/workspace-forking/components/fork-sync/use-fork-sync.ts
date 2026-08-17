@@ -688,9 +688,11 @@ export function useForkSync(params: {
   // or the source reference; promote translates a source document id to its copied counterpart
   // at write time). The server persists this verbatim as the stored mapping; fields whose
   // parent is unresolved are omitted (they can't be configured), as are fields an in-block
-  // parent re-pick invalidated and the user never re-picked - writing those blank would destroy
-  // a stored target value nobody chose to clear. This is the whole "what's in the mapping goes
-  // in" contract, shared by Save and Sync so the two persist identically.
+  // parent re-pick invalidated and the user never re-picked - submitting those blank writes an
+  // explicit `''` override into the target draft (see `applyDependentOverrides`), which on the
+  // paths `clearDependentsOnRemap` does not cover would clear a value nobody chose to clear.
+  // `DEPENDENT_CLEARED_BY_PARENT` documents which paths those are. This is the whole "what's in
+  // the mapping goes in" contract, shared by Save and Sync so the two persist identically.
   const buildDependentValues = () =>
     dependentReconfigs.flatMap((field) => {
       const parent = entryForDependent(field)

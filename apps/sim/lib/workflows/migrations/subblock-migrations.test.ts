@@ -529,6 +529,138 @@ describe('migrateSubblockIds', () => {
     })
   })
 
+  describe('servicenow block', () => {
+    it('moves a legacy Read Records projection onto readFields', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'servicenow',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_read_record' },
+            fields: {
+              id: 'fields',
+              type: 'short-input',
+              value: 'number,short_description,priority',
+            },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.readFields.value).toBe('number,short_description,priority')
+      expect(blocks.b1.subBlocks.fields).toBeUndefined()
+    })
+
+    /**
+     * The shipped block shared `fields` between the Create/Update Record JSON
+     * body and the Read Records projection, and a subblock value survives an
+     * operation switch. So `operation: servicenow_read_record` holding a JSON
+     * body under `fields` is a reachable saved state, and promoting that body
+     * onto `readFields` would send it as `sysparm_fields`.
+     */
+    it('leaves a Create Record JSON body under fields when the operation was switched to Read Records', () => {
+      const body = '{\n  "short_description": "Issue description",\n  "priority": "1"\n}'
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'servicenow',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_read_record' },
+            fields: { id: 'fields', type: 'code', value: body },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.readFields).toBeUndefined()
+      expect(blocks.b1.subBlocks.fields.value).toBe(body)
+    })
+
+    it('leaves a JSON array value under fields as well', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'servicenow',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_read_record' },
+            fields: { id: 'fields', type: 'code', value: '["short_description"]' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.readFields).toBeUndefined()
+      expect(blocks.b1.subBlocks.fields.value).toBe('["short_description"]')
+    })
+
+    it('leaves the JSON body alone on create', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'servicenow',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_create_record' },
+            fields: { id: 'fields', type: 'code', value: '{"short_description":"x"}' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.readFields).toBeUndefined()
+      expect(blocks.b1.subBlocks.fields.value).toBe('{"short_description":"x"}')
+    })
+  })
+
+  /**
+   * `okta_remove_user_from_app` reached the block in #6741 (`d45dad7e8b`),
+   * whose only release tag is v0.8.3 — the same release that split `sendEmail`
+   * into `sendDeactivationEmail`. In v0.8.2 the operation does not exist and
+   * `sendEmail` covers only activate/deactivate/reset/delete, so no saved state
+   * can hold a remove-from-app preference under `sendEmail`, and widening the
+   * scope would only let an activation-era value be promoted.
+   */
+  describe('okta block', () => {
+    it('renames the deactivation half of the shared send-email switch', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'okta',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'okta_deactivate_user' },
+            sendEmail: { id: 'sendEmail', type: 'switch', value: 'true' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.sendDeactivationEmail.value).toBe('true')
+      expect(blocks.b1.subBlocks.sendEmail).toBeUndefined()
+    })
+
+    it('leaves the activation half on sendEmail', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'okta',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'okta_activate_user' },
+            sendEmail: { id: 'sendEmail', type: 'switch', value: 'false' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(false)
+      expect(blocks.b1.subBlocks.sendEmail.value).toBe('false')
+      expect(blocks.b1.subBlocks.sendDeactivationEmail).toBeUndefined()
+    })
+  })
+
   it('should handle blocks with empty subBlocks', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({ type: 'knowledge', subBlocks: {} }),

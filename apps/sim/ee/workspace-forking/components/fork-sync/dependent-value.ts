@@ -13,8 +13,17 @@ function sameDependencyScope(left: ForkDependentReconfig, right: ForkDependentRe
  * Marker stored for a descendant whose value an in-session parent re-pick invalidated, kept
  * distinct from the user's own empty pick. It reads as blank everywhere it is consumed - the
  * selector, the in-block chain context, and the sync gate - but is never submitted: the user
- * has not chosen a replacement, so the target keeps its stored value instead of being blanked.
- * A `''` the user picked themselves IS submitted and does clear the target.
+ * has not chosen a replacement, so no override is written for it. A `''` the user picked
+ * themselves IS submitted and does clear the target.
+ *
+ * What the omission buys differs by path. On Save nothing rewrites the target draft, so its
+ * stored value survives outright - including across an undo (re-pick away, then back), where
+ * the parent nets out unchanged so `clearDependentsOnRemap` never fires and an explicit `''`
+ * would land on a value nobody touched. On Sync the written state is source-derived and
+ * `clearDependentsOnRemap` already blanks every top-level dependent of a remapped parent, so
+ * omission preserves nothing there; what it prevents is an explicit `''` reaching the fields
+ * that pass does not cover - nested `tools[i].param` values in particular, which
+ * `applyNestedToolOverrides` would otherwise blank.
  *
  * The escaped NUL prefix keeps it disjoint from every real selector value (ids, names, label
  * paths) - no selector can produce one, so it can never collide with a genuine pick.

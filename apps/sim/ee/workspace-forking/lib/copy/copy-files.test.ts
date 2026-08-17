@@ -4,11 +4,24 @@
 import { folder as folderTable } from '@sim/db/schema'
 import {
   dbChainMockFns,
+  type MockCondition,
   resetDbChainMock,
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** The `workspace_files` columns {@link fileRows} enforces its unique indexes on. */
+interface WorkspaceFileRow {
+  id: string
+  key: string
+  workspaceId: string | null
+  folderId?: string | null
+  context: string
+  originalName: string
+  deletedAt: Date | null
+  [column: string]: unknown
+}
 
 /**
  * `fileRows` is the shared stand-in for the `workspace_files` table: the mocked name
@@ -23,17 +36,7 @@ const {
   mockIncrementStorageUsageInTx,
   mockResolveStorageBillingContext,
 } = vi.hoisted(() => {
-  interface FileRow {
-    id: string
-    key: string
-    workspaceId: string | null
-    folderId?: string | null
-    context: string
-    originalName: string
-    deletedAt: Date | null
-    [column: string]: unknown
-  }
-  const fileRows: FileRow[] = []
+  const fileRows: WorkspaceFileRow[] = []
   const withCopySuffix = (name: string, n: number) => {
     const lastDot = name.lastIndexOf('.')
     return lastDot > 0 && lastDot < name.length - 1
@@ -247,39 +250,76 @@ describe('executeForkFileBlobCopies storage accounting', () => {
   })
 })
 
+/** Rejects a predicate the harness does not model, rather than letting it match everything. */
+function unsupportedPredicate(detail: string): never {
+  throw new Error(`Unsupported predicate in test harness: ${detail}`)
+}
+
+/** The nested clauses of an `and`/`or` node, or a throw when the node carries none. */
+function predicateClauses(node: MockCondition): unknown[] {
+  if (!Array.isArray(node.conditions))
+    unsupportedPredicate(`${String(node.type)} without conditions`)
+  return node.conditions
+}
+
+/**
+ * The row key a predicate node references. The mocked schema tables are column-name maps, so a
+ * column reference is the column name itself; anything else is a shape this harness cannot read.
+ */
+function predicateColumn(node: MockCondition, field: 'left' | 'column'): string {
+  const column = node[field]
+  if (typeof column !== 'string')
+    unsupportedPredicate(`${String(node.type)} with a non-column ${field}`)
+  return column
+}
+
 /**
  * Evaluate a mocked drizzle predicate against a row. Real predicate reading, so a chain that
  * ignores its `where` clause cannot pass these tests by echoing a fixture back.
  */
-function matchesPredicate(row: Record<string, unknown>, predicate: any): boolean {
+function matchesPredicate(row: Record<string, unknown>, predicate: unknown): boolean {
   if (!predicate) return true
-  switch (predicate.type) {
+  if (typeof predicate !== 'object') unsupportedPredicate(typeof predicate)
+  const node = predicate as MockCondition
+  switch (node.type) {
     case 'and':
-      return predicate.conditions.every((clause: unknown) => matchesPredicate(row, clause))
+      return predicateClauses(node).every((clause) => matchesPredicate(row, clause))
     case 'or':
-      return predicate.conditions.some((clause: unknown) => matchesPredicate(row, clause))
+      return predicateClauses(node).some((clause) => matchesPredicate(row, clause))
     case 'eq':
-      return row[predicate.left] === predicate.right
-    case 'isNull':
-      return row[predicate.column] === null || row[predicate.column] === undefined
-    case 'inArray':
-      return predicate.values.includes(row[predicate.column])
+      return row[predicateColumn(node, 'left')] === node.right
+    case 'isNull': {
+      const value = row[predicateColumn(node, 'column')]
+      return value === null || value === undefined
+    }
+    case 'inArray': {
+      if (!Array.isArray(node.values)) unsupportedPredicate('inArray without values')
+      return node.values.includes(row[predicateColumn(node, 'column')])
+    }
     default:
-      throw new Error(`Unsupported predicate in test harness: ${predicate?.type}`)
+      return unsupportedPredicate(String(node.type))
   }
 }
 
 /** Awaitable stand-in for a drizzle select result, supporting `.limit`/`.for`/`.orderBy`. */
-function selectResult(rows: Record<string, unknown>[]): any {
-  const builder: any = {
-    then: (onFulfilled?: any, onRejected?: any) =>
-      Promise.resolve(rows).then(onFulfilled, onRejected),
-    catch: (onRejected?: any) => Promise.resolve(rows).catch(onRejected),
-    finally: (onFinally?: any) => Promise.resolve(rows).finally(onFinally),
+interface MockSelectResult extends PromiseLike<WorkspaceFileRow[]> {
+  catch: Promise<WorkspaceFileRow[]>['catch']
+  finally: Promise<WorkspaceFileRow[]>['finally']
+  limit: (count: number) => MockSelectResult
+  for: () => MockSelectResult
+  orderBy: () => MockSelectResult
+}
+
+function selectResult(rows: WorkspaceFileRow[]): MockSelectResult {
+  const settled = Promise.resolve(rows)
+  const builder: MockSelectResult = {
+    then: (onFulfilled, onRejected) => settled.then(onFulfilled, onRejected),
+    catch: (onRejected) => settled.catch(onRejected),
+    finally: (onFinally) => settled.finally(onFinally),
+    limit: (count: number) => selectResult(rows.slice(0, count)),
+    for: () => builder,
+    orderBy: () => builder,
   }
-  builder.limit = (count: number) => selectResult(rows.slice(0, count))
-  builder.for = () => builder
-  builder.orderBy = () => builder
   return builder
 }
 
@@ -294,7 +334,7 @@ function installFileTableSimulation(): void {
   dbChainMockFns.where.mockImplementation((predicate: unknown) =>
     selectResult(fileRows.filter((row) => matchesPredicate(row, predicate)))
   )
-  dbChainMockFns.values.mockImplementation((row: any) => {
+  dbChainMockFns.values.mockImplementation((row: WorkspaceFileRow) => {
     const attemptInsert = (conflictTarget: unknown) => {
       const pkConflict = fileRows.some((existing) => existing.id === row.id)
       const activeConflict = fileRows.some(
