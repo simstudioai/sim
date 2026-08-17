@@ -283,6 +283,15 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
     { from: 'status', to: '_removed_status' },
     { from: 'users', to: '_removed_users' },
   ],
+  /**
+   * `forwardId` fed a `concur-forwardid` request header on the receipt upload.
+   * That header is documented nowhere in Concur's Receipts v4 or Image v1
+   * references, so it was never honored — the value rode along on every upload
+   * and did nothing. There is no replacement subblock to carry it to, and the
+   * value is an opaque caller-chosen string rather than a secret, so it is
+   * dropped outright.
+   */
+  sap_concur: [{ from: 'forwardId', to: '_removed_forwardId' }],
 }
 
 /** Reads the value out of a stored subblock entry, tolerating a bare value. */
