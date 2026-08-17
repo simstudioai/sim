@@ -734,6 +734,30 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(mockUpload).not.toHaveBeenCalled()
   })
 
+  it('aborts mid-extraction on the caller signal and rolls the partial tree back', async () => {
+    const buffer = await buildZip({ 'a.txt': 'x', 'b.txt': 'y', 'c.txt': 'z' })
+    const controller = new AbortController()
+    const commit = mockUpload.getMockImplementation()!
+    mockUpload.mockImplementation(async (args: any) => {
+      const uploaded = await commit(args)
+      // Abort once the first file is committed, so rollback has something to undo.
+      controller.abort()
+      return uploaded
+    })
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(mockUpload).toHaveBeenCalledOnce()
+    expect(mockPurge).toHaveBeenCalledOnce()
+    expect(mockPurge).toHaveBeenCalledWith(expect.objectContaining({ expectedName: 'a.txt' }))
+  })
+
   it('applies the workspace bulk limit by default, so every caller is bounded', async () => {
     // 1000 files, each under six folders unique to it: 7000 materialized items from an entry
     // count that is itself within MAX_ARCHIVE_ENTRIES. No caller opts in to this cap.

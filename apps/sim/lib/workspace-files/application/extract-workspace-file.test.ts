@@ -152,6 +152,7 @@ describe('extractWorkspaceFile', () => {
       principal,
       rootFolderSegments: ['Projects', 'Imports', 'bundle'],
       prepareRootFolder: expect.any(Function),
+      signal: expect.any(AbortSignal),
       skipNoiseEntries: true,
       secretProvenance: { status: 'exact', entries: [] },
       notifyWorkspaceChange: false,
@@ -283,6 +284,28 @@ describe('extractWorkspaceFile', () => {
     })
     expect(mocks.notify).toHaveBeenCalledOnce()
     expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('reports a budget overrun as a caller-fixable error, not the raw abort', async () => {
+    mocks.decompress.mockImplementationOnce(async (_content, options) => {
+      await options.prepareRootFolder()
+      // Stand in for the deadline firing mid-write: the extractor aborts, rolls back, and
+      // rethrows the DOMException, which must not reach the caller as an opaque 500.
+      Object.defineProperty(options.signal, 'aborted', { value: true })
+      throw Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' })
+    })
+
+    await expect(
+      extractWorkspaceFile.execute({
+        principal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).rejects.toMatchObject({
+      code: 'payload_too_large',
+      message: expect.stringContaining('took too long and was rolled back'),
+    })
+
+    expect(mocks.archiveFolderIfEmpty).toHaveBeenCalledOnce()
   })
 
   it('leaves a destination folder that gained collaborators content during rollback', async () => {

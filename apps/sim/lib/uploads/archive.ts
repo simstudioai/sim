@@ -271,6 +271,11 @@ function throwInflateCapError(reason: 'entry' | 'total', entryName: string): nev
  * re-inflates and uploads one entry at a time. Peak memory stays ~one entry in
  * both passes; the cost is inflating twice (CPU only, bounded by the caps).
  *
+ * `signal` aborts between entries in both passes. Callers that hold a lease or run
+ * under a request deadline must pass one: the write loop is otherwise unbounded, and a
+ * process killed mid-pass-2 strands a partial tree that no `catch` can roll back.
+ * Aborting instead unwinds through the same all-or-nothing rollback as any other failure.
+ *
  * When `prepareRootFolder` is provided it takes precedence over
  * `rootFolderSegments`: it runs once, only after the caps have been proven and
  * only when at least one safe entry exists, and extraction lands under the
@@ -298,6 +303,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     prepareRootFolder?: (
       validateRootFolderSegments: (rootFolderSegments: string[]) => void
     ) => Promise<string[]>
+    signal?: AbortSignal
     maxMaterializedItems?: number
     skipNoiseEntries?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
@@ -309,6 +315,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     principal,
     rootFolderSegments = [],
     prepareRootFolder,
+    signal,
     maxMaterializedItems = MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
     skipNoiseEntries = false,
     secretProvenance = { status: 'unknown' },
@@ -413,6 +420,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   // persisting anything, so a lying header aborts before any upload happens.
   let validatedTotal = 0
   for (const { entry } of safeEntries) {
+    signal?.throwIfAborted()
     const result = await inflateEntryWithinCaps(
       entry,
       MAX_ARCHIVE_TOTAL_BYTES - validatedTotal,
@@ -446,6 +454,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   let totalBytes = 0
   try {
     for (const { entry, segments } of safeEntries) {
+      signal?.throwIfAborted()
       const result = await inflateEntryWithinCaps(entry, MAX_ARCHIVE_TOTAL_BYTES - totalBytes, true)
       if (!result.ok) throwInflateCapError(result.reason, entry.name)
       totalBytes += result.size

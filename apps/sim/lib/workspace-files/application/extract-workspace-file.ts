@@ -24,6 +24,19 @@ import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/applica
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 const logger = createLogger('ExtractWorkspaceFile')
+/**
+ * Wall-clock budget for the extraction itself, deliberately shorter than the route's
+ * `maxDuration` so the work stops on our terms — with the all-or-nothing rollback still
+ * able to run — rather than the platform killing the process mid-write and stranding a
+ * partial tree. Self-hosted deployments do not enforce `maxDuration` at all, so this is
+ * the only thing bounding the write loop there.
+ */
+const EXTRACTION_BUDGET_MS = 180 * 1000
+/**
+ * Must exceed {@link EXTRACTION_BUDGET_MS} plus the worst-case rollback, because
+ * `IdempotencyService` reclaims an expired in-progress claim: a holder that outlives its
+ * own lease would let a second unzip of the same archive start beside it.
+ */
 const EXTRACTION_LEASE_TTL_SECONDS = 6 * 60
 /**
  * Used only through `atomicallyClaim`/`release`, never `executeWithIdempotency`, so no
@@ -113,6 +126,7 @@ async function extractWorkspaceFileContents({
     )
   }
 
+  const deadline = AbortSignal.timeout(EXTRACTION_BUDGET_MS)
   const folderName = archiveFolderName(file.name)
   const parentFolderSegments = file.folderPath
     ? parseWorkspaceFileFolderDisplayPath(file.folderPath)
@@ -147,6 +161,7 @@ async function extractWorkspaceFileContents({
         })
         return parseWorkspaceFileFolderDisplayPath(rootFolder.path)
       },
+      signal: deadline,
       skipNoiseEntries: true,
       secretProvenance,
       notifyWorkspaceChange: false,
@@ -182,6 +197,17 @@ async function extractWorkspaceFileContents({
         })
       }
       await notifyWorkspaceFilesChanged(context.workspaceId)
+    }
+    if (deadline.aborted && !(error instanceof OrchestrationError)) {
+      logger.warn('Archive extraction exceeded its budget and was rolled back', {
+        workspaceId: context.workspaceId,
+        fileId: file.id,
+        budgetMs: EXTRACTION_BUDGET_MS,
+      })
+      throw new OrchestrationError(
+        'payload_too_large',
+        `Unzipping "${file.name}" took too long and was rolled back. Try a smaller archive.`
+      )
     }
     throw error
   }
