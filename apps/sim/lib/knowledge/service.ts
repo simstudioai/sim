@@ -1,16 +1,9 @@
 import { db } from '@sim/db'
-import {
-  document,
-  knowledgeBase,
-  knowledgeConnector,
-  permissions,
-  workspace,
-  workspaceFiles,
-} from '@sim/db/schema'
+import { document, knowledgeBase, knowledgeConnector, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, count, eq, exists, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm'
 import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
 import type { CursorKey, KeysetKey, ListSortOrder } from '@/lib/api/list-query'
 import {
@@ -308,18 +301,16 @@ export async function getWorkspaceKnowledgeBases(
 }
 
 /**
- * Get knowledge bases that a user can access.
- *
- * Filter and sort are applied in the query, so a search costs one narrowed scan
- * rather than materializing every knowledge base the caller can reach.
+ * Lists the caller's legacy personal knowledge bases — the ones that predate
+ * workspaces and carry no `workspaceId`, where the creator is the only possible
+ * authority. Workspace-owned rows are read by
+ * {@link getWorkspaceKnowledgeBases} after an application use case has
+ * authorized the workspace; nothing here re-derives that access.
  */
-export async function getKnowledgeBases(
+export async function getLegacyPersonalKnowledgeBases(
   userId: string,
-  workspaceId?: string | null,
-  scope: KnowledgeBaseScope = 'active',
-  options?: GetKnowledgeBasesOptions
+  scope: KnowledgeBaseScope = 'active'
 ): Promise<KnowledgeBaseWithCounts[]> {
-  const { folderId, search, sortBy = 'createdAt', sortOrder = 'asc' } = options ?? {}
   const scopeCondition =
     scope === 'all'
       ? undefined
@@ -327,22 +318,7 @@ export async function getKnowledgeBases(
         ? sql`${knowledgeBase.deletedAt} IS NOT NULL`
         : isNull(knowledgeBase.deletedAt)
 
-  /**
-   * Legacy knowledge bases predate workspaces and have no `workspaceId`, so the creator is
-   * their only possible authority. Anything with a `workspaceId` must clear
-   * `currentWorkspaceMembership` instead — creator identity goes stale the moment a member
-   * is removed from the workspace.
-   */
-  const legacyOwnedKnowledgeBase = and(
-    eq(knowledgeBase.userId, userId),
-    isNull(knowledgeBase.workspaceId)
-  )
-  const currentWorkspaceMembership = and(
-    isNotNull(permissions.userId),
-    isNull(workspace.archivedAt)
-  )
-
-  const knowledgeBasesWithCounts = await db
+  const rows = await db
     .select({
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
@@ -369,70 +345,25 @@ export async function getKnowledgeBases(
         isNull(document.deletedAt)
       )
     )
-    .leftJoin(
-      permissions,
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, knowledgeBase.workspaceId),
-        eq(permissions.userId, userId)
-      )
-    )
-    .leftJoin(workspace, eq(knowledgeBase.workspaceId, workspace.id))
-    .where(
-      and(
-        scopeCondition,
-        folderId === undefined
-          ? undefined
-          : folderId === null
-            ? isNull(knowledgeBase.folderId)
-            : eq(knowledgeBase.folderId, folderId),
-        searchFilter(knowledgeBase.name, search),
-        or(
-          and(
-            workspaceId ? eq(knowledgeBase.workspaceId, workspaceId) : undefined,
-            currentWorkspaceMembership
-          ),
-          legacyOwnedKnowledgeBase
-        )
-      )
-    )
+    .where(and(scopeCondition, eq(knowledgeBase.userId, userId), isNull(knowledgeBase.workspaceId)))
     .groupBy(knowledgeBase.id)
-    .orderBy(...listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS[sortBy]), sortOrder))
+    .orderBy(...listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc'))
+    .limit(MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1)
 
-  const kbIds = knowledgeBasesWithCounts.map((kb) => kb.id)
-
-  const connectorRows =
-    kbIds.length > 0
-      ? await db
-          .select({
-            knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
-            connectorType: knowledgeConnector.connectorType,
-          })
-          .from(knowledgeConnector)
-          .where(
-            and(
-              inArray(knowledgeConnector.knowledgeBaseId, kbIds),
-              isNull(knowledgeConnector.archivedAt),
-              isNull(knowledgeConnector.deletedAt)
-            )
-          )
-      : []
-
-  const connectorTypesByKb = new Map<string, string[]>()
-  for (const row of connectorRows) {
-    const types = connectorTypesByKb.get(row.knowledgeBaseId) ?? []
-    if (!types.includes(row.connectorType)) {
-      types.push(row.connectorType)
-    }
-    connectorTypesByKb.set(row.knowledgeBaseId, types)
+  /** One row past the cap, so an oversized set fails loudly instead of truncating in silence. */
+  if (rows.length > MAX_KNOWLEDGE_BASES_PER_WORKSPACE) {
+    throw new Error(
+      `Legacy personal knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
+    )
   }
 
-  return knowledgeBasesWithCounts.map((kb) => ({
-    ...kb,
-    chunkingConfig: kb.chunkingConfig as ChunkingConfig,
-    docCount: Number(kb.docCount),
-    connectorTypes: connectorTypesByKb.get(kb.id) ?? [],
-  }))
+  return attachConnectorTypes(
+    rows.map((kb) => ({
+      ...kb,
+      chunkingConfig: kb.chunkingConfig as ChunkingConfig,
+      docCount: Number(kb.docCount),
+    }))
+  )
 }
 
 /**

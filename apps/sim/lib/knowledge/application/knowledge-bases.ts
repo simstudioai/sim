@@ -56,7 +56,7 @@ import {
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
   getKnowledgeBaseById,
-  getKnowledgeBases,
+  getLegacyPersonalKnowledgeBases,
   getWorkspaceKnowledgeBases,
   type KnowledgeBaseScope,
   updateKnowledgeBase,
@@ -438,27 +438,30 @@ export const listInternalKnowledgeBases = {
     if (principal.kind !== 'session') {
       throw new PrincipalKindAuthorizationError(principal.kind, knowledgeSessionOperations.list.id)
     }
-    if (input.workspaceId !== undefined) {
-      const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
-      await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
-      /**
-       * Read the workspace's own rows once the operation is authorized. The legacy
-       * user-oriented query re-derives access from a `permissions` row join, which no longer
-       * matches what `authorizeWorkspaceOperation` accepts: an organization admin holds
-       * workspace `admin` through their org membership alone. That caller could create a
-       * knowledge base and then never see it listed.
-       */
+    if (input.workspaceId === undefined) {
       return {
-        knowledgeBases: (await getWorkspaceKnowledgeBases(context.workspaceId, input.scope)).data,
+        knowledgeBases: await getLegacyPersonalKnowledgeBases(principal.userId, input.scope),
       }
     }
+    const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
+    await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
     /**
-     * No workspace named, so there is no canonical workspace to authorize against and the
-     * caller-scoped query stays the only answer: every workspace the session holds a
-     * permission row in, plus their legacy workspace-less bases.
+     * Two reads, because this list answers for two authorities. The workspace's own rows are
+     * read once the operation is authorized — deriving list access a second time from a
+     * `permissions` row would contradict the authorization that just passed, since workspace
+     * `admin` can come from an organization role with no such row behind it, and that caller
+     * could create a knowledge base and then never see it listed. Legacy workspace-less bases
+     * answer only to their creator and have no workspace to be listed under, so they ride
+     * along here as they always have — otherwise they are reachable from nowhere in the UI.
      */
+    const [workspaceBases, legacyPersonalBases] = await Promise.all([
+      getWorkspaceKnowledgeBases(context.workspaceId, input.scope),
+      getLegacyPersonalKnowledgeBases(principal.userId, input.scope),
+    ])
     return {
-      knowledgeBases: await getKnowledgeBases(principal.userId, undefined, input.scope),
+      knowledgeBases: [...workspaceBases.data, ...legacyPersonalBases].sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+      ),
     }
   },
 } satisfies OperationUseCase<

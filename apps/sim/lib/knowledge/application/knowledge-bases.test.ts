@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   updateRecord: vi.fn(),
   deleteRecord: vi.fn(),
   listRecords: vi.fn(),
-  listInternalRecords: vi.fn(),
+  listLegacyPersonalRecords: vi.fn(),
   getRecord: vi.fn(),
   getRestorableRecord: vi.fn(),
   performUpdate: vi.fn(),
@@ -81,7 +81,7 @@ vi.mock('@/lib/knowledge/service', () => ({
   updateKnowledgeBase: mocks.updateRecord,
   deleteKnowledgeBase: mocks.deleteRecord,
   getKnowledgeBaseById: mocks.getRecord,
-  getKnowledgeBases: mocks.listInternalRecords,
+  getLegacyPersonalKnowledgeBases: mocks.listLegacyPersonalRecords,
   getWorkspaceKnowledgeBases: mocks.listRecords,
 }))
 
@@ -151,7 +151,7 @@ describe('knowledge base application use cases', () => {
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map(), idByPath: new Map() })
     mocks.createRecord.mockResolvedValue(knowledgeBase)
     mocks.listRecords.mockResolvedValue({ data: [], nextCursorKeys: null })
-    mocks.listInternalRecords.mockResolvedValue([knowledgeBase])
+    mocks.listLegacyPersonalRecords.mockResolvedValue([knowledgeBase])
     mocks.getRecord.mockResolvedValue(knowledgeBase)
     mocks.getRestorableRecord.mockResolvedValue(knowledgeBase)
     mocks.performUpdate.mockResolvedValue({
@@ -190,7 +190,7 @@ describe('knowledge base application use cases', () => {
 
     expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.listInternalRecords).toHaveBeenCalledWith('user-1', undefined, 'all')
+    expect(mocks.listLegacyPersonalRecords).toHaveBeenCalledWith('user-1', 'all')
   })
 
   it('authorizes a canonical workspace before listing its internal knowledge bases', async () => {
@@ -208,7 +208,6 @@ describe('knowledge base application use cases', () => {
       { forUpdate: undefined }
     )
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived')
-    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
   })
 
   /**
@@ -219,6 +218,7 @@ describe('knowledge base application use cases', () => {
   it('lists a workspace for an authorized caller who holds no workspace permission row', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.listRecords.mockResolvedValueOnce({ data: [knowledgeBase], nextCursorKeys: null })
+    mocks.listLegacyPersonalRecords.mockResolvedValueOnce([])
 
     await expect(
       listInternalKnowledgeBases.execute({
@@ -228,6 +228,28 @@ describe('knowledge base application use cases', () => {
     ).resolves.toEqual({ knowledgeBases: [knowledgeBase] })
 
     expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'active')
+  })
+
+  /**
+   * Legacy workspace-less bases belong to no workspace, so a workspace list is the only
+   * place the UI can reach them. They ride along beside the workspace's own rows.
+   */
+  it('includes the caller’s legacy personal bases beside the workspace’s own rows', async () => {
+    const legacyBase = {
+      ...knowledgeBase,
+      id: 'legacy-1',
+      workspaceId: null,
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+    }
+    mocks.listRecords.mockResolvedValueOnce({ data: [knowledgeBase], nextCursorKeys: null })
+    mocks.listLegacyPersonalRecords.mockResolvedValueOnce([legacyBase])
+
+    await expect(
+      listInternalKnowledgeBases.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'workspace-1', scope: 'active' },
+      })
+    ).resolves.toEqual({ knowledgeBases: [legacyBase, knowledgeBase] })
   })
 
   it('loads the active knowledge catalog and tag metadata only after workspace authorization', async () => {
@@ -304,7 +326,7 @@ describe('knowledge base application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
+    expect(mocks.listLegacyPersonalRecords).not.toHaveBeenCalled()
   })
 
   it('rejects non-session principals before resolving internal list input', async () => {
@@ -316,7 +338,7 @@ describe('knowledge base application use cases', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
-    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
+    expect(mocks.listLegacyPersonalRecords).not.toHaveBeenCalled()
   })
 
   it('rejects an insufficient role before the protected mutation', async () => {
