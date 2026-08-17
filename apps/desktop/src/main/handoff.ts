@@ -67,6 +67,7 @@ export interface HandoffManagerDeps {
 export interface ConnectScope {
   workspaceId?: string
   credentialId?: string
+  draftId?: string
   chatAttemptId?: string
 }
 
@@ -292,6 +293,7 @@ export function createHandoffManager(
           ...(userId ? { user: userId } : {}),
           ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
           ...(scope.credentialId ? { credentialId: scope.credentialId } : {}),
+          ...(scope.draftId ? { draftId: scope.draftId } : {}),
         },
         scope
       )

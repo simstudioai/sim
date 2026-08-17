@@ -68,6 +68,12 @@ function rest(harness: { rerender: () => void }) {
   harness.rerender()
 }
 
+/** One spring-open: rest the drag on `folderId` until the timer fires and the list follows. */
+function descend(nav: ReturnType<typeof renderSpringNavigation>, folderId: string | null) {
+  act(() => nav.get().arm(folderId))
+  rest(nav)
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
 })
@@ -153,6 +159,130 @@ describe('useSpringNavigation', () => {
     act(() => nav.get().end())
 
     expect(nav.navigate).not.toHaveBeenCalled()
+  })
+
+  describe('walking a drag back out and in again', () => {
+    it('re-enters a folder it already left through the breadcrumb', () => {
+      // The whole point of the breadcrumb accepting a drag: descend, think better of it, walk
+      // back up, then descend again — all inside one gesture without releasing the mouse.
+      const nav = renderSpringNavigation(null)
+
+      act(() => nav.get().rememberOrigin())
+      descend(nav, 'folder-a')
+      expect(nav.currentFolderId()).toBe('folder-a')
+
+      descend(nav, null)
+      expect(nav.currentFolderId()).toBeNull()
+
+      descend(nav, 'folder-a')
+      expect(nav.currentFolderId()).toBe('folder-a')
+
+      expect(nav.navigate.mock.calls).toEqual([
+        ['folder-a', 'push'],
+        [null, 'replace'],
+        ['folder-a', 'replace'],
+      ])
+    })
+
+    it('never re-opens the folder already on screen', () => {
+      // The crumb for the current folder is a legal drop target but not a navigation. Arming it
+      // would re-enter the folder the drag is already standing in, on a loop.
+      const nav = renderSpringNavigation(null)
+
+      act(() => nav.get().rememberOrigin())
+      descend(nav, 'folder-a')
+
+      descend(nav, 'folder-a')
+
+      expect(nav.navigate).toHaveBeenCalledExactlyOnceWith('folder-a', 'push')
+    })
+
+    it('cancels a pending open when the drag moves onto the current folder', () => {
+      // Hovering a sibling folder starts its countdown; sliding onto the crumb of the folder
+      // you are already in has to call that off, not let it fire from under the cursor.
+      const nav = renderSpringNavigation('folder-a')
+
+      act(() => nav.get().rememberOrigin())
+      act(() => nav.get().arm('folder-b'))
+      act(() => {
+        vi.advanceTimersByTime(SPRING_LOAD_DELAY_MS - 1)
+      })
+      descend(nav, 'folder-a')
+
+      expect(nav.navigate).not.toHaveBeenCalled()
+    })
+
+    it('returns to the origin in one hop after a round trip that dropped nothing', () => {
+      const nav = renderSpringNavigation('origin')
+
+      act(() => nav.get().rememberOrigin())
+      descend(nav, 'folder-a')
+      descend(nav, 'folder-b')
+      descend(nav, 'folder-a')
+
+      nav.navigate.mockClear()
+      act(() => nav.get().end())
+
+      expect(nav.navigate).toHaveBeenCalledExactlyOnceWith('origin', 'replace')
+      expect(nav.currentFolderId()).toBe('origin')
+    })
+
+    it('stays put when the round trip ends in a real drop', () => {
+      const nav = renderSpringNavigation('origin')
+
+      act(() => nav.get().rememberOrigin())
+      descend(nav, 'folder-a')
+      descend(nav, null)
+      descend(nav, 'folder-a')
+
+      nav.navigate.mockClear()
+      act(() => {
+        nav.get().markDropHandled()
+        nav.get().end()
+      })
+
+      expect(nav.navigate).not.toHaveBeenCalled()
+      expect(nav.currentFolderId()).toBe('folder-a')
+    })
+
+    it('walks back to the origin folder itself without then bouncing away from it', () => {
+      // Ending a drag whose spring-opens happen to land back on the origin must not navigate
+      // again — the guard is origin-vs-current, not "did anything open".
+      const nav = renderSpringNavigation('origin')
+
+      act(() => nav.get().rememberOrigin())
+      descend(nav, 'folder-a')
+      descend(nav, 'origin')
+      expect(nav.currentFolderId()).toBe('origin')
+
+      nav.navigate.mockClear()
+      act(() => nav.get().end())
+
+      expect(nav.navigate).not.toHaveBeenCalled()
+    })
+
+    it('starts the next drag from where the previous one left the user', () => {
+      // A drag that ended on a new folder is the new origin. Reusing the old one would yank the
+      // list back several folders on the next unrelated drag.
+      const nav = renderSpringNavigation('origin')
+
+      act(() => nav.get().rememberOrigin())
+      descend(nav, 'folder-a')
+      act(() => {
+        nav.get().markDropHandled()
+        nav.get().end()
+      })
+
+      nav.navigate.mockClear()
+      act(() => nav.get().rememberOrigin())
+      descend(nav, 'folder-b')
+      act(() => nav.get().end())
+
+      expect(nav.navigate.mock.calls).toEqual([
+        ['folder-b', 'push'],
+        ['folder-a', 'replace'],
+      ])
+    })
   })
 
   it('does not carry drop state into the next drag', () => {

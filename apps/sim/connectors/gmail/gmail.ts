@@ -17,6 +17,7 @@ interface GmailHeader {
 
 interface GmailMessagePart {
   mimeType?: string
+  filename?: string
   body?: { data?: string; size?: number }
   parts?: GmailMessagePart[]
   headers?: GmailHeader[]
@@ -44,6 +45,79 @@ interface GmailLabel {
   type?: string
 }
 
+const LABEL_CACHE_KEY = '_gmailLabelCache'
+
+interface GmailLabelIndex {
+  /** Label id (e.g. `INBOX`, `Label_7`) to display name. */
+  byId: Record<string, string>
+  /** Lowercased display name to label id. */
+  idByLowerName: Record<string, string>
+}
+
+const EMPTY_LABEL_INDEX: GmailLabelIndex = { byId: {}, idByLowerName: {} }
+
+function buildLabelIndex(labels: GmailLabel[]): GmailLabelIndex {
+  const index: GmailLabelIndex = { byId: {}, idByLowerName: {} }
+  for (const label of labels) {
+    if (!label?.id || typeof label.name !== 'string') continue
+    index.byId[label.id] = label.name
+    index.idByLowerName[label.name.toLowerCase()] = label.id
+  }
+  return index
+}
+
+/**
+ * Fetches `users.labels.list` once and caches the result on `syncContext` so it is
+ * shared across pages and across every deferred `getDocument` hydration. A failed
+ * fetch resolves to `null` and that failure is cached too, so a persistently
+ * failing labels call cannot turn into a per-document API call.
+ *
+ * Callers must distinguish `null` from an empty index: label tagging degrades to
+ * raw ids, but query building cannot — see `listDocuments`.
+ */
+async function getLabelIndex(
+  accessToken: string,
+  syncContext?: Record<string, unknown>
+): Promise<GmailLabelIndex | null> {
+  if (syncContext && LABEL_CACHE_KEY in syncContext) {
+    return syncContext[LABEL_CACHE_KEY] as GmailLabelIndex | null
+  }
+
+  let index: GmailLabelIndex | null = null
+  try {
+    const response = await fetchWithRetry(`${GMAIL_API_BASE}/labels`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      index = buildLabelIndex((data.labels || []) as GmailLabel[])
+    } else {
+      logger.warn('Failed to fetch Gmail labels', { status: response.status })
+    }
+  } catch (error) {
+    logger.warn('Failed to fetch Gmail labels', { error: toError(error).message })
+  }
+
+  if (syncContext) syncContext[LABEL_CACHE_KEY] = index
+  return index
+}
+
+/**
+ * Resolves a configured label value to the display name the `label:` search
+ * operator matches on. The `gmail.labels` selector stores label **ids**
+ * (`Label_7`), while the search operator only understands label **names**, so an
+ * id is translated through the label index. Values that are already names (typed
+ * into the advanced input) pass through unchanged.
+ */
+function resolveLabelName(value: string, index: GmailLabelIndex): string {
+  return index.byId[value] ?? value
+}
+
 /**
  * Formats a single Gmail label name for use in a `label:` operator.
  * Gmail search syntax accepts quoted strings for labels containing spaces;
@@ -64,10 +138,15 @@ function formatLabelToken(name: string): string {
  * Combines the user's custom query with the label and date range filters.
  * When multiple labels are provided, they are OR-joined: `(label:A OR label:B)`.
  */
-function buildSearchQuery(sourceConfig: Record<string, unknown>): string {
+function buildSearchQuery(
+  sourceConfig: Record<string, unknown>,
+  labelIndex: GmailLabelIndex = EMPTY_LABEL_INDEX
+): string {
   const parts: string[] = []
 
-  const labelNames = parseMultiValue(sourceConfig.label)
+  const labelNames = parseMultiValue(sourceConfig.label).map((value) =>
+    resolveLabelName(value, labelIndex)
+  )
   if (labelNames.length === 1) {
     const token = formatLabelToken(labelNames[0])
     if (token) parts.push(token)
@@ -148,29 +227,46 @@ function decodeBase64Url(data: string): string {
 }
 
 /**
+ * True when a MIME part is an attachment rather than a body part, so a `.txt` or
+ * `.html` attachment is never mistaken for the message body.
+ *
+ * `MessagePart.filename` is documented as "the filename of the attachment. Only
+ * present if this message part represents an attachment" — i.e. absent on body
+ * parts. In practice Gmail also emits `""` there, so the truthiness test covers
+ * both the documented and the observed shape.
+ */
+function isAttachmentPart(part: GmailMessagePart): boolean {
+  return Boolean(part.filename)
+}
+
+/**
  * Extracts the plain text body from a Gmail message payload.
- * Prefers text/plain, falls back to text/html with tag stripping.
+ * Prefers text/plain, falls back to text/html with tag stripping, and recurses
+ * through nested multiparts (e.g. a multipart/alternative inside a multipart/mixed).
  */
 function extractBody(part: GmailMessagePart): string {
+  if (isAttachmentPart(part)) return ''
+
   if (part.mimeType === 'text/plain' && part.body?.data) {
     return decodeBase64Url(part.body.data)
   }
 
   if (part.parts) {
+    const children = part.parts.filter((child) => !isAttachmentPart(child))
     // Prefer text/plain from multipart
-    for (const child of part.parts) {
+    for (const child of children) {
       if (child.mimeType === 'text/plain' && child.body?.data) {
         return decodeBase64Url(child.body.data)
       }
     }
     // Fall back to text/html
-    for (const child of part.parts) {
+    for (const child of children) {
       if (child.mimeType === 'text/html' && child.body?.data) {
         return htmlToPlainText(decodeBase64Url(child.body.data))
       }
     }
     // Recurse into nested multipart
-    for (const child of part.parts) {
+    for (const child of children) {
       const result = extractBody(child)
       if (result) return result
     }
@@ -210,7 +306,16 @@ function formatThread(thread: GmailThread): {
   const subject = getHeader(firstMessage.payload, 'Subject') || 'No Subject'
   const from = getHeader(firstMessage.payload, 'From') || 'Unknown'
   const to = getHeader(firstMessage.payload, 'To') || ''
-  const labelIds = firstMessage.labelIds || []
+  /**
+   * Gmail applies labels per message, not per thread — the thread's label set is
+   * the union across its messages. Reading only `messages[0]` drops labels that
+   * were applied to a later reply (and are exactly what a `label:` filter matched).
+   */
+  const labelIdSet = new Set<string>()
+  for (const msg of messages) {
+    for (const id of msg.labelIds ?? []) labelIdSet.add(id)
+  }
+  const labelIds = [...labelIdSet]
 
   const lines: string[] = []
   lines.push(`Subject: ${subject}`)
@@ -255,7 +360,7 @@ function formatThread(thread: GmailThread): {
  * Fetches a full thread with all its messages.
  */
 async function fetchThread(accessToken: string, threadId: string): Promise<GmailThread | null> {
-  const url = `${GMAIL_API_BASE}/threads/${threadId}?format=FULL`
+  const url = `${GMAIL_API_BASE}/threads/${encodeURIComponent(threadId)}?format=full`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -274,43 +379,16 @@ async function fetchThread(accessToken: string, threadId: string): Promise<Gmail
 }
 
 /**
- * Resolves label IDs to human-readable label names using a cache.
+ * Resolves label IDs to human-readable label names using the shared label index.
  */
 async function resolveLabelNames(
   accessToken: string,
   labelIds: string[],
   syncContext?: Record<string, unknown>
 ): Promise<string[]> {
-  const cacheKey = '_gmailLabelCache'
-
-  if (syncContext && !syncContext[cacheKey]) {
-    try {
-      const url = `${GMAIL_API_BASE}/labels`
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const labels = (data.labels || []) as GmailLabel[]
-        const labelMap: Record<string, string> = {}
-        for (const label of labels) {
-          labelMap[label.id] = label.name
-        }
-        syncContext[cacheKey] = labelMap
-      }
-    } catch {
-      syncContext[cacheKey] = {}
-    }
-  }
-
-  const cache = (syncContext?.[cacheKey] as Record<string, string>) ?? {}
+  const index = await getLabelIndex(accessToken, syncContext)
   return labelIds
-    .map((id) => cache[id] || id)
+    .map((id) => index?.byId[id] || id)
     .filter((name) => !name.startsWith('CATEGORY_') && name !== 'UNREAD')
 }
 
@@ -329,10 +407,19 @@ function threadToStub(thread: {
     content: '',
     contentDeferred: true,
     mimeType: 'text/plain',
-    sourceUrl: `https://mail.google.com/mail/u/0/#inbox/${thread.id}`,
+    sourceUrl: threadUrl(thread.id),
     contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,
     metadata: {},
   }
+}
+
+/**
+ * Deep link to a thread. `#all` is used rather than `#inbox` because a synced
+ * thread may be archived or live only under a user label, where an `#inbox`
+ * fragment resolves to nothing.
+ */
+function threadUrl(threadId: string): string {
+  return `https://mail.google.com/mail/u/0/#all/${threadId}`
 }
 
 export const gmailConnector: ConnectorConfig = {
@@ -344,7 +431,21 @@ export const gmailConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const searchQuery = buildSearchQuery(sourceConfig)
+    let labelIndex = EMPTY_LABEL_INDEX
+    if (parseMultiValue(sourceConfig.label).length > 0) {
+      /**
+       * Configured labels are ids that only the label index can turn into the
+       * names `label:` matches. Without it the query silently matches nothing and
+       * the sync would report a complete, empty listing — which the engine reads
+       * as "every stored thread was deleted". Fail the sync instead.
+       */
+      const resolved = await getLabelIndex(accessToken, syncContext)
+      if (!resolved) {
+        throw new Error('Failed to fetch Gmail labels; cannot resolve the configured label filter')
+      }
+      labelIndex = resolved
+    }
+    const searchQuery = buildSearchQuery(sourceConfig, labelIndex)
     const maxThreads = sourceConfig.maxThreads
       ? Number(sourceConfig.maxThreads)
       : DEFAULT_MAX_THREADS
@@ -393,20 +494,30 @@ export const gmailConnector: ConnectorConfig = {
 
     const data = await response.json()
     const threads = (data.threads || []) as { id: string; snippet?: string; historyId?: string }[]
-
-    if (threads.length === 0) {
-      return { documents: [], hasMore: false }
-    }
+    const nextPageToken = data.nextPageToken as string | undefined
 
     const documents = threads.map(threadToStub)
 
     const newTotal = totalFetched + documents.length
     if (syncContext) syncContext.totalThreadsFetched = newTotal
 
-    const nextPageToken = data.nextPageToken as string | undefined
     const hitLimit = newTotal >= maxThreads
-    if (hitLimit && syncContext) syncContext.listingCapped = true
 
+    /**
+     * Only a cap that actually truncates a longer listing blocks deletion
+     * reconciliation. Reaching the cap exactly as the source runs out
+     * (`nextPageToken` absent) is genuine exhaustion, and flagging it would
+     * permanently prevent deleted threads from being reconciled.
+     */
+    if (hitLimit && nextPageToken && syncContext) syncContext.listingCapped = true
+
+    /**
+     * `nextPageToken` is the only exhaustion signal. `users.threads.list` documents
+     * the token as the way to reach the next page but never guarantees a non-empty
+     * `threads` array alongside one, so an empty page is not treated as the end:
+     * doing so would report a complete-but-empty listing and let the sync engine
+     * hard-delete every previously stored thread.
+     */
     return {
       documents,
       nextCursor: hitLimit ? undefined : nextPageToken,
@@ -420,33 +531,24 @@ export const gmailConnector: ConnectorConfig = {
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    try {
-      const thread = await fetchThread(accessToken, externalId)
-      if (!thread) return null
+    const thread = await fetchThread(accessToken, externalId)
+    if (!thread) return null
 
-      const { content, subject, metadata } = formatThread(thread)
-      if (!content.trim()) return null
+    const { content, subject, metadata } = formatThread(thread)
+    if (!content.trim()) return null
 
-      const labelIds = (metadata.labelIds as string[]) || []
-      const labelNames = await resolveLabelNames(accessToken, labelIds, syncContext)
-      metadata.labels = labelNames
+    const labelIds = (metadata.labelIds as string[]) || []
+    metadata.labels = await resolveLabelNames(accessToken, labelIds, syncContext)
 
-      return {
-        externalId: thread.id,
-        title: subject,
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: `https://mail.google.com/mail/u/0/#inbox/${thread.id}`,
-        contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,
-        metadata,
-      }
-    } catch (error) {
-      logger.warn('Failed to get Gmail thread', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+    return {
+      externalId: thread.id,
+      title: subject,
+      content,
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: threadUrl(thread.id),
+      contentHash: `gmail:${thread.id}:${thread.historyId ?? ''}`,
+      metadata,
     }
   },
 
@@ -479,9 +581,14 @@ export const gmailConnector: ConnectorConfig = {
         return { valid: false, error: `Failed to access Gmail: ${profileResponse.status}` }
       }
 
-      // If labels are specified, verify each one exists
-      const labelNames = parseMultiValue(sourceConfig.label)
-      if (labelNames.length > 0) {
+      /**
+       * Labels may arrive as ids (from the `gmail.labels` selector) or as names
+       * (typed into the advanced input), so both forms are accepted here and the
+       * same index is what `buildSearchQuery` resolves ids through.
+       */
+      const configuredLabels = parseMultiValue(sourceConfig.label)
+      let labelIndex = EMPTY_LABEL_INDEX
+      if (configuredLabels.length > 0) {
         const labelsUrl = `${GMAIL_API_BASE}/labels`
         const labelsResponse = await fetchWithRetry(
           labelsUrl,
@@ -501,8 +608,10 @@ export const gmailConnector: ConnectorConfig = {
 
         const labelsData = await labelsResponse.json()
         const labels = (labelsData.labels || []) as GmailLabel[]
-        const labelNameSet = new Set(labels.map((l) => l.name.toLowerCase()))
-        const missing = labelNames.filter((name) => !labelNameSet.has(name.toLowerCase()))
+        labelIndex = buildLabelIndex(labels)
+        const missing = configuredLabels.filter(
+          (value) => !labelIndex.byId[value] && !labelIndex.idByLowerName[value.toLowerCase()]
+        )
 
         if (missing.length > 0) {
           return {
@@ -523,7 +632,7 @@ export const gmailConnector: ConnectorConfig = {
       // If a custom query is specified, verify it's valid by doing a dry-run
       const query = sourceConfig.query as string | undefined
       if (query?.trim()) {
-        const searchQuery = buildSearchQuery(sourceConfig)
+        const searchQuery = buildSearchQuery(sourceConfig, labelIndex)
         const testUrl = `${GMAIL_API_BASE}/threads?q=${encodeURIComponent(searchQuery)}&maxResults=1`
         const testResponse = await fetchWithRetry(
           testUrl,

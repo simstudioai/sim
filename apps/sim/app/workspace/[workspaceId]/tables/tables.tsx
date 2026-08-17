@@ -102,6 +102,10 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
+/** This list's private drag MIME, so a drag started on another list is never mistaken for one
+ *  of these rows. */
+const TABLE_ROW_DRAG_MIME = 'application/x-sim-workspace-table-rows'
+
 /** Root label for breadcrumbs and the "move to workspace root" destination. */
 const ROOT_LABEL = FOLDERED_RESOURCE_HEADERS.table.rootLabel
 
@@ -984,6 +988,7 @@ export function Tables() {
   }, [handleBulkDelete])
 
   const rowDragDropConfig = useFolderRowDragDrop({
+    dragMime: TABLE_ROW_DRAG_MIME,
     canEdit,
     editingRowId: listRename.editingId,
     descendantsByFolderId: descendantFolderIds,

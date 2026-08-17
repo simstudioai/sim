@@ -56,9 +56,10 @@ import {
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
   getKnowledgeBaseById,
-  getKnowledgeBases,
+  getLegacyPersonalKnowledgeBases,
   getWorkspaceKnowledgeBases,
   type KnowledgeBaseScope,
+  listWorkspaceAndLegacyKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import type { ChunkingConfig, KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -440,12 +441,19 @@ export const listInternalKnowledgeBases = {
     if (principal.kind !== 'session') {
       throw new PrincipalKindAuthorizationError(principal.kind, knowledgeSessionOperations.list.id)
     }
-    if (input.workspaceId !== undefined) {
-      const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
-      await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
+    if (input.workspaceId === undefined) {
+      return {
+        knowledgeBases: await getLegacyPersonalKnowledgeBases(principal.userId, input.scope),
+      }
     }
+    const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
+    await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
     return {
-      knowledgeBases: await getKnowledgeBases(principal.userId, input.workspaceId, input.scope),
+      knowledgeBases: await listWorkspaceAndLegacyKnowledgeBases(
+        principal.userId,
+        context.workspaceId,
+        input.scope
+      ),
     }
   },
 } satisfies OperationUseCase<

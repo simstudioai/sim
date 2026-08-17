@@ -40,7 +40,7 @@ export interface SpringLoadedFolder {
   arm: (folderId: string | null) => void
   /** Cancels the pending open — the drag left the row, or the row stopped being a valid target. */
   disarm: () => void
-  /** Cancels the pending open and forgets which folders already opened. Call when the drag ends. */
+  /** Cancels the pending open and forgets that this drag opened anything. Call when the drag ends. */
   reset: () => void
 }
 
@@ -51,9 +51,11 @@ export interface SpringLoadedFolder {
  * The dragged rows unmount when the list re-renders into the newly opened folder, which is why
  * the drag payload has to live in `dataTransfer` rather than only in the source row's state.
  *
- * A folder opens at most once per drag. Without that, dragging back out to a parent and
- * returning would re-open it on a loop, and a drag that rests near a boundary would flicker
- * between two levels.
+ * A folder may open more than once in a single drag: walking back out through the breadcrumb and
+ * descending again is a normal way to change your mind mid-gesture, and refusing the second entry
+ * strands the drag one level up. Nothing oscillates, because every open costs another full
+ * {@link SPRING_LOAD_DELAY_MS} of the drag holding still, and {@link useSpringNavigation} refuses
+ * to arm the folder already on screen.
  */
 export function useSpringLoadedFolder({
   onSpringOpen,
@@ -65,9 +67,8 @@ export function useSpringLoadedFolder({
    * nothing is armed — `null` is a real destination here, the workspace root.
    */
   const armedFolderIdRef = useRef<string | null | undefined>(undefined)
-  /** Folders already opened during this drag; each may only spring once. */
-  const openedFolderIdsRef = useRef<Set<string | null> | null>(null)
-  const openedFolderIds = (openedFolderIdsRef.current ??= new Set<string | null>())
+  /** Whether this drag has already sprung a folder open, which decides push vs. replace. */
+  const hasOpenedRef = useRef(false)
 
   const onSpringOpenRef = useRef(onSpringOpen)
   onSpringOpenRef.current = onSpringOpen
@@ -91,27 +92,24 @@ export function useSpringLoadedFolder({
        * this would let the folder the drag just left open behind the cursor.
        */
       clearTimer()
-      if (openedFolderIds.has(folderId)) return
-
       armedFolderIdRef.current = folderId
       timerRef.current = setTimeout(() => {
         timerRef.current = null
         armedFolderIdRef.current = undefined
-        /** Read before the add: an empty set means nothing has opened in this drag yet. */
-        const isFirstOpenOfDrag = openedFolderIds.size === 0
-        openedFolderIds.add(folderId)
+        const isFirstOpenOfDrag = !hasOpenedRef.current
+        hasOpenedRef.current = true
         onSpringOpenRef.current(folderId, {
           history: isFirstOpenOfDrag ? 'push' : 'replace',
         })
       }, delayMs)
     },
-    [clearTimer, delayMs, openedFolderIds]
+    [clearTimer, delayMs]
   )
 
   const reset = useCallback(() => {
     clearTimer()
-    openedFolderIds.clear()
-  }, [clearTimer, openedFolderIds])
+    hasOpenedRef.current = false
+  }, [clearTimer])
 
   /**
    * Stable identity, not a fresh object per render. Consumers feed this handle into a

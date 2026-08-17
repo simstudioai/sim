@@ -5,7 +5,7 @@ import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import { deriveCommandPath } from './derive'
 import { executeOperation } from './execute'
 import { addOperationOptions } from './options'
-import { flagNameFor, isProfileWorkspacePath, PROFILE_INJECTED_FIELD } from './request'
+import { flagNameFor, flagSpecFor, isProfileWorkspacePath, PROFILE_INJECTED_FIELD } from './request'
 import type { OperationSpec } from './types'
 
 const GROUP_ALIASES: Readonly<Record<string, string>> = {
@@ -95,7 +95,10 @@ function configureOperation(
 
   for (const param of operationSpec.pathParams) {
     if (spec.pathFlags?.[param] || isProfileWorkspacePath(spec, param)) continue
-    command.argument(`<${spec.pathArgumentNames?.[param] ?? param}>`)
+    command.argument(
+      `<${spec.pathArgumentNames?.[param] ?? param}>`,
+      operationSpec.pathParamDocs?.[param]
+    )
   }
 
   if (spec.allWorkspaces) {
@@ -111,7 +114,12 @@ function configureOperation(
     if (spec.requestFields && !spec.requestFields.includes(field)) {
       throw new Error(`${operation}.${field} is positional but not exposed`)
     }
-    command.argument(`<${flagNameFor(operation, field)}>`)
+    // A field promoted to a positional keeps the prose it would have carried as
+    // a flag; the promotion changes where the value is typed, not what it means.
+    command.argument(
+      `<${flagNameFor(operation, field)}>`,
+      flagSpecFor(operation, field).describe ?? descriptor.describe
+    )
   }
 
   if (spec.requestFields) {

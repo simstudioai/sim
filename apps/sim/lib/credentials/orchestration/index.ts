@@ -24,7 +24,11 @@ import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
-import { type CredentialDeleteReason, deleteConnectionCredential } from '@/lib/credentials/deletion'
+import {
+  type CredentialDeleteReason,
+  deleteConnectionCredential,
+  deleteOrphanedOAuthAccount,
+} from '@/lib/credentials/deletion'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
   deleteWorkspaceEnvCredentials,
@@ -552,6 +556,18 @@ export async function deleteCredentialRecord(
       removedKeys: [credentialRow.envKey],
     })
     return true
+  }
+
+  if (credentialRow.type === 'oauth') {
+    const deleted = await deleteConnectionCredential({
+      credentialId: credentialRow.id,
+      workspaceId: credentialRow.workspaceId,
+      reason: params.reason,
+    })
+    if (deleted && credentialRow.accountId) {
+      await deleteOrphanedOAuthAccount(credentialRow.accountId)
+    }
+    return deleted
   }
 
   return deleteConnectionCredential({

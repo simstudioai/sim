@@ -16,10 +16,9 @@ import {
   ChipTextarea,
   type ComboboxOption,
   cn,
-  Loader,
   toast,
 } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Loader, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
@@ -175,8 +174,8 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
-  const createKnowledgeBaseMutation = useCreateKnowledgeBase(workspaceId)
-  const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase(workspaceId)
+  const createKnowledgeBaseMutation = useCreateKnowledgeBase()
+  const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase()
 
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
   const [files, setFiles] = useState<File[]>([])

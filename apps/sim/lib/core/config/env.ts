@@ -438,6 +438,7 @@ export const env = createEnv({
     DISCORD_CLIENT_SECRET:                 z.string().optional(),                  // Discord OAuth client secret
     DOCUSIGN_CLIENT_ID:                    z.string().optional(),                  // DocuSign OAuth client ID
     DOCUSIGN_CLIENT_SECRET:                z.string().optional(),                  // DocuSign OAuth client secret
+    DOCUSIGN_AUTH_HOST:                    z.string().optional(),                  // DocuSign auth host: account-d.docusign.com (demo, default) or account.docusign.com (production)
     MICROSOFT_CLIENT_ID:                   z.string().optional(),                  // Microsoft OAuth client ID for Office 365/Teams
     MICROSOFT_CLIENT_SECRET:               z.string().optional(),                  // Microsoft OAuth client secret
     HUBSPOT_CLIENT_ID:                     z.string().optional(),                  // HubSpot OAuth client ID

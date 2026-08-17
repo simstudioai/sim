@@ -12,11 +12,59 @@ import type { SpringOpenOptions } from '@/app/workspace/[workspaceId]/components
 import { useSpringNavigation } from '@/app/workspace/[workspaceId]/components/folders/use-spring-navigation'
 import type { RowDragDropConfig } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
-/** The foldered-list drag MIME — see {@link writeRowDragPayload} for why each surface owns one. */
-const DRAG_ROW_MIME = 'application/x-sim-foldered-row'
+/**
+ * What the hook hands back: the render contract `Resource` consumes, plus the one signal that is
+ * not a rendering concern.
+ */
+export interface FolderRowDragDrop extends RowDragDropConfig {
+  /**
+   * Reports that a page-level overlay consumed an external drop, so spring navigation keeps the
+   * folder it opened instead of returning to where the drag started. Only a surface that owns a
+   * whole-page drop target needs this; row, body, and breadcrumb drops report themselves.
+   */
+  externalDropHandled: () => void
+}
 
 /** Shared empty set so an idle drag state keeps a stable identity across renders. */
 const EMPTY_ROW_IDS = new Set<string>()
+
+/**
+ * The one surface currently reading as "release here".
+ *
+ * A union rather than three booleans because the three targets are mutually exclusive: a row,
+ * the list body, and a breadcrumb crumb can never be armed together. As separate flags every
+ * handler had to hand-clear the other two, and where a `dragleave` does not fire — a row lives
+ * inside the scroll container, so moving onto it leaves that container with a contained
+ * `relatedTarget` its handler ignores — two affordances could paint at once. Here exactly one
+ * is armed by construction.
+ */
+type ActiveDropTarget =
+  | { kind: 'row'; rowId: string }
+  | { kind: 'body' }
+  | { kind: 'crumb'; index: number }
+
+/**
+ * Arms `next`, reusing the current value when it already names the same target.
+ *
+ * `dragover` fires continuously — several times a second even with the pointer still — so a
+ * fresh object per event would re-render the whole list and rebuild the memoized config every
+ * time. Returning `current` unchanged lets React bail on `Object.is`, which is what the plain
+ * string this union replaced used to get for free.
+ */
+function armDropTarget(
+  current: ActiveDropTarget | null,
+  next: ActiveDropTarget
+): ActiveDropTarget | null {
+  if (current?.kind !== next.kind) return next
+  switch (next.kind) {
+    case 'row':
+      return current.kind === 'row' && current.rowId === next.rowId ? current : next
+    case 'crumb':
+      return current.kind === 'crumb' && current.index === next.index ? current : next
+    default:
+      return current
+  }
+}
 
 /** Rows carried by one drag, already split by kind and stripped of no-op moves. */
 export interface FolderedRowMove {
@@ -25,6 +73,11 @@ export interface FolderedRowMove {
 }
 
 export interface UseFolderRowDragDropOptions {
+  /**
+   * This list's private drag MIME. Each surface owns one so a drag started in another list is
+   * never mistaken for one of these rows — see {@link writeRowDragPayload}.
+   */
+  dragMime: string
   /** Drag and drop are edits; a reader gets neither draggable rows nor drop targets. */
   canEdit: boolean
   /** Row currently being renamed inline, which must stay editable rather than draggable. */
@@ -68,6 +121,19 @@ export interface UseFolderRowDragDropOptions {
    * empty folder, which has no row to drop on.
    */
   currentFolderId?: string | null
+  /**
+   * OS file drops, which Files accepts and the other lists do not.
+   *
+   * When `matches` recognises the drag, folder rows still highlight and still spring open — the
+   * gesture is the same, only the payload differs — but the internal move-validity gate is
+   * skipped, and the body and breadcrumb decline so a page-level upload overlay owns those
+   * regions rather than competing with it.
+   */
+  externalDrop?: {
+    matches: (dataTransfer: DataTransfer) => boolean
+    /** Files released on a folder row, to be uploaded into it. */
+    onDropIntoFolder: (dataTransfer: DataTransfer, targetFolderId: string) => void
+  }
 }
 
 /**
@@ -76,10 +142,11 @@ export interface UseFolderRowDragDropOptions {
  * itself or its own subtree, and a row already sitting directly in the target is a no-op.
  *
  * Carries a whole checkbox selection when `selection` is supplied, and a single row otherwise.
- * The Files page keeps its own configuration because it additionally accepts external OS file
- * drops, which need a second drag protocol this hook deliberately does not know about.
+ * Files layers OS file drops on top through `externalDrop`; the gesture is identical, only the
+ * payload differs.
  */
 export function useFolderRowDragDrop({
+  dragMime,
   canEdit,
   editingRowId,
   descendantsByFolderId,
@@ -90,10 +157,9 @@ export function useFolderRowDragDrop({
   selection,
   onSpringOpenFolder,
   currentFolderId = null,
-}: UseFolderRowDragDropOptions): RowDragDropConfig {
-  const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
-  const [isBodyDropActive, setIsBodyDropActive] = useState(false)
-  const [activeBreadcrumbIndex, setActiveBreadcrumbIndex] = useState<number | null>(null)
+  externalDrop,
+}: UseFolderRowDragDropOptions): FolderRowDragDrop {
+  const [activeDropTarget, setActiveDropTarget] = useState<ActiveDropTarget | null>(null)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_ROW_IDS)
   /**
    * The in-flight drag source, mirrored outside React state because `onDragOver` fires far
@@ -109,6 +175,7 @@ export function useFolderRowDragDrop({
     getRowLabel,
     onMoveRows,
     selection,
+    externalDrop,
   })
   optionsRef.current = {
     descendantsByFolderId,
@@ -117,6 +184,7 @@ export function useFolderRowDragDrop({
     getRowLabel,
     onMoveRows,
     selection,
+    externalDrop,
   }
 
   const springNav = useSpringNavigation({ currentFolderId, onNavigate: onSpringOpenFolder })
@@ -132,9 +200,7 @@ export function useFolderRowDragDrop({
     dragGhost.remove()
     draggedRowIdsRef.current = []
     setDraggedRowIds(EMPTY_ROW_IDS)
-    setActiveDropTargetId(null)
-    setIsBodyDropActive(false)
-    setActiveBreadcrumbIndex(null)
+    setActiveDropTarget(null)
   }, [dragGhost, springNav])
 
   useDragTeardown(endDrag)
@@ -185,9 +251,9 @@ export function useFolderRowDragDrop({
     [resolveMoveToFolder]
   )
 
-  return useMemo<RowDragDropConfig>(
+  return useMemo<FolderRowDragDrop>(
     () => ({
-      activeDropTargetId,
+      activeDropTargetId: activeDropTarget?.kind === 'row' ? activeDropTarget.rowId : null,
       draggedRowIds,
       isAnyDragActive: draggedRowIds.size > 0,
       isRowDraggable: (rowId) => canEdit && editingRowId !== rowId,
@@ -215,15 +281,29 @@ export function useFolderRowDragDrop({
         setDraggedRowIds(new Set(sourceRowIds))
 
         e.dataTransfer.effectAllowed = 'move'
-        writeRowDragPayload(e.dataTransfer, DRAG_ROW_MIME, sourceRowIds)
+        writeRowDragPayload(e.dataTransfer, dragMime, sourceRowIds)
 
         dragGhost.attach(e, optionsRef.current.getRowLabel(sourceRowIds[0]), sourceRowIds.length)
       },
       onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
         const sourceRowIds = draggedRowIdsRef.current
+        const isExternal = optionsRef.current.externalDrop?.matches(e.dataTransfer) ?? false
+        if (isExternal) {
+          /**
+           * An upload into a nested folder is the same gesture as a move into one, so the row
+           * highlights and springs open exactly the same way. Only the move-validity gate is
+           * skipped — there are no source rows to validate.
+           */
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'copy'
+          setActiveDropTarget((current) => armDropTarget(current, { kind: 'row', rowId }))
+          springNav.arm(parseFolderedRowId(rowId).id)
+          return
+        }
         if (sourceRowIds.length > 0) {
           if (!resolveMove(rowId, sourceRowIds)) return
-        } else if (!e.dataTransfer.types.includes(DRAG_ROW_MIME)) {
+        } else if (!e.dataTransfer.types.includes(dragMime)) {
           /**
            * No local source and no payload of ours — an external or foreign drag. Returning
            * without `preventDefault` leaves the browser's default handling in place, which is
@@ -245,14 +325,7 @@ export function useFolderRowDragDrop({
          * descendants — and the drop would then silently do nothing.
          */
         if (sourceRowIds.length > 0) {
-          setActiveDropTargetId(rowId)
-          /**
-           * The row is inside the scroll container, so moving onto it fires `dragleave` there
-           * with a contained `relatedTarget` — which that handler deliberately ignores. Without
-           * clearing here the row and the body would both render as the target at once.
-           */
-          setIsBodyDropActive(false)
-          setActiveBreadcrumbIndex(null)
+          setActiveDropTarget((current) => armDropTarget(current, { kind: 'row', rowId }))
           /**
            * Armed on the same condition as the highlight, so a folder only springs open where a
            * drop was already possible. A folder the drag cannot legally enter never opens.
@@ -264,17 +337,31 @@ export function useFolderRowDragDrop({
         const relatedTarget = e.relatedTarget
         if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
         springNav.disarm()
-        setActiveDropTargetId((current) => (current === rowId ? null : current))
+        setActiveDropTarget((current) =>
+          current?.kind === 'row' && current.rowId === rowId ? null : current
+        )
       },
       onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
         e.preventDefault()
         e.stopPropagation()
 
         const target = parseFolderedRowId(rowId)
+        const { externalDrop } = optionsRef.current
+        if (externalDrop?.matches(e.dataTransfer)) {
+          const { dataTransfer } = e
+          /**
+           * Marked before `endDrag`, which consumes the flag: an upload lands in the folder the
+           * drag opened, so the view has to stay there rather than springing back to the origin.
+           */
+          if (target.kind === 'folder') springNav.markDropHandled()
+          endDrag()
+          if (target.kind === 'folder') externalDrop.onDropIntoFolder(dataTransfer, target.id)
+          return
+        }
         // Prefer the dataTransfer payload over the ref so a drag that started in another
         // mount of this page still resolves to real row ids.
         const sourceRowIds =
-          readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
+          readRowDragPayload(e.dataTransfer, dragMime) ?? draggedRowIdsRef.current
         const move =
           target.kind === 'folder' && sourceRowIds.length > 0
             ? resolveMove(rowId, sourceRowIds)
@@ -291,6 +378,7 @@ export function useFolderRowDragDrop({
         if (move) optionsRef.current.onMoveRows(move, target.id)
       },
       onDragEnd: endDrag,
+      externalDropHandled: springNav.markDropHandled,
       /**
        * The breadcrumb is how a drag walks back UP. Spring-loading only ever goes deeper, so
        * without this a drag that entered a folder can only leave it by being abandoned.
@@ -298,21 +386,22 @@ export function useFolderRowDragDrop({
        * one files the drag there directly.
        */
       breadcrumb: {
-        activeIndex: activeBreadcrumbIndex,
+        activeIndex: activeDropTarget?.kind === 'crumb' ? activeDropTarget.index : null,
         onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => {
+          if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           const sourceRowIds = draggedRowIdsRef.current
           const canDrop =
             sourceRowIds.length > 0 && resolveMoveToFolder(folderId, sourceRowIds) !== null
           /**
            * Armed even when the drop itself would be a no-op — walking back through a crumb the
            * rows already live in is exactly how a user returns to where they started, and
-           * refusing to navigate there would strand them.
+           * refusing to navigate there would strand them. The crumb for the folder already on
+           * screen is declined by {@link useSpringNavigation}, not here.
            */
-          if (sourceRowIds.length > 0 && folderId !== currentFolderIdRef.current) {
-            springNav.arm(folderId)
-          }
-          setActiveBreadcrumbIndex(canDrop ? index : null)
-          setIsBodyDropActive(false)
+          if (sourceRowIds.length > 0) springNav.arm(folderId)
+          setActiveDropTarget((current) =>
+            canDrop ? armDropTarget(current, { kind: 'crumb', index }) : null
+          )
           if (!canDrop) return
           e.preventDefault()
           e.stopPropagation()
@@ -320,13 +409,16 @@ export function useFolderRowDragDrop({
         },
         onDragLeave: (_e: DragEvent<HTMLElement>, index: number) => {
           springNav.disarm()
-          setActiveBreadcrumbIndex((current) => (current === index ? null : current))
+          setActiveDropTarget((current) =>
+            current?.kind === 'crumb' && current.index === index ? null : current
+          )
         },
         onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
+          if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           e.preventDefault()
           e.stopPropagation()
           const sourceRowIds =
-            readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
+            readRowDragPayload(e.dataTransfer, dragMime) ?? draggedRowIdsRef.current
           const move = sourceRowIds.length > 0 ? resolveMoveToFolder(folderId, sourceRowIds) : null
           if (move) springNav.markDropHandled()
           endDrag()
@@ -334,8 +426,10 @@ export function useFolderRowDragDrop({
         },
       },
       body: {
-        isActive: isBodyDropActive,
+        isActive: activeDropTarget?.kind === 'body',
         onDragOver: (e: DragEvent<HTMLDivElement>) => {
+          /** Declined: a page-level upload overlay owns the whole region for an OS file drag. */
+          if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           const sourceRowIds = draggedRowIdsRef.current
           /**
            * Recomputed on every event rather than latched, because a spring-open changes the
@@ -346,7 +440,9 @@ export function useFolderRowDragDrop({
           const canDrop =
             sourceRowIds.length > 0 &&
             resolveMoveToFolder(currentFolderIdRef.current, sourceRowIds) !== null
-          setIsBodyDropActive(canDrop)
+          setActiveDropTarget((current) =>
+            canDrop ? armDropTarget(current, { kind: 'body' }) : null
+          )
           if (!canDrop) return
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
@@ -354,13 +450,14 @@ export function useFolderRowDragDrop({
         onDragLeave: (e: DragEvent<HTMLDivElement>) => {
           const relatedTarget = e.relatedTarget
           if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
-          setIsBodyDropActive(false)
+          setActiveDropTarget((current) => (current?.kind === 'body' ? null : current))
         },
         onDrop: (e: DragEvent<HTMLDivElement>) => {
+          if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
           e.preventDefault()
-          const sourceRowIds =
-            readRowDragPayload(e.dataTransfer, DRAG_ROW_MIME) ?? draggedRowIdsRef.current
           e.stopPropagation()
+          const sourceRowIds =
+            readRowDragPayload(e.dataTransfer, dragMime) ?? draggedRowIdsRef.current
           /**
            * Read from the ref, not the closure. This config is memoized, and during a drag the
            * only dep that routinely changes is the hovered row — so after a spring-open into an
@@ -377,11 +474,10 @@ export function useFolderRowDragDrop({
       },
     }),
     [
-      activeDropTargetId,
-      isBodyDropActive,
-      activeBreadcrumbIndex,
+      activeDropTarget,
       draggedRowIds,
       canEdit,
+      dragMime,
       editingRowId,
       resolveMove,
       resolveMoveToFolder,

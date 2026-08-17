@@ -358,21 +358,24 @@ describe('registerIpcHandlers', () => {
     expect(await handler?.(appEvent, 'slack')).toBe(true)
     expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {})
 
-    // Chip-initiated connects carry workspace/credential scope; malformed
+    // Connects carry workspace/credential or exact-draft scope; malformed
     // scopes (wrong types, unsafe ids) are rejected before the handoff.
     expect(
       await handler?.(appEvent, 'slack', {
         workspaceId: 'ws1',
         credentialId: 'cred_1',
+        draftId: 'draft_1',
         chatAttemptId: 'attempt_1',
       })
     ).toBe(true)
     expect(deps.beginOAuthConnect).toHaveBeenCalledWith('slack', {
       workspaceId: 'ws1',
       credentialId: 'cred_1',
+      draftId: 'draft_1',
       chatAttemptId: 'attempt_1',
     })
     expect(await handler?.(appEvent, 'slack', { workspaceId: 'ws/../evil' })).toBe(false)
+    expect(await handler?.(appEvent, 'slack', { draftId: '../wrong' })).toBe(false)
     expect(await handler?.(appEvent, 'slack', { chatAttemptId: '../wrong' })).toBe(false)
     expect(await handler?.(appEvent, 'slack', 'not-an-object')).toBe(false)
   })

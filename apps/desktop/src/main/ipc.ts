@@ -96,6 +96,7 @@ function parseDesktopScope(raw: unknown): string | null {
 export interface OAuthConnectScope {
   workspaceId?: string
   credentialId?: string
+  draftId?: string
   chatAttemptId?: string
 }
 
@@ -111,9 +112,10 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   if (typeof raw !== 'object') {
     return undefined
   }
-  const { workspaceId, credentialId, chatAttemptId } = raw as {
+  const { workspaceId, credentialId, draftId, chatAttemptId } = raw as {
     workspaceId?: unknown
     credentialId?: unknown
+    draftId?: unknown
     chatAttemptId?: unknown
   }
   if (
@@ -128,6 +130,9 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   ) {
     return undefined
   }
+  if (draftId !== undefined && (typeof draftId !== 'string' || !ID_PATTERN.test(draftId))) {
+    return undefined
+  }
   if (
     chatAttemptId !== undefined &&
     (typeof chatAttemptId !== 'string' || !ID_PATTERN.test(chatAttemptId))
@@ -137,6 +142,7 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   return {
     ...(workspaceId !== undefined ? { workspaceId } : {}),
     ...(credentialId !== undefined ? { credentialId } : {}),
+    ...(draftId !== undefined ? { draftId } : {}),
     ...(chatAttemptId !== undefined ? { chatAttemptId } : {}),
   }
 }

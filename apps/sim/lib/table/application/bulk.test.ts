@@ -64,7 +64,7 @@ vi.mock('@/lib/table', () => ({
   moveTableToFolder: mocks.moveTableToFolder,
 }))
 vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveTableContext,
+  resolveActiveTableInWorkspace: mocks.resolveTableContext,
   resolveTableWorkspaceContext: mocks.resolveWorkspaceContext,
 }))
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
@@ -99,9 +99,7 @@ describe('table bulk application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
-    mocks.resolveTableContext.mockImplementation(async ({ tableId }: { tableId: string }) =>
-      tableContext(tableId)
-    )
+    mocks.resolveTableContext.mockImplementation(async (tableId: string) => tableContext(tableId))
     mocks.moveTableToFolder.mockResolvedValue({ name: 'Moved' })
     mocks.deleteTable.mockResolvedValue({
       archived: { name: 'Archived', workspaceId: 'workspace-1' },
@@ -191,7 +189,7 @@ describe('table bulk application use cases', () => {
       contained: [],
       covered: new Set(['folder-1', 'folder-child']),
     })
-    mocks.resolveTableContext.mockImplementation(async ({ tableId }: { tableId: string }) =>
+    mocks.resolveTableContext.mockImplementation(async (tableId: string) =>
       tableContext(tableId, 'folder-child')
     )
 
@@ -291,6 +289,58 @@ describe('table bulk application use cases', () => {
 
     expect(mocks.moveTableToFolder).not.toHaveBeenCalled()
     expect(mocks.bulkMoveFolders).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The canonical workspace context is what bounded and authorized the request; it cannot differ
+   * per item, so the batch resolves it once and composes each table onto it. Resolving it per
+   * item was a whole extra load each.
+   *
+   * Note this deliberately does NOT memoize the per-item permission check: each item commits
+   * independently, so every one of them re-reads the caller's current permission and a
+   * revocation part-way through a batch stops the rest.
+   */
+  it('loads the workspace context once however many items the batch carries', async () => {
+    const move = (tableIds: string[]) =>
+      bulkMoveTables.execute({
+        principal,
+        input: {
+          assertedWorkspaceId: 'workspace-1',
+          tableIds,
+          folderIds: [],
+          targetFolderId: 'folder-1',
+        },
+      })
+
+    const small = await move(['table-1', 'table-2', 'table-3'])
+    expect(small.moved).toHaveLength(3)
+    expect(mocks.resolveWorkspaceContext).toHaveBeenCalledTimes(1)
+
+    mocks.resolveWorkspaceContext.mockClear()
+    const large = await move(Array.from({ length: 25 }, (_, index) => `table-${index}`))
+    expect(large.moved).toHaveLength(25)
+    expect(mocks.resolveWorkspaceContext).toHaveBeenCalledTimes(1)
+  })
+
+  /** A revocation part-way through a batch must stop the items that have not run yet. */
+  it('re-checks the caller permission for every item', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce('write')
+    mocks.resolvePermission.mockResolvedValue(null)
+
+    const result = await bulkMoveTables.execute({
+      principal,
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        tableIds: ['table-1', 'table-2', 'table-3'],
+        folderIds: [],
+        targetFolderId: 'folder-1',
+      },
+    })
+
+    expect(result.moved).toHaveLength(1)
+    expect(result.failed.concat(result.notFound as never[])).toHaveLength(2)
+    /** One for the operation itself, then one per item — no memo may collapse these. */
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(4)
   })
 
   it('moves tables and folders in one operation', async () => {

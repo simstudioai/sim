@@ -13,6 +13,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
@@ -79,7 +80,7 @@ async function resolveAccount(
   signal?: AbortSignal
 ): Promise<DocuSignAccountInfo> {
   const response = await fetchDocusign(
-    'https://account-d.docusign.com/oauth/userinfo',
+    getDocusignOAuthUrl('/oauth/userinfo'),
     {
       headers: { Authorization: `Bearer ${accessToken}` },
     },

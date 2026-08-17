@@ -5,7 +5,7 @@ export const airtableConnectorMeta: ConnectorMeta = {
   id: 'airtable',
   name: 'Airtable',
   description: 'Sync records from an Airtable table',
-  version: '1.0.0',
+  version: '1.1.0',
   icon: AirtableIcon,
 
   auth: {

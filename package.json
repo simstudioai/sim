@@ -32,6 +32,8 @@
     "check:openapi": "bun run scripts/check-openapi.ts",
     "generate:cli-api": "bun run scripts/generate-v2-cli-api.ts",
     "check:cli-api": "bun run scripts/generate-v2-cli-api.ts --check",
+    "generate:cli-docs": "bun run scripts/generate-cli-docs.ts",
+    "check:cli-docs": "bun run scripts/generate-cli-docs.ts --check",
     "check:cron-parity": "bun run scripts/check-cron-parity.ts",
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
@@ -51,6 +53,7 @@
     "check:native-typecheck": "bun run scripts/check-native-typecheck.ts",
     "check:source-text": "bun run scripts/check-source-text.ts",
     "check:audits": "bun run scripts/run-audits.ts",
+    "check:skills": "bun run scripts/sync-skills.ts --check",
     "check:desktop-bridge": "bun run scripts/check-desktop-bridge-contract.ts --check",
     "check:desktop-ipc": "bun run scripts/check-desktop-ipc-contract.ts",
     "check:route-verbs": "bun run scripts/check-route-verbs.ts",
@@ -62,6 +65,7 @@
     "tool-metadata:generate": "bun run scripts/sync-tool-metadata.ts",
     "tool-metadata:check": "bun run scripts/sync-tool-metadata.ts --check",
     "integration-catalog:check": "bun run scripts/check-integration-catalog.ts",
+    "docs:check": "bun run scripts/generate-docs.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
     "mship-tools:check": "bun run scripts/sync-tool-catalog.ts --check",
     "trace-spans-contract:generate": "bun run scripts/sync-trace-spans-contract.ts",
@@ -83,7 +87,6 @@
     "library:covers": "bun run scripts/generate-library-covers.tsx",
     "library:covers:check": "bun run scripts/generate-library-covers.tsx --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
-    "skills:check": "bun run scripts/sync-skills.ts --check",
     "setup": "bun run scripts/setup/launcher.ts setup",
     "sim": "bun run scripts/setup/launcher.ts",
     "doctor": "bun run scripts/setup/launcher.ts doctor",
@@ -96,8 +99,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "next": "16.2.12",
-    "@next/env": "16.2.12",
+    "next": "16.3.1",
+    "@next/env": "16.3.1",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5",
     "minimatch": "^10.2.5",
@@ -106,10 +109,10 @@
     "e2b": "^2.36.1"
   },
   "optionalDependencies": {
-    "@next/swc-darwin-arm64": "16.2.12",
-    "@next/swc-darwin-x64": "16.2.12",
-    "@next/swc-linux-arm64-gnu": "16.2.12",
-    "@next/swc-linux-x64-gnu": "16.2.12"
+    "@next/swc-darwin-arm64": "16.3.1",
+    "@next/swc-darwin-x64": "16.3.1",
+    "@next/swc-linux-arm64-gnu": "16.3.1",
+    "@next/swc-linux-x64-gnu": "16.3.1"
   },
   "devDependencies": {
     "@babel/parser": "7.29.2",

@@ -511,3 +511,6 @@ Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 - [ ] `bun run type-check` passes
 - [ ] Manually verify output keys match trigger `outputs` keys
 - [ ] Trigger UI shows correctly in the block
+- [ ] Ran `bun run scripts/generate-docs.ts` and committed the refreshed pages — trigger sections
+      render into the owning integration's docs page, and CI's `bun run docs:check` fails on stale
+      pages

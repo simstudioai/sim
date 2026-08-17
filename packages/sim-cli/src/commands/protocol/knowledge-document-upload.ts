@@ -37,7 +37,9 @@ function uploadMetadata(options: KnowledgeDocumentUploadOptions): Record<string,
 
 export function attachKnowledgeDocumentUpload(documents: Command): void {
   documents
-    .command('upload <knowledgeBaseId> <path>')
+    .command('upload')
+    .argument('<knowledgeBaseId>', 'Knowledge base to upload into')
+    .argument('<path>', 'Local file to upload')
     .description('Upload a document to a knowledge base')
     .option('--name <name>', 'Store it under a different name')
     .option('--tag <value...>', 'Document tags, in tag1 through tag7 order')

@@ -13,6 +13,24 @@ export interface FindBarProps {
   onNext: () => void
   onPrev: () => void
   onClose: () => void
+  /**
+   * Adopts the typed term immediately, skipping the surface's debounce. Only
+   * meaningful on a surface that debounces; omit it and Enter always steps.
+   */
+  onSubmit?: () => void
+  /**
+   * Whether the typed term has yet to be searched, so Enter should commit it
+   * rather than step. Defaults to false — a surface that searches
+   * synchronously is never stale.
+   */
+  isStale?: boolean
+  /**
+   * Whether the matches on screen belong to the term that was searched. False
+   * while a term's own results are in flight, when the count still describes
+   * the previous term and stepping through it would land on a cell the box no
+   * longer names. Defaults to true for surfaces that match synchronously.
+   */
+  canNavigate?: boolean
   /** Number of matches after dropping any the current view cannot show. */
   count: number
   /** 0-based index of the active match. Ignored when `count` is 0. */
@@ -41,6 +59,9 @@ export const FindBar = memo(function FindBar({
   onNext,
   onPrev,
   onClose,
+  onSubmit,
+  isStale = false,
+  canNavigate = true,
   count,
   currentIndex,
   truncated,
@@ -50,7 +71,13 @@ export const FindBar = memo(function FindBar({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (e.shiftKey) onPrev()
+      // Commit an unsearched term; otherwise step — but only once the results
+      // describe it. In between (committed, still loading) Enter does nothing
+      // rather than walk the previous term's matches; the surface's auto-reveal
+      // lands on the first hit as soon as they arrive.
+      if (isStale && onSubmit) onSubmit()
+      else if (!canNavigate) return
+      else if (e.shiftKey) onPrev()
       else onNext()
       return
     }
@@ -62,6 +89,7 @@ export const FindBar = memo(function FindBar({
 
   const hasQuery = query.trim().length > 0
   const hasMatches = count > 0
+  const navEnabled = hasMatches && canNavigate
 
   /** The tally holds its last value while the next result set loads — blanking
    *  it on every keystroke reads as the feature breaking rather than working. */
@@ -120,7 +148,7 @@ export const FindBar = memo(function FindBar({
         className='size-6 shrink-0'
         aria-label='Previous match'
         title='Previous match (Shift+Enter)'
-        disabled={!hasMatches}
+        disabled={!navEnabled}
         onClick={onPrev}
       >
         <ChevronUp className='size-[13px]' />
@@ -132,7 +160,7 @@ export const FindBar = memo(function FindBar({
         className='size-6 shrink-0'
         aria-label='Next match'
         title='Next match (Enter)'
-        disabled={!hasMatches}
+        disabled={!navEnabled}
         onClick={onNext}
       >
         <ChevronDown className='size-[13px]' />

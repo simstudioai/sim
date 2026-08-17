@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import {
+  fetchWithRetry,
+  type RetryOptions,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import { googleVaultConnectorMeta } from '@/connectors/google-vault/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, parseTagDate, takeIndexableWithinCap } from '@/connectors/utils'
@@ -9,7 +13,11 @@ const logger = createLogger('GoogleVaultConnector')
 
 const VAULT_API_BASE = 'https://vault.googleapis.com/v1'
 
-/** Vault caps both `matters.list` and `matters.holds.list` page sizes at 100. */
+/**
+ * Vault documents a maximum of 100 for `matters.list` and `matters.holds.list`.
+ * `matters.savedQueries.list` documents no bound at all, so it reuses the same
+ * value rather than assuming a larger one is honored.
+ */
 const PAGE_SIZE = 100
 
 /**
@@ -176,14 +184,23 @@ function enabledChildKinds(sourceConfig: Record<string, unknown>): VaultChildKin
   return kinds
 }
 
-async function vaultGet(accessToken: string, url: string, label: string): Promise<Response> {
-  return fetchWithRetry(url, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
+async function vaultGet(
+  accessToken: string,
+  url: string,
+  label: string,
+  retryOptions?: RetryOptions
+): Promise<Response> {
+  return fetchWithRetry(
+    url,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
     },
-  }).catch((error) => {
+    retryOptions
+  ).catch((error) => {
     throw new Error(`Failed to reach Google Vault (${label}): ${toError(error).message}`)
   })
 }
@@ -636,10 +653,15 @@ export const googleVaultConnector: ConnectorConfig = {
       logger.warn('Unrecognized Google Vault external ID', { externalId })
       return null
     } catch (error) {
+      /**
+       * Only the explicit 404/403 checks above (and an unrecognized externalId kind) mean
+       * the object is genuinely gone or unreachable. Everything else is rethrown so the
+       * sync engine records a failed row instead of dropping the document silently.
+       */
       logger.warn(`Failed to fetch Google Vault document ${externalId}`, {
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 
@@ -664,15 +686,10 @@ export const googleVaultConnector: ConnectorConfig = {
         ? `${VAULT_API_BASE}/matters/${encodeURIComponent(matterId)}?view=BASIC`
         : `${VAULT_API_BASE}/matters?pageSize=1&view=BASIC`
 
-      const response = await fetchWithRetry(
+      const response = await vaultGet(
+        accessToken,
         url,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
-          },
-        },
+        matterId ? 'matters.get' : 'matters.list',
         VALIDATE_RETRY_OPTIONS
       )
 

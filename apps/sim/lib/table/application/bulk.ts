@@ -25,7 +25,7 @@ import {
 } from '@/lib/table/application/batch-policy'
 import {
   type ActiveTableContext,
-  resolveActiveTableContext,
+  resolveActiveTableInWorkspace,
   resolveTableWorkspaceContext,
   type TableWorkspaceContext,
 } from '@/lib/table/application/context'
@@ -159,7 +159,7 @@ async function notifyBatchedTableChanges(
  */
 async function runTableItems(
   tableIds: readonly string[],
-  workspaceId: string,
+  workspace: TableWorkspaceContext,
   covered: ReadonlySet<string>,
   authorize: (canonical: ActiveTableContext) => Promise<void>,
   /** Runs against an already-authorized canonical table. Returns its authoritative name. */
@@ -170,10 +170,7 @@ async function runTableItems(
   for (const tableId of tableIds) {
     let tableName = tableId
     try {
-      const canonical = await resolveActiveTableContext({
-        tableId,
-        assertedWorkspaceId: workspaceId,
-      })
+      const canonical = await resolveActiveTableInWorkspace(tableId, workspace)
       tableName = canonical.table.name
       if (canonical.table.folderId && covered.has(canonical.table.folderId)) {
         outcome.skipped.push({ kind: 'table', id: canonical.table.id, name: tableName })
@@ -249,7 +246,7 @@ export const bulkMoveTables = defineAuthorizedTableUseCase({
     try {
       const terminalError = await runTableItems(
         context.tableIds,
-        context.workspaceId,
+        context,
         plan.covered,
         (canonical) => authorizeTableOperation(principal, tableOperations.bulkMove, canonical),
         async (canonical) =>
@@ -355,7 +352,7 @@ export const bulkDeleteTables = defineAuthorizedTableUseCase({
     try {
       const terminalError = await runTableItems(
         context.tableIds,
-        context.workspaceId,
+        context,
         plan.covered,
         (canonical) => authorizeTableOperation(principal, tableOperations.bulkDelete, canonical),
         async (canonical) => {

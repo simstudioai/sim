@@ -11,7 +11,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
 import { launchCredentialConnection } from '@/lib/credentials/application/launch-credential-connection'
-import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-processor'
+import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 
 const logger = createLogger('OAuth2Authorize')
 

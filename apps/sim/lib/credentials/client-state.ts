@@ -52,6 +52,11 @@ interface OAuthReturnBase {
   displayName: string
   providerId: string
   preCount: number
+  baselineCredentials?: Array<{
+    id: string
+    accountId: string | null
+    updatedAt?: string
+  }>
   workspaceId: string
   reconnect?: boolean
   requestedAt: number

@@ -60,7 +60,7 @@ vi.mock('@/lib/folders/bulk', () => ({
 vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mocks.findActiveFolder }))
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
-  resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
+  resolveActiveKnowledgeBaseInWorkspace: mocks.resolveKnowledgeBase,
 }))
 vi.mock('@/lib/knowledge/service', () => ({
   updateKnowledgeBase: mocks.updateRecord,
@@ -96,8 +96,8 @@ describe('knowledge bulk application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
     mocks.findActiveFolder.mockResolvedValue({ id: 'folder-1' })
-    mocks.resolveKnowledgeBase.mockImplementation(
-      async ({ knowledgeBaseId }: { knowledgeBaseId: string }) => knowledgeContext(knowledgeBaseId)
+    mocks.resolveKnowledgeBase.mockImplementation(async (knowledgeBaseId: string) =>
+      knowledgeContext(knowledgeBaseId)
     )
     mocks.updateRecord.mockImplementation(async (id: string) => ({ id, name: `Base ${id}` }))
     mocks.deleteRecord.mockResolvedValue(undefined)
@@ -189,9 +189,8 @@ describe('knowledge bulk application use cases', () => {
       contained: [],
       covered: new Set(['folder-1', 'folder-child']),
     })
-    mocks.resolveKnowledgeBase.mockImplementation(
-      async ({ knowledgeBaseId }: { knowledgeBaseId: string }) =>
-        knowledgeContext(knowledgeBaseId, 'folder-child')
+    mocks.resolveKnowledgeBase.mockImplementation(async (knowledgeBaseId: string) =>
+      knowledgeContext(knowledgeBaseId, 'folder-child')
     )
 
     const result = await bulkDeleteKnowledgeItems.execute({

@@ -292,6 +292,28 @@ function pathParams(routePath: string): string[] {
 }
 
 /**
+ * `.describe()` for each path parameter, so a positional argument can explain
+ * itself the way a flag does.
+ *
+ * The params schema is otherwise read only for its field names, which the route
+ * path already supplies — the prose attached to them was being discarded, and
+ * `sim tables rows get <tableId> <rowId>` had nothing to say about either.
+ */
+function pathParamDocs(schema: z.ZodType | undefined): Record<string, string> {
+  if (!schema) return {}
+
+  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as JsonSchema
+  const docs: Record<string, string> = {}
+
+  for (const [key, property] of Object.entries(json.properties ?? {})) {
+    const description = (property as JsonSchema).description
+    if (typeof description === 'string' && description.trim()) docs[key] = description.trim()
+  }
+
+  return docs
+}
+
+/**
  * The kind a request field reduces to for the CLI's purposes.
  *
  * Everything from argv arrives as a string, so this is what tells the runtime
@@ -411,6 +433,15 @@ function renderSlotMap(schema: z.ZodType | undefined, indent: string): string | 
       )
     }
     if (property.default !== undefined) parts.push(`default: ${JSON.stringify(property.default)}`)
+    // The contract's own `.describe()` is the field's documentation, and it is
+    // already what the OpenAPI specs publish. Carrying it here is what lets
+    // `--help` say what a flag means instead of restating its name back at the
+    // reader as "Set sort by". Read from the reference site first: a field that
+    // narrows a shared `$defs` schema describes its own use of it.
+    const description = properties[key].description ?? property.description
+    if (typeof description === 'string' && description.trim()) {
+      parts.push(`describe: ${JSON.stringify(description.trim())}`)
+    }
     return `${indent}  ${JSON.stringify(key)}: { ${parts.join(', ')} },`
   })
 
@@ -480,6 +511,14 @@ function render(operations: Operation[]): string {
     out.push(`    method: '${op.contract.method}',`)
     out.push(`    path: '${op.contract.path}',`)
     out.push(`    pathParams: [${params.map((p) => `'${p}'`).join(', ')}] as const,`)
+    const paramDocs = pathParamDocs(op.contract.params)
+    const documentedParams = params.filter((p) => paramDocs[p])
+    if (documentedParams.length > 0) {
+      const entries = documentedParams.map(
+        (p) => `${JSON.stringify(p)}: ${JSON.stringify(paramDocs[p])}`
+      )
+      out.push(`    pathParamDocs: { ${entries.join(', ')} },`)
+    }
     out.push(`    responseMode: '${op.contract.response.mode}',`)
     // OpenAPI writes `{id}` where the contract writes `[id]`.
     const summary = summaries.get(

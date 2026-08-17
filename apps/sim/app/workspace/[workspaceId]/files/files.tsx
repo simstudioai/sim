@@ -1,6 +1,6 @@
 'use client'
 
-import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChipCombobox,
@@ -52,7 +52,6 @@ import type {
   ResourceColumn,
   ResourceRow,
   ResourceTableHandle,
-  RowDragDropConfig,
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
@@ -78,13 +77,12 @@ import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
   folderedResourceListHref,
+  folderRowId,
+  parseFolderedRowId,
   parseMoveOptionValue,
-  readRowDragPayload,
   sortResources,
-  useDragTeardown,
-  useRowDragGhost,
-  useSpringNavigation,
-  writeRowDragPayload,
+  splitFolderedRowIds,
+  useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
@@ -154,13 +152,10 @@ type FileListEntry =
 const logger = createLogger('Files')
 
 /**
- * Private drag payload for file rows, kept distinct from the foldered-list MIME so a drag
- * started on Tables or Knowledge is never mistaken for one of these rows.
+ * This list's private drag MIME, so a drag started on another list is never mistaken for one of
+ * these rows.
  */
 const FILE_ROW_DRAG_MIME = 'application/x-sim-workspace-file-rows'
-
-/** Shared empty set so an idle drag state keeps a stable identity across renders. */
-const EMPTY_DRAGGED_ROW_IDS = new Set<string>()
 
 const FILES_HEADER = FOLDERED_RESOURCE_HEADERS.file
 
@@ -213,14 +208,6 @@ const MIME_TYPE_LABELS: Record<string, string> = {
 const EMPTY_WORKSPACE_FILES: WorkspaceFileRecord[] = []
 const EMPTY_WORKSPACE_FILE_FOLDERS: WorkspaceFileFolderApi[] = []
 const EMPTY_FIND_MATCH_IDS: readonly string[] = Object.freeze([])
-
-const fileRowId = (id: string) => `file:${id}`
-const folderRowId = (id: string) => `folder:${id}`
-const parseRowId = (rowId: string): { kind: 'file' | 'folder'; id: string } => {
-  if (rowId.startsWith('folder:')) return { kind: 'folder', id: rowId.slice('folder:'.length) }
-  if (rowId.startsWith('file:')) return { kind: 'file', id: rowId.slice('file:'.length) }
-  return { kind: 'file', id: rowId }
-}
 
 const hasExternalFiles = (dataTransfer: DataTransfer): boolean =>
   dataTransfer.types.includes('Files')
@@ -319,9 +306,8 @@ export function Files() {
   const filesRef = useRef(files)
   filesRef.current = files
   /**
-   * Indexed once. `isInvalidFolderTarget` resolves each dragged row's placement inside
-   * `dragover`, which fires continuously — a linear scan there is O(selection x resources)
-   * per event.
+   * Indexed once. The drag hook resolves each dragged row's placement inside `dragover`, which
+   * fires continuously — a linear scan there is O(selection x resources) per event.
    */
   const fileById = useMemo(() => {
     const byId = new Map<string, WorkspaceFileRecord>()
@@ -330,8 +316,6 @@ export function Files() {
   }, [files])
   const fileByIdRef = useRef(fileById)
   fileByIdRef.current = fileById
-  const foldersRef = useRef(folders)
-  foldersRef.current = folders
 
   const [uploadProgress, setUploadProgress] = useState({
     completed: 0,
@@ -342,6 +326,18 @@ export function Files() {
   const uploading = uploadProgress.total > 0
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const dragCounterRef = useRef(0)
+  /**
+   * Takes down the "Drop to upload" overlay.
+   *
+   * Every path that consumes an OS file drag has to call this, including the one that never
+   * reaches the page-level handler: a drop on a folder row is handled by the drag hook, which
+   * stops propagation, so `handleDrop` below never runs and the counter it would have zeroed
+   * keeps the overlay on screen over the finished upload.
+   */
+  const dismissUploadOverlay = useCallback(() => {
+    dragCounterRef.current = 0
+    setIsDraggingOver(false)
+  }, [])
   const [
     { search: urlSearchTerm, type: typeFilter, size: sizeFilter, uploadedBy: uploadedByFilter },
     setFileFilters,
@@ -382,10 +378,6 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
-  const [isBodyDropActive, setIsBodyDropActive] = useState(false)
-  const [activeBreadcrumbIndex, setActiveBreadcrumbIndex] = useState<number | null>(null)
-  const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => EMPTY_DRAGGED_ROW_IDS)
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => {
     if (isNewFile) return 'editor'
     if (fileIdFromRoute) {
@@ -398,7 +390,6 @@ export function Files() {
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const contextMenuItemRef = useRef<FileResourceItem | null>(null)
-  const draggedRowIdsRef = useRef<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<{
     fileIds: string[]
     folderIds: string[]
@@ -407,7 +398,7 @@ export function Files() {
 
   const listRename = useInlineRename({
     onSave: (rowId, name) => {
-      const parsed = parseRowId(rowId)
+      const parsed = parseFolderedRowId(rowId)
       if (parsed.kind === 'folder') {
         return updateFolder.mutateAsync({ workspaceId, folderId: parsed.id, updates: { name } })
       }
@@ -664,7 +655,7 @@ export function Files() {
         const { file } = item
         const Icon = getDocumentIcon(file.type || '', file.name)
         return {
-          id: fileRowId(file.id),
+          id: file.id,
           cells: {
             name: {
               icon: <Icon className='size-[14px]' />,
@@ -796,66 +787,12 @@ export function Files() {
     onDeleteSelected: () => handleBulkDelete(),
   })
 
-  const { selectedFileIds, selectedFolderIds } = useMemo(() => {
-    const fileIds: string[] = []
-    const folderIds: string[] = []
-    for (const rowId of selectedRowIds) {
-      const item = parseRowId(rowId)
-      if (item.kind === 'file') fileIds.push(item.id)
-      else folderIds.push(item.id)
-    }
-    return { selectedFileIds: fileIds, selectedFolderIds: folderIds }
-  }, [selectedRowIds])
+  const { folderIds: selectedFolderIds, resourceIds: selectedFileIds } = useMemo(
+    () => splitFolderedRowIds(selectedRowIds),
+    [selectedRowIds]
+  )
 
   const descendantFolderIdsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
-
-  /**
-   * Whether dropping `sourceRowIds` into `targetFolderId` would move anything.
-   *
-   * Takes a folder id rather than a row id because the destination is not always a row: the
-   * list body files into the folder currently open, which has no row of its own, and a drag
-   * that spring-opened into an empty folder has nothing else to land on.
-   */
-  const isInvalidFolderTarget = useCallback(
-    (targetFolderId: string | null, sourceRowIds: string[]) => {
-      for (const sourceRowId of sourceRowIds) {
-        const source = parseRowId(sourceRowId)
-        if (source.kind !== 'folder') continue
-        if (source.id === targetFolderId) return true
-        if (
-          targetFolderId !== null &&
-          descendantFolderIdsByFolderId.get(source.id)?.has(targetFolderId)
-        )
-          return true
-      }
-
-      const allAlreadyInTarget = sourceRowIds.every((sourceRowId) => {
-        const source = parseRowId(sourceRowId)
-        if (source.kind === 'file') {
-          return (
-            (filesRef.current.find((f) => f.id === source.id)?.folderId ?? null) === targetFolderId
-          )
-        }
-        return (folderByIdRef.current.get(source.id)?.parentId ?? null) === targetFolderId
-      })
-      return allAlreadyInTarget
-    },
-    [descendantFolderIdsByFolderId]
-  )
-
-  /**
-   * Row-targeted drop: only a folder row can receive one. Delegates so the cycle and
-   * already-there rules live in exactly one place — the two had already drifted on whether a
-   * file's `folderId` was normalised with `?? null` before comparing.
-   */
-  const isInvalidDropTarget = useCallback(
-    (targetRowId: string, sourceRowIds: string[]) => {
-      const target = parseRowId(targetRowId)
-      if (target.kind !== 'folder') return true
-      return isInvalidFolderTarget(target.id, sourceRowIds)
-    },
-    [isInvalidFolderTarget]
-  )
 
   const uploadFiles = useCallback(
     async (filesToUpload: File[], targetFolderId = currentFolderId) => {
@@ -928,271 +865,45 @@ export function Files() {
     [workspaceId, canEdit, currentFolderId, notifyLimit]
   )
 
-  const dragGhost = useRowDragGhost()
-
-  const springNav = useSpringNavigation({
-    currentFolderId,
-    onNavigate: (folderId, options) => {
+  const rowDragDropConfig = useFolderRowDragDrop({
+    dragMime: FILE_ROW_DRAG_MIME,
+    canEdit,
+    editingRowId: listRename.editingId,
+    descendantsByFolderId: descendantFolderIdsByFolderId,
+    getFolderParentId: (folderId) => folderByIdRef.current.get(folderId)?.parentId ?? null,
+    getResourceFolderId: (fileId) => fileByIdRef.current.get(fileId)?.folderId ?? null,
+    getRowLabel: (rowId) => {
+      const parsed = parseFolderedRowId(rowId)
+      return parsed.kind === 'folder'
+        ? (folderByIdRef.current.get(parsed.id)?.name ?? 'Folder')
+        : (fileByIdRef.current.get(parsed.id)?.name ?? 'File')
+    },
+    onMoveRows: ({ folderIds, resourceIds }, targetFolderId) => {
+      void moveItems
+        .mutateAsync({ workspaceId, fileIds: resourceIds, folderIds, targetFolderId })
+        .then(() => clearSelection())
+        .catch((error) => logger.error('Failed to move items:', error))
+    },
+    selection: { selectedRowIds, visibleRowIds, replaceSelection },
+    onSpringOpenFolder: (folderId, options) => {
       void setFilesParams({ folderId, new: null }, options)
     },
+    currentFolderId,
+    /**
+     * The one thing this list does that the others do not. Folder rows still highlight and
+     * spring open for an OS file drag — filing an upload into a nested folder is the same
+     * gesture — while the body and breadcrumb decline so the page-level "Drop to upload"
+     * overlay owns those regions instead of competing with them.
+     */
+    externalDrop: {
+      matches: hasExternalFiles,
+      onDropIntoFolder: (dataTransfer, targetFolderId) => {
+        dismissUploadOverlay()
+        const dropped = Array.from(dataTransfer.files ?? [])
+        if (dropped.length > 0) void uploadFiles(dropped, targetFolderId)
+      },
+    },
   })
-
-  /** Returns the list to its resting state once a drag is over, however it ended. */
-  const endDrag = useCallback(() => {
-    springNav.end()
-    dragGhost.remove()
-    dragCounterRef.current = 0
-    draggedRowIdsRef.current = []
-    setDraggedRowIds(EMPTY_DRAGGED_ROW_IDS)
-    setIsDraggingOver(false)
-    setActiveDropTargetId(null)
-    setIsBodyDropActive(false)
-    setActiveBreadcrumbIndex(null)
-  }, [dragGhost, springNav])
-
-  useDragTeardown(endDrag)
-
-  const rowDragDropConfig = useMemo<RowDragDropConfig>(
-    () => ({
-      activeDropTargetId,
-      draggedRowIds,
-      isAnyDragActive: draggedRowIds.size > 0,
-      isRowDraggable: (rowId) => canEdit && listRename.editingId !== rowId,
-      isRowDropTarget: (rowId) => canEdit && parseRowId(rowId).kind === 'folder',
-      onDragStart: (e: DragEvent<HTMLDivElement>, rowId) => {
-        if (!canEdit || listRename.editingId === rowId) {
-          e.preventDefault()
-          return
-        }
-
-        springNav.rememberOrigin()
-        const sourceRowIds = selectedRowIds.has(rowId)
-          ? visibleRowIds.filter((visibleRowId) => selectedRowIds.has(visibleRowId))
-          : [rowId]
-
-        draggedRowIdsRef.current = sourceRowIds
-        setDraggedRowIds(new Set(sourceRowIds))
-        if (!selectedRowIds.has(rowId)) {
-          replaceSelection([rowId])
-        }
-
-        e.dataTransfer.effectAllowed = 'move'
-        writeRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME, sourceRowIds)
-
-        const firstParsed = parseRowId(sourceRowIds[0])
-        const firstName =
-          firstParsed.kind === 'file'
-            ? filesRef.current.find((f) => f.id === firstParsed.id)?.name
-            : foldersRef.current.find((f) => f.id === firstParsed.id)?.name
-        dragGhost.attach(e, firstName ?? 'Item', sourceRowIds.length)
-      },
-      onDragOver: (e: DragEvent<HTMLDivElement>, rowId) => {
-        const sourceRowIds = draggedRowIdsRef.current
-        const isExternalFileDrag = hasExternalFiles(e.dataTransfer)
-        if (!isExternalFileDrag && isInvalidDropTarget(rowId, sourceRowIds)) return
-
-        e.preventDefault()
-        e.stopPropagation()
-        e.dataTransfer.dropEffect = isExternalFileDrag ? 'copy' : 'move'
-        setActiveDropTargetId(rowId)
-        // The row sits inside the scroll container, whose `dragleave` ignores contained
-        // targets — clear it here so the row and the body never both read as the target.
-        setIsBodyDropActive(false)
-        setActiveBreadcrumbIndex(null)
-        /**
-         * Armed for OS file drags too: dropping an upload into a nested folder is the same
-         * gesture, and `onDragOver` only fires on folder rows.
-         */
-        springNav.arm(parseRowId(rowId).id)
-      },
-      onDragLeave: (e: DragEvent<HTMLDivElement>, rowId) => {
-        const relatedTarget = e.relatedTarget
-        if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
-        springNav.disarm()
-        setActiveDropTargetId((current) => (current === rowId ? null : current))
-      },
-      onDrop: (e: DragEvent<HTMLDivElement>, rowId) => {
-        e.preventDefault()
-        e.stopPropagation()
-
-        const target = parseRowId(rowId)
-        const droppedFiles = Array.from(e.dataTransfer.files ?? [])
-        const sourceRowIds =
-          readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
-
-        const isFolderDrop = target.kind === 'folder'
-        const canUpload = isFolderDrop && droppedFiles.length > 0
-        const canMove =
-          isFolderDrop && droppedFiles.length === 0 && !isInvalidDropTarget(rowId, sourceRowIds)
-
-        /**
-         * Marked BEFORE `endDrag`, which is what consumes it. Ending the drag first runs the
-         * return navigation, bouncing the list out of the folder the drop just landed in — and
-         * because `end` clears the flag, setting it afterwards leaves it armed for the NEXT
-         * drag, whose return then never happens. The upload branch marks it too: a file dropped
-         * into a spring-opened folder must leave the view in that folder, not snap away from it.
-         */
-        if (canUpload || canMove) springNav.markDropHandled()
-
-        /**
-         * Ends the drag before dispatching, but only after the payload has been read off the
-         * event and the source ref. This handler stops propagation, so the window-level
-         * backstop never sees this drop, and the source row may already have unmounted — after
-         * a spring-open it always has.
-         */
-        endDrag()
-
-        if (canUpload) {
-          void uploadFiles(droppedFiles, target.id)
-          return
-        }
-
-        if (!canMove) return
-
-        const fileIds = sourceRowIds
-          .map(parseRowId)
-          .filter((source) => source.kind === 'file')
-          .map((source) => source.id)
-        const folderIds = sourceRowIds
-          .map(parseRowId)
-          .filter((source) => source.kind === 'folder')
-          .map((source) => source.id)
-
-        if (fileIds.length === 0 && folderIds.length === 0) return
-
-        void moveItems
-          .mutateAsync({
-            workspaceId,
-            fileIds,
-            folderIds,
-            targetFolderId: target.id,
-          })
-          .then(() => {
-            clearSelection()
-          })
-          .catch((error) => {
-            logger.error('Failed to move items via drag and drop:', error)
-          })
-      },
-      onDragEnd: endDrag,
-      /**
-       * The breadcrumb is how a drag walks back UP; spring-loading only ever goes deeper.
-       * Hovering a crumb navigates to it on the same timer a folder row uses, and releasing on
-       * one files the drag there directly.
-       */
-      breadcrumb: {
-        activeIndex: activeBreadcrumbIndex,
-        onDragOver: (e: DragEvent<HTMLElement>, folderId: string | null, index: number) => {
-          if (hasExternalFiles(e.dataTransfer)) return
-          const sourceRowIds = draggedRowIdsRef.current
-          if (sourceRowIds.length === 0) return
-          /** Armed even for a no-op drop: walking back to where the drag started is the point. */
-          if (folderId !== currentFolderId) springNav.arm(folderId)
-          const canDrop = !isInvalidFolderTarget(folderId, sourceRowIds)
-          setActiveBreadcrumbIndex(canDrop ? index : null)
-          setIsBodyDropActive(false)
-          if (!canDrop) return
-          e.preventDefault()
-          e.stopPropagation()
-          e.dataTransfer.dropEffect = 'move'
-        },
-        onDragLeave: (_e: DragEvent<HTMLElement>, index: number) => {
-          springNav.disarm()
-          setActiveBreadcrumbIndex((current) => (current === index ? null : current))
-        },
-        onDrop: (e: DragEvent<HTMLElement>, folderId: string | null) => {
-          if (hasExternalFiles(e.dataTransfer)) return
-          e.preventDefault()
-          e.stopPropagation()
-          const sourceRowIds =
-            readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
-          const canMove = sourceRowIds.length > 0 && !isInvalidFolderTarget(folderId, sourceRowIds)
-          if (canMove) springNav.markDropHandled()
-          endDrag()
-          if (!canMove) return
-
-          const fileIds: string[] = []
-          const folderIds: string[] = []
-          for (const sourceRowId of sourceRowIds) {
-            const source = parseRowId(sourceRowId)
-            if (source.kind === 'file') fileIds.push(source.id)
-            else folderIds.push(source.id)
-          }
-          void moveItems
-            .mutateAsync({ workspaceId, fileIds, folderIds, targetFolderId: folderId })
-            .then(() => clearSelection())
-            .catch((error) => logger.error('Failed to move items via the breadcrumb:', error))
-        },
-      },
-      body: {
-        isActive: isBodyDropActive,
-        onDragOver: (e: DragEvent<HTMLDivElement>) => {
-          /**
-           * Internal row drags only. An OS file drag is already owned by the page-level
-           * handler, which paints the full "Drop to upload" overlay and uploads into this same
-           * folder — claiming it here would double the affordance and, without stopping
-           * propagation, upload every dropped file twice.
-           */
-          if (hasExternalFiles(e.dataTransfer)) return
-          const sourceRowIds = draggedRowIdsRef.current
-          // Recomputed every event: a spring-open changes the destination mid-drag.
-          const canDrop =
-            sourceRowIds.length > 0 && !isInvalidFolderTarget(currentFolderId, sourceRowIds)
-          setIsBodyDropActive(canDrop)
-          if (!canDrop) return
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'move'
-        },
-        onDragLeave: (e: DragEvent<HTMLDivElement>) => {
-          const relatedTarget = e.relatedTarget
-          if (relatedTarget instanceof Node && e.currentTarget.contains(relatedTarget)) return
-          setIsBodyDropActive(false)
-        },
-        onDrop: (e: DragEvent<HTMLDivElement>) => {
-          // Left to the page-level handler, which uploads into this folder already.
-          if (hasExternalFiles(e.dataTransfer)) return
-          e.preventDefault()
-          e.stopPropagation()
-          const sourceRowIds =
-            readRowDragPayload(e.dataTransfer, FILE_ROW_DRAG_MIME) ?? draggedRowIdsRef.current
-          const canMove =
-            sourceRowIds.length > 0 && !isInvalidFolderTarget(currentFolderId, sourceRowIds)
-
-          if (canMove) springNav.markDropHandled()
-          endDrag()
-          if (!canMove) return
-
-          const fileIds: string[] = []
-          const folderIds: string[] = []
-          for (const sourceRowId of sourceRowIds) {
-            const source = parseRowId(sourceRowId)
-            if (source.kind === 'file') fileIds.push(source.id)
-            else folderIds.push(source.id)
-          }
-          void moveItems
-            .mutateAsync({ workspaceId, fileIds, folderIds, targetFolderId: currentFolderId })
-            .then(() => clearSelection())
-            .catch((error) => logger.error('Failed to move items into the open folder:', error))
-        },
-      },
-    }),
-    [
-      activeDropTargetId,
-      draggedRowIds,
-      canEdit,
-      listRename.editingId,
-      selectedRowIds,
-      visibleRowIds,
-      isInvalidDropTarget,
-      isInvalidFolderTarget,
-      isBodyDropActive,
-      activeBreadcrumbIndex,
-      currentFolderId,
-      clearSelection,
-      uploadFiles,
-      workspaceId,
-    ]
-  )
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files
@@ -1228,9 +939,8 @@ export function Files() {
      * the window-level teardown treats the drag as unconsumed and returns to the folder it
      * began in — pulling the user out of the folder they just spring-opened to receive it.
      */
-    springNav.markDropHandled()
-    dragCounterRef.current = 0
-    setIsDraggingOver(false)
+    rowDragDropConfig.externalDropHandled()
+    dismissUploadOverlay()
     const dropped = Array.from(e.dataTransfer.files)
     if (dropped.length > 0) await uploadFiles(dropped)
   }
@@ -1525,7 +1235,7 @@ export function Files() {
 
   const handleRowContextMenu = useCallback(
     (e: React.MouseEvent, rowId: string) => {
-      const parsed = parseRowId(rowId)
+      const parsed = parseFolderedRowId(rowId)
       const item =
         parsed.kind === 'folder'
           ? folders.find((folder) => folder.id === parsed.id)
@@ -1562,7 +1272,7 @@ export function Files() {
   const handleContextMenuDownload = useCallback(() => {
     const item = contextMenuItemRef.current
     if (!item) return
-    const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
+    const rowId = item.kind === 'file' ? item.file.id : folderRowId(item.folder.id)
     if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
       void handleBulkDownload()
       closeContextMenu()
@@ -1580,7 +1290,7 @@ export function Files() {
 
   const handleContextMenuRename = useCallback(() => {
     const item = contextMenuItemRef.current
-    if (item?.kind === 'file') listRename.startRename(fileRowId(item.file.id), item.file.name)
+    if (item?.kind === 'file') listRename.startRename(item.file.id, item.file.name)
     if (item?.kind === 'folder')
       listRename.startRename(folderRowId(item.folder.id), item.folder.name)
     closeContextMenu()
@@ -1595,7 +1305,7 @@ export function Files() {
   const handleContextMenuDelete = useCallback(() => {
     const item = contextMenuItemRef.current
     if (!item) return
-    const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
+    const rowId = item.kind === 'file' ? item.file.id : folderRowId(item.folder.id)
     if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
       handleBulkDelete()
       closeContextMenu()
@@ -1856,7 +1566,7 @@ export function Files() {
   const handleRowClick = useCallback(
     (rowId: string) => {
       if (listRenameRef.current.editingId !== rowId && !headerRenameRef.current.editingId) {
-        const parsed = parseRowId(rowId)
+        const parsed = parseFolderedRowId(rowId)
         if (parsed.kind === 'folder') {
           void setFilesParams({ folderId: parsed.id, new: null })
           return

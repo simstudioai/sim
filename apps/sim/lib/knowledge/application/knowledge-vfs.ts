@@ -17,6 +17,7 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   deleteKnowledgeBase,
+  findActiveKnowledgeBasesByExactName,
   getWorkspaceKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
@@ -60,13 +61,18 @@ async function resolveKnowledgeBaseByVfsName(
   context: KnowledgeWorkspaceContext,
   sourceName: string,
   sourceSegments?: string[]
-): Promise<KnowledgeBaseWithCounts> {
+): Promise<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>> {
   if (sourceSegments && sourceSegments.length > 1) {
     const row = await resolveResourceRowBySegments(
       knowledgeVfsAdapter,
       context.workspaceId,
       sourceSegments
     )
+    /**
+     * Resolved by folder path, so the name may be shared with knowledge bases in
+     * other folders. The exact-name lookup caps its result set, so the full list
+     * is read here and narrowed by id instead.
+     */
     const { data: rows } = await getWorkspaceKnowledgeBases(context.workspaceId, 'active', {
       search: row.name,
     })
@@ -79,10 +85,7 @@ async function resolveKnowledgeBaseByVfsName(
     }
     return match
   }
-  const { data: rows } = await getWorkspaceKnowledgeBases(context.workspaceId, 'active', {
-    search: sourceName,
-  })
-  const matches = rows.filter((row) => row.name === sourceName)
+  const matches = await findActiveKnowledgeBasesByExactName(context.workspaceId, sourceName)
   if (matches.length > 1) {
     throw new OrchestrationError(
       'conflict',

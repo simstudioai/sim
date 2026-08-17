@@ -25,6 +25,9 @@ import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-
 
 const logger = createLogger('ExecutionEngine')
 
+/** Cadence of the Redis fallback poll that covers a lost pub/sub cancellation. */
+const CANCELLATION_POLL_INTERVAL_MS = 500
+
 export class ExecutionEngine {
   private readyQueue: string[] = []
   private executing = new Set<Promise<void>>()
@@ -42,6 +45,8 @@ export class ExecutionEngine {
   private cancellationController = new AbortController()
   private abortSignalListener: (() => void) | null = null
   private cancellationUnsubscribe: (() => void) | null = null
+  private cancellationPollTimer: ReturnType<typeof setInterval> | null = null
+  private cancellationPollInFlight = false
   private execLogger: Logger
 
   constructor(
@@ -97,6 +102,7 @@ export class ExecutionEngine {
   private signalCancelled(reason: unknown = new DOMException('user', 'AbortError')): void {
     if (this.cancelledFlag) return
     this.cancelledFlag = true
+    this.stopCancellationPolling()
     if (!this.cancellationController.signal.aborted) {
       this.cancellationController.abort(reason)
     }
@@ -107,16 +113,69 @@ export class ExecutionEngine {
     return this.cancelledFlag
   }
 
+  /** Reads the durable cancellation flag; false when Redis is not the cancellation store. */
+  private async readDurableCancellation(): Promise<boolean> {
+    const executionId = this.context.executionId
+    if (!executionId || !isRedisCancellationEnabled()) return false
+    return isExecutionCancelled(executionId)
+  }
+
   /** Catches cancellations published before this engine subscribed (e.g. resume from snapshot). */
   private async checkCancellationBackstop(): Promise<void> {
-    if (!this.context.executionId || !isRedisCancellationEnabled()) return
-    const cancelled = await isExecutionCancelled(this.context.executionId)
-    if (cancelled) {
-      this.execLogger.info('Execution already cancelled at engine start (Redis backstop)', {
-        executionId: this.context.executionId,
-      })
-      this.signalCancelled()
-    }
+    if (!(await this.readDurableCancellation())) return
+    this.execLogger.info('Execution already cancelled at engine start (Redis backstop)', {
+      executionId: this.context.executionId,
+    })
+    this.signalCancelled()
+  }
+
+  /**
+   * Polls the durable flag for the life of the run.
+   *
+   * Pub/sub delivery is the fast path but is at-most-once: a dropped subscriber connection, or a
+   * publish that races this engine reaching its own last block, would otherwise let a cancelled
+   * run finish as successful. `markExecutionCancelled` writes the durable key before publishing
+   * precisely so a reader that misses the event can still observe the cancellation.
+   *
+   * This and {@link checkCancellationBackstop} are the only places a durable cancellation becomes
+   * run status. A block handler or orchestrator that reads the flag itself and then returns
+   * normally leaves `cancelledFlag` false, which reports a cancelled run as successful. Handlers
+   * that abort their own I/O off `ctx.abortSignal` are fine: that surfaces as a throw, which the
+   * cancelled branch of `run` classifies.
+   */
+  private startCancellationPolling(): void {
+    if (this.cancelledFlag || !this.context.executionId || !isRedisCancellationEnabled()) return
+    this.cancellationPollTimer = setInterval(() => {
+      if (this.cancellationPollInFlight) return
+      this.cancellationPollInFlight = true
+      void this.pollDurableCancellation()
+        .catch((error) => {
+          this.execLogger.warn('Durable cancellation poll failed', {
+            executionId: this.context.executionId,
+            error: toError(error).message,
+          })
+        })
+        .finally(() => {
+          this.cancellationPollInFlight = false
+        })
+    }, CANCELLATION_POLL_INTERVAL_MS)
+  }
+
+  private async pollDurableCancellation(): Promise<void> {
+    const cancelled = await this.readDurableCancellation()
+    // `signalCancelled` and `cleanup` both null the timer, so it doubles as "polling is still
+    // live" — a run that settled while this read was in flight must not be cancelled after.
+    if (!cancelled || !this.cancellationPollTimer) return
+    this.execLogger.info('Execution cancelled via Redis poll', {
+      executionId: this.context.executionId,
+    })
+    this.signalCancelled()
+  }
+
+  private stopCancellationPolling(): void {
+    if (!this.cancellationPollTimer) return
+    clearInterval(this.cancellationPollTimer)
+    this.cancellationPollTimer = null
   }
 
   async run(triggerBlockId?: string): Promise<ExecutionResult> {
@@ -124,6 +183,7 @@ export class ExecutionEngine {
     try {
       this.initializeQueue(triggerBlockId)
       await this.checkCancellationBackstop()
+      this.startCancellationPolling()
 
       while (this.hasWork()) {
         if (this.checkCancellation() || this.errorFlag || this.stoppedEarlyFlag) {
@@ -213,6 +273,7 @@ export class ExecutionEngine {
   }
 
   private cleanup(): void {
+    this.stopCancellationPolling()
     if (this.abortSignalListener && this.context.abortSignal) {
       this.context.abortSignal.removeEventListener('abort', this.abortSignalListener)
       this.abortSignalListener = null

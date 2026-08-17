@@ -16,6 +16,8 @@ export const hubspotConnectorMeta: ConnectorMeta = {
       'crm.objects.companies.read',
       'crm.objects.deals.read',
       'tickets',
+      /** Required by `GET /account-info/v3/details`, used to build record deep links. */
+      'oauth',
     ],
   },
 

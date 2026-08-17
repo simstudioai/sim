@@ -402,6 +402,7 @@ export const createCredentialDraftContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       success: z.literal(true),
+      draftId: z.string().min(1),
     }),
   },
 })

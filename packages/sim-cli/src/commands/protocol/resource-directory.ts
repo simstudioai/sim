@@ -153,7 +153,8 @@ export function attachResourceDirectoryCommands(
   config: ResourceDirectoryConfig
 ): void {
   group
-    .command('ls [path]')
+    .command('ls')
+    .argument('[path]', 'Folder path to list; defaults to the root folder')
     .allowExcessArguments(false)
     .description(`List ${config.kind} resources and child folders together`)
     .option('--search <text>', 'Filter folders and resources by name')
@@ -181,7 +182,8 @@ export function attachResourceDirectoryCommands(
     })
 
   group
-    .command('mkdir <path>')
+    .command('mkdir')
+    .argument('<path>', 'Folder path to create; the leading / is optional')
     .allowExcessArguments(false)
     .description(`Create a ${config.kind} directory at a path`)
     .action(async (path: string, _options: Record<string, never>, command: Command) => {

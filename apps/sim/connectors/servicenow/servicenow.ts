@@ -142,38 +142,94 @@ interface Incident extends ServiceNowRecord {
   assigned_to?: ServiceNowField
   opened_by?: ServiceNowField
   close_notes?: ServiceNowField
-  comments_and_work_notes?: ServiceNowField
-  work_notes?: ServiceNowField
   resolution_notes?: ServiceNowField
 }
 
 /**
  * Normalizes and validates the ServiceNow instance URL.
  *
- * Prepends https:// if the scheme is missing, strips trailing slashes, then
- * enforces a ServiceNow-owned domain allowlist to prevent SSRF — the instance
- * URL is user-controlled and was previously fetched server-side with no
- * validation.
+ * Prepends https:// if the scheme is missing, then enforces a ServiceNow-owned
+ * domain allowlist to prevent SSRF — the instance URL is user-controlled and was
+ * previously fetched server-side with no validation.
+ *
+ * The result is reduced to the URL's origin. Users routinely paste a full
+ * console URL (`https://acme.service-now.com/nav_to.do?uri=...`, a `/kb_view.do`
+ * link, or a trailing slash); every Table API path is built by appending
+ * `/api/now/table/...`, so any surviving path, query or fragment would produce
+ * a 404. `URL.origin` also lower-cases the host and drops the default port.
  */
 function resolveServiceNowInstanceUrl(rawUrl: string): string {
-  let url = (rawUrl ?? '').trim().replace(/\/+$/, '')
-  if (url && !url.startsWith('https://') && !url.startsWith('http://')) {
+  let url = (rawUrl ?? '').trim()
+  if (url && !/^https?:\/\//i.test(url)) {
     url = `https://${url}`
   }
   const validation = validateServiceNowInstanceUrl(url)
   if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid instance URL')
   }
-  return validation.sanitized ?? url
+  return new URL(validation.sanitized ?? url).origin
 }
 
 /**
- * Builds Basic Auth header from username and API key/password.
+ * Builds the HTTP Basic auth header from the username and the API key/password.
+ *
+ * The username is validated here rather than only in `validateConfig`, because
+ * `listDocuments`/`getDocument` run against a stored `sourceConfig` that may
+ * have been written after validation. A missing username would otherwise be
+ * encoded as the literal `undefined:<key>` and surface as an opaque 401, and a
+ * username containing `:` cannot be represented in Basic auth at all (RFC 7617
+ * splits on the first colon).
  */
 function buildAuthHeader(accessToken: string, sourceConfig: Record<string, unknown>): string {
-  const username = sourceConfig.username as string
-  const encoded = Buffer.from(`${username}:${accessToken}`).toString('base64')
+  const username = sourceConfig.username
+  if (typeof username !== 'string' || !username.trim()) {
+    throw new Error('ServiceNow username is required')
+  }
+  if (username.includes(':')) {
+    throw new Error('ServiceNow username cannot contain a colon')
+  }
+  const encoded = Buffer.from(`${username.trim()}:${accessToken}`).toString('base64')
   return `Basic ${encoded}`
+}
+
+/**
+ * Coerces the user-supplied `maxItems` into a usable positive integer.
+ *
+ * A non-numeric value would otherwise make `maxItems` `NaN`, which poisons every
+ * downstream comparison: `sysparm_limit` becomes `NaN`, `resultCount >= limit`
+ * is `false` so `nextOffset` is never produced, and — worst — the cap check is
+ * gated on `nextOffset`, so `listingCapped` is never set and the sync engine
+ * hard-deletes every document missing from the broken listing.
+ */
+function resolveMaxItems(value: unknown): number {
+  const parsed = Math.floor(Number(value))
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_ITEMS
+  return parsed
+}
+
+/** The `YYYY-MM-DD HH:mm:ss` shape a glide_date_time takes in its raw form. */
+const SERVICENOW_DATETIME_PATTERN = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/
+
+/**
+ * Parses a ServiceNow raw datetime (`sys_updated_on`) into a `Date`.
+ *
+ * Raw glide_date_time values come back as `YYYY-MM-DD HH:mm:ss` in **UTC** (only
+ * `display_value` is shifted into the API user's timezone), and every read here
+ * goes through {@link rawValue}, which prefers `value`. `new Date()` treats that
+ * space-separated, zone-less form as *local* time, so passing it straight to
+ * `parseTagDate` skews the tag by the host's UTC offset. Appending the explicit
+ * `Z` fixes it; anything not matching the ServiceNow shape falls back to the
+ * shared parser.
+ */
+function parseServiceNowDate(value: unknown): Date | undefined {
+  if (typeof value === 'string') {
+    const match = SERVICENOW_DATETIME_PATTERN.exec(value.trim())
+    if (match) {
+      const date = new Date(`${match[1]}T${match[2]}Z`)
+      return Number.isNaN(date.getTime()) ? undefined : date
+    }
+  }
+  return parseTagDate(value)
 }
 
 /**
@@ -533,7 +589,7 @@ export const servicenowConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
     const contentType = (sourceConfig.contentType as string) || 'kb_knowledge'
-    const maxItems = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : DEFAULT_MAX_ITEMS
+    const maxItems = resolveMaxItems(sourceConfig.maxItems)
     const authHeader = buildAuthHeader(accessToken, sourceConfig)
 
     const offset = cursor ? Number(cursor) : 0
@@ -564,6 +620,7 @@ export const servicenowConnector: ConnectorConfig = {
       sysparm_query: query,
       sysparm_fields: fields,
       sysparm_display_value: 'all',
+      sysparm_exclude_reference_link: 'true',
     }
 
     logger.info('Fetching ServiceNow records', {
@@ -618,9 +675,17 @@ export const servicenowConnector: ConnectorConfig = {
      * A full page landing exactly on the cap is ambiguous: `nextOffset` is set
      * whenever a page comes back full, so it cannot distinguish "more rows
      * follow" from "the table ended on a page boundary". `X-Total-Count`
-     * resolves it when present; when the header is absent the ambiguity is
-     * resolved conservatively (assume truncated), since over-flagging only
-     * defers a purge whereas under-flagging deletes live documents.
+     * resolves it when present. The Table API documents that header only as
+     * "Total count of records returned by the query", without stating that it
+     * ignores `sysparm_limit`/`sysparm_offset`; sibling APIs on the same platform
+     * state the stronger semantic outright — the Case API describes it as "the
+     * total number of records matching the request when the `sysparm_limit` or
+     * `sysparm_offset` query parameters are specified". When the header is absent
+     * the ambiguity resolves conservatively (assume truncated), since
+     * over-flagging only defers a purge whereas under-flagging deletes live
+     * documents. Note the asymmetry: that fallback covers only an *absent*
+     * header. A page-scoped count would equal the page size, never exceed the
+     * cap, and so suppress the flag — the one way this check can under-flag.
      */
     if (nextOffset !== undefined && !hasMore && syncContext) {
       if (totalCount === undefined || totalCount > maxItems) {
@@ -674,29 +739,26 @@ export const servicenowConnector: ConnectorConfig = {
 
     const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
 
-    try {
-      const record = await serviceNowApiGetById(instanceUrl, tableName, externalId, authHeader, {
-        sysparm_fields: fields,
-        sysparm_display_value: 'all',
-      })
+    /**
+     * `serviceNowApiGetById` resolves `null` only for a 404 (or an empty result);
+     * every other failure throws, so the sync engine records a visible failed
+     * document instead of dropping the record with no counter and no error log.
+     */
+    const record = await serviceNowApiGetById(instanceUrl, tableName, externalId, authHeader, {
+      sysparm_fields: fields,
+      sysparm_display_value: 'all',
+      sysparm_exclude_reference_link: 'true',
+    })
 
-      if (!record || !isServiceNowRecord(record)) {
-        return null
-      }
-
-      const doc = isKB
-        ? kbArticleToDocument(record, instanceUrl)
-        : incidentToDocument(record, instanceUrl)
-
-      return doc.content.trim() ? doc : null
-    } catch (error) {
-      logger.warn('Failed to get ServiceNow document', {
-        externalId,
-        table: tableName,
-        error: toError(error).message,
-      })
+    if (!record || !isServiceNowRecord(record)) {
       return null
     }
+
+    const doc = isKB
+      ? kbArticleToDocument(record, instanceUrl)
+      : incidentToDocument(record, instanceUrl)
+
+    return doc.content.trim() ? doc : null
   },
 
   validateConfig: async (
@@ -724,17 +786,18 @@ export const servicenowConnector: ConnectorConfig = {
       return { valid: false, error: 'Max items must be a positive number' }
     }
 
-    let normalizedUrl: string
-    try {
-      normalizedUrl = resolveServiceNowInstanceUrl(instanceUrl)
-    } catch (error) {
-      return { valid: false, error: toError(error).message }
-    }
-
-    const authHeader = buildAuthHeader(accessToken, sourceConfig)
     const tableName = contentType === 'kb_knowledge' ? 'kb_knowledge' : 'incident'
 
+    /**
+     * `resolveServiceNowInstanceUrl` and `buildAuthHeader` both reject malformed
+     * config by throwing, so they run inside the same try as the probe — outside
+     * it, a rejected instance URL or a colon-bearing username would escape
+     * `validateConfig` as an exception instead of a readable validation error.
+     */
     try {
+      const normalizedUrl = resolveServiceNowInstanceUrl(instanceUrl)
+      const authHeader = buildAuthHeader(accessToken, sourceConfig)
+
       await serviceNowApiGet(
         normalizedUrl,
         tableName,
@@ -742,6 +805,7 @@ export const servicenowConnector: ConnectorConfig = {
         {
           sysparm_limit: '1',
           sysparm_offset: '0',
+          sysparm_fields: 'sys_id',
         },
         VALIDATE_RETRY_OPTIONS
       )
@@ -776,7 +840,7 @@ export const servicenowConnector: ConnectorConfig = {
       result.author = author
     }
 
-    const lastUpdated = parseTagDate(metadata.lastUpdated)
+    const lastUpdated = parseServiceNowDate(metadata.lastUpdated)
     if (lastUpdated) {
       result.lastUpdated = lastUpdated
     }

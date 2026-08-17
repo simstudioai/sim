@@ -21,14 +21,19 @@ const CREDENTIAL_GROUP_CANONICAL_GROUP = {
   advancedIds: ['manualCredentialGroup'],
 } as const satisfies CanonicalGroup
 
-async function fetchCachedCredentialGroups(signal?: AbortSignal) {
+/**
+ * Reads the workspace credential-group list through the shared cache entry every
+ * consumer observes. The fetch stays bound to React Query's own signal: a caller's
+ * signal belongs to that caller alone, and forwarding it here would abort a request
+ * other observers of this workspace-wide key are awaiting.
+ */
+async function fetchCachedCredentialGroups() {
   const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
   if (!workspaceId) return []
 
   return getQueryClient().fetchQuery({
     queryKey: credentialGroupKeys.list(workspaceId),
-    queryFn: ({ signal: querySignal }) =>
-      fetchCredentialGroupList(workspaceId, signal ?? querySignal),
+    queryFn: ({ signal }) => fetchCredentialGroupList(workspaceId, signal),
     staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
   })
 }
@@ -170,8 +175,8 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
           .map((group) => ({ label: group.name, id: group.id }))
           .sort((a, b) => a.label.localeCompare(b.label))
       },
-      fetchOptionById: async (_blockId: string, optionId: string, signal?: AbortSignal) => {
-        const groups = await fetchCachedCredentialGroups(signal)
+      fetchOptionById: async (_blockId: string, optionId: string) => {
+        const groups = await fetchCachedCredentialGroups()
         const group = groups.find((candidate) => candidate.id === optionId)
         return group ? { label: group.name, id: group.id } : null
       },
@@ -220,10 +225,10 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
           })
           .sort((a, b) => a.label.localeCompare(b.label))
       },
-      fetchOptionById: async (blockId: string, optionId: string, signal?: AbortSignal) => {
+      fetchOptionById: async (blockId: string, optionId: string) => {
         const credentialGroupId = resolveCredentialGroupIdForBlock(blockId)
         if (!credentialGroupId) return null
-        const groups = await fetchCachedCredentialGroups(signal)
+        const groups = await fetchCachedCredentialGroups()
         const group = groups.find((candidate) => candidate.id === credentialGroupId)
         const option = group?.options.find(
           (candidate) =>

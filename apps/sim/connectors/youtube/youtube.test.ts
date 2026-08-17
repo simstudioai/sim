@@ -212,8 +212,16 @@ describe('youtubeConnector.listDocuments', () => {
       excludeShorts: 'true',
     })
 
-    expect(result.documents.map((d) => d.externalId)).toEqual(['aaa'])
+    // 'bbb' is a real Short and is intentionally out of scope, so it leaves the listing
+    // and reconciles normally. 'ccc' is merely absent from videos.list — absence is not
+    // deletion, so it stays in the listing as a deferred stub for getDocument to judge.
+    expect(result.documents.map((d) => d.externalId)).toEqual(['aaa', 'ccc'])
     expect(result.documents[0].contentDeferred).toBe(false)
+    expect(result.documents[1]).toMatchObject({
+      contentDeferred: true,
+      content: '',
+      contentHash: 'youtube:ccc:2024-01-01T00:00:00Z',
+    })
     expect(urls[1]).toContain('/videos?part=snippet%2CcontentDetails%2Cstatus')
   })
 
@@ -271,6 +279,120 @@ describe('youtubeConnector.listDocuments', () => {
       listDocuments(API_KEY, { playlistId: PLAYLIST_ID, excludeShorts: 'true' })
     ).rejects.toThrow('Failed to batch-fetch YouTube videos: 403')
   })
+
+  it('caps the listing when maxVideos trims videos off the last page', async () => {
+    mockFetch(playlistOnly([item('aaa'), item('bbb'), item('ccc')]))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await listDocuments(
+      API_KEY,
+      { playlistId: PLAYLIST_ID, maxVideos: '2' },
+      undefined,
+      syncContext
+    )
+
+    // 'ccc' exists at the source but was trimmed by the cap, so reconciling deletions
+    // against this listing would hard-delete it.
+    expect(result.documents.map((d) => d.externalId)).toEqual(['aaa', 'bbb'])
+    expect(syncContext.listingCapped).toBe(true)
+    expect(result.hasMore).toBe(false)
+  })
+
+  it('does not cap when maxVideos coincides exactly with an exhausted source', async () => {
+    mockFetch(playlistOnly([item('aaa'), item('bbb')]))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await listDocuments(
+      API_KEY,
+      { playlistId: PLAYLIST_ID, maxVideos: '2' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents.map((d) => d.externalId)).toEqual(['aaa', 'bbb'])
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('keeps paginating past an out-of-cutoff item instead of breaking early', async () => {
+    const dated = (videoId: string, videoPublishedAt: string): TestPlaylistItem => ({
+      contentDetails: { videoId, videoPublishedAt },
+      snippet: { title: 'A video' },
+    })
+
+    mockFetch(
+      playlistOnly(
+        [dated('old', '2020-01-01T00:00:00Z'), dated('new', '2024-06-01T00:00:00Z')],
+        'TOKEN2'
+      )
+    )
+
+    const result = await listDocuments(API_KEY, {
+      channelId: 'UC_x5XG1OV2P6uZZ5FSM9Ttw',
+      playlistId: PLAYLIST_ID,
+      publishedAfter: '2024-01-01',
+    })
+
+    // Playlist ordering is undocumented, so an old item must not stop the scan — the
+    // newer item after it still has to reach the listing.
+    expect(result.documents.map((d) => d.externalId)).toEqual(['new'])
+    expect(result.hasMore).toBe(true)
+    expect(result.nextCursor).toBe('TOKEN2')
+  })
+
+  it('resolves a bare channel reference as a handle before falling back to forUsername', async () => {
+    const urls = mockFetch((url) => {
+      if (url.includes('/channels')) {
+        return fakeResponse({
+          body: url.includes('forHandle')
+            ? { items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU123' } } }] }
+            : { items: [] },
+        })
+      }
+      return fakeResponse({ body: playlistPage([item('aaa', 'public')]) })
+    })
+
+    const result = await listDocuments(API_KEY, { channelId: 'mkbhd' })
+
+    expect(urls[0]).toContain('forHandle=mkbhd')
+    expect(urls.some((u) => u.includes('forUsername'))).toBe(false)
+    expect(urls[1]).toContain('playlistId=UU123')
+    expect(result.documents.map((d) => d.externalId)).toEqual(['aaa'])
+  })
+
+  it('falls back to forUsername when a bare reference is not a handle', async () => {
+    const urls = mockFetch((url) => {
+      if (url.includes('/channels')) {
+        return fakeResponse({
+          body: url.includes('forUsername')
+            ? { items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU999' } } }] }
+            : { items: [] },
+        })
+      }
+      return fakeResponse({ body: playlistPage([item('aaa', 'public')]) })
+    })
+
+    await listDocuments(API_KEY, { channelId: 'LegacyUser' })
+
+    expect(urls[0]).toContain('forHandle=LegacyUser')
+    expect(urls[1]).toContain('forUsername=LegacyUser')
+    expect(urls[2]).toContain('playlistId=UU999')
+  })
+
+  it('resolves a UC channel id with the id filter and never tries a handle', async () => {
+    const channelId = `UC${'a'.repeat(22)}`
+    const urls = mockFetch((url) =>
+      url.includes('/channels')
+        ? fakeResponse({
+            body: { items: [{ contentDetails: { relatedPlaylists: { uploads: 'UUabc' } } }] },
+          })
+        : fakeResponse({ body: playlistPage([item('aaa', 'public')]) })
+    )
+
+    await listDocuments(API_KEY, { channelId })
+
+    expect(urls[0]).toContain(`id=${channelId}`)
+    expect(urls.some((u) => u.includes('forHandle') || u.includes('forUsername'))).toBe(false)
+  })
 })
 
 describe('youtubeConnector.getDocument', () => {
@@ -302,16 +424,17 @@ describe('youtubeConnector.getDocument', () => {
     expect(await getDocument(API_KEY, {}, 'aaa')).toBe(null)
   })
 
-  it('returns null on 403 and 404 without throwing', async () => {
-    mockFetch(() => fakeResponse({ status: 403, text: 'forbidden' }))
-    expect(await getDocument(API_KEY, {}, 'aaa')).toBe(null)
-
-    vi.unstubAllGlobals()
+  it('returns null on 404 without throwing', async () => {
     mockFetch(() => fakeResponse({ status: 404, text: 'notFound' }))
     expect(await getDocument(API_KEY, {}, 'aaa')).toBe(null)
   })
 
-  it('swallows transport failures and returns null', async () => {
+  it('throws on 403 so quota exhaustion is not mistaken for a deleted video', async () => {
+    mockFetch(() => fakeResponse({ status: 403, text: 'quotaExceeded' }))
+    await expect(getDocument(API_KEY, {}, 'aaa')).rejects.toThrow('403')
+  })
+
+  it('rethrows transport failures so the sync engine records them', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -319,6 +442,6 @@ describe('youtubeConnector.getDocument', () => {
       })
     )
 
-    expect(await getDocument(API_KEY, {}, 'aaa')).toBe(null)
+    await expect(getDocument(API_KEY, {}, 'aaa')).rejects.toThrow('boom')
   })
 })

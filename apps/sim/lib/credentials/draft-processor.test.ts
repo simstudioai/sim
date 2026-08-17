@@ -21,6 +21,8 @@ vi.mock('@/lib/credentials/draft-hooks', () => ({
 }))
 
 import {
+  captureOAuthCredentialDraftBinding,
+  consumeOAuthCredentialDraftBinding,
   loadOAuthCredentialDraftBinding,
   parseCredentialDraftIdFromCallbackUrl,
   processCredentialDraft,
@@ -148,5 +150,33 @@ describe('loadOAuthCredentialDraftBinding', () => {
     const binding = await loadOAuthCredentialDraftBinding(async () => ({ callbackURL: null }))
 
     expect(binding.status).toBe('unavailable')
+  })
+})
+
+describe('OAuth credential draft account hook binding', () => {
+  it('carries an exact binding from the account before-hook to the deferred after-hook', async () => {
+    const context = {}
+
+    await captureOAuthCredentialDraftBinding(context, async () => ({
+      callbackURL: 'https://sim.test/oauth/credential-connected?credentialDraftId=draft-exact',
+    }))
+
+    expect(consumeOAuthCredentialDraftBinding(context)).toEqual({
+      status: 'available',
+      draftId: 'draft-exact',
+    })
+    expect(consumeOAuthCredentialDraftBinding(context)).toBeUndefined()
+  })
+
+  it('fails before account creation when OAuth state cannot be captured', async () => {
+    const context = {}
+    const stateError = new Error('OAuth state is unavailable')
+
+    await expect(
+      captureOAuthCredentialDraftBinding(context, async () => {
+        throw stateError
+      })
+    ).rejects.toBe(stateError)
+    expect(consumeOAuthCredentialDraftBinding(context)).toBeUndefined()
   })
 })

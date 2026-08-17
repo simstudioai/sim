@@ -723,13 +723,7 @@ const DataRow = memo(function DataRow({
         onRowClick && 'cursor-pointer',
         isDraggable && 'cursor-grab active:cursor-grabbing',
         isRowActive && chipActiveSurfaceClass,
-        /**
-         * Neutral, matching the workflow sidebar's own drop-inside affordance
-         * (`bg-[var(--text-subtle)] opacity-10` there, and `--text-subtle` for its reorder
-         * line). A brand colour here would be the only place in the app that signals "release
-         * here" with hue rather than weight. Drawn inside the row's own box
-         * (`outline-offset-[-1px]`) so the ring never overlaps the rows above and below.
-         */
+        /** See {@link chipDropTargetSurfaceClass} for why this is neutral and drawn inset. */
         isActiveDropTarget && chipDropTargetSurfaceClass,
         (isDragging || (isAnyDragActive && isSelected && !isActiveDropTarget)) && 'opacity-50'
       )}

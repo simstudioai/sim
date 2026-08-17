@@ -489,12 +489,6 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   padding: 0 !important;
 }
 
-/* The first group sits flush against the top padding — it has nothing to be
-   separated from. */
-[data-separator]:not([data-separator] ~ [data-separator]) {
-  margin-top: 0;
-}
-
 /* Active state — aligned with platform --surface-active */
 #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
 #nd-sidebar button[data-active="true"] {

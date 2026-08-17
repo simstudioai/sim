@@ -53,15 +53,14 @@ export const saveCredentialDraft = defineAuthorizedWorkspaceUseCase({
     }
   },
   async execute({ principal, input }) {
-    await createConnectDraft({
+    const draft = await createConnectDraft({
       userId: requirePrincipalSubjectUserId(principal),
       workspaceId: input.workspaceId,
       providerId: input.providerId,
       displayName: input.displayName,
       description: input.description,
       credentialId: input.credentialId,
-      displayNameDefinesIntent: input.credentialId === undefined,
     })
-    return { success: true as const }
+    return { success: true as const, draftId: draft.id }
   },
 })

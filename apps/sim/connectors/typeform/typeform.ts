@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { typeformConnectorMeta } from '@/connectors/typeform/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -12,9 +12,10 @@ const TYPEFORM_API_BASE = 'https://api.typeform.com'
 const RESPONSES_PER_PAGE = 100
 
 /**
- * Allowed `response_type` filter values per the Responses API. `completed` is the
- * API default; `all` is a connector-local sentinel that omits the filter so every
- * response type (`started`, `partial`, `completed`) is returned.
+ * Connector-local choices mapped onto the Responses API `response_type` filter.
+ * The API accepts a comma-separated list of `started`, `partial`, `completed` and
+ * defaults to `completed` when the parameter is omitted, so `all` must be sent
+ * explicitly rather than by omission.
  */
 type ResponseTypeChoice = 'completed' | 'partial' | 'all'
 
@@ -56,6 +57,25 @@ interface TypeformAnswer {
   choice?: { label?: string; other?: string }
   choices?: { labels?: string[]; other?: string }
   payment?: { amount?: string; last4?: string; name?: string; success?: boolean }
+  signature?: { url?: string; type?: string }
+  multi_format?: {
+    video_url?: string
+    video_transcript?: string
+    audio_url?: string
+    audio_transcript?: string
+  }
+}
+
+/**
+ * A single variable captured with a response. Each entry carries a `key`, a
+ * `type` of `text` or `number`, and the value under the property named by that
+ * type — there is no generic `value` property.
+ */
+interface TypeformVariable {
+  key?: string
+  type?: string
+  text?: string
+  number?: number
 }
 
 /**
@@ -69,7 +89,6 @@ interface TypeformAnswer {
 interface TypeformResponseItem {
   response_id?: string
   token: string
-  landing_id?: string
   landed_at?: string
   submitted_at?: string
   metadata?: {
@@ -79,6 +98,17 @@ interface TypeformResponseItem {
   }
   answers?: TypeformAnswer[] | null
   hidden?: Record<string, unknown> | null
+  variables?: TypeformVariable[] | null
+}
+
+/**
+ * Formats a Date for Typeform's `since`/`until` filters, which the docs example
+ * as second-precision ISO 8601 (`2020-03-20T14:00:59`). Dropping the milliseconds
+ * `toISOString()` emits rounds down, and both filters are inclusive, so the
+ * window can only widen — never skip a response.
+ */
+function toTypeformTimestamp(date: Date): string {
+  return `${date.toISOString().slice(0, 19)}Z`
 }
 
 /**
@@ -92,14 +122,24 @@ function getResponseTypeChoice(sourceConfig: Record<string, unknown>): ResponseT
 }
 
 /**
- * Appends the `response_type` filter to a query string for a given choice. `all`
- * omits the parameter so every type is returned; `partial` requests both partial
- * and completed so partially-answered submissions are included alongside finished
- * ones.
+ * Appends the `response_type` filter for a given choice. Omitting the parameter
+ * would fall back to the API default of `completed` only, so every choice is sent
+ * explicitly.
+ *
+ * Typeform documents exactly two members: "It is expected to be passed as a comma
+ * separated list of values, e.g. `response_type=partial,completed`", defaulting to
+ * `completed`. There is no documented `started` member — the `sort` docs imply a
+ * started *state* exists (ordering falls back to `landed_at`), but that does not
+ * make it a valid filter value, and sending an undocumented member risks a 400
+ * that fails the entire sync. `all` therefore requests the widest documented set,
+ * which is the same as `partial`.
  */
 function appendResponseType(params: URLSearchParams, choice: ResponseTypeChoice): void {
-  if (choice === 'completed') params.append('response_type', 'completed')
-  else if (choice === 'partial') params.append('response_type', 'partial,completed')
+  if (choice === 'partial' || choice === 'all') {
+    params.append('response_type', 'partial,completed')
+  } else {
+    params.append('response_type', 'completed')
+  }
 }
 
 /**
@@ -134,10 +174,42 @@ function renderAnswerValue(answer: TypeformAnswer): string {
       return parts.join(', ')
     }
     case 'payment':
-      return answer.payment?.amount != null ? String(answer.payment.amount) : ''
+      return answer.payment?.amount ?? ''
+    case 'signature':
+      return answer.signature?.url ?? ''
+    case 'multi_format': {
+      /**
+       * A `multi_format` answer carries an audio or video recording plus the
+       * transcript Typeform generated for it. The transcript is the indexable
+       * part; the URL is the fallback when no transcript was produced.
+       */
+      const m = answer.multi_format
+      return m?.video_transcript || m?.audio_transcript || m?.video_url || m?.audio_url || ''
+    }
     default:
-      return ''
+      return renderUnknownAnswerValue(answer)
   }
+}
+
+/**
+ * Best-effort rendering for an answer whose `type` this connector does not model.
+ * Every documented Typeform answer stores its value under a property named by the
+ * answer's own `type`, either as a scalar or as an object with a `url`/`label`,
+ * so a new variant degrades to partial content instead of vanishing.
+ */
+function renderUnknownAnswerValue(answer: TypeformAnswer): string {
+  const key = answer.type
+  if (!key) return ''
+  const value = (answer as Record<string, unknown>)[key]
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  if (value && typeof value === 'object') {
+    const { url, label } = value as { url?: unknown; label?: unknown }
+    if (typeof label === 'string') return label
+    if (typeof url === 'string') return url
+  }
+  return ''
 }
 
 /**
@@ -178,6 +250,17 @@ function renderResponseContent(
     parts.push('--- Hidden Fields ---')
     for (const [key, val] of Object.entries(response.hidden)) {
       parts.push(`${key}: ${String(val)}`)
+    }
+  }
+
+  const variables = Array.isArray(response.variables) ? response.variables : []
+  if (variables.length > 0) {
+    parts.push('')
+    parts.push('--- Variables ---')
+    for (const variable of variables) {
+      if (!variable?.key) continue
+      const value = variable.text ?? variable.number
+      parts.push(`${variable.key}: ${value != null ? String(value) : ''}`)
     }
   }
 
@@ -299,12 +382,15 @@ export const typeformConnector: ConnectorConfig = {
 
     /**
      * `since` from the user config wins; otherwise incremental sync derives it
-     * from lastSyncAt. `since` narrows the set by submission date while `before`
-     * (token paging) walks it newest-to-oldest; the two compose — only `sort` is
-     * mutually exclusive with `before`/`after`, which this connector never sets.
+     * from lastSyncAt. `since` narrows the set by date while `before` (token
+     * paging) walks it newest-to-oldest. Which timestamp `since`/`until` filter
+     * on depends on `response_type`: `submitted_at` when completed responses are
+     * requested, `staged_at` for partial, `landed_at` otherwise. The docs name
+     * `since`/`until` and `before`/`after` as the two ways to scope a form with
+     * more than 1000 responses, so the connector combines both.
      */
     if (since) queryParams.append('since', since)
-    else if (lastSyncAt) queryParams.append('since', lastSyncAt.toISOString())
+    else if (lastSyncAt) queryParams.append('since', toTypeformTimestamp(lastSyncAt))
 
     if (cursor) {
       queryParams.append('before', cursor)
@@ -401,50 +487,53 @@ export const typeformConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
     const formId = (sourceConfig.formId as string)?.trim()
-    if (!formId || !externalId) return null
+    /**
+     * A misconfigured source is a failure, not an absent response. Returning
+     * `null` reads as documented absence, which on an `add` drops the document
+     * with no counter and no log. `listDocuments` throws on the same condition.
+     */
+    if (!formId) throw new Error('Form ID is required')
+    if (!externalId) throw new Error('Response ID is required')
 
-    try {
-      const form = await getFormDefinition(accessToken, formId, syncContext)
-      const fieldTitles = buildFieldTitleMap(form)
+    const form = await getFormDefinition(accessToken, formId, syncContext)
+    const fieldTitles = buildFieldTitleMap(form)
 
-      /**
-       * `included_response_ids` filters by `response_id`, matching the externalId
-       * minted in listDocuments. The configured response_type is forwarded so a
-       * partial response stays fetchable (the endpoint defaults to completed-only,
-       * which would otherwise exclude it).
-       */
-      const params = new URLSearchParams()
-      params.append('included_response_ids', externalId)
-      appendResponseType(params, getResponseTypeChoice(sourceConfig))
+    /**
+     * `included_response_ids` filters by `response_id`, matching the externalId
+     * minted in listDocuments. The configured response_type is forwarded so a
+     * partial response stays fetchable (the endpoint defaults to completed-only,
+     * which would otherwise exclude it).
+     */
+    const params = new URLSearchParams()
+    params.append('included_response_ids', externalId)
+    appendResponseType(params, getResponseTypeChoice(sourceConfig))
 
-      const url = `${TYPEFORM_API_BASE}/forms/${encodeURIComponent(formId)}/responses?${params.toString()}`
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
+    const url = `${TYPEFORM_API_BASE}/forms/${encodeURIComponent(formId)}/responses?${params.toString()}`
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
 
-      if (!response.ok) {
-        if (response.status === 404) return null
-        throw new Error(`Failed to fetch Typeform response ${externalId}: ${response.status}`)
-      }
-
-      const data = (await response.json()) as { items?: TypeformResponseItem[] }
-      const item = Array.isArray(data.items)
-        ? data.items.find((candidate) => getResponseExternalId(candidate) === externalId)
-        : undefined
-      if (!item) return null
-
-      return responseToDocument(form, item, fieldTitles)
-    } catch (error) {
-      logger.warn('Failed to get Typeform response', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+    /**
+     * Only a deleted form/response (404, or an empty match below) resolves to
+     * `null`. Every other failure throws so the sync engine records a visible
+     * failed document instead of dropping the response with no counter.
+     */
+    if (!response.ok) {
+      if (response.status === 404) return null
+      throw new Error(`Failed to fetch Typeform response ${externalId}: ${response.status}`)
     }
+
+    const data = (await response.json()) as { items?: TypeformResponseItem[] }
+    const item = Array.isArray(data.items)
+      ? data.items.find((candidate) => getResponseExternalId(candidate) === externalId)
+      : undefined
+    if (!item) return null
+
+    return responseToDocument(form, item, fieldTitles)
   },
 
   validateConfig: async (

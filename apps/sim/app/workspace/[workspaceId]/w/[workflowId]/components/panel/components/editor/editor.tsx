@@ -667,12 +667,6 @@ export function Editor() {
                             subBlockValues={subBlockState}
                             disabled={!canEditBlock}
                             allowExpandInPreview={false}
-                            isSearchHighlighted={
-                              activeSearchTarget?.blockId === currentBlockId &&
-                              (activeSearchTarget.subBlockId === subBlock.id ||
-                                activeSearchTarget.canonicalSubBlockId ===
-                                  (subBlock.canonicalParamId ?? subBlock.id))
-                            }
                             canonicalToggle={
                               isCanonicalSwap && canonicalMode && canonicalId
                                 ? {
@@ -750,12 +744,6 @@ export function Editor() {
                             subBlockValues={subBlockState}
                             disabled={!canEditBlock}
                             allowExpandInPreview={false}
-                            isSearchHighlighted={
-                              activeSearchTarget?.blockId === currentBlockId &&
-                              (activeSearchTarget.subBlockId === subBlock.id ||
-                                activeSearchTarget.canonicalSubBlockId ===
-                                  (subBlock.canonicalParamId ?? subBlock.id))
-                            }
                           />
                           {(index < advancedOnlySubBlocks.length - 1 || showRetrySettings) && (
                             <FieldDivider

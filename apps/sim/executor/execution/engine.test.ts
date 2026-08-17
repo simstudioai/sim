@@ -767,7 +767,7 @@ describe('ExecutionEngine', () => {
       expect(context.abortSignal?.aborted).toBe(true)
     })
 
-    it('calls isExecutionCancelled once as the startup backstop check', async () => {
+    it('calls isExecutionCancelled once for a run that finishes before the first poll', async () => {
       ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
       ;(isExecutionCancelled as Mock).mockResolvedValue(false)
 
@@ -781,6 +781,66 @@ describe('ExecutionEngine', () => {
       await engine.run('start')
 
       expect((isExecutionCancelled as Mock).mock.calls.length).toBe(1)
+    })
+
+    it('cancels a long-running node when only the durable flag reports it', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+
+      let releaseNode = () => {}
+      const nodeReleased = new Promise<void>((resolve) => {
+        releaseNode = resolve
+      })
+
+      const startNode = createMockNode('start', 'starter')
+      const slowNode = createMockNode('slow', 'wait')
+      startNode.outgoingEdges.set('edge1', { target: 'slow' })
+
+      const dag = createMockDAG([startNode, slowNode])
+      const context = createMockContext({ executionId: 'redis-poll-execution' })
+      const edgeManager = createMockEdgeManager((node) => (node.id === 'start' ? ['slow'] : []))
+      const nodeOrchestrator = createMockNodeOrchestrator()
+      ;(nodeOrchestrator.executeNode as Mock).mockImplementation(
+        async (_ctx: ExecutionContext, nodeId: string) => {
+          if (nodeId === 'slow') {
+            // Cancel durably with no pub/sub event, mirroring a cancel served by another replica
+            // whose published event never reaches this engine.
+            ;(isExecutionCancelled as Mock).mockResolvedValue(true)
+            await nodeReleased
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }
+      )
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const runPromise = engine.run('start')
+
+      await vi.waitFor(() => expect(context.abortSignal?.aborted).toBe(true), { timeout: 3000 })
+      releaseNode()
+
+      await expect(runPromise).resolves.toMatchObject({ success: false, status: 'cancelled' })
+    })
+
+    it('leaves no polling timer behind once the run settles', async () => {
+      ;(isRedisCancellationEnabled as Mock).mockReturnValue(true)
+      ;(isExecutionCancelled as Mock).mockResolvedValue(false)
+      vi.useFakeTimers()
+
+      const startNode = createMockNode('start', 'starter')
+      const dag = createMockDAG([startNode])
+      const context = createMockContext({ executionId: 'poll-cleanup-execution' })
+      const edgeManager = createMockEdgeManager()
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run('start')
+
+      const callsAtCompletion = (isExecutionCancelled as Mock).mock.calls.length
+      // Well past several poll intervals: a surviving timer would add calls here.
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(vi.getTimerCount()).toBe(0)
+      expect((isExecutionCancelled as Mock).mock.calls.length).toBe(callsAtCompletion)
     })
   })
 

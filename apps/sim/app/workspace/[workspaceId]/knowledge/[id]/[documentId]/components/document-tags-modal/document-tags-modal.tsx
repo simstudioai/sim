@@ -14,8 +14,8 @@ import {
   ChipModalHeader,
   handleKeyboardActivation,
   Label,
-  Trash,
 } from '@sim/emcn'
+import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import {
@@ -378,11 +378,7 @@ export function DocumentTagsModal({
 
   return (
     <ChipModal open={open} onOpenChange={handleClose} srTitle='Document Tags' size='sm'>
-      <ChipModalHeader onClose={() => handleClose(false)}>
-        <div className='flex items-center justify-between'>
-          <span>Document Tags</span>
-        </div>
-      </ChipModalHeader>
+      <ChipModalHeader onClose={() => handleClose(false)}>Document Tags</ChipModalHeader>
 
       <ChipModalBody>
         <ChipModalField type='custom' title='Tags'>

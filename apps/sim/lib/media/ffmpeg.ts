@@ -169,10 +169,6 @@ const TEXT_POSITION: Record<string, { x: string; y: string }> = {
   'bottom-right': { x: 'w*0.95-text_w', y: 'h*0.86' },
 }
 
-function escapeDrawtext(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'").replace(/%/g, '\\%')
-}
-
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   ensureFfmpeg()
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'media-ffmpeg-'))
@@ -480,8 +476,26 @@ async function addText(
 ): Promise<FfmpegResult> {
   if (!options.text) throw new Error('add_text requires text')
   const pos = TEXT_POSITION[options.position || 'bottom'] || TEXT_POSITION.bottom
+  // Route the caption out-of-band through a file the operation owns; never inline it into
+  // the filtergraph. Inline escaping is not safe — FFmpeg's av_get_token copies bytes
+  // verbatim inside a single-quoted run, so a literal quote closes the quote and the rest
+  // of the caption is parsed as filtergraph syntax, injecting filters like
+  // `textfile=/proc/self/environ` or `movie=http\://...` (arbitrary local-file read +
+  // read-SSRF, CWE-88). `textfile=` renders the bytes literally and `expansion=none`
+  // disables drawtext's `%{...}` functions, so the caption can never re-enter the parser.
+  //
+  // Reference the caption by a bare relative filename and run FFmpeg with its working
+  // directory set to the temp dir. FFmpeg's filtergraph tokenizer cannot round-trip a
+  // single quote inside a `textfile=` value — it drops or mis-parses it — so embedding the
+  // absolute temp path would break add_text whenever `os.tmpdir()` contains a quote (e.g. a
+  // Windows profile like `C:\Users\O'Brien\...`). The working directory is handed to the
+  // process via execve, never parsed as filtergraph syntax, so any character in it is safe.
+  const captionFileName = 'caption.txt'
+  await fs.writeFile(path.join(dir, captionFileName), options.text, 'utf-8')
   const drawtext = [
-    `text='${escapeDrawtext(options.text)}'`,
+    `textfile=${captionFileName}`,
+    'expansion=none',
+    'reload=0',
     'fontcolor=white',
     'fontsize=h/18',
     'box=1',
@@ -491,7 +505,7 @@ async function addText(
     `y=${pos.y}`,
   ].join(':')
   const outputPath = path.join(dir, 'out.mp4')
-  const command = ffmpeg(inputPath)
+  const command = ffmpeg(inputPath, { cwd: dir })
     .videoFilters(`drawtext=${drawtext}`)
     .outputOptions(['-c:a', 'copy'])
   await runCommand(command, outputPath)

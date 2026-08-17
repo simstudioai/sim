@@ -14,6 +14,7 @@ import {
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
+  stubOrSkipBySize,
 } from '@/connectors/utils'
 
 const logger = createLogger('GoogleDriveConnector')
@@ -55,7 +56,7 @@ async function exportGoogleWorkspaceFile(
     throw new Error(`Unsupported Google Workspace MIME type: ${sourceMimeType}`)
   }
 
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportMimeType)}`
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(exportMimeType)}`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -82,7 +83,10 @@ async function exportGoogleWorkspaceFile(
 }
 
 async function downloadTextFile(accessToken: string, fileId: string): Promise<string> {
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+  // Listing runs with `includeItemsFromAllDrives`, so ids here can belong to a shared
+  // drive; `supportsAllDrives` declares that support to `files.get` the same way the
+  // metadata fetch in getDocument already does. (`files.export` takes no such param.)
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -129,7 +133,6 @@ interface DriveFile {
   modifiedTime?: string
   createdTime?: string
   webViewLink?: string
-  parents?: string[]
   owners?: { displayName?: string; emailAddress?: string }[]
   size?: string
   starred?: boolean
@@ -217,7 +220,7 @@ export const googleDriveConnector: ConnectorConfig = {
       pageSize: String(effectivePageSize),
       orderBy: 'modifiedTime desc',
       fields:
-        'nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,parents,owners,size,starred)',
+        'nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred)',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -260,14 +263,25 @@ export const googleDriveConnector: ConnectorConfig = {
 
     const documents = files
       .filter((f) => isGoogleWorkspaceFile(f.mimeType) || isSupportedTextFile(f.mimeType))
-      .map(fileToStub)
+      .map((f) =>
+        stubOrSkipBySize(fileToStub(f), Number(f.size) || undefined, CONNECTOR_MAX_FILE_BYTES)
+      )
 
     const totalFetched = previouslyFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
-    if (syncContext && (hitLimit || incompleteSearch)) syncContext.listingCapped = true
 
     const nextPageToken = data.nextPageToken as string | undefined
+
+    /**
+     * Suppress deletion reconciliation only when the listing really is partial.
+     * Drive omits `nextPageToken` once the end of the list is reached, so hitting
+     * `maxFiles` on the final page still represents the full source set and must
+     * stay reconcilable — otherwise a capped source can never drop deleted files.
+     */
+    if (syncContext && ((hitLimit && Boolean(nextPageToken)) || incompleteSearch)) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,
@@ -282,8 +296,8 @@ export const googleDriveConnector: ConnectorConfig = {
     externalId: string
   ): Promise<ExternalDocument | null> => {
     const fields =
-      'id,name,mimeType,modifiedTime,createdTime,webViewLink,parents,owners,size,starred,trashed'
-    const url = `https://www.googleapis.com/drive/v3/files/${externalId}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`
+      'id,name,mimeType,modifiedTime,createdTime,webViewLink,owners,size,starred,trashed'
+    const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(externalId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -302,6 +316,19 @@ export const googleDriveConnector: ConnectorConfig = {
 
     if (file.trashed) return null
 
+    /**
+     * Mirrors the listing filter: a file re-uploaded under an unextractable type between
+     * listing and hydration has no content, which is an absence rather than a fetch
+     * failure. Returning null keeps it from being retried as a failure every sync.
+     */
+    if (!isGoogleWorkspaceFile(file.mimeType) && !isSupportedTextFile(file.mimeType)) {
+      logger.info('Google Drive file has no extractable text type', {
+        fileId: file.id,
+        mimeType: file.mimeType,
+      })
+      return null
+    }
+
     try {
       const content = await fetchFileContent(accessToken, file.id, file.mimeType)
       if (!content.trim()) return null
@@ -313,10 +340,16 @@ export const googleDriveConnector: ConnectorConfig = {
         logger.info('Skipping oversized Google Drive file', { fileId: file.id, name: file.name })
         return markSkipped(fileToStub(file), sizeLimitSkipReason(error.limitBytes))
       }
+      /**
+       * The file exists but its content could not be read. Propagate so the engine
+       * records a visible failed hydration instead of silently leaving a listed file
+       * unindexed (or, on an update, counting a stale copy as unchanged).
+       */
+      const err = toError(error)
       logger.warn(`Failed to fetch content for file: ${file.name} (${file.id})`, {
-        error: toError(error).message,
+        error: err.message,
       })
-      return null
+      throw err
     }
   },
 
@@ -369,7 +402,8 @@ export const googleDriveConnector: ConnectorConfig = {
         }
       } else {
         // Verify basic Drive access by listing one file
-        const url = 'https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)'
+        const url =
+          'https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true'
         const response = await fetchWithRetry(
           url,
           {

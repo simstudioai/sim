@@ -14,18 +14,123 @@ import type { ExternalDocument } from '@/connectors/types'
  */
 export const CONNECTOR_MAX_FILE_BYTES = KB_DOCUMENT_MAX_BYTES
 
+/** The named entities connector markup actually carries, decoded to their character. */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  nbsp: ' ',
+}
+
 /**
- * Strips HTML tags from content and decodes common HTML entities.
+ * The C1 range (0x80–0x9F) remapped to the windows-1252 characters browsers
+ * render, per the HTML standard's numeric character reference table.
+ *
+ * Legacy CMS exports — WordPress and Zendesk especially — emit typographic
+ * punctuation as `&#146;`/`&#147;`/`&#151;`. Those code points are unassigned
+ * controls in Unicode, so decoding them literally would put invisible garbage
+ * into the index where the source plainly meant `’`, `“`, `—`.
+ */
+const WINDOWS_1252_C1 = new Map<number, string>([
+  [0x80, '€'],
+  [0x82, '‚'],
+  [0x83, 'ƒ'],
+  [0x84, '„'],
+  [0x85, '…'],
+  [0x86, '†'],
+  [0x87, '‡'],
+  [0x88, 'ˆ'],
+  [0x89, '‰'],
+  [0x8a, 'Š'],
+  [0x8b, '‹'],
+  [0x8c, 'Œ'],
+  [0x8e, 'Ž'],
+  [0x91, '‘'],
+  [0x92, '’'],
+  [0x93, '“'],
+  [0x94, '”'],
+  [0x95, '•'],
+  [0x96, '–'],
+  [0x97, '—'],
+  [0x98, '˜'],
+  [0x99, '™'],
+  [0x9a, 'š'],
+  [0x9b, '›'],
+  [0x9c, 'œ'],
+  [0x9e, 'ž'],
+  [0x9f, 'Ÿ'],
+])
+
+/** Controls worth decoding — every other control code point stays literal. */
+const DECODABLE_CONTROLS = new Set([0x09, 0x0a, 0x0d])
+
+/**
+ * One alternation covering every reference form, so the whole string is decoded
+ * in a single left-to-right pass. That ordering is what makes an escaped entity
+ * safe: `&amp;#8217;` consumes `&amp;` and resumes *after* it, leaving the
+ * literal text `&#8217;` rather than decoding it a second time.
+ */
+const HTML_ENTITY_PATTERN = /&(?:#[xX]([0-9a-fA-F]+)|#([0-9]+)|(amp|lt|gt|quot|nbsp));/g
+
+/**
+ * Resolves a numeric character reference to its character, or returns the
+ * reference as written when the code point would not survive indexing.
+ *
+ * Out-of-range values, lone surrogates, and control characters — notably `&#0;`,
+ * which Postgres rejects outright in a text column — degrade to literal text so
+ * malformed source markup never aborts a sync.
+ */
+function decodeCharacterReference(raw: string, code: number): string {
+  if (code > 0x10ffff) return raw
+  if (code >= 0xd800 && code <= 0xdfff) return raw
+
+  const remapped = WINDOWS_1252_C1.get(code)
+  if (remapped !== undefined) return remapped
+
+  const isControl = code < 0x20 || (code >= 0x7f && code <= 0x9f)
+  if (isControl && !DECODABLE_CONTROLS.has(code)) return raw
+
+  return String.fromCodePoint(code)
+}
+
+/**
+ * Anchored to a tag-name allowlist rather than the looser `<[a-z!/]` shape,
+ * because {@link htmlToPlainText} both strips tags and collapses all whitespace.
+ * A false positive therefore does not merely pass text through untouched — it
+ * deletes the bracketed span and flattens the document's line structure. Plain
+ * text routinely contains angle brackets that are not markup: an email address
+ * (`Reply from John <john@acme.com>`), a markdown autolink
+ * (`<https://acme.com>`), or a placeholder (`<redacted>`).
+ */
+const HTML_TAG_PATTERN =
+  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
+
+/**
+ * Reports whether a value carries real HTML markup and is therefore worth routing
+ * through {@link htmlToPlainText}. Use this instead of a hand-rolled tag test so
+ * connectors cannot drift apart on what counts as markup.
+ */
+export function looksLikeHtml(value: string): boolean {
+  return HTML_TAG_PATTERN.test(value)
+}
+
+/**
+ * Strips HTML tags from content and decodes HTML entities, including numeric
+ * character references in decimal (`&#8217;`) and hex (`&#x2019;`) form.
+ *
+ * Rendered CMS content — WordPress, Zendesk, Confluence — emits typographic
+ * punctuation as numeric references, which previously reached the index verbatim.
  */
 export function htmlToPlainText(html: string): string {
-  let text = html.replace(/<[^>]*>/g, ' ')
-  text = text
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(HTML_ENTITY_PATTERN, (raw: string, hex?: string, decimal?: string, named?: string) => {
+      if (named !== undefined) return NAMED_ENTITIES[named] ?? raw
+      if (hex !== undefined) return decodeCharacterReference(raw, Number.parseInt(hex, 16))
+      if (decimal !== undefined) return decodeCharacterReference(raw, Number.parseInt(decimal, 10))
+      return raw
+    })
   return text.replace(/\s+/g, ' ').trim()
 }
 

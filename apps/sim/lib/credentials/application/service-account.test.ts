@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   requireProvider: vi.fn(),
   getCredential: vi.fn(),
   getActor: vi.fn(),
-  delete: vi.fn(),
   deleteRecord: vi.fn(),
   capture: vi.fn(),
 }))
@@ -29,7 +28,6 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 vi.mock('@/lib/credentials/orchestration', () => ({
   createServiceAccountCredential: mocks.create,
-  deleteConnectionCredential: mocks.delete,
   deleteCredentialRecord: mocks.deleteRecord,
 }))
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
@@ -96,7 +94,6 @@ describe('credential service-account application operations', () => {
       auditMetadata: { tenantId: 'tenant-1' },
     })
     mocks.listCatalog.mockResolvedValue([{ providerId: 'zoom-service-account' }])
-    mocks.delete.mockResolvedValue(true)
     mocks.deleteRecord.mockResolvedValue(true)
     mocks.requireProvider.mockReturnValue({
       type: 'service_account',
@@ -196,7 +193,7 @@ describe('credential service-account application operations', () => {
       code: 'forbidden',
       detailCode: 'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
     })
-    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.deleteRecord).not.toHaveBeenCalled()
   })
 
   it('rejects workspace keys before canonical loading on disconnect', async () => {
@@ -215,7 +212,7 @@ describe('credential service-account application operations', () => {
     })
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
     expect(mocks.getActor).not.toHaveBeenCalled()
-    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.deleteRecord).not.toHaveBeenCalled()
   })
 
   it('allows an explicit credential admin with workspace read access to disconnect', async () => {
@@ -227,7 +224,7 @@ describe('credential service-account application operations', () => {
         input: { workspaceId: WORKSPACE_ID, credentialId: credential.id },
       })
     ).resolves.toEqual({ credential, deleted: true })
-    expect(mocks.delete).toHaveBeenCalledOnce()
+    expect(mocks.deleteRecord).toHaveBeenCalledOnce()
   })
 
   it('applies credential admin policy during authorization-only checks', async () => {
@@ -237,7 +234,7 @@ describe('credential service-account application operations', () => {
     })
 
     expect(mocks.getActor).toHaveBeenCalledWith(credential.id, principal.userId)
-    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.deleteRecord).not.toHaveBeenCalled()
   })
 
   it('enforces personal-key workspace policy before credential authorization', async () => {
@@ -253,7 +250,7 @@ describe('credential service-account application operations', () => {
       detailCode: 'PERSONAL_API_KEYS_DISABLED',
     })
     expect(mocks.getActor).not.toHaveBeenCalled()
-    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(mocks.deleteRecord).not.toHaveBeenCalled()
   })
 
   it('disconnects an administered credential', async () => {
@@ -263,15 +260,38 @@ describe('credential service-account application operations', () => {
     })
 
     expect(result).toEqual({ credential, deleted: true })
-    expect(mocks.delete).toHaveBeenCalledWith({
-      credentialId: credential.id,
-      workspaceId: WORKSPACE_ID,
+    expect(mocks.deleteRecord).toHaveBeenCalledWith({ credential, reason: 'user_delete' })
+  })
+
+  it('deletes every type through the record manager so secret sources are torn down', async () => {
+    const oauthCredential = {
+      ...credential,
+      type: 'oauth',
+      providerId: 'google-email',
+      accountId: 'acct-1',
+    }
+    mocks.getCredential.mockResolvedValue(oauthCredential)
+    mocks.getActor.mockResolvedValue({
+      credential: oauthCredential,
+      member: { role: 'admin' },
+      hasWorkspaceAccess: true,
+      isAdmin: true,
+    })
+
+    const result = await deleteCredentialUseCase.execute({
+      principal,
+      input: { workspaceId: WORKSPACE_ID, credentialId: oauthCredential.id },
+    })
+
+    expect(result).toEqual({ credential: oauthCredential, deleted: true })
+    expect(mocks.deleteRecord).toHaveBeenCalledWith({
+      credential: oauthCredential,
       reason: 'user_delete',
     })
   })
 
   it('treats a concurrent disconnect as an idempotent success', async () => {
-    mocks.delete.mockResolvedValue(false)
+    mocks.deleteRecord.mockResolvedValue(false)
 
     const result = await deleteCredentialUseCase.execute({
       principal,

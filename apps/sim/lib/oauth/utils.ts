@@ -23,9 +23,11 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Google scopes
   'https://www.googleapis.com/auth/gmail.send': 'Send emails',
   'https://www.googleapis.com/auth/gmail.labels': 'View and manage email labels',
+  'https://www.googleapis.com/auth/gmail.readonly': 'View email messages and settings',
   'https://www.googleapis.com/auth/gmail.modify': 'View and manage email messages',
   'https://www.googleapis.com/auth/drive.file': 'View and manage Google Drive files',
   'https://www.googleapis.com/auth/drive': 'Access all Google Drive files',
+  'https://www.googleapis.com/auth/calendar.readonly': 'View calendars and events',
   'https://www.googleapis.com/auth/calendar': 'View and manage calendar',
   'https://www.googleapis.com/auth/contacts': 'View and manage Google Contacts',
   'https://www.googleapis.com/auth/tasks': 'Create, read, update, and delete Google Tasks',
@@ -256,10 +258,19 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
   'Sites.Manage.All': 'Manage Sharepoint sites',
   'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
-  'User.Read.All': 'Read all user profiles',
   'User.ReadWrite.All': 'Read and write all user profiles',
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
+  'LicenseAssignment.Read.All': 'Read license assignments and subscribed SKUs',
+  'LicenseAssignment.ReadWrite.All': 'Assign and remove user licenses',
+  'UserAuthenticationMethod.ReadWrite.All':
+    'Read and reset authentication methods and passwords for all users',
+  'AuditLog.Read.All': 'Read sign-in and directory audit logs',
+  'Application.Read.All': 'Read all applications and service principals',
+  'AppRoleAssignment.ReadWrite.All': 'Grant and revoke application role assignments',
+  'RoleManagement.ReadWrite.Directory': 'Read and manage directory role assignments',
+  'Device.Read.All': 'Read all devices',
+  'Policy.Read.All': 'Read conditional access and other policies',
 
   // Reddit scopes
   identity: 'Access Reddit identity',
@@ -702,6 +713,10 @@ export function getMissingRequiredScopes(
  * `.../auth/ediscovery.readonly`. Without this, narrowing a consumer to the
  * least-privileged scope would report every already-connected credential as
  * missing it and prompt a re-consent that grants nothing new.
+ *
+ * This only derives a scope Sim actually requests. A consumer must never
+ * require a scope absent from its provider's `scopes` array — no credential can
+ * carry it, since that array is what the authorize request asks for.
  */
 function isScopeSatisfiedBy(required: string, granted: ReadonlySet<string>): boolean {
   const readonlySuffix = '.readonly'

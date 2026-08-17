@@ -13,6 +13,30 @@ import type { OperationSpec } from './types'
 
 export const DEFAULT_LIMIT = 100
 
+/**
+ * Help text for one flag, best source first.
+ *
+ * The CLI contract wins, because an entry there exists precisely to say
+ * something the schema cannot — that `workflowIds` is really a list, or that
+ * `conflictTarget` reads better as `--on`. Otherwise the field's own
+ * `.describe()` from the route contract carries through: it is the same prose
+ * the OpenAPI specs publish, so the terminal and the API reference explain a
+ * field the same way instead of diverging.
+ *
+ * `Set <name>` remains as a last resort for a field that documents itself
+ * nowhere. It is not documentation — it restates the flag name — so it is worth
+ * treating a fallback that shows up in `--help` as a missing `.describe()` on
+ * the contract rather than as finished work.
+ */
+function describeField(
+  flag: { describe?: string },
+  descriptor: FieldSpec,
+  name: string,
+  field: string
+): string {
+  return flag.describe ?? descriptor.describe ?? `Set ${name.replaceAll('-', ' ') || field}`
+}
+
 function addFieldOption(
   command: Command,
   operation: V2OperationName,
@@ -36,21 +60,24 @@ function addFieldOption(
     return
   }
 
+  const documented = describeField(flag, descriptor, name, field)
+
   if (descriptor.kind === 'boolean' || flag.boolean) {
     if (descriptor.required) {
       command.addOption(
-        new Option(
-          `${short}--${name} <true|false>`,
-          `${flag.describe ?? `Set ${field}`} (required)`
-        )
+        new Option(`${short}--${name} <true|false>`, `${documented} (required)`)
           .choices(['true', 'false'])
           .makeOptionMandatory()
       )
       return
     }
 
-    command.option(`${short}--${name}`, flag.describe ?? `Set ${field}`)
-    if (!flag.boolean) command.option(`--no-${name}`, `Set ${field} to false`)
+    command.option(`${short}--${name}`, documented)
+    // The twin exists to send an explicit `false`. Restating the positive
+    // flag's prose here inverts its meaning ("Return only deployed workflows"
+    // on the flag that stops doing exactly that), so it names its counterpart
+    // instead and lets the reader look up one description, not two.
+    if (!flag.boolean) command.option(`--no-${name}`, `Send --${name} as false`)
     return
   }
 
@@ -58,7 +85,7 @@ function addFieldOption(
   const wantsJson = takesJson(descriptor, flag)
   const placeholder = takesList ? '<value...>' : wantsJson ? '<json|@file>' : '<value>'
   const choices = flag.choices ?? descriptor.values
-  const describe = `${flag.describe ?? `Set ${name.replaceAll('-', ' ')}`}${
+  const describe = `${documented}${
     takesList
       ? ' (space-separated, or @path / @- with one value per line)'
       : wantsJson
@@ -91,7 +118,7 @@ export function addOperationOptions(
     command.addOption(
       new Option(
         `${short}--${name} <${flag.placeholder ?? 'value'}>`,
-        `${flag.describe ?? `Set ${name.replaceAll('-', ' ')}`} (required)`
+        `${flag.describe ?? operationSpec.pathParamDocs?.[param] ?? `Set ${name.replaceAll('-', ' ')}`} (required)`
       ).makeOptionMandatory()
     )
   }

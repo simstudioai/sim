@@ -63,6 +63,7 @@ function render(overrides: Partial<FindBarProps> = {}) {
     onQueryChange: vi.fn(),
     onNext: vi.fn(),
     onPrev: vi.fn(),
+    onSubmit: vi.fn(),
     onClose: vi.fn(),
     count: 0,
     currentIndex: 0,
@@ -154,10 +155,50 @@ describe('FindBar keyboard', () => {
     expect(props.onNext).not.toHaveBeenCalled()
   })
 
+  // Committing makes the typed and submitted terms agree instantly, but the
+  // matches on screen still belong to the previous term until the request
+  // lands — stepping there would select a cell the box no longer names.
+  it('does not step while the committed term is still loading', () => {
+    const props = render({ query: 'abcd', count: 3, isStale: false, canNavigate: false })
+    press('Enter')
+    expect(props.onNext).not.toHaveBeenCalled()
+    expect(props.onSubmit).not.toHaveBeenCalled()
+
+    press('Enter', { shiftKey: true })
+    expect(props.onPrev).not.toHaveBeenCalled()
+  })
+
+  it('disables the arrows until the results describe the term', () => {
+    render({ query: 'abcd', count: 3, canNavigate: false })
+    expect(buttonByLabel('Next match').disabled).toBe(true)
+    expect(buttonByLabel('Previous match').disabled).toBe(true)
+  })
+
   it('closes on Escape', () => {
     const props = render({ query: 'a', count: 3 })
     press('Escape')
     expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  // Mid-debounce the visible matches still belong to the previous term, so
+  // stepping through them would land on a cell the box no longer describes.
+  it('commits instead of stepping while the results are stale', () => {
+    const props = render({ query: 'abcd', count: 3, isStale: true })
+    press('Enter')
+    expect(props.onSubmit).toHaveBeenCalledTimes(1)
+    expect(props.onNext).not.toHaveBeenCalled()
+
+    press('Enter', { shiftKey: true })
+    expect(props.onSubmit).toHaveBeenCalledTimes(2)
+    expect(props.onPrev).not.toHaveBeenCalled()
+  })
+
+  // A surface that matches synchronously passes neither flag; Enter must still
+  // step rather than stall on the defaults.
+  it('steps on Enter when the surface declares no staleness model', () => {
+    const props = render({ query: 'a', count: 3, onSubmit: undefined })
+    press('Enter')
+    expect(props.onNext).toHaveBeenCalledTimes(1)
   })
 })
 

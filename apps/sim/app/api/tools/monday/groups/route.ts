@@ -7,6 +7,7 @@ import { validateMondayNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
+import { MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,13 +66,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const response = await fetch('https://api.monday.com/v2', {
+    const response = await fetch(MONDAY_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: accessToken,
-        'API-Version': '2024-10',
-      },
+      headers: mondayHeaders(accessToken),
       body: JSON.stringify({
         query: `{ boards(ids: [${boardIdValidation.sanitized}]) { groups { id title } } }`,
       }),

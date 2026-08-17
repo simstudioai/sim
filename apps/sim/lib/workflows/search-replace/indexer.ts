@@ -10,11 +10,13 @@ import {
   shouldParseSerializedSubBlockValue,
 } from '@/lib/workflows/search-replace/json-value-fields'
 import {
+  buildBlockNamesByReferencePrefix,
   foldSearchWhitespace,
   getResourceKindForSubBlock,
   matchesSearchText,
   parseInlineReferences,
   parseStructuredResourceReferences,
+  resolveInlineReferenceSearchText,
 } from '@/lib/workflows/search-replace/resources'
 import { getWorkflowSearchSubflowFields } from '@/lib/workflows/search-replace/subflow-fields'
 import type {
@@ -944,6 +946,7 @@ function addToolInputMatches({
   blockConfigs,
   customTools,
   mcpToolNamesById,
+  blockNamesByReferencePrefix,
 }: {
   matches: WorkflowSearchMatch[]
   block: WorkflowSearchBlockState
@@ -965,6 +968,7 @@ function addToolInputMatches({
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
   customTools?: WorkflowSearchIndexerOptions['customTools']
   mcpToolNamesById?: WorkflowSearchIndexerOptions['mcpToolNamesById']
+  blockNamesByReferencePrefix: ReadonlyMap<string, string>
 }) {
   const parentCanonicalModes = getSearchCanonicalModes(block)
 
@@ -1065,7 +1069,11 @@ function addToolInputMatches({
       for (const leaf of getSearchableStringLeaves(paramValue, subBlockType, 'reference')) {
         const inlineReferences = parseInlineReferences(leaf.value)
         inlineReferences.forEach((reference, referenceIndex) => {
-          const searchable = `${reference.rawValue} ${reference.searchText}`
+          const searchText = resolveInlineReferenceSearchText(
+            reference,
+            blockNamesByReferencePrefix
+          )
+          const searchable = `${reference.rawValue} ${reference.searchText} ${searchText}`
           if (
             !includeResourceMatchesWithoutQuery &&
             !matchesSearchText(searchable, query, caseSensitive)
@@ -1095,7 +1103,7 @@ function addToolInputMatches({
             target: { kind: 'subblock' },
             kind: reference.kind,
             rawValue: reference.rawValue,
-            searchText: reference.searchText,
+            searchText,
             range: reference.range,
             dependentValuePaths: nestedDependentValuePaths,
             resource: reference.resource,
@@ -1261,6 +1269,7 @@ export function indexWorkflowSearchMatches(
 
   const matches: WorkflowSearchMatch[] = []
   const resourceQueryEnabled = includeResourceMatchesWithoutQuery || Boolean(query)
+  const blockNamesByReferencePrefix = buildBlockNamesByReferencePrefix(workflow.blocks)
 
   for (const block of Object.values(workflow.blocks)) {
     const blockConfig = blockConfigs[block.type] ?? getBlock(block.type)
@@ -1394,6 +1403,7 @@ export function indexWorkflowSearchMatches(
           blockConfigs,
           customTools,
           mcpToolNamesById,
+          blockNamesByReferencePrefix,
         })
         continue
       }
@@ -1482,7 +1492,11 @@ export function indexWorkflowSearchMatches(
       for (const leaf of referenceLeaves) {
         const inlineReferences = parseInlineReferences(leaf.value)
         inlineReferences.forEach((reference, referenceIndex) => {
-          const searchable = `${reference.rawValue} ${reference.searchText}`
+          const searchText = resolveInlineReferenceSearchText(
+            reference,
+            blockNamesByReferencePrefix
+          )
+          const searchable = `${reference.rawValue} ${reference.searchText} ${searchText}`
           if (
             !includeResourceMatchesWithoutQuery &&
             !matchesSearchText(searchable, query, caseSensitive)
@@ -1510,7 +1524,7 @@ export function indexWorkflowSearchMatches(
             target: { kind: 'subblock' },
             kind: reference.kind,
             rawValue: reference.rawValue,
-            searchText: reference.searchText,
+            searchText,
             range: reference.range,
             resource: reference.resource,
             editable,
