@@ -57,6 +57,10 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenancePolicy,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  enqueueWorkspaceFileStorageCleanup,
+  processWorkspaceFileStorageCleanupNow,
+} from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   deleteFile,
@@ -2051,10 +2055,10 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
 
 /**
  * Permanently removes a file created by an in-flight archive extraction only while
- * its name, folder, and update timestamp still match the creation result. The exact
- * row stays locked while storage is deleted, so a storage failure leaves metadata
- * and accounting intact for retry. This is rollback-only: ordinary user deletion
- * remains recoverable through {@link deleteWorkspaceFile}.
+ * its name, folder, and update timestamp still match the creation result. The matching
+ * metadata deletion, accounting update, and durable storage-cleanup event commit together. This
+ * is rollback-only: ordinary user deletion remains recoverable through
+ * {@link deleteWorkspaceFile}.
  */
 export async function purgeCreatedWorkspaceFile(params: {
   workspaceId: string
@@ -2069,7 +2073,7 @@ export async function purgeCreatedWorkspaceFile(params: {
     params.expectedFolderId === null
       ? isNull(workspaceFiles.folderId)
       : eq(workspaceFiles.folderId, params.expectedFolderId)
-  return db.transaction(async (tx) => {
+  const cleanupEventId = await db.transaction(async (tx) => {
     const [lockedFile] = await tx
       .select({
         id: workspaceFiles.id,
@@ -2092,9 +2096,7 @@ export async function purgeCreatedWorkspaceFile(params: {
       )
       .for('update')
       .limit(1)
-    if (!lockedFile) return false
-
-    await deleteFile({ key: lockedFile.key, context: 'workspace' })
+    if (!lockedFile) return null
 
     const [deleted] = await tx
       .delete(workspaceFiles)
@@ -2118,8 +2120,29 @@ export async function purgeCreatedWorkspaceFile(params: {
       storageBillingContext,
       workspaceFileSize(lockedFile)
     )
-    return true
+    return enqueueWorkspaceFileStorageCleanup(tx, { key: lockedFile.key })
   })
+  if (!cleanupEventId) return false
+
+  try {
+    const result = await processWorkspaceFileStorageCleanupNow(cleanupEventId)
+    if (result !== 'completed') {
+      logger.warn('Archive rollback storage cleanup deferred to outbox retry', {
+        workspaceId: params.workspaceId,
+        fileId: params.fileId,
+        cleanupEventId,
+        result,
+      })
+    }
+  } catch (error) {
+    logger.warn('Archive rollback storage cleanup deferred after inline processing error', {
+      workspaceId: params.workspaceId,
+      fileId: params.fileId,
+      cleanupEventId,
+      error: getErrorMessage(error),
+    })
+  }
+  return true
 }
 
 /**
