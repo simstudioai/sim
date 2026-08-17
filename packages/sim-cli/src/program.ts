@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { Command, Option } from 'commander'
 import { loginCommand, logoutCommand, profilesCommand, whoamiCommand } from './commands/auth'
 import { configureCommand } from './commands/configure'
@@ -7,6 +6,7 @@ import { attachProtocolCommands } from './commands/protocol/index'
 import { attachSecretCommands } from './commands/secrets'
 import { OUTPUT_FORMATS } from './config/index'
 import { buildGeneratedCommands } from './runtime/build'
+import { CLI_VERSION } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
 export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
@@ -28,21 +28,6 @@ Examples:
   $ sim whoami --profile dev
 `
 
-function readPackageVersion(): string {
-  const metadata: unknown = JSON.parse(
-    readFileSync(new URL('../package.json', import.meta.url), 'utf8')
-  )
-  if (
-    typeof metadata !== 'object' ||
-    metadata === null ||
-    !('version' in metadata) ||
-    typeof metadata.version !== 'string'
-  ) {
-    throw new Error('CLI package metadata is missing a valid version')
-  }
-  return metadata.version
-}
-
 /**
  * Assemble the complete command tree.
  *
@@ -60,7 +45,7 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
 
   program.name('sim').description(PROGRAM_DESCRIPTION)
 
-  if (options.version !== false) program.version(readPackageVersion())
+  if (options.version !== false) program.version(CLI_VERSION)
 
   program
     .option('-P, --profile <name>', 'Profile to use (env: SIM_PROFILE)')

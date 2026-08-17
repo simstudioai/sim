@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
 import { REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
+import { USER_AGENT } from '../version'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -167,7 +168,11 @@ export async function pollForKey(
     try {
       response = await fetch(new URL(POLL_PATH, endpoint), {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          'user-agent': USER_AGENT,
+        },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
         signal,
         redirect: 'manual',
