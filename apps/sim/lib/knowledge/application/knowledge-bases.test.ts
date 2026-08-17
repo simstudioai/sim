@@ -207,7 +207,27 @@ describe('knowledge base application use cases', () => {
       undefined,
       { forUpdate: undefined }
     )
-    expect(mocks.listInternalRecords).toHaveBeenCalledWith('user-1', 'workspace-1', 'archived')
+    expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived')
+    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Workspace `admin` can come from an organization role alone, with no workspace permission
+   * row behind it. Re-deriving list access from that row would hide every knowledge base from
+   * a caller the create path already authorizes — a base they make and then cannot see.
+   */
+  it('lists a workspace for an authorized caller who holds no workspace permission row', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.listRecords.mockResolvedValueOnce({ data: [knowledgeBase], nextCursorKeys: null })
+
+    await expect(
+      listInternalKnowledgeBases.execute({
+        principal: { kind: 'session', userId: 'org-admin-1', sessionId: 'session-1' },
+        input: { workspaceId: 'workspace-1', scope: 'active' },
+      })
+    ).resolves.toEqual({ knowledgeBases: [knowledgeBase] })
+
+    expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'active')
   })
 
   it('loads the active knowledge catalog and tag metadata only after workspace authorization', async () => {

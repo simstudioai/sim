@@ -441,9 +441,24 @@ export const listInternalKnowledgeBases = {
     if (input.workspaceId !== undefined) {
       const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
       await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
+      /**
+       * Read the workspace's own rows once the operation is authorized. The legacy
+       * user-oriented query re-derives access from a `permissions` row join, which no longer
+       * matches what `authorizeWorkspaceOperation` accepts: an organization admin holds
+       * workspace `admin` through their org membership alone. That caller could create a
+       * knowledge base and then never see it listed.
+       */
+      return {
+        knowledgeBases: (await getWorkspaceKnowledgeBases(context.workspaceId, input.scope)).data,
+      }
     }
+    /**
+     * No workspace named, so there is no canonical workspace to authorize against and the
+     * caller-scoped query stays the only answer: every workspace the session holds a
+     * permission row in, plus their legacy workspace-less bases.
+     */
     return {
-      knowledgeBases: await getKnowledgeBases(principal.userId, input.workspaceId, input.scope),
+      knowledgeBases: await getKnowledgeBases(principal.userId, undefined, input.scope),
     }
   },
 } satisfies OperationUseCase<
