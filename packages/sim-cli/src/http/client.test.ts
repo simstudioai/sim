@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+import { USER_AGENT } from '../version'
 import {
   formatApiErrorDetails,
   redirectEndpoint,
@@ -313,6 +314,29 @@ describe('non-JSON responses', () => {
   })
 })
 
+describe('request identity', () => {
+  it('identifies the CLI, its version and its runtime to the API', async () => {
+    // Without a User-Agent a CLI request is indistinguishable from any other
+    // API traffic, so a bug that only reproduces on one version cannot be found
+    // in the server's own logs.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await client().request('/api/v2/workflows')
+
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
+    expect(headers['user-agent']).toBe(USER_AGENT)
+    expect(USER_AGENT).toMatch(/^sim-cli\/\d+\.\d+\.\d+/)
+    expect(USER_AGENT).toContain(`node/${process.versions.node}`)
+    expect(USER_AGENT).toContain(process.platform)
+  })
+})
+
 describe('personal-key-only operations', () => {
   it('appends the remedy, keyed off the code the API actually nests', async () => {
     // The envelope this asserts is the one staging returns: `error.code` is the
@@ -338,6 +362,34 @@ describe('personal-key-only operations', () => {
       message:
         'Workspace API key cannot perform this operation — this operation needs a personal API key: sim login --profile default',
       code: 'FORBIDDEN',
+    })
+  })
+
+  it('also recognises the principal-kind refusal, whose message is written for a log', async () => {
+    // The same refusal is raised at two layers under two codes. The
+    // principal-kind one answers "Principal kind workspace_api_key cannot
+    // perform operation audit_logs.list" — accurate, and useless to a reader
+    // who has no way to act on it. Recognising only the other code left every
+    // audit-log command stating the problem in server vocabulary with no remedy.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Principal kind workspace_api_key cannot perform operation audit_logs.list',
+              details: { code: 'PRINCIPAL_KIND_NOT_PERMITTED' },
+            },
+          }),
+          { status: 403, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(client().request('/api/v2/audit-logs')).rejects.toMatchObject({
+      message:
+        'Principal kind workspace_api_key cannot perform operation audit_logs.list — this operation needs a personal API key: sim login --profile default',
     })
   })
 

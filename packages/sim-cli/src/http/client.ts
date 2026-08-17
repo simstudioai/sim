@@ -1,5 +1,6 @@
 import chalk from 'chalk'
 import type { ResolvedProfile } from '../config/index'
+import { USER_AGENT } from '../version'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed
@@ -75,8 +76,21 @@ export const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 /** Markup a JSON endpoint would never answer with — a proxy or landing page. */
 const MARKUP_PREFIX = /^\s*<(?:!doctype|html|\?xml)/i
 
-/** The one 403 cause the CLI can turn into an instruction. */
-const WORKSPACE_KEY_REFUSAL = 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED'
+/**
+ * The 403 causes the CLI can turn into an instruction.
+ *
+ * Two codes describe the same refusal because they are raised at different
+ * layers: the workspace-key policy answers `WORKSPACE_KEY_OPERATION_NOT_PERMITTED`,
+ * while the principal-kind check answers `PRINCIPAL_KIND_NOT_PERMITTED` with a
+ * message written for a server log ("Principal kind workspace_api_key cannot
+ * perform operation audit_logs.list"). Recognising only the first left the
+ * audit-log commands stating the refusal in vocabulary the reader has no way to
+ * act on, and without the one sentence that resolves it.
+ */
+const KEY_SCOPE_REFUSALS = new Set([
+  'WORKSPACE_KEY_OPERATION_NOT_PERMITTED',
+  'PRINCIPAL_KIND_NOT_PERMITTED',
+])
 
 /**
  * Names the response the server actually sent, for a body that is not JSON.
@@ -156,8 +170,8 @@ function truncate(value: string, max: number): string {
 }
 
 /**
- * The refusal a workspace-scoped key gets from an operation only a personal key
- * may perform.
+ * Whether this is the refusal a workspace-scoped key gets from an operation only
+ * a personal key may perform, under either code that expresses it.
  *
  * `error.code` is the envelope's status class and is plain `FORBIDDEN` here; the
  * actionable code rides in `error.details.code`, which is where the v2 error
@@ -165,11 +179,12 @@ function truncate(value: string, max: number): string {
  * code meant the remedy was never appended against the real API. The top level
  * is still accepted so a server that promotes the code stays covered.
  */
-function namesWorkspaceKeyRefusal(error: SimApiError): boolean {
-  if (error.code === WORKSPACE_KEY_REFUSAL) return true
+function namesKeyScopeRefusal(error: SimApiError): boolean {
+  if (typeof error.code === 'string' && KEY_SCOPE_REFUSALS.has(error.code)) return true
   const details = error.details
   if (!details || typeof details !== 'object') return false
-  return (details as { code?: unknown }).code === WORKSPACE_KEY_REFUSAL
+  const code = (details as { code?: unknown }).code
+  return typeof code === 'string' && KEY_SCOPE_REFUSALS.has(code)
 }
 
 interface DetailIssue {
@@ -342,6 +357,7 @@ export class SimClient {
         headers: {
           ...(apiKey ? { 'x-api-key': apiKey } : {}),
           accept: 'application/json',
+          'user-agent': USER_AGENT,
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
@@ -367,7 +383,7 @@ export class SimClient {
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
       }
-      if (namesWorkspaceKeyRefusal(error)) {
+      if (namesKeyScopeRefusal(error)) {
         error.message = `${error.message} — this operation needs a personal API key: sim login --profile ${this.profile.name}`
       }
       throw error
