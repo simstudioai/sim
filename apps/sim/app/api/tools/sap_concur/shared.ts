@@ -1,10 +1,11 @@
-import { createHash } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { isPrivateIpHost } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { z } from 'zod'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
+import { env } from '@/lib/core/config/env'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithValidation,
@@ -229,8 +230,18 @@ function readCachedToken(key: string): SapConcurToken | undefined {
  * and collide with a different tuple. The full sha256 digest is kept — truncating it
  * would lower the collision/forgery bar for no measurable gain.
  */
+/**
+ * Key the token cache by every credential that changes which token Concur mints.
+ *
+ * Keyed with a server-side secret rather than a bare digest. The inputs include a
+ * user-chosen password, which is low-entropy enough to brute-force from a plain
+ * SHA-256 if a key ever reached a heap dump or a debug log; an HMAC makes the key
+ * useless without the secret. A password-hashing KDF would be the wrong tool — this
+ * runs on every token fetch and the goal is collision-free partitioning, not
+ * verification of a stored credential.
+ */
 function tokenCacheKey(req: SapConcurAuth): string {
-  return createHash('sha256')
+  return createHmac('sha256', env.INTERNAL_API_SECRET)
     .update(
       JSON.stringify([
         req.datacenter,

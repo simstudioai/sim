@@ -1893,7 +1893,7 @@ Return ONLY the comma-separated travel config IDs - no explanations, no extra te
         enabled: true,
         prompt: `Generate the JSON request body for the selected SAP Concur operation from the user's request.
 
-Match the payload to the resource being written. Every family below is camelCase.
+Match the payload to the resource being written. Every family below is camelCase EXCEPT exchange rates, which is snake_case.
 
 Expense reports (v4): name, businessPurpose, comment, policyId, countryCode, countrySubDivisionCode, reportDate, startDate, endDate, and reportSource — reportSource is REQUIRED when updating a report and must be one of EA, MOB, OTHER, SE, TR, UI.
 
@@ -1904,6 +1904,8 @@ Travel requests and expected expenses (Request v4): name, businessPurpose, start
 SCIM users (Identity v4.1): create and update payloads use schemas, userName, name.givenName, name.familyName, emails, active, and companyId inside urn:ietf:params:scim:schemas:extension:enterprise:2.0:User. Update uses urn:ietf:params:scim:api:messages:2.0:PatchOp with Operations. Search payloads use schemas with urn:ietf:params:scim:api:messages:concur:2.0:SearchRequest plus filter, count, attributes and cursor — startIndex is NOT supported as a request parameter.
 
 List items: listId, level, value, shortCode. Cash advances: amountRequested as { currency, amount }, name and userId (all required), plus optional accountCode, comment and purpose.
+
+Exchange rates are the one snake_case family: currency_sets as an array of up to 100 entries, each { from_crn_code, to_crn_code, start_date as YYYY-MM-DD, rate }.
 
 Omit fields the user did not describe rather than inventing identifiers.
 
