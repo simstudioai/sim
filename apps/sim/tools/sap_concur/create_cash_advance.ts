@@ -58,7 +58,8 @@ export const createCashAdvanceTool: ToolConfig<CreateCashAdvanceParams, SapConcu
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Cash advance payload',
+      description:
+        'Cash advance payload. Required fields: amountRequested ({ currency, amount }), name, and userId. Optional fields: accountCode, comment, purpose. The Concur docs are inconsistent on casing — the reference request example and the API Explorer swagger both use userId, while the schema table spells it userID; if a request is rejected with a 400, retry with the other spelling.',
     },
   },
   request: {

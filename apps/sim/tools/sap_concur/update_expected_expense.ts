@@ -116,17 +116,17 @@ export const updateExpectedExpenseTool: ToolConfig<
         },
         transactionAmount: {
           type: 'json',
-          description: 'Transaction amount {value, currencyCode}',
+          description: 'Transaction amount {value, currency}',
           optional: true,
         },
         postedAmount: {
           type: 'json',
-          description: 'Posted amount {value, currencyCode}',
+          description: 'Posted amount {value, currency}',
           optional: true,
         },
         approvedAmount: {
           type: 'json',
-          description: 'Approved amount {value, currencyCode}',
+          description: 'Approved amount {value, currency}',
           optional: true,
         },
         remainingAmount: {

@@ -91,10 +91,6 @@ export const deleteExpectedExpenseTool: ToolConfig<
   transformResponse: transformSapConcurProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
-    data: {
-      type: 'json',
-      description: 'Returns boolean true on 200 OK when the expected expense is deleted.',
-      properties: {},
-    },
+    data: { type: 'boolean', description: 'true when the expected expense was deleted' },
   },
 }
