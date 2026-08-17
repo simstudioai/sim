@@ -239,6 +239,7 @@ function DependentSelector({
 
 interface DependentWorkflowCardProps {
   workflow: WorkflowDependents
+  initiallyExpanded: boolean
   target: string
   parentChanged: boolean
   /** True when the parent is resolved by COPY - the selectors browse the SOURCE parent. */
@@ -253,10 +254,12 @@ interface DependentWorkflowCardProps {
  * One workflow's dependent fields as a collapsible card (the same `CollapsibleCard` the table
  * workflow sidebar's input mapping and the enrichment config use): the header names the
  * workflow; the body groups fields under block → optional tool → plain field label.
- * Cards holding a required field start expanded - a required field is what gates Sync.
+ * Cards holding a required field start expanded because that field gates Sync. Cards first
+ * revealed by explicit edit mode also start expanded so the edit action exposes its controls.
  */
 function DependentWorkflowCard({
   workflow,
+  initiallyExpanded,
   target,
   parentChanged,
   copying,
@@ -266,7 +269,9 @@ function DependentWorkflowCard({
   setReconfig,
 }: DependentWorkflowCardProps) {
   const [collapsed, setCollapsed] = useState(
-    () => !workflow.blocks.some((block) => block.configurableFields.some((field) => field.required))
+    () =>
+      !initiallyExpanded &&
+      !workflow.blocks.some((block) => block.configurableFields.some((field) => field.required))
   )
   return (
     <CollapsibleCard
@@ -463,6 +468,7 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
         <DependentWorkflowCard
           key={workflow.workflowId}
           workflow={workflow}
+          initiallyExpanded={showConfigured}
           target={target}
           parentChanged={parentChanged}
           copying={copying}
