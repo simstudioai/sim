@@ -7,6 +7,7 @@ import {
   formatDisplayText,
   getValidWorkflowSearchRange,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { maskSecretText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -354,12 +355,10 @@ export const ShortInput = memo(function ShortInput({
 
             const shouldMask =
               password && !isFocused && !isSearchHighlighted && !hasExactSearchHighlight
-            const displayValue = shouldMask
-              ? '•'.repeat(actualValueString.length)
-              : actualValueString
+            const displayValue = shouldMask ? maskSecretText(actualValueString) : actualValueString
 
             const formattedText = shouldMask
-              ? '•'.repeat(actualValueString.length)
+              ? maskSecretText(actualValueString)
               : formatDisplayText(actualValueString, {
                   accessiblePrefixes,
                   highlightAll: !accessiblePrefixes,

@@ -11,7 +11,11 @@ import { cn, Textarea } from '@sim/emcn'
 import { ChevronsUpDown, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { Button } from '@/components/ui/button'
-import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  formatDisplayText,
+  getValidWorkflowSearchRange,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { maskSecretText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -46,6 +50,8 @@ const MIN_HEIGHT_PX = 80
 interface LongInputProps {
   /** Placeholder text to display when empty */
   placeholder?: string
+  /** Whether to conceal the value until the textarea is focused */
+  password?: boolean
   /** Unique identifier for the block */
   blockId: string
   /** Unique identifier for the sub-block */
@@ -79,10 +85,12 @@ interface LongInputProps {
  * - Handles drag-and-drop for connections and variable references
  * - Provides environment variable and tag autocomplete
  * - Resizable with custom drag handle
+ * - Password masking with reveal on focus
  * - Integrates with ReactFlow for zoom control
  */
 export function LongInput({
   placeholder,
+  password,
   blockId,
   subBlockId,
   config,
@@ -99,6 +107,7 @@ export function LongInput({
   const activeSearchTarget = useActiveSearchTarget()
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
+  const [isFocused, setIsFocused] = useState(false)
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
 
   // Wand functionality - always call the hook unconditionally
@@ -190,6 +199,19 @@ export function LongInput({
 
   // During streaming, use local content; otherwise use the controller value
   const value = wandHook.isStreaming ? localContent : ctrl.valueString
+
+  /**
+   * A masked field reveals itself while focused so it stays editable, and while
+   * workflow search has an active match inside it so the hit is findable —
+   * matching the short-input treatment of the same flag.
+   */
+  const shouldMask =
+    Boolean(password) && !isFocused && !getValidWorkflowSearchRange(value, workflowSearchHighlight)
+  const displayValue = shouldMask ? maskSecretText(value) : value
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false)
+  }, [])
 
   // Base value for syncing (not including streaming)
   const baseValue = isPreview
@@ -338,13 +360,17 @@ export function LongInput({
                 )}
                 rows={rows ?? DEFAULT_ROWS}
                 placeholder={placeholder ?? ''}
-                value={value}
+                value={displayValue}
                 onChange={handleChange as (e: React.ChangeEvent<HTMLTextAreaElement>) => void}
                 onDrop={onDrop as (e: React.DragEvent<HTMLTextAreaElement>) => void}
                 onDragOver={onDragOver as (e: React.DragEvent<HTMLTextAreaElement>) => void}
                 onScroll={handleScroll}
                 onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLTextAreaElement>) => void}
-                onFocus={onFocus}
+                onFocus={(e) => {
+                  setIsFocused(true)
+                  onFocus(e)
+                }}
+                onBlur={handleBlur}
                 disabled={isPreview || disabled}
                 style={{
                   fontFamily: 'inherit',
@@ -368,11 +394,13 @@ export function LongInput({
                   height: `${height}px`,
                 }}
               >
-                {formatDisplayText(value, {
-                  accessiblePrefixes,
-                  highlightAll: !accessiblePrefixes,
-                  workflowSearchHighlight,
-                })}
+                {shouldMask
+                  ? displayValue
+                  : formatDisplayText(value, {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                      workflowSearchHighlight,
+                    })}
               </div>
 
               {/* Wand Button - only show if not hidden by parent */}

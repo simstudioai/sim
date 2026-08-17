@@ -662,6 +662,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             placeholder={config.placeholder}
+            password={config.password}
             rows={config.rows}
             config={config}
             isPreview={isPreview}
@@ -749,6 +750,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             columns={config.columns ?? []}
+            password={config.password}
             isPreview={isPreview}
             previewValue={previewValue as any}
             disabled={isDisabled}
@@ -761,6 +763,7 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             placeholder={config.placeholder}
+            password={config.password}
             language={config.language}
             generationType={config.generationType}
             value={
