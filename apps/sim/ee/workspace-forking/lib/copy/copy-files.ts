@@ -9,7 +9,10 @@ import {
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import type { DbOrTx } from '@/lib/db/types'
-import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  allocateUniqueWorkspaceFileName,
+  generateWorkspaceFileKey,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   deleteFile,
@@ -110,6 +113,31 @@ async function getFinalizedFileCopies(
       )
     )
   return new Map(active.map((row) => [row.id, { key: row.key, workspaceId: row.workspaceId }]))
+}
+
+/**
+ * Pick the child row's `original_name`, de-duplicating against the partial unique index
+ * `workspace_files_workspace_folder_name_active_unique` on
+ * `(workspace_id, coalesce(folder_id, ''), original_name)`.
+ *
+ * Since the fork copy started preserving folder structure, a target folder reused by
+ * {@link resolveForkFolderMapping} can already hold a file of the same name (parent has
+ * `Reports/budget.xlsx`, the child pushes its own `Reports/budget.xlsx`). Reusing the source
+ * name would violate that index, so the copy lands as `budget (1).xlsx` instead: both files
+ * survive, the copy stays visible in the fork under the mirrored folder, and its blob is kept.
+ *
+ * Advisory only. The lookup runs outside the finalize transaction (and so cannot see it), so a
+ * concurrent upload can still claim the name in between. The index stays the authority: such a
+ * task fails loudly into `failedTargetKeys` instead of being silently dropped.
+ */
+async function resolveTargetOriginalName(task: BlobCopyTask): Promise<string> {
+  // The index is partial on durable workspace files; no other context can collide on it.
+  if (task.context !== 'workspace') return task.fileName
+  return allocateUniqueWorkspaceFileName(
+    task.workspaceId,
+    task.fileName,
+    task.targetFolderId ?? null
+  )
 }
 
 /**
@@ -216,13 +244,18 @@ export async function planForkFileCopies(params: {
  * `file-upload` references pointing at the now-missing object. A failed task has no
  * active target metadata; an object uploaded before a failed finalization is deleted
  * best-effort outside the transaction.
+ *
+ * A copy whose name is already taken inside its mirrored target folder is de-duplicated
+ * (`budget (1).xlsx`) rather than dropped - see {@link resolveTargetOriginalName}. Those
+ * still count as `copied`; `renamed` reports how many landed under a different name.
  */
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
   requestId = 'unknown',
   contentRefMaps?: ForkContentRefMaps
-): Promise<{ copied: number; failed: number; failedTargetKeys: string[] }> {
+): Promise<{ copied: number; failed: number; renamed: number; failedTargetKeys: string[] }> {
   let copied = 0
+  let renamed = 0
   const failedTargetKeys: string[] = []
   for (let offset = 0; offset < blobTasks.length; offset += BLOB_COPY_PAGE) {
     const taskPage = blobTasks.slice(offset, offset + BLOB_COPY_PAGE)
@@ -292,6 +325,7 @@ export async function executeForkFileBlobCopies(
         }
 
         const billingContext = await resolveStorageBillingContext(task.workspaceId)
+        const targetOriginalName = await resolveTargetOriginalName(task)
         await db.transaction(async (tx) => {
           const [inserted] = await tx
             .insert(workspaceFiles)
@@ -303,16 +337,21 @@ export async function executeForkFileBlobCopies(
               folderId: task.targetFolderId ?? null,
               context: task.context,
               chatId: null,
-              originalName: task.fileName,
+              originalName: targetOriginalName,
               displayName: task.displayName,
               contentType: task.contentType,
               size: task.size,
               deletedAt: null,
               uploadedAt: new Date(),
             })
-            .onConflictDoNothing()
+            // Targeted at the primary key so ONLY a replay of this same task is absorbed. A
+            // bare `onConflictDoNothing()` also swallows the `(workspace_id, folder_id,
+            // original_name)` unique index, whose conflicting row has a DIFFERENT id - the
+            // recovery below then finds nothing and drops a file that merely shares a name.
+            .onConflictDoNothing({ target: workspaceFiles.id })
             .returning({ id: workspaceFiles.id })
 
+          // Reachable only on a primary-key conflict, so the row is addressable by id.
           if (!inserted) {
             const [current] = await tx
               .select({
@@ -346,7 +385,7 @@ export async function executeForkFileBlobCopies(
                 folderId: task.targetFolderId ?? null,
                 context: task.context,
                 chatId: null,
-                originalName: task.fileName,
+                originalName: targetOriginalName,
                 displayName: task.displayName,
                 contentType: task.contentType,
                 size: task.size,
@@ -371,6 +410,15 @@ export async function executeForkFileBlobCopies(
           await incrementStorageUsageForBillingContextInTx(tx, billingContext, task.size)
         })
         copied += 1
+        if (targetOriginalName !== task.fileName) {
+          renamed += 1
+          logger.warn(`[${requestId}] Copied file renamed to avoid a target name collision`, {
+            targetKey: task.targetKey,
+            folderId: task.targetFolderId ?? null,
+            from: task.fileName,
+            to: targetOriginalName,
+          })
+        }
       } catch (error) {
         failedTargetKeys.push(task.targetKey)
         logger.warn(`[${requestId}] Failed to copy file blob during fork`, {
@@ -403,5 +451,5 @@ export async function executeForkFileBlobCopies(
       }
     }
   }
-  return { copied, failed: failedTargetKeys.length, failedTargetKeys }
+  return { copied, failed: failedTargetKeys.length, renamed, failedTargetKeys }
 }

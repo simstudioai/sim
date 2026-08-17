@@ -65,16 +65,59 @@ describe('_removed_ prefix invariant', () => {
 describe('migration targets', () => {
   it('every rename points at a subblock that still exists', () => {
     const offenders: string[] = []
-    for (const [blockType, renames] of Object.entries(SUBBLOCK_ID_MIGRATIONS)) {
+    for (const [blockType, migrations] of Object.entries(SUBBLOCK_ID_MIGRATIONS)) {
       const config = getAllBlocks().find((block) => block.type === blockType)
       if (!config) {
         offenders.push(`${blockType} (block not registered)`)
         continue
       }
       const liveIds = new Set((config.subBlocks ?? []).map((subBlock) => subBlock.id))
-      for (const [legacyId, currentId] of Object.entries(renames)) {
-        if (currentId.startsWith('_removed_')) continue
-        if (!liveIds.has(currentId)) offenders.push(`${blockType}.${legacyId} -> ${currentId}`)
+      for (const { from, to } of migrations) {
+        if (to.startsWith('_removed_')) continue
+        if (!liveIds.has(to)) offenders.push(`${blockType}.${from} -> ${to}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  /**
+   * A scope naming an operation the block cannot select never fires, so the
+   * legacy value it was added to rescue stays stranded — a silent no-op that
+   * reads as a shipped fix.
+   */
+  it('every operation scope names an operation the block offers', () => {
+    const offenders: string[] = []
+    for (const [blockType, migrations] of Object.entries(SUBBLOCK_ID_MIGRATIONS)) {
+      const config = getAllBlocks().find((block) => block.type === blockType)
+      const operationConfig = config?.subBlocks?.find((subBlock) => subBlock.id === 'operation')
+      const offered = new Set(
+        (Array.isArray(operationConfig?.options) ? operationConfig.options : []).map((option) =>
+          typeof option === 'string' ? option : ((option as { id?: string }).id ?? '')
+        )
+      )
+      for (const { from, to, whenOperation } of migrations) {
+        for (const operation of whenOperation ?? []) {
+          if (!offered.has(operation))
+            offenders.push(`${blockType}.${from} -> ${to} @ ${operation}`)
+        }
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  /**
+   * An unconditional rename off an id that is still a live control steals that
+   * control's value on every load. Every such rename must be operation-scoped.
+   */
+  it('never renames off an id that is still a live control, unscoped', () => {
+    const offenders: string[] = []
+    for (const [blockType, migrations] of Object.entries(SUBBLOCK_ID_MIGRATIONS)) {
+      const config = getAllBlocks().find((block) => block.type === blockType)
+      if (!config) continue
+      const liveIds = new Set((config.subBlocks ?? []).map((subBlock) => subBlock.id))
+      for (const { from, to, whenOperation } of migrations) {
+        if (whenOperation) continue
+        if (liveIds.has(from)) offenders.push(`${blockType}.${from} -> ${to}`)
       }
     }
     expect(offenders).toEqual([])
@@ -117,9 +160,9 @@ describe('migrateSubblockIds', () => {
             // Every legacy id in the map, so a rename added later without a
             // matching assertion still fails here.
             ...Object.fromEntries(
-              Object.keys(SUBBLOCK_ID_MIGRATIONS.snowflake).map((legacyId) => [
-                legacyId,
-                { id: legacyId, type: 'short-input', value: `value-${legacyId}` },
+              SUBBLOCK_ID_MIGRATIONS.snowflake.map(({ from }) => [
+                from,
+                { id: from, type: 'short-input', value: `value-${from}` },
               ])
             ),
           },
@@ -131,12 +174,10 @@ describe('migrateSubblockIds', () => {
       expect(migrated).toBe(true)
       // The advanced text members, not the pickers: a migrated block has no
       // credential yet, so a picker could not hydrate the stored name.
-      for (const [legacyId, currentId] of Object.entries(SUBBLOCK_ID_MIGRATIONS.snowflake)) {
-        if (currentId.startsWith('_removed_')) continue
-        expect(blocks.b1.subBlocks[currentId]?.value, `${legacyId} -> ${currentId}`).toBe(
-          `value-${legacyId}`
-        )
-        expect(blocks.b1.subBlocks[legacyId], legacyId).toBeUndefined()
+      for (const { from, to } of SUBBLOCK_ID_MIGRATIONS.snowflake) {
+        if (to.startsWith('_removed_')) continue
+        expect(blocks.b1.subBlocks[to]?.value, `${from} -> ${to}`).toBe(`value-${from}`)
+        expect(blocks.b1.subBlocks[from], from).toBeUndefined()
       }
     })
 

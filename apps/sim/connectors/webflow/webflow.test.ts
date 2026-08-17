@@ -112,6 +112,24 @@ describe('webflow listDocuments deletion-reconciliation guards', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
+  it('leaves listingCapped unset when a well-formed page exhausts the collection', async () => {
+    mockNameThenItems({ items: [itemFixture('a'), itemFixture('b')], pagination: { total: 2 } })
+
+    const syncContext: Record<string, unknown> = {}
+    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
+
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('leaves listingCapped unset when a well-formed page reports an empty collection', async () => {
+    mockNameThenItems({ items: [], pagination: { total: 0 } })
+
+    const syncContext: Record<string, unknown> = {}
+    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
+
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
   /**
    * Without a usable `pagination.total` the offset math cannot tell a full page
    * apart from the last one, so treating it as exhausted would feed every unread
@@ -127,12 +145,167 @@ describe('webflow listDocuments deletion-reconciliation guards', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
-  it('leaves listingCapped unset on a short page with no usable total', async () => {
+  /**
+   * A short page is the same unknowable state as a full one: the fallback total
+   * collapses to the rows in hand, so the collection ends here whether or not
+   * rows remain. Webflow always sends `pagination.total`, so its absence is a
+   * malformed 200, never exhaustion.
+   */
+  it('flags listingCapped on a short page whose envelope carries no usable total', async () => {
     mockNameThenItems({ items: [itemFixture('a')] })
 
     const syncContext: Record<string, unknown> = {}
     await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
 
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('flags listingCapped when the envelope has no pagination object at all', async () => {
+    mockNameThenItems({ items: [itemFixture('a'), itemFixture('b')] })
+
+    const syncContext: Record<string, unknown> = {}
+    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
+
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  /**
+   * `Number(null)`, `Number('')`, `Number([])`, and `Number(false)` are all a
+   * finite `0`, so coercing the reported total reads a malformed envelope as
+   * "this collection holds zero rows" — the listing reports itself complete
+   * while holding rows, and reconciliation deletes every one of them.
+   */
+  it.each([
+    ['null', null],
+    ['an empty string', ''],
+    ['an empty array', []],
+    ['false', false],
+    ['a negative count', -1],
+    ['a fractional count', 2.5],
+    ['a numeric string', '2'],
+  ])('flags listingCapped when pagination.total is %s', async (_label, total) => {
+    mockNameThenItems({ items: [itemFixture('a'), itemFixture('b')], pagination: { total } })
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await webflowConnector.listDocuments(
+      ACCESS_TOKEN,
+      CONFIG,
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(2)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('flags listingCapped when pagination is present but carries no usable total', async () => {
+    mockNameThenItems({ items: [itemFixture('a')], pagination: { limit: 100, offset: 0 } })
+
+    const syncContext: Record<string, unknown> = {}
+    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
+
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  /**
+   * The production shape: a malformed 200 empties a mid-list collection, the
+   * walk advances to the next collection, and the whole run is reported as a
+   * clean full listing. The skipped collection's documents are neither empty
+   * nor below the collapse ratio, so no sync-engine backstop catches it.
+   */
+  it('flags listingCapped on an empty page with no pagination and still advances', async () => {
+    mockNameThenItems({ items: [] })
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await webflowConnector.listDocuments(
+      ACCESS_TOKEN,
+      { siteId: 'site-1', collectionId: 'col-1,col-2' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toEqual([])
+    expect(syncContext.listingCapped).toBe(true)
+    expect(result.hasMore).toBe(true)
+  })
+})
+
+/**
+ * With no collection ids configured the run's whole scope comes from
+ * `GET /sites/{id}/collections`. A malformed 200, a token whose CMS scope was
+ * narrowed, or a site that stopped being shared all yield an empty or partial
+ * collection list, and the listing then reports itself complete while covering
+ * none of the site — blast radius is the entire Webflow knowledge base.
+ */
+describe('webflow collection-scope resolution guards', () => {
+  const SITE_ONLY = { siteId: 'site-1' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', mockFetch)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    ['the envelope carries no collections key', {}],
+    ['collections is null', { collections: null }],
+    ['collections is not an array', { collections: { id: 'col-1' } }],
+    ['collections is empty', { collections: [] }],
+  ])('flags listingCapped when %s', async (_label, body) => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(body))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await webflowConnector.listDocuments(
+      ACCESS_TOKEN,
+      SITE_ONLY,
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toEqual([])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('flags listingCapped when a listed collection carries no usable id', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          collections: [{ id: 'col-1', displayName: 'Posts' }, { displayName: 'Broken' }],
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ items: [itemFixture('a')], pagination: { total: 1 } }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await webflowConnector.listDocuments(
+      ACCESS_TOKEN,
+      SITE_ONLY,
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('leaves listingCapped unset when the site listing and its page are both well formed', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse({ collections: [{ id: 'col-1', displayName: 'Posts' }] }))
+      .mockResolvedValueOnce(jsonResponse({ items: [itemFixture('a')], pagination: { total: 1 } }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await webflowConnector.listDocuments(
+      ACCESS_TOKEN,
+      SITE_ONLY,
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(result.hasMore).toBe(false)
     expect(syncContext.listingCapped).toBeUndefined()
   })
 })

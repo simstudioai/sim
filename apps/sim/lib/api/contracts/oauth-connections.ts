@@ -159,13 +159,6 @@ export const shopifyCallbackQuerySchema = z.object({
   shop: z.string().optional(),
 })
 
-export const shopifyStoreCookieSchema = z.object({
-  accessToken: z.string().min(1),
-  shopDomain: z.string().min(1),
-  scope: z.string().optional(),
-  returnUrl: z.string().optional(),
-})
-
 const SHOPIFY_SHOP_DOMAIN_REGEX = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]\.myshopify\.com$/
 export const shopifyShopDomainSchema = z.string().regex(SHOPIFY_SHOP_DOMAIN_REGEX)
 

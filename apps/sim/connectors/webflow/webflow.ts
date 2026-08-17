@@ -127,7 +127,18 @@ export const webflowConnector: ConnectorConfig = {
       cursorState = { collectionIndex: 0, offset: 0, collections }
     }
 
+    /**
+     * No collection resolved to sync, so this run lists nothing for the whole
+     * site. That is not evidence the site was emptied: a malformed 200, a token
+     * whose CMS scope was narrowed, or a site that stopped being shared with the
+     * app all produce the same empty collection list, and reconciling against it
+     * hard-deletes the entire Webflow knowledge base rather than one collection.
+     * A site that genuinely has no collections also has no documents to
+     * reconcile, so suppressing reconciliation here costs nothing; a deliberate
+     * full sync still overrides the cap.
+     */
     if (cursorState.collections.length === 0) {
+      if (syncContext) syncContext.listingCapped = true
       return { documents: [], hasMore: false }
     }
 
@@ -175,7 +186,7 @@ export const webflowConnector: ConnectorConfig = {
 
     const data = (await response.json()) as {
       items?: WebflowItem[]
-      pagination?: { total?: number }
+      pagination?: { total?: unknown }
     }
 
     const rawItems = data.items || []
@@ -199,10 +210,17 @@ export const webflowConnector: ConnectorConfig = {
      * math into `NaN` (which would silently end the collection mid-listing). The
      * offset advances by the rows actually returned rather than the echoed
      * `pagination.limit`, so a short page can never skip rows.
+     *
+     * The value is type-checked rather than coerced: `Number(null)`,
+     * `Number('')`, `Number([])`, and `Number(false)` all yield a finite `0`, so
+     * coercion would read a `null` total as "this collection holds zero rows"
+     * and hand every unread row to deletion reconciliation. A negative or
+     * fractional total is malformed for the same purpose, so only a
+     * non-negative integer counts as known.
      */
-    const reportedTotal = Number(data.pagination?.total)
-    const totalKnown = Number.isFinite(reportedTotal)
-    const total = totalKnown ? reportedTotal : rawItems.length
+    const reportedTotal = data.pagination?.total
+    const totalKnown = Number.isInteger(reportedTotal) && (reportedTotal as number) >= 0
+    const total = totalKnown ? (reportedTotal as number) : rawItems.length
     const advance = rawItems.length
 
     const hasMoreInCollection = advance > 0 && cursorState.offset + advance < total
@@ -217,12 +235,16 @@ export const webflowConnector: ConnectorConfig = {
     const stalledMidCollection = advance === 0 && cursorState.offset < total
 
     /**
-     * A full page with no usable `pagination.total` to page against. The fallback
-     * total collapses to the row count, which ends the collection right here, so
-     * whether rows remain is unknowable — and guessing "exhausted" would hand
-     * every unread row to deletion reconciliation.
+     * No usable `pagination.total` to page against, on a page of any size. The
+     * fallback total collapses to the rows in hand, which ends the collection
+     * right here and makes `stalledMidCollection` (`offset < 0`) unreachable, so
+     * a short or empty page looks exactly like exhaustion. The Data API v2
+     * list-items response always carries `pagination.total`, so its absence is a
+     * malformed 200 rather than a genuinely drained collection — the only honest
+     * reading is "we stopped for a reason we cannot rule out", and guessing
+     * "exhausted" would hand every unread row to deletion reconciliation.
      */
-    const unknownTotalOnFullPage = !totalKnown && advance >= pageSize
+    const unknownTotal = !totalKnown
 
     /**
      * A truncated listing must skip deletion reconciliation, or still-existing
@@ -234,7 +256,7 @@ export const webflowConnector: ConnectorConfig = {
     if (
       syncContext &&
       (stalledMidCollection ||
-        unknownTotalOnFullPage ||
+        unknownTotal ||
         (hitMaxItems && (hasMoreInCollection || hasMoreCollections)))
     ) {
       syncContext.listingCapped = true
@@ -439,8 +461,27 @@ async function fetchCollections(
     throw new Error(`Failed to list Webflow collections: ${response.status}`)
   }
 
-  const data = (await response.json()) as { collections?: WebflowCollection[] }
-  const collections = data.collections || []
+  const data = (await response.json()) as { collections?: unknown }
+  const rawCollections = Array.isArray(data.collections) ? (data.collections as unknown[]) : []
+  const collections = rawCollections.filter(
+    (collection): collection is WebflowCollection =>
+      typeof (collection as WebflowCollection | null)?.id === 'string' &&
+      (collection as WebflowCollection).id.length > 0
+  )
+
+  /**
+   * An entry the envelope carried but that has no usable id drops a whole
+   * collection out of this run's scope, and every stored document in it would
+   * then look deleted. The listing is truncated, not exhausted.
+   */
+  if (syncContext && collections.length !== rawCollections.length) {
+    logger.warn('Webflow collection listing carried unusable entries; listing is incomplete', {
+      siteId,
+      listed: rawCollections.length,
+      usable: collections.length,
+    })
+    syncContext.listingCapped = true
+  }
 
   if (syncContext) {
     const cached = (syncContext.collectionNames ?? {}) as Record<string, string>

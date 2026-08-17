@@ -18,13 +18,34 @@ const ISSUES_PER_PAGE = 100
  * Sentry computes per issue is `groupStatsPeriod`, whose documented choices are
  * `''`, `24h`, `14d`, and `auto`; anything else is rejected with
  * `Invalid stats_period`. The similarly-named `statsPeriod` is a different
- * parameter on this endpoint — it is the query's *date range* and would filter
- * issues out of the listing entirely — so it is deliberately never sent.
+ * parameter on this endpoint — it is the query's *date range*, which decides
+ * which issues appear at all — and is pinned by the connector to
+ * {@link LISTING_WINDOW}, not exposed as user config.
  *
- * `auto` is not offered because it derives the window from an explicit date
- * range this connector does not set.
+ * `auto` is not offered because it derives the window from explicit `start`/`end`
+ * bounds this connector does not set.
  */
 const ALLOWED_STATS_PERIODS = new Set(['24h', '14d'])
+
+/**
+ * The listing's date range, sent as `statsPeriod` on the organization issues
+ * endpoint.
+ *
+ * 90 days is the widest range Sentry's issue search can serve, so pinning it here
+ * makes the listing as complete as the source allows:
+ *
+ * - The endpoint resolves its range with `get_date_range_from_stats_period(request.GET)`,
+ *   whose `default_stats_period` is `MAX_STATS_PERIOD = timedelta(days=90)`. Sending
+ *   `90d` is therefore byte-identical to sending nothing today, but it pins the range
+ *   in the request instead of inheriting a server-side default that could change and
+ *   silently narrow the listing — which, on this connector, means silent deletions.
+ * - Sending anything *wider* is pointless rather than helpful: the search executor
+ *   floors the query start at `max(retention_window_start, now - timedelta(days=90))`,
+ *   so no request can reach issues last seen more than 90 days ago (less, on an install
+ *   whose event retention is shorter).
+ * - `90d` is accepted: `statsPeriod` is parsed by `^(\d+)([hdmsw]?)$`.
+ */
+const LISTING_WINDOW = '90d'
 
 /**
  * Metadata block on a Sentry issue, carrying the human-readable error type/value.
@@ -417,11 +438,20 @@ export const sentryConnector: ConnectorConfig = {
      * and latest-event fetches already use organization-scoped paths, so the whole
      * connector now speaks one path style.
      *
-     * Consequence of the migration: this endpoint always resolves a date range, and
-     * with no `statsPeriod`/`start`/`end` it defaults to the widest range it accepts
-     * (90 days). Issues last seen before that window are absent from the listing and
-     * are reconciled away, which is the same "aged out of the query window" semantic
-     * the default query already documents.
+     * Listing coverage across the migration: this endpoint resolves an explicit date
+     * range where the project-scoped one passed none, but both bottom out in the same
+     * issue-search executor, which floors the query start at
+     * `max(retention_window_start, now - timedelta(days=90))`. The project endpoint's
+     * `date_from=None` therefore produced a 90-day floor too, and {@link LISTING_WINDOW}
+     * pins this one to the same 90 days. Coverage is unchanged by the migration: both
+     * list exactly the issues Sentry's issue search can reach, and neither can reach an
+     * issue last seen longer ago than that.
+     *
+     * So an issue absent from this listing is absent from Sentry's own issue search
+     * under the same query/environment — a genuine scope exit, exactly like an issue
+     * that stopped matching `is:unresolved`. The listing is authoritative and deletion
+     * reconciliation is allowed to run; `listingCapped` below is reserved for the one
+     * condition that genuinely truncates it, `maxIssues`.
      */
     const url = new URL(`${apiBase}/organizations/${encodeURIComponent(organization)}/issues/`)
     url.searchParams.set('project', project)
@@ -436,6 +466,7 @@ export const sentryConnector: ConnectorConfig = {
      */
     url.searchParams.set('sort', 'new')
     url.searchParams.set('limit', String(Math.min(ISSUES_PER_PAGE, Math.max(1, remaining))))
+    url.searchParams.set('statsPeriod', LISTING_WINDOW)
     if (statsPeriod) url.searchParams.set('groupStatsPeriod', statsPeriod)
     if (environment) url.searchParams.set('environment', environment)
     if (cursor) url.searchParams.set('cursor', cursor)
@@ -593,7 +624,8 @@ export const sentryConnector: ConnectorConfig = {
        * needs `event:read`. A token scoped to `project:read` only would pass the
        * first probe yet fail at hydration time, so this second probe forces a
        * misconfigured token to fail fast at save time. It hits the same endpoint
-       * `listDocuments` uses, and is cheap (one issue, no stats window).
+       * `listDocuments` uses, with the same {@link LISTING_WINDOW}, and is cheap (one
+       * issue, no per-issue stats window).
        */
       const issuesProbeUrl = new URL(
         `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/`
@@ -601,6 +633,7 @@ export const sentryConnector: ConnectorConfig = {
       issuesProbeUrl.searchParams.set('project', project)
       issuesProbeUrl.searchParams.set('query', DEFAULT_QUERY)
       issuesProbeUrl.searchParams.set('limit', '1')
+      issuesProbeUrl.searchParams.set('statsPeriod', LISTING_WINDOW)
 
       const issuesResponse = await secureFetchWithRetry(
         issuesProbeUrl.toString(),
