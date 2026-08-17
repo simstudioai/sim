@@ -109,7 +109,10 @@ export function bytes(value: number | null | undefined): string {
 
 export function duration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined) return EMPTY
-  if (ms < 1000) return `${ms}ms`
+  // The API measures runs with a high-resolution clock, so a duration arrives as
+  // `9.145596999907866`. Sub-millisecond precision is noise in a terminal and
+  // the raw float is wider than every other cell in the row.
+  if (ms < 1000) return `${Math.round(ms)}ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
   return `${Math.floor(ms / 60_000)}m${Math.round((ms % 60_000) / 1000)}s`
 }
@@ -184,13 +187,25 @@ function oneLine(value: string): string {
  */
 const MAX_CELL_WIDTH = 60
 
-function clampCell(value: string): string {
+/**
+ * Widest a single record field may render in `table` mode.
+ *
+ * A record prints one value per line, so a long value costs nothing but its own
+ * line — far more room than a table column, where one wide cell sets the width
+ * for every row. The clamp lives in `printRecord` rather than in the caller that
+ * builds the fields, so `text`, `json` and `yaml` still carry the whole value:
+ * clamping before the format branch truncated commands whose entire output is
+ * one signed URL, silently, in the format built for pipes.
+ */
+const MAX_RECORD_WIDTH = 160
+
+function clamp(value: string, width: number): string {
   // ANSI-bearing cells come from the short formatters (`yes`/`no`, the empty
   // glyph); slicing one mid-escape would corrupt it, and none are ever wide.
-  if (visibleWidth(value) <= MAX_CELL_WIDTH || value !== value.replace(ANSI_PATTERN, '')) {
+  if (visibleWidth(value) <= width || value !== value.replace(ANSI_PATTERN, '')) {
     return value
   }
-  return `${value.slice(0, MAX_CELL_WIDTH - 1)}…`
+  return `${value.slice(0, width - 1)}…`
 }
 
 function renderTable<T>(rows: T[], columns: Column<T>[]): string {
@@ -200,7 +215,9 @@ function renderTable<T>(rows: T[], columns: Column<T>[]): string {
   // remote content and gets the same treatment as a cell. Doing it here rather
   // than only at each call site means a future column source cannot reopen this.
   const headers = columns.map((column) => sanitize(column.header))
-  const cells = rows.map((row) => columns.map((column) => clampCell(oneLine(column.value(row)))))
+  const cells = rows.map((row) =>
+    columns.map((column) => clamp(oneLine(column.value(row)), MAX_CELL_WIDTH))
+  )
   const widths = columns.map((_column, index) =>
     Math.max(visibleWidth(headers[index]), ...cells.map((line) => visibleWidth(line[index])))
   )
@@ -283,7 +300,10 @@ export function printDocument(format: OutputFormat, raw: unknown): void {
   )
 }
 
-/** Prints a single record: machine formats from the raw value, otherwise aligned lines. */
+/**
+ * Prints a single record: machine formats from the raw value, otherwise aligned
+ * lines. As in `printList`, only the `table` rendering is clamped.
+ */
 export function printRecord(format: OutputFormat, fields: Array<[string, string]>, raw: unknown) {
   const machine = renderMachine(format, raw)
   if (machine !== null) {
@@ -302,6 +322,8 @@ export function printRecord(format: OutputFormat, fields: Array<[string, string]
 
   const width = Math.max(...safeFields.map(([label]) => visibleWidth(label)))
   for (const [label, value] of safeFields) {
-    console.log(`${chalk.dim(pad(`${label}:`, width + 1))}  ${oneLine(value)}`)
+    console.log(
+      `${chalk.dim(pad(`${label}:`, width + 1))}  ${clamp(oneLine(value), MAX_RECORD_WIDTH)}`
+    )
   }
 }

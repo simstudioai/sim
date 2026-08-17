@@ -22,7 +22,7 @@ sim files batch-delete [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -40,7 +40,7 @@ sim files create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
 | `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. |
 | `--encoding <value>` | No | Encoding of the content field. Accepted values: `utf-8`, `base64`. |
 
@@ -58,7 +58,7 @@ sim files folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -74,7 +74,7 @@ sim files folders delete <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -85,7 +85,7 @@ sim files folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -124,8 +124,8 @@ Also available as `sim files folders mv`.
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
-| `destination` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -151,7 +151,7 @@ sim files delete <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -238,7 +238,7 @@ sim files list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
@@ -292,10 +292,10 @@ sim files rename <fileId> [options]
 
 </CommandTable>
 
-## Restore file
+## Restore an archived file
 
 ```bash
-sim files restore create <fileId>
+sim files restore <fileId>
 ```
 
 **Arguments**
@@ -357,7 +357,7 @@ sim files upload <path> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <path>` | No | Destination folder path (defaults to /). |
+| `--folder <path>` | No | Folder path as shown in the app; defaults to the root folder. |
 | `--name <name>` | No | Store it under a different name. |
 
 </CommandTable>

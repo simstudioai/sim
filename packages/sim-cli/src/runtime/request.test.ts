@@ -47,9 +47,22 @@ describe('buildRequest', () => {
   })
 
   it('omits absent optional fields so the server applies its own default', () => {
+    // Except where the contract asks for one, as `details` does below.
     const built = buildRequest('listLogs', [], {}, WORKSPACE)
-    expect(built.query).toEqual({ workspaceId: WORKSPACE })
+    expect(built.query).toEqual({ workspaceId: WORKSPACE, details: 'full' })
     expect(built.query).not.toHaveProperty('order')
+  })
+
+  it('asks for the detail level its own declared columns read from', () => {
+    // `logs list` renders `workflow.name`, which the API sends only at `full`,
+    // so the default request left the workflow column empty on every row.
+    const built = buildRequest('listLogs', [], {}, WORKSPACE)
+    expect(built.query.details).toBe('full')
+  })
+
+  it('lets an explicit detail level override the contract default', () => {
+    const built = buildRequest('listLogs', [], { details: 'basic' }, WORKSPACE)
+    expect(built.query.details).toBe('basic')
   })
 
   it('never sends a field the contract marked omit', () => {
@@ -251,5 +264,81 @@ describe('JSON flags that name a file', () => {
 
   it('does not suggest a path for malformed inline JSON', () => {
     expect(() => coerce('{"a":', field, {}, 'workflow')).not.toThrow(/@path/)
+  })
+})
+
+describe('folder paths are typed by the name the app shows', () => {
+  it('encodes a space so the visible folder name is what the caller types', () => {
+    const built = buildRequest('listWorkflows', [], { folder: '/Folder 1' }, WORKSPACE)
+    expect(built.query.folderPath).toBe('/Folder%201')
+  })
+
+  it('leaves an already-encoded path alone, because that is the form it prints', () => {
+    // `workflows ls` prints the wire form in its `ref` column and the README
+    // uses it, so the value people paste back must not become `%2520`.
+    const built = buildRequest('listWorkflows', [], { folder: '/Folder%201' }, WORKSPACE)
+    expect(built.query.folderPath).toBe('/Folder%201')
+  })
+
+  it('encodes each segment and keeps the separators between them', () => {
+    const built = buildRequest('listTables', [], { folder: '/cli-test-a/nested one' }, WORKSPACE)
+    expect(built.query.folderPath).toBe('/cli-test-a/nested%20one')
+  })
+
+  it('still treats the leading slash as optional', () => {
+    const built = buildRequest('createTableFolder', [], { path: 'cli-test-noslash' }, WORKSPACE)
+    expect(built.body).toMatchObject({ path: 'cli-test-noslash' })
+  })
+
+  it('escapes the characters encodeURIComponent leaves raw', () => {
+    // The route re-encodes each segment and demands a byte-for-byte match, and
+    // `encodeURIComponent` alone leaves `!'()*` alone — so `/Q1 (draft)` went
+    // out as `/Q1%20(draft)` and came back "Path must be a canonical folder
+    // path". Folder names like these are ordinary.
+    const built = buildRequest('createTableFolder', [], { path: "/Q1 (draft)/Sam's !*" }, WORKSPACE)
+    expect(built.body).toMatchObject({ path: '/Q1%20%28draft%29/Sam%27s%20%21%2A' })
+  })
+
+  it('spells out a dot segment, which the API refuses to read as a relative path', () => {
+    const built = buildRequest('createTableFolder', [], { path: '/./..' }, WORKSPACE)
+    expect(built.body).toMatchObject({ path: '/%2E/%2E%2E' })
+  })
+
+  it('leaves the canonical form it prints unchanged when pasted back', () => {
+    // Every one of these is what the CLI's own `ref` column shows, so it is what
+    // people paste into the next command; re-encoding it must be a no-op.
+    for (const name of ['Q1 (draft)', "Sam's stuff", 'wow!', 'a*b', '.', '..', '50% off']) {
+      const canonical = buildRequest('createTableFolder', [], { path: `/${name}` }, WORKSPACE).body
+        ?.path as string
+      const again = buildRequest('createTableFolder', [], { path: canonical }, WORKSPACE)
+      expect(again.body).toMatchObject({ path: canonical })
+    }
+  })
+
+  it('encodes a literal percent that is not an escape', () => {
+    const built = buildRequest('createTableFolder', [], { path: '/50% off' }, WORKSPACE)
+    expect(built.body).toMatchObject({ path: '/50%25%20off' })
+  })
+
+  it('encodes both ends of a folder move', () => {
+    const built = buildRequest(
+      'relocateTableFolder',
+      [],
+      { path: '/old name', destination: '/new name' },
+      WORKSPACE
+    )
+    expect(built.body).toMatchObject({ path: '/old%20name', destinationPath: '/new%20name' })
+  })
+
+  it('encodes every value of the repeatable folder filter before joining them', () => {
+    const built = buildRequest('listLogs', [], { folder: ['/a b', '/c'] }, WORKSPACE)
+    expect(built.query.folderPaths).toBe('/a%20b,/c')
+  })
+
+  it('leaves a field the contract has not marked untouched', () => {
+    // `files upload` and `knowledge documents upload` take a LOCAL path; the
+    // marker is what keeps the encoder away from one.
+    const local = './My Docs/report.pdf'
+    expect(coerce(local, { kind: 'string' }, {}, 'file')).toBe(local)
   })
 })

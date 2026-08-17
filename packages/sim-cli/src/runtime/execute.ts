@@ -2,9 +2,10 @@ import type { Command } from 'commander'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
-import { SimApiError, type V2Page } from '../http/client'
+import { pageProgress, SimApiError, type V2Page } from '../http/client'
 import { camel } from './derive'
 import { DEFAULT_LIMIT } from './options'
+import { warnRenamedFlag } from './renamed'
 import {
   buildRequest,
   flagNameFor,
@@ -18,6 +19,41 @@ function cursorSlot(operationSpec: OperationSpec): 'query' | 'body' | null {
   if (operationSpec.query && 'cursor' in operationSpec.query) return 'query'
   if (operationSpec.body && 'cursor' in operationSpec.body) return 'body'
   return null
+}
+
+/**
+ * Moves a value supplied under a flag's former name onto its current one.
+ *
+ * Done here rather than in `buildRequest` because this is where the parsed
+ * flags are assembled and still keyed by what the caller typed; by the time the
+ * request is built, only the current spelling has meaning.
+ *
+ * Supplying both spellings is refused rather than resolved. They are the same
+ * field, so a caller who sets both has two different values in mind and no
+ * reading of "the new one wins" is more likely to be the intended one.
+ */
+function foldRenamedFlags(
+  operation: V2OperationName,
+  commandSpec: CommandSpec,
+  flags: Record<string, unknown>
+): void {
+  for (const [field, flag] of Object.entries(commandSpec.flags ?? {})) {
+    if (!flag.renamedFrom?.length) continue
+
+    const current = flagNameFor(operation, field)
+    for (const previous of flag.renamedFrom) {
+      const supplied = flags[camel(previous)]
+      if (supplied === undefined) continue
+      if (flags[camel(current)] !== undefined) {
+        throw new SimApiError(
+          `--${previous} is the former name of --${current}; pass one, not both`,
+          0
+        )
+      }
+      warnRenamedFlag(previous, current)
+      flags[camel(current)] = supplied
+    }
+  }
 }
 
 /** Executes a parsed generated command, including cursor pagination. */
@@ -44,6 +80,8 @@ export async function executeOperation(
   for (const [index, field] of (commandSpec.positionals ?? []).entries()) {
     requestFlags[camel(flagNameFor(operation, field))] = invocation[pathPositionalCount + index]
   }
+
+  foldRenamedFlags(operation, commandSpec, requestFlags)
 
   if (commandSpec.confirm && !requestFlags.yes) {
     throw new SimApiError(`${commandSpec.confirm} Re-run with --yes to confirm.`, 0)
@@ -77,6 +115,7 @@ export async function executeOperation(
     const pageSize = Math.min(Number.isFinite(limit) ? limit : DEFAULT_LIMIT, DEFAULT_LIMIT)
     const pageLimit = 'limit' in (operationSpec[paging] ?? {}) ? { limit: pageSize } : {}
     const rows: unknown[] = []
+    const progress = pageProgress()
     let cursor: string | null = null
 
     do {
@@ -90,8 +129,10 @@ export async function executeOperation(
       })
       rows.push(...page.data)
       cursor = page.nextCursor
+      if (cursor && rows.length < limit) progress.advance(rows.length)
     } while (cursor && rows.length < limit)
 
+    progress.finish()
     renderPage(profile.output, Number.isFinite(limit) ? rows.slice(0, limit) : rows, commandSpec)
     return
   }

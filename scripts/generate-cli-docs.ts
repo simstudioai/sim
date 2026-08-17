@@ -79,8 +79,28 @@ function titleFor(name: string): string {
     .join(' ')
 }
 
+/**
+ * Commander records a hidden command on a private field and offers no getter,
+ * so this narrows structurally rather than widening the command to `any`.
+ */
+function isHiddenCommand(command: Command): boolean {
+  return (command as Command & { _hidden?: boolean })._hidden === true
+}
+
+/** Every option a reader should be taught, in declaration order. */
+function documentedOptions(command: Command): Command['options'] {
+  return command.options.filter((option) => !option.hidden)
+}
+
+/**
+ * Hidden entries are excluded for the same reason `--help` omits them: they are
+ * spellings the CLI has retired and keeps working only so an existing script
+ * does not break. Documenting one would teach the name being retired.
+ */
 function subcommands(command: Command): Command[] {
-  return command.commands.filter((child) => child.name() !== HELP_COMMAND)
+  return command.commands.filter(
+    (child) => child.name() !== HELP_COMMAND && !isHiddenCommand(child)
+  )
 }
 
 /** Depth-first walk yielding every leaf command, in the order commander lists them. */
@@ -144,9 +164,11 @@ function usageLine(entry: DocumentedCommand): string {
     const name = argument.variadic ? `${argument.name()}...` : argument.name()
     parts.push(argument.required ? `<${name}>` : `[${name}]`)
   }
-  if (entry.command.options.length > 0) parts.push('[options]')
+  if (documentedOptions(entry.command).length > 0) parts.push('[options]')
   return parts.join(' ')
 }
+
+const REQUIRED_SUFFIX = /\s*\(required\)\s*$/i
 
 /**
  * Commander help already spells required-ness inside the description of a
@@ -154,7 +176,23 @@ function usageLine(entry: DocumentedCommand): string {
  * would read as "Yes | Workflow ID (required)".
  */
 function stripRequiredSuffix(description: string): string {
-  return description.replace(/\s*\(required\)\s*$/i, '')
+  return description.replace(REQUIRED_SUFFIX, '')
+}
+
+/**
+ * Whether the flag must be supplied for the command to run.
+ *
+ * `option.mandatory` alone under-reports it. A destructive command's `--yes` is
+ * enforced by the runtime rather than by Commander, deliberately: making it
+ * mandatory would replace the refusal that names the consequence ("This deletes
+ * the knowledge base and every document in it. Re-run with --yes to confirm.")
+ * with Commander's bare "required option '--yes' not specified". The flag is
+ * still required, and the description says so — which is the same marker
+ * {@link stripRequiredSuffix} removes, so reading it here keeps the column and
+ * the prose from contradicting each other.
+ */
+function isRequiredOption(option: Command['options'][number]): boolean {
+  return option.mandatory || REQUIRED_SUFFIX.test(option.description || '')
 }
 
 /** Help text is written without terminal punctuation; appended clauses need it. */
@@ -208,12 +246,12 @@ function renderArguments(entry: DocumentedCommand): string[] {
 }
 
 function renderOptions(entry: DocumentedCommand): string[] {
-  const options = entry.command.options
+  const options = documentedOptions(entry.command)
   if (options.length === 0) return []
 
   const rows = options.map(
     (option) =>
-      `| ${code(option.flags)} | ${option.mandatory ? 'Yes' : 'No'} | ${describeOption(option)} |`
+      `| ${code(option.flags)} | ${isRequiredOption(option) ? 'Yes' : 'No'} | ${describeOption(option)} |`
   )
 
   return [
@@ -393,7 +431,9 @@ function renderReferencePage(
     '',
     '| Option | Description |',
     '| --- | --- |',
-    ...program.options.map((option) => `| ${code(option.flags)} | ${describeOption(option)} |`),
+    ...documentedOptions(program).map(
+      (option) => `| ${code(option.flags)} | ${describeOption(option)} |`
+    ),
     '',
   ]
 
@@ -467,7 +507,9 @@ function renderIndexPage(
     '',
     '| Option | Description |',
     '| --- | --- |',
-    ...program.options.map((option) => `| ${code(option.flags)} | ${describeOption(option)} |`),
+    ...documentedOptions(program).map(
+      (option) => `| ${code(option.flags)} | ${describeOption(option)} |`
+    ),
     '',
     '## Command groups',
     '',

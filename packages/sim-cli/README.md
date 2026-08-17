@@ -46,7 +46,7 @@ The section-naming asymmetry — `[profile dev]` in config, `[dev]` in credentia
 sim configure --set-endpoint http://localhost:3000 --profile dev
 sim configure --set-workspace ws_local --profile dev
 sim profiles          # list them; * marks the active one
-sim whoami            # resolved values, and where each came from
+sim whoami            # resolved values, where each came from, and whether they work
 ```
 
 ## Where settings come from
@@ -63,7 +63,16 @@ Each setting resolves independently, first match wins:
 Formats are listed under [Output formats](#output-formats).
 
 `sim whoami` prints the winning source per setting, which is usually the fastest
-way to explain a surprising result.
+way to explain a surprising result. It then reads the configured workspace to
+prove the settings actually work; `--no-verify` skips that and stays offline.
+
+Its exit status is the answer, so CI can branch on it:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The key works and reached the configured workspace |
+| `1` | The credentials are wrong — no key stored, or the API refused it |
+| `2` | The check could not be made — nothing to check against, or the endpoint did not answer |
 
 For CI, skip `sim login` entirely and set `SIM_API_KEY` and `SIM_WORKSPACE` —
 nothing needs to touch the filesystem. `SIM_CONFIG_DIR` relocates both files if

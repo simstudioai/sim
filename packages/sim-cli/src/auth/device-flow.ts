@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
-import { SimApiError } from '../http/client'
+import { REDIRECT_STATUSES, SimApiError } from '../http/client'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -106,6 +106,38 @@ interface PollResponse {
 }
 
 /**
+ * Explains a redirected poll rather than following it.
+ *
+ * The same policy `SimClient` applies, for the same two reasons and one more:
+ * a 301/302/303 rewrites this POST into a bodyless GET, which the route answers
+ * `405` — the login then fails naming a method nobody chose — and a redirect
+ * that IS followed hands `pollSecret`, the one redeemable value in the handoff,
+ * to whatever origin `Location` names.
+ */
+function toRedirectError(endpoint: string, response: Response): SimApiError {
+  const location = response.headers.get('location')?.trim()
+  let target: URL | null = null
+  if (location) {
+    try {
+      target = new URL(location, endpoint)
+    } catch {
+      target = null
+    }
+  }
+
+  if (!target) {
+    return new SimApiError(
+      `${endpoint} answered the login poll with HTTP ${response.status} and no usable redirect target. Check the endpoint.`,
+      response.status
+    )
+  }
+  return new SimApiError(
+    `${endpoint} redirected the login poll to ${target.origin}. The CLI does not follow redirects, because a redirect drops the request body and would carry the login secret to another origin. Re-run with --endpoint ${target.origin}, or run: sim configure --set-endpoint ${target.origin}`,
+    response.status
+  )
+}
+
+/**
  * Polls until the user approves in the browser.
  *
  * Transport failures are swallowed and retried rather than aborting the login:
@@ -131,12 +163,15 @@ export async function pollForKey(
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
         signal,
+        redirect: 'manual',
       })
     } catch {
       response = null
     }
 
     if (response) {
+      if (REDIRECT_STATUSES.has(response.status)) throw toRedirectError(endpoint, response)
+
       const raw = await response.text()
 
       if (!response.ok) {

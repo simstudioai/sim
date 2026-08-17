@@ -1,6 +1,7 @@
 import chalk from 'chalk'
 import { Command } from 'commander'
 import { configPath, OUTPUT_FORMATS, readConfigProfile, writeConfigProfile } from '../config/index'
+import { normalizeEndpoint } from '../config/profile'
 import { profileFrom } from '../context'
 import { SimApiError } from '../http/client'
 
@@ -29,7 +30,9 @@ export function configureCommand(): Command {
         const profile = profileFrom(command)
         const updates: Record<string, string | null> = {}
 
-        if (options.setEndpoint) updates.endpoint = options.setEndpoint.replace(/\/+$/, '')
+        if (options.setEndpoint) {
+          updates.endpoint = normalizeEndpoint(options.setEndpoint, '--set-endpoint')
+        }
         if (options.setWorkspace) updates.workspace = options.setWorkspace
         if (options.setOutput) {
           if (!(OUTPUT_FORMATS as readonly string[]).includes(options.setOutput)) {

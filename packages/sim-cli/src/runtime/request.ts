@@ -156,6 +156,64 @@ function readListValues(raw: unknown, flagName: string): string[] {
   })
 }
 
+/** A percent-escape the caller has already applied, well-formed enough to decode. */
+const PERCENT_ESCAPE = /%[0-9A-Fa-f]{2}/
+
+/** What `encodeURIComponent` leaves raw and the server's canonical encoder does not. */
+const SUB_DELIMITERS = /[!'()*]/g
+
+/**
+ * Encodes one segment exactly as `encodeFolderPathSegment` does server-side.
+ *
+ * The route does not merely decode a path, it re-encodes each segment and
+ * demands the result match byte for byte, so "close enough" is rejected outright
+ * with `Path must be a canonical folder path`. `encodeURIComponent` alone leaves
+ * `!'()*` raw — common in real folder names (`Q1 (draft)`, `Sam's stuff`) — and
+ * spells a lone `.` or `..` as itself, which the server refuses to let address a
+ * folder actually named that.
+ */
+function encodeFolderPathSegment(name: string): string {
+  if (name === '.') return '%2E'
+  if (name === '..') return '%2E%2E'
+  return encodeURIComponent(name).replace(
+    SUB_DELIMITERS,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+  )
+}
+
+/**
+ * Rewrites one folder path into the API's canonical wire form.
+ *
+ * The wire form encodes each segment, so `/Folder 1` in the app is
+ * `/Folder%201` to the API — and typing the name you can see was rejected with
+ * a message that never said the word encoding. Splitting on `/` first is what
+ * keeps the separators: `encodeURIComponent` over the whole path would turn
+ * every one of them into `%2F` and address a single top-level folder whose name
+ * contains slashes.
+ *
+ * Decoding each segment before encoding it is what makes this idempotent, and
+ * it has to be: the encoded spelling is what the CLI prints today, what the
+ * README shows, and therefore what people will paste back. `/Folder 1` and
+ * `/Folder%201` must reach the same folder, and `%2520` is the failure to
+ * avoid. The limit of that rule is a folder whose name really contains a `%`
+ * followed by two hex digits — `100%20off` reads as `100 off`. A stray `%` is
+ * safe, because it fails to decode and is encoded literally, and the ambiguous
+ * name can always be typed in its encoded form (`100%2520off`).
+ */
+export function encodeFolderPath(value: string): string {
+  return value
+    .split('/')
+    .map((segment) => {
+      if (!PERCENT_ESCAPE.test(segment)) return encodeFolderPathSegment(segment)
+      try {
+        return encodeFolderPathSegment(decodeURIComponent(segment))
+      } catch {
+        return encodeFolderPathSegment(segment)
+      }
+    })
+    .join('/')
+}
+
 /**
  * Points at `@` when a value that failed to parse looks like a filename.
  *
@@ -192,7 +250,12 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
    *   or failed validation outright.
    */
   if (flag.list) {
-    const values = readListValues(raw, flagName)
+    const values = readListValues(raw, flagName).map((value) =>
+      flag.folderPath ? encodeFolderPath(value) : value
+    )
+    // Encoding first is also what keeps the comma-joined form unambiguous: a
+    // folder name containing a comma leaves here as `%2C`, so the route's split
+    // cannot cut one path in half.
     return field.kind === 'string' ? values.join(',') : values
   }
 
@@ -221,6 +284,8 @@ export function coerce(raw: unknown, field: FieldSpec, flag: FlagSpec, flagName:
   if (choices && !choices.includes(String(raw))) {
     throw new SimApiError(`--${flagName} must be one of: ${choices.join(', ')}`, 0)
   }
+
+  if (flag.folderPath && typeof raw === 'string') return encodeFolderPath(raw)
 
   return raw
 }
@@ -311,12 +376,16 @@ export function buildRequest(
       // Commander stores `--min-duration-ms` as `minDurationMs`; reading by the
       // flag's own name silently finds nothing.
       const omitProfileWorkspace = commandSpec.allWorkspaces && flags.allWorkspaces === true
-      const raw =
+      const provided =
         field === PROFILE_INJECTED_FIELD
           ? omitProfileWorkspace
             ? undefined
             : workspaceId
           : flags[camel(flagName)]
+      // A contract default only applies to what the caller left unsaid, so
+      // typing the flag — including typing the server's own default back — still
+      // decides. It is validated like any other value, enum choices included.
+      const raw = provided ?? flag.requestDefault
       const value = coerce(raw ?? undefined, descriptor, flag, flagName)
 
       if (value === undefined) {
