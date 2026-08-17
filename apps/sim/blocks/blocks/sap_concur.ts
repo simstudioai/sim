@@ -1008,6 +1008,14 @@ Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
       required: { field: 'operation', value: 'sap_concur_create_report_comment' },
     },
     {
+      id: 'sendbackComment',
+      title: 'Sendback Comment',
+      type: 'long-input',
+      placeholder: 'Visible wherever Request comments are shown (sendback only)',
+      condition: { field: 'operation', value: 'sap_concur_move_travel_request' },
+      mode: 'advanced',
+    },
+    {
       id: 'includeAllComments',
       title: 'Include All Comments',
       type: 'switch',
@@ -2264,6 +2272,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               body: params.body || undefined,
               userId: params.travelRequestUserId || undefined,
               companyID: params.companyID || undefined,
+              comment: params.sendbackComment || undefined,
             }
           case 'sap_concur_list_travel_request_comments':
             return { ...auth, requestUuid: params.requestUuid }
@@ -2533,6 +2542,11 @@ Return ONLY the JSON object - no explanations, no extra text.`,
       type: 'string',
       description:
         'Optional company identifier for a travel request workflow action (documented as companyID, distinct from companyUuid)',
+    },
+    sendbackComment: {
+      type: 'string',
+      description:
+        'Optional comment on a travel request workflow action — Concur applies it only to the sendback action, and it is visible wherever Request comments are shown',
     },
     travelRequestApprovedBefore: { type: 'string', description: 'Travel requests approved before' },
     travelRequestApprovedAfter: { type: 'string', description: 'Travel requests approved after' },
