@@ -92,6 +92,28 @@ describe('file parser registry', () => {
     await expect(parseBuffer(Buffer.from('x'), 'rtf')).rejects.toThrow(/Supported types are: .+/)
   })
 
+  /**
+   * The extension is caller-supplied and reaches the registry as a lookup key. A
+   * plain object would resolve inherited keys, so `PARSERS['constructor']` handed
+   * back `Object` — truthy, with no parse methods — and routing fell through to
+   * "does not support buffer parsing" (or a `TypeError` in `parseFile`) instead of
+   * rejecting the extension. A `Map` has no prototype chain to walk.
+   */
+  it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__'])(
+    'treats the inherited key %s as an unsupported extension',
+    async (extension) => {
+      expect(isSupportedFileType(extension)).toBe(false)
+      await expect(parseBuffer(Buffer.from('x'), extension)).rejects.toThrow(
+        /Unsupported file type/
+      )
+    }
+  )
+
+  it('reports a non-string extension as unsupported rather than throwing', () => {
+    expect(isSupportedFileType(undefined as unknown as string)).toBe(false)
+    expect(isSupportedFileType(null as unknown as string)).toBe(false)
+  })
+
   it('rejects an empty buffer before routing', async () => {
     await expect(parseBuffer(Buffer.alloc(0), 'docx')).rejects.toThrow('Empty buffer provided')
   })

@@ -43,38 +43,42 @@ const logger = createLogger('FileParser')
  * every format into `Unsupported file type` — an outcome indistinguishable from a
  * genuinely unsupported extension. The heavy extraction libraries are still loaded
  * on demand inside the individual parsers.
+ *
+ * A `Map` rather than an object literal: the extension is caller-supplied, and a
+ * plain object would resolve inherited keys, so `PARSERS['constructor']` would hand
+ * back `Object` and route the request to a "parser" with no parse methods.
  */
-const PARSERS: Record<string, FileParser> = {
-  pdf: new PdfParser(),
-  csv: new CsvParser(),
-  doc: new DocParser(),
-  docx: new DocxParser(),
-  docm: new DocxParser(),
-  dotx: new DocxParser(),
-  txt: new TxtParser(),
-  md: new MdParser(),
-  xlsx: new XlsxParser(),
-  xls: new XlsxParser(),
-  xlsm: new XlsxParser(),
-  xlsb: new XlsxParser(),
-  xltx: new XlsxParser(),
-  ods: new XlsxParser(),
-  pptx: new PptxParser(),
-  ppt: new PptxParser(),
-  pptm: new PptxParser(),
-  potx: new PptxParser(),
-  odt: new OpenDocumentParser(),
-  odp: new OpenDocumentParser(),
-  html: new HtmlParser(),
-  htm: new HtmlParser(),
-  json: { parseFile: parseJSON, parseBuffer: parseJSONBuffer },
-  jsonl: { parseFile: parseJSONL, parseBuffer: parseJSONLBuffer },
-  yaml: { parseFile: parseYAML, parseBuffer: parseYAMLBuffer },
-  yml: { parseFile: parseYAML, parseBuffer: parseYAMLBuffer },
-}
+const PARSERS = new Map<string, FileParser>([
+  ['pdf', new PdfParser()],
+  ['csv', new CsvParser()],
+  ['doc', new DocParser()],
+  ['docx', new DocxParser()],
+  ['docm', new DocxParser()],
+  ['dotx', new DocxParser()],
+  ['txt', new TxtParser()],
+  ['md', new MdParser()],
+  ['xlsx', new XlsxParser()],
+  ['xls', new XlsxParser()],
+  ['xlsm', new XlsxParser()],
+  ['xlsb', new XlsxParser()],
+  ['xltx', new XlsxParser()],
+  ['ods', new XlsxParser()],
+  ['pptx', new PptxParser()],
+  ['ppt', new PptxParser()],
+  ['pptm', new PptxParser()],
+  ['potx', new PptxParser()],
+  ['odt', new OpenDocumentParser()],
+  ['odp', new OpenDocumentParser()],
+  ['html', new HtmlParser()],
+  ['htm', new HtmlParser()],
+  ['json', { parseFile: parseJSON, parseBuffer: parseJSONBuffer }],
+  ['jsonl', { parseFile: parseJSONL, parseBuffer: parseJSONLBuffer }],
+  ['yaml', { parseFile: parseYAML, parseBuffer: parseYAMLBuffer }],
+  ['yml', { parseFile: parseYAML, parseBuffer: parseYAMLBuffer }],
+])
 
 /** Extensions with a registered parser, for error messages. */
-const SUPPORTED_EXTENSIONS_TEXT = Object.keys(PARSERS).join(', ')
+const SUPPORTED_EXTENSIONS_TEXT = [...PARSERS.keys()].join(', ')
 
 /**
  * Parse a file based on its extension
@@ -92,7 +96,7 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
     }
 
     const extension = path.extname(filePath).toLowerCase().substring(1)
-    const parser = PARSERS[extension]
+    const parser = PARSERS.get(extension)
 
     if (!parser) {
       throw new Error(
@@ -131,7 +135,7 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
     assertOoxmlArchiveWithinLimits(buffer)
 
     const normalizedExtension = extension.toLowerCase()
-    const parser = PARSERS[normalizedExtension]
+    const parser = PARSERS.get(normalizedExtension)
 
     if (!parser) {
       throw new Error(
@@ -156,7 +160,7 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
  * @returns true if supported, false otherwise
  */
 export function isSupportedFileType(extension: string): extension is SupportedFileType {
-  return Object.hasOwn(PARSERS, extension.toLowerCase())
+  return typeof extension === 'string' && PARSERS.has(extension.toLowerCase())
 }
 
 export type { FileParseResult, SupportedFileType }
