@@ -703,6 +703,33 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     }
   )
 
+  it('includes the destination prefix when validating archive folder paths', async () => {
+    const buffer = await buildZip({ 'nested/file.txt': 'x' })
+    const prepareRootFolder = vi.fn(async () => ['unused'])
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        rootFolderSegments: Array.from(
+          { length: MAX_FOLDER_PATH_SEGMENTS },
+          (_, index) => `existing-${index}`
+        ),
+        prepareRootFolder,
+      })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      reason: 'invalid',
+      message: expect.stringContaining(
+        `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`
+      ),
+    })
+
+    expect(prepareRootFolder).not.toHaveBeenCalled()
+    expect(mockEnsureFolder).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
   it('throws ArchiveError invalid for a non-zip buffer (no files written)', async () => {
     await expect(
       decompressArchiveBufferToWorkspaceFiles(Buffer.from('not a zip at all'), {

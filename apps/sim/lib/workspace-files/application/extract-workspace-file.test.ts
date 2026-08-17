@@ -100,7 +100,7 @@ describe('extractWorkspaceFile', () => {
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('zip'))
     mocks.getSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mocks.decompress.mockImplementation(async (_content, options) => {
-      await options.prepareRootFolder()
+      await options.prepareRootFolder(vi.fn())
       return {
         extracted: [{ id: 'extracted-1' }, { id: 'extracted-2' }],
         skipped: 1,
@@ -112,6 +112,24 @@ describe('extractWorkspaceFile', () => {
   })
 
   it('extracts into a same-name folder beside the archive', async () => {
+    const validateRootFolderSegments = vi.fn()
+    mocks.decompress.mockImplementationOnce(async (_content, options) => {
+      await options.prepareRootFolder(validateRootFolderSegments)
+      return {
+        extracted: [{ id: 'extracted-1' }, { id: 'extracted-2' }],
+        skipped: 1,
+        skippedUnsafePaths: [],
+      }
+    })
+    mocks.createFolder.mockImplementationOnce(async (options) => {
+      options.validateResolvedName('bundle')
+      return {
+        id: 'folder-bundle',
+        name: 'bundle',
+        path: 'Projects/Imports/bundle',
+      }
+    })
+
     await expect(
       extractWorkspaceFile.execute({
         principal,
@@ -125,11 +143,14 @@ describe('extractWorkspaceFile', () => {
       name: 'bundle',
       parentId: 'folder-imports',
       exactName: false,
+      validateResolvedName: expect.any(Function),
     })
+    expect(validateRootFolderSegments).toHaveBeenCalledWith(['Projects', 'Imports', 'bundle'])
     expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 100 * 1024 * 1024 })
     expect(mocks.decompress).toHaveBeenCalledWith(Buffer.from('zip'), {
       workspaceId: 'workspace-1',
       principal,
+      rootFolderSegments: ['Projects', 'Imports', 'bundle'],
       prepareRootFolder: expect.any(Function),
       materializedRootFolderCount: 1,
       maxMaterializedItems: 5000,

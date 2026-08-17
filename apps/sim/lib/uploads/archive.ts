@@ -263,10 +263,13 @@ function throwInflateCapError(reason: 'entry' | 'total', entryName: string): nev
  * When `prepareRootFolder` is provided it takes precedence over
  * `rootFolderSegments`: it runs once, only after the caps have been proven and
  * only when at least one safe entry exists, and extraction lands under the
- * segments it returns. `materializedRootFolderCount` must equal the number of
- * folders that callback will create, so the `maxMaterializedItems` pre-check
- * (files + implied folders + root folders) counts them and rejects an
- * over-limit archive before the callback materializes anything.
+ * segments it returns. Before inserting a deduplicated root, the callback must
+ * pass its final segments to the supplied validator so the complete destination
+ * path is rejected before any folder mutation. `materializedRootFolderCount`
+ * must equal the number of folders that callback will create, so the
+ * `maxMaterializedItems` pre-check (files + implied folders + root folders)
+ * counts them and rejects an over-limit archive before the callback materializes
+ * anything.
  *
  * Filesystem-noise entries (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are extracted
  * verbatim unless `skipNoiseEntries` is set — the HTTP decompress route preserves
@@ -280,7 +283,9 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     workspaceId: string
     principal: Principal
     rootFolderSegments?: string[]
-    prepareRootFolder?: () => Promise<string[]>
+    prepareRootFolder?: (
+      validateRootFolderSegments: (rootFolderSegments: string[]) => void
+    ) => Promise<string[]>
     materializedRootFolderCount?: number
     maxMaterializedItems?: number
     skipNoiseEntries?: boolean
@@ -342,18 +347,21 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     )
   }
 
-  for (const { entry, segments } of safeEntries) {
-    try {
-      buildFolderPath(segments.slice(0, -1))
-    } catch (error) {
-      if (!(error instanceof FolderPathError)) throw error
-      throw new ArchiveError(
-        'invalid',
-        `Archive contains an invalid folder path: ${error.message}`,
-        entry.name
-      )
+  const validateRootFolderSegments = (candidateRootFolderSegments: string[]): void => {
+    for (const { entry, segments } of safeEntries) {
+      try {
+        buildFolderPath([...candidateRootFolderSegments, ...segments.slice(0, -1)])
+      } catch (error) {
+        if (!(error instanceof FolderPathError)) throw error
+        throw new ArchiveError(
+          'invalid',
+          `Archive contains an invalid folder path: ${error.message}`,
+          entry.name
+        )
+      }
     }
   }
+  validateRootFolderSegments(rootFolderSegments)
 
   if (maxMaterializedItems !== undefined) {
     const folderPaths = new Set<string>()
@@ -398,7 +406,10 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   }
 
   const resolvedRootFolderSegments =
-    safeEntries.length > 0 && prepareRootFolder ? await prepareRootFolder() : rootFolderSegments
+    safeEntries.length > 0 && prepareRootFolder
+      ? await prepareRootFolder(validateRootFolderSegments)
+      : rootFolderSegments
+  validateRootFolderSegments(resolvedRootFolderSegments)
 
   // Pass 2 — extract: the archive is proven within caps; inflate again and upload.
   // Uploads themselves can still fail mid-loop (storage/DB errors, quota crossed

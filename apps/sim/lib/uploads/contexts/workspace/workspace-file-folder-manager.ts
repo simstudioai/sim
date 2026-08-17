@@ -494,6 +494,8 @@ export async function createWorkspaceFileFolder(params: {
   parentId?: string | null
   sortOrder?: number
   exactName?: boolean
+  /** Validates the exact post-deduplication name before the folder row is inserted. */
+  validateResolvedName?: (name: string) => void
 }): Promise<WorkspaceFileFolderRecord> {
   const requestedName = normalizeWorkspaceFileItemName(params.name, 'Folder')
 
@@ -530,6 +532,8 @@ export async function createWorkspaceFileFolder(params: {
             FILE_FOLDER_RESOURCE_TYPE
           )
         : requestedName
+
+    params.validateResolvedName?.(name)
 
     if (params.exactName !== false) {
       const existingFolders = await tx

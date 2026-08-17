@@ -52,6 +52,7 @@ describe('createWorkspaceFileFolder', () => {
       createdAt: now,
       updatedAt: now,
     }
+    const validateResolvedName = vi.fn()
     mockDeduplicateFolderName.mockResolvedValueOnce('Archive (3)')
     dbChainMockFns.returning.mockResolvedValueOnce([inserted])
 
@@ -61,6 +62,7 @@ describe('createWorkspaceFileFolder', () => {
         userId: 'user-1',
         name: 'Archive',
         exactName: false,
+        validateResolvedName,
       })
     ).resolves.toMatchObject({ name: 'Archive (3)' })
 
@@ -73,6 +75,10 @@ describe('createWorkspaceFileFolder', () => {
     )
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Archive (3)' })
+    )
+    expect(validateResolvedName).toHaveBeenCalledWith('Archive (3)')
+    expect(validateResolvedName.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.values.mock.invocationCallOrder[0]
     )
   })
 })

@@ -2051,8 +2051,10 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
 
 /**
  * Permanently removes a file created by an in-flight archive extraction only while
- * its name, folder, and update timestamp still match the creation result. This is
- * rollback-only: ordinary user deletion remains recoverable through {@link deleteWorkspaceFile}.
+ * its name, folder, and update timestamp still match the creation result. The exact
+ * row stays locked while storage is deleted, so a storage failure leaves metadata
+ * and accounting intact for retry. This is rollback-only: ordinary user deletion
+ * remains recoverable through {@link deleteWorkspaceFile}.
  */
 export async function purgeCreatedWorkspaceFile(params: {
   workspaceId: string
@@ -2067,7 +2069,33 @@ export async function purgeCreatedWorkspaceFile(params: {
     params.expectedFolderId === null
       ? isNull(workspaceFiles.folderId)
       : eq(workspaceFiles.folderId, params.expectedFolderId)
-  const purgedKey = await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
+    const [lockedFile] = await tx
+      .select({
+        id: workspaceFiles.id,
+        key: workspaceFiles.key,
+        size: workspaceFiles.size,
+        sizeBytes: workspaceFiles.sizeBytes,
+      })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.id, params.fileId),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.key, params.key),
+          eq(workspaceFiles.originalName, params.expectedName),
+          expectedFolder,
+          eq(workspaceFiles.updatedAt, params.expectedUpdatedAt),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .for('update')
+      .limit(1)
+    if (!lockedFile) return false
+
+    await deleteFile({ key: lockedFile.key, context: 'workspace' })
+
     const [deleted] = await tx
       .delete(workspaceFiles)
       .where(
@@ -2082,24 +2110,16 @@ export async function purgeCreatedWorkspaceFile(params: {
           isNull(workspaceFiles.deletedAt)
         )
       )
-      .returning({
-        key: workspaceFiles.key,
-        size: workspaceFiles.size,
-        sizeBytes: workspaceFiles.sizeBytes,
-      })
-    if (!deleted) return null
+      .returning({ id: workspaceFiles.id })
+    if (!deleted) throw new Error('Locked archive-created file could not be deleted')
 
     await decrementStorageUsageForBillingContextInTx(
       tx,
       storageBillingContext,
-      workspaceFileSize(deleted)
+      workspaceFileSize(lockedFile)
     )
-    return deleted.key
+    return true
   })
-
-  if (!purgedKey) return false
-  await deleteFile({ key: purgedKey, context: 'workspace' })
-  return true
 }
 
 /**

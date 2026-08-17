@@ -267,6 +267,7 @@ describe('workspace file metadata and storage accounting', () => {
 
   it('purges exact archive-created metadata, bytes, and accounting during rollback', async () => {
     const extractedRow = { ...FILE_ROW, folderId: 'folder-archive' }
+    dbChainMockFns.limit.mockResolvedValueOnce([extractedRow])
     dbChainMockFns.returning.mockResolvedValueOnce([extractedRow])
 
     await expect(
@@ -289,13 +290,16 @@ describe('workspace file metadata and storage accounting', () => {
       FILE_ROW.size
     )
     expect(mockDeleteFile).toHaveBeenCalledWith({ key: FILE_ROW.key, context: 'workspace' })
-    expect(mockDecrementStorageUsageForBillingContextInTx.mock.invocationCallOrder[0]).toBeLessThan(
-      mockDeleteFile.mock.invocationCallOrder[0]
+    expect(mockDeleteFile.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.delete.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.delete.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDecrementStorageUsageForBillingContextInTx.mock.invocationCallOrder[0]
     )
   })
 
   it('leaves an extracted file untouched when its creation identity no longer matches', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([])
 
     await expect(
       purgeCreatedWorkspaceFile({
@@ -310,6 +314,26 @@ describe('workspace file metadata and storage accounting', () => {
 
     expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
     expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('keeps archive-created metadata and accounting when storage deletion fails', async () => {
+    const extractedRow = { ...FILE_ROW, folderId: 'folder-archive' }
+    dbChainMockFns.limit.mockResolvedValueOnce([extractedRow])
+    mockDeleteFile.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await expect(
+      purgeCreatedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        fileId: FILE_ROW.id,
+        key: FILE_ROW.key,
+        expectedName: FILE_ROW.originalName,
+        expectedFolderId: extractedRow.folderId,
+        expectedUpdatedAt: FILE_ROW.updatedAt,
+      })
+    ).rejects.toThrow('storage unavailable')
+
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
   })
 
   it('preserves the driver cause so the SQLSTATE survives the upload wrapper', async () => {

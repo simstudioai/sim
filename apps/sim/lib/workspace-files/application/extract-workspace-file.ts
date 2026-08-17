@@ -114,6 +114,9 @@ async function extractWorkspaceFileContents({
   }
 
   const folderName = archiveFolderName(file.name)
+  const parentFolderSegments = file.folderPath
+    ? parseWorkspaceFileFolderDisplayPath(file.folderPath)
+    : []
   const [content, secretProvenance] = await Promise.all([
     fetchWorkspaceFileBuffer(file, { maxBytes: MAX_ARCHIVE_BYTES }),
     getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
@@ -128,7 +131,8 @@ async function extractWorkspaceFileContents({
     const result = await decompressArchiveBufferToWorkspaceFiles(content, {
       workspaceId: context.workspaceId,
       principal,
-      prepareRootFolder: async () => {
+      rootFolderSegments: [...parentFolderSegments, folderName],
+      prepareRootFolder: async (validateRootFolderSegments) => {
         const attribution = resolvePrincipalAttribution(principal, {
           workspaceBillingOwnerUserId: context.billedAccountUserId,
         })
@@ -138,6 +142,8 @@ async function extractWorkspaceFileContents({
           name: folderName,
           parentId: file.folderId,
           exactName: false,
+          validateResolvedName: (resolvedName) =>
+            validateRootFolderSegments([...parentFolderSegments, resolvedName]),
         })
         return parseWorkspaceFileFolderDisplayPath(rootFolder.path)
       },
