@@ -656,15 +656,14 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       id: 'username',
       title: 'Username',
       type: 'short-input',
-      placeholder: 'Username (password grant only)',
+      placeholder: 'User login — or leave blank and set Company UUID',
       condition: { field: 'grantType', value: 'password' },
-      required: { field: 'grantType', value: 'password' },
     },
     {
       id: 'password',
       title: 'Password',
       type: 'short-input',
-      placeholder: 'Password (password grant only)',
+      placeholder: 'User password, or the 24-hour company request token',
       password: true,
       condition: { field: 'grantType', value: 'password' },
       required: { field: 'grantType', value: 'password' },
@@ -673,7 +672,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
       id: 'companyUuid',
       title: 'Company UUID',
       type: 'short-input',
-      placeholder: 'Multi-company access token UUID (optional)',
+      placeholder: 'Company-level auth: sent as the token username',
       mode: 'advanced',
     },
 
@@ -1894,7 +1893,19 @@ Return ONLY the comma-separated travel config IDs - no explanations, no extra te
         enabled: true,
         prompt: `Generate the JSON request body for the selected SAP Concur operation from the user's request.
 
-Match the payload to the resource being written. Expense reports (v4) use camelCase fields such as name, businessPurpose, comment, policyId, currencyCode, countryCode, countrySubDivisionCode, and reportSource — reportSource is REQUIRED when updating an expense report and must be one of EA, MOB, OTHER, SE, TR, UI. Quick expenses use CurrencyCode, TransactionAmount, TransactionDate, VendorDescription, PaymentTypeID, ExpenseTypeID, Comment, LocationName. Travel requests and expected expenses (v4) use camelCase fields such as name, startDate, endDate, purpose, businessPurpose, requestPolicy, expenseType, transactionAmount, transactionDate, currencyCode. SCIM user create and update payloads use schemas, userName, name.givenName, name.familyName, emails, active; SCIM search payloads use schemas with urn:ietf:params:scim:api:messages:2.0:SearchRequest plus filter, count, and startIndex. List items use listId, level, value, shortCode. Cash advances use amount, currencyCode, comment, requestDate. Omit fields the user did not describe rather than inventing identifiers.
+Match the payload to the resource being written. Every family below is camelCase.
+
+Expense reports (v4): name, businessPurpose, comment, policyId, countryCode, countrySubDivisionCode, reportDate, startDate, endDate, and reportSource — reportSource is REQUIRED when updating a report and must be one of EA, MOB, OTHER, SE, TR, UI.
+
+Quick expenses (v4): expenseTypeId (required), transactionAmount as { currencyCode, value } (required), transactionDate as YYYY-MM-DD (required), plus optional comment, vendor, paymentTypeId (CASHX, CPAID or PENDC) and location as { city, countryCode, countrySubDivisionCode }.
+
+Travel requests and expected expenses (Request v4): name, businessPurpose, startDate, endDate, startTime, endTime, policy as { id }, mainDestination as { city, countryCode, countrySubDivisionCode }, expenseType, transactionDate, and custom1 through custom20. Amounts here are { value, currency } — this family uses currency, NOT currencyCode. Never send an id field on create.
+
+SCIM users (Identity v4.1): create and update payloads use schemas, userName, name.givenName, name.familyName, emails, active, and companyId inside urn:ietf:params:scim:schemas:extension:enterprise:2.0:User. Update uses urn:ietf:params:scim:api:messages:2.0:PatchOp with Operations. Search payloads use schemas with urn:ietf:params:scim:api:messages:concur:2.0:SearchRequest plus filter, count, attributes and cursor — startIndex is NOT supported as a request parameter.
+
+List items: listId, level, value, shortCode. Cash advances: amountRequested as { currency, amount }, name and userId (all required), plus optional accountCode, comment and purpose.
+
+Omit fields the user did not describe rather than inventing identifiers.
 
 Return ONLY the JSON object - no explanations, no extra text.`,
         placeholder:
