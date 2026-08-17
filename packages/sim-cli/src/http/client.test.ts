@@ -3,6 +3,7 @@ import { CLI_CONTRACT } from '../contract/commands'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
 import {
   formatApiErrorDetails,
+  redirectEndpoint,
   requestAllPages,
   resolvePath,
   SimApiError,
@@ -91,6 +92,60 @@ describe('cursor pagination', () => {
     expect(stderr.writes).toHaveLength(2)
     expect(stderr.writes[0]).toContain('fetched 2')
     expect(stderr.writes[1]).toBe('\r\u001b[K')
+  })
+
+  describe('the endpoint a redirect implies', () => {
+    // Naming `target.origin` dropped a self-hosted endpoint's path prefix, so
+    // the suggested value was not an API root and following the advice broke a
+    // deployment that was one hostname away from working.
+    it('keeps a path prefix the endpoint carries', () => {
+      expect(
+        redirectEndpoint(
+          'https://host/sim',
+          '/api/v2/workflows',
+          new URL('https://www.host/sim/api/v2/workflows')
+        )
+      ).toBe('https://www.host/sim')
+    })
+
+    it('is just the origin when the endpoint has no prefix', () => {
+      expect(
+        redirectEndpoint(
+          'https://sim.example',
+          '/api/v2/workflows',
+          new URL('https://www.sim.example/api/v2/workflows')
+        )
+      ).toBe('https://www.sim.example')
+    })
+
+    it('implies no change when the target resolves to the endpoint already set', () => {
+      // A trailing-slash or path-normalization redirect keeps the origin;
+      // advising the value the caller already has explains nothing.
+      expect(
+        redirectEndpoint(
+          'https://sim.example',
+          '/api/v2/workflows',
+          new URL('https://sim.example/api/v2/workflows/')
+        )
+      ).toBeNull()
+      expect(
+        redirectEndpoint(
+          'https://sim.example/',
+          '/api/v2/x',
+          new URL('https://sim.example/api/v2/x')
+        )
+      ).toBeNull()
+    })
+
+    it('falls back to the origin when the target does not carry the request path', () => {
+      expect(
+        redirectEndpoint(
+          'https://sim.example',
+          '/api/v2/workflows',
+          new URL('https://auth.example/login')
+        )
+      ).toBe('https://auth.example')
+    })
   })
 
   it('clears the progress line when a later page fails', async () => {

@@ -359,7 +359,7 @@ export class SimClient {
       )
     }
 
-    if (REDIRECT_STATUSES.has(response.status)) throw this.toRedirectError(url, response)
+    if (REDIRECT_STATUSES.has(response.status)) throw this.toRedirectError(url, path, response)
 
     if (!response.ok) {
       const raw = await response.text()
@@ -384,7 +384,7 @@ export class SimClient {
    * endpoint. A `Location` that is missing or unparseable still has to produce a
    * sentence — the redirect is the finding either way.
    */
-  private toRedirectError(url: string, response: Response): SimApiError {
+  private toRedirectError(url: string, path: string, response: Response): SimApiError {
     const location = response.headers.get('location')?.trim()
     let target: URL | null = null
     if (location) {
@@ -401,17 +401,43 @@ export class SimClient {
         response.status
       )
     }
-    if (target.origin === new URL(url).origin) {
+    const suggested = redirectEndpoint(this.profile.endpoint, path, target)
+    if (!suggested) {
       return new SimApiError(
         `${url} redirected to ${target.href}. The CLI does not follow redirects, because a redirect can drop the request body and turn a write into a silent no-op.`,
         response.status
       )
     }
     return new SimApiError(
-      `Endpoint redirected to ${target.origin}. Run: sim configure --profile ${this.profile.name} --set-endpoint ${target.origin}`,
+      `Endpoint redirected to ${suggested}. Run: sim configure --profile ${this.profile.name} --set-endpoint ${suggested}`,
       response.status
     )
   }
+}
+
+/**
+ * The endpoint a redirect implies, or null when it implies no change.
+ *
+ * Strips the request's own path from the target rather than taking
+ * `target.origin`, so a self-hosted endpoint carrying a path prefix
+ * (`https://host/sim`) keeps it. Naming the bare origin would hand back a value
+ * that is not an API root, and following that advice would break a deployment
+ * that was only ever one hostname away from working.
+ *
+ * Null when the target resolves to the endpoint already configured — a
+ * trailing-slash or path-normalization redirect keeps the origin, and telling
+ * someone to set the value they already have explains nothing.
+ */
+export function redirectEndpoint(
+  endpoint: string,
+  requestPath: string,
+  target: URL
+): string | null {
+  const prefix = target.pathname.endsWith(requestPath)
+    ? target.pathname.slice(0, target.pathname.length - requestPath.length)
+    : ''
+  const suggested = `${target.origin}${prefix}`.replace(/\/+$/, '')
+  return suggested === endpoint.replace(/\/+$/, '') ? null : suggested
 }
 
 export interface PageProgress {

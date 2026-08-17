@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
-import { REDIRECT_STATUSES, SimApiError } from '../http/client'
+import { REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -105,6 +105,9 @@ interface PollResponse {
   workspaceBound?: boolean
 }
 
+/** The route the login poll targets; also the suffix a redirect target is measured against. */
+const POLL_PATH = '/api/cli/auth/poll'
+
 /**
  * Explains a redirected poll rather than following it.
  *
@@ -131,8 +134,12 @@ function toRedirectError(endpoint: string, response: Response): SimApiError {
       response.status
     )
   }
+  const refusal = `${endpoint} redirected the login poll to ${target.href}. The CLI does not follow redirects, because a redirect drops the request body and would carry the login secret to another origin.`
+  const suggested = redirectEndpoint(endpoint, POLL_PATH, target)
   return new SimApiError(
-    `${endpoint} redirected the login poll to ${target.origin}. The CLI does not follow redirects, because a redirect drops the request body and would carry the login secret to another origin. Re-run with --endpoint ${target.origin}, or run: sim configure --set-endpoint ${target.origin}`,
+    suggested
+      ? `${refusal} Re-run with --endpoint ${suggested}, or run: sim configure --set-endpoint ${suggested}`
+      : refusal,
     response.status
   )
 }
@@ -158,7 +165,7 @@ export async function pollForKey(
 
     let response: Response | null = null
     try {
-      response = await fetch(new URL('/api/cli/auth/poll', endpoint), {
+      response = await fetch(new URL(POLL_PATH, endpoint), {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
