@@ -39,7 +39,8 @@ import {
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
-  getActionableDependentFields,
+  getDisplayedDependentFields,
+  isDependentConfigurationActionable,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import type {
   ForkKindSummary,
@@ -109,7 +110,8 @@ function groupDependentsByWorkflow(
   workflows: ForkResourceUsage['workflows'],
   dependents: ForkDependentReconfig[],
   reconfig: Record<string, string>,
-  state: DependentConfigurationState
+  state: DependentConfigurationState,
+  showConfigured: boolean
 ): WorkflowDependents[] {
   const byWorkflow = new Map<string, ForkDependentReconfig[]>()
   for (const dependent of dependents) {
@@ -138,7 +140,12 @@ function groupDependentsByWorkflow(
       blocks: Array.from(byBlock.values())
         .map((block) => ({
           ...block,
-          configurableFields: getActionableDependentFields(block.fields, reconfig, state),
+          configurableFields: getDisplayedDependentFields(
+            block.fields,
+            reconfig,
+            state,
+            showConfigured
+          ),
         }))
         .filter((block) => block.configurableFields.length > 0)
         .sort((a, b) => a.blockName.localeCompare(b.blockName)),
@@ -149,11 +156,13 @@ function groupDependentsByWorkflow(
 /** Chain state for one block: the SelectorContext values its parent fields provide. */
 function blockChainState(
   block: DependentBlock,
+  activeField: ForkDependentReconfig,
   effectiveValue: (field: ForkDependentReconfig) => string
 ) {
   const providedValues: Record<string, string> = {}
   const providedContextKeys = new Set<string>()
   for (const field of block.fields) {
+    if (field.dependencyScope !== activeField.dependencyScope) continue
     if (field.providesContextKey) {
       providedContextKeys.add(field.providesContextKey)
       const value = effectiveValue(field)
@@ -199,7 +208,7 @@ function DependentSelector({
     copying
       ? effectiveCopyDependentValue(f, reconfig)
       : effectiveDependentValue(f, reconfig, parentChanged)
-  const { providedValues, providedContextKeys } = blockChainState(block, effectiveValue)
+  const { providedValues, providedContextKeys } = blockChainState(block, field, effectiveValue)
   // Disabled until every in-block parent it depends on has a value, so a child never queries
   // a stale upstream value.
   const ready = field.consumesContextKeys.every(
@@ -268,14 +277,17 @@ function DependentWorkflowCard({
       <div className='flex flex-col gap-3'>
         {workflow.blocks.map((block) => {
           const topLevel = block.configurableFields.filter((field) => !field.toolName)
-          const byTool = new Map<string, ForkDependentReconfig[]>()
+          const byTool = new Map<string, { name: string; fields: ForkDependentReconfig[] }>()
           for (const field of block.configurableFields) {
             if (!field.toolName) continue
-            const list = byTool.get(field.toolName)
-            if (list) list.push(field)
-            else byTool.set(field.toolName, [field])
+            const scope = field.dependencyScope ?? field.toolName
+            const group = byTool.get(scope)
+            if (group) group.fields.push(field)
+            else byTool.set(scope, { name: field.toolName, fields: [field] })
           }
-          const toolGroups = Array.from(byTool.entries()).sort(([a], [b]) => a.localeCompare(b))
+          const toolGroups = Array.from(byTool.entries()).sort(([, a], [, b]) =>
+            a.name.localeCompare(b.name)
+          )
 
           return (
             <div key={block.targetBlockId} className='flex flex-col gap-2'>
@@ -299,10 +311,10 @@ function DependentWorkflowCard({
                   />
                 </div>
               ))}
-              {toolGroups.map(([toolName, fields]) => (
-                <div key={toolName} className='flex flex-col gap-1.5 pl-2'>
-                  <span className='text-[var(--text-muted)] text-small'>{toolName}</span>
-                  {fields.map((field) => (
+              {toolGroups.map(([scope, tool]) => (
+                <div key={scope} className='flex flex-col gap-1.5 pl-2'>
+                  <span className='text-[var(--text-muted)] text-small'>{tool.name}</span>
+                  {tool.fields.map((field) => (
                     <div key={dependentKey(field)} className='flex flex-col gap-1'>
                       <Label className='text-[var(--text-muted)] text-caption'>
                         {field.title}
@@ -346,6 +358,7 @@ interface MappingEntryProps {
  * Workflows with nothing to configure are named in a muted note so the usage stays visible.
  */
 function MappingEntry({ controller, group, entry }: MappingEntryProps) {
+  const [showConfigured, setShowConfigured] = useState(false)
   const target = controller.targetFor(entry)
   const takenOwners = controller.takenOwnersFor(entry, group.items)
   const parentChanged = controller.parentChangedFor(entry)
@@ -354,17 +367,34 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
 
   const usages = controller.usagesForEntry(entry)
   const dependents = controller.dependentsForEntry(entry)
+  const parentResolved = target !== '' || copying
   const workflows = useMemo(
     () =>
-      groupDependentsByWorkflow(usages, dependents, controller.reconfig, {
-        parentResolved: target !== '' || copying,
-        parentChanged,
-        copying,
-      }),
-    [usages, dependents, controller.reconfig, target, parentChanged, copying]
+      groupDependentsByWorkflow(
+        usages,
+        dependents,
+        controller.reconfig,
+        { parentResolved, parentChanged, copying },
+        showConfigured
+      ),
+    [
+      usages,
+      dependents,
+      controller.reconfig,
+      parentResolved,
+      parentChanged,
+      copying,
+      showConfigured,
+    ]
   )
   const configurable = workflows.filter((workflow) => workflow.blocks.length > 0)
   const usedOnly = workflows.filter((workflow) => workflow.blocks.length === 0)
+  const configurationState = { parentResolved, parentChanged, copying }
+  const hasHiddenConfigured = dependents.some(
+    (field) => !isDependentConfigurationActionable(field, controller.reconfig, configurationState)
+  )
+  const canEditConfigured =
+    parentResolved && !parentChanged && !copying && (showConfigured || hasHiddenConfigured)
 
   return (
     <div className='flex flex-col gap-2'>
@@ -422,6 +452,13 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
           </p>
         ) : null}
       </div>
+      {canEditConfigured ? (
+        <div className='flex justify-end'>
+          <Chip active={showConfigured} onClick={() => setShowConfigured((value) => !value)}>
+            {showConfigured ? 'Done editing' : 'Edit configuration'}
+          </Chip>
+        </div>
+      ) : null}
       {configurable.map((workflow) => (
         <DependentWorkflowCard
           key={workflow.workflowId}
@@ -437,8 +474,8 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
       ))}
       {usedOnly.length > 0 ? (
         <p className='text-[var(--text-tertiary)] text-caption'>
-          Also used in {usedOnly.map((workflow) => workflow.workflowName).join(', ')} — nothing to
-          configure there.
+          Also used in {usedOnly.map((workflow) => workflow.workflowName).join(', ')} — no changes
+          required.
         </p>
       ) : null}
     </div>

@@ -5,6 +5,10 @@ export function dependentKey(dependent: ForkDependentReconfig): string {
   return `${dependent.targetWorkflowId}:${dependent.targetBlockId}:${dependent.subBlockKey}`
 }
 
+function sameDependencyScope(left: ForkDependentReconfig, right: ForkDependentReconfig): boolean {
+  return left.dependencyScope === right.dependencyScope
+}
+
 /**
  * Store a dependent re-pick and clear every selector transitively scoped by it. Empty-string
  * overrides are intentional: an absent override means "fall back to the stored value", while a
@@ -28,7 +32,13 @@ export function applyDependentRepick(
 
     for (const field of blockFields) {
       const fieldKey = dependentKey(field)
-      if (visitedFields.has(fieldKey) || !field.consumesContextKeys.includes(contextKey)) continue
+      if (
+        !sameDependencyScope(changedField, field) ||
+        visitedFields.has(fieldKey) ||
+        !field.consumesContextKeys.includes(contextKey)
+      ) {
+        continue
+      }
 
       visitedFields.add(fieldKey)
       nextState[fieldKey] = ''
@@ -106,9 +116,15 @@ export function getActionableDependentFields(
   const actionable = new Set(
     fields.filter((field) => isDependentConfigurationActionable(field, reconfig, state))
   )
-  const providersByContextKey = new Map<string, ForkDependentReconfig>()
+  const providersByScope = new Map<string | undefined, Map<string, ForkDependentReconfig>>()
   for (const field of fields) {
-    if (field.providesContextKey) providersByContextKey.set(field.providesContextKey, field)
+    if (!field.providesContextKey) continue
+    let providers = providersByScope.get(field.dependencyScope)
+    if (!providers) {
+      providers = new Map()
+      providersByScope.set(field.dependencyScope, providers)
+    }
+    providers.set(field.providesContextKey, field)
   }
 
   const pending = Array.from(actionable)
@@ -116,7 +132,7 @@ export function getActionableDependentFields(
     const field = pending[index]
     if (!field) continue
     for (const contextKey of field.consumesContextKeys) {
-      const provider = providersByContextKey.get(contextKey)
+      const provider = providersByScope.get(field.dependencyScope)?.get(contextKey)
       if (!provider || actionable.has(provider)) continue
       actionable.add(provider)
       pending.push(provider)
@@ -124,4 +140,19 @@ export function getActionableDependentFields(
   }
 
   return fields.filter((field) => actionable.has(field))
+}
+
+/**
+ * Fields rendered in the mapping UI. Required missing fields remain visible by default; an
+ * explicit edit action reveals every active selector under a resolved parent without changing
+ * which fields gate Sync.
+ */
+export function getDisplayedDependentFields(
+  fields: ForkDependentReconfig[],
+  reconfig: Record<string, string>,
+  state: DependentConfigurationState,
+  showConfigured: boolean
+): ForkDependentReconfig[] {
+  if (!state.parentResolved) return []
+  return showConfigured ? fields : getActionableDependentFields(fields, reconfig, state)
 }
