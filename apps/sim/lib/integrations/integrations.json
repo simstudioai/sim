@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-16",
+  "updatedAt": "2026-08-17",
   "integrations": [
     {
       "type": "onepassword",
@@ -11410,6 +11410,197 @@
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "incident-management"]
+    },
+    {
+      "type": "jotform",
+      "slug": "jotform",
+      "name": "Jotform",
+      "description": "Read submissions, manage forms, and wire up webhooks in Jotform",
+      "longDescription": "Integrate Jotform into your workflow to list and read form submissions with their answers resolved to question labels, build and edit forms and their questions, create shareable reports, register submission webhooks, and check account usage.",
+      "bgColor": "#FFFFFF",
+      "iconName": "JotformIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/jotform",
+      "operations": [
+        {
+          "name": "List Forms",
+          "description": "List the forms on a Jotform account with their titles, status, and submission counts."
+        },
+        {
+          "name": "Get Form",
+          "description": "Get the details of a single Jotform form, including its status, URL, and submission counts."
+        },
+        {
+          "name": "Create Form",
+          "description": "Create a new Jotform form from a list of questions, plus optional form properties and notification emails."
+        },
+        {
+          "name": "Clone Form",
+          "description": "Clone an existing Jotform form and return the copy."
+        },
+        {
+          "name": "Delete Form",
+          "description": "Delete a Jotform form. The API returns the form with status DELETED."
+        },
+        {
+          "name": "Get Form Properties",
+          "description": "Get the settings of a form: layout, limits, redirect behavior, notification emails, and validation strings. Supply a property key to read just one."
+        },
+        {
+          "name": "Update Form Properties",
+          "description": "Update form settings such as the thank-you redirect, submission limit, width, or styles. Only the supplied keys change."
+        },
+        {
+          "name": "List Form Files",
+          "description": "List every file uploaded through a form, with its download URL, size, type, and the submission it came from."
+        },
+        {
+          "name": "List Questions",
+          "description": "List every question on a form with its question ID, label, and field type. Question IDs are what submissions are keyed by."
+        },
+        {
+          "name": "Get Question",
+          "description": "Get every property of a single form question, including its validation rules and field-specific settings."
+        },
+        {
+          "name": "Create Question",
+          "description": "Add a question to an existing Jotform form."
+        },
+        {
+          "name": "Create Questions",
+          "description": "Add several questions to an existing Jotform form in one call."
+        },
+        {
+          "name": "Update Question",
+          "description": "Edit the properties of a form question, such as its label, order, or validation. Only the supplied properties change."
+        },
+        {
+          "name": "Delete Question",
+          "description": "Delete a question from a Jotform form."
+        },
+        {
+          "name": "List Form Submissions",
+          "description": "List the submissions received by one form, with each answer available both by question ID and by question label."
+        },
+        {
+          "name": "List Submissions",
+          "description": "List submissions across every form on the account, optionally narrowed to specific forms or a date range."
+        },
+        {
+          "name": "Get Submission",
+          "description": "Get a single Jotform submission, with its answers available both by question ID and by question label."
+        },
+        {
+          "name": "Create Submission",
+          "description": "Submit an entry to a Jotform form. Answers are keyed by question ID, which the List Questions operation returns."
+        },
+        {
+          "name": "Create Submissions",
+          "description": "Submit several entries to a Jotform form in one call. Each entry is keyed by question ID."
+        },
+        {
+          "name": "Update Submission",
+          "description": "Edit an existing Jotform submission. Only the question IDs supplied are changed; the rest keep their stored answers."
+        },
+        {
+          "name": "Delete Submission",
+          "description": "Delete a single Jotform submission."
+        },
+        {
+          "name": "List Reports",
+          "description": "List every report on the account, across all forms, with the shareable URL for each Excel, CSV, grid, table, calendar, RSS, or visual report."
+        },
+        {
+          "name": "List Form Reports",
+          "description": "List the reports built from one form, each with its shareable URL."
+        },
+        {
+          "name": "Create Report",
+          "description": "Create a shareable report of a form, choosing the report type and which submission fields it shows."
+        },
+        {
+          "name": "Get Report",
+          "description": "Get the details and shareable URL of a single Jotform report."
+        },
+        {
+          "name": "Delete Report",
+          "description": "Delete an existing Jotform report."
+        },
+        {
+          "name": "List Webhooks",
+          "description": "List the webhooks registered on a form. The returned IDs are what the Delete Webhook operation takes."
+        },
+        {
+          "name": "Create Webhook",
+          "description": "Register a webhook on a form so every new submission is posted to the given URL. Returns the full webhook list for the form."
+        },
+        {
+          "name": "Delete Webhook",
+          "description": "Remove a webhook from a form. Returns the webhooks that remain registered on the form."
+        },
+        {
+          "name": "List Labels",
+          "description": "List the labels on the account as a tree. Labels are how Jotform groups forms, workflows, sheets, and apps, replacing the older folder endpoints."
+        },
+        {
+          "name": "Get Label",
+          "description": "Get the name, color, and owner of a single Jotform label."
+        },
+        {
+          "name": "Create Label",
+          "description": "Create a Jotform label for grouping forms and other assets, optionally nested under a parent label."
+        },
+        {
+          "name": "Update Label",
+          "description": "Rename a Jotform label or change its color."
+        },
+        {
+          "name": "Delete Label",
+          "description": "Delete a Jotform label along with all of its sublabels."
+        },
+        {
+          "name": "List Label Resources",
+          "description": "List the assets assigned to a label — forms, workflows, sheets, and apps — with their status and titles."
+        },
+        {
+          "name": "Add Label Resources",
+          "description": "Assign forms, workflows, sheets, or apps to a Jotform label."
+        },
+        {
+          "name": "Remove Label Resources",
+          "description": "Unassign forms, workflows, sheets, or apps from a Jotform label."
+        },
+        {
+          "name": "List Sub-Users",
+          "description": "List the sub-users on the account with the forms and folders each one can reach, and at what access level."
+        },
+        {
+          "name": "Get Settings",
+          "description": "Read the account settings behind the API key, including time zone, language, and contact details."
+        },
+        {
+          "name": "Update Settings",
+          "description": "Update account settings such as name, email, website, company, industry, or time zone. Only the supplied fields change."
+        },
+        {
+          "name": "Get Account",
+          "description": "Get the Jotform account behind the API key, including its plan, status, time zone, and contact details."
+        },
+        {
+          "name": "Get Usage",
+          "description": "Get this month usage for the account: submissions received, payments, form views, upload space, and API calls made today."
+        },
+        {
+          "name": "Get History",
+          "description": "Read the account activity log: forms created, updated, deleted or purged, and account logins."
+        }
+      ],
+      "operationCount": 43,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["forms", "automation", "webhooks"]
     },
     {
       "type": "jupyter",
