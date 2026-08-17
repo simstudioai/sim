@@ -94,7 +94,7 @@ describe('getToolDisplayTitle natural-language coverage', () => {
         query:
           'reference block outputs connection tags blockname.field pass data between blocks in a workflow',
       })?.length
-    ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 60 + '...'.length)
+    ).toBeLessThanOrEqual('Searching Sim docs for ""'.length + 32 + '...'.length)
   })
 
   it('falls back to running code for run_function without a title', () => {
@@ -637,5 +637,66 @@ describe('wait countdown', () => {
 
   it('matches the static title at zero elapsed', () => {
     expect(getWaitCountdownTitle(args, 0)).toBe(getToolDisplayTitle('wait', args))
+  })
+})
+
+describe('opaque id suppression', () => {
+  const uuid = '5bae7849-ffa5-4f57-984f-feab73e513df'
+
+  it('falls back to the generic label instead of printing a workflow id', () => {
+    expect(getToolDisplayTitle('run_workflow', { workflowName: uuid })).toBe('Running workflow')
+    expect(getToolDisplayTitle('run_workflow', { name: uuid })).toBe('Running workflow')
+  })
+
+  it('suppresses a bare-hex id too', () => {
+    expect(getToolDisplayTitle('run_workflow', { name: 'a'.repeat(32) })).toBe('Running workflow')
+  })
+
+  it('still shows real names, including id-adjacent ones', () => {
+    expect(getToolDisplayTitle('run_workflow', { workflowName: 'Elder v1' })).toBe(
+      'Running Elder v1'
+    )
+    expect(getToolDisplayTitle('run_workflow', { workflowName: 'GoogleSheets_v2Block' })).toBe(
+      'Running GoogleSheets_v2Block'
+    )
+  })
+
+  it('degrades a block-id fallback rather than leaking it', () => {
+    expect(getToolDisplayTitle('run_block', { blockId: uuid })).toBe('Running block')
+  })
+})
+
+describe('terminal-title projection is idempotent', () => {
+  // The client tool store phrases its own error/skip labels, so the render
+  // boundary must not project a second time onto them.
+  const storeErrorLabel = 'Attempted to read metadata for thread_tracking'
+  const storeSkipLabel = 'Skipped reading metadata for thread_tracking'
+
+  it('leaves a store-phrased error label alone instead of prefixing it', () => {
+    expect(getToolStatusDisplayTitle(storeErrorLabel, 'error')).toBe(storeErrorLabel)
+    expect(getToolStatusDisplayTitle(storeErrorLabel, 'rejected')).toBe(storeErrorLabel)
+  })
+
+  it('never stacks a second Failed prefix', () => {
+    const once = getToolStatusDisplayTitle('Reading table', 'error')
+    expect(once).toBe('Failed reading table')
+    expect(getToolStatusDisplayTitle(once, 'error')).toBe(once)
+    expect(getToolStatusDisplayTitle('Failed: Something', 'error')).toBe('Failed: Something')
+  })
+
+  it('leaves a store-phrased skip label alone when cancelled', () => {
+    expect(getToolStatusDisplayTitle(storeSkipLabel, 'aborted')).toBe(storeSkipLabel)
+    const stopped = getToolStatusDisplayTitle('Reading table', 'cancelled')
+    expect(stopped).toBe('Stopped reading table')
+    expect(getToolStatusDisplayTitle(stopped, 'cancelled')).toBe(stopped)
+  })
+
+  it('still projects an ordinary present-tense title', () => {
+    expect(getToolStatusDisplayTitle('Searching Sim docs', 'error')).toBe(
+      'Failed searching Sim docs'
+    )
+    expect(getToolStatusDisplayTitle('Running workflow', 'cancelled')).toBe(
+      'Stopped running workflow'
+    )
   })
 })

@@ -19,9 +19,31 @@ type ToolArgs = Record<string, unknown> | undefined
 
 export const CONTEXT_COMPACTION_DISPLAY_TITLE = 'Summarizing context'
 
+/**
+ * A machine id never belongs in a human title ("Running
+ * 5bae7849-ffa5-4f57-984f-feab73e513df"). Matches the UUIDs `generateId()`
+ * mints, in dashed and bare-hex form — what leaks when a model passes a
+ * workflow or block id where a name was expected, whether through an explicit
+ * `*Id` fallback key or by putting the id in a `name` field.
+ *
+ * Deliberately narrow. A looser "looks random" rule would swallow legitimate
+ * names like `GoogleSheets_v2Block`, and a wrong suppression is invisible while
+ * a leaked id is merely ugly.
+ */
+const OPAQUE_ID_PATTERN =
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i
+
+/**
+ * Reads a display-safe string argument. Every title in this module goes through
+ * here, so suppressing opaque ids once covers each call site — including ones
+ * whose fallback list ends in `blockId`, which then degrades to the generic
+ * label instead of printing a UUID.
+ */
 function stringArg(args: ToolArgs, key: string): string {
   const value = args?.[key]
-  return typeof value === 'string' ? value.trim() : ''
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  return OPAQUE_ID_PATTERN.test(trimmed) ? '' : trimmed
 }
 
 function firstStringArg(args: ToolArgs, ...keys: string[]): string {
@@ -686,6 +708,19 @@ export function getWaitCountdownTitle(args: ToolArgs, elapsedMs: number): string
 /** Past this a command wraps the row; the terminal panel still shows it in full. */
 const MAX_COMMAND_TITLE_LENGTH = 48
 
+/**
+ * Budget for a quoted value embedded in a title.
+ *
+ * Much shorter than {@link MAX_COMMAND_TITLE_LENGTH}: these rows carry a
+ * subagent prefix ("Workflow Agent — ") plus a verb phrase ("Searched Sim docs
+ * for ") ahead of the value, and quotes and an ellipsis cost five more columns —
+ * roughly 44 characters of fixed overhead before the value starts. The chat pane
+ * also narrows whenever a resource panel is open, so the budget is set to keep
+ * the row on one line there rather than at full width. A model-written search
+ * query runs well past any of this if left alone.
+ */
+const MAX_QUOTED_TITLE_VALUE_LENGTH = 32
+
 function runningCommandTitle(rawCommand: string): string {
   const command = rawCommand.replace(/\s+/g, ' ')
   if (!command) return 'Running command'
@@ -870,7 +905,9 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
     }
     case 'search_docs': {
       const target = firstStringArg(args, 'toolTitle', 'title', 'query')
-      return target ? `Searching Sim docs for "${truncate(target, 60)}"` : 'Searching Sim docs'
+      return target
+        ? `Searching Sim docs for "${truncate(target, MAX_QUOTED_TITLE_VALUE_LENGTH)}"`
+        : 'Searching Sim docs'
     }
     case 'grep': {
       const target = firstStringArg(args, 'toolTitle', 'title')
@@ -1232,14 +1269,36 @@ export function getToolCompletedTitle(title: string): string | undefined {
 }
 
 /**
+ * Titles that already say the work is over.
+ *
+ * Two layers project a terminal tense: the client tool store phrases its own
+ * error and skip labels ("Attempted to read X", "Skipped reading X"), and this
+ * module projects again at the render boundary. Re-projecting an
+ * already-projected title stacked prefixes — "Failed: Failed: Attempted to read
+ * metadata for thread_tracking" — and even a single pass over a store label
+ * reads as doubly hedged. Whichever layer spoke first wins.
+ */
+const TERMINAL_TITLE_PREFIXES = new Set(['Failed', 'Attempted', 'Skipped', 'Stopped'])
+
+function firstWordOf(title: string): string {
+  const spaceIndex = title.indexOf(' ')
+  return spaceIndex === -1 ? title : title.slice(0, spaceIndex)
+}
+
+/** Whether a title already states a terminal outcome and must pass through. */
+function statesTerminalOutcome(title: string): boolean {
+  return TERMINAL_TITLE_PREFIXES.has(firstWordOf(title).replace(/:$/, ''))
+}
+
+/**
  * Rewrite a resolved display title for a FAILED tool call. A gerund title
  * becomes "Failed <gerund>…" ("Searching for X" → "Failed searching for X");
  * anything else gets a "Failed: " prefix. Without this, an errored row kept
  * its present-tense activity title verbatim and read as still running.
  */
 export function getToolFailedTitle(title: string): string {
-  const spaceIndex = title.indexOf(' ')
-  const firstWord = spaceIndex === -1 ? title : title.slice(0, spaceIndex)
+  if (statesTerminalOutcome(title)) return title
+  const firstWord = firstWordOf(title)
   if (COMPLETED_VERB_REWRITES[firstWord]) {
     return `Failed ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
   }
@@ -1248,8 +1307,8 @@ export function getToolFailedTitle(title: string): string {
 
 /** Rewrite a resolved display title for a CANCELLED tool call ("Stopped <gerund>…"). */
 export function getToolStoppedTitle(title: string): string {
-  const spaceIndex = title.indexOf(' ')
-  const firstWord = spaceIndex === -1 ? title : title.slice(0, spaceIndex)
+  if (statesTerminalOutcome(title)) return title
+  const firstWord = firstWordOf(title)
   if (COMPLETED_VERB_REWRITES[firstWord]) {
     return `Stopped ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
   }

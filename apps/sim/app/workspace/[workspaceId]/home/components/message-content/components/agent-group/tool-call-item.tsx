@@ -236,7 +236,7 @@ export function ToolCallItem({
   }
 
   return (
-    <div className='flex items-center gap-[6px] pl-6'>
+    <div className='flex min-w-0 items-center gap-[6px] pl-6'>
       {BlockIcon && (
         <BlockIcon
           className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
@@ -244,11 +244,11 @@ export function ToolCallItem({
         />
       )}
       {isExecuting ? (
-        <ShimmerText className='text-[13px] [--shimmer-rest:var(--text-secondary)]'>
+        <ShimmerText className='min-w-0 truncate text-[13px] [--shimmer-rest:var(--text-secondary)]'>
           {title}
         </ShimmerText>
       ) : (
-        <span className='text-[13px] text-[var(--text-secondary)]'>{title}</span>
+        <span className='min-w-0 truncate text-[13px] text-[var(--text-secondary)]'>{title}</span>
       )}
     </div>
   )

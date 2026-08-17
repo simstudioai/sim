@@ -181,32 +181,32 @@ export function AgentGroup({
         <button
           type='button'
           onClick={toggleExpanded}
-          className='group/agent flex cursor-pointer items-center gap-2'
+          className='group/agent flex w-full min-w-0 cursor-pointer items-center gap-2 text-left'
         >
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
-            <ShimmerText className='text-sm'>{headerText}</ShimmerText>
+            <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='text-[var(--text-body)] text-sm'>{headerText}</span>
+            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{headerText}</span>
           )}
           <ChevronDown
             className={cn(
-              'size-[14px] text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100',
+              'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0 transition-[transform,opacity] duration-150 group-hover/agent:opacity-100 group-focus-visible/agent:opacity-100',
               !expanded && '-rotate-90'
             )}
           />
         </button>
       ) : (
-        <div className='flex items-center gap-2'>
+        <div className='flex min-w-0 items-center gap-2'>
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
             <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
           </div>
           {isWorking ? (
-            <ShimmerText className='text-sm'>{headerText}</ShimmerText>
+            <ShimmerText className='min-w-0 truncate text-sm'>{headerText}</ShimmerText>
           ) : (
-            <span className='text-[var(--text-body)] text-sm'>{headerText}</span>
+            <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{headerText}</span>
           )}
         </div>
       )}
