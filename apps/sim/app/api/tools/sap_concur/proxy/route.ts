@@ -1,15 +1,20 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getValidationErrorMessage, isZodError } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import {
+  MAX_JSON_API_RESPONSE_BYTES,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   assertSafeExternalUrl,
+  describeSapConcurFetchError,
   extractSapConcurError,
   fetchSapConcurAccessToken,
+  forwardedSapConcurHeaders,
   SAP_CONCUR_OUTBOUND_FETCH_TIMEOUT_MS,
   type SapConcurProxyRequest,
   SapConcurProxyRequestSchema,
@@ -39,12 +44,37 @@ function buildApiUrl(geolocation: string, req: ProxyRequest): string {
   return url.includes('?') ? `${url}&${queryString}` : `${url}?${queryString}`
 }
 
+/**
+ * Map a non-2xx Concur status that cannot be re-emitted as an error status onto 502.
+ *
+ * With `maxRedirects: 0` a 3xx carrying a `Location` never reaches here — it rejects with
+ * "Too many redirects" and is handled in the outer catch. What does reach here is a 3xx
+ * *without* a `Location`, and a 304, which is excluded from the redirect handling
+ * upstream. Neither is a usable error status to return to the caller.
+ */
+function clampErrorStatus(status: number): number {
+  return status >= 400 ? status : 502
+}
+
 interface Invocation {
   status: number
   body: unknown
   raw: string
+  /** Concur response headers forwarded onto this route's response. */
+  headers: Record<string, string>
 }
 
+/**
+ * Invoke a Concur API endpoint with the bearer token.
+ *
+ * `concur-correlationid` is a support/tracing header expected to be a fresh RFC 4122
+ * UUID per request; it does not scope a request to a company. Redirects are refused so
+ * the Authorization header is never forwarded to another origin.
+ *
+ * `stripAuthOnRedirect` is unreachable while `maxRedirects` is 0 — no redirect is ever
+ * followed for it to act on. It is kept as defense-in-depth so raising `maxRedirects`
+ * later cannot silently start forwarding the bearer token; do not remove it as dead code.
+ */
 async function callConcur(
   req: ProxyRequest,
   accessToken: string,
@@ -54,10 +84,10 @@ async function callConcur(
   const hasBody = req.body !== undefined && req.body !== null
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
-    Accept: 'application/json',
+    Accept: req.accept ?? 'application/json',
   }
   if (hasBody) headers['Content-Type'] = req.contentType ?? 'application/json'
-  if (req.companyUuid) headers['concur-correlationid'] = req.companyUuid
+  headers['concur-correlationid'] = generateId()
 
   const response = await secureFetchWithValidation(
     url,
@@ -70,6 +100,9 @@ async function callConcur(
           : JSON.stringify(req.body)
         : undefined,
       timeout: SAP_CONCUR_OUTBOUND_FETCH_TIMEOUT_MS,
+      maxRedirects: 0,
+      stripAuthOnRedirect: true,
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     },
     'apiUrl'
   )
@@ -83,7 +116,12 @@ async function callConcur(
       parsed = raw
     }
   }
-  return { status: response.status, body: parsed, raw }
+  return {
+    status: response.status,
+    body: parsed,
+    raw,
+    headers: forwardedSapConcurHeaders(response.headers),
+  }
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -108,7 +146,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (invocation.status >= 200 && invocation.status < 300) {
       const data = invocation.status === 204 ? null : invocation.body
-      return NextResponse.json({ success: true, output: { status: invocation.status, data } })
+      return NextResponse.json(
+        { success: true, output: { status: invocation.status, data } },
+        { headers: invocation.headers }
+      )
     }
 
     const message = extractSapConcurError(invocation.body, invocation.status)
@@ -117,7 +158,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     return NextResponse.json(
       { success: false, error: message, status: invocation.status },
-      { status: invocation.status }
+      { status: clampErrorStatus(invocation.status), headers: invocation.headers }
     )
   } catch (error) {
     if (isZodError(error)) {
@@ -128,6 +169,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
     logger.error(`[${requestId}] Unexpected Concur proxy error:`, error)
-    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: describeSapConcurFetchError(error) },
+      { status: 500 }
+    )
   }
 })

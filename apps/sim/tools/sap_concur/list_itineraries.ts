@@ -7,6 +7,11 @@ import {
 } from '@/tools/sap_concur/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Concur Trips v1.1 serves this endpoint as XML only — there is no JSON representation.
+ * The shared proxy therefore surfaces the payload as a raw XML string in `data`, which
+ * downstream blocks are expected to parse.
+ */
 export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurProxyResponse> = {
   id: 'sap_concur_list_itineraries',
   name: 'SAP Concur List Trips',
@@ -71,13 +76,15 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by booking type (air, car, hotel, rail, etc.)',
+      description:
+        'Filter by booking type. Supported values are capitalized: Air, Car, Dining, Hotel, Parking, Rail, Ride.',
     },
     useridType: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'User identifier type (login, xmlsyncid, uuid)',
+      description:
+        'User identifier type. The only value documented for Trips v1.1 is "login" (the value is the user login id); xmlsyncid and uuid are Travel Profile v2 identifier types and are not documented for this endpoint.',
     },
     useridValue: {
       type: 'string',
@@ -89,19 +96,22 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Items per page',
+      description:
+        'Items per page. Concur only paginates when includeMetadata is also sent, so this tool sets includeMetadata automatically whenever itemsPerPage or page is provided.',
     },
     page: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: '1-based page number',
+      description:
+        '1-based page number. Concur only paginates when includeMetadata is also sent, so this tool sets includeMetadata automatically whenever page or itemsPerPage is provided.',
     },
     includeMetadata: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include paging metadata in the response',
+      description:
+        'Include paging metadata in the response. Implied when page or itemsPerPage is set.',
     },
     includeCanceledTrips: {
       type: 'boolean',
@@ -127,12 +137,26 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
       visibility: 'user-or-llm',
       description: 'Only trips modified on/after this date (YYYY-MM-DD)',
     },
+    includeVirtualTrip: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Set to "1" to include virtual trips, which carry the offline segments booked through Concur Request.',
+    },
+    includeGuestBookings: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Include trips booked on behalf of guests. Defaults to false.',
+    },
   },
   request: {
     url: SAP_CONCUR_PROXY_URL,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
+      const isPaged = params.itemsPerPage !== undefined || params.page !== undefined
       const query = buildListQuery({
         startDate: params.startDate,
         endDate: params.endDate,
@@ -141,7 +165,9 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
         userid_value: params.useridValue,
         ItemsPerPage: params.itemsPerPage,
         Page: params.page,
-        includeMetadata: params.includeMetadata,
+        includeMetadata: isPaged ? true : params.includeMetadata,
+        includeVirtualTrip: params.includeVirtualTrip,
+        includeGuestBookings: params.includeGuestBookings,
         includeCanceledTrips: params.includeCanceledTrips,
         createdAfterDate: params.createdAfterDate,
         createdBeforeDate: params.createdBeforeDate,
@@ -151,6 +177,7 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
         ...baseProxyBody(params),
         path: `/api/travel/trip/v1.1`,
         method: 'GET',
+        accept: 'application/xml',
         ...(Object.keys(query).length > 0 ? { query } : {}),
       }
     },
@@ -159,74 +186,9 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
-      description: 'Trips list payload (Itinerary v1.1 ConnectResponse)',
-      properties: {
-        Metadata: {
-          type: 'json',
-          description: 'Paging metadata (when includeMetadata=true)',
-          optional: true,
-          properties: {
-            Paging: {
-              type: 'json',
-              description: 'Pagination details',
-              optional: true,
-              properties: {
-                TotalPages: { type: 'number', description: 'Total pages', optional: true },
-                TotalItems: { type: 'number', description: 'Total items', optional: true },
-                Page: { type: 'number', description: 'Current page', optional: true },
-                ItemsPerPage: { type: 'number', description: 'Items per page', optional: true },
-                PreviousPageURL: {
-                  type: 'string',
-                  description: 'Previous page URL',
-                  optional: true,
-                },
-                NextPageURL: { type: 'string', description: 'Next page URL', optional: true },
-              },
-            },
-          },
-        },
-        ItineraryInfoList: {
-          type: 'array',
-          description: 'List of itinerary summary records',
-          optional: true,
-          items: {
-            type: 'json',
-            properties: {
-              ItinLocator: {
-                type: 'string',
-                description: 'Trip locator (trip ID)',
-                optional: true,
-              },
-              ClientLocator: { type: 'string', description: 'Client trip locator', optional: true },
-              ItinSourceName: {
-                type: 'string',
-                description: 'Booking source name',
-                optional: true,
-              },
-              BookedVia: { type: 'string', description: 'Booking channel', optional: true },
-              TripName: { type: 'string', description: 'Trip name', optional: true },
-              Status: { type: 'string', description: 'Trip status', optional: true },
-              Description: { type: 'string', description: 'Trip description', optional: true },
-              StartDateUtc: { type: 'string', description: 'Start (UTC)', optional: true },
-              EndDateUtc: { type: 'string', description: 'End (UTC)', optional: true },
-              StartDateLocal: { type: 'string', description: 'Start (local)', optional: true },
-              EndDateLocal: { type: 'string', description: 'End (local)', optional: true },
-              DateCreatedUtc: { type: 'string', description: 'Created (UTC)', optional: true },
-              DateModifiedUtc: { type: 'string', description: 'Modified (UTC)', optional: true },
-              DateBookedLocal: { type: 'string', description: 'Booked (local)', optional: true },
-              UserLoginId: { type: 'string', description: 'Trip owner login id', optional: true },
-              BookedByFirstName: {
-                type: 'string',
-                description: 'Booker first name',
-                optional: true,
-              },
-              BookedByLastName: { type: 'string', description: 'Booker last name', optional: true },
-              IsPersonal: { type: 'boolean', description: 'Personal trip flag', optional: true },
-            },
-          },
-        },
-      },
+      type: 'string',
+      description:
+        'Raw XML trips list returned by Concur (Trips v1.1 emits application/xml only, so this is a string and not a parsed object). By default the document is rooted at <ItineraryInfoList> containing one <ItineraryInfo> per trip (TripId, TripName, TripStatus, StartDateLocal, EndDateLocal, DateModifiedUtc, UserLoginId, id). When includeMetadata is sent — which this tool does automatically whenever page or itemsPerPage is supplied — the document is instead rooted at <ConnectResponse> with ConnectResponse > Metadata > Paging (TotalPages, TotalItems, Page, ItemsPerPage, PreviousPageURL, NextPageURL) and ConnectResponse > Data > ItineraryInfoList > ItineraryInfo.',
     },
   },
 }

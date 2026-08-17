@@ -10,7 +10,8 @@ import type { ToolConfig } from '@/tools/types'
 export const deleteListItemTool: ToolConfig<DeleteListItemParams, SapConcurProxyResponse> = {
   id: 'sap_concur_delete_list_item',
   name: 'SAP Concur Delete List Item',
-  description: 'Delete a list item (DELETE /list/v4/items/{itemId}).',
+  description:
+    'Delete a list item from all lists that contain it (DELETE /list/v4/items/{itemId}). This is not scoped to a single list, and all children of that list item are also deleted.',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -82,7 +83,6 @@ export const deleteListItemTool: ToolConfig<DeleteListItemParams, SapConcurProxy
       type: 'json',
       description:
         'Empty body on success (HTTP 204 No Content). Error details when status is non-2xx',
-      properties: {},
     },
   },
 }

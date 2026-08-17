@@ -72,32 +72,25 @@ export const listBudgetCategoriesTool: ToolConfig<
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
-      description: 'Budget categories collection payload',
-      properties: {
-        items: {
-          type: 'array',
-          optional: true,
-          description: 'Array of budget category objects',
-          items: {
-            type: 'json',
-            properties: {
-              id: { type: 'string', optional: true, description: 'Category ID' },
-              name: { type: 'string', optional: true, description: 'Admin-facing category name' },
-              description: { type: 'string', optional: true, description: 'Friendly name' },
-              statusType: {
-                type: 'string',
-                optional: true,
-                description: 'Status: OPEN or REMOVED',
-              },
-              expenseTypes: {
-                type: 'array',
-                optional: true,
-                description:
-                  'Expense types in this category (id, featureTypeCode, expenseTypeCode, name)',
-                items: { type: 'json' },
-              },
-            },
+      type: 'array',
+      description: 'Top-level array of budget category objects',
+      items: {
+        type: 'json',
+        properties: {
+          id: { type: 'string', optional: true, description: 'Category ID' },
+          name: { type: 'string', optional: true, description: 'Admin-facing category name' },
+          description: { type: 'string', optional: true, description: 'Friendly name' },
+          statusType: {
+            type: 'string',
+            optional: true,
+            description: 'Status: OPEN or REMOVED',
+          },
+          expenseTypes: {
+            type: 'array',
+            optional: true,
+            description:
+              'Expense types in this category (id, featureTypeCode, expenseTypeCode, name)',
+            items: { type: 'json' },
           },
         },
       },
