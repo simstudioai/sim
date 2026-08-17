@@ -151,16 +151,18 @@ describe('createAuthRequest', () => {
       /^https:\/\/host\.test\/sim\/cli\/auth\?/
     )
 
-    const fetchMock = vi.fn().mockResolvedValue(
+    // `spyOn`, like the rest of this file: `restoreAllMocks` in teardown undoes
+    // it, whereas a `stubGlobal` would outlive the test and leak this
+    // completed-auth response into whatever ran next.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ status: 'complete', key: { id: 'k', apiKey: 'sk' } }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       })
     )
-    vi.stubGlobal('fetch', fetchMock)
 
     await pollForKey(prefixed, auth)
-    expect(fetchMock.mock.calls[0][0]).toBe('https://host.test/sim/api/cli/auth/poll')
+    expect(fetchSpy.mock.calls[0][0]).toBe('https://host.test/sim/api/cli/auth/poll')
   })
 
   it('omits an absent workspace rather than sending it blank', () => {
