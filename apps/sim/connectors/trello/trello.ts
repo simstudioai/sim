@@ -26,14 +26,17 @@ const CARD_FIELDS =
   'id,name,desc,url,shortUrl,closed,due,dueComplete,dateLastActivity,idList,idBoard,labels,badges'
 
 /**
- * Maximum cards requested per Trello request. The API caps long collections at
- * 1000 results and documents `before`/`since` as the way to page past that cap.
- * Neither the ordering of `GET /lists/{id}/cards` nor which 1000 results `limit`
- * keeps is documented, so a list that needs a second request is reported as
- * capped even though the extra pages are still collected.
+ * Hard ceiling Trello applies to a long collection: "the Trello API limits you
+ * to at most 1000 results", with `before`/`since` documented as the way to page
+ * past it. It is both the page size requested for cards and the size at which
+ * any cursor-less collection response (boards, lists) is assumed truncated —
+ * neither the ordering of `GET /lists/{id}/cards` nor which 1000 results `limit`
+ * keeps is documented, so a collection that reaches the ceiling is reported as
+ * capped rather than letting deletion reconciliation purge the part of it this
+ * run could not reach.
  * @see https://developer.atlassian.com/cloud/trello/guides/rest-api/api-introduction/
  */
-const CARD_PAGE_LIMIT = 1000
+const TRELLO_COLLECTION_LIMIT = 1000
 
 /**
  * Soft per-call document target. Trello has no board-wide card cursor, so the
@@ -483,13 +486,26 @@ export const trelloConnector: ConnectorConfig = {
     const cardFilter = resolveCardFilter(sourceConfig)
     const state = decodeCursor(cursor)
 
-    const boards =
-      (syncContext?.boards as TrelloBoardRef[] | undefined) ??
-      (await resolveBoards(accessToken, sourceConfig))
-    if (syncContext) syncContext.boards = boards
-
     const markCapped = () => {
       if (syncContext) syncContext.listingCapped = true
+    }
+
+    const cachedBoards = syncContext?.boards as TrelloBoardRef[] | undefined
+    const boards = cachedBoards ?? (await resolveBoards(accessToken, sourceConfig))
+    if (syncContext) syncContext.boards = boards
+
+    /**
+     * `GET /members/me/boards` has no cursor, so a response at Trello's
+     * collection ceiling hides the remaining boards. Their cards would be absent
+     * from the listing and look deleted, so reconciliation is withheld. Checked
+     * only on the call that resolved them, since the flag persists on
+     * `syncContext` for the rest of the run.
+     */
+    if (!cachedBoards && boards.length >= TRELLO_COLLECTION_LIMIT) {
+      logger.warn('Trello board listing hit the collection ceiling; boards may be missing', {
+        boardCount: boards.length,
+      })
+      markCapped()
     }
 
     const documents: ExternalDocument[] = []
@@ -515,7 +531,20 @@ export const trelloConnector: ConnectorConfig = {
       try {
         const result = await getCachedLists(accessToken, board.id, cardFilter, syncContext)
         lists = result.lists
-        if (result.fetched) requestsUsed += 1
+        if (result.fetched) {
+          requestsUsed += 1
+          /**
+           * `GET /boards/{id}/lists` has no cursor either, so a response at the
+           * collection ceiling hides the remaining lists and their cards.
+           */
+          if (lists.length >= TRELLO_COLLECTION_LIMIT) {
+            logger.warn('Trello list listing hit the collection ceiling; lists may be missing', {
+              boardId: board.id,
+              listCount: lists.length,
+            })
+            markCapped()
+          }
+        }
       } catch (error) {
         requestsUsed += 1
         logger.warn('Failed to list Trello lists for board', {
@@ -548,7 +577,7 @@ export const trelloConnector: ConnectorConfig = {
           {
             filter: cardFilter,
             fields: CARD_FIELDS,
-            limit: String(CARD_PAGE_LIMIT),
+            limit: String(TRELLO_COLLECTION_LIMIT),
             ...(beforeId ? { before: beforeId } : {}),
           }
         )
@@ -565,7 +594,7 @@ export const trelloConnector: ConnectorConfig = {
       }
 
       const rawCards = (Array.isArray(cards) ? cards : []).filter((card) => Boolean(card?.id))
-      const pageFull = rawCards.length >= CARD_PAGE_LIMIT
+      const pageFull = rawCards.length >= TRELLO_COLLECTION_LIMIT
 
       /**
        * Trello's `before` bound is a creation date derived from the id, so it is
@@ -707,9 +736,25 @@ export const trelloConnector: ConnectorConfig = {
         })
       }
 
-      const comments = (Array.isArray(card.actions) ? card.actions : [])
-        .filter((action) => action?.type === 'commentCard')
-        .slice(0, COMMENT_LIMIT)
+      const comments = (Array.isArray(card.actions) ? card.actions : []).filter(
+        (action) => action?.type === 'commentCard'
+      )
+
+      /**
+       * `actions_limit` caps the nested actions Trello returns, so `card.actions`
+       * can never hold more than `COMMENT_LIMIT` comments and the shortfall is
+       * invisible in the array itself. `badges.comments` is the card's true
+       * comment count and arrives on the same request, so it is what detects the
+       * truncation.
+       */
+      const totalComments = card.badges?.comments ?? 0
+      if (totalComments > COMMENT_LIMIT) {
+        logger.warn('Trello card comments truncated', {
+          externalId,
+          commentLimit: COMMENT_LIMIT,
+          commentCount: totalComments,
+        })
+      }
 
       return {
         externalId: card.id,
@@ -722,12 +767,17 @@ export const trelloConnector: ConnectorConfig = {
         metadata: cardMetadata(card, boardName, listName),
       }
     } catch (error) {
+      /**
+       * Only a deleted card resolves to `null`. Any other failure is rethrown so
+       * the sync engine records a failed row — swallowing it would drop the card
+       * from the run silently while leaving its stored copy stale.
+       */
       if (error instanceof TrelloApiError && error.status === 404) return null
       logger.warn('Failed to get Trello card', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

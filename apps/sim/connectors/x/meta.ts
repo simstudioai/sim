@@ -50,7 +50,8 @@ export const xConnectorMeta: ConnectorMeta = {
         { label: 'Exclude replies', id: 'false' },
         { label: 'Include replies', id: 'true' },
       ],
-      description: 'Whether to include reply posts. Applies to "My posts" and "Another user".',
+      description:
+        'Whether to include reply posts. Applies to "My posts" and "Another user". Excluding replies also narrows how far back X will serve a timeline — 800 posts instead of 3,200.',
     },
     {
       id: 'includeRetweets',
@@ -90,7 +91,7 @@ export const xConnectorMeta: ConnectorMeta = {
       required: false,
       placeholder: `e.g. 100 (default: ${DEFAULT_MAX_POSTS})`,
       description:
-        'Maximum number of posts to sync (across all configured users). Posts beyond this limit are not deleted from the knowledge base; X also only exposes a limited recent window (≈3,200 timeline posts, ≈800 bookmarks), so posts that age out of that window are removed on the next sync.',
+        'Maximum number of posts to sync. The limit is shared across all configured users and spent in the order they are listed, so the last username is the one truncated. Posts beyond this limit are not deleted from the knowledge base; X itself only exposes a limited recent window (up to 3,200 timeline posts and 800 mentions), so posts that age out of that window are removed on the next sync.',
     },
   ],
 

@@ -74,7 +74,6 @@ import { EnrichBlock, EnrichBlockMeta } from '@/blocks/blocks/enrich'
 import { EnrichmentBlock, EnrichmentBlockMeta } from '@/blocks/blocks/enrichment'
 import { EnrowBlock, EnrowBlockMeta } from '@/blocks/blocks/enrow'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
-import { EvernoteBlock, EvernoteBlockMeta } from '@/blocks/blocks/evernote'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendBlockMeta, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock, FathomBlockMeta } from '@/blocks/blocks/fathom'
@@ -437,7 +436,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   enrichment: EnrichmentBlock,
   enrow: EnrowBlock,
   evaluator: EvaluatorBlock,
-  evernote: EvernoteBlock,
   exa: ExaBlock,
   extend: ExtendBlock,
   extend_v2: ExtendV2Block,
@@ -771,7 +769,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   enrich: EnrichBlockMeta,
   enrichment: EnrichmentBlockMeta,
   enrow: EnrowBlockMeta,
-  evernote: EvernoteBlockMeta,
   exa: ExaBlockMeta,
   extend: ExtendBlockMeta,
   fathom: FathomBlockMeta,

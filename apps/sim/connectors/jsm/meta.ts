@@ -25,10 +25,13 @@ export const jsmConnectorMeta: ConnectorMeta = {
       /**
        * Requests embed a `reporter` user object whose `displayName` is surfaced
        * in document content and the Reporter tag. Atlassian only populates
-       * embedded user data when the user-read scope is granted, so request it
-       * here. Present in the `jira` OAuth provider config as `read:jira-user`.
+       * embedded user data when a user-read scope is granted. The granular sets
+       * documented for `GET /request` and `GET /request/{id}/comment` both name
+       * `read:user:jira`; `read:jira-user` is its classic counterpart. Both are
+       * present in the `jira` OAuth provider config.
        */
       'read:jira-user',
+      'read:user:jira',
       'offline_access',
     ],
   },
@@ -58,7 +61,7 @@ export const jsmConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       canonicalParamId: 'serviceDeskId',
       mode: 'advanced',
-      placeholder: 'e.g. 1, 2',
+      placeholder: 'e.g. 1, 2 (or a project key)',
       required: true,
     },
     {
@@ -98,11 +101,12 @@ export const jsmConnectorMeta: ConnectorMeta = {
       type: 'dropdown',
       required: false,
       description:
-        'Which requests the connected account can see. "Owned + participated" is the broadest scope a customer token can sync.',
+        'Which requests to sync, relative to the connected account. Jira Service Management only ever returns requests the connected account is related to, so "All requests" means every request that account created, participated in, or can see through its organizations — not the entire service desk.',
       options: [
-        { label: 'Owned + participated', id: 'ALL_REQUESTS' },
+        { label: 'All requests', id: 'ALL_REQUESTS' },
         { label: 'Owned only', id: 'OWNED_REQUESTS' },
         { label: 'Participated only', id: 'PARTICIPATED_REQUESTS' },
+        { label: "All of the account's organizations", id: 'ALL_ORGANIZATIONS' },
       ],
     },
     {

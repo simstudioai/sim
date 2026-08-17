@@ -5,14 +5,30 @@ import { googleSlidesConnectorMeta } from '@/connectors/google-slides/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   buildDriveParentsClause,
+  CONNECTOR_MAX_FILE_BYTES,
+  ConnectorFileTooLargeError,
   joinTagArray,
+  markSkipped,
   parseMultiValue,
   parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
 } from '@/connectors/utils'
 
 const logger = createLogger('GoogleSlidesConnector')
 
 const PRESENTATION_MIME_TYPE = 'application/vnd.google-apps.presentation'
+
+/** Drive `files.list` page size. The API caps `pageSize` at 1000. */
+const PAGE_SIZE = 100
+
+/**
+ * Ceiling for the raw `presentations.get` JSON body. The structured response is
+ * far larger than the plain text it yields (every run carries its styling), so
+ * the cap is applied to the wire body as a memory guard and again to the
+ * extracted text against `CONNECTOR_MAX_FILE_BYTES`.
+ */
+const MAX_SLIDES_RESPONSE_BYTES = 8 * CONNECTOR_MAX_FILE_BYTES
 
 /** Reason recorded for a presentation whose slides contain no extractable text. */
 const NO_TEXT = 'No extractable text'
@@ -202,8 +218,17 @@ async function fetchPresentationContent(
     )
   }
 
-  const presentation = (await response.json()) as SlidesPresentation
-  return extractTextFromPresentation(presentation, includeSpeakerNotes)
+  const buffer = await readBodyWithLimit(response, MAX_SLIDES_RESPONSE_BYTES)
+  if (!buffer) throw new ConnectorFileTooLargeError(CONNECTOR_MAX_FILE_BYTES)
+
+  const presentation = JSON.parse(buffer.toString('utf8')) as SlidesPresentation
+  const text = extractTextFromPresentation(presentation, includeSpeakerNotes)
+
+  if (Buffer.byteLength(text, 'utf8') > CONNECTOR_MAX_FILE_BYTES) {
+    throw new ConnectorFileTooLargeError(CONNECTOR_MAX_FILE_BYTES)
+  }
+
+  return text
 }
 
 /**
@@ -269,11 +294,23 @@ export const googleSlidesConnector: ConnectorConfig = {
     lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
     const query = buildQuery(sourceConfig, lastSyncAt)
-    const pageSize = 100
 
+    const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    /** Last-page precision: never ask Drive for more files than the cap still allows. */
+    const remaining = maxDocs > 0 ? Math.max(0, maxDocs - previouslyFetched) : 0
+    const pageSize = remaining > 0 ? Math.min(PAGE_SIZE, remaining) : PAGE_SIZE
+
+    /**
+     * `incompleteSearch` must be named in the partial-response mask — Drive's
+     * `fields` parameter filters the top-level response too, so omitting it
+     * leaves `data.incompleteSearch` permanently `undefined` and the
+     * reconciliation guard below dead.
+     */
     const queryParams = new URLSearchParams({
       q: query,
       pageSize: String(pageSize),
+      orderBy: 'modifiedTime desc',
       fields:
         'nextPageToken,incompleteSearch,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
       supportsAllDrives: 'true',
@@ -316,18 +353,12 @@ export const googleSlidesConnector: ConnectorConfig = {
      */
     const incompleteSearch = data.incompleteSearch === true
 
-    const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
-    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
-
     const includeSpeakerNotes = shouldIncludeSpeakerNotes(sourceConfig)
     let documents = files.map((file) => fileToStub(file, includeSpeakerNotes))
     let slicedSome = false
-    if (maxDocs > 0) {
-      const remaining = maxDocs - previouslyFetched
-      if (documents.length > remaining) {
-        slicedSome = true
-        documents = documents.slice(0, remaining)
-      }
+    if (maxDocs > 0 && documents.length > remaining) {
+      slicedSome = true
+      documents = documents.slice(0, remaining)
     }
 
     const totalFetched = previouslyFetched + documents.length
@@ -383,7 +414,25 @@ export const googleSlidesConnector: ConnectorConfig = {
     if (file.mimeType !== PRESENTATION_MIME_TYPE) return null
 
     const includeSpeakerNotes = shouldIncludeSpeakerNotes(sourceConfig)
-    const content = await fetchPresentationContent(accessToken, file.id, includeSpeakerNotes)
+
+    let content: string
+    try {
+      content = await fetchPresentationContent(accessToken, file.id, includeSpeakerNotes)
+    } catch (error) {
+      /**
+       * An oversized deck is a permanent, explainable outcome — surface it as a
+       * visible skipped row. Any other failure is transient and must propagate
+       * so the engine records a failed hydration instead of persisting an empty
+       * document.
+       */
+      if (error instanceof ConnectorFileTooLargeError) {
+        return markSkipped(
+          fileToStub(file, includeSpeakerNotes),
+          sizeLimitSkipReason(CONNECTOR_MAX_FILE_BYTES)
+        )
+      }
+      throw error
+    }
 
     /**
      * An image-only deck carries no extractable text. Surfacing it as a skipped
@@ -392,12 +441,7 @@ export const googleSlidesConnector: ConnectorConfig = {
      * presentation would simply be missing and re-fetched on every sync.
      */
     if (!content.trim()) {
-      return {
-        ...fileToStub(file, includeSpeakerNotes),
-        content: '',
-        contentDeferred: false,
-        skippedReason: NO_TEXT,
-      }
+      return markSkipped(fileToStub(file, includeSpeakerNotes), NO_TEXT)
     }
 
     return { ...fileToStub(file, includeSpeakerNotes), content, contentDeferred: false }

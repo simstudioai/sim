@@ -65,6 +65,7 @@ afterAll(resetEnvMock)
 
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { refreshOAuthToken } from '@/lib/oauth'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 
 /**
  * Default OAuth token response for successful requests.
@@ -382,9 +383,12 @@ describe('OAuth Token Refresh', () => {
         string,
         { headers: Record<string, string>; body: string },
       ]
-      expect(requestOptions.headers['User-Agent']).toBe(
-        'sim-studio/1.0 (https://github.com/simstudioai/sim)'
-      )
+      expect(requestOptions.headers['User-Agent']).toBe(REDDIT_USER_AGENT)
+      /**
+       * Reddit rate-limits generic User-Agents, so the shared constant must keep
+       * the documented `<platform>:<app ID>:<version>` shape wherever it is used.
+       */
+      expect(REDDIT_USER_AGENT).toMatch(/^[a-z]+:[\w.-]+:v[\d.]+ \(.+\)$/)
     })
   })
 

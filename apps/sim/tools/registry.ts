@@ -1172,19 +1172,6 @@ import {
 import { enrichmentRunTool } from '@/tools/enrichment'
 import { enrowFindEmailTool, enrowVerifyEmailTool } from '@/tools/enrow'
 import {
-  evernoteCopyNoteTool,
-  evernoteCreateNotebookTool,
-  evernoteCreateNoteTool,
-  evernoteCreateTagTool,
-  evernoteDeleteNoteTool,
-  evernoteGetNotebookTool,
-  evernoteGetNoteTool,
-  evernoteListNotebooksTool,
-  evernoteListTagsTool,
-  evernoteSearchNotesTool,
-  evernoteUpdateNoteTool,
-} from '@/tools/evernote'
-import {
   exaAgentTool,
   exaAnswerTool,
   exaFindSimilarLinksTool,
@@ -7431,17 +7418,6 @@ export const tools: Record<string, ToolConfig> = {
   embeddings_cohere: embeddingsCohereTool,
   embeddings_mistral: embeddingsMistralTool,
   embeddings_openrouter: embeddingsOpenRouterTool,
-  evernote_copy_note: evernoteCopyNoteTool,
-  evernote_create_note: evernoteCreateNoteTool,
-  evernote_create_notebook: evernoteCreateNotebookTool,
-  evernote_create_tag: evernoteCreateTagTool,
-  evernote_delete_note: evernoteDeleteNoteTool,
-  evernote_get_note: evernoteGetNoteTool,
-  evernote_get_notebook: evernoteGetNotebookTool,
-  evernote_list_notebooks: evernoteListNotebooksTool,
-  evernote_list_tags: evernoteListTagsTool,
-  evernote_search_notes: evernoteSearchNotesTool,
-  evernote_update_note: evernoteUpdateNoteTool,
   enrich_check_credits: enrichCheckCreditsTool,
   enrich_company_funding: enrichCompanyFundingTool,
   enrich_company_lookup: enrichCompanyLookupTool,

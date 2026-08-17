@@ -8,7 +8,6 @@ import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { discordConnectorMeta } from '@/connectors/discord/meta'
 import { docusignConnectorMeta } from '@/connectors/docusign/meta'
 import { dropboxConnectorMeta } from '@/connectors/dropbox/meta'
-import { evernoteConnectorMeta } from '@/connectors/evernote/meta'
 import { fathomConnectorMeta } from '@/connectors/fathom/meta'
 import { firefliesConnectorMeta } from '@/connectors/fireflies/meta'
 import { githubConnectorMeta } from '@/connectors/github/meta'
@@ -79,7 +78,6 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   discord: discordConnectorMeta,
   docusign: docusignConnectorMeta,
   dropbox: dropboxConnectorMeta,
-  evernote: evernoteConnectorMeta,
   fathom: fathomConnectorMeta,
   fireflies: firefliesConnectorMeta,
   github: githubConnectorMeta,

@@ -13,7 +13,12 @@ export const microsoftTeamsConnectorMeta: ConnectorMeta = {
   auth: {
     mode: 'oauth',
     provider: 'microsoft-teams',
-    requiredScopes: ['ChannelMessage.Read.All', 'Channel.ReadBasic.All'],
+    /**
+     * `Team.ReadBasic.All` backs the team selector's `GET /me/joinedTeams` call,
+     * `Channel.ReadBasic.All` backs `GET /teams/{id}/channels`, and
+     * `ChannelMessage.Read.All` backs the channel message and reply reads.
+     */
+    requiredScopes: ['ChannelMessage.Read.All', 'Channel.ReadBasic.All', 'Team.ReadBasic.All'],
   },
 
   configFields: [

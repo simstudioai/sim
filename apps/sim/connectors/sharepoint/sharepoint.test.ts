@@ -15,6 +15,7 @@ import {
   normalizeSegment,
   resolveFolderTarget,
   serverRelativePathFromUrl,
+  sharepointConnector,
 } from '@/connectors/sharepoint/sharepoint'
 
 const GRAPH = 'https://graph.microsoft.com/v1.0'
@@ -329,6 +330,94 @@ describe('resolveFolderTarget', () => {
     await expect(resolve('https://contoso.sharepoint.com/:f:/s/hr/Ei4xAbC?e=xyz')).rejects.toThrow(
       /address bar/
     )
+  })
+})
+
+const ITEM_SELECT =
+  'id,name,webUrl,size,file,folder,lastModifiedDateTime,createdDateTime,createdBy,parentReference'
+
+/** File-shaped drive item for children listings. */
+function file(id: string, name: string) {
+  return {
+    id,
+    name,
+    size: 10,
+    file: { mimeType: 'text/plain' },
+    lastModifiedDateTime: '2026-01-01T00:00:00Z',
+  }
+}
+
+function childrenRoute(driveId: string, folderId: string | null, items: unknown[]) {
+  const base = folderId
+    ? `${GRAPH}/drives/${driveId}/items/${folderId}/children`
+    : `${GRAPH}/drives/${driveId}/root/children`
+  return { [`${base}?$top=200&$select=${ITEM_SELECT}`]: { body: { value: items } } }
+}
+
+/** Pre-resolved context, so listDocuments goes straight to the children walk. */
+function listContext() {
+  return { siteId: SITE_ID, siteName: 'Contoso', driveId: DEFAULT_DRIVE_ID }
+}
+
+function list(maxFiles: string | undefined, syncContext: Record<string, unknown>) {
+  return sharepointConnector.listDocuments(
+    'token',
+    { siteUrl: SITE_URL, maxFiles },
+    undefined,
+    syncContext
+  )
+}
+
+describe('listDocuments', () => {
+  it('flags the listing capped when the cap hides items inside the final page', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'a.txt'),
+        file('f2', 'b.txt'),
+        file('f3', 'c.txt'),
+      ])
+    )
+    const syncContext = listContext()
+
+    const result = await list('2', syncContext)
+
+    expect(result.documents).toHaveLength(2)
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('does not flag the listing capped when the cap lands on the last item', async () => {
+    mockGraph(childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt'), file('f2', 'b.txt')]))
+    const syncContext = listContext()
+
+    const result = await list('2', syncContext)
+
+    expect(result.documents).toHaveLength(2)
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('drains subfolders within a single call instead of one folder per page', async () => {
+    mockGraph({
+      ...childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt'), folder('sub', 'Sub')]),
+      ...childrenRoute(DEFAULT_DRIVE_ID, 'sub', [file('f2', 'b.txt')]),
+    })
+    const syncContext = listContext()
+
+    const result = await list(undefined, syncContext)
+
+    expect(result.documents.map((doc) => doc.externalId)).toEqual(['f1', 'f2'])
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('builds a metadata-only contentHash that getDocument can reproduce', async () => {
+    mockGraph(childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt')]))
+
+    const result = await list(undefined, listContext())
+
+    expect(result.documents[0].contentHash).toBe('sharepoint:f1:2026-01-01T00:00:00Z')
+    expect(result.documents[0].contentDeferred).toBe(true)
   })
 })
 

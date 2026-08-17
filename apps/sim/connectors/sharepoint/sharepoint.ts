@@ -18,7 +18,8 @@ import {
 
 const logger = createLogger('SharePointConnector')
 
-const GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
+const GRAPH_API_ORIGIN = 'https://graph.microsoft.com'
+const GRAPH_BASE = `${GRAPH_API_ORIGIN}/v1.0`
 
 const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.txt',
@@ -36,6 +37,21 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
 ])
 
 const MAX_DOWNLOAD_SIZE = CONNECTOR_MAX_FILE_BYTES
+
+/**
+ * The exact driveItem fields the stub is built from. Graph returns the full
+ * driveItem otherwise, which is an order of magnitude larger per item.
+ */
+const ITEM_SELECT =
+  'id,name,webUrl,size,file,folder,lastModifiedDateTime,createdDateTime,createdBy,parentReference'
+
+/**
+ * Folder pages listed within a single `listDocuments` call. The sync engine caps
+ * a sync at a fixed number of `listDocuments` pages, and a depth-first walk needs
+ * at least one request per folder — draining several folders per call keeps a
+ * library with thousands of folders from silently truncating its listing.
+ */
+const MAX_LIST_REQUESTS_PER_CALL = 25
 
 /** Microsoft Graph drive item shape (subset of fields we use). */
 interface DriveItem {
@@ -65,6 +81,7 @@ interface Drive {
 
 interface DriveListResponse {
   value: Drive[]
+  '@odata.nextLink'?: string
 }
 
 /** A configured folder path resolved to a concrete drive and starting folder. */
@@ -87,6 +104,21 @@ function isSupportedTextFile(name: string): boolean {
 }
 
 /**
+ * Asserts a request URL points at Microsoft Graph before it is followed with the
+ * bearer token in the `Authorization` header. Several callers pass a
+ * server-supplied `@odata.nextLink` — one of which round-trips through the sync
+ * cursor — so an off-origin link would otherwise hand the access token to a third
+ * party. Mirrors `assertGraphNextPageUrl` used by the Graph tool routes.
+ */
+function assertGraphUrl(url: string): string {
+  const parsed = new URL(url.trim())
+  if (parsed.origin !== GRAPH_API_ORIGIN) {
+    throw new Error('Refusing to follow a non-Microsoft Graph URL')
+  }
+  return parsed.toString()
+}
+
+/**
  * Issues an authenticated Graph GET. Non-OK responses are returned as-is so
  * callers can distinguish 404 (not found) from a genuine failure.
  */
@@ -96,7 +128,7 @@ function graphGet(
   retryOptions?: RetryOptions
 ): Promise<Response> {
   return fetchWithRetry(
-    url,
+    assertGraphUrl(url),
     {
       method: 'GET',
       headers: {
@@ -114,14 +146,19 @@ function graphGet(
  * A root site yields an empty server-relative path.
  */
 function splitSiteUrl(siteUrl: string): { hostname: string; serverRelativePath: string } {
-  const cleaned = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  const cleaned = siteUrl
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/[?#].*$/, '')
+    .replace(/\/+$/, '')
   const firstSlash = cleaned.indexOf('/')
   if (firstSlash === -1) {
     return { hostname: cleaned, serverRelativePath: '' }
   }
+  const segments = toPathSegments(cleaned.slice(firstSlash))
   return {
     hostname: cleaned.slice(0, firstSlash),
-    serverRelativePath: cleaned.slice(firstSlash),
+    serverRelativePath: segments.length > 0 ? `/${segments.join('/')}` : '',
   }
 }
 
@@ -168,7 +205,7 @@ async function downloadFileContent(
   itemId: string,
   fileName: string
 ): Promise<string> {
-  const url = `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/content`
+  const url = `${GRAPH_BASE}/drives/${driveId}/items/${encodeURIComponent(itemId)}/content`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -241,8 +278,8 @@ async function listFolderItems(
   const url =
     nextLink ??
     (folderId
-      ? `${GRAPH_BASE}/drives/${driveId}/items/${folderId}/children?$top=200`
-      : `${GRAPH_BASE}/drives/${driveId}/root/children?$top=200`)
+      ? `${GRAPH_BASE}/drives/${driveId}/items/${folderId}/children?$top=200&$select=${ITEM_SELECT}`
+      : `${GRAPH_BASE}/drives/${driveId}/root/children?$top=200&$select=${ITEM_SELECT}`)
 
   const response = await graphGet(url, accessToken)
 
@@ -268,6 +305,9 @@ const MAX_CHILD_PAGES_PER_SEGMENT = 50
 /** Number of sibling names quoted back in a "folder not found" error. */
 const MAX_SUGGESTED_NAMES = 25
 
+/** Bounds the paged document-library listing so a bad cursor cannot spin forever. */
+const MAX_DRIVE_PAGES = 20
+
 /**
  * Folds away the differences that make a visually-correct folder name fail
  * byte-exact path addressing: Unicode composition, invisible characters, and
@@ -284,12 +324,20 @@ export function normalizeSegment(value: string): string {
     .toLowerCase()
 }
 
-/** Splits a slash-separated path into non-empty, trimmed segments. */
+/**
+ * Splits a slash-separated path into non-empty, trimmed segments.
+ *
+ * Dot segments are dropped rather than passed through. Every segment list here
+ * ends up concatenated into a Graph URL that `assertGraphUrl` parses with `new
+ * URL`, which resolves `..` against the Graph base and would silently retarget
+ * the request at an unrelated Graph resource. SharePoint does not allow an item
+ * named "." or "..", so nothing addressable is lost.
+ */
 function toPathSegments(path: string): string[] {
   return path
     .split('/')
     .map((segment) => segment.trim())
-    .filter(Boolean)
+    .filter((segment) => segment !== '' && segment !== '.' && segment !== '..')
 }
 
 function encodePathSegments(segments: string[]): string {
@@ -557,14 +605,20 @@ async function listSiteDrives(
   siteId: string,
   retryOptions?: RetryOptions
 ): Promise<Drive[]> {
-  const response = await graphGet(
-    `${GRAPH_BASE}/sites/${siteId}/drives?$select=id,name,webUrl`,
-    accessToken,
-    retryOptions
-  )
-  if (!response.ok) return []
-  const data = (await response.json()) as DriveListResponse
-  return data.value ?? []
+  const drives: Drive[] = []
+  let url = `${GRAPH_BASE}/sites/${siteId}/drives?$select=id,name,webUrl`
+
+  for (let page = 0; page < MAX_DRIVE_PAGES; page++) {
+    const response = await graphGet(url, accessToken, retryOptions)
+    if (!response.ok) break
+    const data = (await response.json()) as DriveListResponse
+    drives.push(...(data.value ?? []))
+    const nextLink = data['@odata.nextLink']
+    if (!nextLink) break
+    url = nextLink
+  }
+
+  return drives
 }
 
 /**
@@ -727,72 +781,87 @@ export const sharepointConnector: ConnectorConfig = {
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     let totalFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    // Process one page of items from the current folder
-    const data = await listFolderItems(accessToken, driveId, state.currentFolder, state.nextLink)
+    /** Set when the walk stopped for good — either the cap hit or the source ran out. */
+    let stopPaging = false
+    /** Set when the cap truncated a listing that still had items left to list. */
+    let cappedWithItemsLeft = false
 
-    // Separate files and subfolders
-    const subfolders: string[] = []
-    const files: DriveItem[] = []
+    for (let request = 0; request < MAX_LIST_REQUESTS_PER_CALL; request++) {
+      const data = await listFolderItems(accessToken, driveId, state.currentFolder, state.nextLink)
 
-    for (const item of data.value) {
-      if (item.folder) {
-        subfolders.push(item.id)
-      } else if (item.file && isSupportedTextFile(item.name)) {
-        // Keep oversized files; they are surfaced as skipped (failed) docs below.
-        files.push(item)
+      // Separate files and subfolders
+      const subfolders: string[] = []
+      const files: DriveItem[] = []
+
+      for (const item of data.value) {
+        if (item.folder) {
+          subfolders.push(item.id)
+        } else if (item.file && isSupportedTextFile(item.name)) {
+          // Keep oversized files; they are surfaced as skipped (failed) docs below.
+          files.push(item)
+        }
       }
+
+      // Push subfolders onto the stack for depth-first traversal
+      state.folderStack.push(...subfolders)
+
+      // Convert files to lightweight stubs (no content download). Oversized files are
+      // kept as skipped stubs but do not consume the max-files cap.
+      const stubs = files.map((file) =>
+        stubOrSkipBySize(itemToStub(file, siteName), file.size, MAX_DOWNLOAD_SIZE)
+      )
+      const take = takeIndexableWithinCap(stubs, isSkippedDocument, maxFiles, totalFetched)
+      documents.push(...take.documents)
+      totalFetched += take.indexableCount
+
+      const nextLink = data['@odata.nextLink']
+
+      if (take.capReached) {
+        stopPaging = true
+        /**
+         * Only a cap that actually hid items makes the listing partial. When the
+         * cap coincides with the last item of the last folder the source *is*
+         * fully listed, and flagging it capped would block deletion
+         * reconciliation for a complete listing. Items can be left behind in
+         * this very page (the cap cut it short), in later pages of this folder,
+         * or in folders still on the stack.
+         */
+        cappedWithItemsLeft =
+          take.documents.length < stubs.length || Boolean(nextLink) || state.folderStack.length > 0
+        break
+      }
+
+      if (nextLink) {
+        // More pages in the current folder
+        state.nextLink = nextLink
+        continue
+      }
+
+      // Current folder exhausted — move to next folder on the stack
+      if (state.folderStack.length > 0) {
+        state.currentFolder = state.folderStack.pop()!
+        state.nextLink = undefined
+        continue
+      }
+
+      stopPaging = true
+      break
     }
 
-    // Push subfolders onto the stack for depth-first traversal
-    state.folderStack.push(...subfolders)
+    if (syncContext) {
+      syncContext.totalDocsFetched = totalFetched
+      if (cappedWithItemsLeft) syncContext.listingCapped = true
+    }
 
-    // Convert files to lightweight stubs (no content download). Oversized files are
-    // kept as skipped stubs but do not consume the max-files cap.
-    const previouslyFetched = totalFetched
-    const stubs = files.map((file) =>
-      stubOrSkipBySize(itemToStub(file, siteName), file.size, MAX_DOWNLOAD_SIZE)
-    )
-    const {
-      documents: pageDocuments,
-      indexableCount,
-      capReached,
-    } = takeIndexableWithinCap(stubs, isSkippedDocument, maxFiles, previouslyFetched)
-    documents.push(...pageDocuments)
-
-    totalFetched += indexableCount
-
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = capReached
-    if (hitLimit && syncContext) syncContext.listingCapped = true
-
-    if (hitLimit) {
+    if (stopPaging) {
       return { documents, hasMore: false }
     }
 
-    if (data['@odata.nextLink']) {
-      // More pages in the current folder
-      state.nextLink = data['@odata.nextLink']
-      return {
-        documents,
-        nextCursor: encodeCursor(state),
-        hasMore: true,
-      }
+    return {
+      documents,
+      nextCursor: encodeCursor(state),
+      hasMore: true,
     }
-
-    // Current folder exhausted — move to next folder on the stack
-    if (state.folderStack.length > 0) {
-      const nextFolder = state.folderStack.pop()!
-      state.currentFolder = nextFolder
-      state.nextLink = undefined
-      return {
-        documents,
-        nextCursor: encodeCursor(state),
-        hasMore: true,
-      }
-    }
-
-    // Nothing left
-    return { documents, hasMore: false }
   },
 
   getDocument: async (
@@ -836,7 +905,7 @@ export const sharepointConnector: ConnectorConfig = {
       }
     }
 
-    const url = `${GRAPH_BASE}/drives/${driveId}/items/${externalId}`
+    const url = `${GRAPH_BASE}/drives/${driveId}/items/${encodeURIComponent(externalId)}?$select=${ITEM_SELECT}`
     const response = await graphGet(url, accessToken)
 
     if (!response.ok) {
@@ -864,10 +933,15 @@ export const sharepointConnector: ConnectorConfig = {
           sizeLimitSkipReason(error.limitBytes)
         )
       }
+      /**
+       * A transport or Graph failure that survived `fetchWithRetry`. Returning
+       * `null` would drop the file from the run with no `failed` row and no error
+       * log; rethrowing lets the sync engine record it per-document.
+       */
       logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

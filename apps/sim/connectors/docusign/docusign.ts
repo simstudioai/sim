@@ -1,27 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { getDocusignOAuthUrl, getDocusignWebBase } from '@/lib/oauth/docusign'
 import { docusignConnectorMeta } from '@/connectors/docusign/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('DocuSignConnector')
-
-/**
- * DocuSign OAuth userinfo endpoint. Sim's DocuSign OAuth integration is wired to the
- * demo/sandbox authorization server (`account-d.docusign.com`, see lib/oauth/oauth.ts token
- * endpoint), so the connector resolves account info from the matching demo userinfo host.
- * The production host is `https://account.docusign.com/oauth/userinfo`.
- */
-const DOCUSIGN_USERINFO_URL = 'https://account-d.docusign.com/oauth/userinfo'
-
-/**
- * DocuSign web-app base for envelope deep links. MUST match the same environment as
- * {@link DOCUSIGN_USERINFO_URL}: demo/sandbox envelopes only exist in the demo web app
- * (`appdemo.docusign.com`), not production (`app.docusign.com`). Keep these in lockstep
- * if the OAuth environment ever changes.
- */
-const DOCUSIGN_WEB_BASE = 'https://appdemo.docusign.com'
 
 const DEFAULT_LOOKBACK_DAYS = 90
 const MAX_PAGE_SIZE = 100
@@ -167,7 +152,7 @@ async function resolveAccount(
   if (cached) return cached
 
   const response = await fetchWithRetry(
-    DOCUSIGN_USERINFO_URL,
+    getDocusignOAuthUrl('/oauth/userinfo'),
     {
       method: 'GET',
       headers: {
@@ -227,7 +212,7 @@ function buildContentHash(envelope: DocuSignEnvelope): string {
  */
 function buildSourceUrl(envelopeId: string | undefined): string | undefined {
   if (!envelopeId) return undefined
-  return `${DOCUSIGN_WEB_BASE}/documents/details/${envelopeId}`
+  return `${getDocusignWebBase()}/documents/details/${envelopeId}`
 }
 
 /**
@@ -389,14 +374,27 @@ async function fetchFormValues(
   envelopeId: string
 ): Promise<DocuSignFormValue[]> {
   try {
-    const response = await fetchWithRetry(`${apiBase}/envelopes/${envelopeId}/form_data`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
-    if (!response.ok) return []
+    const response = await fetchWithRetry(
+      `${apiBase}/envelopes/${encodeURIComponent(envelopeId)}/form_data`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      }
+    )
+    /**
+     * Only a 404 means the envelope carries no form data. Swallowing every other
+     * status would bake a permanently incomplete document: `buildContentHash` is
+     * metadata-only, so the next sync computes the identical hash, classifies the
+     * document `unchanged`, and the missing form-data section is never recovered
+     * until the envelope's status changes again.
+     */
+    if (response.status === 404) return []
+    if (!response.ok) {
+      throw new Error(`Failed to fetch DocuSign form data: ${response.status}`)
+    }
     const data = (await response.json()) as DocuSignFormData
     const values: DocuSignFormValue[] = []
     if (Array.isArray(data.formData)) values.push(...data.formData)
@@ -407,11 +405,18 @@ async function fetchFormValues(
     }
     return values
   } catch (error) {
+    /**
+     * Rethrow rather than degrading to `[]`. Returning an empty list here would
+     * defeat the 404-only rule above: `buildContentHash` is metadata-only, so a
+     * document stored without its form data computes the identical hash on the
+     * next sync, classifies `unchanged`, and never recovers the missing section.
+     * A throw reaches `getDocument`, which the engine records as a failed row.
+     */
     logger.warn('Failed to fetch DocuSign form data', {
       envelopeId,
       error: toError(error).message,
     })
-    return []
+    throw error
   }
 }
 
@@ -445,10 +450,21 @@ export const docusignConnector: ConnectorConfig = {
       : new Date(Date.now() - lookbackDays * MS_PER_DAY)
     if (syncContext && !cachedFromDate) syncContext.docusignFromDate = fromDate.toISOString()
 
+    /**
+     * Remaining budget under `maxEnvelopes`. The last page requests only what is still
+     * needed instead of a full {@link MAX_PAGE_SIZE} page. Safe to shrink because
+     * `start_position` is an offset the next page resumes from, not a page number.
+     *
+     * Floored to a positive integer: `maxEnvelopes` is free-form user input that
+     * `validateConfig` only checks for sign, and DocuSign rejects a fractional `count`.
+     */
+    const remaining = maxEnvelopes > 0 ? maxEnvelopes - prevFetched : Number.POSITIVE_INFINITY
+    const pageSize = Math.max(1, Math.min(MAX_PAGE_SIZE, Math.floor(remaining)))
+
     const queryParams = new URLSearchParams({
       from_date: formatFromDate(fromDate),
-      include: 'recipients,custom_fields',
-      count: String(MAX_PAGE_SIZE),
+      include: 'recipients',
+      count: String(pageSize),
       start_position: String(startPosition),
     })
     const statusFilter = typeof sourceConfig.status === 'string' ? sourceConfig.status.trim() : ''
@@ -480,35 +496,54 @@ export const docusignConnector: ConnectorConfig = {
     }
 
     const data = (await response.json()) as DocuSignEnvelopesListResponse
-    const envelopes = (data.envelopes ?? []).filter((e) => e.envelopeId)
-    const pageDocuments = envelopes.map(envelopeToStub)
+    const rawEnvelopes = data.envelopes ?? []
+    const envelopes = rawEnvelopes.filter((e) => e.envelopeId)
+    /**
+     * An entry the API returned without an `envelopeId` is dropped from the listing but
+     * still exists at the source, so the listing is no longer a complete source set.
+     */
+    let capped = envelopes.length < rawEnvelopes.length
 
-    let documents = pageDocuments
-    if (maxEnvelopes > 0) {
-      const remaining = Math.max(0, maxEnvelopes - prevFetched)
-      if (pageDocuments.length > remaining) {
-        documents = pageDocuments.slice(0, remaining)
-      }
+    let documents = envelopes.map(envelopeToStub)
+    if (documents.length > remaining) {
+      documents = documents.slice(0, remaining)
+      capped = true
     }
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
 
-    const hitLimit = maxEnvelopes > 0 && totalFetched >= maxEnvelopes
-    if (hitLimit && syncContext) syncContext.listingCapped = true
-
+    /**
+     * DocuSign reports paging position rather than a cursor, so `endPosition + 1 <
+     * totalSetSize` is the authoritative "more remains" signal — deliberately not page
+     * fullness, which under-reports whenever a page comes back short of `count`. The
+     * position-advance and non-empty checks only guard against a malformed page pinning
+     * `start_position` and looping forever.
+     */
     const endPosition = Number(data.endPosition)
     const totalSetSize = Number(data.totalSetSize)
-    const hasNextPage =
-      pageDocuments.length === MAX_PAGE_SIZE &&
+    const sourceHasMore =
+      rawEnvelopes.length > 0 &&
       Number.isFinite(endPosition) &&
       Number.isFinite(totalSetSize) &&
+      endPosition + 1 > startPosition &&
       endPosition + 1 < totalSetSize
+
+    /**
+     * `listingCapped` blocks the sync engine's deletion reconciliation. It is set only when
+     * the listing is genuinely incomplete — a `maxEnvelopes` cap reached while the source
+     * still has more envelopes, or a dropped entry — never on genuine exhaustion and never
+     * for the intentional `from_date` / `status` scope filters.
+     */
+    const hitLimit = maxEnvelopes > 0 && totalFetched >= maxEnvelopes
+    if (syncContext && (capped || (hitLimit && sourceHasMore))) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,
-      nextCursor: !hitLimit && hasNextPage ? String(endPosition + 1) : undefined,
-      hasMore: !hitLimit && hasNextPage,
+      nextCursor: !hitLimit && sourceHasMore ? String(endPosition + 1) : undefined,
+      hasMore: !hitLimit && sourceHasMore,
     }
   },
 
@@ -525,7 +560,7 @@ export const docusignConnector: ConnectorConfig = {
       const apiBase = apiBaseFor(account)
 
       const response = await fetchWithRetry(
-        `${apiBase}/envelopes/${externalId}?include=recipients,custom_fields,documents`,
+        `${apiBase}/envelopes/${encodeURIComponent(externalId)}?include=recipients,custom_fields,documents`,
         {
           method: 'GET',
           headers: {
@@ -566,11 +601,17 @@ export const docusignConnector: ConnectorConfig = {
         metadata: buildMetadata(envelope),
       }
     } catch (error) {
+      /**
+       * Documented absence — 404 and 410 — already returned `null` above. Anything
+       * reaching here (auth, 5xx, network) is a fault, and swallowing it would let the
+       * sync engine treat a still-existing envelope as an empty re-fetch and leave it
+       * silently stale instead of counting a failed document.
+       */
       logger.warn('Failed to get DocuSign envelope', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

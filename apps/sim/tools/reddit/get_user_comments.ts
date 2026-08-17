@@ -1,4 +1,5 @@
 import { validateEnum, validatePathSegment } from '@/lib/core/security/input-validation'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import { COMMENT_LISTING_OUTPUT_PROPERTIES, type RedditComment } from '@/tools/reddit/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -153,7 +154,7 @@ export const getUserCommentsTool: ToolConfig<GetUserCommentsParams, GetUserComme
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         Accept: 'application/json',
       }
     },

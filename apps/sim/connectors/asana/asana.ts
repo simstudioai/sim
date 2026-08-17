@@ -9,8 +9,25 @@ const logger = createLogger('AsanaConnector')
 
 const ASANA_API = 'https://app.asana.com/api/1.0'
 
-const TASK_OPT_FIELDS =
-  'name,notes,completed,completed_at,modified_at,assignee.name,tags.name,permalink_url'
+const TASK_OPT_FIELDS = 'name,notes,completed,modified_at,assignee.name,tags.name,permalink_url'
+
+/**
+ * Asana caps `limit` at 100 objects per page on every collection endpoint.
+ */
+const ASANA_MAX_PAGE_SIZE = 100
+
+/**
+ * Upper bound on Asana task requests issued per `listDocuments` call.
+ *
+ * The connector walks one project at a time, so without this the choice is
+ * between one HTTP request per sync page — which burns the sync engine's
+ * `MAX_PAGES` budget on workspaces with more projects than that, silently
+ * setting `listingTruncated` and blocking deletion reconciliation forever — and
+ * an unbounded loop that fans a 5,000-project workspace into 5,000 sequential
+ * requests inside a single call. Batching a bounded number of projects per call
+ * keeps both the request budget and the per-call time budget in range.
+ */
+const MAX_TASK_REQUESTS_PER_PAGE = 25
 
 /**
  * Asana API response shape for paginated endpoints.
@@ -28,7 +45,6 @@ export interface AsanaTask {
   name: string
   notes?: string
   completed: boolean
-  completed_at?: string
   modified_at?: string
   assignee?: { name: string }
   tags?: { name: string }[]
@@ -65,7 +81,9 @@ const PROJECT_OPT_FIELDS = 'gid,name,archived'
  * parent projects (with their archived flag) on top of the listing fields so
  * `isTaskUnderActiveProject` can run on the rehydrate path. `opt_fields`
  * supports dot paths, so `projects.archived` expands the compact project stubs
- * with the field the listing filter relies on.
+ * with the field the listing filter relies on. `projects.gid` is deliberately
+ * not requested: Asana always returns the `gid` of included objects regardless
+ * of the field options.
  */
 const TASK_DETAIL_OPT_FIELDS = `${TASK_OPT_FIELDS},projects.archived`
 
@@ -93,6 +111,21 @@ export function buildProjectsPath(workspaceGid: string, offset?: string): string
   })
   if (offset) params.append('offset', offset)
   return `/projects?${params.toString()}&opt_fields=${PROJECT_OPT_FIELDS}`
+}
+
+/**
+ * Builds the project task listing path.
+ *
+ * Mirrors `buildProjectsPath`: caller-supplied values (project gid, pagination
+ * offset) go through `URLSearchParams` so they are escaped, while `opt_fields`
+ * is appended raw to keep its separators literal commas. Asana offsets are
+ * opaque tokens it may change the encoding of, so they are never interpolated
+ * unescaped.
+ */
+export function buildTasksPath(projectGid: string, limit: number, offset?: string): string {
+  const params = new URLSearchParams({ project: projectGid, limit: String(limit) })
+  if (offset) params.append('offset', offset)
+  return `/tasks?${params.toString()}&opt_fields=${TASK_OPT_FIELDS}`
 }
 
 /**
@@ -176,6 +209,20 @@ export function decideTaskCap(
 }
 
 /**
+ * Carries the HTTP status so callers can tell a genuinely missing task (404) from a
+ * transient fault (429, 5xx) that must not be swallowed.
+ */
+class AsanaApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+    this.name = 'AsanaApiError'
+  }
+}
+
+/**
  * Makes a GET request to the Asana REST API.
  */
 async function asanaGet<T>(
@@ -198,7 +245,7 @@ async function asanaGet<T>(
   if (!response.ok) {
     const errorText = await response.text()
     logger.error('Asana API request failed', { status: response.status, path, error: errorText })
-    throw new Error(`Asana API error: ${response.status}`)
+    throw new AsanaApiError(`Asana API error: ${response.status}`, response.status)
   }
 
   return (await response.json()) as T
@@ -276,7 +323,15 @@ export const asanaConnector: ConnectorConfig = {
     const workspaceGid = sourceConfig.workspace as string
     const projectGid = (sourceConfig.project as string) || ''
     const maxTasks = sourceConfig.maxTasks ? Number(sourceConfig.maxTasks) : 0
-    const pageSize = maxTasks > 0 ? Math.min(maxTasks, 100) : 100
+    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+
+    /**
+     * Held constant across every request of a sync. Asana's `offset` is an
+     * opaque token and the docs do not say it survives a changed `limit`, while
+     * `decideTaskCap` already trims the cap exactly — so varying the page size
+     * per call would buy nothing and risk invalidating a mid-project offset.
+     */
+    const pageSize = maxTasks > 0 ? Math.min(maxTasks, ASANA_MAX_PAGE_SIZE) : ASANA_MAX_PAGE_SIZE
 
     /**
      * Cursor format:
@@ -322,13 +377,18 @@ export const asanaConnector: ConnectorConfig = {
     let nextCursor: string | undefined
     let hasMore = false
 
-    while (projectIndex < projectGids.length) {
+    for (
+      let request = 0;
+      projectIndex < projectGids.length &&
+      request < MAX_TASK_REQUESTS_PER_PAGE &&
+      documents.length < pageSize;
+      request++
+    ) {
       const currentProjectGid = projectGids[projectIndex]
-      const offsetParam = offset ? `&offset=${offset}` : ''
 
       const result = await asanaGet<AsanaPageResponse>(
         accessToken,
-        `/tasks?project=${currentProjectGid}&opt_fields=${TASK_OPT_FIELDS}&limit=${pageSize}${offsetParam}`
+        buildTasksPath(currentProjectGid, pageSize, offset)
       )
 
       for (const task of result.data) {
@@ -353,22 +413,18 @@ export const asanaConnector: ConnectorConfig = {
       }
 
       if (result.next_page) {
-        nextCursor = JSON.stringify({ projectIndex, offset: result.next_page.offset })
+        offset = result.next_page.offset
+        nextCursor = JSON.stringify({ projectIndex, offset })
         hasMore = true
-        break
+        continue
       }
 
       projectIndex++
       offset = undefined
-
-      if (projectIndex < projectGids.length) {
-        nextCursor = JSON.stringify({ projectIndex, offset: undefined })
-        hasMore = true
-        break
-      }
+      hasMore = projectIndex < projectGids.length
+      nextCursor = hasMore ? JSON.stringify({ projectIndex }) : undefined
     }
 
-    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
     const cap = decideTaskCap(maxTasks, previouslyFetched, documents.length, hasMore)
     if (cap.keepCount < documents.length) documents.splice(cap.keepCount)
 
@@ -396,7 +452,7 @@ export const asanaConnector: ConnectorConfig = {
     try {
       const result = await asanaGet<{ data: AsanaTask }>(
         accessToken,
-        `/tasks/${externalId}?opt_fields=${TASK_DETAIL_OPT_FIELDS}`
+        `/tasks/${encodeURIComponent(externalId)}?opt_fields=${TASK_DETAIL_OPT_FIELDS}`
       )
       const task = result.data
 
@@ -418,6 +474,13 @@ export const asanaConnector: ConnectorConfig = {
         sourceUrl: task.permalink_url || undefined,
         contentHash: `asana:${task.gid}:${task.modified_at ?? ''}`,
         metadata: {
+          /**
+           * The listing reaches a task through exactly one project and records
+           * that gid, so the rehydrate path must record one too or the `project`
+           * tag would silently disappear on refresh. A pinned project wins;
+           * otherwise the task's first still-active project stands in.
+           */
+          project: pinnedProjectGid ?? task.projects?.find((p) => p?.archived !== true)?.gid,
           assignee: task.assignee?.name,
           completed: task.completed,
           lastModified: task.modified_at,
@@ -425,11 +488,20 @@ export const asanaConnector: ConnectorConfig = {
         },
       }
     } catch (error) {
+      /**
+       * Only a 404 means the task is genuinely gone. Every other failure — 429, 5xx,
+       * network faults — is rethrown so the sync engine records a failed row and keeps
+       * the already-indexed task out of deletion reconciliation.
+       */
+      if (error instanceof AsanaApiError && error.status === 404) {
+        logger.info('Asana task not found', { externalId })
+        return null
+      }
       logger.error('Failed to get Asana task', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 

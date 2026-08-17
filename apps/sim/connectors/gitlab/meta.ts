@@ -6,7 +6,7 @@ export const gitlabConnectorMeta: ConnectorMeta = {
   name: 'GitLab',
   description:
     'Sync repository files, wiki pages, and issues from a GitLab project into your knowledge base',
-  version: '1.0.0',
+  version: '1.1.0',
   icon: GitLabIcon,
 
   /**
@@ -52,7 +52,9 @@ export const gitlabConnectorMeta: ConnectorMeta = {
         { label: 'Issues only', id: 'issues' },
         { label: 'Wiki & Issues', id: 'both' },
       ],
-      description: 'Which content to index. "Code" syncs repository files (READMEs, docs, source).',
+      placeholder: 'Wiki & Issues',
+      description:
+        'Which content to index. "Code" syncs repository files (READMEs, docs, source). Defaults to Wiki & Issues when left unset.',
     },
     {
       id: 'ref',

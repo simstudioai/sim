@@ -6,7 +6,7 @@ export const sftpConnectorMeta: ConnectorMeta = {
   name: 'SFTP',
   description:
     'Sync text-based files from a remote SFTP (SSH File Transfer Protocol) directory tree into your knowledge base',
-  version: '1.0.0',
+  version: '2.0.0',
   icon: SftpIcon,
 
   auth: {
@@ -58,10 +58,10 @@ export const sftpConnectorMeta: ConnectorMeta = {
       id: 'hostFingerprint',
       title: 'Host Key Fingerprint',
       type: 'short-input',
-      placeholder: 'e.g. SHA256:abc123... (optional)',
-      required: false,
+      placeholder: 'e.g. SHA256:abc123...',
+      required: true,
       description:
-        'Expected SHA-256 host key fingerprint. Get it with "ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -" and paste the SHA256:... value. If it does not match, the connection is refused before any credential is sent. Leave empty to skip host verification (the server is then trusted on sight).',
+        'Required. Expected SHA-256 host key fingerprint, pinned so the server is identified before any credential is sent. Get it with "ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -" and paste the SHA256:... value. Without a pin, SSH accepts whatever host key answers, so an on-path attacker impersonating the server would be handed your password or private key. A mismatch refuses the connection.',
     },
     {
       id: 'rootPath',

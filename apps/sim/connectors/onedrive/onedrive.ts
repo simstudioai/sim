@@ -35,7 +35,37 @@ const SUPPORTED_EXTENSIONS = new Set([
 
 const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 
-const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
+const GRAPH_API_ORIGIN = 'https://graph.microsoft.com'
+const GRAPH_BASE_URL = `${GRAPH_API_ORIGIN}/v1.0`
+
+/**
+ * The exact driveItem fields the stub is built from. Graph returns the full
+ * driveItem otherwise, which is an order of magnitude larger per item.
+ */
+const ITEM_SELECT = 'id,name,webUrl,size,file,folder,lastModifiedDateTime,createdBy,parentReference'
+
+/**
+ * Requested page size for a children collection, matching Graph's own default.
+ *
+ * No `$orderby` accompanies it: `/children` accepts `$orderby` on `name`, `size`,
+ * and `lastModifiedDateTime`, but "in OneDrive for Business and SharePoint Server
+ * 2016, the orderby query string only works with name and url" — so a
+ * `lastModifiedDateTime` sort is silently ignored on exactly the drives this
+ * connector is most often pointed at. The listing order is therefore whatever the
+ * drive returns, which matters only for *which* files a `maxFiles` cap keeps.
+ *
+ * @see https://learn.microsoft.com/en-us/graph/api/driveitem-list-children — 200-item default page size, `$orderby` support
+ * @see https://learn.microsoft.com/en-us/onedrive/developer/rest-api/concepts/optional-query-parameters — the name/url restriction
+ */
+const PAGE_SIZE = 200
+
+/**
+ * Folder pages listed within a single `listDocuments` call. The sync engine caps
+ * a sync at a fixed number of `listDocuments` pages, and a depth-first walk needs
+ * at least one request per folder — draining several folders per call keeps a
+ * drive with thousands of folders from silently truncating its listing.
+ */
+const MAX_LIST_REQUESTS_PER_CALL = 25
 
 interface OneDriveItem {
   id: string
@@ -45,9 +75,7 @@ interface OneDriveItem {
   size?: number
   webUrl?: string
   lastModifiedDateTime?: string
-  createdDateTime?: string
   createdBy?: { user?: { displayName?: string } }
-  lastModifiedBy?: { user?: { displayName?: string } }
   parentReference?: { path?: string }
 }
 
@@ -70,7 +98,7 @@ function isSupportedTextFile(name: string): boolean {
  * Downloads the raw content of a OneDrive file.
  */
 async function downloadFileContent(accessToken: string, fileId: string): Promise<string> {
-  const url = `${GRAPH_BASE_URL}/me/drive/items/${fileId}/content`
+  const url = `${GRAPH_BASE_URL}/me/drive/items/${encodeURIComponent(fileId)}/content`
 
   const response = await fetchWithRetry(url, {
     method: 'GET',
@@ -131,17 +159,71 @@ function fileToStub(item: OneDriveItem): ExternalDocument {
 }
 
 /**
- * Builds the list URL for the configured folder path or root.
+ * Normalizes a user-supplied folder path into percent-encoded path segments,
+ * or `undefined` when the drive root is targeted.
  */
-function buildListUrl(folderPath?: string): string {
+function encodeFolderPath(folderPath?: string): string | undefined {
   const trimmed = folderPath?.trim()
-  if (trimmed) {
-    // Normalize path: strip leading/trailing slashes
-    const normalized = trimmed.replace(/^\/+|\/+$/g, '')
-    const encoded = normalized.split('/').map(encodeURIComponent).join('/')
-    return `${GRAPH_BASE_URL}/me/drive/root:/${encoded}:/children`
+  if (!trimmed) return undefined
+  const normalized = trimmed.replace(/^\/+|\/+$/g, '')
+  if (!normalized) return undefined
+  return normalized.split('/').map(encodeURIComponent).join('/')
+}
+
+/**
+ * Builds the children-listing URL for a subfolder id, or for the configured
+ * root path when no folder id is supplied.
+ */
+function buildListUrl(folderPath: string | undefined, folderId: string | undefined): string {
+  const query = `?$top=${PAGE_SIZE}&$select=${ITEM_SELECT}`
+  if (folderId) {
+    return `${GRAPH_BASE_URL}/me/drive/items/${encodeURIComponent(folderId)}/children${query}`
   }
-  return `${GRAPH_BASE_URL}/me/drive/root/children`
+  const encoded = encodeFolderPath(folderPath)
+  return encoded
+    ? `${GRAPH_BASE_URL}/me/drive/root:/${encoded}:/children${query}`
+    : `${GRAPH_BASE_URL}/me/drive/root/children${query}`
+}
+
+/**
+ * Asserts a paging URL points at Microsoft Graph before it is followed with the
+ * bearer token in the `Authorization` header. The `@odata.nextLink` this connector
+ * follows is persisted into the sync cursor, so it round-trips through storage
+ * rather than arriving straight off a TLS response — a tampered cursor must never
+ * be able to redirect the access token to a third-party host. Mirrors
+ * `assertGraphNextPageUrl` used by the Graph tool routes.
+ */
+function assertGraphNextLink(nextLink: string): string {
+  const url = new URL(nextLink.trim())
+  if (url.origin !== GRAPH_API_ORIGIN) {
+    throw new Error('Refusing to follow a non-Microsoft Graph @odata.nextLink')
+  }
+  return url.toString()
+}
+
+/**
+ * Depth-first traversal position carried across `listDocuments` calls.
+ */
+interface OneDriveTraversalState {
+  /** Absolute `@odata.nextLink` for the current folder's next page, if any. */
+  nextLink?: string
+  /** Item id of the folder being listed; `undefined` means the configured root. */
+  currentFolder?: string
+  /** Subfolder ids discovered but not yet listed. */
+  folderStack: string[]
+}
+
+function decodeCursor(cursor: string): OneDriveTraversalState {
+  try {
+    const parsed = JSON.parse(cursor) as Partial<OneDriveTraversalState>
+    return {
+      nextLink: typeof parsed.nextLink === 'string' ? parsed.nextLink : undefined,
+      currentFolder: typeof parsed.currentFolder === 'string' ? parsed.currentFolder : undefined,
+      folderStack: Array.isArray(parsed.folderStack) ? parsed.folderStack : [],
+    }
+  } catch {
+    return { folderStack: [] }
+  }
 }
 
 export const onedriveConnector: ConnectorConfig = {
@@ -155,104 +237,117 @@ export const onedriveConnector: ConnectorConfig = {
   ): Promise<ExternalDocumentList> => {
     const folderPath = sourceConfig.folderPath as string | undefined
 
-    /**
-     * Cursor state encodes the current page URL and a queue of pending folder IDs
-     * for recursive traversal. On initial call, we start from the configured path.
-     */
-    let pageUrl: string
-    let folderQueue: string[] = []
+    const parsedMaxFiles = Number(sourceConfig.maxFiles)
+    const maxFiles = Number.isFinite(parsedMaxFiles) && parsedMaxFiles > 0 ? parsedMaxFiles : 0
 
-    if (cursor) {
-      try {
-        const parsed = JSON.parse(cursor) as { pageUrl?: string; folderQueue?: string[] }
-        pageUrl = parsed.pageUrl || buildListUrl(folderPath)
-        folderQueue = parsed.folderQueue || []
-      } catch {
-        pageUrl = cursor
-      }
-    } else {
-      const baseUrl = buildListUrl(folderPath)
-      const separator = baseUrl.includes('?') ? '&' : '?'
-      pageUrl = `${baseUrl}${separator}$orderby=lastModifiedDateTime desc`
-    }
+    const state: OneDriveTraversalState = cursor ? decodeCursor(cursor) : { folderStack: [] }
 
-    logger.info('Listing OneDrive files', {
-      url: pageUrl,
-      cursor: cursor ? 'continuation' : 'initial',
-    })
+    const documents: ExternalDocument[] = []
+    let totalFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    const response = await fetchWithRetry(pageUrl, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-      },
-    })
+    /** Set when the walk finished — either the source ran out or `maxFiles` stopped it. */
+    let done = false
+    /** Set only when `maxFiles` actually hid still-listable items. */
+    let cappedWithItemsLeft = false
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      logger.error('Failed to list OneDrive files', {
-        status: response.status,
-        error: errorText,
+    for (let request = 0; request < MAX_LIST_REQUESTS_PER_CALL; request++) {
+      const pageUrl = state.nextLink
+        ? assertGraphNextLink(state.nextLink)
+        : buildListUrl(folderPath, state.currentFolder)
+
+      logger.info('Listing OneDrive files', {
+        folderId: state.currentFolder ?? 'root',
+        pending: state.folderStack.length,
+        continuation: Boolean(state.nextLink),
       })
-      throw new Error(`Failed to list OneDrive files: ${response.status}`)
-    }
 
-    const data = (await response.json()) as OneDriveListResponse
-    const items = data.value || []
+      const response = await fetchWithRetry(pageUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      })
 
-    // Collect subfolder IDs for recursive traversal
-    for (const item of items) {
-      if (item.folder) {
-        folderQueue.push(item.id)
+      if (!response.ok) {
+        const errorText = await response.text()
+        logger.error('Failed to list OneDrive files', {
+          status: response.status,
+          error: errorText,
+        })
+        throw new Error(`Failed to list OneDrive files: ${response.status}`)
       }
-    }
 
-    // Keep oversized files and surface them as skipped (failed) documents instead
-    // of filtering them out silently.
-    const supportedFiles = items.filter((item) => item.file && isSupportedTextFile(item.name))
+      const data = (await response.json()) as OneDriveListResponse
+      const items = data.value || []
 
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
-    const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+      const files: OneDriveItem[] = []
+      for (const item of items) {
+        if (item.folder) {
+          state.folderStack.push(item.id)
+        } else if (item.file && isSupportedTextFile(item.name)) {
+          // Keep oversized files; they are surfaced as skipped (failed) docs below.
+          files.push(item)
+        }
+      }
 
-    const stubs = supportedFiles.map((item) =>
-      stubOrSkipBySize(fileToStub(item), item.size, MAX_FILE_SIZE)
-    )
+      const stubs = files.map((item) =>
+        stubOrSkipBySize(fileToStub(item), item.size, MAX_FILE_SIZE)
+      )
+      const take = takeIndexableWithinCap(stubs, isSkippedDocument, maxFiles, totalFetched)
+      documents.push(...take.documents)
+      totalFetched += take.indexableCount
 
-    const { documents, indexableCount, capReached } = takeIndexableWithinCap(
-      stubs,
-      isSkippedDocument,
-      maxFiles,
-      previouslyFetched
-    )
+      const nextLink = data['@odata.nextLink']
 
-    const totalFetched = previouslyFetched + indexableCount
-    if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = capReached
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+      if (take.capReached) {
+        done = true
+        /**
+         * Only a cap that actually hid items makes the listing partial, and the
+         * cap can bite in three places: mid-page (`takeIndexableWithinCap` breaks
+         * out of the array early, so fewer stubs come back than went in), or at a
+         * page boundary with another page or another folder still pending. When
+         * the cap instead coincides with the last item of the last folder the
+         * source *is* fully listed, and flagging it capped would permanently
+         * block deletion reconciliation for a complete listing.
+         */
+        cappedWithItemsLeft =
+          take.documents.length < stubs.length || Boolean(nextLink) || state.folderStack.length > 0
+        break
+      }
 
-    const nextLink = data['@odata.nextLink']
-
-    // Determine next cursor: continue current page, or move to next queued folder
-    let nextCursor: string | undefined
-    let hasMore = false
-
-    if (!hitLimit) {
       if (nextLink) {
-        nextCursor = JSON.stringify({ pageUrl: nextLink, folderQueue })
-        hasMore = true
-      } else if (folderQueue.length > 0) {
-        const nextFolderId = folderQueue.shift()!
-        const nextUrl = `${GRAPH_BASE_URL}/me/drive/items/${nextFolderId}/children?$orderby=lastModifiedDateTime desc`
-        nextCursor = JSON.stringify({ pageUrl: nextUrl, folderQueue })
-        hasMore = true
+        state.nextLink = nextLink
+        continue
       }
+
+      if (state.folderStack.length > 0) {
+        state.currentFolder = state.folderStack.pop()!
+        state.nextLink = undefined
+        continue
+      }
+
+      done = true
+      break
     }
 
+    if (syncContext) {
+      syncContext.totalDocsFetched = totalFetched
+      if (cappedWithItemsLeft) syncContext.listingCapped = true
+    }
+
+    if (done) {
+      return { documents, hasMore: false }
+    }
+
+    /**
+     * The per-call request budget ran out mid-walk. The engine keeps calling with
+     * this cursor, and flags the listing itself if it stops paging first.
+     */
     return {
       documents,
-      nextCursor,
-      hasMore,
+      nextCursor: JSON.stringify(state),
+      hasMore: true,
     }
   },
 
@@ -261,7 +356,7 @@ export const onedriveConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    const url = `${GRAPH_BASE_URL}/me/drive/items/${externalId}`
+    const url = `${GRAPH_BASE_URL}/me/drive/items/${encodeURIComponent(externalId)}?$select=${ITEM_SELECT}`
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -291,10 +386,15 @@ export const onedriveConnector: ConnectorConfig = {
         logger.info('Skipping oversized OneDrive file', { fileId: item.id, name: item.name })
         return markSkipped(fileToStub(item), sizeLimitSkipReason(error.limitBytes))
       }
+      /**
+       * A transport or Graph failure that survived `fetchWithRetry`. Returning
+       * `null` would drop the file from the run with no `failed` row and no error
+       * log; rethrowing lets the sync engine record it per-document.
+       */
       logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 
@@ -310,11 +410,10 @@ export const onedriveConnector: ConnectorConfig = {
     }
 
     try {
-      if (folderPath?.trim()) {
+      const encodedPath = encodeFolderPath(folderPath)
+      if (encodedPath) {
         // Verify the folder path exists and is accessible
-        const normalized = folderPath.trim().replace(/^\/+|\/+$/g, '')
-        const encoded = normalized.split('/').map(encodeURIComponent).join('/')
-        const url = `${GRAPH_BASE_URL}/me/drive/root:/${encoded}`
+        const url = `${GRAPH_BASE_URL}/me/drive/root:/${encodedPath}?$select=id,folder`
 
         const response = await fetchWithRetry(
           url,
