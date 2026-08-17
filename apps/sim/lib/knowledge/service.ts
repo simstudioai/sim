@@ -28,11 +28,6 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries'
-import {
-  MAX_KNOWLEDGE_BASES_PER_WORKSPACE,
-  MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST,
-  MAX_LEGACY_PERSONAL_KNOWLEDGE_BASES,
-} from '@/lib/knowledge/constants'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -155,11 +150,7 @@ export interface GetKnowledgeBasesOptions {
   search?: string
   sortBy?: V2KnowledgeBaseSortBy
   sortOrder?: ListSortOrder
-  /**
-   * Page size. Omitted reads the whole workspace set as one page, capped by
-   * {@link MAX_KNOWLEDGE_BASES_PER_WORKSPACE} — what the internal callers that
-   * need every row still do.
-   */
+  /** Page size. Omitted reads the whole set as one page. */
   limit?: number
   /** Keyset to resume after, from the previous page's `nextCursorKeys`. */
   cursorKeys?: CursorKey[]
@@ -181,9 +172,9 @@ function knowledgeBaseScopeCondition(scope: KnowledgeBaseScope) {
 async function readKnowledgeBaseRows(
   where: SQL | undefined,
   orderBy: SQL[],
-  limit: number
+  limit?: number
 ): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
-  const rows = await db
+  const query = db
     .select({
       id: knowledgeBase.id,
       userId: knowledgeBase.userId,
@@ -213,7 +204,8 @@ async function readKnowledgeBaseRows(
     .where(where)
     .groupBy(knowledgeBase.id)
     .orderBy(...orderBy)
-    .limit(limit)
+
+  const rows = limit === undefined ? await query : await query.limit(limit)
 
   return rows.map((kb) => ({
     ...kb,
@@ -241,13 +233,7 @@ async function attachConnectorTypes(
               isNull(knowledgeConnector.deletedAt)
             )
           )
-          .limit(MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST + 1)
       : []
-  if (connectorRows.length > MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST) {
-    throw new Error(
-      `Knowledge connector projection exceeds the ${MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST} row limit`
-    )
-  }
 
   const connectorTypesByKb = new Map<string, string[]>()
   for (const row of connectorRows) {
@@ -286,10 +272,11 @@ async function readWorkspaceKnowledgeBaseRows(
   const keys = KNOWLEDGE_BASE_SORTS[sortBy]
 
   /**
-   * An unpaged read still reads one row past the cap so an oversized workspace
-   * is a hard failure rather than a silently truncated list.
+   * An unpaged read is unbounded, matching the sibling internal lists (`listTables`, workspace
+   * files). A row cap could only ever fire for a caller that did not ask for a page — the one
+   * kind with no cursor to respond with — so it can only turn a slow list into a 500.
    */
-  const readLimit = (limit ?? MAX_KNOWLEDGE_BASES_PER_WORKSPACE) + 1
+  const readLimit = limit === undefined ? undefined : limit + 1
 
   const rows = await readKnowledgeBaseRows(
     and(
@@ -306,12 +293,6 @@ async function readWorkspaceKnowledgeBaseRows(
     listOrderBy(keysetColumns(keys), sortOrder),
     readLimit
   )
-
-  if (limit === undefined && rows.length > MAX_KNOWLEDGE_BASES_PER_WORKSPACE) {
-    throw new Error(
-      `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
-    )
-  }
 
   return keysetPage(keys, rows, limit)
 }
@@ -348,16 +329,8 @@ async function readLegacyPersonalKnowledgeBaseRows(
       eq(knowledgeBase.userId, userId),
       isNull(knowledgeBase.workspaceId)
     ),
-    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc'),
-    MAX_LEGACY_PERSONAL_KNOWLEDGE_BASES + 1
+    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc')
   )
-
-  /** One row past the cap, so an oversized set fails loudly instead of truncating in silence. */
-  if (rows.length > MAX_LEGACY_PERSONAL_KNOWLEDGE_BASES) {
-    throw new Error(
-      `Legacy personal knowledge base list exceeds the ${MAX_LEGACY_PERSONAL_KNOWLEDGE_BASES} row limit`
-    )
-  }
 
   return rows
 }
@@ -398,6 +371,22 @@ export async function listWorkspaceAndLegacyKnowledgeBases(
       : [...workspaceRows, ...legacyPersonalRows].sort(
           (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
         )
+  )
+}
+
+/** Loads at most two active exact-name matches so a caller can fail on corrupt ambiguity. */
+export async function findActiveKnowledgeBasesByExactName(
+  workspaceId: string,
+  name: string
+): Promise<Array<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>>> {
+  return readKnowledgeBaseRows(
+    and(
+      eq(knowledgeBase.workspaceId, workspaceId),
+      eq(knowledgeBase.name, name),
+      isNull(knowledgeBase.deletedAt)
+    ),
+    listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS.createdAt), 'asc'),
+    2
   )
 }
 
