@@ -195,12 +195,45 @@ export function isIndexableConnectorFile(fileName: string): boolean {
 }
 
 /**
+ * Raised when a binary document yielded no text a search index should hold —
+ * either the parser produced nothing, or it reported a degraded extraction whose
+ * "content" is scraped bytes or a placeholder message. Callers surface it as a
+ * skipped document, the same way {@link ConnectorFileTooLargeError} is handled,
+ * so the file stays visible with an actionable reason instead of polluting the
+ * index or vanishing.
+ */
+export class ConnectorTextExtractionError extends Error {
+  constructor(
+    readonly fileName: string,
+    readonly extension: string
+  ) {
+    super(`No text could be extracted from "${fileName}"`)
+    this.name = 'ConnectorTextExtractionError'
+  }
+}
+
+/** Human-readable skip reason for a document whose text could not be extracted. */
+export function extractionFailedSkipReason(extension: string): string {
+  const legacyFormats: Record<string, string> = { doc: 'DOCX', ppt: 'PPTX', xls: 'XLSX' }
+  const modernFormat = legacyFormats[extension]
+  return modernFormat
+    ? `No text could be extracted from this ${extension.toUpperCase()} file. Re-save it as ${modernFormat} to index it.`
+    : 'No text could be extracted from this file — it may be scanned, image-only, or password-protected.'
+}
+
+/**
  * Converts a downloaded file body to indexable text.
  *
  * Text formats are decoded as UTF-8 (with HTML additionally reduced to plain text),
  * and binary document formats go through `parseBuffer`, which applies the OOXML
  * zip-bomb guard and each parser's own extraction limits. An extension with no
  * parser falls back to a UTF-8 decode rather than failing the file.
+ *
+ * A parsed format that yields no usable text throws {@link ConnectorTextExtractionError}
+ * rather than returning what the parser handed back. The `doc` and `ppt` parsers
+ * never throw by design — on a legacy binary or an image-only deck they return a
+ * placeholder sentence or raw ZIP internals, which an interactive upload can show
+ * a user but an automated sync must never embed.
  */
 export async function extractConnectorText(buffer: Buffer, fileName: string): Promise<string> {
   const extension = connectorFileExtension(fileName)
@@ -211,6 +244,9 @@ export async function extractConnectorText(buffer: Buffer, fileName: string): Pr
 
   if (extension && (CONNECTOR_PARSED_EXTENSIONS as readonly string[]).includes(extension)) {
     const result = await parseBuffer(buffer, extension)
+    if (result.metadata?.degraded || !result.content.trim()) {
+      throw new ConnectorTextExtractionError(fileName, extension)
+    }
     return result.content
   }
 

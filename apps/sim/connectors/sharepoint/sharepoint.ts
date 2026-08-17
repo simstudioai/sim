@@ -6,8 +6,10 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  ConnectorTextExtractionError,
   connectorFileExtension,
   extractConnectorText,
+  extractionFailedSkipReason,
   isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
@@ -934,6 +936,16 @@ export const sharepointConnector: ConnectorConfig = {
         return markSkipped(
           itemToStub(item, siteName ?? siteUrl),
           sizeLimitSkipReason(error.limitBytes)
+        )
+      }
+      if (error instanceof ConnectorTextExtractionError) {
+        logger.info('Skipping SharePoint file with no extractable text', {
+          fileId: item.id,
+          name: item.name,
+        })
+        return markSkipped(
+          itemToStub(item, siteName ?? siteUrl),
+          extractionFailedSkipReason(error.extension)
         )
       }
       /**

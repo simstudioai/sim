@@ -65,7 +65,9 @@ import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
+  ConnectorTextExtractionError,
   extractConnectorText,
+  extractionFailedSkipReason,
   htmlToPlainText,
   isIndexableConnectorFile,
   isSkippedDocument,
@@ -1456,5 +1458,58 @@ describe('extractConnectorText', () => {
     await expect(extractConnectorText(Buffer.from('bad'), 'broken.docx')).rejects.toThrow(
       'corrupt archive'
     )
+  })
+
+  /**
+   * `DocParser` and `PptxParser` never throw by design: on a legacy binary or an
+   * image-only deck they return scraped ZIP internals or an English placeholder
+   * sentence so an interactive upload still shows the user something. Indexing
+   * that would embed junk, so a degraded result must not become content.
+   */
+  it('rejects a degraded extraction instead of indexing placeholder text', async () => {
+    mockParseBuffer.mockResolvedValue({
+      content: 'Unable to extract text from PowerPoint file. Please ensure the file contains text.',
+      metadata: { extractionMethod: 'fallback', degraded: true },
+    })
+
+    await expect(extractConnectorText(Buffer.from('ole2'), 'Deck.ppt')).rejects.toThrow(
+      ConnectorTextExtractionError
+    )
+  })
+
+  it('rejects an extraction that produced only whitespace', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '   \n  ', metadata: {} })
+
+    await expect(extractConnectorText(Buffer.from('pdf'), 'scanned.pdf')).rejects.toThrow(
+      ConnectorTextExtractionError
+    )
+  })
+
+  it('carries the extension so the caller can name the format in its skip reason', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+
+    await expect(extractConnectorText(Buffer.from('x'), 'Deck.PPT')).rejects.toMatchObject({
+      extension: 'ppt',
+      fileName: 'Deck.PPT',
+    })
+  })
+
+  it('does not apply the degraded check to text formats', async () => {
+    const content = await extractConnectorText(Buffer.from('   '), 'blank.txt')
+
+    expect(content).toBe('   ')
+    expect(mockParseBuffer).not.toHaveBeenCalled()
+  })
+})
+
+describe('extractionFailedSkipReason', () => {
+  it('tells the user which modern format to re-save a legacy file as', () => {
+    expect(extractionFailedSkipReason('doc')).toContain('DOCX')
+    expect(extractionFailedSkipReason('ppt')).toContain('PPTX')
+    expect(extractionFailedSkipReason('xls')).toContain('XLSX')
+  })
+
+  it('explains the likely cause for a modern format', () => {
+    expect(extractionFailedSkipReason('pdf')).toMatch(/scanned, image-only, or password-protected/)
   })
 })

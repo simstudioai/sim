@@ -6,8 +6,10 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  ConnectorTextExtractionError,
   connectorFileExtension,
   extractConnectorText,
+  extractionFailedSkipReason,
   isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
@@ -384,6 +386,13 @@ export const onedriveConnector: ConnectorConfig = {
       if (error instanceof ConnectorFileTooLargeError) {
         logger.info('Skipping oversized OneDrive file', { fileId: item.id, name: item.name })
         return markSkipped(fileToStub(item), sizeLimitSkipReason(error.limitBytes))
+      }
+      if (error instanceof ConnectorTextExtractionError) {
+        logger.info('Skipping OneDrive file with no extractable text', {
+          fileId: item.id,
+          name: item.name,
+        })
+        return markSkipped(fileToStub(item), extractionFailedSkipReason(error.extension))
       }
       /**
        * A transport or Graph failure that survived `fetchWithRetry`. Returning
