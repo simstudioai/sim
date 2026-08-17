@@ -198,7 +198,7 @@ async function postMultipart(
   const raw = await readResponseTextWithLimit(response, {
     maxBytes: MAX_JSON_API_RESPONSE_BYTES,
     label: 'Concur upload response',
-  }).catch(() => '')
+  })
   let parsed: unknown = null
   if (raw.length > 0) {
     try {
