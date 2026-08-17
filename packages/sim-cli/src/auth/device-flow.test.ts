@@ -137,6 +137,40 @@ describe('createAuthRequest', () => {
     }
   })
 
+  it('keeps a path prefix the endpoint carries, in both login URLs', async () => {
+    // Both URLs were built with `new URL('/path', endpoint)`. A leading-slash
+    // path is absolute, so it resolved against the ORIGIN and dropped the
+    // prefix: a deployment served at https://host/sim sent the browser to
+    // https://host/cli/auth and polled https://host/api/cli/auth/poll, neither
+    // of which exists there. Every other command concatenated and worked, so
+    // the endpoint looked correct and only login failed.
+    const prefixed = 'https://host.test/sim'
+    const auth = createAuthRequest()
+
+    expect(buildApprovalUrl(prefixed, auth, 'platform')).toMatch(
+      /^https:\/\/host\.test\/sim\/cli\/auth\?/
+    )
+
+    // `spyOn`, like the rest of this file: `restoreAllMocks` in teardown undoes
+    // it, whereas a `stubGlobal` would outlive the test and leak this
+    // completed-auth response into whatever ran next.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ status: 'complete', key: { id: 'k', apiKey: 'sk' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+
+    await pollForKey(prefixed, auth)
+    expect(fetchSpy.mock.calls[0][0]).toBe('https://host.test/sim/api/cli/auth/poll')
+  })
+
+  it('omits an absent workspace rather than sending it blank', () => {
+    const auth = createAuthRequest()
+    expect(buildApprovalUrl(ENDPOINT, auth, 'platform')).not.toContain('workspace=')
+    expect(buildApprovalUrl(ENDPOINT, auth, 'platform', 'ws_1')).toContain('workspace=ws_1')
+  })
+
   it('never puts the poll secret in the browser URL', () => {
     const auth = createAuthRequest()
     const url = buildApprovalUrl(ENDPOINT, auth, 'platform', 'ws_1')
