@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   deleteRecord: vi.fn(),
   listRecords: vi.fn(),
   listLegacyPersonalRecords: vi.fn(),
+  listVisibleRecords: vi.fn(),
   getRecord: vi.fn(),
   getRestorableRecord: vi.fn(),
   performUpdate: vi.fn(),
@@ -82,6 +83,7 @@ vi.mock('@/lib/knowledge/service', () => ({
   deleteKnowledgeBase: mocks.deleteRecord,
   getKnowledgeBaseById: mocks.getRecord,
   getLegacyPersonalKnowledgeBases: mocks.listLegacyPersonalRecords,
+  listWorkspaceAndLegacyKnowledgeBases: mocks.listVisibleRecords,
   getWorkspaceKnowledgeBases: mocks.listRecords,
 }))
 
@@ -152,6 +154,7 @@ describe('knowledge base application use cases', () => {
     mocks.createRecord.mockResolvedValue(knowledgeBase)
     mocks.listRecords.mockResolvedValue({ data: [], nextCursorKeys: null })
     mocks.listLegacyPersonalRecords.mockResolvedValue([knowledgeBase])
+    mocks.listVisibleRecords.mockResolvedValue([knowledgeBase])
     mocks.getRecord.mockResolvedValue(knowledgeBase)
     mocks.getRestorableRecord.mockResolvedValue(knowledgeBase)
     mocks.performUpdate.mockResolvedValue({
@@ -207,7 +210,8 @@ describe('knowledge base application use cases', () => {
       undefined,
       { forUpdate: undefined }
     )
-    expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'archived')
+    expect(mocks.listVisibleRecords).toHaveBeenCalledWith('user-1', 'workspace-1', 'archived')
+    expect(mocks.listLegacyPersonalRecords).not.toHaveBeenCalled()
   })
 
   /**
@@ -217,8 +221,7 @@ describe('knowledge base application use cases', () => {
    */
   it('lists a workspace for an authorized caller who holds no workspace permission row', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.listRecords.mockResolvedValueOnce({ data: [knowledgeBase], nextCursorKeys: null })
-    mocks.listLegacyPersonalRecords.mockResolvedValueOnce([])
+    mocks.listVisibleRecords.mockResolvedValueOnce([knowledgeBase])
 
     await expect(
       listInternalKnowledgeBases.execute({
@@ -227,29 +230,7 @@ describe('knowledge base application use cases', () => {
       })
     ).resolves.toEqual({ knowledgeBases: [knowledgeBase] })
 
-    expect(mocks.listRecords).toHaveBeenCalledWith('workspace-1', 'active')
-  })
-
-  /**
-   * Legacy workspace-less bases belong to no workspace, so a workspace list is the only
-   * place the UI can reach them. They ride along beside the workspace's own rows.
-   */
-  it('includes the caller’s legacy personal bases beside the workspace’s own rows', async () => {
-    const legacyBase = {
-      ...knowledgeBase,
-      id: 'legacy-1',
-      workspaceId: null,
-      createdAt: new Date('2025-01-01T00:00:00Z'),
-    }
-    mocks.listRecords.mockResolvedValueOnce({ data: [knowledgeBase], nextCursorKeys: null })
-    mocks.listLegacyPersonalRecords.mockResolvedValueOnce([legacyBase])
-
-    await expect(
-      listInternalKnowledgeBases.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workspaceId: 'workspace-1', scope: 'active' },
-      })
-    ).resolves.toEqual({ knowledgeBases: [legacyBase, knowledgeBase] })
+    expect(mocks.listVisibleRecords).toHaveBeenCalledWith('org-admin-1', 'workspace-1', 'active')
   })
 
   it('loads the active knowledge catalog and tag metadata only after workspace authorization', async () => {

@@ -59,6 +59,7 @@ import {
   getLegacyPersonalKnowledgeBases,
   getWorkspaceKnowledgeBases,
   type KnowledgeBaseScope,
+  listWorkspaceAndLegacyKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import type { ChunkingConfig, KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -445,22 +446,11 @@ export const listInternalKnowledgeBases = {
     }
     const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
     await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
-    /**
-     * Two reads, because this list answers for two authorities. The workspace's own rows are
-     * read once the operation is authorized — deriving list access a second time from a
-     * `permissions` row would contradict the authorization that just passed, since workspace
-     * `admin` can come from an organization role with no such row behind it, and that caller
-     * could create a knowledge base and then never see it listed. Legacy workspace-less bases
-     * answer only to their creator and have no workspace to be listed under, so they ride
-     * along here as they always have — otherwise they are reachable from nowhere in the UI.
-     */
-    const [workspaceBases, legacyPersonalBases] = await Promise.all([
-      getWorkspaceKnowledgeBases(context.workspaceId, input.scope),
-      getLegacyPersonalKnowledgeBases(principal.userId, input.scope),
-    ])
     return {
-      knowledgeBases: [...workspaceBases.data, ...legacyPersonalBases].sort(
-        (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+      knowledgeBases: await listWorkspaceAndLegacyKnowledgeBases(
+        principal.userId,
+        context.workspaceId,
+        input.scope
       ),
     }
   },

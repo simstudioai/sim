@@ -15,13 +15,13 @@ export interface TagDefinition {
   updatedAt: string
 }
 
+/** Stable empty fallback, so a pending query does not hand consumers a new array each render. */
+export const EMPTY_TAG_DEFINITIONS: TagDefinition[] = []
+
 /**
  * Hook for fetching KB-scoped tag definitions (for filtering/selection)
  * Uses React Query as single source of truth
  */
-/** Stable empty fallback, so a pending query does not hand consumers a new array each render. */
-const EMPTY_TAG_DEFINITIONS: TagDefinition[] = []
-
 export function useKnowledgeBaseTagDefinitions(knowledgeBaseId: string | null) {
   const queryClient = useQueryClient()
   const query = useTagDefinitionsQuery(knowledgeBaseId)

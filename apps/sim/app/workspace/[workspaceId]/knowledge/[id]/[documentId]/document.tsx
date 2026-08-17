@@ -300,12 +300,7 @@ export function Document({
   const totalPagesRef = useRef(totalPages)
   totalPagesRef.current = totalPages
 
-  const goToPage = useCallback(
-    async (page: number) => {
-      await setDocumentParams({ page })
-    },
-    [setDocumentParams]
-  )
+  const goToPage = useCallback((page: number) => setDocumentParams({ page }), [setDocumentParams])
 
   const updateChunk = showingSearch
     ? (_id: string, _updates: Record<string, unknown>) => {}
@@ -360,13 +355,10 @@ export function Document({
 
   const isInEditorView = selectedChunkId !== null || isCreatingNewChunk
 
-  const selectedChunk = selectedChunkId
-    ? (displayChunks.find((c) => c.id === selectedChunkId) ?? null)
-    : null
-
-  const currentChunkIndex = selectedChunk
-    ? displayChunks.findIndex((c) => c.id === selectedChunk.id)
+  const currentChunkIndex = selectedChunkId
+    ? displayChunks.findIndex((chunk) => chunk.id === selectedChunkId)
     : -1
+  const selectedChunk = currentChunkIndex >= 0 ? displayChunks[currentChunkIndex] : null
   const canNavigatePrev = currentChunkIndex > 0 || currentPage > 1
   const canNavigateNext = currentChunkIndex < displayChunks.length - 1 || currentPage < totalPages
 
@@ -943,13 +935,16 @@ export function Document({
     [activeSort, onSortColumn, onClearSort, goToPage]
   )
 
+  const hasDocumentData = documentData !== null
+  const processingStatus = documentData?.processingStatus
+
   const chunkRows: ResourceRow[] = useMemo(() => {
     /**
      * No document yet is "not known", not "not ready". Falling through to the status row
      * flashed `Document not ready` on every open, for the frame between mount and the
      * document query resolving — a claim about a document nothing had read yet.
      */
-    if (!documentData) return []
+    if (!hasDocumentData) return []
 
     if (!isCompleted) {
       return [
@@ -961,12 +956,10 @@ export function Document({
                 <div className='flex items-center gap-2'>
                   <FileText className='size-5 flex-shrink-0 text-[var(--text-muted)]' />
                   <span className='text-[var(--text-muted)] text-sm italic'>
-                    {documentData.processingStatus === 'pending' &&
-                      'Document processing pending...'}
-                    {documentData.processingStatus === 'processing' &&
-                      'Document processing in progress...'}
-                    {documentData.processingStatus === 'failed' && 'Document processing failed'}
-                    {!documentData.processingStatus && 'Document not ready'}
+                    {processingStatus === 'pending' && 'Document processing pending...'}
+                    {processingStatus === 'processing' && 'Document processing in progress...'}
+                    {processingStatus === 'failed' && 'Document processing failed'}
+                    {!processingStatus && 'Document not ready'}
                   </span>
                 </div>
               ),
@@ -1010,7 +1003,7 @@ export function Document({
         },
       }
     })
-  }, [isCompleted, documentData, displayChunks, searchQuery])
+  }, [isCompleted, hasDocumentData, processingStatus, displayChunks, searchQuery])
 
   const saveLabel =
     saveStatus === 'saving'

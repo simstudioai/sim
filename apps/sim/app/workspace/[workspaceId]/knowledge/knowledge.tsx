@@ -1420,7 +1420,7 @@ export function Knowledge() {
         onOpenChange={(open) => {
           if (!open) setFolderPendingDelete(null)
         }}
-        srTitle='Delete folder'
+        srTitle='Delete Folder'
         title='Delete Folder'
         text={[
           'Are you sure you want to delete ',
@@ -1438,7 +1438,7 @@ export function Knowledge() {
       <ChipConfirmModal
         open={isBulkDeleteModalOpen}
         onOpenChange={setIsBulkDeleteModalOpen}
-        srTitle='Delete selected'
+        srTitle='Delete Selected'
         title='Delete Selected'
         text={[
           'Are you sure you want to delete ',

@@ -5,6 +5,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AllTagSlot } from '@/lib/knowledge/constants'
 import {
+  EMPTY_TAG_DEFINITIONS,
+  type TagDefinition,
+} from '@/hooks/kb/use-knowledge-base-tag-definitions'
+import {
   type DocumentTagDefinitionInput,
   useDeleteDocumentTagDefinitions,
   useDocumentTagDefinitionsQuery,
@@ -12,17 +16,12 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
-export interface TagDefinition {
-  id: string
-  tagSlot: AllTagSlot
-  displayName: string
-  fieldType: string
-  createdAt: string
-  updatedAt: string
-}
-
-/** Stable empty fallback, so a pending query does not hand consumers a new array each render. */
-const EMPTY_TAG_DEFINITIONS: TagDefinition[] = []
+/**
+ * Re-exported so both tag hooks name ONE type: consumers already import `TagDefinition` from
+ * one of these files and `TagDefinitionInput` from the other, and two structurally identical
+ * declarations would let them drift with nothing to catch it.
+ */
+export type { TagDefinition }
 
 export interface TagDefinitionInput {
   tagSlot: AllTagSlot

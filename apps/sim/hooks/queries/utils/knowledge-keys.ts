@@ -15,6 +15,14 @@ export type KnowledgeQueryScope = KnowledgeScope
 /** Shared with the server prefetch so a hydrated list and a client fetch never disagree. */
 export const KNOWLEDGE_BASE_LIST_STALE_TIME = 60 * 1000
 
+/**
+ * `document(kb, doc)` is a PREFIX of `detail(kb)`, as are `documents`, `chunks`,
+ * `tagDefinitions`, and `tagUsage`. A mutation scoped to one document therefore invalidates
+ * the `document` key alone — the wider key would refetch every sibling document page, chunk
+ * page, tag definition, and connector row cached under the base. A mutation that also moves
+ * the base's own `chunkCount`/`tokenCount` invalidates `detail` with `exact: true`, for the
+ * same reason.
+ */
 export const knowledgeKeys = {
   all: ['knowledge'] as const,
   lists: () => [...knowledgeKeys.all, 'list'] as const,

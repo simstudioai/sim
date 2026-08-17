@@ -10,10 +10,7 @@ import {
 } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performCreateKnowledgeBase } from '@/lib/knowledge/orchestration'
-import {
-  getLegacyPersonalKnowledgeBases,
-  getWorkspaceKnowledgeBases,
-} from '@/lib/knowledge/service'
+import { listWorkspaceAndLegacyKnowledgeBases } from '@/lib/knowledge/service'
 import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
@@ -46,19 +43,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId)
     if (accessError) return accessError
 
-    /**
-     * The workspace's own rows, read after `validateWorkspaceAccess` has authorized this
-     * caller rather than re-deriving that access inside the row query, plus the caller's
-     * legacy workspace-less bases, which belong to no workspace and answer only to their
-     * creator. This is the shape the internal list serves too.
-     */
-    const [workspaceBases, legacyPersonalBases] = await Promise.all([
-      getWorkspaceKnowledgeBases(workspaceId),
-      getLegacyPersonalKnowledgeBases(userId),
-    ])
-    const knowledgeBases = [...workspaceBases.data, ...legacyPersonalBases].sort(
-      (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-    )
+    /** Read only after `validateWorkspaceAccess` authorized this caller; same list the
+     *  internal surface serves, from the same place. */
+    const knowledgeBases = await listWorkspaceAndLegacyKnowledgeBases(userId, workspaceId)
 
     return NextResponse.json({
       success: true,

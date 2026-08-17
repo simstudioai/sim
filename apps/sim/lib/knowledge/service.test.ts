@@ -44,6 +44,7 @@ import {
   getLegacyPersonalKnowledgeBases,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
+  listWorkspaceAndLegacyKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 
@@ -120,6 +121,43 @@ describe('getLegacyPersonalKnowledgeBases', () => {
     await expect(getLegacyPersonalKnowledgeBases('user-a')).rejects.toThrow(
       `Legacy personal knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
     )
+  })
+})
+
+/**
+ * The workspace list and the legacy personal list are separate reads answering to separate
+ * authorities, but they render as ONE list — so the merge has to order them together and
+ * project connectors once over the result, not once per source.
+ */
+describe('listWorkspaceAndLegacyKnowledgeBases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('orders both sources as one list and projects connectors once', async () => {
+    const workspaceRow = {
+      id: 'kb-workspace',
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+    }
+    const legacyRow = {
+      id: 'kb-legacy',
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+    }
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([workspaceRow])
+      .mockResolvedValueOnce([legacyRow])
+      .mockResolvedValueOnce([])
+
+    const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1')
+
+    expect(result.map((kb) => kb.id)).toEqual(['kb-legacy', 'kb-workspace'])
+    /** Two row reads and ONE connector projection — three chains, never four. */
+    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
   })
 })
 

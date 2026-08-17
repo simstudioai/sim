@@ -229,7 +229,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
        * its staleTime expires. Admission failures create nothing and need no refetch.
        */
       if (err instanceof KnowledgeUploadError && err.code === 'PARTIAL_UPLOAD_FAILURE') {
-        await invalidateKnowledgeCaches(knowledgeBaseId)
+        void invalidateKnowledgeCaches(knowledgeBaseId)
       }
 
       const error: UploadError =

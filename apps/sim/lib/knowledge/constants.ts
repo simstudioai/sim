@@ -4,6 +4,13 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
 /** Hard bound for full-workspace knowledge-base list projections. */
 export const MAX_KNOWLEDGE_BASES_PER_WORKSPACE = 10_000
+
+/**
+ * Cap on one caller's legacy workspace-less knowledge bases. Separate from the per-workspace
+ * cap because it bounds a per-user set governed by no workspace rule — the two limits should
+ * be free to move independently.
+ */
+export const MAX_LEGACY_PERSONAL_KNOWLEDGE_BASES = 10_000
 /** Hard bound for path-indexed knowledge folder trees and recursive cascades. */
 export const MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE = MAX_FOLDERS_PER_WORKSPACE
 

@@ -168,13 +168,8 @@ export function useKnowledgeBaseDocuments(
  * Hook to fetch and manage knowledge bases list
  * Uses React Query as single source of truth
  */
-export function useKnowledgeBasesList(
-  workspaceId?: string,
-  options?: {
-    enabled?: boolean
-  }
-) {
-  const query = useKnowledgeBasesQuery(workspaceId, { enabled: options?.enabled ?? true })
+export function useKnowledgeBasesList(workspaceId?: string) {
+  const query = useKnowledgeBasesQuery(workspaceId)
 
   return {
     knowledgeBases: query.data ?? [],
