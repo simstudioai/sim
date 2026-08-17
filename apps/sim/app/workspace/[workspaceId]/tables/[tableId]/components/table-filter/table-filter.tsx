@@ -1,15 +1,6 @@
 'use client'
 
-import {
-  forwardRef,
-  memo,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ChipDropdown, ChipInput } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
@@ -33,8 +24,6 @@ const MULTI_SELECT_COMPARISON_OPERATORS = COMPARISON_OPERATORS.filter((o) =>
   MULTI_SELECT_FILTER_OPERATORS.has(o.value)
 )
 
-export const FILTER_DEBOUNCE_MS = 250
-
 function selectFilterOperators(column: ColumnDefinition | undefined): Set<string> {
   return column?.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
 }
@@ -56,23 +45,9 @@ interface TableFilterProps {
   onChange: (filter: TablePredicate | null) => void
 }
 
-export interface TableFilterHandle {
-  flush: () => void
-}
-
-interface PendingFilter {
-  filter: TablePredicate | null
-  signature: string
-}
-
-export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(function TableFilter(
-  { columns, filter, onChange },
-  ref
-) {
+export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   const lastAppliedFilterRef = useRef<string | undefined>(undefined)
   const onChangeRef = useRef(onChange)
-  const pendingFilterRef = useRef<PendingFilter | null>(null)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = predicateToFilterRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
@@ -80,7 +55,7 @@ export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(funct
   // Seed the "already applied" signature from the rules the panel actually
   // renders, not the raw prop: a saved tree the flat builder cannot express
   // (deeply nested groups, wire key order) round-trips differently, and seeding
-  // from the prop would schedule an unedited autosave of that lossy form the
+  // from the prop would fire an unedited autosave of that lossy form the
   // moment the panel opens. The normalized form persists only once the user
   // really edits a rule.
   lastAppliedFilterRef.current ??= JSON.stringify(toAppliedPredicate(rules, columns))
@@ -149,41 +124,19 @@ export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(funct
     [columnById]
   )
 
-  const flush = useCallback(() => {
-    const pending = pendingFilterRef.current
-    if (!pending) return
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    timeoutRef.current = null
-    pendingFilterRef.current = null
-    lastAppliedFilterRef.current = pending.signature
-    onChangeRef.current(pending.filter)
-  }, [])
-
-  useImperativeHandle(ref, () => ({ flush }), [flush])
-
+  // Applies on every rules change. Rules only change on completed gestures —
+  // dropdown picks, row add/remove, conjunction toggles, and the value field's
+  // Enter/blur commit ({@link FilterValueInput} buffers keystrokes locally) —
+  // so nothing is ever pending and there is nothing to lose on unmount. The
+  // signature guard keeps no-op changes (a blank row added, an untouched
+  // reseed) from writing.
   useEffect(() => {
     const nextFilter = toAppliedPredicate(rules, columns)
     const signature = JSON.stringify(nextFilter)
-    if (signature === lastAppliedFilterRef.current) {
-      pendingFilterRef.current = null
-      return
-    }
-
-    const pending = { filter: nextFilter, signature }
-    pendingFilterRef.current = pending
-    const timeout = setTimeout(() => {
-      if (pendingFilterRef.current !== pending) return
-      timeoutRef.current = null
-      flush()
-    }, FILTER_DEBOUNCE_MS)
-    timeoutRef.current = timeout
-
-    return () => {
-      clearTimeout(timeout)
-      if (timeoutRef.current === timeout) timeoutRef.current = null
-    }
-  }, [rules, columns, flush])
+    if (signature === lastAppliedFilterRef.current) return
+    lastAppliedFilterRef.current = signature
+    onChangeRef.current(nextFilter)
+  }, [rules, columns])
 
   return (
     <div className='border-[var(--border)] border-b bg-[var(--bg)] px-4 py-2'>
@@ -216,7 +169,7 @@ export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(funct
       </div>
     </div>
   )
-})
+}
 
 interface FilterRuleRowProps {
   rule: FilterRule
@@ -311,11 +264,9 @@ const FilterRuleRow = memo(function FilterRuleRow({
           className='min-w-[100px] flex-1'
         />
       ) : (
-        <ChipInput
+        <FilterValueInput
           value={rule.value}
-          onChange={(e) => onUpdate(rule.id, 'value', e.target.value)}
-          placeholder='Enter a value'
-          className='flex-1'
+          onCommit={(value) => onUpdate(rule.id, 'value', value)}
         />
       )}
 
@@ -331,6 +282,43 @@ const FilterRuleRow = memo(function FilterRuleRow({
     </div>
   )
 })
+
+interface FilterValueInputProps {
+  value: string
+  onCommit: (value: string) => void
+}
+
+/**
+ * Locally buffered value field: keystrokes stay in the field until Enter or
+ * blur commits them — the spreadsheet-cell contract. Every click-driven exit
+ * from the panel (closing it, switching views, navigating away) blurs the
+ * field first, so finishing-by-leaving commits without any imperative
+ * coordination. An external reseed (column switch clearing the value, a view
+ * replacement remount) adopts the incoming value over the draft.
+ */
+function FilterValueInput({ value, onCommit }: FilterValueInputProps) {
+  const [draft, setDraft] = useState(value)
+  const [prevValue, setPrevValue] = useState(value)
+  if (prevValue !== value) {
+    setPrevValue(value)
+    setDraft(value)
+  }
+
+  return (
+    <ChipInput
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft !== value) onCommit(draft)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && draft !== value) onCommit(draft)
+      }}
+      placeholder='Enter a value'
+      className='flex-1'
+    />
+  )
+}
 
 function createRule(columns: ColumnDefinition[]): FilterRule {
   const first = columns[0]

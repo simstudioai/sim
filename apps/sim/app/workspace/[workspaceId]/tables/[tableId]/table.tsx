@@ -82,7 +82,6 @@ import {
   type SelectionSnapshot,
   TableActionBar,
   TableFilter,
-  type TableFilterHandle,
   TableGrid,
   ViewsMenu,
   type WorkflowConfig,
@@ -249,7 +248,6 @@ export function Table({
   })
   const [filter, setFilter] = useState<TablePredicate | null>(null)
   const [filterOpen, setFilterOpen] = useState(false)
-  const tableFilterRef = useRef<TableFilterHandle>(null)
   /** Bumped whenever the filter is replaced from outside the panel, to re-seed
    *  its rule rows. See {@link replaceFilter}. */
   const [filterSeed, setFilterSeed] = useState(0)
@@ -728,7 +726,6 @@ export function Table({
   const handleSelectView = useCallback(
     (viewId: string | null) => {
       preservedViewStateRef.current = null
-      tableFilterRef.current?.flush()
       setTableParams({ view: viewId ?? ALL_VIEW_PARAM })
     },
     [setTableParams]
@@ -1436,13 +1433,9 @@ export function Table({
   // a one-line query forward.
   const { data: executionLog } = useLogByExecutionId(workspaceId, executionId)
 
-  // Identity only changes with filterOpen (the flush targets the open panel),
-  // so unrelated parent re-renders still let the memoized Resource.Options
-  // bail; filterConfig below re-memoizes on filterOpen anyway.
-  const handleToggleFilter = useCallback(() => {
-    if (filterOpen) tableFilterRef.current?.flush()
-    setFilterOpen(!filterOpen)
-  }, [filterOpen])
+  // Stable identity so the memoized Resource.Options can bail — an inline
+  // object literal (with an inline arrow) would defeat its memo every render.
+  const handleToggleFilter = useCallback(() => setFilterOpen((prev) => !prev), [])
   const filterConfig = useMemo(
     () => ({
       mode: 'toggle' as const,
@@ -1538,7 +1531,6 @@ export function Table({
       />
       {filterOpen && (
         <TableFilter
-          ref={tableFilterRef}
           key={filterSeed}
           columns={columns}
           filter={effectiveFilter}
