@@ -194,7 +194,7 @@ export const renameWorkspaceFileContract = defineRouteContract({
 
 export const extractWorkspaceFileContract = defineRouteContract({
   method: 'POST',
-  path: '/api/workspaces/[id]/files/[fileId]',
+  path: '/api/workspaces/[id]/files/[fileId]/extract',
   params: workspaceFileParamsSchema,
   response: {
     mode: 'json',
