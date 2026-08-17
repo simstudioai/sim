@@ -72,8 +72,15 @@ export function parseInlineReferences(value: string): ParsedInlineReference[] {
  * Indexes a workflow's block names by the prefix their references carry, so a
  * parsed reference can be read back as the name the canvas shows.
  *
- * Block names are unique by normalized form, so a prefix identifies at most one
- * block. Blank names are skipped rather than mapped to an empty prefix.
+ * Creating or renaming a block enforces uniqueness at the normalized level, but
+ * legacy workflows can still hold two names that collide only now that
+ * `normalizeName` strips dots. `BlockResolver` settles that tie by letting the
+ * dot-free name keep ownership of the key, so previously working references
+ * never change targets; this mirrors that rule rather than taking whichever
+ * block happens to be iterated last, so search names the block a reference
+ * actually resolves to at execution time.
+ *
+ * Blank names are skipped rather than mapped to an empty prefix.
  */
 export function buildBlockNamesByReferencePrefix(
   blocks: Record<string, { name?: string }>
@@ -83,7 +90,12 @@ export function buildBlockNamesByReferencePrefix(
   for (const block of Object.values(blocks)) {
     if (typeof block.name !== 'string') continue
     const prefix = normalizeName(block.name)
-    if (prefix) namesByPrefix.set(prefix, block.name)
+    if (!prefix) continue
+
+    const incumbent = namesByPrefix.get(prefix)
+    if (incumbent === undefined || incumbent.includes(REFERENCE.PATH_DELIMITER)) {
+      namesByPrefix.set(prefix, block.name)
+    }
   }
 
   return namesByPrefix

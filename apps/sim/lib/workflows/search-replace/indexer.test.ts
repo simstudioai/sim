@@ -202,6 +202,36 @@ describe('indexWorkflowSearchMatches', () => {
         matches.filter((match) => match.kind === 'environment').map((match) => match.searchText)
       ).toEqual(['OLD_SECRET', 'OLD_SECRET'])
     })
+
+    /**
+     * Legacy workflows can hold two names that collide only now that
+     * `normalizeName` strips dots. `BlockResolver` gives the key to the dot-free
+     * name whichever order the blocks arrive in, so search has to name the same
+     * block or it would label the reference with a title that block does not own
+     * at execution time.
+     */
+    it.each([
+      ['dotted first', ['Hunter.io 1', 'Hunterio 1']],
+      ['dot-free first', ['Hunterio 1', 'Hunter.io 1']],
+    ])('names a legacy dot collision after the dot-free block (%s)', (_order, names) => {
+      const workflow = createSearchReplaceWorkflowFixture()
+      workflow.blocks['knowledge-1'].name = names[0]
+      workflow.blocks['api-1'].name = names[1]
+      workflow.blocks['agent-1'].subBlocks.systemPrompt.value = 'Read <hunterio1.email>.'
+
+      const matches = indexWorkflowSearchMatches({
+        workflow,
+        mode: 'all',
+        includeResourceMatchesWithoutQuery: true,
+        blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
+      })
+
+      expect(
+        matches
+          .filter((match) => match.kind === 'workflow-reference')
+          .map((match) => match.searchText)
+      ).toEqual(['Hunterio 1.email'])
+    })
   })
 
   it('does not index internal row metadata in structured subblock values', () => {
