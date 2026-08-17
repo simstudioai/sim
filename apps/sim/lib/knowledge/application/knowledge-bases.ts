@@ -11,7 +11,8 @@ import {
   PrincipalKindAuthorizationError,
   type WorkspaceOperation,
 } from '@/lib/core/application'
-import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { classifyBulkItemError } from '@/lib/core/application/bulk-items'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
@@ -55,9 +56,10 @@ import {
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
   getKnowledgeBaseById,
-  getKnowledgeBases,
+  getLegacyPersonalKnowledgeBases,
   getWorkspaceKnowledgeBases,
   type KnowledgeBaseScope,
+  listWorkspaceAndLegacyKnowledgeBases,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import type { ChunkingConfig, KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -437,12 +439,19 @@ export const listInternalKnowledgeBases = {
     if (principal.kind !== 'session') {
       throw new PrincipalKindAuthorizationError(principal.kind, knowledgeSessionOperations.list.id)
     }
-    if (input.workspaceId !== undefined) {
-      const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
-      await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
+    if (input.workspaceId === undefined) {
+      return {
+        knowledgeBases: await getLegacyPersonalKnowledgeBases(principal.userId, input.scope),
+      }
     }
+    const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
+    await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
     return {
-      knowledgeBases: await getKnowledgeBases(principal.userId, input.workspaceId, input.scope),
+      knowledgeBases: await listWorkspaceAndLegacyKnowledgeBases(
+        principal.userId,
+        context.workspaceId,
+        input.scope
+      ),
     }
   },
 } satisfies OperationUseCase<
@@ -553,24 +562,20 @@ export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
         if (input.cancellationSignal?.aborted) break
         deleted.push(await executeDeleteKnowledgeBase({ context: canonical }))
       } catch (error) {
-        const classified = asOrchestrationError(error)
-        if (
-          classified?.code === 'not_found' ||
-          classified?.code === 'forbidden' ||
-          classified?.code === 'unauthorized'
-        ) {
+        const disposition = classifyBulkItemError(error)
+        if (disposition.kind === 'notFound') {
           notFound.push(knowledgeBaseId)
           continue
         }
-        if (classified && classified.code !== 'internal') {
+        if (disposition.kind === 'failed') {
           failed.push({
             id: knowledgeBaseId,
             name: knowledgeBaseName,
-            reason: classified.message,
+            reason: disposition.reason,
           })
           continue
         }
-        terminalFailure = { error }
+        terminalFailure = { error: disposition.error }
         break
       }
     }

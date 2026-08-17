@@ -10,7 +10,8 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
 > = {
   id: 'crowdstrike_query_sensors',
   name: 'CrowdStrike Query Sensors',
-  description: 'Search CrowdStrike identity protection sensors by hostname, IP, or related fields',
+  description:
+    'Search CrowdStrike Identity Protection sensors -- the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors -- and return their device IDs (GET /identity-protection/queries/devices/v1). Sort uses the dot form, for example status.desc. Requires the "Identity Protection Entities: Read" API scope, a separate entitlement from Hosts and Alerts.',
   version: '1.0.0',
 
   params: {
@@ -207,6 +208,19 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
         limit: { type: 'number', description: 'Page size used for the query', optional: true },
         offset: { type: 'number', description: 'Offset returned by CrowdStrike', optional: true },
         total: { type: 'number', description: 'Total records available', optional: true },
+      },
+    },
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
       },
     },
   },

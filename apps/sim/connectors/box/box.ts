@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { boxConnectorMeta } from '@/connectors/box/meta'
@@ -354,7 +354,15 @@ async function fetchExtractedText(
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}` },
     })
-    if (!response.ok && response.status !== 202) return null
+    /**
+     * A 404 means the representation is genuinely gone; 202 means still generating.
+     * Anything else (429, 5xx) is transient and must surface as a failed hydration rather
+     * than being folded into "this file has no extractable text".
+     */
+    if (response.status === 404) return null
+    if (!response.ok && response.status !== 202) {
+      throw new Error(`Failed to poll Box representation status: ${response.status}`)
+    }
 
     if (response.status === 202) {
       state = 'pending'
@@ -439,6 +447,17 @@ export const boxConnector: ConnectorConfig = {
     for (let fetched = 0; fetched < FOLDER_PAGES_PER_CALL && position; fetched++) {
       const page = await listFolderPage(accessToken, position.folderId, position.marker)
 
+      /**
+       * Losing access to a *sub*folder is survivable, but losing access to the
+       * configured root means the whole listing is empty. Failing loudly beats
+       * reporting a successful sync that indexed nothing.
+       */
+      if (!page && position.folderId === rootFolderId) {
+        throw new Error(
+          `Box denied access to folder ${rootFolderId}. Reconnect the Box account or choose another folder.`
+        )
+      }
+
       if (page) {
         for (const item of page.entries ?? []) {
           if (item.type === 'folder') {
@@ -470,7 +489,8 @@ export const boxConnector: ConnectorConfig = {
       ? { queue, folderId: position.folderId, marker: position.marker }
       : null
 
-    const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
+    const parsedMaxFiles = Number(sourceConfig.maxFiles)
+    const maxFiles = Number.isFinite(parsedMaxFiles) && parsedMaxFiles > 0 ? parsedMaxFiles : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
     const stubs = files.map((item) => stubOrSkipBySize(fileToStub(item), item.size, MAX_FILE_SIZE))
@@ -506,60 +526,58 @@ export const boxConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      const response = await fetchWithRetry(
-        `${BOX_API_BASE}/files/${encodeURIComponent(externalId)}?fields=${FILE_FIELDS},representations`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'x-rep-hints': '[extracted_text]',
-          },
-        }
-      )
-
-      if (response.status === 404 || response.status === 403) return null
-      if (!response.ok) {
-        throw new Error(`Failed to get Box file metadata: ${response.status}`)
+    const response = await fetchWithRetry(
+      `${BOX_API_BASE}/files/${encodeURIComponent(externalId)}?fields=${FILE_FIELDS},representations`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'x-rep-hints': '[extracted_text]',
+        },
       }
+    )
 
-      const file = (await response.json()) as BoxFileWithRepresentations
-      if (file.trashed_at || (file.item_status && file.item_status !== 'active')) return null
-      if (!isSupportedFile({ ...file, type: file.type ?? 'file' })) return null
-
-      const stub = fileToStub(file)
-      if (file.size && file.size > MAX_FILE_SIZE) {
-        return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
-      }
-
-      const extension = getExtension(file)
-
-      let content: string | null
-      try {
-        if (PLAIN_TEXT_EXTENSIONS.has(extension)) {
-          content = await fetchPlainTextContent(accessToken, file.id, extension)
-        } else {
-          const entry = (file.representations?.entries ?? []).find(
-            (candidate) => candidate.representation === 'extracted_text'
-          )
-          content = entry ? await fetchExtractedText(accessToken, entry) : null
-        }
-      } catch (error) {
-        if (error instanceof ConnectorFileTooLargeError) {
-          return markSkipped(stub, sizeLimitSkipReason(error.limitBytes))
-        }
-        throw error
-      }
-
-      if (!content?.trim()) return null
-
-      return { ...stub, content, contentDeferred: false }
-    } catch (error) {
-      logger.warn(`Failed to fetch Box document ${externalId}`, {
-        error: toError(error).message,
-      })
-      return null
+    /**
+     * 404/403 are the only statuses that mean the file is genuinely unavailable.
+     * Every other failure (429, 5xx, network faults) propagates so the sync engine
+     * records a failed row and excludes the file from deletion reconciliation.
+     */
+    if (response.status === 404 || response.status === 403) return null
+    if (!response.ok) {
+      throw new Error(`Failed to get Box file metadata: ${response.status}`)
     }
+
+    const file = (await response.json()) as BoxFileWithRepresentations
+    if (file.trashed_at || (file.item_status && file.item_status !== 'active')) return null
+    if (!isSupportedFile({ ...file, type: file.type ?? 'file' })) return null
+
+    const stub = fileToStub(file)
+    if (file.size && file.size > MAX_FILE_SIZE) {
+      return markSkipped(stub, sizeLimitSkipReason(MAX_FILE_SIZE))
+    }
+
+    const extension = getExtension(file)
+
+    let content: string | null
+    try {
+      if (PLAIN_TEXT_EXTENSIONS.has(extension)) {
+        content = await fetchPlainTextContent(accessToken, file.id, extension)
+      } else {
+        const entry = (file.representations?.entries ?? []).find(
+          (candidate) => candidate.representation === 'extracted_text'
+        )
+        content = entry ? await fetchExtractedText(accessToken, entry) : null
+      }
+    } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) {
+        return markSkipped(stub, sizeLimitSkipReason(error.limitBytes))
+      }
+      throw error
+    }
+
+    if (!content?.trim()) return null
+
+    return { ...stub, content, contentDeferred: false }
   },
 
   validateConfig: async (

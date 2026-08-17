@@ -18,17 +18,40 @@ export async function resolveTableWorkspaceContext(
   return canonical
 }
 
+/**
+ * Loads a table and asserts it lives in `workspaceId` when the caller named one.
+ *
+ * Shared by both resolvers below so the not-found concealment — a table outside the asserted
+ * workspace is reported as missing, never as forbidden — is written once.
+ */
+async function requireTable(tableId: string, workspaceId: string | undefined) {
+  const table = await getTableById(tableId)
+  if (!table || (workspaceId !== undefined && table.workspaceId !== workspaceId)) {
+    throw new OrchestrationError('not_found', 'Table not found')
+  }
+  return table
+}
+
 export async function resolveActiveTableContext(input: {
   tableId: string
   assertedWorkspaceId?: string
 }): Promise<ActiveTableContext> {
-  const table = await getTableById(input.tableId)
-  if (
-    !table ||
-    (input.assertedWorkspaceId !== undefined && table.workspaceId !== input.assertedWorkspaceId)
-  ) {
-    throw new OrchestrationError('not_found', 'Table not found')
-  }
+  const table = await requireTable(input.tableId, input.assertedWorkspaceId)
   const workspaceContext = await resolveTableWorkspaceContext(table.workspaceId)
+  return { ...workspaceContext, tableId: table.id, table }
+}
+
+/**
+ * Resolves one table against a workspace context the caller already loaded.
+ *
+ * Same result as {@link resolveActiveTableContext}, minus its workspace load. A batch has that
+ * context in hand before the first item — it is what bounded and authorized the request — and it
+ * cannot differ per item, so re-resolving it once per table is a whole extra query each.
+ */
+export async function resolveActiveTableInWorkspace(
+  tableId: string,
+  workspaceContext: TableWorkspaceContext
+): Promise<ActiveTableContext> {
+  const table = await requireTable(tableId, workspaceContext.workspaceId)
   return { ...workspaceContext, tableId: table.id, table }
 }

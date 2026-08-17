@@ -94,59 +94,6 @@ export function SlackManagedUsersModal({
   const effectiveCredentialId = selectedCredentialId ?? defaultCredentialId
   const selectedBot = bots.find((bot) => bot.id === effectiveCredentialId)
 
-  useEffect(() => {
-    if (!open) return
-    const channel = new BroadcastChannel(CHANNEL_NAME)
-    channel.onmessage = (event: MessageEvent<unknown>) => {
-      if (!isSlackManagedUsersMessage(event.data)) return
-      if (!expectedState.current || event.data.state !== expectedState.current) return
-      const verifiedCredentialId = expectedCredentialId.current
-      expectedState.current = null
-      expectedCredentialId.current = null
-      if (popupWatcher.current !== null) window.clearInterval(popupWatcher.current)
-      popupWatcher.current = null
-      popup.current?.close()
-      popup.current = null
-      setPending(false)
-      if (!event.data.ok) {
-        const notification = getSlackManagedUsersFailureNotification(event.data.reason)
-        if (notification.variant === 'warning') toast.warning(notification.message)
-        else toast.error(notification.message)
-        return
-      }
-      if (
-        event.data.credentialGroupId !== credentialGroupId ||
-        !verifiedCredentialId ||
-        event.data.slackBotCredentialId !== verifiedCredentialId
-      ) {
-        toast.error('Slack app verification failed. Please try again.')
-        return
-      }
-      if (!bots.some((bot) => bot.id === verifiedCredentialId)) {
-        toast.error('The verified Slack app is no longer available.')
-        return
-      }
-      void queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.list(workspaceId),
-      })
-      void queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.detail(workspaceId, credentialGroupId),
-      })
-      toast.success('Slack configured')
-      onOpenChange(false)
-      reset()
-    }
-    return () => channel.close()
-  }, [bots, credentialGroupId, onOpenChange, open, queryClient, workspaceId])
-
-  useEffect(
-    () => () => {
-      if (popupWatcher.current !== null) window.clearInterval(popupWatcher.current)
-      popup.current?.close()
-    },
-    []
-  )
-
   const reset = () => {
     popup.current?.close()
     popup.current = null
@@ -160,6 +107,73 @@ export function SlackManagedUsersModal({
     setPending(false)
     startAuthorization.reset()
   }
+
+  const handleAuthorizationMessage = (message: SlackManagedUsersMessage) => {
+    if (!expectedState.current || message.state !== expectedState.current) return
+    const verifiedCredentialId = expectedCredentialId.current
+    expectedState.current = null
+    expectedCredentialId.current = null
+    if (popupWatcher.current !== null) window.clearInterval(popupWatcher.current)
+    popupWatcher.current = null
+    popup.current?.close()
+    popup.current = null
+    setPending(false)
+    if (!message.ok) {
+      const notification = getSlackManagedUsersFailureNotification(message.reason)
+      if (notification.variant === 'warning') toast.warning(notification.message)
+      else toast.error(notification.message)
+      return
+    }
+    if (
+      message.credentialGroupId !== credentialGroupId ||
+      !verifiedCredentialId ||
+      message.slackBotCredentialId !== verifiedCredentialId
+    ) {
+      toast.error('Slack app verification failed. Please try again.')
+      return
+    }
+    if (!bots.some((bot) => bot.id === verifiedCredentialId)) {
+      toast.error('The verified Slack app is no longer available.')
+      return
+    }
+    void queryClient.invalidateQueries({
+      queryKey: credentialGroupKeys.list(workspaceId),
+    })
+    void queryClient.invalidateQueries({
+      queryKey: credentialGroupKeys.detail(workspaceId, credentialGroupId),
+    })
+    toast.success('Slack configured')
+    onOpenChange(false)
+    reset()
+  }
+
+  /**
+   * The subscription's identity is `open` alone. Routing the handler through a
+   * ref keeps a `bots` refetch from closing and reopening the channel mid-flow,
+   * which would drop an already-queued authorization message from the popup.
+   */
+  const messageHandler = useRef(handleAuthorizationMessage)
+  useEffect(() => {
+    messageHandler.current = handleAuthorizationMessage
+  })
+
+  useEffect(() => {
+    if (!open) return
+    const channel = new BroadcastChannel(CHANNEL_NAME)
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      if (!isSlackManagedUsersMessage(event.data)) return
+      messageHandler.current(event.data)
+    }
+    return () => channel.close()
+  }, [open])
+
+  useEffect(
+    () => () => {
+      if (popupWatcher.current !== null) window.clearInterval(popupWatcher.current)
+      popup.current?.close()
+    },
+    []
+  )
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (pending && !nextOpen) return
@@ -247,12 +261,12 @@ export function SlackManagedUsersModal({
       </ChipModalHeader>
       <ChipModalBody>
         {isLoading ? (
-          <div className='flex flex-col gap-3 px-2 py-1'>
+          <div className='flex flex-col gap-[9px] px-2'>
             <Skeleton className='h-4 w-24 rounded' />
-            <Skeleton className='h-9 w-full rounded-lg' />
+            <Skeleton className='h-[30px] w-full rounded-lg' />
           </div>
         ) : noBots ? (
-          <p className='px-2 py-4 text-center text-[var(--text-muted)] text-sm'>
+          <p className='px-2 text-[var(--text-muted)] text-small'>
             Add a custom Slack app from Integrations before adding Slack to this group.
           </p>
         ) : (

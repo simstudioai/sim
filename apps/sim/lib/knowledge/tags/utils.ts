@@ -136,7 +136,6 @@ export function parseNumberValue(value: string): number | null {
 export function parseDateValue(value: string): Date | null {
   const stringValue = String(value).trim()
 
-  // Must be YYYY-MM-DD format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(stringValue)) {
     return null
   }

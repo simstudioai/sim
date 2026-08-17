@@ -27,3 +27,9 @@ export const SLACK_MANAGED_USER_SCOPES = [
   'users:read',
   'users:read.email',
 ] as const
+
+export const SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH =
+  '/api/credential-groups/slack-managed-users/callback'
+
+export const SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH =
+  '/api/credential-groups/oauth/slack/callback'

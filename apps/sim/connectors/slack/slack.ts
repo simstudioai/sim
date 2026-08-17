@@ -71,6 +71,40 @@ interface SlackUser {
 }
 
 /**
+ * Actionable hints for the Slack error codes a sync realistically hits. Without
+ * them a failed sync surfaces only the raw code (e.g. `not_in_channel`), which
+ * does not tell the user the fix is to invite the app to the channel.
+ * Codes are documented per method, e.g.
+ * https://docs.slack.dev/reference/methods/conversations.history/
+ */
+const SLACK_ERROR_HINTS: Record<string, string> = {
+  not_in_channel: 'invite the Sim app to this channel',
+  channel_not_found: 'the channel does not exist or the app cannot see it',
+  is_archived: 'the channel is archived',
+  missing_scope: 'the Slack credential is missing a required scope; reconnect it',
+  invalid_auth: 'the Slack credential is no longer valid; reconnect it',
+  account_inactive: 'the Slack credential is no longer valid; reconnect it',
+  token_revoked: 'the Slack credential is no longer valid; reconnect it',
+  ratelimited: 'Slack rate limit exceeded',
+}
+
+/**
+ * Error thrown for a Slack `ok: false` envelope, carrying the machine-readable
+ * `error` code so callers can branch on `channel_not_found` without string
+ * matching.
+ */
+class SlackApiError extends Error {
+  constructor(
+    readonly code: string,
+    readonly method: string
+  ) {
+    const hint = SLACK_ERROR_HINTS[code]
+    super(`Slack API error on ${method}: ${code}${hint ? ` — ${hint}` : ''}`)
+    this.name = 'SlackApiError'
+  }
+}
+
+/**
  * Calls a Slack Web API method via GET with query params.
  * Slack returns HTTP 200 even for errors, so we check the `ok` field.
  */
@@ -102,11 +136,25 @@ async function slackApiGet(
   const data = (await response.json()) as Record<string, unknown>
 
   if (!data.ok) {
-    const error = (data.error as string) || 'unknown_error'
-    throw new Error(`Slack API error: ${error}`)
+    throw new SlackApiError((data.error as string) || 'unknown_error', method)
   }
 
   return data
+}
+
+/**
+ * Resolves the configured message window, falling back to the default for
+ * missing, non-numeric, or non-positive values.
+ *
+ * `validateConfig` rejects those inputs, but a config saved before validation
+ * tightened (or edited out-of-band) would otherwise produce `NaN`/`0` here,
+ * making `fetchChannelMessages` return zero messages. An empty document is
+ * dropped from the listing, and the sync engine hard-deletes stored documents
+ * absent from a listing — silently wiping every indexed channel.
+ */
+function resolveMaxMessages(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_MESSAGES
 }
 
 /**
@@ -144,6 +192,16 @@ async function resolveUserName(
       userId,
       error: toError(error).message,
     })
+    /**
+     * Negative-cache only permanently unresolvable users. A deleted user
+     * (`user_not_found`) can author hundreds of messages, each otherwise
+     * costing another Tier 4 `users.info` request. Transient failures are not
+     * cached so a later message can still resolve the real name.
+     */
+    if (syncContext && error instanceof SlackApiError && error.code === 'user_not_found') {
+      const cache = syncContext[cacheKey] as Record<string, string>
+      cache[userId] = userId
+    }
     return userId
   }
 }
@@ -157,7 +215,11 @@ function formatSlackTimestamp(ts: string): string {
 }
 
 /**
- * Fetches all messages from a channel, up to a maximum count, handling pagination.
+ * Fetches messages from a channel, newest first, up to `maxMessages`.
+ *
+ * `conversations.history` returns only top-level messages; replies inside a
+ * thread are served by `conversations.replies` and are therefore NOT indexed —
+ * threaded discussion content is missing from the synced document.
  */
 async function fetchChannelMessages(
   accessToken: string,
@@ -359,8 +421,16 @@ async function resolveChannel(
     try {
       const data = await slackApiGet('conversations.info', accessToken, { channel: trimmed })
       return data.channel as SlackChannel
-    } catch {
-      // Fall through to name-based search
+    } catch (error) {
+      /**
+       * Only an unknown channel justifies the name-based fallback. Rethrowing
+       * everything else (auth failures, `missing_scope`, exhausted rate-limit
+       * retries) avoids walking the full `conversations.list` just to report a
+       * misleading "Channel not found" for a channel that does exist.
+       */
+      if (!(error instanceof SlackApiError) || error.code !== 'channel_not_found') {
+        throw error
+      }
     }
   }
 
@@ -496,9 +566,7 @@ export const slackConnector: ConnectorConfig = {
       throw new Error('At least one channel is required')
     }
 
-    const maxMessages = sourceConfig.maxMessages
-      ? Number(sourceConfig.maxMessages)
-      : DEFAULT_MAX_MESSAGES
+    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
 
     logger.info('Syncing Slack channels', { channels: channelInputs, maxMessages })
 
@@ -564,9 +632,7 @@ export const slackConnector: ConnectorConfig = {
     externalId: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const maxMessages = sourceConfig.maxMessages
-      ? Number(sourceConfig.maxMessages)
-      : DEFAULT_MAX_MESSAGES
+    const maxMessages = resolveMaxMessages(sourceConfig.maxMessages)
 
     try {
       const data = await slackApiGet('conversations.info', accessToken, { channel: externalId })
@@ -597,11 +663,15 @@ export const slackConnector: ConnectorConfig = {
         },
       }
     } catch (error) {
-      logger.warn('Failed to get Slack channel document', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
+      /**
+       * `null` means "gone" to the sync engine, so only a deleted channel maps
+       * to it. Auth, scope and transport failures are rethrown so they surface
+       * as a failed document rather than a silent drop.
+       */
+      if (error instanceof SlackApiError && error.code === 'channel_not_found') {
+        return null
+      }
+      throw error
     }
   },
 
@@ -639,8 +709,17 @@ export const slackConnector: ConnectorConfig = {
               { channel: trimmed },
               VALIDATE_RETRY_OPTIONS
             )
-          } catch {
-            return { valid: false, error: `Channel not found: ${input}` }
+          } catch (error) {
+            /**
+             * Only an unknown channel is reported as missing. A scope, auth or
+             * transport failure falls through to the outer catch and keeps its
+             * own message — otherwise the user re-picks a channel that exists
+             * instead of reconnecting the credential.
+             */
+            if (error instanceof SlackApiError && error.code === 'channel_not_found') {
+              return { valid: false, error: `Channel not found: ${input}` }
+            }
+            throw error
           }
         } else {
           nameLookups.push(trimmed)

@@ -35,7 +35,7 @@ export const firefliesConnectorMeta: ConnectorMeta = {
   tagDefinitions: [
     { id: 'hostEmail', displayName: 'Host Email', fieldType: 'text' },
     { id: 'speakers', displayName: 'Speakers', fieldType: 'text' },
-    { id: 'duration', displayName: 'Duration (seconds)', fieldType: 'number' },
+    { id: 'duration', displayName: 'Duration (minutes)', fieldType: 'number' },
     { id: 'meetingDate', displayName: 'Meeting Date', fieldType: 'date' },
   ],
 }

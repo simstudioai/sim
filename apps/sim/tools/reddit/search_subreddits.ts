@@ -1,4 +1,5 @@
 import { validateEnum } from '@/lib/core/security/input-validation'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 const ALLOWED_SORT_OPTIONS = ['relevance', 'activity'] as const
@@ -137,7 +138,7 @@ export const searchSubredditsTool: ToolConfig<
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         Accept: 'application/json',
       }
     },

@@ -1,187 +1,39 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { crowdstrikeQueryContract } from '@/lib/api/contracts/tools/crowdstrike'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  CrowdStrikeAuthError,
+  type CrowdStrikeCallResult,
+  callCrowdStrike,
+  getAccessToken,
+  getCloudBaseUrl,
+  getEnvelopeErrors,
+  getFalconErrorMessage,
+  getNumber,
+  getPagination,
+  getRecordArray,
+  getRecordResources,
+  getString,
+  getStringArray,
+  getStringResources,
+  type JsonRecord,
+} from '@/app/api/tools/crowdstrike/query/falcon'
+import {
+  executeCrowdStrikeOperation,
+  failedWithoutResources,
+  failureStatus,
+} from '@/app/api/tools/crowdstrike/query/operations'
 import type {
-  CrowdStrikeAggregateQuery,
-  CrowdStrikeBaseParams,
-  CrowdStrikeCloud,
   CrowdStrikeQuerySensorsParams,
   CrowdStrikeSensorAggregateBucket,
   CrowdStrikeSensorAggregateResult,
 } from '@/tools/crowdstrike/types'
 
-const logger = createLogger('CrowdStrikeIdentityProtectionAPI')
-
-type JsonRecord = Record<string, unknown>
-
-function getCloudBaseUrl(cloud: CrowdStrikeCloud): string {
-  const cloudMap: Record<CrowdStrikeCloud, string> = {
-    'eu-1': 'https://api.eu-1.crowdstrike.com',
-    'us-1': 'https://api.crowdstrike.com',
-    'us-2': 'https://api.us-2.crowdstrike.com',
-    'us-gov-1': 'https://api.laggar.gcw.crowdstrike.com',
-    'us-gov-2': 'https://api.us-gov-2.crowdstrike.mil',
-  }
-
-  return cloudMap[cloud]
-}
-
-function getString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-function getNumber(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
-}
-
-function getStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return value.filter((entry): entry is string => typeof entry === 'string')
-}
-
-function getRecordArray(value: unknown): JsonRecord[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return value.filter(isRecordLike)
-}
-
-function getResourcesArray(data: unknown): unknown[] {
-  const root = getResponseRoot(data)
-  if (!isRecordLike(root) || !Array.isArray(root.resources)) {
-    return []
-  }
-
-  return root.resources
-}
-
-function getRecordResources(data: unknown): JsonRecord[] {
-  return getResourcesArray(data).filter(isRecordLike)
-}
-
-function getStringResources(data: unknown): string[] {
-  return getStringArray(getResourcesArray(data))
-}
-
-function getResponseRoot(data: unknown): unknown {
-  if (!isRecordLike(data)) {
-    return null
-  }
-
-  if (isRecordLike(data.body)) {
-    return data.body
-  }
-
-  return data
-}
-
-function getPagination(data: unknown) {
-  const root = getResponseRoot(data)
-  if (!isRecordLike(root) || !isRecordLike(root.meta) || !isRecordLike(root.meta.pagination)) {
-    return null
-  }
-
-  return {
-    limit: getNumber(root.meta.pagination.limit),
-    offset: getNumber(root.meta.pagination.offset),
-    total: getNumber(root.meta.pagination.total),
-  }
-}
-
-function getErrorMessage(data: unknown, fallback: string): string {
-  if (!isRecordLike(data)) {
-    return fallback
-  }
-
-  const errors = Array.isArray(data.errors) ? data.errors : []
-  const firstError = errors[0]
-  if (isRecordLike(firstError)) {
-    const firstMessage = getString(firstError.message) ?? getString(firstError.code)
-    if (firstMessage) {
-      return firstMessage
-    }
-  }
-
-  return (
-    getString(data.message) ??
-    getString(data.error_description) ??
-    getString(data.error) ??
-    fallback
-  )
-}
-
-function buildQueryUrl(baseUrl: string, params: CrowdStrikeQuerySensorsParams): string {
-  const url = new URL(baseUrl)
-  url.pathname = '/identity-protection/queries/devices/v1'
-
-  if (params.filter) {
-    url.searchParams.set('filter', params.filter)
-  }
-
-  if (params.limit != null) {
-    url.searchParams.set('limit', params.limit.toString())
-  }
-
-  if (params.offset != null) {
-    url.searchParams.set('offset', params.offset.toString())
-  }
-
-  if (params.sort) {
-    url.searchParams.set('sort', params.sort)
-  }
-
-  return url.toString()
-}
-
-function buildSensorDetailsUrl(baseUrl: string): string {
-  const url = new URL(baseUrl)
-  url.pathname = '/identity-protection/entities/devices/GET/v1'
-  return url.toString()
-}
-
-function buildSensorAggregatesUrl(baseUrl: string): string {
-  const url = new URL(baseUrl)
-  url.pathname = '/identity-protection/aggregates/devices/GET/v1'
-  return url.toString()
-}
-
-async function getAccessToken(params: CrowdStrikeBaseParams): Promise<string> {
-  const baseUrl = getCloudBaseUrl(params.cloud)
-  const response = await fetch(`${baseUrl}/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: params.clientId,
-      client_secret: params.clientSecret,
-      grant_type: 'client_credentials',
-    }).toString(),
-    cache: 'no-store',
-  })
-
-  const data: unknown = await response.json().catch(() => null)
-  if (!response.ok) {
-    throw new Error(getErrorMessage(data, 'Failed to authenticate with CrowdStrike'))
-  }
-
-  if (!isRecordLike(data) || typeof data.access_token !== 'string') {
-    throw new Error('CrowdStrike authentication did not return an access token')
-  }
-
-  return data.access_token
-}
+const logger = createLogger('CrowdStrikeAPI')
 
 function normalizeSensor(resource: JsonRecord) {
   return {
@@ -212,9 +64,30 @@ function normalizeSensorsOutput(data: unknown, paginationData?: unknown) {
 
   return {
     count: sensors.length,
+    errors: getEnvelopeErrors(data),
     pagination: paginationData == null ? null : getPagination(paginationData),
     sensors,
   }
+}
+
+/**
+ * CrowdStrike answers 200 while the envelope carries only errors. Mirrors the
+ * shared operation executor so the Identity Protection branches cannot report a
+ * resource-less error envelope as a success.
+ */
+function envelopeFailureResponse(
+  result: CrowdStrikeCallResult,
+  resourceCount: number,
+  fallback: string
+) {
+  if (!failedWithoutResources(result, resourceCount)) {
+    return null
+  }
+
+  return NextResponse.json(
+    { success: false, error: getFalconErrorMessage(result.data, fallback) },
+    { status: failureStatus(result) }
+  )
 }
 
 function normalizeAggregationResult(resource: JsonRecord): CrowdStrikeSensorAggregateResult {
@@ -231,7 +104,7 @@ function normalizeAggregationBucket(resource: JsonRecord): CrowdStrikeSensorAggr
     count: getNumber(resource.count),
     from: getNumber(resource.from),
     keyAsString: getString(resource.key_as_string),
-    label: isRecordLike(resource.label) ? resource.label : null,
+    label: resource.label ?? null,
     stringFrom: getString(resource.string_from),
     stringTo: getString(resource.string_to),
     subAggregates: getRecordArray(resource.sub_aggregates).map(normalizeAggregationResult),
@@ -247,29 +120,25 @@ function normalizeAggregatesOutput(data: unknown) {
   return {
     aggregates,
     count: aggregates.length,
+    errors: getEnvelopeErrors(data),
   }
 }
 
-async function postCrowdStrikeJson(
-  url: string,
-  accessToken: string,
-  body: JsonRecord | CrowdStrikeAggregateQuery
-) {
-  return fetch(url, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-    cache: 'no-store',
-  })
+function sensorQuery(params: CrowdStrikeQuerySensorsParams) {
+  return {
+    filter: params.filter,
+    limit: params.limit,
+    offset: params.offset,
+    sort: params.sort,
+  }
 }
 
+/**
+ * Special route: this proxies workflow tool calls to CrowdStrike Falcon with the
+ * caller's own API credentials, so it authenticates through `checkInternalAuth`
+ * rather than an application use case and uses raw `withRouteHandler`.
+ */
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json(
@@ -300,111 +169,163 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const baseUrl = getCloudBaseUrl(params.cloud)
     const accessToken = await getAccessToken(params)
 
-    logger.info(`[${requestId}] CrowdStrike request`, {
+    logger.info('CrowdStrike request', {
       cloud: params.cloud,
       operation: params.operation,
     })
 
     if (params.operation === 'crowdstrike_query_sensors') {
-      const queryResponse = await fetch(buildQueryUrl(baseUrl, params), {
+      const queryResponse = await callCrowdStrike(baseUrl, accessToken, {
         method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        cache: 'no-store',
+        path: '/identity-protection/queries/devices/v1',
+        query: sensorQuery(params),
       })
 
-      const queryData: unknown = await queryResponse.json().catch(() => null)
       if (!queryResponse.ok) {
         return NextResponse.json(
           {
             success: false,
-            error: getErrorMessage(queryData, 'CrowdStrike request failed'),
+            error: getFalconErrorMessage(queryResponse.data, 'CrowdStrike request failed'),
           },
           { status: queryResponse.status }
         )
       }
 
-      const ids = getStringResources(queryData)
+      const ids = getStringResources(queryResponse.data)
+      const queryFailure = envelopeFailureResponse(
+        queryResponse,
+        ids.length,
+        'Failed to query CrowdStrike sensors'
+      )
+      if (queryFailure) return queryFailure
+
       if (ids.length === 0) {
         return NextResponse.json({
           success: true,
-          output: normalizeSensorsOutput({ resources: [] }, queryData),
+          output: normalizeSensorsOutput({ resources: [] }, queryResponse.data),
         })
       }
 
-      const detailResponse = await postCrowdStrikeJson(
-        buildSensorDetailsUrl(baseUrl),
-        accessToken,
-        { ids }
-      )
+      const detailResponse = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/identity-protection/entities/devices/GET/v1',
+        body: { ids },
+      })
 
-      const detailData: unknown = await detailResponse.json().catch(() => null)
       if (!detailResponse.ok) {
         return NextResponse.json(
           {
             success: false,
-            error: getErrorMessage(detailData, 'Failed to fetch CrowdStrike sensor details'),
+            error: getFalconErrorMessage(
+              detailResponse.data,
+              'Failed to fetch CrowdStrike sensor details'
+            ),
           },
           { status: detailResponse.status }
         )
       }
 
+      const detailFailure = envelopeFailureResponse(
+        detailResponse,
+        getRecordResources(detailResponse.data).length,
+        'Failed to fetch CrowdStrike sensor details'
+      )
+      if (detailFailure) return detailFailure
+
       return NextResponse.json({
         success: true,
-        output: normalizeSensorsOutput(detailData, queryData),
+        output: normalizeSensorsOutput(detailResponse.data, queryResponse.data),
       })
     }
 
     if (params.operation === 'crowdstrike_get_sensor_details') {
-      const detailResponse = await postCrowdStrikeJson(
-        buildSensorDetailsUrl(baseUrl),
-        accessToken,
-        { ids: params.ids }
-      )
+      const detailResponse = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/identity-protection/entities/devices/GET/v1',
+        body: { ids: params.ids },
+      })
 
-      const detailData: unknown = await detailResponse.json().catch(() => null)
       if (!detailResponse.ok) {
         return NextResponse.json(
           {
             success: false,
-            error: getErrorMessage(detailData, 'Failed to fetch CrowdStrike sensor details'),
+            error: getFalconErrorMessage(
+              detailResponse.data,
+              'Failed to fetch CrowdStrike sensor details'
+            ),
           },
           { status: detailResponse.status }
         )
       }
 
+      const detailsFailure = envelopeFailureResponse(
+        detailResponse,
+        getRecordResources(detailResponse.data).length,
+        'Failed to fetch CrowdStrike sensor details'
+      )
+      if (detailsFailure) return detailsFailure
+
       return NextResponse.json({
         success: true,
-        output: normalizeSensorsOutput(detailData),
+        output: normalizeSensorsOutput(detailResponse.data),
       })
     }
 
-    const aggregateResponse = await postCrowdStrikeJson(
-      buildSensorAggregatesUrl(baseUrl),
-      accessToken,
-      params.aggregateQuery
-    )
+    if (params.operation === 'crowdstrike_get_sensor_aggregates') {
+      const aggregateResponse = await callCrowdStrike(baseUrl, accessToken, {
+        method: 'POST',
+        path: '/identity-protection/aggregates/devices/GET/v1',
+        body: params.aggregateQuery,
+      })
 
-    const aggregateData: unknown = await aggregateResponse.json().catch(() => null)
-    if (!aggregateResponse.ok) {
+      if (!aggregateResponse.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: getFalconErrorMessage(
+              aggregateResponse.data,
+              'Failed to fetch CrowdStrike sensor aggregates'
+            ),
+          },
+          { status: aggregateResponse.status }
+        )
+      }
+
+      const aggregateFailure = envelopeFailureResponse(
+        aggregateResponse,
+        getRecordResources(aggregateResponse.data).length,
+        'Failed to fetch CrowdStrike sensor aggregates'
+      )
+      if (aggregateFailure) return aggregateFailure
+
+      return NextResponse.json({
+        success: true,
+        output: normalizeAggregatesOutput(aggregateResponse.data),
+      })
+    }
+
+    const result = await executeCrowdStrikeOperation(params, baseUrl, accessToken)
+    if (!result.ok) {
       return NextResponse.json(
-        {
-          success: false,
-          error: getErrorMessage(aggregateData, 'Failed to fetch CrowdStrike sensor aggregates'),
-        },
-        { status: aggregateResponse.status }
+        { success: false, error: result.error },
+        { status: result.status || 502 }
       )
     }
 
-    return NextResponse.json({
-      success: true,
-      output: normalizeAggregatesOutput(aggregateData),
-    })
+    return NextResponse.json({ success: true, output: result.output })
   } catch (error) {
     const message = toError(error).message
-    logger.error(`[${requestId}] CrowdStrike request failed`, { error: message })
+
+    /**
+     * The token exchange runs before the operation dispatch, so without this a
+     * bad client ID or secret (Falcon 401) reaches the caller as a 500.
+     */
+    if (error instanceof CrowdStrikeAuthError) {
+      logger.warn('CrowdStrike authentication failed', { error: message, status: error.status })
+      return NextResponse.json({ success: false, error: message }, { status: error.status })
+    }
+
+    logger.error('CrowdStrike request failed', { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 })

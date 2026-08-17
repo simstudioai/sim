@@ -20,12 +20,20 @@ import {
   cn,
   FloatingTooltip,
   isTextClipped,
-  Loader,
   Tooltip,
-  Trash,
   useFloatingTooltip,
 } from '@sim/emcn'
-import { CircleAlert, Database, DatabaseX, Pencil, Plus, TagIcon, X } from '@sim/emcn/icons'
+import {
+  CircleAlert,
+  Database,
+  DatabaseX,
+  Loader,
+  Pencil,
+  Plus,
+  TagIcon,
+  Trash,
+  X,
+} from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -50,7 +58,11 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  FILTER_SECTION_LABEL_CLASS,
+  FloatingOverflowText,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
@@ -73,19 +85,13 @@ import {
   documentFiltersParsers,
   documentFiltersUrlKeys,
   kbDocumentSortParams,
-  pageParam,
-  pageUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import {
-  useKnowledgeBase,
-  useKnowledgeBaseDocuments,
-  useKnowledgeBasesList,
-} from '@/hooks/kb/use-knowledge'
+import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/kb/use-knowledge'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -124,8 +130,6 @@ const STATUS_FILTER_OPTIONS: ChipDropdownOption[] = [
   { value: 'enabled', label: 'Enabled' },
   { value: 'disabled', label: 'Disabled' },
 ]
-
-const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
 interface KnowledgeBaseProps {
   id: string
@@ -278,14 +282,12 @@ export function KnowledgeBase({
   }, [id, passedKnowledgeBaseName, posthog])
 
   useOAuthReturnForKBConnectors(id)
-  const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
 
   const { mutate: updateDocumentMutation, mutateAsync: updateDocumentAsync } = useUpdateDocument()
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
-  const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } =
-    useDeleteKnowledgeBase(workspaceId)
-  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
+  const { mutate: deleteKnowledgeBaseMutation, isPending: isDeleting } = useDeleteKnowledgeBase()
+  const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase()
 
   const kbRename = useInlineRename({
     onSave: (kbId, name) =>
@@ -334,14 +336,13 @@ export function KnowledgeBase({
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showConnectorsModal, setShowConnectorsModal] = useState(false)
-  const [currentPage, setCurrentPage] = useQueryState(pageParam.key, {
-    ...pageParam.parser,
-    ...pageUrlKeys,
-  })
+  const [{ q: searchQuery, enabled: enabledFilter, page: currentPage }, setDocumentFilters] =
+    useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
 
-  const [{ q: searchQuery, enabled: enabledFilter }, setDocumentFilters] = useQueryStates(
-    documentFiltersParsers,
-    documentFiltersUrlKeys
+  /** Page 1 is the group's default, so it strips from the URL rather than lingering as `?page=1`. */
+  const setCurrentPage = useCallback(
+    (page: number) => void setDocumentFilters({ page }),
+    [setDocumentFilters]
   )
 
   /**
@@ -350,8 +351,7 @@ export function KnowledgeBase({
    * doesn't refetch on every keystroke. Changing the search resets pagination.
    */
   const handleSearchChange = useDebouncedSearchSetter((value, options) => {
-    setDocumentFilters({ q: value }, options)
-    setCurrentPage(1)
+    void setDocumentFilters({ q: value, page: 1 }, options)
   })
   const debouncedSearchQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
   /** Raw URL value drives the input; matching/highlighting always sees it trimmed. */
@@ -367,13 +367,12 @@ export function KnowledgeBase({
 
   const setEnabledFilter = useCallback(
     (value: 'all' | 'enabled' | 'disabled') => {
-      setDocumentFilters({ enabled: value })
-      setCurrentPage(1)
+      void setDocumentFilters({ enabled: value, page: 1 })
     },
-    [setDocumentFilters, setCurrentPage]
+    [setDocumentFilters]
   )
 
-  const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
+  const [contextMenuDocumentId, setContextMenuDocumentId] = useState<string | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
   const [showDocumentTagsModal, setShowDocumentTagsModal] = useState(false)
@@ -437,6 +436,15 @@ export function KnowledgeBase({
   })
 
   const { tagDefinitions } = useKnowledgeBaseTagDefinitions(id)
+
+  /**
+   * The id, not the row: the document list polls every few seconds while anything is
+   * processing, so a menu holding the row it opened on would offer actions against a status
+   * that has since moved on.
+   */
+  const contextMenuDocument = contextMenuDocumentId
+    ? (documents.find((doc) => doc.id === contextMenuDocumentId) ?? null)
+    : null
 
   const prevHadSyncingRef = useRef(false)
   useEffect(() => {
@@ -697,7 +705,6 @@ export function KnowledgeBase({
       { knowledgeBaseId: id },
       {
         onSuccess: () => {
-          removeKnowledgeBase(id)
           router.push(`/workspace/${workspaceId}/knowledge`)
         },
       }
@@ -883,24 +890,21 @@ export function KnowledgeBase({
         setSelectedDocuments(new Set([doc.id]))
       }
 
-      setContextMenuDocument(doc)
+      setContextMenuDocumentId(doc.id)
       baseHandleContextMenu(e)
     },
     [documents, selectedDocuments, baseHandleContextMenu]
   )
 
-  const handleEmptyContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      setContextMenuDocument(null)
-      baseHandleContextMenu(e)
-    },
-    [baseHandleContextMenu]
-  )
+  const handleEmptyContextMenu = (e: React.MouseEvent) => {
+    setContextMenuDocumentId(null)
+    baseHandleContextMenu(e)
+  }
 
-  const handleContextMenuClose = useCallback(() => {
+  const handleContextMenuClose = () => {
     closeContextMenu()
-    setContextMenuDocument(null)
-  }, [closeContextMenu])
+    setContextMenuDocumentId(null)
+  }
 
   const breadcrumbs: BreadcrumbItem[] = useMemo(
     () =>

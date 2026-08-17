@@ -50,7 +50,8 @@ export const zendeskConnectorMeta: ConnectorMeta = {
       title: 'Ticket Status Filter',
       type: 'dropdown',
       required: false,
-      description: 'Filter tickets by status (applies only when syncing tickets)',
+      description:
+        'Filter tickets by status (applies only when syncing tickets). Filtering uses the Zendesk Search API, which returns at most 1,000 tickets.',
       options: [
         { label: 'All Statuses', id: 'all' },
         { label: 'New', id: 'new' },

@@ -11,7 +11,7 @@ export const crowdstrikeGetSensorDetailsTool: ToolConfig<
   id: 'crowdstrike_get_sensor_details',
   name: 'CrowdStrike Get Sensor Details',
   description:
-    'Get documented CrowdStrike Identity Protection sensor details for one or more device IDs',
+    'Get CrowdStrike Identity Protection sensor details for one or more device IDs (POST /identity-protection/entities/devices/GET/v1). These are the domain controllers Falcon Identity Protection monitors, not Falcon endpoint sensors. Requires the "Identity Protection Entities: Read" API scope.',
   version: '1.0.0',
 
   params: {
@@ -181,12 +181,25 @@ export const crowdstrikeGetSensorDetailsTool: ToolConfig<
     },
     pagination: {
       type: 'json',
-      description: 'Pagination metadata when returned by the underlying API',
+      description: 'Pagination metadata (limit, offset, total)',
       optional: true,
       properties: {
         limit: { type: 'number', description: 'Page size used for the query', optional: true },
         offset: { type: 'number', description: 'Offset returned by CrowdStrike', optional: true },
         total: { type: 'number', description: 'Total records available', optional: true },
+      },
+    },
+    errors: {
+      type: 'array',
+      description: 'Errors CrowdStrike returned alongside a partially successful response',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'number', description: 'CrowdStrike error code', optional: true },
+          id: { type: 'string', description: 'Identifier the error applies to', optional: true },
+          message: { type: 'string', description: 'Error message', optional: true },
+        },
       },
     },
   },

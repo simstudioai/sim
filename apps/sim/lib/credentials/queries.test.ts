@@ -4,6 +4,9 @@
 import { dbChainMockFns, drizzleOrmMock, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  findWorkspaceCredentialLookup,
+  getCredentialById,
+  getWorkspaceCredential,
   listVisibleWorkspaceCredentials,
   listWorkspacePrincipalCredentials,
 } from '@/lib/credentials/queries'
@@ -128,5 +131,33 @@ describe('listWorkspacePrincipalCredentials', () => {
         limit: 50,
       })
     ).rejects.toBe(failure)
+  })
+})
+
+describe('ordinary credential lookups', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it.each([
+    [
+      'workspace credential',
+      () => getWorkspaceCredential({ workspaceId: 'workspace-1', credentialId: 'credential-1' }),
+    ],
+    ['credential by id', () => getCredentialById('credential-1')],
+    [
+      'legacy id/account lookup',
+      () =>
+        findWorkspaceCredentialLookup({
+          workspaceId: 'workspace-1',
+          credentialId: 'credential-1',
+        }),
+    ],
+  ])('excludes managed OAuth from the %s path', async (_name, lookup) => {
+    dbChainMockFns.limit.mockResolvedValue([])
+
+    await lookup()
+
+    expect(drizzleOrmMock.ne).toHaveBeenCalledWith(schemaMock.credential.type, 'managed_oauth')
   })
 })

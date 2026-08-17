@@ -1,3 +1,9 @@
+import {
+  SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
+  SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
+  SLACK_MANAGED_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
+
 /**
  * Slack app capabilities that can be toggled on in the manifest generator.
  *
@@ -205,6 +211,23 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     interactivity: true,
   },
 ] as const
+
+export const SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY = {
+  id: 'managed_user_authorization',
+  label: 'Managed user authorization',
+  description: 'Let people authorize this Slack app for use in Credential Groups.',
+  defaultChecked: true,
+} as const
+
+export function getSlackManagedUserAuthorizationManifestConfig(baseUrl: string) {
+  return {
+    redirectUrls: [
+      `${baseUrl}${SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH}`,
+      `${baseUrl}${SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH}`,
+    ],
+    userScopes: SLACK_MANAGED_USER_SCOPES,
+  }
+}
 
 const WEBHOOK_URL_PLACEHOLDER = '<deploy workflow to generate webhook URL>'
 

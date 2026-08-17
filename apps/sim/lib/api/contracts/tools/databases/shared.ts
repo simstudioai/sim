@@ -41,12 +41,12 @@ export const sqlQueryBodySchema = sqlConnectionBodySchema.extend({
   query: z.string().min(1, 'Query is required'),
 })
 
-const sqlInsertDataSchema = z.union([
+export const sqlInsertDataSchema = z.union([
   nonEmptyRecordSchema('Data object cannot be empty'),
   jsonObjectStringSchema('Invalid JSON format in data field', true),
 ])
 
-const sqlUpdateDataSchema = z.union([
+export const sqlUpdateDataSchema = z.union([
   nonEmptyRecordSchema('Data object cannot be empty'),
   jsonObjectStringSchema('Invalid JSON format in data field'),
 ])
@@ -71,6 +71,13 @@ export const sqlRowsResponseSchema = z.object({
   message: z.string(),
   rows: z.array(z.unknown()),
   rowCount: z.number(),
+  /**
+   * Present only when the driver returned more than the route was willing to
+   * serialize. Absent means the recordset is complete, so a caller that ignores
+   * these two fields still reads a whole result correctly.
+   */
+  truncated: z.boolean().optional(),
+  truncationReason: z.string().optional(),
 })
 
 export const mongoDocumentsResponseSchema = z

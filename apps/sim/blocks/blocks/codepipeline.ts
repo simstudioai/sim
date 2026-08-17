@@ -289,6 +289,7 @@ export const CodePipelineBlock: BlockConfig<
       id: 'approvalToken',
       title: 'Approval Token',
       type: 'short-input',
+      password: true,
       placeholder: 'Token from Get Pipeline State',
       condition: { field: 'operation', value: 'put_approval_result' },
       required: { field: 'operation', value: 'put_approval_result' },

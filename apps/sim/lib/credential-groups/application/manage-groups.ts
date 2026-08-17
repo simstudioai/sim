@@ -108,7 +108,8 @@ export const getCredentialGroupSettings = defineAuthorizedWorkspaceUseCase({
         context.workspaceId,
         context.credentialGroupId,
         input.limit,
-        input.cursor
+        input.cursor,
+        { statuses: ['invited', 'in_progress', 'completed', 'delivery_failed'] }
       )
       return { credentialGroup, ...enrollmentPage }
     } catch (error) {

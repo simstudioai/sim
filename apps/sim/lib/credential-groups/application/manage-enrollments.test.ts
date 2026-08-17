@@ -21,15 +21,15 @@ vi.mock('@/lib/credential-groups/enrollments', () => ({
   CredentialGroupEnrollmentError: class CredentialGroupEnrollmentError extends Error {
     constructor(
       message: string,
-      readonly status: 404 | 409 | 502
+      readonly status: 400 | 404 | 409 | 502
     ) {
       super(message)
     }
   },
+  deleteCredentialGroupEnrollment: vi.fn(),
   inviteCredentialGroupEnrollments: mocks.invite,
   loadCredentialGroupInviterIdentity: mocks.loadInviter,
   resendCredentialGroupEnrollment: vi.fn(),
-  revokeCredentialGroupEnrollment: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({

@@ -351,7 +351,7 @@ export const resendCredentialGroupEnrollmentContract = defineRouteContract({
   },
 })
 
-export const revokeCredentialGroupEnrollmentContract = defineRouteContract({
+export const deleteCredentialGroupEnrollmentContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/workspaces/[id]/credential-groups/[groupId]/enrollments/[enrollmentId]',
   params: credentialGroupEnrollmentParamsSchema,

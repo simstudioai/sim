@@ -21,6 +21,12 @@ const CREDENTIAL_GROUP_CANONICAL_GROUP = {
   advancedIds: ['manualCredentialGroup'],
 } as const satisfies CanonicalGroup
 
+/**
+ * Reads the workspace credential-group list through the shared cache entry every
+ * consumer observes. The fetch stays bound to React Query's own signal: a caller's
+ * signal belongs to that caller alone, and forwarding it here would abort a request
+ * other observers of this workspace-wide key are awaiting.
+ */
 async function fetchCachedCredentialGroups() {
   const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
   if (!workspaceId) return []
@@ -102,7 +108,7 @@ export const CredentialGroupBlock: BlockConfig<CredentialGroupBlockOutput> = {
   - "Send Invite" sends one email. Use a loop when invitations should come from a dynamic list.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/credential-group',
-  bgColor: '#7C3AED',
+  bgColor: '#8B5CF6',
   icon: GridOffset,
   canvasPresentation: {
     defaultTitle: 'Credential Groups',

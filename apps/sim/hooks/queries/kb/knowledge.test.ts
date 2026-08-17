@@ -26,7 +26,12 @@ vi.mock('@/lib/api/client/request', () => ({
   requestJson: mocks.requestJson,
 }))
 
-import { useBulkDocumentOperation, useDeleteDocument } from '@/hooks/queries/kb/knowledge'
+import {
+  useBulkDocumentOperation,
+  useDeleteDocument,
+  useUpdateDocument,
+  useUpdateDocumentTags,
+} from '@/hooks/queries/kb/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
 interface CapturedMutation {
@@ -63,6 +68,27 @@ describe('knowledge document mutations', () => {
     mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', operation: 'delete' })
 
     expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
+  })
+
+  /**
+   * `documents` (the list pages) and `document` (one row) are siblings under `detail`, so
+   * invalidating the row's key alone leaves the list rendering the filename, status, tags, and
+   * counts the write just changed.
+   */
+  it.each([
+    ['a document update', () => useUpdateDocument()],
+    ['a document tag update', () => useUpdateDocumentTags()],
+  ])('refreshes the document list pages after %s', (_label, build) => {
+    const mutation = captureMutation(build)
+
+    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', documentId: 'doc-1' })
+
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: knowledgeKeys.documentLists('kb-1'),
+    })
+    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: knowledgeKeys.document('kb-1', 'doc-1'),
+    })
   })
 
   it('leaves the knowledge-base lists alone on a bulk enable', () => {

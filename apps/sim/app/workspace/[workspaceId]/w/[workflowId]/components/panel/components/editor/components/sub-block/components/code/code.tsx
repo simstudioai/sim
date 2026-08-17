@@ -31,6 +31,10 @@ import {
   type WorkflowSearchTextHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
+import {
   checkTagTrigger,
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -138,6 +142,21 @@ const escapeHtml = (value: string): string =>
     .replaceAll("'", '&#39;')
 
 /**
+ * Highlighter that conceals the editor's contents.
+ *
+ * @remarks
+ * `react-simple-code-editor` paints its textarea with a transparent text fill
+ * and shows the markup returned by its `highlight` prop instead, so swapping the
+ * highlighter is what actually hides a secret — the textarea's own value is
+ * never visible.
+ *
+ * @param codeToHighlight - The plaintext editor contents
+ * @returns Escaped markup with every character replaced by a mask glyph
+ */
+export const highlightMaskedCode = (codeToHighlight: string): string =>
+  escapeHtml(maskSecretText(codeToHighlight))
+
+/**
  * Type definition for code placeholders during syntax highlighting.
  */
 interface CodePlaceholder {
@@ -234,6 +253,8 @@ interface CodeProps {
   blockId: string
   subBlockId: string
   placeholder?: string
+  /** Whether to conceal the value except while the editor is focused */
+  password?: boolean
   language?: 'javascript' | 'json' | 'python' | 'shell'
   generationType?: GenerationType
   value?: string
@@ -263,6 +284,7 @@ export const Code = memo(function Code({
   blockId,
   subBlockId,
   placeholder = 'Write JavaScript...',
+  password = false,
   language = 'javascript',
   generationType = 'javascript-function-body',
   value: propValue,
@@ -290,6 +312,7 @@ export const Code = memo(function Code({
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
   const [activeLineNumber, setActiveLineNumber] = useState(1)
   const [copied, setCopied] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
 
   const editorRef = useRef<HTMLDivElement>(null)
   const handleStreamStartRef = useRef<() => void>(() => {})
@@ -743,6 +766,8 @@ export const Code = memo(function Code({
     valuePath: [],
   })
 
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+
   const highlightCode = useMemo(
     () =>
       createHighlightFunction(
@@ -812,6 +837,7 @@ export const Code = memo(function Code({
   )
 
   const handleEditorFocus = useCallback(() => {
+    setIsFocused(true)
     startSession(codeRef.current)
     if (!isPreview && !disabled && !readOnly && codeRef.current.trim() === '') {
       setShowTags(true)
@@ -820,6 +846,7 @@ export const Code = memo(function Code({
   }, [disabled, isPreview, readOnly, startSession])
 
   const handleEditorBlur = useCallback(() => {
+    setIsFocused(false)
     flushPending()
   }, [flushPending])
 
@@ -942,7 +969,7 @@ export const Code = memo(function Code({
             onKeyDown={handleKeyDown}
             onFocus={handleEditorFocus}
             onBlur={handleEditorBlur}
-            highlight={highlightCode}
+            highlight={shouldMask ? highlightMaskedCode : highlightCode}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
           />
 

@@ -74,7 +74,6 @@ import { EnrichBlock, EnrichBlockMeta } from '@/blocks/blocks/enrich'
 import { EnrichmentBlock, EnrichmentBlockMeta } from '@/blocks/blocks/enrichment'
 import { EnrowBlock, EnrowBlockMeta } from '@/blocks/blocks/enrow'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
-import { EvernoteBlock, EvernoteBlockMeta } from '@/blocks/blocks/evernote'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendBlockMeta, ExtendV2Block } from '@/blocks/blocks/extend'
 import { FathomBlock, FathomBlockMeta } from '@/blocks/blocks/fathom'
@@ -167,6 +166,7 @@ import {
   JiraServiceManagementBlock,
   JiraServiceManagementBlockMeta,
 } from '@/blocks/blocks/jira_service_management'
+import { JotformBlock, JotformBlockMeta } from '@/blocks/blocks/jotform'
 import { JupyterBlock, JupyterBlockMeta } from '@/blocks/blocks/jupyter'
 import {
   KalshiBlock,
@@ -221,6 +221,7 @@ import {
 import { MondayBlock, MondayBlockMeta } from '@/blocks/blocks/monday'
 import { MongoDBBlock, MongoDBBlockMeta } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
+import { MSSQLBlock, MSSQLBlockMeta } from '@/blocks/blocks/mssql'
 import { MySQLBlock, MySQLBlockMeta } from '@/blocks/blocks/mysql'
 import { Neo4jBlock, Neo4jBlockMeta } from '@/blocks/blocks/neo4j'
 import { NetSuiteBlock, NetSuiteBlockMeta } from '@/blocks/blocks/netsuite'
@@ -294,6 +295,7 @@ import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
 import { SmartleadBlock, SmartleadBlockMeta } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
+import { SplunkBlock, SplunkBlockMeta } from '@/blocks/blocks/splunk'
 import { SportmonksBlock, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
@@ -434,7 +436,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   enrichment: EnrichmentBlock,
   enrow: EnrowBlock,
   evaluator: EvaluatorBlock,
-  evernote: EvernoteBlock,
   exa: ExaBlock,
   extend: ExtendBlock,
   extend_v2: ExtendV2Block,
@@ -511,6 +512,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   jina: JinaBlock,
   jira: JiraBlock,
   jira_service_management: JiraServiceManagementBlock,
+  jotform: JotformBlock,
   jupyter: JupyterBlock,
   kalshi: KalshiBlock,
   kalshi_v2: KalshiV2Block,
@@ -552,6 +554,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
+  mssql: MSSQLBlock,
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
   netsuite: NetSuiteBlock,
@@ -625,6 +628,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   smartlead: SmartleadBlock,
   smtp: SmtpBlock,
   snowflake: SnowflakeBlock,
+  splunk: SplunkBlock,
   sportmonks: SportmonksBlock,
   spotify: SpotifyBlock,
   sqs: SQSBlock,
@@ -765,7 +769,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   enrich: EnrichBlockMeta,
   enrichment: EnrichmentBlockMeta,
   enrow: EnrowBlockMeta,
-  evernote: EvernoteBlockMeta,
   exa: ExaBlockMeta,
   extend: ExtendBlockMeta,
   fathom: FathomBlockMeta,
@@ -826,6 +829,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   jina: JinaBlockMeta,
   jira: JiraBlockMeta,
   jira_service_management: JiraServiceManagementBlockMeta,
+  jotform: JotformBlockMeta,
   jupyter: JupyterBlockMeta,
   kalshi: KalshiBlockMeta,
   kalshi_v2: KalshiV2BlockMeta,
@@ -858,6 +862,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mistral_parse: MistralParseBlockMeta,
   monday: MondayBlockMeta,
   mongodb: MongoDBBlockMeta,
+  mssql: MSSQLBlockMeta,
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
   netsuite: NetSuiteBlockMeta,
@@ -920,6 +925,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   smartlead: SmartleadBlockMeta,
   smtp: SmtpBlockMeta,
   snowflake: SnowflakeBlockMeta,
+  splunk: SplunkBlockMeta,
   sportmonks: SportmonksBlockMeta,
   spotify: SpotifyBlockMeta,
   sqs: SQSBlockMeta,

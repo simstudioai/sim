@@ -347,6 +347,12 @@ export const forkDependentReconfigSchema = z.object({
    */
   toolName: z.string().optional(),
   /**
+   * Stable scope for one nested tool instance (e.g. `tools[0]`). Dependency context and
+   * descendant invalidation never cross this boundary, even when two tools expose the same
+   * canonical parameter ids. Absent for top-level block subblocks, which share the block scope.
+   */
+  dependencyScope: z.string().optional(),
+  /**
    * The field's stored value (from the persisted mapping), so the always-on reconfigure listing
    * pre-fills the selector with what the user last set. Empty string when unset; for an edge
    * that predates the store the TARGET's currently-configured value is the fallback (never the

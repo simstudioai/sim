@@ -5,6 +5,13 @@
 import { randomInt, randomItem } from '@sim/utils/random'
 import { env, envNumber } from '@/lib/core/config/env'
 
+/**
+ * Maximum tables addressable by identifier in one bulk request. Matches the
+ * knowledge domain's `MAX_KNOWLEDGE_BATCH_ITEMS` so a multi-select on either
+ * list page is capped the same way.
+ */
+export const MAX_TABLE_BATCH_ITEMS = 100
+
 export const TABLE_LIMITS = {
   MAX_TABLES_PER_WORKSPACE: 100,
   MAX_ROWS_PER_TABLE: 10000,

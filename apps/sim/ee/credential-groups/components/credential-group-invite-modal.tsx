@@ -76,8 +76,8 @@ export function CredentialGroupInviteModal({
           ? `${result.sentCount} sent. ${failures.length} failed: ${failures.map((item) => item.email).join(', ')}`
           : `No invitations were sent: ${failures.map((item) => `${item.email} (${item.error})`).join(', ')}`
       )
-    } catch (error) {
-      setDeliveryError(getErrorMessage(error, 'Failed to send invitations'))
+    } catch {
+      return
     }
   }
 
@@ -100,7 +100,8 @@ export function CredentialGroupInviteModal({
           disabled={invite.isPending}
         />
         <ChipModalError>
-          {deliveryError ?? (invite.error ? getErrorMessage(invite.error) : null)}
+          {deliveryError ??
+            (invite.error ? getErrorMessage(invite.error, 'Failed to send invitations') : null)}
         </ChipModalError>
       </ChipModalBody>
       <ChipModalFooter

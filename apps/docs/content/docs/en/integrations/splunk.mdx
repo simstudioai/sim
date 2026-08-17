@@ -1,0 +1,453 @@
+---
+title: Splunk
+description: Run SPL searches and manage saved searches and alerts in Splunk
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="splunk"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Splunk](https://www.splunk.com/) indexes machine data — logs, metrics, and events — and makes it searchable with SPL, its search processing language. Teams use it for operational monitoring, incident investigation, and security analytics, with saved searches and alerts watching for conditions on a schedule.
+
+With the Splunk integration in Sim, you can:
+
+- **Run searches**: Execute an SPL search synchronously and get its results in a single call
+- **Run long searches as jobs**: Create a search job, check its status, page through its results, and cancel it
+- **Use saved searches**: List and get saved searches, and dispatch one on demand
+- **Inspect alerts**: List fired alerts and get the fired instances of a specific alert
+- **Explore the instance**: List indexes and installed apps
+
+In Sim, the Splunk integration enables your agents to investigate and act on operational data. An agent can run a search when an incident opens, dispatch a saved search to reproduce a known query, page through a large job's results, and read fired alerts to decide what to escalate. It works against both Splunk Enterprise and Splunk Cloud, authenticating with a bearer token.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.
+
+
+
+## Actions
+
+### Splunk Run Search
+
+Run an SPL search synchronously and return its results in a single call (oneshot mode). A oneshot search buffers the whole result set in one response with no paging, so use it for short searches; for anything large use Create Search Job with Get Search Results, which defaults to 100 rows and pages with offset.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `search` | string | Yes | SPL search string \(e.g. index=main error \| stats count by host\). The leading "search" command is added automatically when omitted. |
+| `earliestTime` | string | No | Earliest \(inclusive\) time bound — relative \(e.g. -24h, -7d@d\) or absolute epoch/formatted time |
+| `latestTime` | string | No | Latest \(exclusive\) time bound — relative \(e.g. now\) or absolute time |
+| `adhocSearchLevel` | string | No | Search mode: verbose, fast, or smart. Defaults to fast. |
+| `autoCancel` | number | No | Cancel the search after this many seconds of inactivity \(e.g. 60\). 0 never auto-cancels. |
+| `maxCount` | number | No | Number of events accessible in any given status bucket, and in transforming mode the maximum number of results to store. Defaults to 10000. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Result rows. Each row holds the fields produced by the search. |
+| `resultCount` | number | Number of result rows returned in this response |
+| `preview` | boolean | Whether these are preview results from a still-running job |
+| `initOffset` | number | Offset of the first returned row within the full result set |
+| `messages` | array | Search messages returned alongside the results |
+|   ↳ `type` | string | Message severity |
+|   ↳ `text` | string | Message text |
+
+### Splunk Create Search Job
+
+Start a Splunk search job and return its search ID (sid). The search runs asynchronously — poll its status and fetch results separately.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `search` | string | Yes | SPL search string \(e.g. index=main sourcetype=access_combined \| timechart count\). The leading "search" command is added automatically when omitted. |
+| `earliestTime` | string | No | Earliest \(inclusive\) time bound — relative \(e.g. -24h\) or absolute time |
+| `latestTime` | string | No | Latest \(exclusive\) time bound — relative \(e.g. now\) or absolute time |
+| `execMode` | string | No | Execution mode: normal \(returns the sid immediately\) or blocking \(returns the sid once the job completes\). Defaults to normal. oneshot is rejected here because it returns results instead of a sid — use Splunk Run Search for that. |
+| `adhocSearchLevel` | string | No | Search mode: verbose, fast, or smart. Defaults to fast. |
+| `searchId` | string | No | Custom search ID to assign to the job. A random ID is generated when omitted. |
+| `indexEarliest` | string | No | Earliest \(inclusive\) time bound based on index time rather than event time |
+| `indexLatest` | string | No | Latest \(exclusive\) time bound based on index time rather than event time |
+| `enableLookups` | boolean | No | Whether lookups are applied to events. Defaults to true. |
+| `allowPartialResults` | boolean | No | Whether the job may return partial results when a search peer fails. Defaults to true. |
+| `autoCancel` | number | No | Cancel the job after this many seconds of inactivity \(e.g. 300\). 0 never auto-cancels. |
+| `maxCount` | number | No | Number of events accessible in any given status bucket, and in transforming mode the maximum number of results to store. Defaults to 10000. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sid` | string | Search ID of the created job, used to poll status and fetch results |
+
+### Splunk Get Search Job
+
+Get the status and progress of a Splunk search job by search ID, including dispatch state, completion progress, and event/result counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `sid` | string | Yes | Search ID of the job to inspect \(e.g. 1457683115.100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sid` | string | Search ID of the job |
+| `label` | string | Custom name created for this search |
+| `dispatchState` | string | Job state: QUEUED, PARSING, RUNNING, FINALIZING, PAUSE, INTERNAL_CANCEL, USER_CANCEL, BAD_INPUT_CANCEL, QUIT, FAILED, or DONE |
+| `doneProgress` | number | Approximate progress between 0 and 1.0 |
+| `isDone` | boolean | Whether the search has completed |
+| `isFailed` | boolean | Whether a fatal error occurred running the search |
+| `isFinalized` | boolean | Whether the search was finalized \(stopped before completion\) |
+| `isPaused` | boolean | Whether the search is paused |
+| `isZombie` | boolean | Whether the search process died before the search finished |
+| `isSaved` | boolean | Whether the search job artifacts are saved to disk |
+| `isSavedSearch` | boolean | Whether this is a saved search run by the scheduler |
+| `isRealTimeSearch` | boolean | Whether this is a real-time search |
+| `eventCount` | number | Number of events returned by the search |
+| `eventAvailableCount` | number | Number of events available for export |
+| `eventFieldCount` | number | Number of fields found in the search results |
+| `resultCount` | number | Total number of results returned by the search |
+| `resultPreviewCount` | number | Number of result rows in the latest preview results |
+| `scanCount` | number | Number of events scanned or read off disk |
+| `runDuration` | number | Time in seconds the search took to complete |
+| `priority` | number | Search priority between 0 and 10 |
+| `earliestTime` | string | Earliest \(inclusive\) time bound for the search |
+| `latestTime` | string | Latest \(exclusive\) time bound for the search |
+| `searchEarliestTime` | number | Earliest time as specified in the search command itself, as an epoch timestamp. Unlike earliestTime, which the job entry renders as an ISO string, this pair is documented as bare numbers \(e.g. 1308589800.000000000\). |
+| `searchLatestTime` | number | Latest time as specified in the search command itself, as an epoch timestamp. Unlike latestTime, which the job entry renders as an ISO string, this pair is documented as bare numbers. |
+| `messages` | json | Errors and debug messages recorded for the job |
+
+### Splunk Get Search Results
+
+Fetch the transformed results of a completed Splunk search job by search ID, with pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `sid` | string | Yes | Search ID of the job whose results to fetch \(e.g. 1457683115.100\) |
+| `count` | number | No | Maximum number of result rows to return. Defaults to 100. Page through larger result sets with offset rather than raising this — a completed job can hold millions of rows. 0 is rejected here even though Splunk reads it as "every row". |
+| `offset` | number | No | First result row \(0-indexed\) from which to begin returning data |
+| `fields` | string | No | Comma-separated list of fields to return for each row \(e.g. _time,host,source\). Returns all fields when omitted. |
+| `addSummaryToMetadata` | boolean | No | Include field summary statistics in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Result rows. Each row holds the fields produced by the search. |
+| `resultCount` | number | Number of result rows returned in this response |
+| `preview` | boolean | Whether these are preview results from a still-running job |
+| `initOffset` | number | Offset of the first returned row within the full result set |
+| `messages` | array | Search messages returned alongside the results |
+|   ↳ `type` | string | Message severity |
+|   ↳ `text` | string | Message text |
+
+### Splunk Cancel Search Job
+
+Cancel a running Splunk search job and delete its result cache.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `sid` | string | Yes | Search ID of the job to cancel \(e.g. 1457683115.100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sid` | string | Search ID of the cancelled job |
+| `messages` | array | Informational, warning, and error messages returned with the response |
+|   ↳ `type` | string | Message severity \(INFO, WARN, ERROR, DEBUG\) |
+|   ↳ `text` | string | Message text |
+
+### Splunk List Saved Searches
+
+List saved searches and reports configured in Splunk, including their SPL, schedule, and alert configuration.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `search` | string | No | Filter saved searches. A bare term matches as a substring across fields \(e.g. Errors\); field_name=field_value matches one field \(e.g. is_scheduled=1\). |
+| `count` | number | No | Maximum number of saved searches to return \(e.g. 50\). 0 returns all. |
+| `offset` | number | No | Index of the first saved search to return, for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `savedSearches` | array | Saved searches configured in Splunk |
+|   ↳ `name` | string | Saved search name |
+|   ↳ `id` | string | Fully qualified REST URI of the saved search |
+|   ↳ `author` | string | Owner of the saved search |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `search` | string | The SPL the saved search runs |
+|   ↳ `qualifiedSearch` | string | The exact search string the scheduler runs |
+|   ↳ `description` | string | Saved search description |
+|   ↳ `disabled` | boolean | Whether the saved search is disabled |
+|   ↳ `isScheduled` | boolean | Whether the search runs on a schedule |
+|   ↳ `isVisible` | boolean | Whether the search appears in the visible saved search list |
+|   ↳ `cronSchedule` | string | Cron schedule for the search |
+|   ↳ `nextScheduledTime` | string | Time the scheduler runs this search again |
+|   ↳ `alertType` | string | Alert condition type \(e.g. always, custom, number of events\) |
+|   ↳ `dispatchEarliestTime` | string | Earliest time bound used when the search is dispatched |
+|   ↳ `dispatchLatestTime` | string | Latest time bound used when the search is dispatched |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
+
+### Splunk Get Saved Search
+
+Get the configuration of a single Splunk saved search by name, including its SPL, schedule, and alert settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `name` | string | Yes | Name of the saved search \(e.g. Errors in the last 24 hours\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Saved search name |
+| `id` | string | Fully qualified REST URI of the saved search |
+| `author` | string | Owner of the saved search |
+| `updated` | string | Last update timestamp |
+| `search` | string | The SPL the saved search runs |
+| `qualifiedSearch` | string | The exact search string the scheduler runs |
+| `description` | string | Saved search description |
+| `disabled` | boolean | Whether the saved search is disabled |
+| `isScheduled` | boolean | Whether the search runs on a schedule |
+| `isVisible` | boolean | Whether the search appears in the visible saved search list |
+| `cronSchedule` | string | Cron schedule for the search |
+| `nextScheduledTime` | string | Time the scheduler runs this search again |
+| `alertType` | string | Alert condition type \(e.g. always, custom, number of events\) |
+| `dispatchEarliestTime` | string | Earliest time bound used when the search is dispatched |
+| `dispatchLatestTime` | string | Latest time bound used when the search is dispatched |
+
+### Splunk Dispatch Saved Search
+
+Run a Splunk saved search immediately and return the search ID (sid) of the dispatched job.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `name` | string | Yes | Name of the saved search to run \(e.g. Errors in the last 24 hours\) |
+| `triggerActions` | boolean | No | Whether to trigger the saved search alert actions on this run |
+| `dispatchEarliestTime` | string | No | Override the earliest time bound for this run — relative \(e.g. -24h\) or absolute time |
+| `dispatchLatestTime` | string | No | Override the latest time bound for this run — relative \(e.g. now\) or absolute time |
+| `dispatchMaxCount` | number | No | Maximum number of results before the search is finalized \(e.g. 10000\) |
+| `dispatchMaxTime` | number | No | Maximum number of seconds before the search is finalized \(e.g. 300\) |
+| `dispatchTtl` | number | No | Time to live in seconds for the search artifacts when no actions are triggered \(e.g. 600\) |
+| `forceDispatch` | boolean | No | Start a new search even when another instance of this saved search is already running |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sid` | string | Search ID of the dispatched job, used to poll status and fetch results |
+
+### Splunk List Fired Alerts
+
+List the saved searches with currently triggered (unexpired) Splunk alerts and how many times each has fired.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `count` | number | No | Maximum number of entries to return \(e.g. 50\). 0 returns all. |
+| `offset` | number | No | Index of the first entry to return, for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alerts` | array | Saved searches with currently triggered alerts |
+|   ↳ `name` | string | Name of the alerting saved search |
+|   ↳ `id` | string | Fully qualified REST URI of the entry |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `triggeredAlertCount` | number | Trigger count for this alert |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
+
+### Splunk Get Fired Alerts
+
+List the unexpired triggered instances of a Splunk alert by saved search name, including severity, trigger time, and the search ID of each firing.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `name` | string | Yes | Name of the alerting saved search \(e.g. Errors in the last 24 hours\). Use - to return the fired alerts of every saved search — this endpoint documents "Request parameters: None", so there is no count or offset to bound that with. Name one saved search unless you really want all of them. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `firedAlerts` | array | Unexpired triggered instances of the alert |
+|   ↳ `name` | string | Name of the fired alert entry |
+|   ↳ `id` | string | Fully qualified REST URI of the entry |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `savedSearchName` | string | Name of the saved search that triggered the alert |
+|   ↳ `alertType` | string | Whether the alert was historical or real-time |
+|   ↳ `severity` | number | Severity level of the alert |
+|   ↳ `sid` | string | Search ID of the search that triggered the alert |
+|   ↳ `triggerTime` | number | Time the alert was triggered |
+|   ↳ `triggerTimeRendered` | string | Human-readable time the alert was triggered |
+|   ↳ `expirationTimeRendered` | string | Human-readable time this triggered alert record expires |
+|   ↳ `triggeredAlerts` | number | Number of alerts included in this triggered instance |
+|   ↳ `actions` | string | Additional alert actions triggered by this alert |
+
+### Splunk List Indexes
+
+List the indexes configured on the Splunk instance with their size, event count, and retention settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `datatype` | string | No | Filter indexes by type: all, event, or metric. Splunk defaults to event, so pass all to include metric indexes. |
+| `count` | number | No | Maximum number of indexes to return \(e.g. 50\). 0 returns all. |
+| `offset` | number | No | Index of the first entry to return, for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `indexes` | array | Indexes configured on the instance |
+|   ↳ `name` | string | Index name |
+|   ↳ `id` | string | Fully qualified REST URI of the index |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `datatype` | string | Index data type \(event or metric\) |
+|   ↳ `disabled` | boolean | Whether the index is disabled |
+|   ↳ `isInternal` | boolean | Whether this is an internal Splunk index |
+|   ↳ `totalEventCount` | number | Total number of events in the index |
+|   ↳ `currentDBSizeMB` | number | Current index size in megabytes |
+|   ↳ `maxTotalDataSizeMB` | number | Maximum index size in megabytes before rolling to frozen |
+|   ↳ `frozenTimePeriodInSecs` | number | Age in seconds at which data rolls to frozen |
+|   ↳ `minTime` | string | Timestamp of the earliest event in the index |
+|   ↳ `maxTime` | string | Timestamp of the latest event in the index |
+|   ↳ `homePath` | string | Path to the hot and warm buckets |
+|   ↳ `coldPath` | string | Path to the cold buckets |
+|   ↳ `thawedPath` | string | Path to the thawed buckets |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
+
+### Splunk List Apps
+
+List the apps installed on the Splunk instance with their label, version, author, and enabled state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Splunk management URL including the management port \(e.g. https://splunk.example.com:8089\) |
+| `authToken` | string | No | Splunk authentication token, sent as a bearer token. Preferred over a password. |
+| `username` | string | No | Splunk username, used for basic authentication when no token is supplied |
+| `password` | string | No | Splunk password, used for basic authentication when no token is supplied |
+| `owner` | string | No | Namespace owner for /servicesNS requests \(e.g. admin, or nobody for app-shared objects\). Leave both this and the app empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `app` | string | No | Namespace app context for /servicesNS requests \(e.g. search\). Leave both this and the owner empty to use the authenticated user context; set only one and the other becomes the - wildcard. |
+| `count` | number | No | Maximum number of apps to return \(e.g. 50\). 0 returns all. |
+| `offset` | number | No | Index of the first app to return, for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `apps` | array | Apps installed on the Splunk instance |
+|   ↳ `name` | string | App directory name, usable as the app namespace |
+|   ↳ `id` | string | Fully qualified REST URI of the app |
+|   ↳ `updated` | string | Last update timestamp |
+|   ↳ `label` | string | Display name of the app |
+|   ↳ `version` | string | App version |
+|   ↳ `author` | string | App author |
+|   ↳ `description` | string | App description |
+|   ↳ `details` | string | URL with detailed information about the app |
+|   ↳ `disabled` | boolean | Whether the app is disabled |
+|   ↳ `visible` | boolean | Whether the app is visible and navigable from Splunk Web |
+|   ↳ `configured` | boolean | Whether the custom app setup has been completed |
+|   ↳ `checkForUpdates` | boolean | Whether Splunkbase is checked for app updates |
+|   ↳ `stateChangeRequiresRestart` | boolean | Whether changing the app state requires a restart |
+| `total` | number | Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains. |
+| `offset` | number | Offset of the first entry in this page, echoed from the response paging envelope |
+
+

@@ -33,11 +33,16 @@ export const dynamic = 'force-dynamic'
 
 const INSTAGRAM_STATE_COOKIE = 'instagram_oauth_state'
 const INSTAGRAM_RETURN_URL_COOKIE = 'instagram_return_url'
+const INSTAGRAM_CREDENTIAL_DRAFT_COOKIE = 'instagram_credential_draft_id'
 const INSTAGRAM_STATE_COOKIE_PATH = '/api/auth'
 
 function clearOAuthCookies(response: NextResponse) {
   response.cookies.delete({ name: INSTAGRAM_STATE_COOKIE, path: INSTAGRAM_STATE_COOKIE_PATH })
   response.cookies.delete({ name: INSTAGRAM_RETURN_URL_COOKIE, path: INSTAGRAM_STATE_COOKIE_PATH })
+  response.cookies.delete({
+    name: INSTAGRAM_CREDENTIAL_DRAFT_COOKIE,
+    path: INSTAGRAM_STATE_COOKIE_PATH,
+  })
   return response
 }
 
@@ -54,6 +59,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const { code, state, error, error_reason, error_description } = parsed.data.query
+    const draftId = request.cookies.get(INSTAGRAM_CREDENTIAL_DRAFT_COOKIE)?.value
 
     if (error) {
       logger.warn('Instagram OAuth denied by user', {
@@ -293,17 +299,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         ),
       }))
 
-    if (persisted) {
-      try {
-        await processCredentialDraft({
-          userId: session.user.id,
-          providerId: 'instagram',
-          accountId: persisted.id,
-        })
-      } catch (draftError) {
-        logger.error('Failed to process credential draft for Instagram', { error: draftError })
-      }
+    if (!persisted) {
+      throw new Error(`Instagram OAuth account ${igUserId} was not persisted`)
     }
+    await processCredentialDraft({
+      draftId,
+      userId: session.user.id,
+      providerId: 'instagram',
+      accountId: persisted.id,
+    })
 
     const returnUrlCookie = request.cookies.get(INSTAGRAM_RETURN_URL_COOKIE)?.value
     const redirectUrl =

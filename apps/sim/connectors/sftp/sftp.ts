@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import type { Attributes, Client, SFTPWrapper } from 'ssh2'
+import { type Attributes, type Client, type SFTPWrapper, utils as ssh2Utils } from 'ssh2'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   createSftpConnection,
@@ -8,7 +8,6 @@ import {
   getSftp,
   isPathSafe,
   readSftpFileCapped,
-  sanitizePath,
 } from '@/app/api/tools/sftp/utils'
 import { sftpConnectorMeta } from '@/connectors/sftp/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -40,6 +39,18 @@ const MAX_ALLOWED_FILES = 10_000
 
 /** Hard ceiling on `readdir` calls per sync, bounding wide (rather than deep) trees. */
 const MAX_DIRECTORIES = 1000
+
+/**
+ * Hard ceiling on entries read from a single remote directory.
+ *
+ * `SFTPWrapper.readdir(path)` opens a handle and loops until the server reports
+ * EOF, accumulating every entry into one array, so a directory holding tens of
+ * millions of names — from a hostile server or merely a huge one — is an
+ * unbounded allocation inside a single call that none of the walk's other caps
+ * can interrupt. Reading the handle page by page lets the walk stop at this
+ * ceiling instead.
+ */
+const MAX_ENTRIES_PER_DIRECTORY = 20_000
 
 /**
  * Hard ceiling on entries emitted by a single walk, counting oversized files.
@@ -86,6 +97,11 @@ const BINARY_SNIFF_BYTES = 8192
  * File extensions considered safely text-extractable. Anything else (or a file
  * with no extension) is skipped, since its bytes cannot be reliably decoded to
  * plain text. Users override this list via the `extensions` config field.
+ *
+ * Markup-bearing formats are included only when this connector can flatten them
+ * (see {@link HTML_EXTENSIONS}). `rtf` is deliberately absent: there is no RTF
+ * text extractor here, so the indexed content would be the control-word source
+ * (`{\rtf1\ansi\deff0...`) rather than the document's prose.
  */
 const DEFAULT_EXTENSIONS = new Set([
   'txt',
@@ -102,7 +118,6 @@ const DEFAULT_EXTENSIONS = new Set([
   'yaml',
   'yml',
   'log',
-  'rtf',
 ])
 
 /** Extensions whose content is rendered markup and must be flattened before indexing. */
@@ -136,8 +151,8 @@ interface SftpContext {
   username: string
   password?: string
   privateKey?: string
-  /** Optional pinned SHA-256 host key fingerprint; empty means no verification. */
-  hostFingerprint?: string
+  /** Pinned SHA-256 host key fingerprint. Required — there is no unverified mode. */
+  hostFingerprint: string
   rootPath: string
   allowedExtensions: Set<string>
   maxDepth: number
@@ -169,29 +184,45 @@ function resolveBoundedNumber(raw: unknown, fallback: number, max: number): numb
 
 /**
  * Unpadded base64 of a SHA-256 digest — what OpenSSH prints after the `SHA256:`
- * prefix (32 digest bytes encode to 43 base64 characters).
+ * prefix (32 digest bytes encode to 43 base64 characters). Base64 is
+ * case-significant, so the body is matched as-is; only the `SHA256:` label is
+ * treated case-insensitively.
  */
 const SHA256_FINGERPRINT_PATTERN = /^[A-Za-z0-9+/]{43}$/
 
+/** How to obtain the fingerprint, appended to every fingerprint failure. */
+const FINGERPRINT_HOWTO =
+  'Get it by running "ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -" from a trusted network ' +
+  'and pasting the SHA256:... value into the Host Key Fingerprint field.'
+
+/** Message for a source saved without a fingerprint, or with it edited back out. */
+const FINGERPRINT_REQUIRED_MESSAGE =
+  'Host Key Fingerprint is required for SFTP sources. Without it, SSH accepts whatever host key ' +
+  "answers, so an on-path attacker impersonating the server would be handed this source's " +
+  `password or private key. ${FINGERPRINT_HOWTO}`
+
 /**
- * Normalizes and validates the pinned host key fingerprint. Validation matters
- * because host verification is opt-in: a value that normalizes to nothing (a
- * bare `SHA256:`), or an MD5 fingerprint, would otherwise be dropped and the
- * connection would silently fall back to trusting whatever host answers.
+ * Normalizes and validates the pinned host key fingerprint.
+ *
+ * Host verification is mandatory: an absent, blank, or unusable value fails
+ * closed here rather than falling through to ssh2's default of accepting any
+ * host key. Tolerant of the shapes the value is pasted in — with or without the
+ * `SHA256:` label, with or without base64 `=` padding, and with wrapped or
+ * surrounding whitespace — because a rejected paste that looks correct pushes
+ * users toward removing the pin.
  */
-function resolveHostFingerprint(raw: unknown): string | undefined {
-  if (typeof raw !== 'string') return undefined
-  const trimmed = raw.trim()
-  if (!trimmed) return undefined
+function resolveHostFingerprint(raw: unknown): string {
+  const trimmed = typeof raw === 'string' ? raw.trim() : ''
+  if (!trimmed) throw new Error(FINGERPRINT_REQUIRED_MESSAGE)
 
   const normalized = trimmed
     .replace(/^sha256:/i, '')
+    .replace(/\s+/g, '')
     .replace(/=+$/, '')
-    .trim()
   if (!SHA256_FINGERPRINT_PATTERN.test(normalized)) {
     throw new Error(
-      'Host key fingerprint must be a SHA-256 fingerprint, e.g. "SHA256:<43 base64 characters>". ' +
-        'Get it with "ssh-keyscan -t rsa,ecdsa,ed25519 <host> | ssh-keygen -lf -".'
+      `"${trimmed}" is not a SHA-256 host key fingerprint. Expected "SHA256:" followed by 43 base64 ` +
+        `characters (an MD5 "aa:bb:cc:..." fingerprint will not work). ${FINGERPRINT_HOWTO}`
     )
   }
   return normalized
@@ -208,9 +239,18 @@ function getExtension(filePath: string): string {
 /**
  * Normalizes a remote path to an absolute, separator-collapsed form without a
  * trailing slash (the root `/` is preserved).
+ *
+ * Deliberately does NOT percent-decode. SFTP paths are opaque byte strings, not
+ * URLs, so decoding corrupts every legitimate remote name containing a `%`
+ * followed by two hex digits: a file listed as `report%20final.txt` would be
+ * requested as `report final.txt` and could never be hydrated. Traversal is
+ * rejected up front by {@link isPathSafe}, which does check the decoded form,
+ * and the result is prefix-checked against the configured root, so declining to
+ * decode here is also the stricter choice — a literal `%2e%2e%2f` stays literal
+ * on the wire instead of being turned into `../`.
  */
 function normalizeRemotePath(raw: string): string {
-  const sanitized = sanitizePath(raw)
+  const sanitized = raw.replace(/\0/g, '').replace(/\\/g, '/').replace(/\/+/g, '/').trim()
   const absolute = sanitized.startsWith('/') ? sanitized : `/${sanitized}`
   const trimmed = absolute.replace(/\/+$/, '')
   return trimmed === '' ? '/' : trimmed
@@ -231,6 +271,12 @@ function isWithinRoot(candidate: string, rootPath: string): boolean {
  * Resolves connection parameters from the connector's sourceConfig and the
  * decrypted secret (delivered as `accessToken`). The secret is interpreted as a
  * password or an OpenSSH private key depending on `authMethod`.
+ *
+ * Every entry point — `listDocuments`, `getDocument`, and `validateConfig` —
+ * resolves through here, which is what makes the host key fingerprint enforced
+ * at sync time and not merely at validation time. A source persisted before the
+ * fingerprint became required, or edited out of band afterwards, fails its next
+ * sync instead of silently connecting unverified.
  */
 function resolveContext(accessToken: string, sourceConfig: Record<string, unknown>): SftpContext {
   const host = ((sourceConfig.host as string) ?? '').trim()
@@ -273,8 +319,10 @@ function resolveContext(accessToken: string, sourceConfig: Record<string, unknow
  * with the connection pinned to the resolved address) happens inside
  * {@link createSftpConnection}, which is the SSH counterpart to the HTTP
  * `secureFetchWithRetry` boundary used by the other file-storage connectors.
- * When the source is configured with a host key fingerprint, that same helper
- * also pins the server's host key before any credential is sent.
+ * That same helper also pins the server's host key to the source's required
+ * fingerprint, so a mismatched key aborts the handshake before any credential
+ * is sent. IP pinning alone would close DNS rebinding but not an on-path
+ * attacker, which is why the fingerprint has no opt-out.
  */
 async function withSftpSession<T>(
   ctx: SftpContext,
@@ -318,18 +366,87 @@ async function withSftpSession<T>(
   }
 }
 
-/** Promise wrapper around `SFTPWrapper.readdir`. */
-function readRemoteDirectory(sftp: SFTPWrapper, directory: string): Promise<SftpDirEntry[]> {
+/** SFTP status the server sends once a directory handle has been read to the end. */
+const SFTP_STATUS_EOF = ssh2Utils.sftp.STATUS_CODE.EOF
+
+/** One bounded read of a remote directory. */
+interface DirectoryListing {
+  entries: SftpDirEntry[]
+  /** True when the per-directory ceiling stopped the read before EOF. */
+  truncated: boolean
+}
+
+/** Promise wrapper around `SFTPWrapper.opendir`. */
+function openRemoteDirectory(sftp: SFTPWrapper, directory: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    sftp.readdir(directory, (err, list) => {
+    sftp.opendir(directory, (err, handle) => {
       if (err) reject(err)
-      else resolve(list)
+      else resolve(handle)
     })
   })
 }
 
-/** True for the SFTP status the server returns when a path no longer exists. */
+/**
+ * Reads the next page from an open directory handle, resolving null at EOF.
+ * ssh2 surfaces EOF as an error carrying `STATUS_CODE.EOF` rather than as an
+ * empty list, so it is translated here instead of propagating as a failure.
+ */
+function readDirectoryPage(sftp: SFTPWrapper, handle: Buffer): Promise<SftpDirEntry[] | null> {
+  return new Promise((resolve, reject) => {
+    sftp.readdir(handle, (err, list) => {
+      if (err) {
+        if ((err as Error & { code?: number }).code === SFTP_STATUS_EOF) resolve(null)
+        else reject(err)
+      } else {
+        resolve(list)
+      }
+    })
+  })
+}
+
+/**
+ * Lists a remote directory a page at a time, stopping at
+ * {@link MAX_ENTRIES_PER_DIRECTORY}. The handle is always closed, including on
+ * the error and ceiling paths, so a walk over many directories cannot exhaust
+ * the server's open-handle budget.
+ */
+async function readRemoteDirectory(
+  sftp: SFTPWrapper,
+  directory: string
+): Promise<DirectoryListing> {
+  const handle = await openRemoteDirectory(sftp, directory)
+  const entries: SftpDirEntry[] = []
+  let truncated = false
+
+  try {
+    while (!truncated) {
+      const page = await readDirectoryPage(sftp, handle)
+      if (page === null) break
+
+      for (const entry of page) {
+        if (entries.length >= MAX_ENTRIES_PER_DIRECTORY) {
+          truncated = true
+          break
+        }
+        entries.push(entry)
+      }
+    }
+  } finally {
+    sftp.close(handle, () => {})
+  }
+
+  return { entries, truncated }
+}
+
+/**
+ * True for the SFTP status the server returns when a path no longer exists.
+ *
+ * Prefers the numeric status ssh2 attaches to SFTP failures; the message match
+ * is the fallback for the paths that surface a re-wrapped `Error` without one.
+ */
 function isNotFoundError(error: unknown): boolean {
+  const code = (error as { code?: number } | null)?.code
+  if (code === ssh2Utils.sftp.STATUS_CODE.NO_SUCH_FILE) return true
   return /no such file|not found|ENOENT/i.test(getErrorMessage(error, ''))
 }
 
@@ -421,7 +538,13 @@ async function walkTree(
 
     let entries: SftpDirEntry[]
     try {
-      entries = await readRemoteDirectory(sftp, current.path)
+      const listing = await readRemoteDirectory(sftp, current.path)
+      entries = listing.entries
+      /**
+       * A directory read that stopped at the per-directory ceiling leaves real
+       * files unlisted, exactly like the walk-level caps below.
+       */
+      if (listing.truncated) truncated = true
       directoriesRead += 1
     } catch (error) {
       /**
@@ -586,14 +709,19 @@ export const sftpConnector: ConnectorConfig = {
   ): Promise<ExternalDocument | null> => {
     const ctx = resolveContext(accessToken, sourceConfig)
 
+    /**
+     * These two rejections throw rather than resolve `null`. `null` is the
+     * connector contract's "the document is gone at the source", which the sync
+     * engine acts on by letting the document be reconciled away; a path this
+     * connector refuses to address is instead a configuration or tampering
+     * fault, and must surface as a visible failed row.
+     */
     if (!isPathSafe(externalId)) {
-      logger.warn('Rejecting SFTP path with traversal sequences', { externalId })
-      return null
+      throw new Error(`Refusing SFTP path with traversal sequences: ${externalId}`)
     }
     const remotePath = normalizeRemotePath(externalId)
     if (!isWithinRoot(remotePath, ctx.rootPath)) {
-      logger.warn('Rejecting SFTP path outside the configured root', { remotePath })
-      return null
+      throw new Error(`Refusing SFTP path outside the configured root: ${remotePath}`)
     }
 
     return await withSftpSession(ctx, DOCUMENT_TIMEOUT_MS, async (sftp) => {

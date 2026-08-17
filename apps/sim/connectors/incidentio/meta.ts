@@ -45,14 +45,14 @@ export const incidentioConnectorMeta: ConnectorMeta = {
       required: false,
       mode: 'advanced',
       options: [
-        { label: 'All', id: '' },
+        { label: 'Standard and retrospective (default)', id: '' },
         { label: 'Standard (real incidents)', id: 'standard' },
         { label: 'Retrospective', id: 'retrospective' },
         { label: 'Test', id: 'test' },
         { label: 'Tutorial', id: 'tutorial' },
       ],
       description:
-        'Only sync incidents of this mode. Use Standard to exclude test/tutorial incidents.',
+        'Only sync incidents of this mode. Leaving this unset uses the incident.io default, which covers standard and retrospective incidents and excludes test and tutorial ones.',
     },
     {
       id: 'maxIncidents',

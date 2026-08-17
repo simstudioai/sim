@@ -136,7 +136,8 @@ function buildHeaders(accessToken: string): Record<string, string> {
  * `updated_at` is bumped whenever the incident is modified, so the hash is stable
  * between the list stub and `getDocument`. Notes and log entries are child
  * resources: PagerDuty does not guarantee they bump the parent's `updated_at`, so
- * a full resync is the way to pick up note-only changes.
+ * the connector sets `rehydrateOnFullSync` and an explicit full resync is what
+ * picks up note-only changes.
  */
 function buildContentHash(incident: PagerDutyIncident): string {
   return `pagerduty:${incident.id}:${incident.updated_at ?? ''}`
@@ -175,6 +176,36 @@ function buildMetadata(incident: PagerDutyIncident): IncidentMetadata {
   }
 }
 
+/** Depth beyond which nested `custom_details` are rendered as a single JSON line. */
+const MAX_DETAIL_DEPTH = 4
+
+/**
+ * Flattens a `custom_details` payload into `dotted.path: value` lines.
+ *
+ * Events API alerts routinely nest their `custom_details` (a `metadata` object, a
+ * list of affected hosts), so dropping non-primitive values would discard the most
+ * specific part of the incident. Recursion is depth-bounded, and anything deeper
+ * is emitted as compact JSON rather than lost.
+ */
+function flattenDetails(value: unknown, path: string, depth: number, lines: string[]): void {
+  if (value == null) return
+  if (typeof value !== 'object') {
+    lines.push(path ? `${path}: ${String(value)}` : String(value))
+    return
+  }
+  if (depth >= MAX_DETAIL_DEPTH) {
+    lines.push(`${path}: ${JSON.stringify(value)}`)
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => flattenDetails(item, `${path}[${index}]`, depth + 1, lines))
+    return
+  }
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    flattenDetails(nested, path ? `${path}.${key}` : key, depth + 1, lines)
+  }
+}
+
 /**
  * Renders the incident body details, which arrive either as a plain/HTML string
  * (Incident Creation API) or as a structured object (Events API payloads).
@@ -186,10 +217,7 @@ function renderBodyDetails(details: unknown): string | undefined {
   }
   if (details && typeof details === 'object') {
     const lines: string[] = []
-    for (const [key, value] of Object.entries(details as Record<string, unknown>)) {
-      if (value == null || typeof value === 'object') continue
-      lines.push(`${key}: ${String(value)}`)
-    }
+    flattenDetails(details, '', 0, lines)
     return lines.length > 0 ? lines.join('\n') : undefined
   }
   return undefined
@@ -210,10 +238,35 @@ function incidentToStub(incident: PagerDutyIncident): ExternalDocument | null {
 }
 
 /**
+ * Outcome of a child-resource fetch.
+ *
+ * `failed` separates a hard failure from "PagerDuty answered, and this incident
+ * genuinely has no accessible sub-resource" (403/404 — an ability the account
+ * lacks). The latter is a permanent, complete answer and is folded into the
+ * document as an empty section; a hard failure means the rendered content is
+ * missing sections that do exist, and since `contentHash` is keyed on the
+ * incident's `updated_at` it would never change again — the partial document
+ * would be frozen in place. The caller therefore fails the document so the next
+ * sync retries it.
+ */
+interface ChildFetch<T> {
+  items: T[]
+  failed: boolean
+}
+
+/** 403/404 are terminal answers about access, not transient transport failures. */
+function isPermanentlyUnavailable(status: number): boolean {
+  return status === 403 || status === 404
+}
+
+/**
  * Fetches every note on an incident. `GET /incidents/{id}/notes` takes no
  * pagination parameters and returns the full set in one response.
  */
-async function fetchNotes(accessToken: string, incidentId: string): Promise<PagerDutyNote[]> {
+async function fetchNotes(
+  accessToken: string,
+  incidentId: string
+): Promise<ChildFetch<PagerDutyNote>> {
   try {
     const response = await fetchWithRetry(
       `${PAGERDUTY_API_BASE}/incidents/${encodeURIComponent(incidentId)}/notes`,
@@ -225,17 +278,17 @@ async function fetchNotes(accessToken: string, incidentId: string): Promise<Page
         incidentId,
         status: response.status,
       })
-      return []
+      return { items: [], failed: !isPermanentlyUnavailable(response.status) }
     }
 
     const data = (await response.json()) as PagerDutyNotesResponse
-    return data.notes ?? []
+    return { items: data.notes ?? [], failed: false }
   } catch (error) {
     logger.warn('Error fetching PagerDuty incident notes', {
       incidentId,
       error: toError(error).message,
     })
-    return []
+    return { items: [], failed: true }
   }
 }
 
@@ -257,12 +310,13 @@ async function fetchNotes(accessToken: string, incidentId: string): Promise<Page
 async function fetchLogEntries(
   accessToken: string,
   incident: PagerDutyIncident
-): Promise<PagerDutyLogEntry[]> {
+): Promise<ChildFetch<PagerDutyLogEntry>> {
   const incidentId = incident.id as string
   const entries: PagerDutyLogEntry[] = []
   let offset = 0
   let bounded = Boolean(incident.created_at)
   let truncated = false
+  let failed = false
 
   try {
     while (entries.length < MAX_LOG_ENTRIES) {
@@ -294,6 +348,7 @@ async function fetchLogEntries(
           incidentId,
           status: response.status,
         })
+        failed = !isPermanentlyUnavailable(response.status)
         break
       }
 
@@ -313,16 +368,17 @@ async function fetchLogEntries(
       incidentId,
       error: toError(error).message,
     })
+    failed = true
   }
 
-  if (truncated || entries.length > MAX_LOG_ENTRIES) {
+  if (truncated) {
     logger.warn('Truncated PagerDuty incident timeline at the per-document cap', {
       incidentId,
       cap: MAX_LOG_ENTRIES,
     })
   }
 
-  return entries.slice(0, MAX_LOG_ENTRIES)
+  return { items: entries.slice(0, MAX_LOG_ENTRIES), failed }
 }
 
 /**
@@ -601,39 +657,48 @@ export const pagerdutyConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
-      const incident = await fetchIncident(accessToken, externalId)
-      if (!incident?.id) return null
+    /** Only a deleted incident (404/410) resolves to `null`; `fetchIncident` throws otherwise. */
+    const incident = await fetchIncident(accessToken, externalId)
+    if (!incident?.id) return null
 
-      const [notes, logEntries] = await Promise.all([
-        fetchNotes(accessToken, incident.id),
-        fetchLogEntries(accessToken, incident),
-      ])
+    const [notes, logEntries] = await Promise.all([
+      fetchNotes(accessToken, incident.id),
+      fetchLogEntries(accessToken, incident),
+    ])
 
-      const content = formatIncidentContent(incident, notes, logEntries)
-      if (!content.trim()) {
-        logger.info('Skipping PagerDuty incident with no indexable content', { externalId })
-        return null
-      }
-
-      return {
-        externalId: incident.id,
-        title: buildTitle(incident),
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: incident.html_url || undefined,
-        contentHash: buildContentHash(incident),
-        metadata: { ...buildMetadata(incident) },
-      }
-    } catch (error) {
-      logger.warn('Failed to get PagerDuty incident', {
+    /**
+     * Indexing the incident without its notes or timeline would freeze the gap
+     * in place: the hash is derived from `updated_at`, which a retry cannot
+     * change, so the document would never be re-hydrated. Throwing (rather than
+     * resolving `null`) makes the sync engine record a visible failed document
+     * and retry it, instead of dropping the incident with no counter.
+     */
+    if (notes.failed || logEntries.failed) {
+      logger.warn('PagerDuty incident had an incomplete sub-resource fetch', {
         externalId,
-        error: toError(error).message,
+        notesFailed: notes.failed,
+        logEntriesFailed: logEntries.failed,
       })
+      throw new Error(`Incomplete sub-resource fetch for PagerDuty incident ${externalId}`)
+    }
+
+    const content = formatIncidentContent(incident, notes.items, logEntries.items)
+    if (!content.trim()) {
+      logger.info('Skipping PagerDuty incident with no indexable content', { externalId })
       return null
+    }
+
+    return {
+      externalId: incident.id,
+      title: buildTitle(incident),
+      content,
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: incident.html_url || undefined,
+      contentHash: buildContentHash(incident),
+      metadata: { ...buildMetadata(incident) },
     }
   },
 

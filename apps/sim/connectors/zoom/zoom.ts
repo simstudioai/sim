@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -85,11 +85,33 @@ function encodeMeetingUuid(uuid: string): string {
   return encoded
 }
 
+/**
+ * Formats a date as `yyyy-mm-dd` in UTC. Zoom documents `from`/`to` on the
+ * recordings listing as UTC dates, so local-timezone getters would shift the
+ * window boundary by a day on any non-UTC host.
+ */
 function formatDate(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+/**
+ * True when `url` is an https URL on a Zoom-owned host. `download_url` is taken
+ * verbatim from an API response and is fetched with the user's access token in
+ * the Authorization header, so the host is checked before the token is attached.
+ */
+function isZoomDownloadUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return (
+      parsed.protocol === 'https:' &&
+      (parsed.hostname === 'zoom.us' || parsed.hostname.endsWith('.zoom.us'))
+    )
+  } catch {
+    return false
+  }
 }
 
 function encodeCursor(state: CursorState): string {
@@ -264,10 +286,16 @@ export const zoomConnector: ConnectorConfig = {
       return { documents: [], hasMore: false }
     }
 
+    /**
+     * Zoom caps the `from`/`to` range at one month and both bounds are inclusive,
+     * so each window spans exactly `WINDOW_DAYS` calendar days (`to - (WINDOW_DAYS - 1)`).
+     * Consecutive windows abut without overlapping, which keeps every request
+     * inside the documented range and stops the seam day being listed twice.
+     */
     const now = new Date()
     const earliest = new Date(now.getTime() - lookbackDays * MS_PER_DAY)
     const toDate = new Date(now.getTime() - state.windowIndex * WINDOW_DAYS * MS_PER_DAY)
-    const rawFromDate = new Date(toDate.getTime() - WINDOW_DAYS * MS_PER_DAY)
+    const rawFromDate = new Date(toDate.getTime() - (WINDOW_DAYS - 1) * MS_PER_DAY)
     const fromDate = rawFromDate < earliest ? earliest : rawFromDate
 
     if (fromDate >= toDate) {
@@ -339,7 +367,23 @@ export const zoomConnector: ConnectorConfig = {
     const totalFetched = prevFetched + indexableCount
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = capReached
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+
+    /**
+     * `capReached` alone is not truncation. It is also true when the cap lands exactly on
+     * the last recording of the last window, where nothing was withheld — and
+     * `takeIndexableWithinCap` cannot distinguish the two, because it reports only that
+     * the budget ran out, not whether it stopped mid-page. Setting `listingCapped` there
+     * would suppress deletion reconciliation on every subsequent sync of a source that
+     * simply sits at its cap, so purged recordings would never leave the knowledge base.
+     *
+     * The listing is capped only when the cap actually withheld something: recordings
+     * dropped from this page, or a page/window left unread behind it.
+     */
+    const droppedFromPage = documents.length < allDocuments.length
+    const moreBehindCap = Boolean(nextPageToken) || state.windowIndex + 1 < numWindows
+    if (hitLimit && (droppedFromPage || moreBehindCap) && syncContext) {
+      syncContext.listingCapped = true
+    }
 
     let nextCursor: string | undefined
     let hasMore = false
@@ -362,81 +406,94 @@ export const zoomConnector: ConnectorConfig = {
     _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    try {
-      if (!externalId) return null
+    if (!externalId) return null
 
-      const url = `${ZOOM_API_BASE}/meetings/${encodeMeetingUuid(externalId)}/recordings`
+    const url = `${ZOOM_API_BASE}/meetings/${encodeMeetingUuid(externalId)}/recordings`
 
-      const response = await fetchWithRetry(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      })
+    const response = await fetchWithRetry(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
 
-      if (!response.ok) {
-        if (response.status === 404 || response.status === 410) return null
-        throw new Error(`Failed to fetch Zoom recording: ${response.status}`)
-      }
+    /**
+     * Only a deleted recording (404/410) resolves to `null`. Every other failure
+     * throws so the sync engine records a visible failed document instead of
+     * dropping the recording from the run with no counter and no error log.
+     */
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 410) return null
+      throw new Error(`Failed to fetch Zoom recording: ${response.status}`)
+    }
 
-      const recording = (await response.json()) as ZoomRecording
-      const transcript = findTranscriptFile(recording.recording_files)
+    const recording = (await response.json()) as ZoomRecording
+    const transcript = findTranscriptFile(recording.recording_files)
 
-      if (!transcript?.download_url) {
-        logger.info('Transcript no longer available for Zoom recording', { externalId })
-        return null
-      }
-
-      const vttResponse = await fetchWithRetry(transcript.download_url, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-
-      if (!vttResponse.ok) {
-        logger.warn('Failed to download Zoom transcript', {
-          externalId,
-          status: vttResponse.status,
-        })
-        return null
-      }
-
-      const vttBuffer = await readBodyWithLimit(vttResponse, CONNECTOR_MAX_FILE_BYTES)
-      if (!vttBuffer) {
-        return markSkipped(
-          recordingToStub(recording, transcript),
-          sizeLimitSkipReason(CONNECTOR_MAX_FILE_BYTES)
-        )
-      }
-
-      const vttText = vttBuffer.toString('utf8')
-      const transcriptText = parseVtt(vttText).trim()
-      if (!transcriptText) return null
-
-      const content = formatTranscriptContent(recording, transcriptText)
-
-      return {
-        externalId: recording.uuid || externalId,
-        title: recording.topic?.trim() || 'Untitled Zoom Meeting',
-        content,
-        contentDeferred: false,
-        mimeType: 'text/plain',
-        sourceUrl: buildSourceUrl(recording),
-        contentHash: buildContentHash(recording, transcript),
-        metadata: {
-          meetingId: recording.id != null ? String(recording.id) : undefined,
-          hostEmail: recording.host_email,
-          duration: recording.duration,
-          meetingDate: recording.start_time,
-          topic: recording.topic,
-        },
-      }
-    } catch (error) {
-      logger.warn('Failed to get Zoom recording', {
-        externalId,
-        error: toError(error).message,
-      })
+    if (!transcript?.download_url) {
+      logger.info('Transcript no longer available for Zoom recording', { externalId })
       return null
+    }
+
+    if (!isZoomDownloadUrl(transcript.download_url)) {
+      throw new Error('Refusing to send the Zoom access token to a non-Zoom download host')
+    }
+
+    /**
+     * The access token goes in the Authorization header, never in the URL: Zoom
+     * removed support for token values in query parameters in February 2023 and
+     * answers `?access_token=` with `Invalid access token, this access token is
+     * not supported as a query parameter string`.
+     */
+    const vttResponse = await fetchWithRetry(transcript.download_url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+
+    /**
+     * A transcript the API just advertised is expected to download. A 404/410 means
+     * it was purged between the two calls; anything else is a fault and must fail
+     * the document rather than silently drop it.
+     */
+    if (!vttResponse.ok) {
+      if (vttResponse.status === 404 || vttResponse.status === 410) {
+        logger.info('Zoom transcript was purged before it could be downloaded', { externalId })
+        return null
+      }
+      throw new Error(`Failed to download Zoom transcript: ${vttResponse.status}`)
+    }
+
+    const vttBuffer = await readBodyWithLimit(vttResponse, CONNECTOR_MAX_FILE_BYTES)
+    if (!vttBuffer) {
+      return markSkipped(
+        recordingToStub(recording, transcript),
+        sizeLimitSkipReason(CONNECTOR_MAX_FILE_BYTES)
+      )
+    }
+
+    const vttText = vttBuffer.toString('utf8')
+    const transcriptText = parseVtt(vttText).trim()
+    if (!transcriptText) return null
+
+    const content = formatTranscriptContent(recording, transcriptText)
+
+    return {
+      externalId: recording.uuid || externalId,
+      title: recording.topic?.trim() || 'Untitled Zoom Meeting',
+      content,
+      contentDeferred: false,
+      mimeType: 'text/plain',
+      sourceUrl: buildSourceUrl(recording),
+      contentHash: buildContentHash(recording, transcript),
+      metadata: {
+        meetingId: recording.id != null ? String(recording.id) : undefined,
+        hostEmail: recording.host_email,
+        duration: recording.duration,
+        meetingDate: recording.start_time,
+        topic: recording.topic,
+        fileSize: transcript.file_size,
+      },
     }
   },
 
@@ -449,9 +506,17 @@ export const zoomConnector: ConnectorConfig = {
       return { valid: false, error: 'Max recordings must be a non-negative number' }
     }
 
+    /**
+     * Lists a single day with `page_size=1` — the cheapest call that exercises
+     * the cloud-recording listing scope the sync actually depends on. `/users/me`
+     * would only prove the token is live, not that recordings are readable.
+     */
+    const today = formatDate(new Date())
+    const probe = new URLSearchParams({ page_size: '1', from: today, to: today })
+
     try {
       const response = await fetchWithRetry(
-        `${ZOOM_API_BASE}/users/me`,
+        `${ZOOM_API_BASE}/users/me/recordings?${probe.toString()}`,
         {
           method: 'GET',
           headers: {

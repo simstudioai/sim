@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipInput, ChipTag, ChipTextarea, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { WorkspaceCredential } from '@/lib/api/contracts'
 import type {
   CredentialGroup,
   CredentialGroupOption,
@@ -28,9 +29,17 @@ import { SlackManagedUsersModal } from '@/ee/credential-groups/components/slack-
 import { useUpdateCredentialGroup } from '@/hooks/queries/credential-groups'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
+/** Stable identity so a pending/errored credentials query cannot churn the modal's `bots` prop. */
+const EMPTY_SLACK_BOTS: WorkspaceCredential[] = []
+
 interface CredentialGroupDetailsProps {
   credentialGroup: CredentialGroup
   workspaceId: string
+  /** Edited name; committed by the panel header's Save action, which owns the dirty state. */
+  name: string
+  onNameChange: (name: string) => void
+  description: string
+  onDescriptionChange: (description: string) => void
 }
 
 function toOptionUpdateInput(
@@ -39,7 +48,7 @@ function toOptionUpdateInput(
   const common = {
     id: option.id,
     label: getCredentialGroupProviderService(option.provider).name,
-    required: true,
+    required: false,
   }
   if (option.provider !== 'slack') return { ...common, provider: option.provider }
   return {
@@ -52,6 +61,10 @@ function toOptionUpdateInput(
 export function CredentialGroupDetails({
   credentialGroup,
   workspaceId,
+  name,
+  onNameChange,
+  description,
+  onDescriptionChange,
 }: CredentialGroupDetailsProps) {
   const updateGroup = useUpdateCredentialGroup()
   const slackBots = useWorkspaceCredentials({
@@ -59,15 +72,9 @@ export function CredentialGroupDetails({
     type: 'service_account',
     providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
   })
-  const [name, setName] = useState(credentialGroup.name)
-  const [description, setDescription] = useState(credentialGroup.description ?? '')
-  const [slackSetupOpen, setSlackSetupOpen] = useState(false)
-  const [slackSetupCredentialId, setSlackSetupCredentialId] = useState<string | undefined>()
+  const [slackSetup, setSlackSetup] = useState<{ credentialId?: string } | null>(null)
   const [removingProvider, setRemovingProvider] = useState<CredentialGroupProvider | null>(null)
 
-  const normalizedDescription = description.trim() || null
-  const detailsDirty =
-    name.trim() !== credentialGroup.name || normalizedDescription !== credentialGroup.description
   const isUpdating = updateGroup.isPending
 
   const updateOptions = async (
@@ -94,14 +101,13 @@ export function CredentialGroupDetails({
     const nextOption: NonNullable<UpdateCredentialGroupBody['options']>[number] = {
       provider,
       label: service.name,
-      required: true,
+      required: false,
     }
     return updateOptions([...existing, nextOption], `${service.name} added`)
   }
 
   const openSlackSetup = (credentialId?: string) => {
-    setSlackSetupCredentialId(credentialId)
-    setSlackSetupOpen(true)
+    setSlackSetup({ credentialId })
   }
 
   const handleProviderAction = (provider: CredentialGroupProvider) => {
@@ -117,20 +123,6 @@ export function CredentialGroupDetails({
     throw new Error(`Unsupported Credential Group configuration: ${support.configuration}`)
   }
 
-  const handleSaveDetails = async () => {
-    if (!detailsDirty || !name.trim() || isUpdating) return
-    try {
-      await updateGroup.mutateAsync({
-        workspaceId,
-        groupId: credentialGroup.id,
-        body: { name: name.trim(), description: normalizedDescription },
-      })
-      toast.success('Details saved')
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Could not save details'))
-    }
-  }
-
   const handleRemoveProvider = async () => {
     if (!removingProvider) return
     const service = getCredentialGroupProviderService(removingProvider)
@@ -142,141 +134,129 @@ export function CredentialGroupDetails({
 
   return (
     <>
-      <div className='flex flex-col gap-7'>
-        <SettingsSection
-          label='Group details'
-          action={
-            detailsDirty ? (
-              <Chip
-                variant='primary'
-                onClick={() => void handleSaveDetails()}
-                disabled={!name.trim() || isUpdating}
-              >
-                {isUpdating ? 'Saving...' : 'Save changes'}
-              </Chip>
-            ) : undefined
-          }
-        >
-          <div className='flex max-w-[560px] flex-col gap-4'>
-            <SettingRow label='Name' htmlFor='credential-group-name'>
-              <ChipInput
-                id='credential-group-name'
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                error={!name.trim()}
-              />
-            </SettingRow>
-            <SettingRow label='Description' optional htmlFor='credential-group-description'>
-              <ChipTextarea
-                id='credential-group-description'
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder='What these accounts will be used for'
-                rows={3}
-              />
-            </SettingRow>
-          </div>
-        </SettingsSection>
+      <SettingsSection label='Group details'>
+        <div className='flex flex-col gap-4'>
+          <SettingRow
+            label='Name'
+            htmlFor='credential-group-name'
+            error={name.trim() ? undefined : 'Name is required.'}
+          >
+            <ChipInput
+              id='credential-group-name'
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              error={!name.trim()}
+            />
+          </SettingRow>
+          <SettingRow label='Description' optional htmlFor='credential-group-description'>
+            <ChipTextarea
+              id='credential-group-description'
+              value={description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              placeholder='What these accounts will be used for'
+              rows={3}
+            />
+          </SettingRow>
+        </div>
+      </SettingsSection>
 
-        <SettingsSection label='Accounts people can connect'>
-          <div className={RESOURCE_LIST_STACK}>
-            {CREDENTIAL_GROUP_PROVIDER_IDS.map((provider) => {
-              const service = getCredentialGroupProviderService(provider)
-              const support = getCredentialGroupProviderSupport(provider)
-              const option = credentialGroup.options.find(
-                (candidate) => candidate.provider === provider
-              )
-              const ProviderIcon = service.icon
-              const slackBot =
-                provider === 'slack' && option?.provider === 'slack'
-                  ? slackBots.data?.find((bot) => bot.id === option.slackBotCredentialId)
-                  : undefined
-              const slackNeedsSetup =
-                provider === 'slack' &&
-                option?.provider === 'slack' &&
-                (!slackBot || option.configurationStatus !== 'ready')
-              const descriptionText =
-                provider === 'slack' && option
-                  ? slackBot
-                    ? `${slackBot.displayName}${slackNeedsSetup ? ' needs managed-user setup' : ''}`
-                    : slackBots.isPending
-                      ? 'Loading custom Slack app...'
-                      : 'Custom Slack app unavailable'
-                  : support.description
+      <SettingsSection label='Accounts people can connect'>
+        <div className={RESOURCE_LIST_STACK}>
+          {CREDENTIAL_GROUP_PROVIDER_IDS.map((provider) => {
+            const service = getCredentialGroupProviderService(provider)
+            const support = getCredentialGroupProviderSupport(provider)
+            const option = credentialGroup.options.find(
+              (candidate) => candidate.provider === provider
+            )
+            const ProviderIcon = service.icon
+            const slackBot =
+              provider === 'slack' && option?.provider === 'slack'
+                ? slackBots.data?.find((bot) => bot.id === option.slackBotCredentialId)
+                : undefined
+            const slackNeedsSetup =
+              provider === 'slack' &&
+              option?.provider === 'slack' &&
+              (!slackBot || option.configurationStatus !== 'ready')
+            const descriptionText =
+              provider === 'slack' && option
+                ? slackBot
+                  ? `${slackBot.displayName}${slackNeedsSetup ? ' needs managed-user setup' : ''}`
+                  : slackBots.isPending
+                    ? 'Loading custom Slack app...'
+                    : 'Custom Slack app unavailable'
+                : support.description
 
-              return (
-                <SettingsResourceRow
-                  key={provider}
-                  icon={<ProviderIcon aria-hidden />}
-                  title={service.name}
-                  description={descriptionText}
-                  badge={
-                    option && !slackNeedsSetup ? (
-                      <ChipTag variant='gray'>Connected</ChipTag>
-                    ) : undefined
-                  }
-                  trailing={
-                    option ? (
-                      <div className='flex items-center gap-1'>
-                        {slackNeedsSetup && option.provider === 'slack' && slackBot ? (
-                          <Chip onClick={() => openSlackSetup(slackBot.id)} disabled={isUpdating}>
-                            Continue setup
-                          </Chip>
-                        ) : null}
-                        <RowActionsMenu
-                          label={`${service.name} actions`}
-                          actions={[
-                            ...(provider === 'slack'
-                              ? [
-                                  {
-                                    label: 'Change Slack app',
-                                    onSelect: () =>
-                                      openSlackSetup(
-                                        option?.provider === 'slack'
-                                          ? option.slackBotCredentialId
-                                          : undefined
-                                      ),
-                                    disabled: isUpdating,
-                                  },
-                                ]
-                              : []),
-                            {
-                              label: 'Remove',
-                              destructive: true,
-                              onSelect: () => setRemovingProvider(provider),
-                              disabled: isUpdating,
-                            },
-                          ]}
-                        />
-                      </div>
-                    ) : (
-                      <Chip
-                        onClick={() => handleProviderAction(provider)}
-                        disabled={isUpdating || (provider === 'slack' && slackBots.isPending)}
-                      >
-                        {support.configuration === 'oauth' ? 'Add' : 'Set up'}
-                      </Chip>
-                    )
-                  }
-                />
-              )
-            })}
-          </div>
-        </SettingsSection>
-      </div>
+            return (
+              <SettingsResourceRow
+                key={provider}
+                icon={<ProviderIcon aria-hidden />}
+                title={service.name}
+                description={descriptionText}
+                badge={
+                  option && !slackNeedsSetup ? (
+                    <ChipTag variant='gray'>Connected</ChipTag>
+                  ) : undefined
+                }
+                trailing={
+                  option ? (
+                    <div className='flex items-center gap-1'>
+                      {slackNeedsSetup && option.provider === 'slack' && slackBot ? (
+                        <Chip onClick={() => openSlackSetup(slackBot.id)} disabled={isUpdating}>
+                          Continue setup
+                        </Chip>
+                      ) : null}
+                      <RowActionsMenu
+                        label={`${service.name} actions`}
+                        actions={[
+                          ...(provider === 'slack'
+                            ? [
+                                {
+                                  label: 'Change Slack app',
+                                  onSelect: () =>
+                                    openSlackSetup(
+                                      option?.provider === 'slack'
+                                        ? option.slackBotCredentialId
+                                        : undefined
+                                    ),
+                                  disabled: isUpdating,
+                                },
+                              ]
+                            : []),
+                          {
+                            label: 'Remove',
+                            destructive: true,
+                            onSelect: () => setRemovingProvider(provider),
+                            disabled: isUpdating,
+                          },
+                        ]}
+                      />
+                    </div>
+                  ) : (
+                    <Chip
+                      onClick={() => handleProviderAction(provider)}
+                      disabled={isUpdating || (provider === 'slack' && slackBots.isPending)}
+                    >
+                      {support.configuration === 'oauth' ? 'Add' : 'Set up'}
+                    </Chip>
+                  )
+                }
+              />
+            )
+          })}
+        </div>
+      </SettingsSection>
 
       <SlackManagedUsersModal
-        open={slackSetupOpen}
+        open={slackSetup !== null}
         workspaceId={workspaceId}
         credentialGroupId={credentialGroup.id}
         onOpenChange={(nextOpen) => {
-          setSlackSetupOpen(nextOpen)
-          if (!nextOpen) setSlackSetupCredentialId(undefined)
+          if (!nextOpen) setSlackSetup(null)
         }}
-        bots={slackBots.data ?? []}
+        bots={slackBots.data ?? EMPTY_SLACK_BOTS}
         isLoading={slackBots.isPending}
         error={slackBots.error}
-        initialCredentialId={slackSetupCredentialId}
+        initialCredentialId={slackSetup?.credentialId}
       />
 
       <ChipConfirmModal

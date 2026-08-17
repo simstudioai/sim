@@ -252,6 +252,8 @@ export const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
   return (
     <th
+      data-column-drag-target={column.key}
+      data-column-drag-group={column.workflowGroupId}
       className={cn(
         'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
         stickyLeft !== undefined && 'z-[11]',

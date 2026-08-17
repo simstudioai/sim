@@ -29,6 +29,10 @@ import {
   resolveCanonicalMode,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import {
+  isSubBlockRequired,
+  resolveToolParamRequired,
+} from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -38,6 +42,7 @@ import {
   remapForkFileUploadValue,
 } from '@/ee/workspace-forking/lib/remap/remap-files'
 import { isEnvVarReference, isReference } from '@/executor/constants'
+import type { ParameterVisibility } from '@/tools/types'
 
 /**
  * Resource kinds the fork remapper rewrites across workspaces, derived from the
@@ -1191,20 +1196,6 @@ export interface NeedsConfigurationField {
   required: boolean
 }
 
-/** Evaluate a subblock's `required` (boolean | condition | fn) against a value map. */
-export function isSubBlockRequired(
-  required: SubBlockConfig['required'],
-  values: Record<string, unknown>
-): boolean {
-  if (required === true) return true
-  if (!required) return false
-  // The object/function forms are structurally a SubBlockCondition.
-  return evaluateSubBlockCondition(
-    required as Parameters<typeof evaluateSubBlockCondition>[0],
-    values
-  )
-}
-
 /** Nested `tool-input` dependents (Agent/tool blocks) the TARGET configured that a remap cleared. */
 function collectClearedToolParamDependents(
   toolInputKey: string,
@@ -1245,6 +1236,27 @@ function collectClearedToolParamDependents(
       scopeCanonicalModesForTool(parentCanonicalModes, index, tool.type)
     )
     const toolLabel = typeof tool.title === 'string' && tool.title ? tool.title : toolConfig.name
+    // Resolved visibility per param, so `required` here means the same thing it means in the
+    // pre-sync modal. Without this the two paths disagree: the modal would let a sync through
+    // (a model-supplied param is not the user's to fill) and then this collector would mark it
+    // required, which SKIPS the target's redeploy in `promote.ts` - leaving the fork silently
+    // running its previous deployed version.
+    const paramVisibilityById = new Map<string, ParameterVisibility | undefined>()
+    for (const resolved of getToolInputParamConfigs({
+      tool: { ...tool, type: tool.type, params: mergedParams },
+      toolIndex: index,
+      parentCanonicalModes,
+    })) {
+      if (!resolved.authoritative) continue
+      const visibility = resolved.config.paramVisibility
+      paramVisibilityById.set(resolved.paramId, visibility)
+      if (
+        resolved.config.canonicalParamId &&
+        !paramVisibilityById.has(resolved.config.canonicalParamId)
+      ) {
+        paramVisibilityById.set(resolved.config.canonicalParamId, visibility)
+      }
+    }
     for (const cfg of toolConfig.subBlocks) {
       if (!cfg.dependsOn || !cfg.id) continue
       // Only flag a param the TARGET tool had configured (not one the source carried in).
@@ -1260,7 +1272,7 @@ function collectClearedToolParamDependents(
         subBlockKey: `${toolInputKey}[${index}].${cfg.id}`,
         title: cfg.title ?? cfg.id,
         toolName: toolLabel,
-        required: isSubBlockRequired(cfg.required, mergedValues),
+        required: resolveToolParamRequired(cfg, mergedValues, paramVisibilityById),
       })
     }
   }

@@ -8,7 +8,6 @@ import { confluenceConnector } from '@/connectors/confluence'
 import { discordConnector } from '@/connectors/discord'
 import { docusignConnector } from '@/connectors/docusign'
 import { dropboxConnector } from '@/connectors/dropbox'
-import { evernoteConnector } from '@/connectors/evernote'
 import { fathomConnector } from '@/connectors/fathom'
 import { firefliesConnector } from '@/connectors/fireflies'
 import { githubConnector } from '@/connectors/github'
@@ -79,7 +78,6 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   discord: discordConnector,
   docusign: docusignConnector,
   dropbox: dropboxConnector,
-  evernote: evernoteConnector,
   fathom: fathomConnector,
   fireflies: firefliesConnector,
   github: githubConnector,

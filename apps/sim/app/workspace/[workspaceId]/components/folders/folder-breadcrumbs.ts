@@ -91,7 +91,7 @@ export function folderBreadcrumbItems(options: FolderBreadcrumbItemsOptions): Br
   const trailing = options.trailing ?? NO_TRAILING_CRUMBS
 
   const items: BreadcrumbItem[] = [
-    { label: rootLabel, icon: rootIcon, onClick: () => onNavigate(null) },
+    { label: rootLabel, icon: rootIcon, folderId: null, onClick: () => onNavigate(null) },
   ]
 
   breadcrumbs.forEach((folder, index) => {
@@ -99,6 +99,7 @@ export function folderBreadcrumbItems(options: FolderBreadcrumbItemsOptions): Br
     const isOpenFolder = trailing.length === 0 && index === breadcrumbs.length - 1
     items.push({
       label: folder.name,
+      folderId: folder.id,
       onClick: isOpenFolder ? undefined : () => onNavigate(folder.id),
       dropdownItems:
         isOpenFolder && options.currentFolderActions?.length

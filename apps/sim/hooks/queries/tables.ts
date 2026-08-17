@@ -38,8 +38,12 @@ import {
   addWorkflowGroupContract,
   type BatchInsertTableRowsBodyInput,
   type BatchUpdateTableRowsBodyInput,
+  type BulkDeleteTablesBody,
+  type BulkMoveTablesBody,
   batchCreateTableRowsContract,
   batchUpdateTableRowsContract,
+  bulkDeleteTablesContract,
+  bulkMoveTablesContract,
   type CreateTableBodyInput,
   type CreateTableColumnBodyInput,
   cancelTableRunsContract,
@@ -114,6 +118,7 @@ import { sanitizeName } from '@/lib/table/import'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {
   TABLE_LIST_STALE_TIME,
   TABLE_VIEWS_STALE_TIME,
@@ -129,6 +134,14 @@ const logger = createLogger('TableQueries')
 export const TABLE_DETAIL_STALE_TIME = 30 * 1000
 export const TABLE_RUN_STATE_STALE_TIME = 30 * 1000
 export const TABLE_FIND_STALE_TIME = 30 * 1000
+/**
+ * Shorter than the 5-minute default: the grid searches as the user types, so
+ * each typing pause mints its own cache entry holding up to
+ * `TABLE_LIMITS.MAX_FIND_MATCHES` matches. Long enough that backspacing to a
+ * recent term is still instant, short enough that a typed-through term set
+ * doesn't sit resident.
+ */
+export const TABLE_FIND_GC_TIME = 60 * 1000
 export const TABLE_ROWS_STALE_TIME = 30 * 1000
 export const TABLE_EXPORT_JOBS_STALE_TIME = 5 * 1000
 
@@ -469,9 +482,11 @@ async function fetchTableRowMatches({
 }
 
 /**
- * Server-side find across all cells. `q` is the *submitted* term (search is
- * Enter-triggered), so React Query caches each submitted term and re-searching
- * a prior one is instant. Disabled while `q` is empty.
+ * Server-side find across all cells. `q` is the term the caller has settled on
+ * — the grid debounces the live input before passing it — so React Query caches
+ * each settled term and backspacing to a prior one is instant. Disabled while
+ * `q` is empty; `keepPreviousData` holds the last result set so the match count
+ * doesn't blank between terms.
  */
 export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: FindTableRowsParams) {
   const paramsKey = JSON.stringify({ q, filter: filter ?? null, sort: sort ?? null })
@@ -481,6 +496,7 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
       fetchTableRowMatches({ workspaceId, tableId, q, filter, sort, signal }),
     enabled: Boolean(workspaceId && tableId) && q.trim().length > 0,
     staleTime: TABLE_FIND_STALE_TIME,
+    gcTime: TABLE_FIND_GC_TIME,
     placeholderData: keepPreviousData,
   })
 }
@@ -2507,6 +2523,84 @@ export function useDeleteWorkflowGroup({ workspaceId, tableId }: RowMutationCont
     onSettled: () => {
       invalidateTableSchema(queryClient, tableId)
       queryClient.invalidateQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+    },
+  })
+}
+
+/**
+ * Move a mixed selection of tables and table folders into one folder, or to the
+ * workspace root with `targetFolderId: null`.
+ *
+ * One request, one authorized operation: the Tables list interleaves folder and
+ * table rows in a single grid, so a selection is routinely mixed and must not be
+ * split into a resource call plus a per-folder fan-out.
+ *
+ * No optimistic patch. A folder move re-parents rows that the list renders at a
+ * different level, and the response reports per-item outcomes (`skipped`,
+ * `notFound`, `failed`) the client cannot predict, so the caller reads the
+ * result rather than guessing it.
+ */
+export function useBulkMoveTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+      targetFolderId,
+    }: Omit<BulkMoveTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkMoveTablesContract, {
+        body: { workspaceId, tableIds, folderIds, targetFolderId },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
+      }
+    },
+  })
+}
+
+/**
+ * Archive a mixed selection of tables and table folders.
+ *
+ * Deleting a folder cascades to every table and subfolder inside it, so the
+ * response's `deletedItems` totals exceed the explicitly selected count. Cached
+ * detail and row entries are removed only for the tables named in the request —
+ * a cascaded table's detail cache is left to the list invalidation, since the
+ * request never named it.
+ */
+export function useBulkDeleteTables(workspaceId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      tableIds = [],
+      folderIds = [],
+    }: Omit<BulkDeleteTablesBody, 'workspaceId'>) => {
+      const result = await requestJson(bulkDeleteTablesContract, {
+        body: { workspaceId, tableIds, folderIds },
+      })
+      return result.data
+    },
+    onError: (error) => {
+      if (isValidationError(error)) return
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: (_data, _error, { tableIds = [] }) => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: folderKeys.resource('table') })
+      for (const tableId of tableIds) {
+        queryClient.removeQueries({ queryKey: tableKeys.detail(tableId) })
+        queryClient.removeQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+      }
     },
   })
 }

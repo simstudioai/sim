@@ -6,10 +6,10 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createCredentialGroupContract,
   deleteCredentialGroupContract,
+  deleteCredentialGroupEnrollmentContract,
   getCredentialGroupContract,
   inviteCredentialGroupEnrollmentsContract,
   resendCredentialGroupEnrollmentContract,
-  revokeCredentialGroupEnrollmentContract,
   startSlackCredentialGroupConfigurationContract,
   updateCredentialGroupContract,
 } from '@/lib/api/contracts/credential-groups'
@@ -29,7 +29,7 @@ export function useCredentialGroups(workspaceId?: string) {
       return fetchCredentialGroupList(workspaceId, signal)
     },
     enabled: Boolean(workspaceId),
-    staleTime: CREDENTIAL_GROUP_DETAIL_STALE_TIME,
+    staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
   })
 }
 
@@ -49,7 +49,10 @@ export function useCredentialGroupDetail(workspaceId?: string, groupId?: string)
     getNextPageParam: (lastPage: ContractJsonResponse<typeof getCredentialGroupContract>) =>
       lastPage.nextCursor ?? undefined,
     enabled: Boolean(workspaceId && groupId),
-    staleTime: CREDENTIAL_GROUP_LIST_STALE_TIME,
+    staleTime: CREDENTIAL_GROUP_DETAIL_STALE_TIME,
+    // An infinite staleTime never goes stale, so the app-wide `retryOnMount: false`
+    // would cache one transient failure for the life of the QueryClient.
+    retryOnMount: true,
   })
 }
 
@@ -78,6 +81,9 @@ export function useDeleteCredentialGroup() {
       }),
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(variables.workspaceId) })
+      queryClient.removeQueries({
+        queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+      })
     },
   })
 }
@@ -98,12 +104,18 @@ export function useUpdateCredentialGroup() {
         params: { id: workspaceId, groupId },
         body,
       }),
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: credentialGroupKeys.list(variables.workspaceId) })
-      queryClient.invalidateQueries({
-        queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
-      })
-    },
+    // Returned so `mutateAsync` resolves only once the refetch has landed. Callers
+    // clear their edit buffer on success, which would otherwise fall back onto the
+    // pre-save cache and flash the old values.
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.list(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: credentialGroupKeys.detail(variables.workspaceId, variables.groupId),
+        }),
+      ]),
   })
 }
 
@@ -172,7 +184,7 @@ export function useResendCredentialGroupEnrollment() {
   })
 }
 
-export function useRevokeCredentialGroupEnrollment() {
+export function useDeleteCredentialGroupEnrollment() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({
@@ -184,7 +196,7 @@ export function useRevokeCredentialGroupEnrollment() {
       groupId: string
       enrollmentId: string
     }) =>
-      requestJson(revokeCredentialGroupEnrollmentContract, {
+      requestJson(deleteCredentialGroupEnrollmentContract, {
         params: { id: workspaceId, groupId, enrollmentId },
       }),
     onSettled: (_data, _error, variables) => {

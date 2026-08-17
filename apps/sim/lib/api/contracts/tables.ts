@@ -32,6 +32,7 @@ import {
   FILTER_OPS,
   MAX_RUN_TARGET_ROW_IDS,
   MAX_SELECT_OPTIONS,
+  MAX_TABLE_BATCH_ITEMS,
   NAME_PATTERN,
   SORT_DIRECTIONS,
   TABLE_LIMITS,
@@ -2212,3 +2213,125 @@ export type TableViewWire = z.output<typeof tableViewSchema>
 export type TableViewConfigInput = z.input<typeof tableViewConfigSchema>
 export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
 export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>
+
+const bulkTableIdListSchema = z
+  .array(requiredFieldSchema('id entries cannot be empty'))
+  .max(MAX_TABLE_BATCH_ITEMS, `cannot contain more than ${MAX_TABLE_BATCH_ITEMS} ids`)
+  .default([])
+
+/**
+ * Bounds a mixed selection from the Tables list, which interleaves folder rows
+ * and table rows in one grid. Both lists travel in one request so a mixed
+ * selection commits as one authorized operation instead of a client-sequenced
+ * fan-out.
+ *
+ * The cap is on the combined count: each list is individually bounded first so
+ * a 10,000-entry array is rejected before the combined arithmetic, and folders
+ * cost more than tables because they cascade.
+ */
+function refineBoundedTableSelection(
+  selection: { tableIds: string[]; folderIds: string[] },
+  ctx: z.RefinementCtx
+): void {
+  const total = selection.tableIds.length + selection.folderIds.length
+  if (total === 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tableIds'],
+      message: 'At least one table or folder must be selected',
+    })
+    return
+  }
+  if (total > MAX_TABLE_BATCH_ITEMS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tableIds'],
+      message: `tableIds and folderIds cannot contain more than ${MAX_TABLE_BATCH_ITEMS} ids combined`,
+    })
+  }
+}
+
+export const bulkMoveTablesBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns every selected item.'),
+    tableIds: bulkTableIdListSchema.describe('Tables to move, by identifier.'),
+    folderIds: bulkTableIdListSchema.describe('Table folders to re-parent, by identifier.'),
+    targetFolderId: folderIdSchema
+      .nullable()
+      .describe('Destination folder in the table folder tree. `null` is the workspace root.'),
+  })
+  .superRefine(refineBoundedTableSelection)
+export type BulkMoveTablesBody = z.input<typeof bulkMoveTablesBodySchema>
+
+export const bulkDeleteTablesBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns every selected item.'),
+    tableIds: bulkTableIdListSchema.describe('Tables to archive, by identifier.'),
+    folderIds: bulkTableIdListSchema.describe(
+      'Table folders to delete, by identifier. Each cascades to everything inside it.'
+    ),
+  })
+  .superRefine(refineBoundedTableSelection)
+export type BulkDeleteTablesBody = z.input<typeof bulkDeleteTablesBodySchema>
+
+const bulkTableItemKindSchema = z.enum(['table', 'folder'])
+
+const bulkTableItemSchema = z.object({
+  kind: bulkTableItemKindSchema,
+  id: z.string(),
+  name: z.string(),
+})
+
+/** An id nothing active resolved to. Carries no name, because nothing was found to name. */
+const bulkTableMissingSchema = z.object({ kind: bulkTableItemKindSchema, id: z.string() })
+
+/**
+ * An item the batch reached but could not act on for a reason the caller can
+ * act on in turn — a delete lock, a folder cycle. Distinct from `notFound`,
+ * which also absorbs the items the caller may not write to.
+ */
+const bulkTableFailureSchema = bulkTableItemSchema.extend({ reason: z.string() })
+
+/**
+ * Items dropped because a selected folder already carries them: a table filed
+ * inside a selected folder, or a subfolder of another selected folder.
+ */
+const bulkTableSkippedSchema = z.array(bulkTableItemSchema)
+
+export const bulkMoveTablesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/bulk-move',
+  body: bulkMoveTablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        moved: z.array(bulkTableItemSchema),
+        skipped: bulkTableSkippedSchema,
+        notFound: z.array(bulkTableMissingSchema),
+        failed: z.array(bulkTableFailureSchema),
+      })
+    ),
+  },
+})
+export const bulkDeleteTablesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/bulk-delete',
+  body: bulkDeleteTablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        deleted: z.array(bulkTableItemSchema),
+        skipped: bulkTableSkippedSchema,
+        notFound: z.array(bulkTableMissingSchema),
+        failed: z.array(bulkTableFailureSchema),
+        /** Totals across the explicit archives and every folder cascade they triggered. */
+        deletedItems: z.object({
+          tables: z.number().int(),
+          folders: z.number().int(),
+        }),
+      })
+    ),
+  },
+})

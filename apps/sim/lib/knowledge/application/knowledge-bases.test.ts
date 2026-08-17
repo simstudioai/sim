@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   updateRecord: vi.fn(),
   deleteRecord: vi.fn(),
   listRecords: vi.fn(),
-  listInternalRecords: vi.fn(),
+  listLegacyPersonalRecords: vi.fn(),
+  listVisibleRecords: vi.fn(),
   getRecord: vi.fn(),
   getRestorableRecord: vi.fn(),
   performUpdate: vi.fn(),
@@ -81,7 +82,8 @@ vi.mock('@/lib/knowledge/service', () => ({
   updateKnowledgeBase: mocks.updateRecord,
   deleteKnowledgeBase: mocks.deleteRecord,
   getKnowledgeBaseById: mocks.getRecord,
-  getKnowledgeBases: mocks.listInternalRecords,
+  getLegacyPersonalKnowledgeBases: mocks.listLegacyPersonalRecords,
+  listWorkspaceAndLegacyKnowledgeBases: mocks.listVisibleRecords,
   getWorkspaceKnowledgeBases: mocks.listRecords,
 }))
 
@@ -151,7 +153,8 @@ describe('knowledge base application use cases', () => {
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map(), idByPath: new Map() })
     mocks.createRecord.mockResolvedValue(knowledgeBase)
     mocks.listRecords.mockResolvedValue({ data: [], nextCursorKeys: null })
-    mocks.listInternalRecords.mockResolvedValue([knowledgeBase])
+    mocks.listLegacyPersonalRecords.mockResolvedValue([knowledgeBase])
+    mocks.listVisibleRecords.mockResolvedValue([knowledgeBase])
     mocks.getRecord.mockResolvedValue(knowledgeBase)
     mocks.getRestorableRecord.mockResolvedValue(knowledgeBase)
     mocks.performUpdate.mockResolvedValue({
@@ -190,7 +193,7 @@ describe('knowledge base application use cases', () => {
 
     expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.listInternalRecords).toHaveBeenCalledWith('user-1', undefined, 'all')
+    expect(mocks.listLegacyPersonalRecords).toHaveBeenCalledWith('user-1', 'all')
   })
 
   it('authorizes a canonical workspace before listing its internal knowledge bases', async () => {
@@ -207,7 +210,27 @@ describe('knowledge base application use cases', () => {
       undefined,
       { forUpdate: undefined }
     )
-    expect(mocks.listInternalRecords).toHaveBeenCalledWith('user-1', 'workspace-1', 'archived')
+    expect(mocks.listVisibleRecords).toHaveBeenCalledWith('user-1', 'workspace-1', 'archived')
+    expect(mocks.listLegacyPersonalRecords).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Workspace `admin` can come from an organization role alone, with no workspace permission
+   * row behind it. Re-deriving list access from that row would hide every knowledge base from
+   * a caller the create path already authorizes — a base they make and then cannot see.
+   */
+  it('lists a workspace for an authorized caller who holds no workspace permission row', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.listVisibleRecords.mockResolvedValueOnce([knowledgeBase])
+
+    await expect(
+      listInternalKnowledgeBases.execute({
+        principal: { kind: 'session', userId: 'org-admin-1', sessionId: 'session-1' },
+        input: { workspaceId: 'workspace-1', scope: 'active' },
+      })
+    ).resolves.toEqual({ knowledgeBases: [knowledgeBase] })
+
+    expect(mocks.listVisibleRecords).toHaveBeenCalledWith('org-admin-1', 'workspace-1', 'active')
   })
 
   it('loads the active knowledge catalog and tag metadata only after workspace authorization', async () => {
@@ -284,7 +307,7 @@ describe('knowledge base application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
+    expect(mocks.listLegacyPersonalRecords).not.toHaveBeenCalled()
   })
 
   it('rejects non-session principals before resolving internal list input', async () => {
@@ -296,7 +319,7 @@ describe('knowledge base application use cases', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
-    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
+    expect(mocks.listLegacyPersonalRecords).not.toHaveBeenCalled()
   })
 
   it('rejects an insufficient role before the protected mutation', async () => {

@@ -56,7 +56,9 @@ const files = listed.stdout
 
 const offenders: string[] = []
 for (const file of files) {
-  const bytes = await Bun.file(path.join(ROOT, file)).bytes()
+  const source = Bun.file(path.join(ROOT, file))
+  if (!(await source.exists())) continue
+  const bytes = await source.bytes()
   if (bytes.includes(0)) offenders.push(file)
 }
 

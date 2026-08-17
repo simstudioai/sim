@@ -181,6 +181,65 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
     expect(mocks.events).toEqual(['execute', 'audit', 'afterSuccess'])
   })
 
+  it('runs resource authorization after workspace authorization and before business effects', async () => {
+    mocks.resolvePermission.mockImplementation(async () => {
+      mocks.events.push('workspaceAuthorization')
+      return 'write'
+    })
+    const execute = vi.fn(async () => {
+      mocks.events.push('execute')
+      return { ok: true as const }
+    })
+    const useCase = defineAuthorizedWorkspaceUseCase({
+      operation,
+      resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) => {
+        mocks.events.push('canonicalLoad')
+        return canonicalContext
+      },
+      authorizationOptions: {},
+      authorizeResource() {
+        mocks.events.push('resourceAuthorization')
+      },
+      execute,
+      projectAudit: () => ({
+        action: AuditAction.FILE_UPDATED,
+        resourceType: AuditResourceType.FILE,
+      }),
+      afterSuccess() {
+        mocks.events.push('afterSuccess')
+      },
+    })
+
+    await useCase.authorize?.({
+      principal: sessionPrincipal,
+      input: { resourceId: 'resource-1' },
+    })
+
+    expect(mocks.events).toEqual([
+      'canonicalLoad',
+      'workspaceAuthorization',
+      'resourceAuthorization',
+    ])
+    expect(execute).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+
+    mocks.events.length = 0
+    await expect(
+      useCase.execute({
+        principal: sessionPrincipal,
+        input: { resourceId: 'resource-1' },
+      })
+    ).resolves.toEqual({ ok: true })
+    expect(mocks.events).toEqual([
+      'canonicalLoad',
+      'workspaceAuthorization',
+      'resourceAuthorization',
+      'execute',
+      'audit',
+      'afterSuccess',
+    ])
+  })
+
   it('supports zero or many semantic audit entries', async () => {
     const buildUseCase = (auditCount: number) =>
       defineAuthorizedWorkspaceUseCase({

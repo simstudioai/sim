@@ -1,0 +1,130 @@
+---
+title: Configuration
+description: Profiles, config files, environment variables, and how each setting is resolved
+---
+
+The CLI has four settings: **endpoint**, **API key**, **workspace**, and **output
+format**. Each resolves independently, so a saved default can still be overridden
+for a single command.
+
+## Profiles
+
+A profile is one identity plus one set of defaults, in the style of the AWS CLI.
+Select one with `-P`, `--profile`, or `SIM_PROFILE`:
+
+```bash
+sim workflows list --profile dev
+SIM_PROFILE=dev sim workflows list
+```
+
+The profile is named `default` when you do not pick one.
+
+```bash
+sim profiles     # list them; * marks the active one
+```
+
+## Setting defaults
+
+```bash
+sim configure --set-endpoint http://localhost:3000 --profile dev
+sim configure --set-workspace ws_local --profile dev
+sim configure --set-output json
+```
+
+| Option | What it sets |
+| --- | --- |
+| `--set-endpoint <url>` | The Sim deployment to talk to |
+| `--set-workspace <id>` | Default workspace for workspace-scoped commands |
+| `--set-output <format>` | Default output format: `table`, `json`, `yaml`, or `text` |
+| `--unset <key...>` | Remove settings — `endpoint`, `workspace`, or `output` |
+
+Run `sim configure` with no flags to print the profile's stored settings.
+
+API keys are not settable here. Use [`sim login`](/cli/authentication), or
+`SIM_API_KEY` for CI.
+
+## Where settings come from
+
+Each setting resolves independently, and the first match wins:
+
+| Rank | Source |
+| --- | --- |
+| 1 | Command-line flag — `--endpoint`, `--workspace`, `--output` |
+| 2 | Environment — `SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT` |
+| 3 | `~/.sim/config` and `~/.sim/credentials`, for the selected profile |
+| 4 | Built-in default — `https://sim.ai` and `table` |
+
+`sim whoami` prints the winning source for each setting:
+
+```bash
+sim whoami
+```
+
+## The files
+
+Non-secret settings live in `~/.sim/config`. It is safe to commit to a dotfiles
+repo:
+
+```ini title="~/.sim/config"
+[default]
+endpoint = https://sim.ai
+workspace = ws_abc123
+output = table
+
+[profile dev]
+endpoint = http://localhost:3000
+workspace = ws_local
+```
+
+Keys live in `~/.sim/credentials`, written `0600`:
+
+```ini title="~/.sim/credentials"
+[default]
+api_key = sim_…
+
+[dev]
+api_key = sim_…
+```
+
+Section naming follows the AWS convention: `[profile dev]` in config, `[dev]` in
+credentials. The `default` profile is `[default]` in both.
+
+## Environment variables
+
+| Variable | Effect |
+| --- | --- |
+| `SIM_PROFILE` | Profile to use |
+| `SIM_ENDPOINT` | Deployment to talk to |
+| `SIM_API_KEY` | API key — skips `sim login` entirely |
+| `SIM_WORKSPACE` | Workspace to target |
+| `SIM_OUTPUT` | Output format |
+| `SIM_CONFIG_DIR` | Relocate both files away from `~/.sim` |
+| `SIM_CONFIG_FILE` | Relocate only the config file |
+| `SIM_CREDENTIALS_FILE` | Relocate only the credentials file |
+
+For CI, set `SIM_API_KEY` and `SIM_WORKSPACE` and nothing needs to touch the
+filesystem at all.
+
+## Choosing a workspace
+
+Workspace-scoped commands need a workspace:
+
+```bash
+sim tables list --workspace ws_other
+sim configure --set-workspace ws_abc123
+export SIM_WORKSPACE=ws_abc123
+```
+
+`sim billing status`, `sim billing logs`, and `sim audit-logs list` accept
+`--all-workspaces` to drop the filter instead. It cannot be combined with
+`--workspace`.
+
+## Repairing a bad setting
+
+An invalid `output` value fails with the list of accepted formats. A
+higher-priority source still wins, so you can repair a profile without editing
+the file:
+
+```bash
+sim --output table configure --set-output json
+```

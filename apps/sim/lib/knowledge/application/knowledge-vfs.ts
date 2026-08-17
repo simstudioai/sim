@@ -9,7 +9,7 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   deleteKnowledgeBase,
-  getWorkspaceKnowledgeBases,
+  findActiveKnowledgeBasesByExactName,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -28,11 +28,8 @@ export type DeleteKnowledgeBaseByVfsPathInput = KnowledgeVfsReferenceInput
 async function resolveKnowledgeBaseByVfsName(
   context: KnowledgeWorkspaceContext,
   sourceName: string
-): Promise<KnowledgeBaseWithCounts> {
-  const { data: rows } = await getWorkspaceKnowledgeBases(context.workspaceId, 'active', {
-    search: sourceName,
-  })
-  const matches = rows.filter((row) => row.name === sourceName)
+): Promise<Omit<KnowledgeBaseWithCounts, 'connectorTypes'>> {
+  const matches = await findActiveKnowledgeBasesByExactName(context.workspaceId, sourceName)
   if (matches.length > 1) {
     throw new OrchestrationError(
       'conflict',

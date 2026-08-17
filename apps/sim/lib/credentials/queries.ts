@@ -15,7 +15,12 @@ import {
   textKey,
   timestampKey,
 } from '@/lib/api/list-query'
-import { isSharedCredentialType, SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
+import {
+  isSharedCredentialType,
+  type OrdinaryCredentialType,
+  requireOrdinaryCredentialType,
+  SHARED_CREDENTIAL_TYPES,
+} from '@/lib/credentials/access'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 /**
@@ -40,6 +45,13 @@ export interface VisibleWorkspaceCredential {
   updatedAt: Date
   hasServiceAccountKey: boolean
   role: 'admin' | 'member'
+}
+
+export interface WorkspaceCredentialLookup {
+  id: string
+  displayName: string
+  type: OrdinaryCredentialType
+  providerId: string | null
 }
 
 const credentialIdKey = textKey<VisibleWorkspaceCredential>(credential.id, (row) => row.id)
@@ -263,4 +275,76 @@ export async function listWorkspacePrincipalCredentials(params: {
   }))
 
   return keysetPage(keys, mapped, limit)
+}
+/**
+ * A single credential scoped to a workspace, or null when it does not exist
+ * there. Scoping by workspace is what keeps a credential id from another tenant
+ * from resolving at all.
+ */
+export async function getWorkspaceCredential(params: {
+  workspaceId: string
+  credentialId: string
+}): Promise<CredentialRow | null> {
+  const [row] = await db
+    .select()
+    .from(credential)
+    .where(
+      and(
+        eq(credential.id, params.credentialId),
+        eq(credential.workspaceId, params.workspaceId),
+        ne(credential.type, 'managed_oauth')
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/** Preserves the internal route's legacy id-first, account-id-second lookup semantics. */
+export async function findWorkspaceCredentialLookup(params: {
+  workspaceId: string
+  credentialId: string
+}): Promise<WorkspaceCredentialLookup | null> {
+  const projection = {
+    id: credential.id,
+    displayName: credential.displayName,
+    type: credential.type,
+    providerId: credential.providerId,
+  }
+  const [byId] = await db
+    .select(projection)
+    .from(credential)
+    .where(
+      and(
+        eq(credential.id, params.credentialId),
+        eq(credential.workspaceId, params.workspaceId),
+        ne(credential.type, 'managed_oauth')
+      )
+    )
+    .limit(1)
+  if (byId) return { ...byId, type: requireOrdinaryCredentialType(byId.type) }
+
+  const [byAccountId] = await db
+    .select(projection)
+    .from(credential)
+    .where(
+      and(
+        eq(credential.accountId, params.credentialId),
+        eq(credential.workspaceId, params.workspaceId),
+        ne(credential.type, 'managed_oauth')
+      )
+    )
+    .limit(1)
+  return byAccountId
+    ? { ...byAccountId, type: requireOrdinaryCredentialType(byAccountId.type) }
+    : null
+}
+
+/** Canonical credential lookup used before its workspace scope is known. */
+export async function getCredentialById(credentialId: string): Promise<CredentialRow | null> {
+  const [row] = await db
+    .select()
+    .from(credential)
+    .where(and(eq(credential.id, credentialId), ne(credential.type, 'managed_oauth')))
+    .limit(1)
+  return row ?? null
 }

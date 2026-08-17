@@ -388,6 +388,7 @@ Several files are generated from tool and block definitions. Editing a tool or b
 bun run tool-metadata:generate       # repo root — apps/sim/tools/generated/*
 bun run scripts/generate-docs.ts     # docs .mdx + lib/integrations/integrations.json + docs icons
 bun run integration-catalog:check    # registry ↔ committed deployment metadata drift
+bun run docs:check                   # committed docs ↔ what the generator renders today
 ```
 
 - **`tool-metadata:generate`** — required whenever a tool's `outputs`, `params`, or descriptions change. CI enforces this with `bun run tool-metadata:check`, which fails with *"Generated tool metadata is stale"*. This is the easiest gate to miss, because nothing in the tool file hints that a generated artifact mirrors it.
@@ -395,8 +396,17 @@ bun run integration-catalog:check    # registry ↔ committed deployment metadat
 - **`integration-catalog:check`** — loads the executable block registry, derives visible integration
   deployment fields, and compares them with the committed catalog. It catches missing/unexpected
   entries and stale auth/service IDs without loading the executable registry in client code.
+- **`docs:check`** — check mode of `generate-docs.ts`: renders every generated docs artifact in
+  memory and fails listing any committed file that differs. Runs in CI via `check:audits`.
 
-**Always diff the regen output before committing.** These generators rewrite every file they own, so they will also sweep in unrelated drift that accumulated on the base branch — pages losing sections, unrelated icons appearing. Keep only the hunks belonging to the integration under validation and `git checkout --` the rest, otherwise an unrelated doc regression rides along in the PR. Verify no page was silently dropped by comparing the directory listing before and after.
+**Always diff the regen output before committing — but commit all of it.** These generators rewrite
+every file they own, so they also true up drift that accumulated on the base branch (pages whose
+source changed without a regen). That catch-up is correct output, not a regression: `docs:check`
+fails CI on any page left stale, so reverting swept-in hunks with `git checkout --` reintroduces the
+failure. Review the diff to confirm each hunk is explained by a real source change (yours or an
+upstream PR that skipped regeneration), and investigate anything that looks like content loss — a
+page losing a section usually means its source block moved or a generator input broke, not that the
+hunk should be reverted.
 
 If an icon changed, `apps/sim/components/icons.tsx` is the source of truth and `apps/docs/components/icons.tsx` is its generated mirror — they must end up byte-identical for that component.
 
@@ -408,9 +418,10 @@ After fixing, confirm:
 3. The integration's tests pass, and any test you added actually fails without its fix (revert it once and watch it go red)
 4. Derived artifacts regenerated and their diffs reviewed (see above)
 5. `bun run integration-catalog:check` passes
-6. For OAuth or service-account changes, `bun test apps/sim/lib/integrations/availability.server.test.ts` passes
-7. Re-read all modified files to verify fixes are correct
-8. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
+6. `bun run docs:check` passes
+7. For OAuth or service-account changes, `bun test apps/sim/lib/integrations/availability.server.test.ts` passes
+8. Re-read all modified files to verify fixes are correct
+9. Any remaining unknown response schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
@@ -439,7 +450,7 @@ After fixing, confirm:
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run tool-metadata:generate` if any tool outputs/params changed, and confirmed `bun run tool-metadata:check` passes
-- [ ] Ran `bun run generate-docs` if any block metadata changed, and reverted unrelated drift the generator swept in
+- [ ] Ran `bun run generate-docs` if any block metadata changed, and committed the full generated diff — including stale-page catch-up for other integrations (`bun run docs:check` fails CI on reverted generator output)
 - [ ] Ran `bun run lint` after fixes
 - [ ] Verified TypeScript compiles clean
 - [ ] Verified added tests fail without their fix

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage } from '@sim/utils/errors'
 import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import {
   type SecureFetchRetryOptions,
@@ -27,6 +27,50 @@ const PAGE_MAX_BYTES = 1024 * 1024
 
 /** Child sitemaps followed from a `<sitemapindex>`, bounding a hostile or huge index. */
 const MAX_CHILD_SITEMAPS = 20
+
+/**
+ * Bound on `<loc>` entries accumulated across a sitemap index.
+ *
+ * {@link INDEX_MAX_BYTES} caps each sitemap document individually, but a
+ * `<sitemapindex>` multiplies that by {@link MAX_CHILD_SITEMAPS}, so the merged
+ * location list is the largest allocation on the discovery path and the only one
+ * not bounded by a single document's size. Hitting this cap truncates the
+ * listing, so it reports `truncated`.
+ */
+const MAX_SITEMAP_LOCATIONS = 50_000
+
+/**
+ * Character cap Mintlify applies to the `llms.txt` it generates: "Automatically
+ * generated `llms.txt` files cannot exceed 100,000 characters. If your
+ * documentation exceeds this limit, Mintlify truncates the file and appends a
+ * note listing the number of omitted pages."
+ * (https://mintlify.com/docs/ai/llmstxt)
+ *
+ * A truncated index is a partial listing the sync engine cannot distinguish from
+ * deletions, so a body at or near the cap must suppress deletion reconciliation.
+ * The exact wording of the appended note is not published, so it is deliberately
+ * not matched — the documented length is the only reliable signal.
+ */
+const LLMS_TXT_MAX_CHARS = 100_000
+
+/**
+ * Margin below {@link LLMS_TXT_MAX_CHARS} that still counts as truncated.
+ *
+ * Mintlify publishes the cap but not where it cuts, so the delivered body is
+ * assumed to land near — not exactly at — 100,000 characters (a cut at an entry
+ * boundary, plus the appended note). The margin absorbs that unknown. Erring
+ * wide costs a complete-but-large index its deletion reconciliation, which a
+ * forced full sync can still override; erring narrow would hard-delete the pages
+ * a truncated index omitted, which nothing recovers. Hence the generous margin.
+ */
+const LLMS_TXT_TRUNCATION_MARGIN = 5_000
+
+/** A discovered page set plus whether the source index itself was incomplete. */
+interface MintlifyDiscovery {
+  pages: MintlifyPageLink[]
+  /** The index was cut short (Mintlify's `llms.txt` cap or the sitemap location cap). */
+  truncated: boolean
+}
 
 /** A page discovered from the site's index file. */
 interface MintlifyPageLink {
@@ -270,7 +314,7 @@ async function discoverFromSitemap(
   site: MintlifySite,
   accessToken: string,
   retryOptions?: SecureFetchRetryOptions
-): Promise<MintlifyPageLink[]> {
+): Promise<MintlifyDiscovery> {
   const root = await fetchSiteText(
     `${site.baseUrl}/sitemap.xml`,
     accessToken,
@@ -278,10 +322,14 @@ async function discoverFromSitemap(
     INDEX_MAX_BYTES,
     retryOptions
   )
-  if (!root) return []
+  if (!root) return { pages: [], truncated: false }
 
   if (!SITEMAP_INDEX_PATTERN.test(root.body)) {
-    return parseSitemap(sitemapLocations(root.body), site)
+    const rootLocations = sitemapLocations(root.body)
+    return {
+      pages: parseSitemap(rootLocations.slice(0, MAX_SITEMAP_LOCATIONS), site),
+      truncated: rootLocations.length > MAX_SITEMAP_LOCATIONS,
+    }
   }
 
   const allChildUrls = sitemapLocations(root.body)
@@ -297,7 +345,16 @@ async function discoverFromSitemap(
   logger.info('Following Mintlify sitemap index', { children: allChildUrls.length })
 
   const locations: string[] = []
+  let truncated = false
   for (const childUrl of allChildUrls) {
+    if (locations.length >= MAX_SITEMAP_LOCATIONS) {
+      truncated = true
+      logger.warn('Mintlify sitemap index exceeded the location cap', {
+        cap: MAX_SITEMAP_LOCATIONS,
+      })
+      break
+    }
+
     const child = await fetchSiteText(
       childUrl,
       accessToken,
@@ -318,7 +375,12 @@ async function discoverFromSitemap(
     locations.push(...sitemapLocations(child.body))
   }
 
-  return parseSitemap(locations, site)
+  if (locations.length > MAX_SITEMAP_LOCATIONS) {
+    truncated = true
+    locations.length = MAX_SITEMAP_LOCATIONS
+  }
+
+  return { pages: parseSitemap(locations, site), truncated }
 }
 
 /**
@@ -358,7 +420,7 @@ async function discoverPages(
   site: MintlifySite,
   accessToken: string,
   retryOptions?: SecureFetchRetryOptions
-): Promise<MintlifyPageLink[]> {
+): Promise<MintlifyDiscovery> {
   /**
    * The origin-level index is only consulted for a site published at the host
    * root. On a sub-path site (`https://example.com/docs`) it describes the whole
@@ -385,10 +447,21 @@ async function discoverPages(
     )
     if (!result) continue
     const pages = withinBasePath(parseLlmsTxt(result.body, site), site)
-    if (pages.length > 0) return pages
+    if (pages.length === 0) continue
+
+    const truncated = result.body.length >= LLMS_TXT_MAX_CHARS - LLMS_TXT_TRUNCATION_MARGIN
+    if (truncated) {
+      logger.warn('Mintlify llms.txt is at its generated character cap; listing may be partial', {
+        indexUrl,
+        chars: result.body.length,
+        cap: LLMS_TXT_MAX_CHARS,
+      })
+    }
+    return { pages, truncated }
   }
 
-  return withinBasePath(await discoverFromSitemap(site, accessToken, retryOptions), site)
+  const sitemap = await discoverFromSitemap(site, accessToken, retryOptions)
+  return { pages: withinBasePath(sitemap.pages, site), truncated: sitemap.truncated }
 }
 
 /** Elements whose *text content* is markup/data, never prose. */
@@ -471,7 +544,7 @@ export const mintlifyConnector: ConnectorConfig = {
 
     let pages = syncContext?.pages as MintlifyPageLink[] | undefined
     if (!pages) {
-      const discovered = await discoverPages(site, accessToken)
+      const { pages: discovered, truncated } = await discoverPages(site, accessToken)
       /**
        * An empty discovery means the site's index files were unreachable or
        * unparseable, not that the docs are empty — `validateConfig` refuses a
@@ -489,16 +562,19 @@ export const mintlifyConnector: ConnectorConfig = {
         ? discovered.filter((page) => isUnderPath(page.path, pathPrefix))
         : discovered
 
-      if (filtered.length > maxPages && syncContext) {
-        /**
-         * The listing is truncated while more pages exist, so deletion
-         * reconciliation must be suppressed — otherwise every page past the cap
-         * would be hard-deleted from the knowledge base.
-         */
+      /**
+       * The listing is incomplete — either `maxPages` cut it while more pages
+       * exist, or the source index itself was truncated (Mintlify's 100k-char
+       * `llms.txt` cap, or the sitemap location cap). Deletion reconciliation
+       * must be suppressed in both cases; otherwise every page missing from the
+       * partial listing is hard-deleted from the knowledge base.
+       */
+      if ((truncated || filtered.length > maxPages) && syncContext) {
         syncContext.listingCapped = true
         logger.info('Mintlify page listing capped', {
           discovered: filtered.length,
           maxPages,
+          indexTruncated: truncated,
         })
       }
 
@@ -536,46 +612,40 @@ export const mintlifyConnector: ConnectorConfig = {
     const pages = syncContext?.pages as MintlifyPageLink[] | undefined
     const listed = pages?.find((page) => page.path === path)
 
-    try {
-      /**
-       * Mintlify serves every page as raw Markdown at `{page}.md`. A site that
-       * does not (a non-Mintlify host that merely publishes an `llms.txt`, or a
-       * page removed from the Markdown route) answers 404 there, so the rendered
-       * HTML page is the fallback and gets stripped to text.
-       */
-      const result =
-        (await fetchSiteText(
-          `${site.origin}${path === '/' ? '/index' : path}.md`,
-          accessToken,
-          'text/markdown',
-          PAGE_MAX_BYTES
-        )) ??
-        (await fetchSiteText(`${site.origin}${path}`, accessToken, 'text/html', PAGE_MAX_BYTES))
-      if (!result) return null
+    /**
+     * Mintlify serves every page as raw Markdown at `{page}.md`. A site that
+     * does not (a non-Mintlify host that merely publishes an `llms.txt`, or a
+     * page removed from the Markdown route) answers 404 there, so the rendered
+     * HTML page is the fallback and gets stripped to text. Both routes 404ing is
+     * the only *documented* absence; every transport, status, or size failure
+     * propagates out of `fetchSiteText` so the sync engine records a visible
+     * failed document rather than reading the page as deleted.
+     */
+    const result =
+      (await fetchSiteText(
+        `${site.origin}${path === '/' ? '/index' : path}.md`,
+        accessToken,
+        'text/markdown',
+        PAGE_MAX_BYTES
+      )) ?? (await fetchSiteText(`${site.origin}${path}`, accessToken, 'text/html', PAGE_MAX_BYTES))
+    if (!result) return null
 
-      /**
-       * The `.md` route serves Markdown, which is already plain text. An HTML
-       * body — from the fallback above, or from a rewrite that ignores the
-       * extension — is stripped so raw markup is never indexed.
-       */
-      const isHtml =
-        result.contentType.includes('html') || /^\s*<(!doctype\s+html|html\b)/i.test(result.body)
-      const content = isHtml ? htmlPageToPlainText(result.body) : result.body.trim()
-      if (!content) return null
+    /**
+     * The `.md` route serves Markdown, which is already plain text. An HTML
+     * body — from the fallback above, or from a rewrite that ignores the
+     * extension — is stripped so raw markup is never indexed.
+     */
+    const isHtml =
+      result.contentType.includes('html') || /^\s*<(!doctype\s+html|html\b)/i.test(result.body)
+    const content = isHtml ? htmlPageToPlainText(result.body) : result.body.trim()
+    if (!content) return null
 
-      const stub = pageToStub(listed ?? { path, title: titleFromPath(path) }, site)
-      return {
-        ...stub,
-        content,
-        contentDeferred: false,
-        contentHash: `mintlify:${path}:${await computeContentHash(content)}`,
-      }
-    } catch (error) {
-      logger.warn('Failed to fetch Mintlify page', {
-        path,
-        error: toError(error).message,
-      })
-      return null
+    const stub = pageToStub(listed ?? { path, title: titleFromPath(path) }, site)
+    return {
+      ...stub,
+      content,
+      contentDeferred: false,
+      contentHash: `mintlify:${path}:${await computeContentHash(content)}`,
     }
   },
 
@@ -599,7 +669,7 @@ export const mintlifyConnector: ConnectorConfig = {
     }
 
     try {
-      const pages = await discoverPages(site, accessToken, VALIDATE_RETRY_OPTIONS)
+      const { pages } = await discoverPages(site, accessToken, VALIDATE_RETRY_OPTIONS)
       if (pages.length === 0) {
         return {
           valid: false,
