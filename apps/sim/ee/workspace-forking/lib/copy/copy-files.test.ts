@@ -142,8 +142,8 @@ describe('executeForkFileBlobCopies storage accounting', () => {
     const first = await executeForkFileBlobCopies([makeTask()], 'test')
     const replay = await executeForkFileBlobCopies([makeTask()], 'test')
 
-    expect(first).toEqual({ copied: 1, failed: 0, renamed: 0, failedTargetKeys: [] })
-    expect(replay).toEqual({ copied: 1, failed: 0, renamed: 0, failedTargetKeys: [] })
+    expect(first).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
+    expect(replay).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
     expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
     expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledWith(
       expect.objectContaining({ persistMetadata: false })
@@ -183,7 +183,7 @@ describe('executeForkFileBlobCopies storage accounting', () => {
 
     const result = await executeForkFileBlobCopies(tasks, 'test')
 
-    expect(result).toEqual({ copied: 501, failed: 0, renamed: 0, failedTargetKeys: [] })
+    expect(result).toEqual({ copied: 501, failed: 0, failedTargetKeys: [] })
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
     expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
@@ -205,7 +205,6 @@ describe('executeForkFileBlobCopies storage accounting', () => {
     expect(result).toEqual({
       copied: 1,
       failed: 1,
-      renamed: 0,
       failedTargetKeys: [conflict.targetKey],
     })
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
@@ -221,7 +220,6 @@ describe('executeForkFileBlobCopies storage accounting', () => {
     expect(result).toEqual({
       copied: 0,
       failed: 1,
-      renamed: 0,
       failedTargetKeys: ['workspace/child-ws/target-a.txt'],
     })
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
@@ -238,7 +236,6 @@ describe('executeForkFileBlobCopies storage accounting', () => {
     expect(result).toEqual({
       copied: 0,
       failed: 1,
-      renamed: 0,
       failedTargetKeys: ['workspace/child-ws/target-a.txt'],
     })
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
@@ -381,7 +378,7 @@ describe('executeForkFileBlobCopies target name collisions', () => {
 
     const result = await executeForkFileBlobCopies([collidingTask()], 'test')
 
-    expect(result).toEqual({ copied: 1, failed: 0, renamed: 1, failedTargetKeys: [] })
+    expect(result).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
     // Non-destructive: the copy lands beside the target's own file, in the mirrored folder.
     expect(fileRows).toHaveLength(2)
     expect(fileRows.find((row) => row.id === 'pre-existing')?.originalName).toBe('budget.xlsx')
@@ -422,7 +419,7 @@ describe('executeForkFileBlobCopies target name collisions', () => {
 
     const result = await executeForkFileBlobCopies([collidingTask()], 'test')
 
-    expect(result).toEqual({ copied: 1, failed: 0, renamed: 0, failedTargetKeys: [] })
+    expect(result).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
     expect(fileRows.find((row) => row.id === 'target-file-1')).toMatchObject({
       folderId: 'target-reports',
       originalName: 'budget.xlsx',
@@ -459,7 +456,7 @@ describe('executeForkFileBlobCopies target name collisions', () => {
       'test'
     )
 
-    expect(result).toEqual({ copied: 2, failed: 0, renamed: 2, failedTargetKeys: [] })
+    expect(result).toEqual({ copied: 2, failed: 0, failedTargetKeys: [] })
     expect(fileRows.map((row) => row.originalName)).toEqual([
       'budget.xlsx',
       'budget (1).xlsx',
@@ -483,9 +480,9 @@ describe('executeForkFileBlobCopies target name collisions', () => {
     const afterFirst = structuredClone(fileRows)
     const replay = await executeForkFileBlobCopies([collidingTask()], 'test')
 
-    expect(first).toEqual({ copied: 1, failed: 0, renamed: 1, failedTargetKeys: [] })
+    expect(first).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
     // The replay resolves the existing copy instead of re-copying: still one success, no failure.
-    expect(replay).toEqual({ copied: 1, failed: 0, renamed: 0, failedTargetKeys: [] })
+    expect(replay).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
     expect(fileRows).toEqual(afterFirst)
     expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)

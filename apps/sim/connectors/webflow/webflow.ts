@@ -127,18 +127,7 @@ export const webflowConnector: ConnectorConfig = {
       cursorState = { collectionIndex: 0, offset: 0, collections }
     }
 
-    /**
-     * No collection resolved to sync, so this run lists nothing for the whole
-     * site. That is not evidence the site was emptied: a malformed 200, a token
-     * whose CMS scope was narrowed, or a site that stopped being shared with the
-     * app all produce the same empty collection list, and reconciling against it
-     * hard-deletes the entire Webflow knowledge base rather than one collection.
-     * A site that genuinely has no collections also has no documents to
-     * reconcile, so suppressing reconciliation here costs nothing; a deliberate
-     * full sync still overrides the cap.
-     */
     if (cursorState.collections.length === 0) {
-      if (syncContext) syncContext.listingCapped = true
       return { documents: [], hasMore: false }
     }
 
@@ -239,10 +228,11 @@ export const webflowConnector: ConnectorConfig = {
      * fallback total collapses to the rows in hand, which ends the collection
      * right here and makes `stalledMidCollection` (`offset < 0`) unreachable, so
      * a short or empty page looks exactly like exhaustion. The Data API v2
-     * list-items response always carries `pagination.total`, so its absence is a
-     * malformed 200 rather than a genuinely drained collection — the only honest
-     * reading is "we stopped for a reason we cannot rule out", and guessing
-     * "exhausted" would hand every unread row to deletion reconciliation.
+     * schema marks `pagination` required but `total` optional, so its absence is
+     * not proof of anything either way — and between "the collection is drained"
+     * and "we stopped for a reason we cannot rule out", only the latter is
+     * fail-safe: guessing "exhausted" would hand every unread row to deletion
+     * reconciliation.
      */
     const unknownTotal = !totalKnown
 
@@ -461,27 +451,8 @@ async function fetchCollections(
     throw new Error(`Failed to list Webflow collections: ${response.status}`)
   }
 
-  const data = (await response.json()) as { collections?: unknown }
-  const rawCollections = Array.isArray(data.collections) ? (data.collections as unknown[]) : []
-  const collections = rawCollections.filter(
-    (collection): collection is WebflowCollection =>
-      typeof (collection as WebflowCollection | null)?.id === 'string' &&
-      (collection as WebflowCollection).id.length > 0
-  )
-
-  /**
-   * An entry the envelope carried but that has no usable id drops a whole
-   * collection out of this run's scope, and every stored document in it would
-   * then look deleted. The listing is truncated, not exhausted.
-   */
-  if (syncContext && collections.length !== rawCollections.length) {
-    logger.warn('Webflow collection listing carried unusable entries; listing is incomplete', {
-      siteId,
-      listed: rawCollections.length,
-      usable: collections.length,
-    })
-    syncContext.listingCapped = true
-  }
+  const data = (await response.json()) as { collections?: WebflowCollection[] }
+  const collections = data.collections || []
 
   if (syncContext) {
     const cached = (syncContext.collectionNames ?? {}) as Record<string, string>

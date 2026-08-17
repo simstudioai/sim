@@ -79,10 +79,15 @@ describe('deleteOrphanedOAuthAccount', () => {
 
     const { sql, params } = onlyQuery()
 
-    expect(sql).toBe(
-      'delete from "account" where ("account"."id" = $1 and not exists ' +
-        '(select 1 from "credential" where "credential"."account_id" = $2)) returning "id"'
-    )
+    expect(sql).toContain('delete from "account"')
+    expect(sql).toContain('"account"."id" = $1')
+    expect(sql).toContain('returning "id"')
+
+    const subquery = guardSubquery(sql)
+    expect(subquery).toContain('from "credential"')
+    expect(subquery).toContain('"credential"."account_id" = $2')
+    expect(subquery).not.toContain('workspace_id')
+
     expect(params).toEqual([ACCOUNT_ID, ACCOUNT_ID])
   })
 

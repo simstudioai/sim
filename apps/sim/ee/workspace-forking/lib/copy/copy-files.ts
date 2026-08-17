@@ -247,15 +247,14 @@ export async function planForkFileCopies(params: {
  *
  * A copy whose name is already taken inside its mirrored target folder is de-duplicated
  * (`budget (1).xlsx`) rather than dropped - see {@link resolveTargetOriginalName}. Those
- * still count as `copied`; `renamed` reports how many landed under a different name.
+ * still count as `copied`.
  */
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
   requestId = 'unknown',
   contentRefMaps?: ForkContentRefMaps
-): Promise<{ copied: number; failed: number; renamed: number; failedTargetKeys: string[] }> {
+): Promise<{ copied: number; failed: number; failedTargetKeys: string[] }> {
   let copied = 0
-  let renamed = 0
   const failedTargetKeys: string[] = []
   for (let offset = 0; offset < blobTasks.length; offset += BLOB_COPY_PAGE) {
     const taskPage = blobTasks.slice(offset, offset + BLOB_COPY_PAGE)
@@ -411,7 +410,6 @@ export async function executeForkFileBlobCopies(
         })
         copied += 1
         if (targetOriginalName !== task.fileName) {
-          renamed += 1
           logger.warn(`[${requestId}] Copied file renamed to avoid a target name collision`, {
             targetKey: task.targetKey,
             folderId: task.targetFolderId ?? null,
@@ -451,5 +449,5 @@ export async function executeForkFileBlobCopies(
       }
     }
   }
-  return { copied, failed: failedTargetKeys.length, renamed, failedTargetKeys }
+  return { copied, failed: failedTargetKeys.length, failedTargetKeys }
 }

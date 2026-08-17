@@ -148,8 +148,8 @@ describe('webflow listDocuments deletion-reconciliation guards', () => {
   /**
    * A short page is the same unknowable state as a full one: the fallback total
    * collapses to the rows in hand, so the collection ends here whether or not
-   * rows remain. Webflow always sends `pagination.total`, so its absence is a
-   * malformed 200, never exhaustion.
+   * rows remain. `total` is documented optional, so its absence proves nothing
+   * either way — and "we cannot rule out unread rows" is the fail-safe reading.
    */
   it('flags listingCapped on a short page whose envelope carries no usable total', async () => {
     mockNameThenItems({ items: [itemFixture('a')] })
@@ -232,12 +232,9 @@ describe('webflow listDocuments deletion-reconciliation guards', () => {
 
 /**
  * With no collection ids configured the run's whole scope comes from
- * `GET /sites/{id}/collections`. A malformed 200, a token whose CMS scope was
- * narrowed, or a site that stopped being shared all yield an empty or partial
- * collection list, and the listing then reports itself complete while covering
- * none of the site — blast radius is the entire Webflow knowledge base.
+ * `GET /sites/{id}/collections`.
  */
-describe('webflow collection-scope resolution guards', () => {
+describe('webflow collection-scope resolution', () => {
   const SITE_ONLY = { siteId: 'site-1' }
 
   beforeEach(() => {
@@ -249,12 +246,18 @@ describe('webflow collection-scope resolution guards', () => {
     vi.unstubAllGlobals()
   })
 
+  /**
+   * An empty scope lists nothing without claiming truncation: `listedCount = 0`
+   * is exactly the shape the sync engine's own `'empty'` backstop classifies as
+   * suspect and blocks on the first sync, which still reconciles once a
+   * consecutive sync corroborates it. Setting `listingCapped` here would
+   * short-circuit that two-strike path and block reconciliation forever.
+   */
   it.each([
     ['the envelope carries no collections key', {}],
     ['collections is null', { collections: null }],
-    ['collections is not an array', { collections: { id: 'col-1' } }],
     ['collections is empty', { collections: [] }],
-  ])('flags listingCapped when %s', async (_label, body) => {
+  ])('lists nothing without flagging listingCapped when %s', async (_label, body) => {
     mockFetch.mockResolvedValueOnce(jsonResponse(body))
 
     const syncContext: Record<string, unknown> = {}
@@ -267,28 +270,16 @@ describe('webflow collection-scope resolution guards', () => {
 
     expect(result.documents).toEqual([])
     expect(result.hasMore).toBe(false)
-    expect(syncContext.listingCapped).toBe(true)
+    expect(syncContext.listingCapped).toBeUndefined()
   })
 
-  it('flags listingCapped when a listed collection carries no usable id', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          collections: [{ id: 'col-1', displayName: 'Posts' }, { displayName: 'Broken' }],
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({ items: [itemFixture('a')], pagination: { total: 1 } }))
+  /** A non-array `collections` fails the sync loudly rather than syncing an empty scope. */
+  it('throws when collections is not an array', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({ collections: { id: 'col-1' } }))
 
-    const syncContext: Record<string, unknown> = {}
-    const result = await webflowConnector.listDocuments(
-      ACCESS_TOKEN,
-      SITE_ONLY,
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(syncContext.listingCapped).toBe(true)
+    await expect(
+      webflowConnector.listDocuments(ACCESS_TOKEN, SITE_ONLY, undefined, {})
+    ).rejects.toThrow(/not iterable/)
   })
 
   it('leaves listingCapped unset when the site listing and its page are both well formed', async () => {

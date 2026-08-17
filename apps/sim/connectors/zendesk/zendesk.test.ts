@@ -310,7 +310,10 @@ describe('zendeskConnector.listDocuments unfollowable continuation links', () =>
  * missing or malformed one is a malformed 200 rather than a drained cursor.
  * Reading it as exhaustion is the same asymmetry the Webflow listing already
  * eliminated: the walk stops, the listing reports itself complete, and the sync
- * engine hard-deletes every document past the last page read.
+ * engine hard-deletes every document past the last page read. The walk still
+ * stops — `meta.has_more === true` is the only signal that continues it, since
+ * Zendesk emits `links.next` even on the last page and following it on a
+ * meta-less response would never terminate — but it stops as truncated.
  */
 describe('zendeskConnector.listDocuments malformed pagination envelopes', () => {
   beforeEach(() => {
@@ -321,31 +324,32 @@ describe('zendeskConnector.listDocuments malformed pagination envelopes', () => 
     ['no meta envelope', undefined],
     ['an empty meta envelope', {}],
     ['a stringified has_more', { has_more: 'true' }],
-  ])('follows an advertised next page when the response carries %s', async (_label, meta) => {
-    let page = 0
-    const urls = mockApi(() => {
-      page += 1
-      return {
-        tickets: [ticket(page)],
-        ...(meta === undefined ? {} : { meta }),
-        links: { next: `${BASE}/api/v2/tickets.json?page%5Bafter%5D=${page}` },
-      }
-    })
+  ])(
+    'stops the walk and caps when the response carries %s despite a next link',
+    async (_label, meta) => {
+      let page = 0
+      const urls = mockApi(() => {
+        page += 1
+        return {
+          tickets: [ticket(page)],
+          ...(meta === undefined ? {} : { meta }),
+          links: { next: `${BASE}/api/v2/tickets.json?page%5Bafter%5D=${page}` },
+        }
+      })
 
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, maxTickets: '2' },
-      undefined,
-      syncContext
-    )
+      const syncContext: Record<string, unknown> = {}
+      const result = await zendeskConnector.listDocuments(
+        'tok',
+        { ...CONFIG, maxTickets: '2' },
+        undefined,
+        syncContext
+      )
 
-    // The walk must not stop at the first page while a followable next page
-    // is still advertised, and must report the remainder as unread.
-    expect(urls).toHaveLength(2)
-    expect(result.documents.map((d) => d.externalId)).toEqual(['ticket-1', 'ticket-2'])
-    expect(syncContext.listingCapped).toBe(true)
-  })
+      expect(urls).toHaveLength(1)
+      expect(result.documents.map((d) => d.externalId)).toEqual(['ticket-1'])
+      expect(syncContext.listingCapped).toBe(true)
+    }
+  )
 
   it('caps the ticket listing on a bare 200 interstitial', async () => {
     mockApi(() => ({}))
@@ -378,11 +382,27 @@ describe('zendeskConnector.listDocuments malformed pagination envelopes', () => 
   })
 
   /**
-   * The Search API always carries `next_page` (null on the last page), so an
-   * envelope without the key is malformed rather than drained.
+   * An absent `next_page` ends the search walk. The `count`-vs-returned check
+   * is what catches a search that still had matches, so a missing key can only
+   * lose records the count does not already account for.
    */
-  it('caps the ticket search when the envelope omits next_page entirely', async () => {
+  it('does not cap the ticket search when next_page is absent and count agrees', async () => {
     mockApi(() => ({ results: [ticket(1)], count: 1 }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('caps the ticket search when count reports more matches than were returned', async () => {
+    mockApi(() => ({ results: [ticket(1)], count: 9 }))
 
     const syncContext: Record<string, unknown> = {}
     const result = await zendeskConnector.listDocuments(

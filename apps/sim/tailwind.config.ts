@@ -31,7 +31,7 @@ export default {
      */
     './blocks/**/*.{js,ts,jsx,tsx}',
     './ee/**/*.{js,ts,jsx,tsx}',
-    './content/**/*.{js,ts,jsx,tsx,mdx}',
+    './content/**/*.{js,ts,jsx,tsx}',
     '../../packages/emcn/src/**/*.{js,ts,jsx,tsx}',
     '../../packages/workflow-renderer/src/**/*.{js,ts,jsx,tsx}',
     '!./app/node_modules/**',

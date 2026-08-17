@@ -137,17 +137,17 @@ describe('sentryConnector.listDocuments listing completeness', () => {
 })
 
 describe('sentryConnector.listDocuments request shape', () => {
-  it('pins the listing date range to the widest range Sentry issue search serves', async () => {
+  it('lists through the org-scoped issues endpoint without a date range', async () => {
     mockFetch.mockResolvedValue(jsonResponse([]))
 
     await sentryConnector.listDocuments(ACCESS_TOKEN, { ...BASE_CONFIG }, undefined, {})
 
     const url = requestUrl()
     expect(url.origin + url.pathname).toBe('https://sentry.io/api/0/organizations/acme/issues/')
-    expect(url.searchParams.get('statsPeriod')).toBe('90d')
+    expect(url.searchParams.get('statsPeriod')).toBeNull()
   })
 
-  it('sends the org-scoped listing params alongside the pinned range', async () => {
+  it('sends the org-scoped listing params', async () => {
     mockFetch.mockResolvedValue(jsonResponse([]))
 
     await sentryConnector.listDocuments(
@@ -162,14 +162,13 @@ describe('sentryConnector.listDocuments request shape', () => {
       query: 'is:unresolved',
       sort: 'new',
       limit: '100',
-      statsPeriod: '90d',
       groupStatsPeriod: '24h',
       environment: 'production',
       cursor: 'cursor-1',
     })
   })
 
-  it('keeps statsPeriod and groupStatsPeriod as separate parameters', async () => {
+  it('sends the configured stats period as groupStatsPeriod, never as statsPeriod', async () => {
     mockFetch.mockResolvedValue(jsonResponse([]))
 
     await sentryConnector.listDocuments(
@@ -180,7 +179,7 @@ describe('sentryConnector.listDocuments request shape', () => {
     )
 
     const url = requestUrl()
-    expect(url.searchParams.get('statsPeriod')).toBe('90d')
+    expect(url.searchParams.get('statsPeriod')).toBeNull()
     expect(url.searchParams.get('groupStatsPeriod')).toBe('14d')
   })
 
@@ -195,7 +194,7 @@ describe('sentryConnector.listDocuments request shape', () => {
     )
 
     const url = requestUrl()
-    expect(url.searchParams.get('statsPeriod')).toBe('90d')
+    expect(url.searchParams.get('statsPeriod')).toBeNull()
     expect(url.searchParams.get('issueWindow')).toBeNull()
   })
 })
@@ -212,12 +211,16 @@ describe('sentryConnector.validateConfig', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('probes the issues endpoint with the same pinned range the sync uses', async () => {
+  it('probes the same issues endpoint the sync lists through', async () => {
     mockFetch.mockResolvedValue(jsonResponse([]))
 
     const result = await sentryConnector.validateConfig(ACCESS_TOKEN, { ...BASE_CONFIG })
 
     expect(result.valid).toBe(true)
-    expect(requestUrl(1).searchParams.get('statsPeriod')).toBe('90d')
+    const probeUrl = requestUrl(1)
+    expect(probeUrl.origin + probeUrl.pathname).toBe(
+      'https://sentry.io/api/0/organizations/acme/issues/'
+    )
+    expect(probeUrl.searchParams.get('statsPeriod')).toBeNull()
   })
 })

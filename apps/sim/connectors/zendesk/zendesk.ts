@@ -179,13 +179,16 @@ const PAGE_WALK_EXHAUSTED: PageStep = { url: null, truncated: false }
  * pagination is limited to the first 100 pages / 10,000 records and answers 400
  * past that depth, so every unbounded listing uses cursor pagination instead.
  *
- * An explicit `meta.has_more === false` is the only exhaustion signal. Every
- * cursor-paginated response carries the `meta` envelope, so a missing or
- * malformed one is a malformed 200 — an interstitial, a truncated body, a proxy
- * error page — not a drained cursor, and reading it as exhaustion hands every
- * unlisted document to deletion reconciliation. Such a response still continues
- * the walk when it advertises a followable `links.next`; only when there is no
- * usable continuation does the walk stop, and then as truncated.
+ * `meta.has_more === true` is the only signal that continues the walk. Zendesk
+ * emits `links.next` even on the last page, so `meta` — not the link — is what
+ * decides whether to keep paginating; following a link on a response with no
+ * `meta` would never terminate, and this walk has no page-depth valve.
+ *
+ * How the stop is *reported* is what distinguishes the two ways it can happen:
+ * `has_more === false` is exhaustion, while a missing or malformed `meta` (an
+ * interstitial, a truncated body, a proxy error page) is truncation. Reading the
+ * latter as a drained cursor hands every unlisted document to deletion
+ * reconciliation.
  *
  * A `links.next` the same-origin guard refuses — a host-mapped Help Center or
  * brand host emits one that is not on `https://{subdomain}.zendesk.com` — also
@@ -195,7 +198,7 @@ const PAGE_WALK_EXHAUSTED: PageStep = { url: null, truncated: false }
  */
 function readCursorNext(data: Record<string, unknown>, baseUrl: string): PageStep {
   const meta = data.meta as { has_more?: unknown } | undefined
-  if (meta?.has_more === false) return PAGE_WALK_EXHAUSTED
+  if (meta?.has_more !== true) return { url: null, truncated: meta?.has_more !== false }
   const links = data.links as { next?: string } | undefined
   const url = sameOriginNextUrl(links?.next, baseUrl)
   return { url, truncated: url === null }
@@ -205,15 +208,15 @@ function readCursorNext(data: Record<string, unknown>, baseUrl: string): PageSte
  * Reads the offset-pagination continuation used by the Search API, which carries
  * `next_page` (null on the last page) instead of a `meta`/`links` envelope.
  *
- * Only an explicit `next_page: null` proves exhaustion. Search responses always
- * carry the key, so an envelope without it is malformed rather than drained —
- * the same reading `readCursorNext` applies to a missing `meta`. A present link
- * the same-origin guard refuses is truncation.
+ * An absent `next_page` is exhaustion. Search responses carry both keys, and the
+ * caller's `count`-vs-returned check already caps every case where a missing
+ * `next_page` could hide records, so treating its absence as truncation would
+ * only add a cap nothing needs. A present link the same-origin guard refuses is
+ * truncation.
  */
 function readOffsetNext(data: Record<string, unknown>, baseUrl: string): PageStep {
   const nextPage = data.next_page
-  if (nextPage === null) return PAGE_WALK_EXHAUSTED
-  if (nextPage === undefined) return { url: null, truncated: true }
+  if (nextPage == null) return PAGE_WALK_EXHAUSTED
   const url = sameOriginNextUrl(nextPage, baseUrl)
   return { url, truncated: url === null }
 }
