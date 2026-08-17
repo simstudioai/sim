@@ -1,4 +1,5 @@
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+import { parseBuffer } from '@/lib/file-parsers'
 import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -132,6 +133,88 @@ export function htmlToPlainText(html: string): string {
       return raw
     })
   return text.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Extensions a file-based connector reads straight off the wire as UTF-8. These are
+ * the formats connectors have always accepted, and they deliberately keep bypassing
+ * the knowledge-base parsers: routing `.csv` through `CsvParser` or `.json` through
+ * the JSON parser would reformat content that is already indexed, changing what is
+ * embedded for every existing connector document on its next re-index.
+ */
+const CONNECTOR_TEXT_EXTENSIONS = [
+  'txt',
+  'md',
+  'html',
+  'htm',
+  'csv',
+  'json',
+  'jsonl',
+  'xml',
+  'yaml',
+  'yml',
+  'log',
+  'rst',
+  'tsv',
+] as const
+
+/**
+ * Binary document formats extracted through the shared knowledge-base file parsers
+ * — the same ones a manual upload of the file would use. Listing them separately
+ * from {@link CONNECTOR_TEXT_EXTENSIONS} is what keeps this change additive: a
+ * format that synced yesterday takes exactly the path it took yesterday.
+ */
+const CONNECTOR_PARSED_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'] as const
+
+/**
+ * Every extension a file-based connector will download and index.
+ *
+ * Previously each connector carried its own text-only whitelist, so an Office
+ * document in a synced folder was dropped during listing — no document, no failed
+ * row, no log line. A library of `.docx` SOPs therefore synced as "success, 0
+ * documents", which is indistinguishable from a wrong folder path.
+ */
+export const CONNECTOR_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set<string>([
+  ...CONNECTOR_TEXT_EXTENSIONS,
+  ...CONNECTOR_PARSED_EXTENSIONS,
+])
+
+/** Extracts a lowercased, dotless extension from a file name. */
+export function connectorFileExtension(fileName: string): string | undefined {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex === -1 || dotIndex === fileName.length - 1) return undefined
+  return fileName.slice(dotIndex + 1).toLowerCase()
+}
+
+/**
+ * Reports whether a connector should download and index a file, based on its name.
+ */
+export function isIndexableConnectorFile(fileName: string): boolean {
+  const extension = connectorFileExtension(fileName)
+  return extension !== undefined && CONNECTOR_INDEXABLE_EXTENSIONS.has(extension)
+}
+
+/**
+ * Converts a downloaded file body to indexable text.
+ *
+ * Text formats are decoded as UTF-8 (with HTML additionally reduced to plain text),
+ * and binary document formats go through `parseBuffer`, which applies the OOXML
+ * zip-bomb guard and each parser's own extraction limits. An extension with no
+ * parser falls back to a UTF-8 decode rather than failing the file.
+ */
+export async function extractConnectorText(buffer: Buffer, fileName: string): Promise<string> {
+  const extension = connectorFileExtension(fileName)
+
+  if (extension === 'html' || extension === 'htm') {
+    return htmlToPlainText(buffer.toString('utf8'))
+  }
+
+  if (extension && (CONNECTOR_PARSED_EXTENSIONS as readonly string[]).includes(extension)) {
+    const result = await parseBuffer(buffer, extension)
+    return result.content
+  }
+
+  return buffer.toString('utf8')
 }
 
 /**

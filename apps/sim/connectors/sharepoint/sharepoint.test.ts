@@ -411,6 +411,47 @@ describe('listDocuments', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
+  /**
+   * The reported failure: a document library of Office SOPs synced as
+   * "success, 0 documents" because the listing filter accepted only plain text,
+   * which is indistinguishable from a wrong folder path.
+   */
+  it('lists Office documents and PDFs alongside text files', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'Market Data SOP.docx'),
+        file('f2', 'Vendor Contract.pdf'),
+        file('f3', 'User List.xlsx'),
+        file('f4', 'Overview.pptx'),
+        file('f5', 'notes.txt'),
+      ])
+    )
+
+    const result = await list(undefined, listContext())
+
+    expect(result.documents.map((doc) => doc.title)).toEqual([
+      'Market Data SOP.docx',
+      'Vendor Contract.pdf',
+      'User List.xlsx',
+      'Overview.pptx',
+      'notes.txt',
+    ])
+  })
+
+  it('still excludes files with no extractable text', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'diagram.png'),
+        file('f2', 'recording.mp4'),
+        file('f3', 'notes.txt'),
+      ])
+    )
+
+    const result = await list(undefined, listContext())
+
+    expect(result.documents.map((doc) => doc.externalId)).toEqual(['f3'])
+  })
+
   it('builds a metadata-only contentHash that getDocument can reproduce', async () => {
     mockGraph(childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt')]))
 
