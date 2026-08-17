@@ -56,7 +56,7 @@ vi.mock('@/lib/workflows/skills/builtin-skills', () => ({
 import { listVisibleWorkspaceCredentials } from '@/lib/credentials/queries'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
 import { getDocuments } from '@/lib/knowledge/documents/service'
-import { getKnowledgeBases } from '@/lib/knowledge/service'
+import { getWorkspaceKnowledgeBases } from '@/lib/knowledge/service'
 import { listWorkspaceMcpServers } from '@/lib/mcp/queries'
 import { listTables } from '@/lib/table/service'
 import { listWorkspaceCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -123,7 +123,7 @@ const CASES: ListCase[] = [
     column: schemaMock.knowledgeBase.name,
     table: schemaMock.knowledgeBase,
     run: ({ search, sortBy, sortOrder }) =>
-      getKnowledgeBases('user-1', WS, 'active', { search, sortBy: sortBy as never, sortOrder }),
+      getWorkspaceKnowledgeBases(WS, 'active', { search, sortBy: sortBy as never, sortOrder }),
     sort: {
       sortBy: 'name',
       sortOrder: 'asc',

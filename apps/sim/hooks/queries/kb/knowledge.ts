@@ -407,6 +407,10 @@ export function useUpdateChunk() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
+      })
     },
   })
 }
@@ -435,6 +439,10 @@ export function useDeleteChunk() {
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
@@ -473,6 +481,10 @@ export function useCreateChunk() {
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
@@ -514,6 +526,10 @@ export function useUpdateDocument() {
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
     },
   })
@@ -753,6 +769,10 @@ export function useBulkChunkOperation() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
       })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
+      })
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.detail(knowledgeBaseId),
         exact: true,
@@ -788,6 +808,10 @@ export function useUpdateDocumentTags() {
     onSettled: (_data, _error, { knowledgeBaseId, documentId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+      })
+      /** The document list renders this row's filename, status, tags, and counts. */
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.documentLists(knowledgeBaseId),
       })
     },
   })
