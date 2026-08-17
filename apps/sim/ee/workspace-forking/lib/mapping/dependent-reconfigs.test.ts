@@ -466,11 +466,101 @@ describe('collectForkDependentReconfigs', () => {
         selectorKey: 'gmail.labels',
         title: 'Label',
         toolName: 'Gmail 1',
+        dependencyScope: 'tools[0]',
         currentValue: 'INBOX',
         required: true,
         consumesContextKeys: [],
         context: {},
         sourceValue: 'INBOX',
+      },
+    ])
+  })
+
+  it('preserves dependency chains independently for duplicate nested tool instances', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'jira')
+        return blockWith([
+          {
+            id: 'credential',
+            title: 'Jira Account',
+            type: 'oauth-input',
+            canonicalParamId: 'oauthCredential',
+          },
+          {
+            id: 'projectId',
+            title: 'Project',
+            type: 'project-selector',
+            canonicalParamId: 'projectId',
+            selectorKey: 'jira.projects',
+            dependsOn: ['credential'],
+          },
+          {
+            id: 'issueKey',
+            title: 'Issue',
+            type: 'file-selector',
+            selectorKey: 'jira.issues',
+            dependsOn: ['credential', 'projectId'],
+            required: true,
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('agent', {
+          tools: {
+            value: [
+              {
+                type: 'jira',
+                title: 'Jira',
+                params: { credential: 'cred-src', projectId: 'P1', issueKey: 'P1-1' },
+              },
+              {
+                type: 'jira',
+                title: 'Jira',
+                params: { credential: 'cred-src', projectId: 'P2', issueKey: 'P2-1' },
+              },
+            ],
+          },
+        }),
+      ],
+    ])
+
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+
+    expect(
+      result.map((entry) => ({
+        key: entry.subBlockKey,
+        scope: entry.dependencyScope,
+        provides: entry.providesContextKey,
+        consumes: entry.consumesContextKeys,
+      }))
+    ).toEqual([
+      {
+        key: 'tools[0].projectId',
+        scope: 'tools[0]',
+        provides: 'projectId',
+        consumes: [],
+      },
+      {
+        key: 'tools[0].issueKey',
+        scope: 'tools[0]',
+        provides: undefined,
+        consumes: ['projectId'],
+      },
+      {
+        key: 'tools[1].projectId',
+        scope: 'tools[1]',
+        provides: 'projectId',
+        consumes: [],
+      },
+      {
+        key: 'tools[1].issueKey',
+        scope: 'tools[1]',
+        provides: undefined,
+        consumes: ['projectId'],
       },
     ])
   })

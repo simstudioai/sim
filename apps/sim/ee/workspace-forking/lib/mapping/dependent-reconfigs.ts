@@ -80,12 +80,10 @@ interface EmitAnchoredParams {
   /** Nested `tool-input` tool display name; omitted for top-level block subblocks. */
   toolName?: string
   /**
-   * Emit `providesContextKey`/`consumesContextKeys` so the modal can chain in-block
-   * re-picks. Top-level chains; nested tool params don't (a tool's chain would need
-   * per-tool context scoping - out of scope - and the common nested case is a single
-   * credential-anchored field).
+   * Stable nested-tool instance boundary for dependency context and descendant invalidation.
+   * Omitted for top-level block subblocks, which share the block scope.
    */
-  chaining: boolean
+  dependencyScope?: string
   /**
    * Present ONLY for the nested `tool-input` pass: each param's resolved
    * {@link ParameterVisibility}, keyed by sub-block id and by canonical param id. Its presence
@@ -120,7 +118,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     makeSubBlockKey,
     makeTitle,
     toolName,
-    chaining,
+    dependencyScope,
     paramVisibilityById,
     out,
   } = params
@@ -185,20 +183,17 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         // is offered exactly once.
         if (seen.has(canonicalKey)) continue
         seen.add(canonicalKey)
-        const providesContextKey =
-          chaining && isSelectorContextKey(canonicalKey) ? canonicalKey : undefined
+        const providesContextKey = isSelectorContextKey(canonicalKey) ? canonicalKey : undefined
         // The SelectorContext keys this field needs from in-block siblings (e.g. a sheet
         // needs the spreadsheet), excluding the anchor key the modal already supplies, so
         // the modal can keep a child disabled until its re-picked parent is chosen.
-        const consumesContextKeys = chaining
-          ? [
-              ...new Set(
-                getDependsOnFields(dependent.dependsOn)
-                  .map((parent) => canonicalIndex.canonicalIdBySubBlockId[parent] ?? parent)
-                  .filter((key) => key !== anchor.parentContextKey && isSelectorContextKey(key))
-              ),
-            ]
-          : []
+        const consumesContextKeys = [
+          ...new Set(
+            getDependsOnFields(dependent.dependsOn)
+              .map((parent) => canonicalIndex.canonicalIdBySubBlockId[parent] ?? parent)
+              .filter((key) => key !== anchor.parentContextKey && isSelectorContextKey(key))
+          ),
+        ]
         // Carry the selector's static `mimeType` filter (Drive/Sheets pickers) so the
         // modal selector loads the same filtered list the editor would, not all files.
         const dependentContext =
@@ -239,6 +234,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           selectorKey: dependent.selectorKey,
           title: makeTitle(dependent),
           ...(toolName ? { toolName } : {}),
+          ...(dependencyScope ? { dependencyScope } : {}),
           // Source value, so the always-on listing pre-fills a stable parent's selector.
           // The diff route overlays the stored/target-draft value onto `currentValue`;
           // `sourceValue` stays the raw source reference (the copy-resolved parent's seed).
@@ -317,7 +313,6 @@ export function collectForkDependentReconfigs(
         resolveTargetBlockId: resolveBlockId,
         makeSubBlockKey: (id) => id,
         makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
-        chaining: true,
         out,
       })
 
@@ -387,7 +382,7 @@ export function collectForkDependentReconfigs(
             makeSubBlockKey: (id) => `${toolInputKey}[${toolIndex}].${id}`,
             makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
             toolName: toolLabel,
-            chaining: false,
+            dependencyScope: `${toolInputKey}[${toolIndex}]`,
             paramVisibilityById,
             out,
           })

@@ -9,6 +9,7 @@ import {
   effectiveCopyDependentValue,
   effectiveDependentValue,
   getActionableDependentFields,
+  getDisplayedDependentFields,
   isDependentConfigurationActionable,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 
@@ -165,6 +166,46 @@ describe('applyDependentRepick', () => {
     ).toEqual({
       [dependentKey(leaf)]: 'ISSUE-2',
       [dependentKey(unrelated)]: 'still-keep-me',
+    })
+  })
+
+  it('does not clear a descendant belonging to another nested tool instance', () => {
+    const projectOne = field({
+      subBlockKey: 'tools[0].projectId',
+      dependencyScope: 'tools[0]',
+      providesContextKey: 'projectId',
+    })
+    const issueOne = field({
+      subBlockKey: 'tools[0].issueKey',
+      dependencyScope: 'tools[0]',
+      consumesContextKeys: ['projectId'],
+    })
+    const projectTwo = field({
+      subBlockKey: 'tools[1].projectId',
+      dependencyScope: 'tools[1]',
+      providesContextKey: 'projectId',
+    })
+    const issueTwo = field({
+      subBlockKey: 'tools[1].issueKey',
+      dependencyScope: 'tools[1]',
+      consumesContextKeys: ['projectId'],
+    })
+    const previous = {
+      [dependentKey(issueOne)]: 'P1-1',
+      [dependentKey(issueTwo)]: 'P2-1',
+    }
+
+    expect(
+      applyDependentRepick(
+        previous,
+        projectOne,
+        [projectOne, issueOne, projectTwo, issueTwo],
+        'P1-NEW'
+      )
+    ).toEqual({
+      [dependentKey(projectOne)]: 'P1-NEW',
+      [dependentKey(issueOne)]: '',
+      [dependentKey(issueTwo)]: 'P2-1',
     })
   })
 })
@@ -340,5 +381,64 @@ describe('getActionableDependentFields', () => {
         unchangedMappedParent
       ).map((dependent) => dependent.subBlockKey)
     ).toEqual(['siteId', 'driveId', 'spreadsheetId'])
+  })
+
+  it('finds a required child provider only within the same nested tool instance', () => {
+    const projectOne = field({
+      subBlockKey: 'tools[0].projectId',
+      dependencyScope: 'tools[0]',
+      providesContextKey: 'projectId',
+    })
+    const projectTwo = field({
+      subBlockKey: 'tools[1].projectId',
+      dependencyScope: 'tools[1]',
+      providesContextKey: 'projectId',
+    })
+    const issueOne = field({
+      subBlockKey: 'tools[0].issueKey',
+      dependencyScope: 'tools[0]',
+      currentValue: '',
+      required: true,
+      consumesContextKeys: ['projectId'],
+    })
+
+    expect(
+      getActionableDependentFields(
+        [projectOne, projectTwo, issueOne],
+        {},
+        unchangedMappedParent
+      ).map((dependent) => dependent.subBlockKey)
+    ).toEqual(['tools[0].projectId', 'tools[0].issueKey'])
+  })
+})
+
+describe('getDisplayedDependentFields', () => {
+  const unchangedMappedParent = {
+    parentResolved: true,
+    parentChanged: false,
+    copying: false,
+  }
+
+  it('reveals configured and optional fields only after the explicit edit action', () => {
+    const configuredRequired = field({ subBlockKey: 'projectId', required: true })
+    const optional = field({ subBlockKey: 'issueKey', currentValue: '', required: false })
+
+    expect(
+      getDisplayedDependentFields([configuredRequired, optional], {}, unchangedMappedParent, false)
+    ).toEqual([])
+    expect(
+      getDisplayedDependentFields([configuredRequired, optional], {}, unchangedMappedParent, true)
+    ).toEqual([configuredRequired, optional])
+  })
+
+  it('never shows selectors before their parent mapping is resolved', () => {
+    expect(
+      getDisplayedDependentFields(
+        [field()],
+        {},
+        { ...unchangedMappedParent, parentResolved: false },
+        true
+      )
+    ).toEqual([])
   })
 })
