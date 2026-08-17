@@ -494,3 +494,57 @@ describe('duplicate question labels', () => {
     expect(submission.answers['7'].answer).toBe('b@example.com')
   })
 })
+
+describe('duplicate label key collisions', () => {
+  /**
+   * Labels are free text, so the disambiguation key is not automatically safe either:
+   * a question literally labelled "Email (3)" lands on the key generated for a
+   * duplicate "Email" at qid 3.
+   */
+  it('widens a generated key that collides with a literal label', () => {
+    const submission = normalizeSubmission({
+      id: '1',
+      answers: {
+        '3': { text: 'Email', type: 'control_email', answer: 'dup-a@example.com' },
+        '5': { text: 'Email', type: 'control_email', answer: 'dup-b@example.com' },
+        '9': { text: 'Email (3)', type: 'control_textbox', answer: 'literal' },
+      },
+    })
+
+    expect(Object.keys(submission.values)).toHaveLength(3)
+    expect(new Set(Object.values(submission.values))).toEqual(
+      new Set(['dup-a@example.com', 'dup-b@example.com', 'literal'])
+    )
+  })
+
+  /**
+   * Assigning `__proto__` onto an object literal sets the prototype rather than an
+   * own property, so the answer would vanish from the map entirely.
+   */
+  it('keeps an answer labelled __proto__ as a real own property', () => {
+    const submission = normalizeSubmission({
+      id: '1',
+      answers: { '3': { text: '__proto__', type: 'control_textbox', answer: 'kept' } },
+    })
+
+    expect(Object.hasOwn(submission.values, '__proto__')).toBe(true)
+    expect(Object.values(submission.values)).toContain('kept')
+  })
+
+  /** The guarantee is a count: every rendered answer reaches the map. */
+  it('never drops a rendered answer, whatever the labels are', () => {
+    const submission = normalizeSubmission({
+      id: '1',
+      answers: {
+        '1': { text: 'X', type: 'control_textbox', answer: 'a' },
+        '2': { text: 'X', type: 'control_textbox', answer: 'b' },
+        '3': { text: 'X (1)', type: 'control_textbox', answer: 'c' },
+        '4': { text: 'X (2)', type: 'control_textbox', answer: 'd' },
+        '5': { text: 'X (2) (2)', type: 'control_textbox', answer: 'e' },
+      },
+    })
+
+    expect(Object.keys(submission.values)).toHaveLength(5)
+    expect(new Set(Object.values(submission.values))).toEqual(new Set(['a', 'b', 'c', 'd', 'e']))
+  })
+})

@@ -96,7 +96,13 @@ function renderAnswer(answer: JotformSubmissionAnswer): string | null {
  * label is suffixed with its question id instead. Disambiguating *every* occurrence
  * rather than only the later ones keeps the result independent of answer order — and
  * makes a newly duplicated label read as absent rather than as an arbitrary winner.
- * `answers` remains the complete, id-keyed record either way.
+ *
+ * Labels are also free text, so a generated key is not automatically safe either: a
+ * question literally labelled "Email (3)" collides with the key generated for a
+ * duplicate "Email" at qid 3. Any key already taken is therefore widened again until
+ * it is free, which makes "no answer is dropped" hold for every input rather than for
+ * the labels that happen to be well behaved. `answers` remains the complete, id-keyed
+ * record regardless.
  */
 function buildValues(answers: Record<string, JotformSubmissionAnswer>): Record<string, string> {
   const labelCounts = new Map<string, number>()
@@ -105,16 +111,20 @@ function buildValues(answers: Record<string, JotformSubmissionAnswer>): Record<s
     labelCounts.set(answer.text, (labelCounts.get(answer.text) ?? 0) + 1)
   }
 
-  const values: Record<string, string> = {}
+  /* Accumulated in a Map, not an object literal: a question labelled `__proto__`
+     assigned onto `{}` sets the prototype instead of an own property and vanishes.
+     `Object.fromEntries` defines it as an own property. */
+  const values = new Map<string, string>()
   for (const [qid, answer] of Object.entries(answers)) {
     if (!answer.text) continue
     const rendered = renderAnswer(answer)
     if (rendered === null) continue
 
-    const key = (labelCounts.get(answer.text) ?? 0) > 1 ? `${answer.text} (${qid})` : answer.text
-    values[key] = rendered
+    let key = (labelCounts.get(answer.text) ?? 0) > 1 ? `${answer.text} (${qid})` : answer.text
+    while (values.has(key)) key = `${key} (${qid})`
+    values.set(key, rendered)
   }
-  return values
+  return Object.fromEntries(values)
 }
 
 export function normalizeSubmission(raw: Record<string, unknown>): JotformSubmission {
