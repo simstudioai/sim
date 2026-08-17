@@ -4,17 +4,13 @@ exact = true
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
 # @typescript/native-preview stays excluded permanently: it only publishes nightly
-# dev builds, so every version is structurally younger than any age gate.
-# mermaid 11.16.1 (published 2026-08-04) clears five open Dependabot advisories that
-# 11.15.0 carries: architecture-diagram and config-API prototype pollution, radar and
-# XY-chart DoS, and CSS injection into siblings of the diagram. It is inside the 7-day
-# window and cannot be installed without an exception; it ages out on 2026-08-11 — drop
-# the entry then, and re-date this note on any further bump rather than deleting the entry
-# early, because removing it while the pinned version is still inside the window blocks the
-# bump outright. js-yaml 4.3.1 (published 2026-07-31) carries the CVE-2026-59870 !!omap
-# quadratic-CPU fix, which was never backported to the 4.3.0 line; it ages out on 2026-08-07,
-# so that entry can go on the next touch of this file.
-minimumReleaseAgeExcludes = ["@typescript/native-preview", "mermaid", "js-yaml"]
+# dev builds, so every version is structurally younger than any age gate. Every other
+# entry here is a temporary waiver for one pinned version that is still inside the
+# window, and must be dropped once that version ages out — an exclusion left behind
+# disables the gate for that package forever. Both prior waivers have aged out:
+# mermaid 11.16.1 (published 2026-08-04) on 2026-08-11, and js-yaml 4.3.1
+# (published 2026-07-31) on 2026-08-07.
+minimumReleaseAgeExcludes = ["@typescript/native-preview"]
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }
