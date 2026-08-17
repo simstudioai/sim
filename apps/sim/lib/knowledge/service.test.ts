@@ -39,8 +39,8 @@ vi.mock('@/lib/billing/core/usage', () => ({
   ensureUserStatsExists: mockEnsureUserStatsExists,
 }))
 
-import { MAX_KNOWLEDGE_BASES_PER_WORKSPACE } from '@/lib/knowledge/constants'
 import {
+  findActiveKnowledgeBasesByExactName,
   getLegacyPersonalKnowledgeBases,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
@@ -48,23 +48,49 @@ import {
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 
-describe('getWorkspaceKnowledgeBases — bounded reads', () => {
+/**
+ * A row cap on this read could only ever fire for a caller that did NOT ask for a page — the
+ * one kind of caller with no cursor to act on it — so an oversized workspace has to be served,
+ * not refused.
+ */
+describe('getWorkspaceKnowledgeBases — paging', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  it('fails before projecting connector data for an oversized workspace list', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce(
-      Array.from({ length: MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1 }, (_, index) => ({
+  it('reads unbounded when the caller asked for no page', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce(
+      Array.from({ length: 10_001 }, (_, index) => ({
         id: `kb-${index}`,
+        chunkingConfig: {},
+        docCount: 0,
       }))
     )
 
-    await expect(getWorkspaceKnowledgeBases('ws-1')).rejects.toThrow(
-      `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
-    )
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1)
+    const result = await getWorkspaceKnowledgeBases('ws-1')
+
+    expect(result.data).toHaveLength(10_001)
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+  })
+
+  it('reads one row past the page so it can report another page', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce(
+        Array.from({ length: 3 }, (_, index) => ({
+          id: `kb-${index}`,
+          chunkingConfig: {},
+          docCount: 0,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        }))
+      )
+      .mockResolvedValueOnce([])
+
+    const result = await getWorkspaceKnowledgeBases('ws-1', 'active', { limit: 2 })
+
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+    expect(result.data).toHaveLength(2)
+    expect(result.nextCursorKeys).not.toBeNull()
   })
 })
 
@@ -110,17 +136,31 @@ describe('getLegacyPersonalKnowledgeBases', () => {
     expect(joinedTables).toContain(schemaMock.document)
     expect(joinedTables).not.toContain(schemaMock.permissions)
   })
+})
 
-  it('fails before projecting connector data for an oversized set', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce(
-      Array.from({ length: MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1 }, (_, index) => ({
-        id: `kb-${index}`,
-      }))
-    )
+/**
+ * A VFS path names one knowledge base exactly. Resolving it by reading every base whose name
+ * merely CONTAINS the term, then filtering in JS, makes a single-row lookup scale with the
+ * workspace — the sibling `findActiveTablesByExactName` is the shape to match.
+ */
+describe('findActiveKnowledgeBasesByExactName', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
 
-    await expect(getLegacyPersonalKnowledgeBases('user-a')).rejects.toThrow(
-      `Legacy personal knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
-    )
+  it('matches the name exactly and reads at most two rows', async () => {
+    await findActiveKnowledgeBasesByExactName('ws-1', 'Docs')
+
+    const [condition] = dbChainMockFns.where.mock.calls[0] ?? []
+    expect(
+      hasMockCondition(
+        condition,
+        (node) =>
+          node.type === 'eq' && node.left === schemaMock.knowledgeBase.name && node.right === 'Docs'
+      )
+    ).toBe(true)
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
   })
 })
 
@@ -133,6 +173,29 @@ describe('listWorkspaceAndLegacyKnowledgeBases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+  })
+
+  /**
+   * Soft-delete cleanup only reclaims archived rows past a retention window — and none at all
+   * for a workspace with no retention configured — so a workspace that archives faster than
+   * that window crosses any fixed count. This surface has no cursor to page with, so a cap
+   * here could only mean a 500 on the knowledge page and Recently Deleted, which is exactly
+   * what it meant on staging.
+   */
+  it('serves a workspace whose archived set is larger than the old row cap', async () => {
+    const rows = Array.from({ length: 10_001 }, (_, index) => ({
+      id: `kb-${index}`,
+      chunkingConfig: {},
+      docCount: 0,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    }))
+    dbChainMockFns.orderBy.mockResolvedValueOnce(rows).mockResolvedValueOnce([])
+
+    const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1', 'archived')
+
+    expect(result).toHaveLength(10_001)
+    /** Neither the workspace read nor the legacy read may bound itself. */
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 
   it('orders both sources as one list and projects connectors once', async () => {
@@ -148,16 +211,17 @@ describe('listWorkspaceAndLegacyKnowledgeBases', () => {
       docCount: 0,
       createdAt: new Date('2025-01-01T00:00:00Z'),
     }
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([workspaceRow])
-      .mockResolvedValueOnce([legacyRow])
-      .mockResolvedValueOnce([])
+    /** Both row reads are unbounded now, so each resolves at `orderBy` rather than `limit`. */
+    dbChainMockFns.orderBy.mockResolvedValueOnce([workspaceRow]).mockResolvedValueOnce([legacyRow])
 
     const result = await listWorkspaceAndLegacyKnowledgeBases('user-a', 'ws-1')
 
     expect(result.map((kb) => kb.id)).toEqual(['kb-legacy', 'kb-workspace'])
-    /** Two row reads and ONE connector projection — three chains, never four. */
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(3)
+    /** ONE connector projection over the merged set, not one per source. */
+    const connectorReads = dbChainMockFns.from.mock.calls.filter(
+      ([table]) => table === schemaMock.knowledgeConnector
+    )
+    expect(connectorReads).toHaveLength(1)
   })
 })
 
