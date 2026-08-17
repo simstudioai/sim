@@ -53,7 +53,24 @@ export interface WorkspaceOptions {
   auth?: AuthRequirement
 }
 
-function buildUrl(endpoint: string, path: string, query?: Record<string, QueryValue>): string {
+/**
+ * Joins an endpoint and a route into a request URL.
+ *
+ * Concatenation rather than `new URL(path, endpoint)`, which is the trap it
+ * exists to avoid: a leading-slash path is absolute, so `new URL()` resolves it
+ * against the endpoint's ORIGIN and silently drops any path the endpoint
+ * carries. A deployment served under a prefix — `https://host/sim` behind a
+ * proxy that fronts several apps — would have every request rewritten to
+ * `https://host/...`, losing the prefix that identifies it.
+ *
+ * Empty values are skipped rather than sent blank so an omitted optional
+ * parameter reads as absent, not as the empty string.
+ */
+export function buildUrl(
+  endpoint: string,
+  path: string,
+  query?: Record<string, QueryValue>
+): string {
   const url = new URL(`${endpoint}${path}`)
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === null || value === undefined || value === '') continue

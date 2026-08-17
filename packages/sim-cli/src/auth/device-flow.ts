@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
-import { REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
+import { buildUrl, REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
 import { USER_AGENT } from '../version'
 
 /**
@@ -19,6 +19,12 @@ const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 15 * 60 * 1000
+
+/** The page the browser is sent to for approval. */
+const APPROVAL_PATH = '/cli/auth'
+
+/** The route the login poll targets; also the suffix a redirect target is measured against. */
+const POLL_PATH = '/api/cli/auth/poll'
 
 /**
  * Poll statuses that leave the approval still redeemable, so the login should
@@ -89,13 +95,13 @@ export function buildApprovalUrl(
   scope: CliAuthScope,
   workspaceId?: string
 ): string {
-  const url = new URL('/cli/auth', endpoint)
-  url.searchParams.set('request', auth.request)
-  url.searchParams.set('challenge', auth.challenge)
-  url.searchParams.set('pairing', auth.pairing)
-  url.searchParams.set('scope', scope)
-  if (workspaceId) url.searchParams.set('workspace', workspaceId)
-  return url.toString()
+  return buildUrl(endpoint, APPROVAL_PATH, {
+    request: auth.request,
+    challenge: auth.challenge,
+    pairing: auth.pairing,
+    scope,
+    workspace: workspaceId,
+  })
 }
 
 interface PollResponse {
@@ -105,9 +111,6 @@ interface PollResponse {
   workspaceId?: string | null
   workspaceBound?: boolean
 }
-
-/** The route the login poll targets; also the suffix a redirect target is measured against. */
-const POLL_PATH = '/api/cli/auth/poll'
 
 /**
  * Explains a redirected poll rather than following it.
@@ -166,7 +169,7 @@ export async function pollForKey(
 
     let response: Response | null = null
     try {
-      response = await fetch(new URL(POLL_PATH, endpoint), {
+      response = await fetch(buildUrl(endpoint, POLL_PATH), {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
