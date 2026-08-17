@@ -286,13 +286,18 @@ describe('extractWorkspaceFile', () => {
     expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
   })
 
+  /** Fires the deadline the way `AbortSignal.timeout` does: `reason` is what gets thrown. */
+  function expireDeadline(signal: AbortSignal): unknown {
+    const reason = new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    Object.defineProperty(signal, 'aborted', { value: true })
+    Object.defineProperty(signal, 'reason', { value: reason })
+    return reason
+  }
+
   it('reports a budget overrun as a caller-fixable error, not the raw abort', async () => {
     mocks.decompress.mockImplementationOnce(async (_content, options) => {
       await options.prepareRootFolder()
-      // Stand in for the deadline firing mid-write: the extractor aborts, rolls back, and
-      // rethrows the DOMException, which must not reach the caller as an opaque 500.
-      Object.defineProperty(options.signal, 'aborted', { value: true })
-      throw Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' })
+      throw expireDeadline(options.signal)
     })
 
     await expect(
@@ -302,10 +307,33 @@ describe('extractWorkspaceFile', () => {
       })
     ).rejects.toMatchObject({
       code: 'payload_too_large',
-      message: expect.stringContaining('took too long and was rolled back'),
+      message: expect.stringContaining('took too long and was cancelled'),
     })
 
     expect(mocks.archiveFolderIfEmpty).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the real cause when a failure races the deadline', async () => {
+    // The signal stays aborted for the rest of the request, so an unrelated mid-entry
+    // failure after the timer fires must not be relabelled as a timeout.
+    mocks.decompress.mockImplementationOnce(async (_content, options) => {
+      await options.prepareRootFolder()
+      expireDeadline(options.signal)
+      throw Object.assign(new Error('Archive entry "a.txt" could not be decompressed'), {
+        name: 'ArchiveError',
+        reason: 'invalid',
+      })
+    })
+
+    await expect(
+      extractWorkspaceFile.execute({
+        principal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).rejects.toMatchObject({
+      name: 'ArchiveError',
+      message: expect.stringContaining('could not be decompressed'),
+    })
   })
 
   it('leaves a destination folder that gained collaborators content during rollback', async () => {

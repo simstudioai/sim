@@ -25,11 +25,12 @@ import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folde
 
 const logger = createLogger('ExtractWorkspaceFile')
 /**
- * Wall-clock budget for the extraction itself, deliberately shorter than the route's
- * `maxDuration` so the work stops on our terms — with the all-or-nothing rollback still
- * able to run — rather than the platform killing the process mid-write and stranding a
- * partial tree. Self-hosted deployments do not enforce `maxDuration` at all, so this is
- * the only thing bounding the write loop there.
+ * Wall-clock budget for the whole operation — archive download included, because the lease
+ * this must fit inside starts earlier still. Deliberately shorter than the route's
+ * `maxDuration` so the work stops on our terms, with the all-or-nothing rollback still able
+ * to run, rather than the platform killing the process mid-write and stranding a partial
+ * tree. Self-hosted deployments do not enforce `maxDuration` at all, so this is the only
+ * thing bounding the write loop there.
  */
 const EXTRACTION_BUDGET_MS = 180 * 1000
 /**
@@ -198,15 +199,16 @@ async function extractWorkspaceFileContents({
       }
       await notifyWorkspaceFilesChanged(context.workspaceId)
     }
-    if (deadline.aborted && !(error instanceof OrchestrationError)) {
-      logger.warn('Archive extraction exceeded its budget and was rolled back', {
+    if (deadline.aborted && error === deadline.reason) {
+      logger.warn('Archive extraction exceeded its budget', {
         workspaceId: context.workspaceId,
         fileId: file.id,
         budgetMs: EXTRACTION_BUDGET_MS,
+        wroteAnything: Boolean(rootFolder),
       })
       throw new OrchestrationError(
         'payload_too_large',
-        `Unzipping "${file.name}" took too long and was rolled back. Try a smaller archive.`
+        `Unzipping "${file.name}" took too long and was cancelled. Try a smaller archive.`
       )
     }
     throw error
