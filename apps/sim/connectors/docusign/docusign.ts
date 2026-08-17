@@ -405,11 +405,18 @@ async function fetchFormValues(
     }
     return values
   } catch (error) {
+    /**
+     * Rethrow rather than degrading to `[]`. Returning an empty list here would
+     * defeat the 404-only rule above: `buildContentHash` is metadata-only, so a
+     * document stored without its form data computes the identical hash on the
+     * next sync, classifies `unchanged`, and never recovers the missing section.
+     * A throw reaches `getDocument`, which the engine records as a failed row.
+     */
     logger.warn('Failed to fetch DocuSign form data', {
       envelopeId,
       error: toError(error).message,
     })
-    return []
+    throw error
   }
 }
 

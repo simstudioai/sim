@@ -541,14 +541,19 @@ function readWorkItemFilters(sourceConfig: Record<string, unknown>): WorkItemFil
 /**
  * Builds the WIQL query for the configured work-item filters. User-supplied
  * values are escaped against WIQL string-literal injection. `lastSyncAt`
- * narrows results to items changed since the previous sync, and `idAfter`
- * restricts to items with a greater id (used to probe past the 20,000-item
- * WIQL cap).
+ * narrows results to items changed since the previous sync.
  *
- * A custom WIQL query is used verbatim: neither the incremental changed-date
- * filter nor the probe condition can be injected into arbitrary user WIQL
- * safely, so custom queries always run as full listings on every sync. Change
- * detection still short-circuits unchanged items via the content hash.
+ * `idAfter` restricts to items with a greater id. It currently has no caller:
+ * it is the seam for paginating past Azure DevOps' 20,000-item WIQL ceiling by
+ * ordering on `[System.Id] ASC` and looping until a call returns fewer than
+ * 20,000 ids. Until that lands, a project at the ceiling is flagged
+ * {@link https://learn.microsoft.com/azure/devops/boards/queries | truncated}
+ * so deletion reconciliation cannot act on a partial listing.
+ *
+ * A custom WIQL query is used verbatim: the incremental changed-date filter
+ * cannot be injected into arbitrary user WIQL safely, so custom queries always
+ * run as full listings on every sync. Change detection still short-circuits
+ * unchanged items via the content hash.
  */
 function buildWiql(filters: WorkItemFilters, lastSyncAt?: Date, idAfter?: number): string {
   if (filters.customWiql) return filters.customWiql
@@ -1391,27 +1396,25 @@ async function listWorkItems(
 
     if (ids.length >= WIQL_MAX_RESULTS && syncContext) {
       /**
-       * The WIQL result filled the 20,000-item cap. Distinguish an exact fit
-       * from genuine truncation: for structured filters, probe for any
-       * matching item with an id beyond the largest returned one and only
-       * flag the listing incomplete when one exists — otherwise deletion
-       * reconciliation would be disabled forever for a project with exactly
-       * 20,000 matching items. Custom WIQL cannot be probed (no safe clause
-       * injection), so it is flagged conservatively.
+       * The WIQL result filled the documented 20,000-item ceiling — Azure DevOps
+       * truncates there and returns no error ("Query results: Results are
+       * truncated at 20,000 items - no error is shown").
+       *
+       * A previous revision tried to tell an exact fit from real truncation by
+       * probing for a matching item with an id beyond the largest returned one.
+       * That probe is unsound: {@link buildWiql} orders by `[System.ChangedDate]
+       * DESC`, while work-item ids are assigned in creation order, so the
+       * highest-id match is the most recently created item and is essentially
+       * always inside the most-recently-changed 20,000. The probe therefore
+       * returned empty for a genuinely truncated project, left the listing
+       * unflagged, and let deletion reconciliation remove every indexed item
+       * outside the current window.
+       *
+       * Flag unconditionally instead. The cost is that a project with exactly
+       * 20,000 matching items stops reconciling deletions until a full resync;
+       * the cost of the probe was silent data loss on every scheduled sync.
        */
-      let truncated = true
-      if (!filters.customWiql) {
-        let maxId = 0
-        for (const id of ids) {
-          if (id > maxId) maxId = id
-        }
-        const probeWiql = buildWiql(filters, lastSyncAt, maxId)
-        const beyond = await queryWorkItemIds(accessToken, organization, project, probeWiql, 1)
-        truncated = beyond.length > 0
-      }
-      if (truncated) {
-        syncContext.listingCapped = true
-      }
+      syncContext.listingCapped = true
     }
   }
 
