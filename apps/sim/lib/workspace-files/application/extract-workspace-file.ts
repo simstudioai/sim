@@ -151,6 +151,7 @@ async function extractWorkspaceFileContents({
       maxMaterializedItems: MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
       skipNoiseEntries: true,
       secretProvenance,
+      notifyWorkspaceChange: false,
     })
     if (result.extracted.length === 0) {
       throw new OrchestrationError('validation', `No files could be unzipped from "${file.name}"`)

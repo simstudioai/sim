@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import JSZip from 'jszip'
 import { readZipCentralDirectoryStats } from '@/lib/file-parsers/zip-guard'
 import { buildFolderPath, FolderPathError } from '@/lib/folders/paths'
+import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { archiveWorkspaceFileFolderIfEmpty } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   purgeCreatedWorkspaceFile,
@@ -290,6 +291,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     maxMaterializedItems?: number
     skipNoiseEntries?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
+    notifyWorkspaceChange?: boolean
   }
 ): Promise<DecompressResult> {
   const {
@@ -301,6 +303,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     maxMaterializedItems,
     skipNoiseEntries = false,
     secretProvenance = { status: 'unknown' },
+    notifyWorkspaceChange = true,
   } = opts
   const extractedSecretProvenance: WorkspaceFileSecretProvenance =
     secretProvenance.status === 'exact' && secretProvenance.entries.length === 0
@@ -515,8 +518,12 @@ export async function decompressArchiveBufferToWorkspaceFiles(
         })
       }
     }
+    if (notifyWorkspaceChange) await notifyWorkspaceFilesChanged(workspaceId)
     throw error
   }
 
+  if (notifyWorkspaceChange && extracted.length > 0) {
+    await notifyWorkspaceFilesChanged(workspaceId)
+  }
   return { extracted, skipped, skippedUnsafePaths }
 }

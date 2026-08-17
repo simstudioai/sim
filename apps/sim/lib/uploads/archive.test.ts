@@ -16,8 +16,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * - `exactName: true` throws `FileConflictError` on a duplicate leaf name, while
  *   `exactName: false` auto-suffixes, mirroring `uploadWorkspaceFile`.
  */
-const { store, mockUpload, mockPurge, mockEnsureFolder, mockArchiveFolderIfEmpty } = vi.hoisted(
-  () => ({
+const { store, mockUpload, mockPurge, mockEnsureFolder, mockArchiveFolderIfEmpty, mockNotify } =
+  vi.hoisted(() => ({
     store: {
       folderIdByPath: new Map<string, string>(),
       fileKeys: new Set<string>(),
@@ -30,8 +30,9 @@ const { store, mockUpload, mockPurge, mockEnsureFolder, mockArchiveFolderIfEmpty
     mockPurge: vi.fn(),
     mockEnsureFolder: vi.fn(),
     mockArchiveFolderIfEmpty: vi.fn(),
-  })
-)
+    mockNotify: vi.fn(),
+  }))
+vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
 }))
@@ -182,6 +183,7 @@ beforeEach(() => {
   })
 
   mockPurge.mockResolvedValue(true)
+  mockNotify.mockResolvedValue(undefined)
   mockUpload.mockImplementation(
     async ({
       input,
@@ -226,6 +228,8 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(result.extracted).toHaveLength(2)
     expect(result.skippedUnsafePaths).toEqual([])
     expect(mockUpload).toHaveBeenCalledTimes(2)
+    expect(mockNotify).toHaveBeenCalledOnce()
+    expect(mockNotify).toHaveBeenCalledWith('ws')
     const leafNames = mockUpload.mock.calls.map(([args]) => args.input.name).sort()
     expect(leafNames).toEqual(['report.txt', 'sheet.csv'])
     // Entries are rooted under the archive's folder; nested paths are preserved.
@@ -499,6 +503,8 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     ).rejects.toThrow('storage quota exceeded')
 
     expect(mockPurge).toHaveBeenCalledTimes(2)
+    expect(mockNotify).toHaveBeenCalledOnce()
+    expect(mockNotify).toHaveBeenCalledWith('ws')
     expect(mockPurge).toHaveBeenCalledWith({
       workspaceId: 'ws',
       fileId: 'f_a',

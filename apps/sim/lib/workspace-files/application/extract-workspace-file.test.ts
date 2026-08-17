@@ -156,6 +156,7 @@ describe('extractWorkspaceFile', () => {
       maxMaterializedItems: 5000,
       skipNoiseEntries: true,
       secretProvenance: { status: 'exact', entries: [] },
+      notifyWorkspaceChange: false,
     })
     expect(mocks.atomicallyClaim).toHaveBeenCalledWith('extract', 'workspace-1:file-1')
     expect(mocks.releaseLease).toHaveBeenCalledWith(
