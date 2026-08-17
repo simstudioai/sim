@@ -75,6 +75,23 @@ interface Invocation {
  * followed for it to act on. It is kept as defense-in-depth so raising `maxRedirects`
  * later cannot silently start forwarding the bearer token; do not remove it as dead code.
  */
+/**
+ * Read a Concur response body, keeping the upstream status meaningful.
+ *
+ * On a success status the body is the result, so a stream failure is a real
+ * error and must propagate. On an error status the body only supplies the
+ * message, and throwing would turn Concur's 4xx into a Sim 500 — the status is
+ * preserved instead and the message falls back to the generic HTTP-status form.
+ */
+export async function readConcurProxyBody(response: {
+  status: number
+  text: () => Promise<string>
+}): Promise<string> {
+  const read = response.text()
+  if (response.status >= 200 && response.status < 300) return read
+  return read.catch(() => '')
+}
+
 async function callConcur(
   req: ProxyRequest,
   accessToken: string,
@@ -107,7 +124,7 @@ async function callConcur(
     'apiUrl'
   )
 
-  const raw = await response.text()
+  const raw = await readConcurProxyBody(response)
   let parsed: unknown = null
   if (raw.length > 0) {
     try {

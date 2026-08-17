@@ -160,6 +160,34 @@ interface UploadInvocation {
  * followed for it to act on. It is kept as defense-in-depth so raising `maxRedirects`
  * later cannot silently start forwarding the bearer token; do not remove it as dead code.
  */
+/**
+ * Read a Concur upload response body under the shared byte cap.
+ *
+ * On a success status the body is the result, so a cap breach or a stream
+ * failure is a real error and must propagate — swallowing it would report an
+ * incomplete exchange as a successful upload with no data.
+ *
+ * On an error status the body only supplies the message, and the upstream
+ * status is the more important signal: letting a failed read throw here would
+ * surface Concur's 4xx as a Sim 500 and invite a retry the caller should not
+ * make. The status is preserved and the message falls back to the generic
+ * HTTP-status form from {@link extractSapConcurError}.
+ */
+export async function readConcurUploadBody(response: {
+  status: number
+  headers?: { get(name: string): string | null }
+  body?: ReadableStream<Uint8Array> | null
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  text?: () => Promise<string>
+}): Promise<string> {
+  const read = readResponseTextWithLimit(response, {
+    maxBytes: MAX_JSON_API_RESPONSE_BYTES,
+    label: 'Concur upload response',
+  })
+  if (response.status >= 200 && response.status < 300) return read
+  return read.catch(() => '')
+}
+
 async function postMultipart(
   url: string,
   accessToken: string,
@@ -195,10 +223,7 @@ async function postMultipart(
     'apiUrl'
   )
 
-  const raw = await readResponseTextWithLimit(response, {
-    maxBytes: MAX_JSON_API_RESPONSE_BYTES,
-    label: 'Concur upload response',
-  })
+  const raw = await readConcurUploadBody(response)
   let parsed: unknown = null
   if (raw.length > 0) {
     try {
