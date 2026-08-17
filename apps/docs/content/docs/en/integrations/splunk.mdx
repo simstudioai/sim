@@ -10,6 +10,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#FFFFFF"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Splunk](https://www.splunk.com/) indexes machine data — logs, metrics, and events — and makes it searchable with SPL, its search processing language. Teams use it for operational monitoring, incident investigation, and security analytics, with saved searches and alerts watching for conditions on a schedule.
+
+With the Splunk integration in Sim, you can:
+
+- **Run searches**: Execute an SPL search synchronously and get its results in a single call
+- **Run long searches as jobs**: Create a search job, check its status, page through its results, and cancel it
+- **Use saved searches**: List and get saved searches, and dispatch one on demand
+- **Inspect alerts**: List fired alerts and get the fired instances of a specific alert
+- **Explore the instance**: List indexes and installed apps
+
+In Sim, the Splunk integration enables your agents to investigate and act on operational data. An agent can run a search when an incident opens, dispatch a saved search to reproduce a known query, page through a large job's results, and read fired alerts to decide what to escalate. It works against both Splunk Enterprise and Splunk Cloud, authenticating with a bearer token.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.
