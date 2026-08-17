@@ -337,7 +337,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'User.ReadWrite.All',
           'Group.ReadWrite.All',
           'GroupMember.ReadWrite.All',
-          'Directory.Read.All',
+          'LicenseAssignment.Read.All',
           'LicenseAssignment.ReadWrite.All',
           'UserAuthenticationMethod.ReadWrite.All',
           'AuditLog.Read.All',

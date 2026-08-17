@@ -3,6 +3,7 @@ import {
   datadogApiUrl,
   datadogErrorMessage,
   datadogHeaders,
+  datadogPathSegment,
   mergeSloUpdatePayload,
 } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -111,7 +112,7 @@ export const updateSloTool: ToolConfig<UpdateSloParams, UpdateSloResponse> = {
   },
 
   request: {
-    url: (params) => datadogApiUrl(params.site, `/api/v1/slo/${encodeURIComponent(params.sloId)}`),
+    url: (params) => datadogApiUrl(params.site, `/api/v1/slo/${datadogPathSegment(params.sloId)}`),
     method: 'PUT',
     headers: datadogHeaders,
   },
@@ -122,7 +123,7 @@ export const updateSloTool: ToolConfig<UpdateSloParams, UpdateSloResponse> = {
    * erase every field the caller left blank.
    */
   directExecution: async (params, signal) => {
-    const url = datadogApiUrl(params.site, `/api/v1/slo/${encodeURIComponent(params.sloId)}`)
+    const url = datadogApiUrl(params.site, `/api/v1/slo/${datadogPathSegment(params.sloId)}`)
     const headers = datadogHeaders(params)
 
     const existingResponse = await fetch(url, { method: 'GET', headers, signal })

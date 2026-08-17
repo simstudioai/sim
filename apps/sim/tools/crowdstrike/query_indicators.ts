@@ -43,7 +43,8 @@ export const crowdstrikeQueryIndicatorsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of IOC IDs to return (1-500, default 100)',
+      description:
+        'Maximum number of IOC IDs to return (default 100). CrowdStrike publishes no maximum for this endpoint; Sim caps it at 500 to keep a single request bounded',
     },
     offset: {
       type: 'number',

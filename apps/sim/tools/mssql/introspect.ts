@@ -1,4 +1,8 @@
-import type { MSSQLIntrospectParams, MSSQLIntrospectResponse } from '@/tools/mssql/types'
+import {
+  MSSQL_TABLE_OUTPUT_PROPERTIES,
+  type MSSQLIntrospectParams,
+  type MSSQLIntrospectResponse,
+} from '@/tools/mssql/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectResponse> = {
@@ -25,7 +29,7 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
     database: {
       type: 'string',
       required: true,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description: 'Database name to connect to',
     },
     username: {
@@ -45,7 +49,7 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
       required: false,
       visibility: 'user-only',
       description:
-        'Encrypt the connection with TLS (enabled, disabled). Defaults to enabled. Disabling sends the login packet and every row in cleartext',
+        'Request TLS encryption for the connection (enabled, disabled). Defaults to enabled. Disabling sends the login packet and every row in cleartext. Enabling requests encryption over TDS 7.4, which the server negotiates during prelogin - a server that answers NOT_SUP yields an unencrypted session rather than an error, so this is a request, not a guarantee',
     },
     trustServerCertificate: {
       type: 'string',
@@ -110,7 +114,12 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
     tables: {
       type: 'array',
       description: 'Array of table schemas with columns, keys, and indexes',
+      items: { type: 'object', properties: MSSQL_TABLE_OUTPUT_PROPERTIES },
     },
-    schemas: { type: 'array', description: 'List of available schemas in the database' },
+    schemas: {
+      type: 'array',
+      description: 'List of available schemas in the database',
+      items: { type: 'string', description: 'Schema name' },
+    },
   },
 }

@@ -15,7 +15,7 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service.',
+        'JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service. Sim fills in ddsource="custom" when an entry omits it — that is a Sim default, not a Datadog one; set ddsource yourself to have Datadog apply the matching integration log pipeline.',
     },
     apiKey: {
       type: 'string',

@@ -31,7 +31,7 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Start of the query time window as an ISO 8601 timestamp (default: 7 days before "until")',
+        'Start of the query time window as an ISO 8601 timestamp (default: 7 days before "until"). Ignored when a cursor is supplied in "after", which already encodes the resume position',
     },
     until: {
       type: 'string',
@@ -78,12 +78,18 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
       const domain = validateOktaDomain(params.domain)
       const queryParams = new URLSearchParams()
 
-      if (params.since) queryParams.append('since', params.since)
+      /**
+       * Okta documents `since` and `after` as mutually exclusive. A cursor
+       * already encodes the position it resumes from, so it wins over the
+       * window start whenever both are supplied — otherwise a scheduled poll
+       * that has both configured would send a request Okta rejects.
+       */
+      if (params.after) queryParams.append('after', params.after)
+      else if (params.since) queryParams.append('since', params.since)
       if (params.until) queryParams.append('until', params.until)
       if (params.filter) queryParams.append('filter', params.filter)
       if (params.q) queryParams.append('q', params.q)
       if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder)
-      if (params.after) queryParams.append('after', params.after)
       /** `0` is a documented limit on this endpoint, so it must not read as absent. */
       if (params.limit !== undefined && params.limit !== null) {
         queryParams.append('limit', params.limit.toString())
@@ -105,6 +111,24 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
 
     const { nextCursor, hasMore } = parseOktaPagination(response)
     const data: OktaLogEvent[] = await response.json()
+
+    /**
+     * The System Log runs two pagination regimes, and only this endpoint does.
+     *
+     * A bounded query (one with `until`) drops the `rel="next"` link on its last
+     * page, so the shared `Link` parser is enough. A polling query — no `until`,
+     * which is this tool's default shape — always advertises a next link "even
+     * if there are no new events", so `hasMore` would be permanently true and
+     * any loop driven by it would never terminate. An empty page ends both
+     * regimes, so emptiness is the terminating signal.
+     *
+     * `hasMore` and `nextCursor` answer different questions and so diverge on an
+     * empty polling page: `hasMore` is "fetch again now" and turns false, while
+     * `nextCursor` is the resume handle Okta tells callers to persist and re-poll
+     * later. Nulling the handle would make a scheduled workflow that hits one
+     * quiet interval restart from `since` and re-deliver events it already saw.
+     */
+    const moreAvailable = hasMore && data.length > 0
 
     const events = data.map((event) => ({
       uuid: event.uuid,
@@ -150,7 +174,7 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
         events,
         count: events.length,
         nextCursor,
-        hasMore,
+        hasMore: moreAvailable,
         success: true,
       },
     }
@@ -259,10 +283,15 @@ export const oktaGetLogsTool: ToolConfig<OktaGetLogsParams, OktaGetLogsResponse>
     count: { type: 'number', description: 'Number of events returned' },
     nextCursor: {
       type: 'string',
-      description: 'Cursor for the next page, or null on the last page',
+      description:
+        'Cursor to resume from, or null when Okta advertised no next link. On a polling query it stays set on an empty page so the next scheduled run resumes from here rather than replaying from the start',
       optional: true,
     },
-    hasMore: { type: 'boolean', description: 'Whether more events are available' },
+    hasMore: {
+      type: 'boolean',
+      description:
+        'Whether more events are available. A query with no "until" is a polling query, which Okta always answers with a next link even when there are no new events, so this reports false once a page comes back empty',
+    },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

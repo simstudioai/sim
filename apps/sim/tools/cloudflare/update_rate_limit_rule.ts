@@ -8,6 +8,7 @@ import {
   emptyRuleset,
   mapRuleset,
   parseCsvParam,
+  parseJsonObjectParam,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -52,7 +53,7 @@ export const updateRateLimitRuleTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated counting characteristics. cf.colo.id is mandatory, plus exactly one of ip.src or cf.unique_visitor_id',
+        'Comma-separated counting characteristics. cf.colo.id is mandatory. ip.src and cf.unique_visitor_id are mutually exclusive — include at most one.',
     },
     period: {
       type: 'number',
@@ -105,6 +106,27 @@ export const updateRateLimitRuleTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Whether the rule is enabled',
     },
+    ref: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Reference tag that stays stable across rule updates. Because the update replaces the rule, omitting it resets the tag to the rule ID and breaks anything matching on the old value',
+    },
+    actionParameters: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object of action-specific parameters for the mitigation action, e.g. {"response":{"status_code":429,"content":"{\\"error\\":\\"rate limited\\"}","content_type":"application/json"}} for a custom block response. Because the update replaces the rule, omitting it resets action_parameters to {} and the rule falls back to Cloudflare\'s default block page',
+    },
+    logging: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON logging configuration to preserve, e.g. {"enabled":true}. Omitting it on a rule that had logging configured resets it to the default',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -144,6 +166,20 @@ export const updateRateLimitRuleTool: ToolConfig<
       }
       if (params.description !== undefined) body.description = params.description
       if (params.enabled !== undefined) body.enabled = params.enabled
+      if (params.ref) body.ref = params.ref
+
+      /**
+       * PATCH replaces the whole rule definition, so any of these left out falls
+       * back to its schema default: a custom block response reverts to
+       * Cloudflare's default block page and the logging configuration resets.
+       * Forward them whenever the caller resends them.
+       * https://developers.cloudflare.com/ruleset-engine/rulesets-api/update-rule/
+       */
+      const actionParameters = parseJsonObjectParam(params.actionParameters, 'Action Parameters')
+      if (actionParameters) body.action_parameters = actionParameters
+
+      const logging = parseJsonObjectParam(params.logging, 'Logging Configuration')
+      if (logging) body.logging = logging
 
       return body
     },

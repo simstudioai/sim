@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SplunkGetSearchJobParams, SplunkGetSearchJobResponse } from '@/tools/splunk/types'
 import {
   asBoolean,
@@ -66,44 +67,66 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
         priority: asNumber(content.priority),
         earliestTime: asString(content.earliestTime),
         latestTime: asString(content.latestTime),
-        searchEarliestTime: asString(content.searchEarliestTime),
-        searchLatestTime: asString(content.searchLatestTime),
+        searchEarliestTime: asNumber(content.searchEarliestTime),
+        searchLatestTime: asNumber(content.searchLatestTime),
         messages: (content.messages as Record<string, unknown>) ?? null,
       },
     }
   },
 
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
+
   outputs: {
-    sid: { type: 'string', description: 'Search ID of the job' },
+    sid: { type: 'string', description: 'Search ID of the job', optional: true },
     label: { type: 'string', description: 'Custom name created for this search', optional: true },
     dispatchState: {
       type: 'string',
       description:
         'Job state: QUEUED, PARSING, RUNNING, FINALIZING, PAUSE, INTERNAL_CANCEL, USER_CANCEL, BAD_INPUT_CANCEL, QUIT, FAILED, or DONE',
+      optional: true,
     },
     doneProgress: {
       type: 'number',
       description: 'Approximate progress between 0 and 1.0',
       optional: true,
     },
-    isDone: { type: 'boolean', description: 'Whether the search has completed' },
-    isFailed: { type: 'boolean', description: 'Whether a fatal error occurred running the search' },
+    isDone: { type: 'boolean', description: 'Whether the search has completed', optional: true },
+    isFailed: {
+      type: 'boolean',
+      description: 'Whether a fatal error occurred running the search',
+      optional: true,
+    },
     isFinalized: {
       type: 'boolean',
       description: 'Whether the search was finalized (stopped before completion)',
+      optional: true,
     },
-    isPaused: { type: 'boolean', description: 'Whether the search is paused' },
+    isPaused: { type: 'boolean', description: 'Whether the search is paused', optional: true },
     isZombie: {
       type: 'boolean',
       description: 'Whether the search process died before the search finished',
+      optional: true,
     },
-    isSaved: { type: 'boolean', description: 'Whether the search job artifacts are saved to disk' },
+    isSaved: {
+      type: 'boolean',
+      description: 'Whether the search job artifacts are saved to disk',
+      optional: true,
+    },
     isSavedSearch: {
       type: 'boolean',
       description: 'Whether this is a saved search run by the scheduler',
+      optional: true,
     },
-    isRealTimeSearch: { type: 'boolean', description: 'Whether this is a real-time search' },
-    eventCount: { type: 'number', description: 'Number of events returned by the search' },
+    isRealTimeSearch: {
+      type: 'boolean',
+      description: 'Whether this is a real-time search',
+      optional: true,
+    },
+    eventCount: {
+      type: 'number',
+      description: 'Number of events returned by the search',
+      optional: true,
+    },
     eventAvailableCount: {
       type: 'number',
       description: 'Number of events available for export',
@@ -114,13 +137,21 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
       description: 'Number of fields found in the search results',
       optional: true,
     },
-    resultCount: { type: 'number', description: 'Total number of results returned by the search' },
+    resultCount: {
+      type: 'number',
+      description: 'Total number of results returned by the search',
+      optional: true,
+    },
     resultPreviewCount: {
       type: 'number',
       description: 'Number of result rows in the latest preview results',
       optional: true,
     },
-    scanCount: { type: 'number', description: 'Number of events scanned or read off disk' },
+    scanCount: {
+      type: 'number',
+      description: 'Number of events scanned or read off disk',
+      optional: true,
+    },
     runDuration: {
       type: 'number',
       description: 'Time in seconds the search took to complete',
@@ -138,13 +169,15 @@ export const getSearchJobTool: ToolConfig<SplunkGetSearchJobParams, SplunkGetSea
       optional: true,
     },
     searchEarliestTime: {
-      type: 'string',
-      description: 'Earliest time as specified in the search command itself',
+      type: 'number',
+      description:
+        'Earliest time as specified in the search command itself, as an epoch timestamp. Unlike earliestTime, which the job entry renders as an ISO string, this pair is documented as bare numbers (e.g. 1308589800.000000000).',
       optional: true,
     },
     searchLatestTime: {
-      type: 'string',
-      description: 'Latest time as specified in the search command itself',
+      type: 'number',
+      description:
+        'Latest time as specified in the search command itself, as an epoch timestamp. Unlike latestTime, which the job entry renders as an ISO string, this pair is documented as bare numbers.',
       optional: true,
     },
     messages: {

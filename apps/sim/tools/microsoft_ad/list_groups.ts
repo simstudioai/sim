@@ -3,7 +3,11 @@ import type {
   MicrosoftAdListGroupsResponse,
 } from '@/tools/microsoft_ad/types'
 import { GROUP_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrlForCollection } from '@/tools/microsoft_ad/utils'
+import {
+  assertGraphNextPageUrlForCollection,
+  graphCollectionHeaders,
+  usesGraphAdvancedQuery,
+} from '@/tools/microsoft_ad/utils'
 import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -67,15 +71,12 @@ export const listGroupsTool: ToolConfig<
         queryParts.push(
           `$search=${encodeURIComponent(`"displayName:${term}" OR "description:${term}"`)}`
         )
-        queryParts.push('$count=true')
       }
+      if (usesGraphAdvancedQuery(params)) queryParts.push('$count=true')
       return `https://graph.microsoft.com/v1.0/groups?${queryParts.join('&')}`
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      ConsistencyLevel: 'eventual',
-    }),
+    headers: (params) => graphCollectionHeaders(params),
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
@@ -104,7 +105,10 @@ export const listGroupsTool: ToolConfig<
     groups: {
       type: 'array',
       description: 'List of groups',
-      properties: GROUP_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: GROUP_OUTPUT_PROPERTIES,
+      },
     },
     groupCount: { type: 'number', description: 'Number of groups returned' },
     nextLink: {

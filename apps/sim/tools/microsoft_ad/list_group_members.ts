@@ -82,7 +82,10 @@ export const listGroupMembersTool: ToolConfig<
     members: {
       type: 'array',
       description: 'List of group members',
-      properties: MEMBER_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: MEMBER_OUTPUT_PROPERTIES,
+      },
     },
     memberCount: { type: 'number', description: 'Number of members returned' },
     nextLink: {

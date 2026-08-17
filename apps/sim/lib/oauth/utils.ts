@@ -259,6 +259,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'User.ReadWrite.All': 'Read and write all user profiles',
   'GroupMember.ReadWrite.All': 'Read and write all group memberships',
   'Directory.Read.All': 'Read directory data',
+  'LicenseAssignment.Read.All': 'Read license assignments and subscribed SKUs',
   'LicenseAssignment.ReadWrite.All': 'Assign and remove user licenses',
   'UserAuthenticationMethod.ReadWrite.All':
     'Read and reset authentication methods and passwords for all users',

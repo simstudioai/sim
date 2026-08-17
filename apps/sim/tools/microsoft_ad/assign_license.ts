@@ -101,7 +101,10 @@ export const assignLicenseTool: ToolConfig<
     assignedLicenses: {
       type: 'array',
       description: 'Licenses assigned to the user after the change',
-      properties: ASSIGNED_LICENSE_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: ASSIGNED_LICENSE_OUTPUT_PROPERTIES,
+      },
     },
   },
 }

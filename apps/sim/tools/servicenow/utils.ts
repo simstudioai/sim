@@ -67,8 +67,17 @@ export function appendReadParams(
   const { query, limit, offset, fields, displayValue, defaultDisplayValue } = options
 
   if (query) searchParams.append('sysparm_query', query)
-  if (limit !== undefined && limit !== null) searchParams.append('sysparm_limit', String(limit))
-  if (offset !== undefined && offset !== null) searchParams.append('sysparm_offset', String(offset))
+  /**
+   * `0` is meaningful on both of these, so emptiness rather than falsiness is
+   * the test — a cleared field arrives as `''` and must be omitted, not sent as
+   * a valueless `sysparm_limit=`.
+   */
+  if (limit !== undefined && limit !== null && String(limit) !== '') {
+    searchParams.append('sysparm_limit', String(limit))
+  }
+  if (offset !== undefined && offset !== null && String(offset) !== '') {
+    searchParams.append('sysparm_offset', String(offset))
+  }
   if (fields) searchParams.append('sysparm_fields', fields)
 
   const resolvedDisplayValue = displayValue || defaultDisplayValue
@@ -137,15 +146,44 @@ export async function parseServiceNowResponse(response: Response): Promise<Servi
   const data = (await response.json()) as ServiceNowEnvelope
 
   if (!response.ok) {
-    const error = data?.error ?? data
-    const message =
-      typeof error === 'string'
-        ? error
-        : ((error as { message?: string })?.message ?? JSON.stringify(error))
-    throw new Error(message)
+    throw new Error(serviceNowErrorMessage(data))
   }
 
   return data
+}
+
+/** Pulls the instance's own message out of a `{ error: { message, detail } }` body. */
+function serviceNowErrorMessage(data: unknown): string {
+  const error = (data as ServiceNowEnvelope)?.error ?? data
+  return typeof error === 'string'
+    ? error
+    : ((error as { message?: string })?.message ?? JSON.stringify(error))
+}
+
+/**
+ * Raises a failed response's error for an endpoint whose success case has no
+ * body to parse — `DELETE`, which answers `204 No Content`, so
+ * `parseServiceNowResponse`'s unconditional `response.json()` cannot be used.
+ *
+ * A failed delete carries the same `{ error: { message } }` envelope as every
+ * other endpoint, but a proxy or gateway in front of the instance answers with
+ * HTML or with nothing, so both non-JSON and empty bodies fall back rather than
+ * surfacing a JSON parse error the caller cannot act on.
+ */
+export async function throwServiceNowError(response: Response): Promise<never> {
+  const statusMessage =
+    `ServiceNow request failed (${response.status} ${response.statusText})`.trim()
+
+  const body = (await response.text()).trim()
+  if (!body) throw new Error(statusMessage)
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    throw new Error(body)
+  }
+  throw new Error(serviceNowErrorMessage(parsed))
 }
 
 /**

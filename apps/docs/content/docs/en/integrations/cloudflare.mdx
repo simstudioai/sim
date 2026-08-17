@@ -61,7 +61,7 @@ Lists all zones (domains) in the Cloudflare account.
 |   ↳ `name` | string | Domain name |
 |   ↳ `status` | string | Zone status \(initializing, pending, active, moved\) |
 |   ↳ `paused` | boolean | Whether the zone is paused |
-|   ↳ `type` | string | Zone type \(full, partial, or secondary\) |
+|   ↳ `type` | string | Zone type \(full, partial, secondary, or internal\) |
 |   ↳ `name_servers` | array | Assigned Cloudflare name servers |
 |   ↳ `original_name_servers` | array | Original name servers before moving to Cloudflare |
 |   ↳ `created_on` | string | ISO 8601 date when the zone was created |
@@ -114,7 +114,7 @@ Gets details for a specific zone (domain) by its ID.
 | `name` | string | Domain name |
 | `status` | string | Zone status \(initializing, pending, active, moved\) |
 | `paused` | boolean | Whether the zone is paused |
-| `type` | string | Zone type \(full, partial, or secondary\) |
+| `type` | string | Zone type \(full, partial, secondary, or internal\) |
 | `name_servers` | array | Assigned Cloudflare name servers |
 | `original_name_servers` | array | Original name servers before moving to Cloudflare |
 | `created_on` | string | ISO 8601 date when the zone was created |
@@ -157,7 +157,7 @@ Adds a new zone (domain) to the Cloudflare account.
 | --------- | ---- | -------- | ----------- |
 | `name` | string | Yes | The domain name to add \(e.g., "example.com"\) |
 | `accountId` | string | Yes | The Cloudflare account ID |
-| `type` | string | No | Zone type: "full" \(Cloudflare manages DNS\), "partial" \(CNAME setup\), or "secondary" \(secondary DNS\) |
+| `type` | string | No | Zone type: "full" \(Cloudflare manages DNS\), "partial" \(CNAME setup\), or "secondary" \(secondary DNS\). Cloudflare also defines "internal", which is not creatable through this tool |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -168,7 +168,7 @@ Adds a new zone (domain) to the Cloudflare account.
 | `name` | string | Domain name |
 | `status` | string | Zone status \(initializing, pending, active, moved\) |
 | `paused` | boolean | Whether the zone is paused |
-| `type` | string | Zone type \(full, partial, or secondary\) |
+| `type` | string | Zone type \(full, partial, secondary, or internal\) |
 | `name_servers` | array | Assigned Cloudflare name servers |
 | `original_name_servers` | array | Original name servers before moving to Cloudflare |
 | `created_on` | string | ISO 8601 date when the zone was created |
@@ -257,7 +257,7 @@ Lists DNS records for a specific zone.
 |   ↳ `proxied` | boolean | Whether Cloudflare proxy is enabled |
 |   ↳ `ttl` | number | TTL in seconds \(1 = automatic\) |
 |   ↳ `locked` | boolean | Whether the record is locked |
-|   ↳ `priority` | number | MX/SRV record priority |
+|   ↳ `priority` | number | Record priority, returned for MX and URI records |
 |   ↳ `comment` | string | Comment associated with the record |
 |   ↳ `tags` | array | Tags associated with the record |
 |   ↳ `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
@@ -326,7 +326,7 @@ Updates an existing DNS record for a zone.
 | `content` | string | No | DNS record content \(e.g., IP address\) |
 | `ttl` | number | No | Time to live in seconds \(1 = automatic\) |
 | `proxied` | boolean | No | Whether to enable Cloudflare proxy |
-| `priority` | number | No | Priority for MX and SRV records |
+| `priority` | number | No | Record priority. Cloudflare accepts this top-level field for MX and URI records only; an SRV record carries its priority, weight, port, and target inside the record content instead |
 | `comment` | string | No | Comment for the DNS record |
 | `tags` | string | No | Comma-separated tags for the DNS record |
 | `apiKey` | string | Yes | Cloudflare API Token |
@@ -345,7 +345,7 @@ Updates an existing DNS record for a zone.
 | `proxied` | boolean | Whether Cloudflare proxy is enabled |
 | `ttl` | number | Time to live in seconds \(1 = automatic\) |
 | `locked` | boolean | Whether the record is locked |
-| `priority` | number | Priority for MX and SRV records |
+| `priority` | number | Record priority, returned for MX and URI records |
 | `comment` | string | Comment associated with the record |
 | `tags` | array | Tags associated with the record |
 | `comment_modified_on` | string | ISO 8601 timestamp when the comment was last modified |
@@ -440,25 +440,29 @@ Lists SSL/TLS certificate packs for a zone.
 
 ### Cloudflare Get Zone Settings
 
-Gets all settings for a zone including SSL mode, caching level, and security settings.
+Reads zone settings such as SSL mode, minimum TLS version, security level, and caching level. Cloudflare retired the endpoint that read every setting in one request, so each setting is read individually — name the ones you need to keep the read small. Defaults to $\{DEFAULT_ZONE_SETTING_IDS.join(', ')\}.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `zoneId` | string | Yes | The zone ID to get settings for |
+| `settingIds` | string | No | Comma-separated setting IDs to read, e.g. "ssl,min_tls_version,security_level". Leave blank to read the default set \($\{DEFAULT_ZONE_SETTING_IDS.join\(', '\)\}\). At most $\{MAX_ZONE_SETTING_IDS\} settings per call. |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `settings` | array | List of zone settings |
+| `settings` | array | The zone settings that were readable |
 |   ↳ `id` | string | Setting identifier \(e.g., ssl, cache_level, security_level, always_use_https\) |
 |   ↳ `value` | string | Setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified \(e.g., \{"css":"on","html":"on","js":"on"\}\). |
 |   ↳ `editable` | boolean | Whether the setting can be modified for the current zone plan |
 |   ↳ `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
-|   ↳ `time_remaining` | number | Seconds remaining until the setting can be modified again \(only present for rate-limited settings\) |
+|   ↳ `time_remaining` | number | Development mode countdown, in seconds. Cloudflare documents this only on the zones_development_mode setting, where it is the interval from when development mode expires \(positive\) or last expired \(negative\) |
+| `unreadable` | array | Requested settings Cloudflare refused, typically because the zone plan does not expose them or the setting ID does not exist |
+|   ↳ `id` | string | The requested setting identifier |
+|   ↳ `error` | string | Why Cloudflare would not return the setting |
 
 ### Cloudflare Update Zone Setting
 
@@ -481,7 +485,7 @@ Updates a specific zone setting such as SSL mode, security level, cache level, o
 | `value` | string | Updated setting value as a string. Simple values returned as-is \(e.g., "full", "on"\). Complex values are JSON-stringified. |
 | `editable` | boolean | Whether the setting can be modified for the current zone plan |
 | `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
-| `time_remaining` | number | Seconds remaining until the setting can be modified again \(only present for rate-limited settings\) |
+| `time_remaining` | number | Development mode countdown, in seconds. Cloudflare documents this only on the zones_development_mode setting, where it is the interval from when development mode expires \(positive\) or last expired \(negative\) |
 
 ### Cloudflare DNS Analytics
 
@@ -494,7 +498,7 @@ Gets DNS analytics report for a zone including query counts and trends.
 | `zoneId` | string | Yes | The zone ID to get DNS analytics for |
 | `since` | string | No | Start date for analytics \(ISO 8601, e.g., "2024-01-01T00:00:00Z"\) or relative \(e.g., "-6h"\) |
 | `until` | string | No | End date for analytics \(ISO 8601, e.g., "2024-01-31T23:59:59Z"\) or relative \(e.g., "now"\) |
-| `metrics` | string | No | Comma-separated metrics to retrieve \(e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"\). Optional — Cloudflare returns its default metric set when it is omitted |
+| `metrics` | string | No | Comma-separated metrics to retrieve \(e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"\). Optional in the API |
 | `dimensions` | string | No | Comma-separated dimensions to group by \(e.g., "queryName,queryType,responseCode,responseCached,coloName,origin,dayOfWeek,tcp,ipVersion,querySizeBucket,responseSizeBucket"\) |
 | `filters` | string | No | Filters to apply to the data \(e.g., "queryType==A"\) |
 | `sort` | string | No | Sort order for the result set. Fields must be included in metrics or dimensions \(e.g., "+queryCount" or "-responseTimeAvg"\) |
@@ -505,30 +509,16 @@ Gets DNS analytics report for a zone including query counts and trends.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `totals` | object | Aggregate DNS analytics totals for the entire queried period |
-|   ↳ `queryCount` | number | Total number of DNS queries |
-|   ↳ `uncachedCount` | number | Number of uncached DNS queries |
-|   ↳ `staleCount` | number | Number of stale DNS queries |
+| `totals` | object | Aggregate DNS analytics totals for the entire queried period. Only the metrics that were requested are present. |
+|   ↳ `queryCount` | number | Total number of DNS queries. Absent when queryCount was not requested |
+|   ↳ `uncachedCount` | number | Number of uncached DNS queries. Absent when uncachedCount was not requested |
+|   ↳ `staleCount` | number | Number of stale DNS queries. Absent when staleCount was not requested |
 |   ↳ `responseTimeAvg` | number | Average response time in milliseconds |
 |   ↳ `responseTimeMedian` | number | Median response time in milliseconds |
 |   ↳ `responseTime90th` | number | 90th percentile response time in milliseconds |
 |   ↳ `responseTime99th` | number | 99th percentile response time in milliseconds |
-| `min` | object | Minimum values across the analytics period |
-|   ↳ `queryCount` | number | Minimum number of DNS queries |
-|   ↳ `uncachedCount` | number | Minimum number of uncached DNS queries |
-|   ↳ `staleCount` | number | Minimum number of stale DNS queries |
-|   ↳ `responseTimeAvg` | number | Minimum average response time in milliseconds |
-|   ↳ `responseTimeMedian` | number | Minimum median response time in milliseconds |
-|   ↳ `responseTime90th` | number | Minimum 90th percentile response time in milliseconds |
-|   ↳ `responseTime99th` | number | Minimum 99th percentile response time in milliseconds |
-| `max` | object | Maximum values across the analytics period |
-|   ↳ `queryCount` | number | Maximum number of DNS queries |
-|   ↳ `uncachedCount` | number | Maximum number of uncached DNS queries |
-|   ↳ `staleCount` | number | Maximum number of stale DNS queries |
-|   ↳ `responseTimeAvg` | number | Maximum average response time in milliseconds |
-|   ↳ `responseTimeMedian` | number | Maximum median response time in milliseconds |
-|   ↳ `responseTime90th` | number | Maximum 90th percentile response time in milliseconds |
-|   ↳ `responseTime99th` | number | Maximum 99th percentile response time in milliseconds |
+| `min` | json | Per-metric minimums. Cloudflare documents this field as currently always an empty object, so treat a populated value as unexpected rather than relied upon. |
+| `max` | json | Per-metric maximums. Cloudflare documents this field as currently always an empty object, so treat a populated value as unexpected rather than relied upon. |
 | `data` | array | Raw analytics data rows returned by the Cloudflare DNS analytics report |
 |   ↳ `dimensions` | array | Dimension values for this data row, parallel to the requested dimensions list |
 |   ↳ `metrics` | array | Metric values for this data row, parallel to the requested metrics list |
@@ -908,7 +898,7 @@ Creates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `zoneId` | string | Yes | The zone ID to add the rate limiting rule to |
 | `rulesetId` | string | Yes | The http_ratelimit entry point ruleset ID, as returned by "List Rate Limiting Rules" |
 | `expression` | string | Yes | Cloudflare filter expression selecting the requests the rule applies to, e.g. \(http.request.uri.path matches "^/api/"\) |
-| `characteristics` | string | Yes | Comma-separated counting characteristics. cf.colo.id is mandatory, plus exactly one of ip.src or cf.unique_visitor_id. Example: cf.colo.id,ip.src |
+| `characteristics` | string | Yes | Comma-separated counting characteristics. cf.colo.id is mandatory. ip.src and cf.unique_visitor_id are mutually exclusive — include at most one. Example: cf.colo.id,ip.src |
 | `period` | number | Yes | Counting window in seconds. Cloudflare accepts only 10, 60, 120, 300, 600, or 3600 |
 | `requestsPerPeriod` | number | Yes | Number of requests allowed within the counting period before the action fires |
 | `action` | string | No | Action applied once the limit is exceeded, e.g. block, managed_challenge, js_challenge, challenge, or log. Defaults to block |
@@ -956,7 +946,7 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `rulesetId` | string | Yes | The http_ratelimit entry point ruleset ID, as returned by "List Rate Limiting Rules" |
 | `ruleId` | string | Yes | The rate limiting rule ID to update |
 | `expression` | string | Yes | Cloudflare filter expression selecting the requests the rule applies to |
-| `characteristics` | string | Yes | Comma-separated counting characteristics. cf.colo.id is mandatory, plus exactly one of ip.src or cf.unique_visitor_id |
+| `characteristics` | string | Yes | Comma-separated counting characteristics. cf.colo.id is mandatory. ip.src and cf.unique_visitor_id are mutually exclusive — include at most one. |
 | `period` | number | Yes | Counting window in seconds. Cloudflare accepts only 10, 60, 120, 300, 600, or 3600 |
 | `requestsPerPeriod` | number | Yes | Number of requests allowed within the counting period before the action fires |
 | `action` | string | Yes | Action applied once the limit is exceeded: block, managed_challenge, js_challenge, challenge, or log. Required because this endpoint replaces the rule rather than merging into it — a defaulted action would silently convert an existing log or challenge rule into a hard block |
@@ -965,6 +955,9 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 | `requestsToOrigin` | boolean | No | When true, only requests that reach the origin are counted |
 | `description` | string | No | Human-readable description of the rule |
 | `enabled` | boolean | No | Whether the rule is enabled |
+| `ref` | string | No | Reference tag that stays stable across rule updates. Because the update replaces the rule, omitting it resets the tag to the rule ID and breaks anything matching on the old value |
+| `actionParameters` | string | No | JSON object of action-specific parameters for the mitigation action, e.g. \{"response":\{"status_code":429,"content":"\{\\"error\\":\\"rate limited\\"\}","content_type":"application/json"\}\} for a custom block response. Because the update replaces the rule, omitting it resets action_parameters to \{\} and the rule falls back to Cloudflare\'s default block page |
+| `logging` | string | No | JSON logging configuration to preserve, e.g. \{"enabled":true\}. Omitting it on a rule that had logging configured resets it to the default |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output
@@ -1114,7 +1107,7 @@ Creates a Cloudflare Access (Zero Trust) application that puts an identity check
 
 ### Cloudflare Update Access Application
 
-Updates a Cloudflare Access (Zero Trust) application. This replaces the application definition rather than merging it, so send every field the application should keep — anything you omit reverts to its default, which can widen or break access. Read the current configuration with "Get Access Application" first. Requires an API token with Account Access: Apps and Policies Edit.
+Updates a Cloudflare Access (Zero Trust) application. Cloudflare does not document merge behavior for this PUT, so treat it as a replace: send every field the application should keep, because an omitted field may revert to its default and widen or break access. Read the current configuration with "Get Access Application" first. Requires an API token with Account Access: Apps and Policies Edit.
 
 #### Input
 
@@ -1256,7 +1249,7 @@ Creates a Cloudflare Access (Zero Trust) policy on an application, deciding who 
 
 ### Cloudflare Update Access Policy
 
-Updates a Cloudflare Access (Zero Trust) policy on an application. This replaces the policy definition rather than merging it, so send every rule the policy should keep — omitted exclude or require rules are dropped, which can widen who gets in. The change applies to live traffic immediately. Read the current policy with "List Access Policies" first. Requires an API token with Account Access: Apps and Policies Edit.
+Updates a Cloudflare Access (Zero Trust) policy on an application. Cloudflare does not document merge behavior for this PUT, so treat it as a replace: send every rule the policy should keep, because an omitted exclude or require rule may be dropped and widen who gets in. The change applies to live traffic immediately. Read the current policy with "List Access Policies" first. Requires an API token with Account Access: Apps and Policies Edit.
 
 #### Input
 

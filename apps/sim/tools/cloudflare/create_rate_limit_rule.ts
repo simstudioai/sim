@@ -47,7 +47,7 @@ export const createRateLimitRuleTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated counting characteristics. cf.colo.id is mandatory, plus exactly one of ip.src or cf.unique_visitor_id. Example: cf.colo.id,ip.src',
+        'Comma-separated counting characteristics. cf.colo.id is mandatory. ip.src and cf.unique_visitor_id are mutually exclusive — include at most one. Example: cf.colo.id,ip.src',
     },
     period: {
       type: 'number',

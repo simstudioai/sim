@@ -103,6 +103,63 @@ describe('datadog list_monitors params', () => {
       expect(subBlock?.condition).toEqual({ field: 'operation', value: 'datadog_list_monitors' })
     }
   })
+
+  /**
+   * Both controls sit under Advanced with no help text, so Page Size reads as a
+   * bound while Datadog ignores it unless a page is also sent.
+   */
+  it('tells the user that a page size only applies with a page', () => {
+    const pageSize = DatadogBlock.subBlocks.find((c) => c.id === 'listMonitorPageSize')
+    const page = DatadogBlock.subBlocks.find((c) => c.id === 'listMonitorPage')
+
+    expect(pageSize?.tooltip).toMatch(/page number/i)
+    expect(page?.tooltip).toMatch(/every monitor/i)
+  })
+
+  it('states the same rule on the inputs the model reads', () => {
+    expect(String(DatadogBlock.inputs.listMonitorPageSize.description)).toMatch(/page number/i)
+    expect(String(DatadogBlock.inputs.listMonitorPage.description)).toMatch(/every monitor/i)
+  })
+})
+
+/**
+ * A bare `Number()` on a free-text field turns a typo or an unresolved reference
+ * into `NaN`, which `JSON.stringify` writes as `null` and a query string carries
+ * as the literal "NaN" — Datadog then rejects the call naming nothing the user
+ * typed. Every numeric mapping goes through the shared coercion, not just the
+ * two List Monitors fields.
+ */
+describe('datadog numeric coercion', () => {
+  it.each([
+    ['datadog_mute_monitor', { muteMonitorId: '123', end: 'tomorrow' }, 'end'],
+    ['datadog_query_logs', { logLimit: 'lots' }, 'limit'],
+    ['datadog_query_timeseries', { from: 'yesterday', to: 'now' }, 'from'],
+    ['datadog_list_incidents', { incidentPageSize: '{{unresolved}}' }, 'pageSize'],
+    ['datadog_list_slos', { sloLimit: 'many' }, 'limit'],
+    ['datadog_list_dashboards', { dashboardCount: 'n/a' }, 'count'],
+    ['datadog_search_spans', { spanLimit: 'lots' }, 'limit'],
+    ['datadog_list_services', { servicePageSize: 'big' }, 'pageSize'],
+    ['datadog_list_security_rules', { rulePageNumber: 'first' }, 'pageNumber'],
+    ['datadog_list_synthetics_tests', { syntheticsPageSize: 'all' }, 'pageSize'],
+  ])('drops a non-numeric %s input rather than sending NaN', (operation, inputs, key) => {
+    const params = mergedParams({ ...baseInputs, operation, ...inputs })
+
+    expect(params[key]).toBeUndefined()
+  })
+
+  /**
+   * An explicit 0 is a real offset/page/threshold. A `<Block.output>` reference
+   * resolves to the number `0`, which the old truthiness guard dropped outright.
+   */
+  it.each([
+    ['datadog_list_downtimes', { downtimeOffset: 0 }, 'offset'],
+    ['datadog_list_slos', { sloOffset: 0 }, 'offset'],
+    ['datadog_list_dashboards', { dashboardStart: 0 }, 'start'],
+  ])('keeps an explicit zero on %s', (operation, inputs, key) => {
+    const params = mergedParams({ ...baseInputs, operation, ...inputs })
+
+    expect(params[key]).toBe(0)
+  })
 })
 
 describe('datadog create_monitor params', () => {

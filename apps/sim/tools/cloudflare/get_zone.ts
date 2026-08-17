@@ -132,7 +132,7 @@ export const getZoneTool: ToolConfig<CloudflareGetZoneParams, CloudflareGetZoneR
       description: 'Zone status (initializing, pending, active, moved)',
     },
     paused: { type: 'boolean', description: 'Whether the zone is paused' },
-    type: { type: 'string', description: 'Zone type (full, partial, or secondary)' },
+    type: { type: 'string', description: 'Zone type (full, partial, secondary, or internal)' },
     name_servers: {
       type: 'array',
       description: 'Assigned Cloudflare name servers',

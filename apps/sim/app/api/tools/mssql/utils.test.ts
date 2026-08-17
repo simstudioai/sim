@@ -38,8 +38,10 @@ import {
   buildInsertQuery,
   buildUpdateQuery,
   createMSSQLConnection,
+  executeIntrospect,
   executeQuery,
   type MSSQLConnectionConfig,
+  toRowsResponseBody,
   validateQuery,
   validateReadOnlyQuery,
 } from '@/app/api/tools/mssql/utils'
@@ -386,5 +388,329 @@ describe('createMSSQLConnection DNS pinning', () => {
     const config = mockConnectionPool.mock.calls[0][0]
     expect(config.options.encrypt).toBe(false)
     expect(config.options.trustServerCertificate).toBe(true)
+  })
+})
+
+describe('read-only screens cover the rest of the session and transaction family', () => {
+  /**
+   * Each is a valid semicolon-less second statement, and the file's stated rule
+   * is that a second statement is rejected structurally rather than by what it
+   * happens to do.
+   */
+  it.each([
+    ['SAVE TRANSACTION', 'SELECT 1 SAVE TRANSACTION sp1'],
+    ['SAVE TRAN', 'SELECT 1 SAVE TRAN sp1'],
+    ['OPEN SYMMETRIC KEY', 'SELECT 1 OPEN SYMMETRIC KEY k DECRYPTION BY CERTIFICATE c'],
+    ['OPEN MASTER KEY', "SELECT 1 OPEN MASTER KEY DECRYPTION BY PASSWORD = 'p'"],
+    ['CLOSE ALL SYMMETRIC KEYS', 'SELECT 1 CLOSE ALL SYMMETRIC KEYS'],
+    ['CLOSE MASTER KEY', 'SELECT 1 CLOSE MASTER KEY'],
+    ['DEALLOCATE', 'SELECT 1 DEALLOCATE cur'],
+    ['ADD SIGNATURE', 'SELECT 1 ADD SIGNATURE TO dbo.p BY CERTIFICATE c'],
+    ['RAISERROR WITH LOG', "SELECT 1 RAISERROR ('boom', 16, 1) WITH LOG"],
+  ])('rejects %s in the Query operation', (_label, query) => {
+    expect(validateReadOnlyQuery(query).isValid).toBe(false)
+  })
+
+  it.each([
+    ['SAVE TRANSACTION', 'id = 1 SAVE TRANSACTION sp1'],
+    ['OPEN SYMMETRIC KEY', 'id = 1 OPEN SYMMETRIC KEY k DECRYPTION BY CERTIFICATE c'],
+    ['CLOSE ALL SYMMETRIC KEYS', 'id = 1 CLOSE ALL SYMMETRIC KEYS'],
+    ['DEALLOCATE', 'id = 1 DEALLOCATE cur'],
+    ['ADD SIGNATURE', 'id = 1 ADD SIGNATURE TO dbo.p BY CERTIFICATE c'],
+    ['RAISERROR WITH LOG', "id = 1 RAISERROR ('boom', 16, 1) WITH LOG"],
+  ])('rejects %s in an update or delete WHERE clause', (_label, where) => {
+    expect(() => buildUpdateQuery('t', { a: 1 }, where)).toThrow()
+    expect(() => buildDeleteQuery('t', where)).toThrow()
+  })
+
+  /**
+   * The over-screening guard. `open`, `close`, `save`, and `add` are ordinary
+   * column names (a price table has all four), so a bare-word screen would make
+   * the plain SELECTs this operation exists to run un-runnable.
+   */
+  it('still accepts ordinary identifiers that start with a screened phrase word', () => {
+    const allowed = [
+      'SELECT open, close, high, low FROM dbo.prices',
+      'SELECT close FROM dbo.prices WHERE open > 10',
+      'SELECT save_id, add_on, open_date, close_date FROM dbo.orders',
+      'SELECT o.open, o.close FROM dbo.ohlc o ORDER BY o.open DESC',
+    ]
+
+    for (const query of allowed) {
+      expect(validateReadOnlyQuery(query)).toEqual({ isValid: true })
+    }
+
+    expect(() => buildUpdateQuery('prices', { close: 2 }, 'open > 10')).not.toThrow()
+    expect(() => buildDeleteQuery('prices', 'close < 1 AND open_date > 0')).not.toThrow()
+  })
+})
+
+describe('read-only screens cover RENAME and the Service Broker statement family', () => {
+  /**
+   * `RENAME` is documented T-SQL DDL for Azure Synapse dedicated SQL pools and
+   * Analytics Platform System, both reachable over TDS with the connection
+   * fields this block exposes — so a schema change was passing an operation
+   * advertised as read-only.
+   */
+  it.each([
+    ['RENAME OBJECT', 'SELECT 1 RENAME OBJECT dbo.Customer TO Customer1'],
+    ['RENAME OBJECT COLUMN', 'SELECT 1 RENAME OBJECT dbo.t COLUMN c1 TO c2'],
+    ['RENAME DATABASE', 'SELECT 1 RENAME DATABASE db1 TO db2'],
+    ['RECEIVE', 'SELECT 1 RECEIVE TOP(1) * FROM dbo.MyQueue'],
+    ['END CONVERSATION', "SELECT 1 END CONVERSATION '00000000-0000-0000-0000-000000000000'"],
+    [
+      'MOVE CONVERSATION',
+      "SELECT 1 MOVE CONVERSATION '00000000-0000-0000-0000-000000000000' TO '00000000-0000-0000-0000-000000000001'",
+    ],
+    ['GET CONVERSATION GROUP', 'SELECT 1 GET CONVERSATION GROUP @g FROM dbo.MyQueue'],
+    [
+      'SEND ON CONVERSATION',
+      "SELECT 1 SEND ON CONVERSATION '00000000-0000-0000-0000-000000000000' MESSAGE TYPE [t] ('x')",
+    ],
+  ])('rejects %s in the Query operation', (_label, query) => {
+    expect(validateReadOnlyQuery(query).isValid).toBe(false)
+  })
+
+  it.each([
+    ['RENAME OBJECT', 'id = 1 RENAME OBJECT dbo.t TO t2'],
+    ['RECEIVE', 'id = 1 RECEIVE TOP(1) * FROM dbo.MyQueue'],
+    ['END CONVERSATION', "id = 1 END CONVERSATION '00000000-0000-0000-0000-000000000000'"],
+    ['GET CONVERSATION GROUP', 'id = 1 GET CONVERSATION GROUP @g FROM dbo.MyQueue'],
+  ])('rejects %s in an update or delete WHERE clause', (_label, where) => {
+    expect(() => buildUpdateQuery('t', { a: 1 }, where)).toThrow()
+    expect(() => buildDeleteQuery('t', where)).toThrow()
+  })
+
+  /**
+   * The over-screening guard. `END` closes every `CASE`, and `rename`/`receive`
+   * are the stems of ordinary column names, so neither addition may cost the
+   * plain SELECTs this operation exists to run.
+   */
+  it('still accepts CASE … END and ordinary identifiers built on the new words', () => {
+    const allowed = [
+      "SELECT CASE WHEN status = 1 THEN 'on' ELSE 'off' END FROM dbo.jobs",
+      "SELECT CASE WHEN a = 1 THEN 'x' END AS conversation_state FROM dbo.t",
+      'SELECT renamed_at, rename_log, received_at, receive_queue FROM dbo.audit',
+      'SELECT conversation_id, get_flag, move_order, send_at, end_date FROM dbo.t',
+    ]
+
+    for (const query of allowed) {
+      expect(validateReadOnlyQuery(query)).toEqual({ isValid: true })
+    }
+
+    expect(() => buildUpdateQuery('audit', { a: 1 }, 'renamed_at > 0')).not.toThrow()
+    expect(() => buildDeleteQuery('audit', 'received_at > 0 AND conversation_id = 3')).not.toThrow()
+  })
+})
+
+describe('executeQuery result caps', () => {
+  function makeCapPool(recordset: unknown[]) {
+    return {
+      request: () => ({
+        input: vi.fn(),
+        query: vi.fn().mockResolvedValue({ recordset, rowsAffected: [0] }),
+      }),
+    } as never
+  }
+
+  it('caps the recordset at the row ceiling and says so', async () => {
+    const result = await executeQuery(
+      makeCapPool(Array.from({ length: 10_001 }, (_, i) => ({ i }))),
+      'SELECT 1'
+    )
+
+    expect(result.rows).toHaveLength(10_000)
+    expect(result.rowCount).toBe(10_000)
+    expect(result.truncated).toBe(true)
+    expect(result.truncationReason).toMatch(/OFFSET/)
+  })
+
+  it('caps on bytes even when the row count is small', async () => {
+    // 20 rows of ~1MB each: well under the row ceiling, well over the byte one.
+    const fat = Array.from({ length: 20 }, () => ({ blob: 'x'.repeat(1024 * 1024) }))
+    const result = await executeQuery(makeCapPool(fat), 'SELECT 1')
+
+    expect(result.rows.length).toBeLessThan(20)
+    expect(result.truncated).toBe(true)
+  })
+
+  it('leaves an ordinary result untouched', async () => {
+    const rows = [{ id: 1 }, { id: 2 }]
+    const result = await executeQuery(makeCapPool(rows), 'SELECT 1')
+
+    expect(result.rows).toEqual(rows)
+    expect(result.truncated).toBeUndefined()
+    expect(result.truncationReason).toBeUndefined()
+  })
+
+  it('never serializes past the byte ceiling', async () => {
+    const fat = Array.from({ length: 20 }, () => ({ blob: 'x'.repeat(1024 * 1024) }))
+    const result = await executeQuery(makeCapPool(fat), 'SELECT 1')
+
+    expect(JSON.stringify(result.rows).length).toBeLessThanOrEqual(10 * 1024 * 1024)
+  })
+
+  it('drops a lone row that is larger than the byte ceiling rather than admitting it', async () => {
+    const oversized = [{ blob: 'x'.repeat(11 * 1024 * 1024) }]
+    const result = await executeQuery(makeCapPool(oversized), 'SELECT 1')
+
+    expect(result.rows).toEqual([])
+    expect(result.truncated).toBe(true)
+    expect(result.truncationReason).toMatch(/exceeds the 10 MB response ceiling/)
+  })
+
+  /**
+   * `String.length` counts UTF-16 code units and the response is emitted as
+   * UTF-8, so a CJK recordset costs three bytes for every unit the old
+   * accounting charged one for. Measured with `length` these rows fit; measured
+   * as the bytes that actually go on the wire they are ~3x over.
+   */
+  it('bounds a multibyte recordset by UTF-8 bytes, not UTF-16 code units', async () => {
+    const cjk = Array.from({ length: 20 }, () => ({ blob: '世'.repeat(1024 * 1024) }))
+    const result = await executeQuery(makeCapPool(cjk), 'SELECT 1')
+
+    expect(Buffer.byteLength(JSON.stringify(result.rows), 'utf8')).toBeLessThanOrEqual(
+      10 * 1024 * 1024
+    )
+    expect(result.rows.length).toBeGreaterThan(0)
+    expect(result.truncated).toBe(true)
+  })
+
+  /** Emoji are 4 UTF-8 bytes across 2 surrogate code units — a 2:1 undercount. */
+  it('bounds an astral-plane recordset by UTF-8 bytes', async () => {
+    const emoji = Array.from({ length: 20 }, () => ({ blob: '😀'.repeat(1024 * 1024) }))
+    const result = await executeQuery(makeCapPool(emoji), 'SELECT 1')
+
+    expect(Buffer.byteLength(JSON.stringify(result.rows), 'utf8')).toBeLessThanOrEqual(
+      10 * 1024 * 1024
+    )
+    expect(result.truncated).toBe(true)
+  })
+
+  /**
+   * Rows sized to divide the ceiling exactly, so an accounting that ignores the
+   * array's commas and the fields around it lands precisely on the limit and the
+   * body it emits is over by the punctuation and the envelope.
+   */
+  it('keeps the emitted body inside the ceiling once array and envelope overhead is counted', async () => {
+    const rowPayload = 'x'.repeat(2048 - '{"blob":""}'.length)
+    const packed = Array.from({ length: 6000 }, () => ({ blob: rowPayload }))
+    const result = await executeQuery(makeCapPool(packed), 'SELECT 1')
+
+    const body = toRowsResponseBody(result, 'Query executed successfully. rows returned.')
+
+    expect(result.truncated).toBe(true)
+    expect(Buffer.byteLength(JSON.stringify(body), 'utf8')).toBeLessThanOrEqual(10 * 1024 * 1024)
+  })
+})
+
+describe('toRowsResponseBody truncation disclosure', () => {
+  it('discloses a truncated result in both the message and machine-readable fields', () => {
+    const body = toRowsResponseBody(
+      {
+        rows: [{ id: 1 }],
+        rowCount: 1,
+        truncated: true,
+        truncationReason: 'Result truncated to 1 row(s): page with OFFSET ... FETCH NEXT.',
+      },
+      'Query executed successfully. 1 row(s) returned.'
+    )
+
+    expect(body.truncated).toBe(true)
+    expect(body.truncationReason).toMatch(/OFFSET/)
+    expect(body.message).toBe(
+      'Query executed successfully. 1 row(s) returned. Result truncated to 1 row(s): page with OFFSET ... FETCH NEXT.'
+    )
+  })
+
+  it('leaves a complete result free of truncation fields', () => {
+    const body = toRowsResponseBody(
+      { rows: [{ id: 1 }], rowCount: 1 },
+      'Query executed successfully. 1 row(s) returned.'
+    )
+
+    expect(body.message).toBe('Query executed successfully. 1 row(s) returned.')
+    expect(body).not.toHaveProperty('truncated')
+    expect(body).not.toHaveProperty('truncationReason')
+  })
+})
+
+describe('executeIntrospect issues a fixed number of queries', () => {
+  const schemas = [{ SCHEMA_NAME: 'dbo' }]
+  const introspectTables = Array.from({ length: 50 }, (_, i) => ({
+    TABLE_NAME: `t${i}`,
+    TABLE_SCHEMA: 'dbo',
+  }))
+  const introspectColumns = introspectTables.flatMap((t) => [
+    {
+      TABLE_NAME: t.TABLE_NAME,
+      COLUMN_NAME: 'id',
+      DATA_TYPE: 'int',
+      IS_NULLABLE: 'NO',
+      COLUMN_DEFAULT: null,
+    },
+    {
+      TABLE_NAME: t.TABLE_NAME,
+      COLUMN_NAME: 'owner_id',
+      DATA_TYPE: 'int',
+      IS_NULLABLE: 'YES',
+      COLUMN_DEFAULT: null,
+    },
+  ])
+  const introspectPks = introspectTables.map((t) => ({
+    TABLE_NAME: t.TABLE_NAME,
+    COLUMN_NAME: 'id',
+  }))
+  const introspectFks = introspectTables.map((t) => ({
+    TABLE_NAME: t.TABLE_NAME,
+    COLUMN_NAME: 'owner_id',
+    REFERENCED_TABLE_SCHEMA: 'dbo',
+    REFERENCED_TABLE_NAME: 'owners',
+    REFERENCED_COLUMN_NAME: 'id',
+  }))
+  const introspectIndexes = introspectTables.map((t) => ({
+    TABLE_NAME: t.TABLE_NAME,
+    INDEX_NAME: `ix_${t.TABLE_NAME}_owner`,
+    COLUMN_NAME: 'owner_id',
+    IS_UNIQUE: 0,
+  }))
+
+  function makeIntrospectPool() {
+    const query = vi.fn(async (text: string) => {
+      if (text.includes('FROM sys.schemas s')) return { recordset: schemas }
+      if (text.includes('INFORMATION_SCHEMA.TABLES')) return { recordset: introspectTables }
+      if (text.includes('INFORMATION_SCHEMA.COLUMNS')) return { recordset: introspectColumns }
+      if (text.includes('PRIMARY KEY')) return { recordset: introspectPks }
+      if (text.includes('sys.foreign_keys')) return { recordset: introspectFks }
+      if (text.includes('sys.index_columns')) return { recordset: introspectIndexes }
+      throw new Error(`unexpected query: ${text}`)
+    })
+    return { pool: { request: () => ({ input: vi.fn().mockReturnThis(), query }) } as never, query }
+  }
+
+  it('does not scale its round trips with the table count', async () => {
+    // Previously 4 queries per table plus 2: 50 tables meant 202 sequential
+    // round trips, each under its own request timeout.
+    const { pool, query } = makeIntrospectPool()
+
+    const result = await executeIntrospect(pool, 'dbo')
+
+    expect(result.tables).toHaveLength(50)
+    expect(query.mock.calls.length).toBeLessThanOrEqual(6)
+  })
+
+  it('still attributes columns, keys, and indexes to the right table', async () => {
+    const { pool } = makeIntrospectPool()
+
+    const result = await executeIntrospect(pool, 'dbo')
+    const table = result.tables.find((t) => t.name === 't7')!
+
+    expect(table.schema).toBe('dbo')
+    expect(table.columns.map((c) => c.name)).toEqual(['id', 'owner_id'])
+    expect(table.primaryKey).toEqual(['id'])
+    expect(table.columns[0].isPrimaryKey).toBe(true)
+    expect(table.columns[1].isForeignKey).toBe(true)
+    expect(table.columns[1].references).toEqual({ schema: 'dbo', table: 'owners', column: 'id' })
+    expect(table.indexes).toEqual([{ name: 'ix_t7_owner', columns: ['owner_id'], unique: false }])
   })
 })

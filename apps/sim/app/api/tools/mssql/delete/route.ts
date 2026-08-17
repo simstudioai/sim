@@ -6,7 +6,12 @@ import { mssqlDeleteContract } from '@/lib/api/contracts/tools/databases/mssql'
 import { parseToolRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { buildDeleteQuery, createMSSQLConnection, executeQuery } from '@/app/api/tools/mssql/utils'
+import {
+  buildDeleteQuery,
+  createMSSQLConnection,
+  executeQuery,
+  toRowsResponseBody,
+} from '@/app/api/tools/mssql/utils'
 
 const logger = createLogger('MSSQLDeleteAPI')
 
@@ -28,19 +33,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       `[${requestId}] Deleting data from ${params.table} on ${params.host}:${params.port}/${params.database}`
     )
 
+    /**
+     * Built before connecting so a rejected WHERE clause or a bad identifier
+     * costs no TLS+login round trip and answers 400 like the query and execute
+     * routes, rather than falling through to the catch-all as a 500.
+     */
+    let built: { query: string; values: unknown[] }
+    try {
+      built = buildDeleteQuery(params.table, params.where)
+    } catch (error) {
+      const message = getErrorMessage(error, 'Invalid statement')
+      logger.warn(`[${requestId}] Delete statement rejected: ${message}`)
+      return NextResponse.json(
+        { error: `Microsoft SQL Server delete failed: ${message}` },
+        { status: 400 }
+      )
+    }
+
     const pool = await createMSSQLConnection(params)
 
     try {
-      const { query, values } = buildDeleteQuery(params.table, params.where)
-      const result = await executeQuery(pool, query, values)
+      const result = await executeQuery(pool, built.query, built.values)
 
       logger.info(`[${requestId}] Delete executed successfully, ${result.rowCount} row(s) deleted`)
 
-      return NextResponse.json({
-        message: `Data deleted successfully. ${result.rowCount} row(s) affected.`,
-        rows: result.rows,
-        rowCount: result.rowCount,
-      })
+      return NextResponse.json(
+        toRowsResponseBody(result, `Data deleted successfully. ${result.rowCount} row(s) affected.`)
+      )
     } finally {
       await pool.close()
     }

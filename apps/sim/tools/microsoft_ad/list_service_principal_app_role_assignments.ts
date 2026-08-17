@@ -88,7 +88,10 @@ export const listServicePrincipalAppRoleAssignmentsTool: ToolConfig<
     assignments: {
       type: 'array',
       description: 'Principals assigned to the application',
-      properties: APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES,
+      },
     },
     assignmentCount: { type: 'number', description: 'Number of assignments returned' },
     nextLink: {

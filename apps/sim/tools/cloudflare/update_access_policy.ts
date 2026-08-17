@@ -18,7 +18,7 @@ export const updateAccessPolicyTool: ToolConfig<
   id: 'cloudflare_update_access_policy',
   name: 'Cloudflare Update Access Policy',
   description:
-    'Updates a Cloudflare Access (Zero Trust) policy on an application. This replaces the policy definition rather than merging it, so send every rule the policy should keep — omitted exclude or require rules are dropped, which can widen who gets in. The change applies to live traffic immediately. Read the current policy with "List Access Policies" first. Requires an API token with Account Access: Apps and Policies Edit.',
+    'Updates a Cloudflare Access (Zero Trust) policy on an application. Cloudflare does not document merge behavior for this PUT, so treat it as a replace: send every rule the policy should keep, because an omitted exclude or require rule may be dropped and widen who gets in. The change applies to live traffic immediately. Read the current policy with "List Access Policies" first. Requires an API token with Account Access: Apps and Policies Edit.',
   version: '1.0.0',
 
   params: {

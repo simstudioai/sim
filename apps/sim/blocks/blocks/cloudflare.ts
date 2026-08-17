@@ -43,7 +43,11 @@ const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
   create_ruleset: { name: 'rulesetName' },
   update_ruleset_rule: { enabled: 'updateRuleEnabled' },
   create_rate_limit_rule: { action: 'rateLimitAction' },
-  update_rate_limit_rule: { action: 'updateRateLimitAction', enabled: 'updateRuleEnabled' },
+  update_rate_limit_rule: {
+    action: 'updateRateLimitAction',
+    enabled: 'updateRuleEnabled',
+    actionParameters: 'rateLimitActionParameters',
+  },
   create_access_application: { type: 'appType', tags: 'accessAppTags' },
   update_access_application: { type: 'updateAppType', tags: 'accessAppTags' },
   update_access_policy: { decision: 'updatePolicyDecision' },
@@ -121,7 +125,10 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
           { text: 'List certificate packs for zone', field: 'zoneId', core: true },
           { text: ', with status', field: 'certificateStatus' },
         ],
-        get_zone_settings: [{ text: 'Read all settings of zone', field: 'zoneId', core: true }],
+        get_zone_settings: [
+          { text: 'Read settings of zone', field: 'zoneId', core: true },
+          { text: ', limited to', field: 'settingIds' },
+        ],
         update_zone_setting: [
           { text: 'Set', field: 'settingId', core: true },
           { text: 'to', field: 'value' },
@@ -672,7 +679,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       id: 'priority',
       title: 'Priority',
       type: 'short-input',
-      placeholder: 'MX/SRV priority (e.g., 10)',
+      placeholder: 'MX/URI priority (e.g., 10)',
       condition: { field: 'operation', value: 'create_dns_record' },
       mode: 'advanced',
     },
@@ -774,7 +781,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       id: 'priority',
       title: 'Priority',
       type: 'short-input',
-      placeholder: 'MX/SRV priority (e.g., 10)',
+      placeholder: 'MX/URI priority (e.g., 10)',
       condition: { field: 'operation', value: 'update_dns_record' },
       mode: 'advanced',
     },
@@ -872,6 +879,19 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
       required: true,
       placeholder: 'Enter zone ID',
       condition: { field: 'operation', value: 'get_zone_settings' },
+    },
+    {
+      /**
+       * Cloudflare retired the endpoint that read every setting in one request,
+       * so this operation reads one setting per request. Naming the settings
+       * keeps the fan-out to what the workflow actually reads.
+       */
+      id: 'settingIds',
+      title: 'Settings',
+      type: 'short-input',
+      placeholder: 'Comma-separated setting IDs (blank reads the default set)',
+      condition: { field: 'operation', value: 'get_zone_settings' },
+      mode: 'advanced',
     },
 
     // Update Zone Setting inputs
@@ -1001,7 +1021,6 @@ Return ONLY the timestamp or relative expression - no explanations, no quotes, n
       title: 'Metrics',
       type: 'short-input',
       placeholder: 'Comma-separated (e.g., queryCount,uncachedCount,responseTimeAvg)',
-      required: { field: 'operation', value: 'dns_analytics' },
       condition: { field: 'operation', value: 'dns_analytics' },
       wandConfig: {
         enabled: true,
@@ -1126,7 +1145,7 @@ Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
         { label: 'Yes - Purge All', id: 'true' },
         { label: 'No - Purge Specific', id: 'false' },
       ],
-      value: () => 'true',
+      value: () => 'false',
       condition: { field: 'operation', value: 'purge_cache' },
     },
     {
@@ -1135,7 +1154,11 @@ Return ONLY the filter expression - no explanations, no quotes, no extra text.`,
       type: 'long-input',
       placeholder:
         'Comma-separated URLs (e.g., https://example.com/style.css, https://example.com/app.js)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       wandConfig: {
         enabled: true,
         prompt: `Generate a comma-separated list of URLs to purge from Cloudflare's cache based on the user's description.
@@ -1155,7 +1178,11 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       title: 'Cache Tags',
       type: 'short-input',
       placeholder: 'Comma-separated cache tags (Enterprise only)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       mode: 'advanced',
     },
     {
@@ -1163,7 +1190,11 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       title: 'Hostnames',
       type: 'short-input',
       placeholder: 'Comma-separated hostnames (Enterprise only)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       mode: 'advanced',
     },
     {
@@ -1171,7 +1202,11 @@ Return ONLY the comma-separated URLs - no explanations, no extra text.`,
       title: 'URL Prefixes',
       type: 'short-input',
       placeholder: 'Comma-separated URL prefixes (Enterprise only)',
-      condition: { field: 'operation', value: 'purge_cache' },
+      condition: {
+        field: 'operation',
+        value: 'purge_cache',
+        and: { field: 'purge_everything', value: 'true', not: true },
+      },
       mode: 'advanced',
     },
 
@@ -1503,7 +1538,7 @@ Return ONLY the expression - no explanations, no quotes around the whole express
       placeholder: 'Stable reference that survives rule updates',
       condition: {
         field: 'operation',
-        value: ['create_ruleset_rule', 'update_ruleset_rule'],
+        value: ['create_ruleset_rule', 'update_ruleset_rule', 'update_rate_limit_rule'],
       },
       mode: 'advanced',
     },
@@ -1521,7 +1556,10 @@ Return ONLY the expression - no explanations, no quotes around the whole express
       title: 'Logging Configuration',
       type: 'long-input',
       placeholder: '{"enabled":true}',
-      condition: { field: 'operation', value: 'update_ruleset_rule' },
+      condition: {
+        field: 'operation',
+        value: ['update_ruleset_rule', 'update_rate_limit_rule'],
+      },
       mode: 'advanced',
     },
     {
@@ -1591,7 +1629,7 @@ Return ONLY the JSON object - no explanations, no markdown fences.`,
         enabled: true,
         prompt: `Generate a comma-separated list of Cloudflare rate limiting counting characteristics from the user's description.
 
-cf.colo.id is mandatory in every list. Include exactly one of ip.src or cf.unique_visitor_id.
+cf.colo.id is mandatory in every list. ip.src and cf.unique_visitor_id are mutually exclusive - include at most one, and neither is required. Do not add an IP or visitor characteristic the user did not ask for; a rule keyed on host, path, country, header, cookie or JA3/JA4 alone is valid.
 
 Available characteristics:
 - cf.colo.id (mandatory)
@@ -1610,7 +1648,7 @@ Available characteristics:
 Examples:
 - "per IP address" -> cf.colo.id,ip.src
 - "per visitor" -> cf.colo.id,cf.unique_visitor_id
-- "per API key header" -> cf.colo.id,ip.src,http.request.headers["x-api-key"]
+- "per API key header" -> cf.colo.id,http.request.headers["x-api-key"]
 - "per country" -> cf.colo.id,ip.src.country
 
 Return ONLY the comma-separated list - no explanations, no extra text.`,
@@ -1700,6 +1738,39 @@ Return ONLY the comma-separated list - no explanations, no extra text.`,
       condition: {
         field: 'operation',
         value: ['create_rate_limit_rule', 'update_rate_limit_rule'],
+      },
+      mode: 'advanced',
+    },
+    {
+      /**
+       * A rate limiting rule carries its custom mitigation response here, and
+       * the update endpoint replaces the rule — so leaving this blank resets
+       * action_parameters to {} and the rule falls back to Cloudflare's default
+       * block page. It gets its own id because the WAF control of the same name
+       * holds a managed-ruleset payload, which is not what this rule takes.
+       */
+      id: 'rateLimitActionParameters',
+      title: 'Action Parameters',
+      type: 'long-input',
+      placeholder:
+        '{"response":{"status_code":429,"content":"{\\"error\\":\\"rate limited\\"}","content_type":"application/json"}}',
+      condition: { field: 'operation', value: 'update_rate_limit_rule' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate the JSON action_parameters object for a Cloudflare rate limiting rule from the user's description.
+
+Only a "block" action takes action_parameters, and only to define a custom response:
+{"response":{"status_code":429,"content":"You have been rate limited.","content_type":"text/plain"}}
+
+status_code must be in the 400-499 range. content_type is one of "text/plain", "text/html", or "application/json". For a JSON body, "content" is the JSON payload as a string:
+{"response":{"status_code":429,"content":"{\\"error\\":\\"rate limited\\"}","content_type":"application/json"}}
+
+Challenge and log actions take no action_parameters - return {} for those.
+
+Return ONLY the JSON object - no explanations, no markdown fences.`,
+        placeholder:
+          'Describe the mitigation response (e.g., "return a 429 with a JSON error body")...',
+        generationType: 'json-object',
       },
       mode: 'advanced',
     },
@@ -2556,18 +2627,29 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
           result[aliasId] = undefined
         }
 
-        if (result.ttl) result.ttl = Number(result.ttl)
-        if (result.priority) result.priority = Number(result.priority)
-        if (result.limit) result.limit = Number(result.limit)
-        if (result.page) result.page = Number(result.page)
-        if (result.per_page) result.per_page = Number(result.per_page)
-
         if (result.proxied === 'true') result.proxied = true
         else if (result.proxied === 'false') result.proxied = false
         else if (result.proxied === '') result.proxied = undefined
 
         if (result.purge_everything === 'true') result.purge_everything = true
         else if (result.purge_everything === 'false') result.purge_everything = false
+
+        /**
+         * `tags`, `hosts`, and `prefixes` are advanced controls, and an advanced
+         * control serializes on stored value alone — the serializer returns
+         * `isNonEmptyValue(...)` before it ever evaluates the
+         * `and: { field: 'purge_everything', not: true }` guard
+         * (`serializer/index.ts`). So a target typed while purging specific
+         * content survives the switch to "Purge Everything", and the tool then
+         * refuses the whole purge over a field the editor no longer renders.
+         * This mapper is the only layer that can override a stale raw input.
+         */
+        if (operation === 'purge_cache' && result.purge_everything === true) {
+          result.files = undefined
+          result.tags = undefined
+          result.hosts = undefined
+          result.prefixes = undefined
+        }
 
         if (result.type === '') result.type = undefined
         if (result.status === '') result.status = undefined
@@ -2583,14 +2665,25 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
           if (result.comment === '') result.comment = undefined
         }
 
+        /**
+         * A blank optional number must reach the tool as `undefined`, not as
+         * `Number('')` — which is `0`, a value the tools then forward because
+         * they test presence rather than truthiness. `0` is out of range for
+         * `ttl` and silently rewrites an MX record's `priority`.
+         */
         const numericFields = [
+          'ttl',
+          'priority',
+          'limit',
+          'page',
+          'per_page',
           'period',
           'requestsPerPeriod',
           'mitigationTimeout',
           'precedence',
         ] as const
         for (const field of numericFields) {
-          if (result[field] === '' || result[field] === undefined) {
+          if (result[field] === '' || result[field] == null) {
             result[field] = undefined
           } else {
             result[field] = Number(result[field])
@@ -2634,7 +2727,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     apiKey: { type: 'string', description: 'Cloudflare API token' },
     zoneId: { type: 'string', description: 'Zone ID' },
     accountId: { type: 'string', description: 'Cloudflare account ID' },
-    zoneType: { type: 'string', description: 'Zone type (full, partial, or secondary)' },
+    zoneType: {
+      type: 'string',
+      description:
+        'Zone type to create (full, partial, or secondary). Cloudflare also defines an internal type, which is not creatable here but can appear on zones returned by reads',
+    },
     order: { type: 'string', description: 'Sort field when listing zones' },
     direction: { type: 'string', description: 'Sort direction (asc, desc)' },
     match: { type: 'string', description: 'Match logic for filters (any, all)' },
@@ -2705,13 +2802,21 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     content: { type: 'string', description: 'DNS record content' },
     ttl: { type: 'number', description: 'Time to live in seconds' },
     proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
-    priority: { type: 'number', description: 'Record priority (MX/SRV)' },
+    priority: {
+      type: 'number',
+      description:
+        'Record priority. Cloudflare accepts this top-level field for MX and URI records only; an SRV record carries its priority inside the record content instead',
+    },
     comment: { type: 'string', description: 'Record comment' },
     search: { type: 'string', description: 'Free-text search across record properties' },
     tag: { type: 'string', description: 'Filter by an exact tag name' },
     tag_match: { type: 'string', description: 'Tag filter match logic (any, all)' },
     commentFilter: { type: 'string', description: 'Filter records by comment content' },
     settingId: { type: 'string', description: 'Zone setting ID' },
+    settingIds: {
+      type: 'string',
+      description: 'Comma-separated zone setting IDs to read, or blank for the default set',
+    },
     value: { type: 'string', description: 'Setting value' },
     since: { type: 'string', description: 'Start date for analytics' },
     until: { type: 'string', description: 'End date for analytics' },
@@ -2747,6 +2852,10 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     enabled: { type: 'boolean', description: 'Whether the rule is enabled' },
     ref: { type: 'string', description: 'Rule reference tag' },
     actionParameters: { type: 'string', description: 'JSON action parameters for a rule' },
+    rateLimitActionParameters: {
+      type: 'string',
+      description: 'JSON action parameters a replaced rate limiting rule ends up with',
+    },
     ratelimit: {
       type: 'string',
       description: 'JSON rate limiting configuration to preserve when replacing a rule',
@@ -2855,9 +2964,21 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     records: { type: 'json', description: 'List of DNS records' },
     certificates: { type: 'json', description: 'List of SSL/TLS certificate packs' },
     settings: { type: 'json', description: 'List of zone settings' },
+    unreadable: {
+      type: 'json',
+      description: 'Requested zone settings Cloudflare refused, with the reason for each',
+    },
     totals: { type: 'json', description: 'Aggregate DNS analytics totals' },
-    min: { type: 'json', description: 'Minimum values across the DNS analytics period' },
-    max: { type: 'json', description: 'Maximum values across the DNS analytics period' },
+    min: {
+      type: 'json',
+      description:
+        'Per-metric DNS analytics minimums. Cloudflare documents this as currently always an empty object',
+    },
+    max: {
+      type: 'json',
+      description:
+        'Per-metric DNS analytics maximums. Cloudflare documents this as currently always an empty object',
+    },
     query: { type: 'json', description: 'Echo of the DNS analytics query parameters sent' },
     validation_errors: { type: 'json', description: 'Validation issues for certificate packs' },
     data: { type: 'json', description: 'Raw analytics data rows from the DNS analytics report' },
@@ -2898,7 +3019,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
     ttl: { type: 'number', description: 'TTL in seconds (1 = automatic)' },
     locked: { type: 'boolean', description: 'Whether the record is locked' },
-    priority: { type: 'number', description: 'Priority for MX and SRV records' },
+    priority: { type: 'number', description: 'Record priority, returned for MX and URI records' },
     comment: { type: 'string', description: 'Record comment' },
     tags: { type: 'json', description: 'Tags associated with the record or cache tags to purge' },
     comment_modified_on: {
@@ -2913,7 +3034,11 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
     modified_on: { type: 'string', description: 'Last modified date (ISO 8601)' },
     value: { type: 'string', description: 'Setting value (complex values are JSON-stringified)' },
     editable: { type: 'boolean', description: 'Whether the setting can be modified' },
-    time_remaining: { type: 'number', description: 'Seconds until setting can be modified again' },
+    time_remaining: {
+      type: 'number',
+      description:
+        'Development mode countdown in seconds — documented only on the zones_development_mode setting, positive until it expires and negative afterwards',
+    },
     total_count: { type: 'number', description: 'Total count of results' },
     rulesets: { type: 'json', description: 'Rulesets defined on the zone' },
     rules: { type: 'json', description: 'Rules contained in a ruleset, in evaluation order' },
@@ -3179,7 +3304,7 @@ export const CloudflareBlockMeta = {
       description:
         'Protect an API path from abuse with a Cloudflare rate limiting rule using the current Rulesets-based rate limiting API.',
       content:
-        '# Rate Limit an API Endpoint\n\nRate limiting rules are rules in the `http_ratelimit` phase entry point ruleset. The legacy `rate_limits` endpoint is no longer the way to do this.\n\n## Steps\n1. Resolve the zone ID for the domain serving the API.\n2. List the existing rate limiting rules to get the `http_ratelimit` entry point ruleset ID and see what is already in place.\n3. Decide the counting characteristics. `cf.colo.id` is mandatory, plus exactly one of `ip.src` (per IP) or `cf.unique_visitor_id` (per visitor); add `http.request.headers["<name>"]` to count per API key.\n4. Pick a counting period (10, 60, 120, 300, 600, or 3600 seconds) and the request allowance for that period.\n5. Create the rule with the matching expression (e.g. `(http.request.uri.path matches "^/api/")`), the counting configuration, and the mitigation action.\n6. Read the rules back and confirm the new rule and its limit.\n\n## Output\nThe ruleset ID, the new rule ID, the expression, and the effective limit (requests per period, characteristics, and mitigation timeout).\n\n## Cautions\nThe rule applies to live traffic as soon as it is created. Size the allowance against real traffic before choosing `block` over `log` or `managed_challenge`.',
+        '# Rate Limit an API Endpoint\n\nRate limiting rules are rules in the `http_ratelimit` phase entry point ruleset. The legacy `rate_limits` endpoint is no longer the way to do this.\n\n## Steps\n1. Resolve the zone ID for the domain serving the API.\n2. List the existing rate limiting rules to get the `http_ratelimit` entry point ruleset ID and see what is already in place.\n3. Decide the counting characteristics. `cf.colo.id` is mandatory. `ip.src` (per IP) and `cf.unique_visitor_id` (per visitor) are mutually exclusive - include at most one, and neither is required; a rule keyed on host, path, country, header or cookie alone is valid. Add `http.request.headers["<name>"]` to count per API key.\n4. Pick a counting period (10, 60, 120, 300, 600, or 3600 seconds) and the request allowance for that period.\n5. Create the rule with the matching expression (e.g. `(http.request.uri.path matches "^/api/")`), the counting configuration, and the mitigation action.\n6. Read the rules back and confirm the new rule and its limit.\n\n## Output\nThe ruleset ID, the new rule ID, the expression, and the effective limit (requests per period, characteristics, and mitigation timeout).\n\n## Cautions\nThe rule applies to live traffic as soon as it is created. Size the allowance against real traffic before choosing `block` over `log` or `managed_challenge`.',
     },
     {
       name: 'review-zero-trust-access',

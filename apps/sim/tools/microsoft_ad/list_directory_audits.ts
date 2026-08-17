@@ -110,7 +110,10 @@ export const listDirectoryAuditsTool: ToolConfig<
     audits: {
       type: 'array',
       description: 'Directory audit records',
-      properties: DIRECTORY_AUDIT_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: DIRECTORY_AUDIT_OUTPUT_PROPERTIES,
+      },
     },
     auditCount: { type: 'number', description: 'Number of audit records returned' },
     nextLink: {

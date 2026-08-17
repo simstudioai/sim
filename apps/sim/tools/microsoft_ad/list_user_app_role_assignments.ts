@@ -98,7 +98,10 @@ export const listUserAppRoleAssignmentsTool: ToolConfig<
     assignments: {
       type: 'array',
       description: 'App role assignments granted to the user',
-      properties: APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES,
+      },
     },
     assignmentCount: { type: 'number', description: 'Number of assignments returned' },
     nextLink: {

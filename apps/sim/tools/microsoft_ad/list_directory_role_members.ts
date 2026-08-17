@@ -64,7 +64,10 @@ export const listDirectoryRoleMembersTool: ToolConfig<
     members: {
       type: 'array',
       description: 'Principals holding the directory role',
-      properties: MEMBER_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: MEMBER_OUTPUT_PROPERTIES,
+      },
     },
     memberCount: { type: 'number', description: 'Number of members returned' },
   },

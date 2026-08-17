@@ -81,7 +81,10 @@ export const listConditionalAccessPoliciesTool: ToolConfig<
     policies: {
       type: 'array',
       description: 'Conditional access policies',
-      properties: CONDITIONAL_ACCESS_POLICY_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: CONDITIONAL_ACCESS_POLICY_OUTPUT_PROPERTIES,
+      },
     },
     policyCount: { type: 'number', description: 'Number of policies returned' },
     nextLink: {

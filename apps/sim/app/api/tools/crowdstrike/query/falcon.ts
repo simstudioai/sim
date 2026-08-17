@@ -156,6 +156,21 @@ export function getFalconErrorMessage(data: unknown, fallback: string): string {
   )
 }
 
+/**
+ * Raised when the Falcon OAuth2 token exchange fails. Carries the Falcon status
+ * so the route can answer with the real cause (401 for bad credentials) instead
+ * of letting a credential problem fall through to a generic 500.
+ */
+export class CrowdStrikeAuthError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'CrowdStrikeAuthError'
+    this.status = status >= 400 && status <= 599 ? status : 502
+  }
+}
+
 export async function getAccessToken(params: CrowdStrikeBaseParams): Promise<string> {
   const baseUrl = getCloudBaseUrl(params.cloud)
   const response = await fetch(`${baseUrl}/oauth2/token`, {
@@ -174,11 +189,14 @@ export async function getAccessToken(params: CrowdStrikeBaseParams): Promise<str
 
   const data: unknown = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(getFalconErrorMessage(data, 'Failed to authenticate with CrowdStrike'))
+    throw new CrowdStrikeAuthError(
+      getFalconErrorMessage(data, 'Failed to authenticate with CrowdStrike'),
+      response.status
+    )
   }
 
   if (!isRecordLike(data) || typeof data.access_token !== 'string') {
-    throw new Error('CrowdStrike authentication did not return an access token')
+    throw new CrowdStrikeAuthError('CrowdStrike authentication did not return an access token', 502)
   }
 
   return data.access_token

@@ -136,7 +136,7 @@ export const updateZoneSettingTool: ToolConfig<
     time_remaining: {
       type: 'number',
       description:
-        'Seconds remaining until the setting can be modified again (only present for rate-limited settings)',
+        'Development mode countdown, in seconds. Cloudflare documents this only on the zones_development_mode setting, where it is the interval from when development mode expires (positive) or last expired (negative)',
       optional: true,
     },
   },

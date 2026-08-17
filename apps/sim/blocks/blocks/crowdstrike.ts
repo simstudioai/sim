@@ -8,7 +8,12 @@ import {
 } from '@/blocks/utils'
 import type { CrowdStrikeResponse } from '@/tools/crowdstrike/types'
 
-/** Documented maximum `limit` for each CrowdStrike query collection. */
+/**
+ * Maximum `limit` for each CrowdStrike query collection. Every entry except IOC
+ * Management is the `maximum` CrowdStrike publishes in its swagger. The IOC
+ * indicators endpoint publishes no `maximum` at all, so 500 is a Sim cap chosen
+ * to keep a single request bounded — do not describe it as CrowdStrike's.
+ */
 const QUERY_LIMITS: Record<string, { min: number; max: number }> = {
   crowdstrike_query_sensors: { min: 1, max: 200 },
   crowdstrike_query_alerts: { min: 1, max: 10000 },
@@ -356,10 +361,13 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
       mode: 'advanced',
     },
     /**
-     * Falcon has two sort spellings. Alerts, IOC Management, Spotlight, and Cases
-     * document `field|direction`; Host Groups and Identity Protection sensors
-     * document `field.direction`. One placeholder cannot show both, so the field
-     * is declared twice under the same id with mutually exclusive conditions.
+     * Falcon has two sort spellings. Alerts, Spotlight, and Cases document
+     * `field|direction`; Host Groups, Identity Protection sensors, and IOC
+     * Management document `field.direction`. IOC Management also has its own
+     * field names — its sort enum has no `created_timestamp`, only `created_on`
+     * and `modified_on` — so it gets a placeholder of its own. One placeholder
+     * cannot show all three, so the field is declared three times under the same
+     * id with mutually exclusive conditions.
      */
     {
       id: 'sort',
@@ -370,11 +378,18 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
         field: 'operation',
         value: [
           'crowdstrike_query_alerts',
-          'crowdstrike_query_indicators',
           'crowdstrike_query_vulnerabilities',
           'crowdstrike_query_cases',
         ],
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'sort',
+      title: 'Sort',
+      type: 'short-input',
+      placeholder: 'created_on.desc',
+      condition: { field: 'operation', value: 'crowdstrike_query_indicators' },
       mode: 'advanced',
     },
     {
@@ -389,9 +404,18 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
       mode: 'advanced',
     },
     {
+      /**
+       * CrowdStrike declares `include_hidden` with a default of `true` on all
+       * three alert endpoints this switch feeds (`GET /alerts/queries/alerts/v2`,
+       * `POST /alerts/entities/alerts/v2`, `PATCH /alerts/entities/alerts/v3`).
+       * An untouched switch omits the parameter, so Falcon returns hidden alerts
+       * either way — seeding `true` makes the rendered state match the wire
+       * instead of showing off while hidden alerts come back.
+       */
       id: 'includeHidden',
       title: 'Include Hidden Alerts',
       type: 'switch',
+      value: () => 'true',
       condition: {
         field: 'operation',
         value: [

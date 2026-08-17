@@ -124,6 +124,10 @@ export async function createMSSQLConnection(
 export interface MSSQLQueryResult {
   rows: unknown[]
   rowCount: number
+  /** Set when the recordset hit a row or byte ceiling and rows were dropped. */
+  truncated?: boolean
+  /** Human-readable explanation of the ceiling that was hit. */
+  truncationReason?: string
 }
 
 /**
@@ -146,6 +150,87 @@ function toBindableValue(value: unknown): unknown {
 }
 
 /**
+ * Ceilings on what a single statement may materialize into the response.
+ *
+ * The driver buffers the whole recordset before `request.query` resolves, and
+ * the route then serializes it into a JSON body, so an unbounded `SELECT` over a
+ * large table is held in memory twice. A caller who wants more pages it with
+ * `OFFSET ... FETCH NEXT`. The byte ceiling exists because row count alone does
+ * not bound size — 1,000 rows of `nvarchar(max)` is not a small result.
+ */
+const MSSQL_MAX_RESULT_ROWS = 10_000
+const MSSQL_MAX_RESULT_BYTES = 10 * 1024 * 1024
+
+/**
+ * Bytes held back from {@link MSSQL_MAX_RESULT_BYTES} for the part of the
+ * response body that is not a row.
+ *
+ * {@link toRowsResponseBody} wraps `rows` in `message`, `rowCount`, and — when
+ * the recordset was capped — `truncated` and `truncationReason`, none of which
+ * the per-row accounting can see. Those are a few hundred bytes at their
+ * longest (the truncation prose is the bulk of it), so the reserve is set an
+ * order of magnitude above the worst case and costs 0.04% of the ceiling. The
+ * alternative, serializing the assembled body to check it, would re-serialize
+ * the whole recordset a second time for no useful precision.
+ */
+const MSSQL_RESPONSE_ENVELOPE_BYTES = 4096
+
+/** What the serialized `rows` array itself may occupy. */
+const MSSQL_MAX_ROWS_BYTES = MSSQL_MAX_RESULT_BYTES - MSSQL_RESPONSE_ENVELOPE_BYTES
+
+/**
+ * Truncates a recordset to the row and byte ceilings.
+ *
+ * Measures each row with `JSON.stringify` because that is what the route will do
+ * anyway, so the number bounds the response the caller actually receives rather
+ * than an in-memory estimate that does not correspond to it. Each row is
+ * serialized exactly once and its cost accumulated, rather than re-serializing
+ * the growing array per row, which would be quadratic on a large recordset.
+ *
+ * The size is `Buffer.byteLength(..., 'utf8')`, not `String.length`. `length`
+ * counts UTF-16 code units while `NextResponse.json` emits UTF-8, and every
+ * character above U+007F costs more bytes than code units — worst case 3:1, for
+ * the U+0800–U+FFFF range that holds CJK, so a recordset of Chinese text passed
+ * a 10 MB `length` budget while serializing to nearly 30 MB. (Astral characters
+ * such as emoji are only 2:1: 4 bytes across 2 surrogate code units.)
+ *
+ * The array's own punctuation is counted too — one byte per row covers the
+ * opening `[` for the first row and the separating `,` for each one after it,
+ * with the leading byte standing in for the closing `]` — and
+ * {@link MSSQL_RESPONSE_ENVELOPE_BYTES} covers the fields around it. Without
+ * both, a result packed exactly to the ceiling still emitted a body over it.
+ *
+ * A row is admitted only when it still fits, so a single row larger than the
+ * byte ceiling is dropped rather than admitted as a lone exception — otherwise
+ * `SELECT` of one `nvarchar(max)` value would serialize an unbounded body and
+ * the ceiling would bound everything except the case it exists for. The drop is
+ * disclosed through {@link MSSQLQueryResult.truncationReason}, so an empty
+ * recordset is never mistaken for an empty table.
+ */
+function capRecordset(rows: unknown[]): { rows: unknown[]; truncated: boolean } {
+  if (rows.length === 0) return { rows, truncated: false }
+
+  const capped: unknown[] = []
+  /** The closing `]`; each row below pays for its own `[` or `,`. */
+  let bytes = 1
+
+  for (const row of rows) {
+    if (capped.length >= MSSQL_MAX_RESULT_ROWS) break
+    const serialized = JSON.stringify(row)
+    /**
+     * `JSON.stringify` answers `undefined` for a value it cannot represent, but
+     * an array element in that position serializes as the four bytes of `null`.
+     */
+    const rowBytes = serialized === undefined ? 4 : Buffer.byteLength(serialized, 'utf8')
+    if (bytes + rowBytes + 1 > MSSQL_MAX_ROWS_BYTES) break
+    bytes += rowBytes + 1
+    capped.push(row)
+  }
+
+  return { rows: capped, truncated: capped.length < rows.length }
+}
+
+/**
  * Runs a statement with positional values bound as `@param1`, `@param2`, … .
  *
  * `recordset` holds the first result set and `rowsAffected` holds one count per
@@ -164,7 +249,7 @@ export async function executeQuery(
   })
 
   const result = await request.query(query)
-  const rows: unknown[] = result.recordset ?? []
+  const { rows, truncated } = capRecordset(result.recordset ?? [])
   const affected = (result.rowsAffected ?? []).reduce(
     (total: number, count: number) => total + count,
     0
@@ -173,6 +258,34 @@ export async function executeQuery(
   return {
     rows,
     rowCount: rows.length > 0 ? rows.length : affected,
+    ...(truncated && {
+      truncated: true,
+      truncationReason:
+        rows.length === 0
+          ? `No rows returned: the first row alone exceeds the ${MSSQL_MAX_RESULT_BYTES / (1024 * 1024)} MB response ceiling. Select fewer columns, or slice large values with SUBSTRING.`
+          : `Result truncated to ${rows.length} row(s): a single statement returns at most ${MSSQL_MAX_RESULT_ROWS} rows or ${MSSQL_MAX_RESULT_BYTES / (1024 * 1024)} MB. Page with OFFSET ... FETCH NEXT to read the rest.`,
+    }),
+  }
+}
+
+/**
+ * Builds the success body every statement route returns.
+ *
+ * A truncated recordset is disclosed twice on purpose: folded into `message`, so
+ * an agent that reads only the status line still learns rows were dropped, and
+ * as `truncated`/`truncationReason`, so a caller can branch on it without
+ * parsing prose. Without this the route reported a capped result as a complete
+ * one and paging looked unnecessary.
+ */
+export function toRowsResponseBody(result: MSSQLQueryResult, message: string) {
+  return {
+    message: result.truncationReason ? `${message} ${result.truncationReason}` : message,
+    rows: result.rows,
+    rowCount: result.rowCount,
+    ...(result.truncated && {
+      truncated: true,
+      truncationReason: result.truncationReason,
+    }),
   }
 }
 
@@ -187,7 +300,11 @@ export async function executeQuery(
  * `DISABLE`/`ENABLE` are here because `SELECT 1 DISABLE TRIGGER dbo.audit ON
  * dbo.users` is a valid semicolon-less batch that turns auditing off, and
  * `SET`/`BEGIN`/`COMMIT`/`ROLLBACK` because session and transaction state are
- * changed the same way (`SET IDENTITY_INSERT`, `SET ANSI_NULLS`).
+ * changed the same way (`SET IDENTITY_INSERT`, `SET ANSI_NULLS`). The rest of
+ * that family — `SAVE TRANSACTION`, the symmetric/master key statements,
+ * `ADD SIGNATURE`, and `RAISERROR ... WITH LOG` — opens with a word that is also
+ * an ordinary identifier, so it is screened as a two-token phrase in
+ * {@link MSSQL_STATEMENT_PHRASES} instead.
  *
  * The text statements `UPDATETEXT`, `WRITETEXT`, and `READTEXT` are listed in
  * their own right rather than left to `update`: there is no word boundary after
@@ -197,6 +314,20 @@ export async function executeQuery(
  * but it introduces a second statement in exactly the same semicolon-less way,
  * which is what this list exists to reject.
  *
+ * `RENAME` is documented T-SQL DDL — it applies to Azure Synapse Analytics
+ * dedicated SQL pools and Analytics Platform System, both of which speak TDS on
+ * port 1433 and are reachable with exactly the connection fields this block
+ * exposes. `SELECT 1 RENAME OBJECT dbo.Customer TO Customer1` is a valid
+ * semicolon-less batch that changes schema through an operation advertised as
+ * read-only, and `RENAME DATABASE` and `RENAME OBJECT … COLUMN … TO …` reach it
+ * the same way.
+ *
+ * `RECEIVE` is the Service Broker read that *removes* the messages it returns,
+ * so it is a write in everything but name. Its siblings — `END`/`MOVE`/`GET`
+ * `CONVERSATION` and `SEND ON CONVERSATION` — open with words that are ordinary
+ * identifiers (`END` closes every `CASE`), so they are screened as phrases in
+ * {@link MSSQL_STATEMENT_PHRASES} instead.
+ *
  * `FETCH` is deliberately **absent**: `OFFSET … FETCH NEXT` is the standard
  * T-SQL paging clause, so screening it would reject the ordinary paged SELECT
  * this operation exists to run. Word boundaries keep the additions off ordinary
@@ -204,7 +335,50 @@ export async function executeQuery(
  * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/statements
  */
 const MSSQL_STATEMENT_KEYWORDS =
-  /\b(?:insert|update|updatetext|writetext|readtext|delete|merge|drop|create|alter|truncate|disable|enable|set|begin|commit|rollback|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into)\b/i
+  /\b(?:insert|update|updatetext|writetext|readtext|delete|merge|drop|create|alter|truncate|rename|receive|disable|enable|set|begin|commit|rollback|grant|revoke|deny|exec|execute|backup|restore|shutdown|reconfigure|dbcc|kill|checkpoint|use|bulk|revert|setuser|openrowset|opendatasource|openquery|openxml|waitfor|into|deallocate)\b/i
+
+/**
+ * The remaining session, transaction, cursor, and key-management statements,
+ * every one of which is a valid semicolon-less second statement the single-word
+ * list above cannot carry.
+ *
+ * Each is matched as a **two-token** phrase rather than a bare word, because the
+ * leading words are ordinary identifiers: `open` and `close` are columns in any
+ * price table, `save` and `add` are common verbs, and `END` closes every `CASE`.
+ * Screening those bare would reject the plain SELECTs this operation exists to
+ * run. `DEALLOCATE` is the one exception and lives in the word list above — it
+ * has no ordinary-identifier reading.
+ *
+ * Most of these write neither table data nor schema, which is why they were
+ * missed; they are screened because the file's stated rule is that a second
+ * statement is rejected structurally, not by what it happens to do.
+ * `RAISERROR ... WITH LOG` writes to the error log and the Windows application
+ * log, so it is not inert. The Service Broker conversation statements are not
+ * inert either: `END CONVERSATION ... WITH CLEANUP` drops every message in a
+ * conversation, `MOVE CONVERSATION` reassigns it, and `SEND ON CONVERSATION`
+ * enqueues a message — and the handles they need are enumerable through this
+ * same path, because the catalog screen applies only to WHERE clauses.
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/end-conversation-transact-sql
+ * @see https://learn.microsoft.com/en-us/sql/t-sql/statements/statements
+ */
+const MSSQL_STATEMENT_PHRASES: readonly RegExp[] = [
+  /\bsave\s+tran(?:saction)?\b/i,
+  /\bopen\s+(?:symmetric|master)\s+key\b/i,
+  /\bclose\s+(?:all\s+symmetric\s+keys|master\s+key|symmetric\s+key)\b/i,
+  /\badd\s+signature\b/i,
+  /\braiserror[\s\S]*?\bwith\s+log\b/i,
+  /\b(?:end|move|get)\s+conversation\b/i,
+  /\bsend\s+on\s+conversation\b/i,
+]
+
+/** Matches the first screened statement phrase, or `null`. */
+function matchStatementPhrase(masked: string): string | null {
+  for (const pattern of MSSQL_STATEMENT_PHRASES) {
+    const match = pattern.exec(masked)
+    if (match) return match[0]
+  }
+  return null
+}
 
 /** Extended, OLE-automation, and system stored procedures, called with or without `EXEC`. */
 const MSSQL_PROCEDURE_PATTERN = /\b(?:xp_|sp_)\w+/i
@@ -355,11 +529,14 @@ export function validateReadOnlyQuery(query: string): { isValid: boolean; error?
     }
   }
 
-  const disallowed = MSSQL_STATEMENT_KEYWORDS.exec(masked) ?? MSSQL_PROCEDURE_PATTERN.exec(masked)
+  const disallowed =
+    MSSQL_STATEMENT_KEYWORDS.exec(masked)?.[0] ??
+    MSSQL_PROCEDURE_PATTERN.exec(masked)?.[0] ??
+    matchStatementPhrase(masked)
   if (disallowed) {
     return {
       isValid: false,
-      error: `The Query operation cannot run ${disallowed[0].toUpperCase()}. Use the Execute Raw SQL operation for statements that modify data, schema, or server state.`,
+      error: `The Query operation cannot run ${disallowed.toUpperCase()}. Use the Execute Raw SQL operation for statements that modify data, schema, or server state.`,
     }
   }
 
@@ -519,6 +696,7 @@ function validateWhereClause(where: string): void {
   const masked = maskSqlStringLiterals(where)
   if (
     MSSQL_STATEMENT_KEYWORDS.test(masked) ||
+    matchStatementPhrase(masked) !== null ||
     MSSQL_PROCEDURE_PATTERN.test(masked) ||
     MSSQL_WHERE_SELECT.test(masked) ||
     MSSQL_WHERE_CONSTANT_TAUTOLOGY.some((pattern) => pattern.test(masked)) ||
@@ -592,6 +770,7 @@ interface TableRow {
 }
 
 interface ColumnRow {
+  TABLE_NAME: string
   COLUMN_NAME: string
   DATA_TYPE: string
   IS_NULLABLE: string
@@ -599,10 +778,12 @@ interface ColumnRow {
 }
 
 interface KeyColumnRow {
+  TABLE_NAME: string
   COLUMN_NAME: string
 }
 
 interface ForeignKeyRow {
+  TABLE_NAME: string
   COLUMN_NAME: string
   REFERENCED_TABLE_SCHEMA: string
   REFERENCED_TABLE_NAME: string
@@ -610,6 +791,7 @@ interface ForeignKeyRow {
 }
 
 interface IndexRow {
+  TABLE_NAME: string
   INDEX_NAME: string
   COLUMN_NAME: string
   IS_UNIQUE: boolean | number
@@ -654,75 +836,142 @@ export async function executeIntrospect(
      ORDER BY TABLE_NAME`
     )
 
+  const tableRows = tablesResult.recordset as TableRow[]
+  if (tableRows.length === 0) return { tables: [], schemas }
+
+  /**
+   * The column, primary key, foreign key, and index reads below are filtered by
+   * schema and grouped in memory, rather than run once per table. Per-table they
+   * were four round trips each — a 500-table schema meant ~2,000 sequential
+   * queries, every one under its own connection timeout.
+   */
+  const columnsResult = await pool
+    .request()
+    .input('schema', schemaName)
+    .query<ColumnRow>(
+      `SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = @schema
+     ORDER BY TABLE_NAME, ORDINAL_POSITION`
+    )
+
+  const pkResult = await pool
+    .request()
+    .input('schema', schemaName)
+    .query<KeyColumnRow>(
+      `SELECT tc.TABLE_NAME, kcu.COLUMN_NAME
+     FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+     JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+       ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+       AND tc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
+     WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+       AND tc.TABLE_SCHEMA = @schema
+     ORDER BY tc.TABLE_NAME, kcu.ORDINAL_POSITION`
+    )
+
+  const fkResult = await pool
+    .request()
+    .input('schema', schemaName)
+    .query<ForeignKeyRow>(
+      /**
+       * Resolved through the catalog views rather than
+       * `INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS`, which reaches the
+       * referenced side by joining `TABLE_CONSTRAINTS` — a view that returns
+       * "one row for each table constraint" and so has no row at all when a
+       * foreign key references a unique *index*, silently dropping the key.
+       * The catalog views resolve the referenced table and column by ID.
+       * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-foreign-key-columns-transact-sql
+       * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-information-schema-views/table-constraints-transact-sql
+       */
+      `SELECT
+         pt.name AS TABLE_NAME,
+         pc.name AS COLUMN_NAME,
+         rs.name AS REFERENCED_TABLE_SCHEMA,
+         rt.name AS REFERENCED_TABLE_NAME,
+         rc.name AS REFERENCED_COLUMN_NAME
+       FROM sys.foreign_keys fk
+       JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+       JOIN sys.tables pt ON pt.object_id = fk.parent_object_id
+       JOIN sys.schemas ps ON ps.schema_id = pt.schema_id
+       JOIN sys.columns pc
+         ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+       JOIN sys.tables rt ON rt.object_id = fkc.referenced_object_id
+       JOIN sys.schemas rs ON rs.schema_id = rt.schema_id
+       JOIN sys.columns rc
+         ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+       WHERE ps.name = @schema
+       ORDER BY pt.name, fk.name, fkc.constraint_column_id`
+    )
+
+  const indexResult = await pool
+    .request()
+    .input('schema', schemaName)
+    .query<IndexRow>(
+      /**
+       * `key_ordinal > 0` restricts the result to key columns: it is the
+       * "ordinal (1-based) within set of key-columns", and `0` marks INCLUDEd
+       * non-key columns, partitioning columns, **and every column of an XML,
+       * spatial, columnstore, or JSON index**. The partitioning columns are
+       * why `is_included_column` alone is not enough — those report `0` for it
+       * too. The index families are the cost of the filter: they contribute no
+       * key column, so they are absent from the result rather than listed with
+       * an empty column set. Rowstore keys, which is what a query planner
+       * reader is after, are reported in full.
+       *
+       * `is_hypothetical = 0` drops the statistics-only indexes the Database
+       * Engine Tuning Advisor leaves behind ("can't be used directly as a data
+       * access path"), and `is_disabled = 0` drops indexes that exist but are
+       * not maintained. Reporting either as a live index misleads.
+       *
+       * `is_primary_key = 0` keeps the primary key out, since `primaryKey`
+       * carries it already. A UNIQUE *constraint* is deliberately left in: it
+       * is a unique index and nothing else in the result reports it.
+       * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-index-columns-transact-sql
+       * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-indexes-transact-sql
+       */
+      `SELECT t.name AS TABLE_NAME, i.name AS INDEX_NAME, c.name AS COLUMN_NAME,
+              i.is_unique AS IS_UNIQUE
+       FROM sys.indexes i
+       JOIN sys.index_columns ic
+         ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+       JOIN sys.columns c
+         ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+       JOIN sys.tables t ON i.object_id = t.object_id
+       JOIN sys.schemas s ON t.schema_id = s.schema_id
+       WHERE s.name = @schema
+         AND i.is_primary_key = 0
+         AND i.is_hypothetical = 0
+         AND i.is_disabled = 0
+         AND i.name IS NOT NULL
+         AND ic.key_ordinal > 0
+       ORDER BY t.name, i.name, ic.key_ordinal`
+    )
+
+  /** Groups rows by their `TABLE_NAME`, preserving each group's server order. */
+  function groupByTable<TRow extends { TABLE_NAME: string }>(rows: TRow[]): Map<string, TRow[]> {
+    const grouped = new Map<string, TRow[]>()
+    for (const row of rows) {
+      const existing = grouped.get(row.TABLE_NAME)
+      if (existing) existing.push(row)
+      else grouped.set(row.TABLE_NAME, [row])
+    }
+    return grouped
+  }
+
+  const columnsByTable = groupByTable(columnsResult.recordset as ColumnRow[])
+  const pkByTable = groupByTable(pkResult.recordset as KeyColumnRow[])
+  const fkByTable = groupByTable(fkResult.recordset as ForeignKeyRow[])
+  const indexRowsByTable = groupByTable(indexResult.recordset as IndexRow[])
+
   const tables: MSSQLIntrospectionResult['tables'] = []
 
-  for (const tableRow of tablesResult.recordset as TableRow[]) {
+  for (const tableRow of tableRows) {
     const tableName = tableRow.TABLE_NAME
     const tableSchema = tableRow.TABLE_SCHEMA
 
-    const columnsResult = await pool
-      .request()
-      .input('schema', tableSchema)
-      .input('table', tableName)
-      .query<ColumnRow>(
-        `SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-         FROM INFORMATION_SCHEMA.COLUMNS
-         WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @table
-         ORDER BY ORDINAL_POSITION`
-      )
+    const primaryKeyColumns = (pkByTable.get(tableName) ?? []).map((row) => row.COLUMN_NAME)
 
-    const pkResult = await pool
-      .request()
-      .input('schema', tableSchema)
-      .input('table', tableName)
-      .query<KeyColumnRow>(
-        `SELECT kcu.COLUMN_NAME
-         FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
-         JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-           ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
-           AND tc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
-         WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
-           AND tc.TABLE_SCHEMA = @schema
-           AND tc.TABLE_NAME = @table
-         ORDER BY kcu.ORDINAL_POSITION`
-      )
-    const primaryKeyColumns = pkResult.recordset.map((row: KeyColumnRow) => row.COLUMN_NAME)
-
-    const fkResult = await pool
-      .request()
-      .input('schema', tableSchema)
-      .input('table', tableName)
-      .query<ForeignKeyRow>(
-        /**
-         * Resolved through the catalog views rather than
-         * `INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS`, which reaches the
-         * referenced side by joining `TABLE_CONSTRAINTS` — a view that returns
-         * "one row for each table constraint" and so has no row at all when a
-         * foreign key references a unique *index*, silently dropping the key.
-         * The catalog views resolve the referenced table and column by ID.
-         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-foreign-key-columns-transact-sql
-         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-information-schema-views/table-constraints-transact-sql
-         */
-        `SELECT
-           pc.name AS COLUMN_NAME,
-           rs.name AS REFERENCED_TABLE_SCHEMA,
-           rt.name AS REFERENCED_TABLE_NAME,
-           rc.name AS REFERENCED_COLUMN_NAME
-         FROM sys.foreign_keys fk
-         JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
-         JOIN sys.tables pt ON pt.object_id = fk.parent_object_id
-         JOIN sys.schemas ps ON ps.schema_id = pt.schema_id
-         JOIN sys.columns pc
-           ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
-         JOIN sys.tables rt ON rt.object_id = fkc.referenced_object_id
-         JOIN sys.schemas rs ON rs.schema_id = rt.schema_id
-         JOIN sys.columns rc
-           ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
-         WHERE ps.name = @schema AND pt.name = @table
-         ORDER BY fk.name, fkc.constraint_column_id`
-      )
-
-    const foreignKeys = fkResult.recordset.map((row: ForeignKeyRow) => ({
+    const foreignKeys = (fkByTable.get(tableName) ?? []).map((row) => ({
       column: row.COLUMN_NAME,
       referencesSchema: row.REFERENCED_TABLE_SCHEMA,
       referencesTable: row.REFERENCED_TABLE_NAME,
@@ -734,53 +983,8 @@ export async function executeIntrospect(
       if (!fkByColumn.has(fk.column)) fkByColumn.set(fk.column, fk)
     }
 
-    const indexResult = await pool
-      .request()
-      .input('schema', tableSchema)
-      .input('table', tableName)
-      .query<IndexRow>(
-        /**
-         * `key_ordinal > 0` restricts the result to key columns: it is the
-         * "ordinal (1-based) within set of key-columns", and `0` marks INCLUDEd
-         * non-key columns, partitioning columns, **and every column of an XML,
-         * spatial, columnstore, or JSON index**. The partitioning columns are
-         * why `is_included_column` alone is not enough — those report `0` for it
-         * too. The index families are the cost of the filter: they contribute no
-         * key column, so they are absent from the result rather than listed with
-         * an empty column set. Rowstore keys, which is what a query planner
-         * reader is after, are reported in full.
-         *
-         * `is_hypothetical = 0` drops the statistics-only indexes the Database
-         * Engine Tuning Advisor leaves behind ("can't be used directly as a data
-         * access path"), and `is_disabled = 0` drops indexes that exist but are
-         * not maintained. Reporting either as a live index misleads.
-         *
-         * `is_primary_key = 0` keeps the primary key out, since `primaryKey`
-         * carries it already. A UNIQUE *constraint* is deliberately left in: it
-         * is a unique index and nothing else in the result reports it.
-         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-index-columns-transact-sql
-         * @see https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-indexes-transact-sql
-         */
-        `SELECT i.name AS INDEX_NAME, c.name AS COLUMN_NAME, i.is_unique AS IS_UNIQUE
-         FROM sys.indexes i
-         JOIN sys.index_columns ic
-           ON i.object_id = ic.object_id AND i.index_id = ic.index_id
-         JOIN sys.columns c
-           ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-         JOIN sys.tables t ON i.object_id = t.object_id
-         JOIN sys.schemas s ON t.schema_id = s.schema_id
-         WHERE s.name = @schema
-           AND t.name = @table
-           AND i.is_primary_key = 0
-           AND i.is_hypothetical = 0
-           AND i.is_disabled = 0
-           AND i.name IS NOT NULL
-           AND ic.key_ordinal > 0
-         ORDER BY i.name, ic.key_ordinal`
-      )
-
     const indexMap = new Map<string, { name: string; columns: string[]; unique: boolean }>()
-    for (const row of indexResult.recordset as IndexRow[]) {
+    for (const row of indexRowsByTable.get(tableName) ?? []) {
       const indexName = row.INDEX_NAME
       if (!indexMap.has(indexName)) {
         indexMap.set(indexName, { name: indexName, columns: [], unique: Boolean(row.IS_UNIQUE) })
@@ -791,7 +995,7 @@ export async function executeIntrospect(
 
     const primaryKeySet = new Set(primaryKeyColumns)
 
-    const columns = columnsResult.recordset.map((col: ColumnRow) => {
+    const columns = (columnsByTable.get(tableName) ?? []).map((col) => {
       const columnName = col.COLUMN_NAME
       const fk = fkByColumn.get(columnName)
 

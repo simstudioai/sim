@@ -70,7 +70,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Unix timestamp in seconds when the event occurred (e.g., 1705320000, defaults to now)',
+        'Unix timestamp in seconds when the event occurred (e.g., 1705320000, defaults to now). Datadog limits this to events no older than 18 hours.',
     },
     apiKey: {
       type: 'string',

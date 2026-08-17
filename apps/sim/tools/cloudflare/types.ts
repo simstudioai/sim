@@ -309,8 +309,8 @@ export interface CloudflareRawDnsAnalyticsAggregate {
 /** Raw DNS analytics report payload. */
 export interface CloudflareRawDnsAnalyticsReport {
   totals?: CloudflareRawDnsAnalyticsAggregate
-  min?: CloudflareRawDnsAnalyticsAggregate
-  max?: CloudflareRawDnsAnalyticsAggregate
+  min?: Record<string, unknown>
+  max?: Record<string, unknown>
   data?: Array<{ dimensions?: string[]; metrics?: number[] }>
   data_lag?: number
   rows?: number
@@ -683,17 +683,22 @@ export interface CloudflareDnsAnalyticsParams extends CloudflareBaseParams {
   zoneId: string
   since?: string
   until?: string
-  metrics: string
+  metrics?: string
   dimensions?: string
   filters?: string
   sort?: string
   limit?: number
 }
 
+/**
+ * Aggregate metric block. Cloudflare only populates the metrics that were
+ * requested, so every field is optional — an absent field means "not requested"
+ * rather than zero.
+ */
 interface CloudflareDnsAnalyticsTotals {
-  queryCount: number
-  uncachedCount: number
-  staleCount: number
+  queryCount?: number
+  uncachedCount?: number
+  staleCount?: number
   responseTimeAvg?: number
   responseTimeMedian?: number
   responseTime90th?: number
@@ -713,8 +718,10 @@ interface CloudflareDnsAnalyticsQuery {
 export interface CloudflareDnsAnalyticsResponse extends ToolResponse {
   output: {
     totals: CloudflareDnsAnalyticsTotals
-    min: CloudflareDnsAnalyticsTotals
-    max: CloudflareDnsAnalyticsTotals
+    /** Cloudflare documents this as "currently always an empty object". */
+    min: Record<string, unknown> | null
+    /** Cloudflare documents this as "currently always an empty object". */
+    max: Record<string, unknown> | null
     data: Array<{
       dimensions: string[]
       metrics: number[]
@@ -727,6 +734,7 @@ export interface CloudflareDnsAnalyticsResponse extends ToolResponse {
 
 export interface CloudflareGetZoneSettingsParams extends CloudflareBaseParams {
   zoneId: string
+  settingIds?: string
 }
 
 interface CloudflareZoneSetting {
@@ -737,9 +745,25 @@ interface CloudflareZoneSetting {
   time_remaining?: number
 }
 
+/** Raw zone setting payload, as returned by the per-setting endpoint. */
+export interface CloudflareRawZoneSetting {
+  id?: string
+  value?: unknown
+  editable?: boolean
+  modified_on?: string | null
+  time_remaining?: number | null
+}
+
+/** A setting Cloudflare refused, so the caller sees the gap rather than a silent omission. */
+interface CloudflareUnreadableZoneSetting {
+  id: string
+  error: string
+}
+
 export interface CloudflareGetZoneSettingsResponse extends ToolResponse {
   output: {
     settings: CloudflareZoneSetting[]
+    unreadable: CloudflareUnreadableZoneSetting[]
   }
 }
 
@@ -909,6 +933,9 @@ export interface CloudflareUpdateRateLimitRuleParams extends CloudflareBaseParam
   requestsToOrigin?: boolean
   description?: string
   enabled?: boolean
+  ref?: string
+  actionParameters?: string
+  logging?: string
 }
 
 interface CloudflareAccessApplication {

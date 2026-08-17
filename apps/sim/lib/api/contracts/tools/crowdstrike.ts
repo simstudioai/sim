@@ -792,7 +792,10 @@ const queryIndicatorsSchema = baseRequestSchema
       .number()
       .int()
       .min(1, 'Limit must be at least 1')
-      .max(500, 'Limit must be at most 500')
+      .max(
+        500,
+        'Sim caps this request at 500 indicators; CrowdStrike publishes no limit for this endpoint'
+      )
       .optional(),
     offset: z.number().int().nonnegative('Offset must be 0 or greater').optional(),
     after: nonBlankQuerySchema('After cursor'),

@@ -194,6 +194,55 @@ const SPLUNK_XML_RESPONSE =
 const SPLUNK_XML_SID = /<sid>([\s\S]*?)<\/sid>/i
 
 /**
+ * The `<msg type="...">` entries of the `<messages>` block. Job control documents
+ * "Returned values: None", so these messages are the entire payload the endpoint
+ * produces — the only signal that the action took effect.
+ */
+const SPLUNK_XML_MSG = /<msg\b([^>]*)>([\s\S]*?)<\/msg>/gi
+
+/** The `type` attribute of a `<msg>` element (INFO, WARN, ERROR, FATAL, DEBUG). */
+const SPLUNK_XML_MSG_TYPE = /\btype\s*=\s*"([^"]*)"|\btype\s*=\s*'([^']*)'/i
+
+const XML_NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+}
+
+/**
+ * Decode the five predefined XML entities and numeric character references. A
+ * Splunk message routinely quotes the offending search string, so `&quot;` and
+ * `&#39;` appear in ordinary payloads and would otherwise reach the workflow raw.
+ */
+function decodeXmlText(value: string): string {
+  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, entity: string) => {
+    if (entity.startsWith('#')) {
+      const isHex = entity[1] === 'x' || entity[1] === 'X'
+      const code = Number.parseInt(isHex ? entity.slice(2) : entity.slice(1), isHex ? 16 : 10)
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : match
+    }
+    return XML_NAMED_ENTITIES[entity.toLowerCase()] ?? match
+  })
+}
+
+/** Project the `<messages>` block of a dispatch envelope onto the JSON message shape. */
+function parseXmlMessages(body: string): SplunkMessage[] {
+  const messages: SplunkMessage[] = []
+  SPLUNK_XML_MSG.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = SPLUNK_XML_MSG.exec(body)) !== null) {
+    const typeMatch = SPLUNK_XML_MSG_TYPE.exec(match[1] ?? '')
+    const type = typeMatch?.[1] ?? typeMatch?.[2] ?? null
+    messages.push({ type, text: decodeXmlText(match[2] ?? '').trim() })
+  }
+  return messages
+}
+
+/**
  * Read a body from the dispatching and job-control endpoints, which may answer in
  * XML rather than JSON.
  *
@@ -203,12 +252,14 @@ const SPLUNK_XML_SID = /<sid>([\s\S]*?)<\/sid>/i
  * succeeded server-side as a failure — the job really was dispatched, and
  * cancelling a job really does cancel it.
  *
- * The envelope is projected onto the same `{ sid }` shape `output_mode=json`
- * produces rather than being discarded, so a dispatch that answered in XML still
- * hands back the search ID of the job it just created instead of losing it and
- * erroring after the remote work happened. A job-control response that carries no
- * `sid` yields `{}`, which is what those endpoints document ("Returned values:
- * None"). A JSON body still parses normally.
+ * The envelope is projected onto the same `{ sid, messages }` shape
+ * `output_mode=json` produces rather than being discarded, so a dispatch that
+ * answered in XML still hands back the search ID of the job it just created
+ * instead of losing it and erroring after the remote work happened. The
+ * `<messages>` block is projected for the same reason: job control documents
+ * "Returned values: None", so those messages are the only payload it produces
+ * and therefore the one signal that the cancel took effect. A response carrying
+ * neither yields `{}`. A JSON body still parses normally.
  *
  * Only that complete envelope is accepted. Anything else — an HTML error page
  * served with a 2xx, another XML document, or a truncated envelope — falls through
@@ -221,8 +272,13 @@ export async function readSplunkDispatchJson(response: Response): Promise<unknow
 
   const envelope = SPLUNK_XML_RESPONSE.exec(body)
   if (envelope) {
-    const sid = SPLUNK_XML_SID.exec(envelope[1] ?? '')?.[1]?.trim()
-    return sid ? { sid } : {}
+    const inner = envelope[1] ?? ''
+    const sid = SPLUNK_XML_SID.exec(inner)?.[1]?.trim()
+    const messages = parseXmlMessages(inner)
+    const projected: { sid?: string; messages?: SplunkMessage[] } = {}
+    if (sid) projected.sid = sid
+    if (messages.length > 0) projected.messages = messages
+    return projected
   }
 
   return JSON.parse(body)
@@ -307,21 +363,6 @@ export function getSplunkPaging(data: unknown): { total: number | null; offset: 
     offset?: unknown
   }
   return { total: asNumber(paging.total), offset: asNumber(paging.offset) }
-}
-
-/** Shared output schema for the `paging.total` projection on collection endpoints. */
-export const SPLUNK_TOTAL_OUTPUT = {
-  type: 'number' as const,
-  description:
-    'Total number of entries matching the request, from the response paging envelope. Compare with offset to decide whether another page remains.',
-  optional: true,
-}
-
-/** Shared output schema for the `paging.offset` projection on collection endpoints. */
-export const SPLUNK_OFFSET_OUTPUT = {
-  type: 'number' as const,
-  description: 'Offset of the first entry in this page, echoed from the response paging envelope',
-  optional: true,
 }
 
 /** The per-entry property dictionary, or an empty object when the entry has none. */
@@ -447,51 +488,4 @@ export function mapSearchResultsPayload(data: unknown) {
     initOffset: asNumber(root.init_offset),
     messages: mapSplunkMessages(root.messages),
   }
-}
-
-/** Shared output schema for the two tools that return search results. */
-export const SEARCH_RESULTS_OUTPUTS = {
-  results: {
-    type: 'array' as const,
-    description: 'Result rows. Each row holds the fields produced by the search.',
-    items: { type: 'object' as const },
-  },
-  resultCount: {
-    type: 'number' as const,
-    description: 'Number of result rows returned in this response',
-  },
-  preview: {
-    type: 'boolean' as const,
-    description: 'Whether these are preview results from a still-running job',
-    optional: true,
-  },
-  initOffset: {
-    type: 'number' as const,
-    description: 'Offset of the first returned row within the full result set',
-    optional: true,
-  },
-  messages: {
-    type: 'array' as const,
-    description: 'Search messages returned alongside the results',
-    items: {
-      type: 'object' as const,
-      properties: {
-        type: { type: 'string' as const, description: 'Message severity' },
-        text: { type: 'string' as const, description: 'Message text' },
-      },
-    },
-  },
-}
-
-/** Shared output schema for the `messages` envelope key. */
-export const SPLUNK_MESSAGES_OUTPUT = {
-  type: 'array' as const,
-  description: 'Informational, warning, and error messages returned with the response',
-  items: {
-    type: 'object' as const,
-    properties: {
-      type: { type: 'string' as const, description: 'Message severity (INFO, WARN, ERROR, DEBUG)' },
-      text: { type: 'string' as const, description: 'Message text' },
-    },
-  },
 }

@@ -6,6 +6,7 @@ import {
   datadogApiUrl,
   datadogErrorMessage,
   datadogHeaders,
+  datadogPathSegment,
   mapSignalTriageData,
 } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -70,7 +71,7 @@ export const updateSecuritySignalStateTool: ToolConfig<
     url: (params) =>
       datadogApiUrl(
         params.site,
-        `/api/v2/security_monitoring/signals/${encodeURIComponent(params.signalId)}/state`
+        `/api/v2/security_monitoring/signals/${datadogPathSegment(params.signalId)}/state`
       ),
     method: 'PATCH',
     headers: datadogHeaders,

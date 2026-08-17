@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { ServiceNowDeleteParams, ServiceNowDeleteResponse } from '@/tools/servicenow/types'
-import { buildServiceNowHeaders, normalizeInstanceUrl } from '@/tools/servicenow/utils'
+import {
+  buildServiceNowHeaders,
+  normalizeInstanceUrl,
+  throwServiceNowError,
+} from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowDeleteRecordTool')
@@ -55,18 +59,13 @@ export const deleteRecordTool: ToolConfig<ServiceNowDeleteParams, ServiceNowDele
 
   transformResponse: async (response: Response, params?: ServiceNowDeleteParams) => {
     try {
+      /**
+       * A successful delete is `204 No Content`, so the body is only ever read
+       * on failure — this cannot go through `parseServiceNowResponse`, which
+       * parses unconditionally.
+       */
       if (!response.ok) {
-        let errorData: any
-        try {
-          errorData = await response.json()
-        } catch {
-          errorData = { status: response.status, statusText: response.statusText }
-        }
-        throw new Error(
-          typeof errorData === 'string'
-            ? errorData
-            : errorData.error?.message || JSON.stringify(errorData)
-        )
+        await throwServiceNowError(response)
       }
 
       return {

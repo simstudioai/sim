@@ -9,6 +9,8 @@ import {
 import {
   assertGraphNextPageUrlForCollection,
   buildGraphCollectionUrl,
+  graphCollectionHeaders,
+  usesGraphAdvancedQuery,
 } from '@/tools/microsoft_ad/utils'
 import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -76,14 +78,11 @@ export const listServicePrincipalsTool: ToolConfig<
         search: search
           ? `"displayName:${search.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
           : undefined,
-        count: Boolean(search),
+        count: usesGraphAdvancedQuery(params),
       })
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      ConsistencyLevel: 'eventual',
-    }),
+    headers: (params) => graphCollectionHeaders(params),
   },
   transformResponse: async (response: Response) => {
     const data = await response.json()
@@ -122,12 +121,18 @@ export const listServicePrincipalsTool: ToolConfig<
     servicePrincipals: {
       type: 'array',
       description: 'Service principals in the tenant',
-      properties: {
-        ...SERVICE_PRINCIPAL_OUTPUT_PROPERTIES,
-        appRoles: {
-          type: 'array',
-          description: 'App roles exposed by the associated application',
-          properties: APP_ROLE_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: {
+          ...SERVICE_PRINCIPAL_OUTPUT_PROPERTIES,
+          appRoles: {
+            type: 'array',
+            description: 'App roles exposed by the associated application',
+            items: {
+              type: 'object',
+              properties: APP_ROLE_OUTPUT_PROPERTIES,
+            },
+          },
         },
       },
     },

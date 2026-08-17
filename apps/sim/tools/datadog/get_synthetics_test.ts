@@ -1,5 +1,10 @@
 import type { GetSyntheticsTestParams, GetSyntheticsTestResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSyntheticsTestTool: ToolConfig<GetSyntheticsTestParams, GetSyntheticsTestResponse> =
@@ -41,7 +46,7 @@ export const getSyntheticsTestTool: ToolConfig<GetSyntheticsTestParams, GetSynth
       url: (params) =>
         datadogApiUrl(
           params.site,
-          `/api/v1/synthetics/tests/${encodeURIComponent(params.publicId)}`
+          `/api/v1/synthetics/tests/${datadogPathSegment(params.publicId)}`
         ),
       method: 'GET',
       headers: datadogHeaders,

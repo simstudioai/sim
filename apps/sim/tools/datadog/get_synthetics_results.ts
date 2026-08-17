@@ -6,6 +6,7 @@ import {
   datadogApiUrl,
   datadogErrorMessage,
   datadogHeaders,
+  datadogPathSegment,
   splitCommaList,
 } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -76,7 +77,7 @@ export const getSyntheticsResultsTool: ToolConfig<
       const queryString = queryParams.toString()
       return datadogApiUrl(
         params.site,
-        `/api/v1/synthetics/tests/${encodeURIComponent(params.publicId)}/results${
+        `/api/v1/synthetics/tests/${datadogPathSegment(params.publicId)}/results${
           queryString ? `?${queryString}` : ''
         }`
       )

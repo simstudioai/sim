@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaActivateUserParams, OktaActivateUserResponse } from '@/tools/okta/types'
-import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaActivateUser')
@@ -43,7 +43,7 @@ export const oktaActivateUserTool: ToolConfig<OktaActivateUserParams, OktaActiva
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const sendEmail = params.sendEmail ?? true
+      const sendEmail = params.sendEmail === undefined ? true : isOktaFlagEnabled(params.sendEmail)
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/activate?sendEmail=${sendEmail}`
     },
     method: 'POST',

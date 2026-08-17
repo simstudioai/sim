@@ -94,8 +94,9 @@ export interface SplunkGetSearchJobResponse extends ToolResponse {
     priority: number | null
     earliestTime: string | null
     latestTime: string | null
-    searchEarliestTime: string | null
-    searchLatestTime: string | null
+    /** Epoch seconds. The job entry documents this pair as bare numbers. */
+    searchEarliestTime: number | null
+    searchLatestTime: number | null
     messages: Record<string, unknown> | null
   }
 }

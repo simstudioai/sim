@@ -1,5 +1,10 @@
 import type { GetSloHistoryParams, GetSloHistoryResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSloHistoryTool: ToolConfig<GetSloHistoryParams, GetSloHistoryResponse> = {
@@ -72,7 +77,7 @@ export const getSloHistoryTool: ToolConfig<GetSloHistoryParams, GetSloHistoryRes
         queryParams.set('apply_correction', String(params.applyCorrection))
       return datadogApiUrl(
         params.site,
-        `/api/v1/slo/${encodeURIComponent(params.sloId)}/history?${queryParams.toString()}`
+        `/api/v1/slo/${datadogPathSegment(params.sloId)}/history?${queryParams.toString()}`
       )
     },
     method: 'GET',

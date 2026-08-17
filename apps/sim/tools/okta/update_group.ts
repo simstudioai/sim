@@ -100,8 +100,14 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
   },
 
   /**
-   * Declarative fallback used only when direct execution is bypassed. It cannot
-   * merge, so it sends exactly what the caller supplied.
+   * Unreachable fallback, kept only because `ToolConfig` requires a `request`.
+   *
+   * The executor always prefers `directExecution` for this tool. If that ever
+   * changed, this path could not read the stored profile first, so the `PUT`
+   * would replace an extensible profile with the two fields the caller
+   * supplied — erasing the stored description on a rename and every org-defined
+   * custom attribute. Failing loudly is the only safe behavior; silently
+   * truncating the profile is not.
    */
   request: {
     url: (params) => {
@@ -110,7 +116,11 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
     },
     method: 'PUT',
     headers: (params) => oktaHeaders(params.apiKey),
-    body: (params) => ({ profile: mergeOktaGroupProfile(undefined, params) }),
+    body: () => {
+      throw new Error(
+        'Okta update_group requires direct execution: replacing a group profile without reading it first would erase the stored description and every custom attribute'
+      )
+    },
   },
 
   transformResponse: (response: Response) => transformUpdateGroupResponse(response),

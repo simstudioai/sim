@@ -3,6 +3,7 @@ import {
   datadogApiUrl,
   datadogErrorMessage,
   datadogHeaders,
+  datadogPathSegment,
   splitCommaList,
 } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -53,7 +54,7 @@ export const getIncidentTool: ToolConfig<GetIncidentParams, GetIncidentResponse>
       const queryString = include ? `?${new URLSearchParams({ include }).toString()}` : ''
       return datadogApiUrl(
         params.site,
-        `/api/v2/incidents/${encodeURIComponent(params.incidentId)}${queryString}`
+        `/api/v2/incidents/${datadogPathSegment(params.incidentId)}${queryString}`
       )
     },
     method: 'GET',

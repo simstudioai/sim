@@ -54,7 +54,10 @@ export const listDirectoryRolesTool: ToolConfig<
     roles: {
       type: 'array',
       description: 'Activated directory roles',
-      properties: DIRECTORY_ROLE_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: DIRECTORY_ROLE_OUTPUT_PROPERTIES,
+      },
     },
     roleCount: { type: 'number', description: 'Number of directory roles returned' },
   },

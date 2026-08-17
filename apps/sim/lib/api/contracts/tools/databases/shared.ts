@@ -71,6 +71,13 @@ export const sqlRowsResponseSchema = z.object({
   message: z.string(),
   rows: z.array(z.unknown()),
   rowCount: z.number(),
+  /**
+   * Present only when the driver returned more than the route was willing to
+   * serialize. Absent means the recordset is complete, so a caller that ignores
+   * these two fields still reads a whole result correctly.
+   */
+  truncated: z.boolean().optional(),
+  truncationReason: z.string().optional(),
 })
 
 export const mongoDocumentsResponseSchema = z

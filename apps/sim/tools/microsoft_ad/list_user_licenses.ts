@@ -64,7 +64,10 @@ export const listUserLicensesTool: ToolConfig<
     licenses: {
       type: 'array',
       description: 'Licenses assigned to the user',
-      properties: LICENSE_DETAIL_OUTPUT_PROPERTIES,
+      items: {
+        type: 'object',
+        properties: LICENSE_DETAIL_OUTPUT_PROPERTIES,
+      },
     },
     licenseCount: { type: 'number', description: 'Number of licenses returned' },
   },

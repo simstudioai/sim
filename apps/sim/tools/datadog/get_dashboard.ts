@@ -1,5 +1,10 @@
 import type { GetDashboardParams, GetDashboardResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getDashboardTool: ToolConfig<GetDashboardParams, GetDashboardResponse> = {
@@ -37,7 +42,7 @@ export const getDashboardTool: ToolConfig<GetDashboardParams, GetDashboardRespon
 
   request: {
     url: (params) =>
-      datadogApiUrl(params.site, `/api/v1/dashboard/${encodeURIComponent(params.dashboardId)}`),
+      datadogApiUrl(params.site, `/api/v1/dashboard/${datadogPathSegment(params.dashboardId)}`),
     method: 'GET',
     headers: datadogHeaders,
   },

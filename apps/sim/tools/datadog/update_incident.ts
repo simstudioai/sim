@@ -3,6 +3,7 @@ import {
   datadogApiUrl,
   datadogErrorMessage,
   datadogHeaders,
+  datadogPathSegment,
   parseJsonParam,
   splitCommaList,
 } from '@/tools/datadog/utils'
@@ -99,7 +100,7 @@ export const updateIncidentTool: ToolConfig<UpdateIncidentParams, UpdateIncident
 
   request: {
     url: (params) =>
-      datadogApiUrl(params.site, `/api/v2/incidents/${encodeURIComponent(params.incidentId)}`),
+      datadogApiUrl(params.site, `/api/v2/incidents/${datadogPathSegment(params.incidentId)}`),
     method: 'PATCH',
     headers: datadogHeaders,
     body: (params) => {

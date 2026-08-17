@@ -216,6 +216,42 @@ export function emptyAccessPolicy() {
   }
 }
 
+/**
+ * The zone settings "Get Zone Settings" reads when the caller names none.
+ *
+ * Cloudflare deprecated the batch `GET /zones/{zone_id}/settings` endpoint,
+ * which reaches end of life on 2027-03-31, and directs integrations at the
+ * per-setting `GET /zones/{zone_id}/settings/{setting_id}` endpoint. "Read the
+ * zone's settings" is therefore a fan-out over an explicit, bounded list rather
+ * than one request.
+ * https://developers.cloudflare.com/fundamentals/api/reference/deprecations/
+ */
+export const DEFAULT_ZONE_SETTING_IDS = [
+  'ssl',
+  'always_use_https',
+  'min_tls_version',
+  'tls_1_3',
+  'security_level',
+  'cache_level',
+  'browser_cache_ttl',
+  'development_mode',
+  'rocket_loader',
+  'email_obfuscation',
+  'hotlink_protection',
+  'ip_geolocation',
+  'http2',
+  'http3',
+  'websockets',
+]
+
+/** Upper bound on one zone-settings fan-out, so a pasted list cannot become an unbounded burst. */
+export const MAX_ZONE_SETTING_IDS = 40
+
+/** Resolves the requested zone setting ids, falling back to the default read set. */
+export function requestedZoneSettingIds(settingIds: unknown): string[] {
+  return parseCsvParam(settingIds) ?? DEFAULT_ZONE_SETTING_IDS
+}
+
 /** Appends a query param when the value is present and non-empty. */
 export function appendParam(url: URL, key: string, value: unknown): void {
   if (value === undefined || value === null || value === '') return

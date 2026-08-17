@@ -1,5 +1,10 @@
 import type { UnmuteMonitorParams, UnmuteMonitorResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorResponse> = {
@@ -49,17 +54,27 @@ export const unmuteMonitorTool: ToolConfig<UnmuteMonitorParams, UnmuteMonitorRes
     },
   },
 
+  /**
+   * `scope` and `all_scopes` are query parameters, not a request body: the
+   * UnmuteMonitor operation declares no `requestBody` and documents both under
+   * "Query Strings". Sent as a body they are dropped, so "clear every scope"
+   * silently never applies.
+   */
   request: {
-    url: (params) =>
-      datadogApiUrl(params.site, `/api/v1/monitor/${encodeURIComponent(params.monitorId)}/unmute`),
+    url: (params) => {
+      const queryParams = new URLSearchParams()
+      if (params.scope) queryParams.set('scope', params.scope)
+      if (params.allScopes !== undefined && params.allScopes !== null)
+        queryParams.set('all_scopes', String(params.allScopes))
+
+      const queryString = queryParams.toString()
+      return datadogApiUrl(
+        params.site,
+        `/api/v1/monitor/${datadogPathSegment(params.monitorId)}/unmute${queryString ? `?${queryString}` : ''}`
+      )
+    },
     method: 'POST',
     headers: datadogHeaders,
-    body: (params) => {
-      const body: { scope?: string; all_scopes?: boolean } = {}
-      if (params.scope) body.scope = params.scope
-      if (params.allScopes !== undefined) body.all_scopes = params.allScopes
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {

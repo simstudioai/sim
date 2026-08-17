@@ -299,6 +299,31 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'splunk-errors',
+    description:
+      'Splunk REST message envelope: {messages: [{type, text}]}. Under the output_mode=json every Splunk request pins, this is where a rejected SPL string explains itself — without it the failure reports only the HTTP status text',
+    examples: ['Splunk Enterprise', 'Splunk Cloud'],
+    extract: (errorInfo) => {
+      const messages = errorInfo?.data?.messages
+      if (!Array.isArray(messages) || messages.length === 0) return undefined
+
+      const texts = messages
+        .map((message: { type?: unknown; text?: unknown }) => ({
+          type: typeof message?.type === 'string' ? message.type.toUpperCase() : '',
+          text: typeof message?.text === 'string' ? message.text.trim() : '',
+        }))
+        .filter((message) => message.text)
+
+      if (texts.length === 0) return undefined
+
+      // A failing request carries the cause on the ERROR/FATAL entries; the rest
+      // are the INFO/WARN/DEBUG chatter Splunk attaches to every response.
+      const fatal = texts.filter((message) => message.type === 'ERROR' || message.type === 'FATAL')
+      const selected = fatal.length > 0 ? fatal : texts
+      return selected.map((message) => message.text).join('; ')
+    },
+  },
+  {
     id: 'plain-text-data',
     description: 'Plain text error response',
     examples: ['APIs returning plain text errors like Apollo'],
@@ -378,6 +403,7 @@ export const ErrorExtractorId = {
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

@@ -16,14 +16,17 @@ function toSwitchBoolean(value: unknown): boolean | undefined {
 }
 
 /**
- * Coerce a List Monitors pagination input, dropping anything that is not a finite
- * number. These are advanced free-text fields, so they can carry a typo or an
- * unresolved reference, and a bare `Number()` would put the literal `NaN` in the
- * query string instead of omitting the parameter. An untouched subBlock resolves
- * to `null` and an empty one to `''`; both are omissions rather than zeros, while
- * an explicit `0` is Datadog's own first page and is kept.
+ * Coerce a numeric block input, dropping anything that is not a finite number.
+ *
+ * These are free-text fields, so they can carry a typo or an unresolved
+ * reference, and a bare `Number()` would put the literal `NaN` into the request
+ * — `JSON.stringify` writes it as `null` and it reaches a query string as the
+ * string "NaN", either of which Datadog rejects with a message naming nothing
+ * the user typed. An untouched subBlock resolves to `null` and an empty one to
+ * `''`; both are omissions rather than zeros, while an explicit `0` is
+ * meaningful (page 0, offset 0, a zero threshold) and is kept.
  */
-function datadogPageNumber(value: unknown): number | undefined {
+function datadogNumber(value: unknown): number | undefined {
   if (value == null || value === '') return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
@@ -533,6 +536,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'Page Size',
       type: 'short-input',
       placeholder: '50',
+      tooltip:
+        'Monitors per page (max 1000). Datadog only applies a page size when a page number is sent, so setting this alone uses page 0.',
       condition: { field: 'operation', value: 'datadog_list_monitors' },
       mode: 'advanced',
     },
@@ -541,6 +546,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       title: 'Page Number',
       type: 'short-input',
       placeholder: '0',
+      tooltip:
+        'Page to start from (0-indexed). Leaving both this and Page Size blank returns every monitor in the org without pagination.',
       condition: { field: 'operation', value: 'datadog_list_monitors' },
       mode: 'advanced',
     },
@@ -1100,8 +1107,19 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         { label: 'Monitor', id: 'monitor' },
       ],
       value: () => 'metric',
-      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      condition: { field: 'operation', value: ['datadog_create_slo'] },
       required: { field: 'operation', value: ['datadog_create_slo'] },
+    },
+    {
+      id: 'sloUpdateType',
+      title: 'SLO Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Keep current', id: '' },
+        { label: 'Metric', id: 'metric' },
+        { label: 'Monitor', id: 'monitor' },
+      ],
+      condition: { field: 'operation', value: ['datadog_update_slo'] },
     },
     {
       id: 'sloThresholds',
@@ -1985,8 +2003,8 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               query: params.query,
-              from: params.from ? Number(params.from) : undefined,
-              to: params.to ? Number(params.to) : undefined,
+              from: datadogNumber(params.from),
+              to: datadogNumber(params.to),
             }
 
           case 'datadog_create_event':
@@ -2007,7 +2025,7 @@ Return ONLY the search query string - no explanations.`,
               query: params.monitorQuery,
               message: params.message,
               tags: params.monitorTags,
-              priority: params.monitorPriority ? Number(params.monitorPriority) : undefined,
+              priority: datadogNumber(params.monitorPriority),
               options: params.options,
             }
 
@@ -2025,8 +2043,8 @@ Return ONLY the search query string - no explanations.`,
                * leftover value would filter this list while presenting it as complete.
                */
               monitorTags: undefined,
-              pageSize: datadogPageNumber(params.listMonitorPageSize),
-              page: datadogPageNumber(params.listMonitorPage),
+              pageSize: datadogNumber(params.listMonitorPageSize),
+              page: datadogNumber(params.listMonitorPage),
             }
 
           case 'datadog_mute_monitor':
@@ -2034,7 +2052,7 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               monitorId: params.muteMonitorId,
               scope: params.scope || undefined,
-              end: params.end ? Number(params.end) : undefined,
+              end: datadogNumber(params.end),
             }
 
           case 'datadog_unmute_monitor':
@@ -2051,7 +2069,7 @@ Return ONLY the search query string - no explanations.`,
               query: params.logQuery,
               from: params.logFrom,
               to: params.logTo,
-              limit: params.logLimit ? Number(params.logLimit) : undefined,
+              limit: datadogNumber(params.logLimit),
               cursor: params.logCursor || undefined,
             }
 
@@ -2063,8 +2081,8 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               scope: params.downtimeScope,
               message: params.downtimeMessage,
-              start: params.downtimeStart ? Number(params.downtimeStart) : undefined,
-              end: params.downtimeEnd ? Number(params.downtimeEnd) : undefined,
+              start: datadogNumber(params.downtimeStart),
+              end: datadogNumber(params.downtimeEnd),
               monitorId: params.downtimeMonitorId,
               monitorTags: params.downtimeMonitorTags || undefined,
               timezone: params.downtimeTimezone || undefined,
@@ -2075,8 +2093,8 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               currentOnly: toSwitchBoolean(params.currentOnly),
-              limit: params.downtimeLimit ? Number(params.downtimeLimit) : undefined,
-              offset: params.downtimeOffset ? Number(params.downtimeOffset) : undefined,
+              limit: datadogNumber(params.downtimeLimit),
+              offset: datadogNumber(params.downtimeOffset),
             }
 
           case 'datadog_cancel_downtime':
@@ -2086,8 +2104,8 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               include: params.incidentInclude || undefined,
-              pageSize: params.incidentPageSize ? Number(params.incidentPageSize) : undefined,
-              pageOffset: params.incidentPageOffset ? Number(params.incidentPageOffset) : undefined,
+              pageSize: datadogNumber(params.incidentPageSize),
+              pageOffset: datadogNumber(params.incidentPageOffset),
             }
 
           case 'datadog_get_incident':
@@ -2141,8 +2159,8 @@ Return ONLY the search query string - no explanations.`,
               query: params.sloQuery || undefined,
               tagsQuery: params.sloTagsQuery || undefined,
               metricsQuery: params.sloMetricsQuery || undefined,
-              limit: params.sloLimit ? Number(params.sloLimit) : undefined,
-              offset: params.sloOffset ? Number(params.sloOffset) : undefined,
+              limit: datadogNumber(params.sloLimit),
+              offset: datadogNumber(params.sloOffset),
             }
 
           case 'datadog_get_slo':
@@ -2163,12 +2181,8 @@ Return ONLY the search query string - no explanations.`,
               query: params.sloMetricQuery || undefined,
               monitorIds: params.sloMonitorIds || undefined,
               groups: params.sloGroups || undefined,
-              targetThreshold: params.sloTargetThreshold
-                ? Number(params.sloTargetThreshold)
-                : undefined,
-              warningThreshold: params.sloWarningThreshold
-                ? Number(params.sloWarningThreshold)
-                : undefined,
+              targetThreshold: datadogNumber(params.sloTargetThreshold),
+              warningThreshold: datadogNumber(params.sloWarningThreshold),
               timeframe: params.sloTimeframe || undefined,
             }
 
@@ -2177,19 +2191,15 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               sloId: params.sloId,
               name: params.sloName || undefined,
-              type: params.sloType || undefined,
+              type: params.sloUpdateType || undefined,
               thresholds: params.sloThresholds || undefined,
               description: params.sloDescription || undefined,
               tags: params.sloTags || undefined,
               query: params.sloMetricQuery || undefined,
               monitorIds: params.sloMonitorIds || undefined,
               groups: params.sloGroups || undefined,
-              targetThreshold: params.sloTargetThreshold
-                ? Number(params.sloTargetThreshold)
-                : undefined,
-              warningThreshold: params.sloWarningThreshold
-                ? Number(params.sloWarningThreshold)
-                : undefined,
+              targetThreshold: datadogNumber(params.sloTargetThreshold),
+              warningThreshold: datadogNumber(params.sloWarningThreshold),
               timeframe: params.sloTimeframe || undefined,
             }
 
@@ -2204,9 +2214,9 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               sloId: params.sloId,
-              fromTs: params.sloFromTs ? Number(params.sloFromTs) : undefined,
-              toTs: params.sloToTs ? Number(params.sloToTs) : undefined,
-              target: params.sloTarget ? Number(params.sloTarget) : undefined,
+              fromTs: datadogNumber(params.sloFromTs),
+              toTs: datadogNumber(params.sloToTs),
+              target: datadogNumber(params.sloTarget),
               applyCorrection: toSwitchBoolean(params.sloApplyCorrection),
             }
 
@@ -2215,8 +2225,8 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               filterShared: toSwitchBoolean(params.dashboardFilterShared),
               filterDeleted: toSwitchBoolean(params.dashboardFilterDeleted),
-              count: params.dashboardCount ? Number(params.dashboardCount) : undefined,
-              start: params.dashboardStart ? Number(params.dashboardStart) : undefined,
+              count: datadogNumber(params.dashboardCount),
+              start: datadogNumber(params.dashboardStart),
             }
 
           case 'datadog_get_dashboard':
@@ -2241,10 +2251,8 @@ Return ONLY the search query string - no explanations.`,
           case 'datadog_list_synthetics_tests':
             return {
               ...baseParams,
-              pageSize: params.syntheticsPageSize ? Number(params.syntheticsPageSize) : undefined,
-              pageNumber: params.syntheticsPageNumber
-                ? Number(params.syntheticsPageNumber)
-                : undefined,
+              pageSize: datadogNumber(params.syntheticsPageSize),
+              pageNumber: datadogNumber(params.syntheticsPageNumber),
             }
 
           case 'datadog_get_synthetics_test':
@@ -2255,8 +2263,8 @@ Return ONLY the search query string - no explanations.`,
             return {
               ...baseParams,
               publicId: params.syntheticsPublicId,
-              fromTs: params.syntheticsFromTs ? Number(params.syntheticsFromTs) : undefined,
-              toTs: params.syntheticsToTs ? Number(params.syntheticsToTs) : undefined,
+              fromTs: datadogNumber(params.syntheticsFromTs),
+              toTs: datadogNumber(params.syntheticsToTs),
               probeDc: params.syntheticsProbeDc || undefined,
             }
 
@@ -2278,7 +2286,7 @@ Return ONLY the search query string - no explanations.`,
               to: params.signalTo || undefined,
               sort: params.signalSort || undefined,
               cursor: params.signalCursor || undefined,
-              limit: params.signalLimit ? Number(params.signalLimit) : undefined,
+              limit: datadogNumber(params.signalLimit),
             }
 
           case 'datadog_get_security_signal':
@@ -2305,8 +2313,8 @@ Return ONLY the search query string - no explanations.`,
               ...baseParams,
               query: params.ruleQuery || undefined,
               sort: params.ruleSort || undefined,
-              pageSize: params.rulePageSize ? Number(params.rulePageSize) : undefined,
-              pageNumber: params.rulePageNumber ? Number(params.rulePageNumber) : undefined,
+              pageSize: datadogNumber(params.rulePageSize),
+              pageNumber: datadogNumber(params.rulePageNumber),
             }
 
           case 'datadog_search_spans':
@@ -2317,14 +2325,14 @@ Return ONLY the search query string - no explanations.`,
               to: params.spanTo || undefined,
               sort: params.spanSort || undefined,
               cursor: params.spanCursor || undefined,
-              limit: params.spanLimit ? Number(params.spanLimit) : undefined,
+              limit: datadogNumber(params.spanLimit),
             }
 
           case 'datadog_list_services':
             return {
               ...baseParams,
-              pageSize: params.servicePageSize ? Number(params.servicePageSize) : undefined,
-              pageNumber: params.servicePageNumber ? Number(params.servicePageNumber) : undefined,
+              pageSize: datadogNumber(params.servicePageSize),
+              pageNumber: datadogNumber(params.servicePageNumber),
               schemaVersion: params.serviceSchemaVersion || undefined,
             }
 
@@ -2390,8 +2398,16 @@ Return ONLY the search query string - no explanations.`,
     downtimeId: { type: 'string', description: 'Downtime ID to cancel' },
     listMonitorName: { type: 'string', description: 'Filter monitors by name' },
     listMonitorTags: { type: 'string', description: 'Filter monitors by tags' },
-    listMonitorPageSize: { type: 'number', description: 'Monitors to return per page' },
-    listMonitorPage: { type: 'number', description: 'Monitor page number (0-indexed)' },
+    listMonitorPageSize: {
+      type: 'number',
+      description:
+        'Monitors to return per page (max 1000). Datadog only applies this when a page number is sent, so setting it alone uses page 0.',
+    },
+    listMonitorPage: {
+      type: 'number',
+      description:
+        'Monitor page number (0-indexed). With neither this nor the page size set, Datadog returns every monitor in the org without pagination.',
+    },
     // Incidents
     incidentId: { type: 'string', description: 'Incident UUID' },
     incidentTitle: { type: 'string', description: 'Incident title' },
@@ -2415,6 +2431,10 @@ Return ONLY the search query string - no explanations.`,
     sloId: { type: 'string', description: 'SLO ID' },
     sloName: { type: 'string', description: 'SLO name' },
     sloType: { type: 'string', description: 'SLO type' },
+    sloUpdateType: {
+      type: 'string',
+      description: 'Replacement SLO type, or blank to keep current',
+    },
     sloThresholds: { type: 'json', description: 'SLO thresholds' },
     sloDescription: { type: 'string', description: 'SLO description' },
     sloTags: { type: 'string', description: 'SLO tags' },

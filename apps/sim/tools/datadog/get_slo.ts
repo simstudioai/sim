@@ -1,5 +1,10 @@
 import type { GetSloParams, GetSloResponse } from '@/tools/datadog/types'
-import { datadogApiUrl, datadogErrorMessage, datadogHeaders } from '@/tools/datadog/utils'
+import {
+  datadogApiUrl,
+  datadogErrorMessage,
+  datadogHeaders,
+  datadogPathSegment,
+} from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getSloTool: ToolConfig<GetSloParams, GetSloResponse> = {
@@ -46,7 +51,7 @@ export const getSloTool: ToolConfig<GetSloParams, GetSloResponse> = {
       const queryString = params.withConfiguredAlertIds ? '?with_configured_alert_ids=true' : ''
       return datadogApiUrl(
         params.site,
-        `/api/v1/slo/${encodeURIComponent(params.sloId)}${queryString}`
+        `/api/v1/slo/${datadogPathSegment(params.sloId)}${queryString}`
       )
     },
     method: 'GET',

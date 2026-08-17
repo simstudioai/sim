@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   SAVED_SEARCH_OUTPUT_FIELDS,
   type SplunkGetSavedSearchParams,
@@ -49,6 +50,8 @@ export const getSavedSearchTool: ToolConfig<
     }
     return { success: true, output: mapSavedSearchEntry(entry) }
   },
+
+  errorExtractor: ErrorExtractorId.SPLUNK_ERRORS,
 
   outputs: SAVED_SEARCH_OUTPUT_FIELDS,
 }

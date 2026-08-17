@@ -7,10 +7,14 @@
  * leaking that default onto the generic ones.
  */
 import { describe, expect, it } from 'vitest'
-import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
+import { ServiceNowBlock, ServiceNowBlockMeta } from '@/blocks/blocks/servicenow'
 import * as servicenowTools from '@/tools/servicenow'
 import { aggregateTool } from '@/tools/servicenow/aggregate'
-import { DEFAULT_DISPLAY_VALUE } from '@/tools/servicenow/constants'
+import {
+  APPROVAL_DECISION_OPTIONS,
+  APPROVAL_STATE,
+  DEFAULT_DISPLAY_VALUE,
+} from '@/tools/servicenow/constants'
 import { createIncidentTool } from '@/tools/servicenow/create_incident'
 import { createRecordTool } from '@/tools/servicenow/create_record'
 import { deleteRecordTool } from '@/tools/servicenow/delete_record'
@@ -378,6 +382,13 @@ describe('one subBlock id never carries two different value spaces', () => {
       'active=true^priority=1',
       'vpn setup',
     ],
+    /**
+     * Both directions, since neither limit branch used to be scoped to an
+     * operation and whichever ran last won. The values are numeric so `Number()`
+     * is the identity — the assertion is purely about which subBlock is read.
+     */
+    ['attachmentLimit', 'limit', 'limit', 'servicenow_list_incidents', 5, 100],
+    ['limit', 'attachmentLimit', 'limit', 'servicenow_list_attachments', 7, 25],
   ])(
     'a stale %s never reaches %s of the wrong operation',
     (staleId, ownId, param, operation, staleValue, ownValue) => {
@@ -753,5 +764,280 @@ describe('ServiceNow aggregate having syntax', () => {
     const having = ServiceNowBlock.subBlocks.find((subBlock) => subBlock.id === 'having')
 
     expect(having?.placeholder).toBe('count^priority^>^3')
+  })
+})
+
+describe('approval states carry the values ServiceNow actually stores', () => {
+  /**
+   * All seven are published as `Label [value]` by the Ask for Approval flow
+   * action. The punctuation is not uniform: `not requested` uses a space and
+   * `not_required` an underscore, and the plausible-looking
+   * `not_yet_requested` / `no_longer_required` are accepted into the field and
+   * then never match — a filter built from either silently returns nothing.
+   */
+  it('publishes all seven states', () => {
+    expect(Object.values(APPROVAL_STATE)).toEqual([
+      'not requested',
+      'requested',
+      'approved',
+      'rejected',
+      'cancelled',
+      'not_required',
+      'skipped',
+    ])
+  })
+
+  it('never invents the guessable spellings ServiceNow does not match', () => {
+    const values = new Set<string>(Object.values(APPROVAL_STATE))
+    expect(values.has('not_yet_requested')).toBe(false)
+    expect(values.has('no_longer_required')).toBe(false)
+  })
+
+  it('offers every state on the list_approvals filter', () => {
+    const subBlock = ServiceNowBlock.subBlocks.find((candidate) => candidate.id === 'approvalState')
+    const offered = new Set((subBlock?.options as { id: string }[]).map((option) => option.id))
+    for (const state of Object.values(APPROVAL_STATE)) {
+      expect(offered.has(state)).toBe(true)
+    }
+  })
+
+  /** Only an approver's own two decisions are writable; the rest are engine-set. */
+  it('keeps the write-side decision list at approve and reject', () => {
+    expect(APPROVAL_DECISION_OPTIONS.map((option) => option.id)).toEqual(['approved', 'rejected'])
+  })
+})
+
+describe('the legacy generic tools are hardened like the semantic ones', () => {
+  it('read_record reports no records when the envelope carries no result', async () => {
+    const output = (await readRecordTool.transformResponse?.(
+      new Response(JSON.stringify({}), { status: 200 }) as never,
+      undefined as never
+    )) as { output: { records: unknown[]; metadata: { recordCount: number } } }
+
+    expect(output.output.records).toEqual([])
+    expect(output.output.metadata.recordCount).toBe(0)
+  })
+
+  it('read_record drops non-object collection members', async () => {
+    const output = (await readRecordTool.transformResponse?.(
+      new Response(JSON.stringify({ result: [{ sys_id: '1' }, null, 'x'] }), {
+        status: 200,
+      }) as never,
+      undefined as never
+    )) as { output: { records: unknown[]; metadata: { recordCount: number } } }
+
+    expect(output.output.records).toEqual([{ sys_id: '1' }])
+    expect(output.output.metadata.recordCount).toBe(1)
+  })
+
+  it.each([
+    ['create_record', createRecordTool],
+    ['update_record', updateRecordTool],
+  ])('%s never emits undefined where a record is declared', async (_name, tool) => {
+    const output = (await tool.transformResponse?.(
+      new Response(JSON.stringify({}), { status: 200 }) as never,
+      undefined as never
+    )) as { output: { record: unknown } }
+
+    expect(output.output.record).toEqual({})
+    expect(output.output.record).toBeDefined()
+  })
+
+  it('delete_record surfaces the instance message rather than a JSON dump', async () => {
+    await expect(
+      deleteRecordTool.transformResponse?.(
+        new Response(JSON.stringify({ error: { message: 'No Record found' } }), {
+          status: 404,
+        }) as never,
+        undefined as never
+      )
+    ).rejects.toThrowError(new Error('No Record found'))
+  })
+
+  /**
+   * A proxy in front of the instance answers with an HTML error page, which is
+   * the text a caller needs. Dumping a synthesized `{"status":...}` object
+   * instead hides the only diagnostic there was. Exact equality, since a
+   * substring match would also pass against a dump that merely contains the
+   * status.
+   */
+  it('delete_record surfaces a gateway body verbatim instead of a synthesized dump', async () => {
+    await expect(
+      deleteRecordTool.transformResponse?.(
+        new Response('<html><body>503 Service Unavailable</body></html>', {
+          status: 503,
+          statusText: 'Service Unavailable',
+        }) as never,
+        undefined as never
+      )
+    ).rejects.toThrowError(new Error('<html><body>503 Service Unavailable</body></html>'))
+  })
+
+  it('delete_record reports the status when a gateway answers with no body at all', async () => {
+    await expect(
+      deleteRecordTool.transformResponse?.(
+        new Response(null, { status: 502, statusText: 'Bad Gateway' }) as never,
+        undefined as never
+      )
+    ).rejects.toThrowError(new Error('ServiceNow request failed (502 Bad Gateway)'))
+  })
+
+  /**
+   * The Aggregate API reports `stats.count` as a *string*, so a reader that
+   * accepts only a number drops every count it actually returns.
+   */
+  it('aggregate reads the string count the API really sends', async () => {
+    const output = (await aggregateTool.transformResponse?.(
+      new Response(JSON.stringify({ result: { stats: { count: '42' } } }), {
+        status: 200,
+      }) as never,
+      undefined as never
+    )) as { output: { count: number | null; metadata: { grouped: boolean } } }
+
+    expect(output.output.count).toBe(42)
+    expect(output.output.metadata.grouped).toBe(false)
+  })
+
+  it('aggregate reports no count rather than NaN when stats are absent', async () => {
+    const output = (await aggregateTool.transformResponse?.(
+      new Response(JSON.stringify({ result: { stats: {} } }), { status: 200 }) as never,
+      undefined as never
+    )) as { output: { count: number | null } }
+
+    expect(output.output.count).toBeNull()
+  })
+
+  it('aggregate drops non-object groups and counts the survivors', async () => {
+    const output = (await aggregateTool.transformResponse?.(
+      new Response(JSON.stringify({ result: [{ stats: { count: '1' } }, null, 'x'] }), {
+        status: 200,
+      }) as never,
+      undefined as never
+    )) as { output: { result: unknown; metadata: { grouped: boolean; groupCount: number | null } } }
+
+    expect(output.output.result).toEqual([{ stats: { count: '1' } }])
+    expect(output.output.metadata).toEqual({ grouped: true, groupCount: 1 })
+  })
+
+  it.each([
+    ['read_record', readRecordTool],
+    ['create_record', createRecordTool],
+    ['update_record', updateRecordTool],
+    ['aggregate', aggregateTool],
+  ])('%s surfaces the instance error message on failure', async (_name, tool) => {
+    await expect(
+      tool.transformResponse?.(
+        new Response(JSON.stringify({ error: { message: 'Insufficient rights' } }), {
+          status: 403,
+        }) as never,
+        undefined as never
+      )
+    ).rejects.toThrowError(new Error('Insufficient rights'))
+  })
+})
+
+describe('a cleared numeric field never reaches the instance as a blank param', () => {
+  const mapParams = ServiceNowBlock.tools.config?.params
+
+  /**
+   * A short-input stores `''` once a user types a value and clears it again —
+   * an untouched field stores `null` instead. The mapper's result is merged
+   * over the raw inputs, so a blank left in place survives the merge and is
+   * appended as a valueless `sysparm_limit=`.
+   */
+  function mergedParams(stored: Record<string, unknown>): Record<string, unknown> {
+    const inputs = { ...auth, ...stored }
+    const mapped = (mapParams?.(inputs as never) ?? {}) as Record<string, unknown>
+    return { ...inputs, ...mapped }
+  }
+
+  it.each(['limit', 'offset', 'quantity'])(
+    'resolves a cleared %s to undefined rather than leaving the blank in place',
+    (param) => {
+      const merged = mergedParams({
+        operation: 'servicenow_read_record',
+        tableName: 'incident',
+        [param]: '',
+      })
+
+      expect(merged[param]).toBeUndefined()
+    }
+  )
+
+  it('keeps a real numeric value through the mapper', () => {
+    const merged = mergedParams({
+      operation: 'servicenow_read_record',
+      tableName: 'incident',
+      limit: '25',
+      offset: '10',
+    })
+
+    expect(merged.limit).toBe(25)
+    expect(merged.offset).toBe(10)
+  })
+
+  it('omits sysparm_limit and sysparm_offset when the tools receive a blank', () => {
+    const url = urlOf(listIncidentsTool, { ...auth, limit: '', offset: '' })
+
+    expect(url.searchParams.has('sysparm_limit')).toBe(false)
+    expect(url.searchParams.has('sysparm_offset')).toBe(false)
+  })
+
+  it('omits sysparm_offset on read_record when the offset is blank', () => {
+    const url = urlOf(readRecordTool, { ...auth, tableName: 'incident', offset: '' })
+
+    expect(url.searchParams.has('sysparm_offset')).toBe(false)
+  })
+})
+
+describe('the limit guidance matches what the block actually sends', () => {
+  const skills = ServiceNowBlockMeta.skills
+  const triageSkill = skills.find((skill) => skill.name === 'triage-incidents')
+  const limitSubBlock = ServiceNowBlock.subBlocks.find((subBlock) => subBlock.id === 'limit')
+
+  function seededDefaults(): Record<string, unknown> {
+    const seeded: Record<string, unknown> = {}
+    for (const subBlock of ServiceNowBlock.subBlocks) {
+      if (typeof subBlock.value === 'function') {
+        seeded[subBlock.id] = (subBlock.value as (p: Record<string, never>) => unknown)({})
+      }
+    }
+    return seeded
+  }
+
+  /**
+   * Ground truth the guidance below has to agree with: neither the block nor the
+   * tool supplies a limit, so an untouched List Incidents reaches the instance
+   * with no `sysparm_limit` and inherits the Table API default of 10,000 rows.
+   */
+  it('sends no sysparm_limit for an untouched List Incidents block', () => {
+    const inputs = { ...seededDefaults(), ...auth, operation: 'servicenow_list_incidents' }
+    const mapped = (ServiceNowBlock.tools.config?.params?.(inputs as never) ?? {}) as Record<
+      string,
+      unknown
+    >
+    const url = urlOf(listIncidentsTool, { ...inputs, ...mapped })
+
+    expect(url.searchParams.has('sysparm_limit')).toBe(false)
+  })
+
+  it('never tells the agent a small limit is applied for it', () => {
+    const offenders = skills
+      .filter((skill) => /default is small|small (?:by )?default/i.test(skill.content))
+      .map((skill) => skill.name)
+
+    expect(offenders).toEqual([])
+  })
+
+  it('names the real Table API default in the triage skill', () => {
+    expect(triageSkill?.content).toContain('10,000')
+  })
+
+  it('names the real Table API default on the Limit control', () => {
+    expect(limitSubBlock?.description).toContain('10,000')
+  })
+
+  it('names the real Table API default on the tool param the model reads', () => {
+    expect(listIncidentsTool.params.limit?.description).toContain('10,000')
   })
 })

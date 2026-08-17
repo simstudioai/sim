@@ -9,6 +9,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createMSSQLConnection,
   executeQuery,
+  toRowsResponseBody,
   validateReadOnlyQuery,
 } from '@/app/api/tools/mssql/utils'
 
@@ -48,11 +49,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] Query executed successfully, returned ${result.rowCount} rows`)
 
-      return NextResponse.json({
-        message: `Query executed successfully. ${result.rowCount} row(s) returned.`,
-        rows: result.rows,
-        rowCount: result.rowCount,
-      })
+      return NextResponse.json(
+        toRowsResponseBody(
+          result,
+          `Query executed successfully. ${result.rowCount} row(s) returned.`
+        )
+      )
     } finally {
       await pool.close()
     }
