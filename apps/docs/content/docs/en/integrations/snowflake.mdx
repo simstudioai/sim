@@ -17,7 +17,7 @@ With the Snowflake integration in Sim, you can:
 
 - **Run SQL**: Execute a parameterized statement, poll a statement's status, and cancel one that is still running
 - **Synchronize rows**: Insert, update, upsert, and delete rows in a table
-- **Move staged data**: Load data from a stage into a table and unload query results back out to a stage
+- **Move staged data**: Load data from a stage into a table, and unload a table back out to a stage (materialize a query as a view or `CREATE TABLE AS SELECT` first to export its results)
 - **Browse the account**: List databases, schemas, and tables, and introspect a table's schema
 - **Control warehouses**: List and get warehouses, resume or suspend them, and alter their size and settings
 - **Run and schedule tasks**: List and get tasks, run, resume, or suspend them, list task runs, and read a run's output or cancel its query
