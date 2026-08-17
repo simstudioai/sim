@@ -382,6 +382,7 @@ describe('executeForkFileBlobCopies target name collisions', () => {
       targetKey: 'workspace/child-ws/target-budget.xlsx',
       contentType: 'application/vnd.ms-excel',
       targetFolderId: 'target-reports',
+      displayName: 'budget.xlsx',
     })
 
   beforeEach(() => {
@@ -427,6 +428,7 @@ describe('executeForkFileBlobCopies target name collisions', () => {
       workspaceId: 'child-ws',
       folderId: 'target-reports',
       originalName: 'budget (1).xlsx',
+      displayName: 'budget (1).xlsx',
       deletedAt: null,
     })
     // The blob backing the surviving row must never be swept.
@@ -463,6 +465,7 @@ describe('executeForkFileBlobCopies target name collisions', () => {
     expect(fileRows.find((row) => row.id === 'target-file-1')).toMatchObject({
       folderId: 'target-reports',
       originalName: 'budget.xlsx',
+      displayName: 'budget.xlsx',
     })
     expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })

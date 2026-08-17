@@ -123,6 +123,23 @@ const UNTOUCHED_FIELD = dependent({
 
 const DEPENDENTS = [PARENT_FIELD, CHILD_FIELD, CLEARED_FIELD, UNTOUCHED_FIELD]
 
+const SUCCESSFUL_PROMOTE_RESULT = {
+  promoteRunId: 'run-1',
+  blockers: [],
+  unmappedRequired: [],
+  droppedReferences: [],
+  triggerUrlChanges: [],
+  deployFailed: 0,
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 const mappedRepickContext = (previousValue: string) => ({
   previousValue,
   baselineValueFor: (field: ForkDependentReconfig) => field.currentValue,
@@ -217,14 +234,7 @@ beforeEach(() => {
     isPlaceholderData: false,
   })
   mockUpdateMutateAsync.mockResolvedValue({ success: true, updated: 1 })
-  mockPromote.mockResolvedValue({
-    promoteRunId: 'run-1',
-    blockers: [],
-    unmappedRequired: [],
-    droppedReferences: [],
-    triggerUrlChanges: [],
-    deployFailed: 0,
-  })
+  mockPromote.mockResolvedValue(SUCCESSFUL_PROMOTE_RESULT)
 })
 
 afterEach(() => {
@@ -470,5 +480,79 @@ describe('useForkSync post-sync reset', () => {
     })
 
     expect(get().reconfig[dependentKey(PARENT_FIELD)]).toBe('sheet-2')
+  })
+
+  it('keeps a newer target mapping selected while Sync was in flight', async () => {
+    const pendingPromote = createDeferred<typeof SUCCESSFUL_PROMOTE_RESULT>()
+    mockPromote.mockReturnValue(pendingPromote.promise)
+    const { get } = renderForkSync()
+    let syncPromise!: Promise<void>
+
+    act(() => {
+      syncPromise = get().sync()
+    })
+    await act(async () => Promise.resolve())
+    expect(mockPromote).toHaveBeenCalledTimes(1)
+
+    act(() => get().setTarget(CREDENTIAL_ENTRY, 'cred-newer'))
+    pendingPromote.resolve(SUCCESSFUL_PROMOTE_RESULT)
+    await act(async () => syncPromise)
+
+    expect(get().targetFor(CREDENTIAL_ENTRY)).toBe('cred-newer')
+    expect(get().dirty).toBe(true)
+  })
+
+  it('keeps a newer dependent re-pick made while Sync was in flight', async () => {
+    const pendingPromote = createDeferred<typeof SUCCESSFUL_PROMOTE_RESULT>()
+    mockPromote.mockReturnValue(pendingPromote.promise)
+    const { get } = renderForkSync()
+    let syncPromise!: Promise<void>
+
+    act(() => {
+      syncPromise = get().sync()
+    })
+    await act(async () => Promise.resolve())
+    expect(mockPromote).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      get().setReconfig((current) => ({
+        ...current,
+        [dependentKey(PARENT_FIELD)]: 'sheet-newer',
+      }))
+    })
+    pendingPromote.resolve(SUCCESSFUL_PROMOTE_RESULT)
+    await act(async () => syncPromise)
+
+    expect(get().reconfig[dependentKey(PARENT_FIELD)]).toBe('sheet-newer')
+    expect(get().dirty).toBe(true)
+  })
+
+  it('keeps newer mapping edits made while Save was in flight', () => {
+    let finishSave: (() => void) | undefined
+    mockUpdateMutate.mockImplementation((_variables, options) => {
+      finishSave = options.onSuccess
+    })
+    const { get } = renderForkSync()
+
+    act(() => {
+      get().setReconfig((current) => ({
+        ...current,
+        [dependentKey(PARENT_FIELD)]: 'sheet-submitted',
+      }))
+    })
+    act(() => get().save())
+
+    act(() => {
+      get().setTarget(CREDENTIAL_ENTRY, 'cred-newer')
+      get().setReconfig((current) => ({
+        ...current,
+        [dependentKey(PARENT_FIELD)]: 'sheet-newer',
+      }))
+    })
+    act(() => finishSave?.())
+
+    expect(get().targetFor(CREDENTIAL_ENTRY)).toBe('cred-newer')
+    expect(get().reconfig[dependentKey(PARENT_FIELD)]).toBe('sheet-newer')
+    expect(get().dirty).toBe(true)
   })
 })

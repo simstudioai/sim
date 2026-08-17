@@ -744,6 +744,8 @@ export function useForkSync(params: {
 
   const save = () => {
     if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
     updateMapping.mutate(
       {
         workspaceId,
@@ -759,8 +761,8 @@ export function useForkSync(params: {
       },
       {
         onSuccess: () => {
-          setTargets({})
-          setReconfig({})
+          setTargets((current) => (current === submittedTargets ? {} : current))
+          setReconfig((current) => (current === submittedReconfig ? {} : current))
           toast.success('Mapping saved')
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to save mapping')),
@@ -836,6 +838,8 @@ export function useForkSync(params: {
   const sync = async () => {
     if (!otherWorkspaceId) return
     setSubmitting(true)
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -931,10 +935,10 @@ export function useForkSync(params: {
       }
 
       // The run committed the in-session choices: the mapping entries and dependent values are
-      // stored, so keeping the overrides would leave every touched field's card on screen against
-      // a freshly refetched diff. Drop them exactly as a successful Save does.
-      setTargets({})
-      setReconfig({})
+      // stored. Drop only the exact snapshots it submitted; edits made while the request was in
+      // flight were not committed by this run and must remain available for the next Save/Sync.
+      setTargets((current) => (current === submittedTargets ? {} : current))
+      setReconfig((current) => (current === submittedReconfig ? {} : current))
 
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`

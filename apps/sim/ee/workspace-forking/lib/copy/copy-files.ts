@@ -325,6 +325,8 @@ export async function executeForkFileBlobCopies(
 
         const billingContext = await resolveStorageBillingContext(task.workspaceId)
         const targetOriginalName = await resolveTargetOriginalName(task)
+        const targetDisplayName =
+          targetOriginalName === task.fileName ? task.displayName : targetOriginalName
         await db.transaction(async (tx) => {
           const [inserted] = await tx
             .insert(workspaceFiles)
@@ -337,7 +339,7 @@ export async function executeForkFileBlobCopies(
               context: task.context,
               chatId: null,
               originalName: targetOriginalName,
-              displayName: task.displayName,
+              displayName: targetDisplayName,
               contentType: task.contentType,
               size: task.size,
               deletedAt: null,
@@ -385,7 +387,7 @@ export async function executeForkFileBlobCopies(
                 context: task.context,
                 chatId: null,
                 originalName: targetOriginalName,
-                displayName: task.displayName,
+                displayName: targetDisplayName,
                 contentType: task.contentType,
                 size: task.size,
                 deletedAt: null,
