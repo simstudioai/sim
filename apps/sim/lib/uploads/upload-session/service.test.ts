@@ -741,8 +741,8 @@ describe('upload sessions', () => {
       partCount: 2,
     })
     const parts = [
-      { partNumber: 1, etag: 'etag-1', size: UPLOAD_SESSION_PART_SIZE },
       { partNumber: 2, etag: 'etag-2', size: 3 },
+      { partNumber: 1, etag: 'etag-1', size: UPLOAD_SESSION_PART_SIZE },
     ]
     mockListMultipartParts.mockResolvedValue(parts)
     mockHeadObject
@@ -760,7 +760,13 @@ describe('upload sessions', () => {
       expect.objectContaining({ key: FINAL_KEY, providerUploadId: 'provider-upload-1' })
     )
     expect(mockCompleteMultipart).toHaveBeenCalledWith(
-      expect.objectContaining({ key: FINAL_KEY, parts })
+      expect.objectContaining({
+        key: FINAL_KEY,
+        parts: [
+          { partNumber: 1, etag: 'etag-1', size: UPLOAD_SESSION_PART_SIZE },
+          { partNumber: 2, etag: 'etag-2', size: 3 },
+        ],
+      })
     )
     expect(finalize).toHaveBeenCalledOnce()
   })

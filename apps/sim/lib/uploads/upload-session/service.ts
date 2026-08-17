@@ -627,14 +627,16 @@ export async function completeUploadSession<T>(params: {
       if (claimed.method === 'put') {
         throw new UploadSessionError('conflict', 'Uploaded object not found')
       }
-      const parts = await listMultipartProviderParts({
-        provider: claimed.storageProvider,
-        providerUploadId: claimed.providerUploadId,
-        uploadId: claimed.id,
-        key: claimed.finalKey,
-        context: claimed.storageContext,
-      })
-      validateProviderParts(claimed, parts)
+      const parts = validateProviderParts(
+        claimed,
+        await listMultipartProviderParts({
+          provider: claimed.storageProvider,
+          providerUploadId: claimed.providerUploadId,
+          uploadId: claimed.id,
+          key: claimed.finalKey,
+          context: claimed.storageContext,
+        })
+      )
       try {
         await completeMultipartProviderUpload({
           provider: claimed.storageProvider,
@@ -1036,7 +1038,10 @@ async function claimSession(
   return sessionFromRow(row, '')
 }
 
-function validateProviderParts(session: UploadSessionRecord, parts: CompletedUploadPart[]): void {
+function validateProviderParts(
+  session: UploadSessionRecord,
+  parts: CompletedUploadPart[]
+): CompletedUploadPart[] {
   if (!session.partCount) throw new Error('Multipart upload is missing partCount')
   if (parts.length !== session.partCount) {
     throw new UploadSessionError(
@@ -1067,6 +1072,7 @@ function validateProviderParts(session: UploadSessionRecord, parts: CompletedUpl
       )
     }
   }
+  return sorted
 }
 
 function assertObjectIdentity(
