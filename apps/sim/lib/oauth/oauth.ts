@@ -27,6 +27,7 @@ import {
   GoogleMeetIcon,
   GoogleSheetsIcon,
   GoogleTasksIcon,
+  GoogleVaultIcon,
   HubspotIcon,
   InstagramIcon,
   JiraIcon,
@@ -255,7 +256,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Google Vault',
         description: 'Search, export, and manage matters/holds via Google Vault.',
         providerId: 'google-vault',
-        icon: GoogleIcon,
+        icon: GoogleVaultIcon,
         baseProviderIcon: GoogleIcon,
         scopes: [
           'https://www.googleapis.com/auth/userinfo.email',
