@@ -162,7 +162,14 @@ function readSourceConfig(sourceConfig: Record<string, unknown>): SentrySourceCo
     typeof sourceConfig.statsPeriod === 'string' ? sourceConfig.statsPeriod.trim() : ''
   const environment =
     typeof sourceConfig.environment === 'string' ? sourceConfig.environment.trim() : ''
-  const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
+  /**
+   * Floored: `maxIssues` feeds the request `limit`, and Sentry rejects a
+   * non-integer value. `validateConfig` accepts a fractional entry, so without
+   * this a config that saves cleanly would fail every subsequent sync at listing
+   * time. Staging was immune only because it sent a hardcoded page size.
+   */
+  const rawMaxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
+  const maxIssues = Number.isFinite(rawMaxIssues) && rawMaxIssues > 0 ? Math.floor(rawMaxIssues) : 0
 
   return {
     host,

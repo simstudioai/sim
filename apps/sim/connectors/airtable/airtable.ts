@@ -19,7 +19,8 @@ const PAGE_SIZE = 100
  * Serializing them would change the record's content hash on every run and force
  * a full re-index of every record that holds an attachment. Only the stable,
  * identifying properties of the documented cell shapes are rendered: attachment
- * `filename`, collaborator `name` / `email` / `id`, barcode `text`, button `label`.
+ * `filename`, collaborator `name` / `email` / `id`, barcode `text`, button `label`,
+ * and AI Text `value`.
  */
 function formatCellObject(value: Record<string, unknown>): string {
   const stable = value.filename ?? value.name ?? value.text ?? value.label
@@ -28,18 +29,32 @@ function formatCellObject(value: Record<string, unknown>): string {
   }
   if (typeof value.id === 'string') return value.id
   if (typeof value.email === 'string') return value.email
+  /**
+   * AI Text cells carry the generated text in `value` (`{ state, isStale, value }`)
+   * and match none of the probes above. Read last so a shape carrying both `name`
+   * and `value` keeps its name. Unlike the attachment links this renderer exists to
+   * avoid, the generated text is stable rather than an expiring signed URL, so
+   * including it does not reintroduce per-sync hash churn.
+   */
+  if (typeof value.value === 'string') return value.value
   return ''
 }
 
-/** Renders an object- or array-valued cell, dropping items that render to nothing. */
+/**
+ * Renders an object- or array-valued cell, dropping items that render to nothing.
+ * Array items recurse, so a nested lookup array — documented as
+ * `array<number | string | boolean | unknown>` — renders its elements instead of
+ * collapsing to an empty string.
+ */
 function formatCellValue(value: object): string {
   if (!Array.isArray(value)) return formatCellObject(value as Record<string, unknown>)
   return value
-    .map((item) =>
-      typeof item === 'object' && item !== null
+    .map((item) => {
+      if (Array.isArray(item)) return formatCellValue(item)
+      return typeof item === 'object' && item !== null
         ? formatCellObject(item as Record<string, unknown>)
         : String(item)
-    )
+    })
     .filter((item) => item.length > 0)
     .join(', ')
 }
