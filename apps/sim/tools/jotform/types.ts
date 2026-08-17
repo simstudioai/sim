@@ -56,7 +56,11 @@ export interface JotformSubmission {
   new: string | null
   workflowStatus: string | null
   answers: Record<string, JotformSubmissionAnswer>
-  /** Answers re-keyed by question label with each value rendered as text. */
+  /**
+   * Answers re-keyed by question label with each value rendered as text. Labels are
+   * not unique, so every occurrence of a repeated label is suffixed with its question
+   * id rather than overwriting.
+   */
   values: Record<string, string>
 }
 

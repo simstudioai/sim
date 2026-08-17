@@ -864,11 +864,12 @@ export const JotformBlock: BlockConfig = {
     submissions: {
       type: 'json',
       description:
-        'Submissions, each with answers keyed by question ID and values keyed by question label (list_form_submissions, list_submissions)',
+        'Submissions, each with answers keyed by question ID and values keyed by question label, repeated labels suffixed with their question ID (list_form_submissions, list_submissions)',
     },
     submission: {
       type: 'json',
-      description: 'A single submission with its answers and values (get_submission)',
+      description:
+        'A single submission with its answers keyed by question ID and values keyed by question label (get_submission)',
     },
     submissionId: {
       type: 'string',

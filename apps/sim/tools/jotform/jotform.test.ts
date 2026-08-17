@@ -444,3 +444,53 @@ describe('error envelope robustness', () => {
     ).rejects.toThrow(/^Jotform Get Form error \(502\): .{1,320}$/s)
   })
 })
+
+describe('duplicate question labels', () => {
+  /**
+   * Question labels are not unique — a form can carry two questions both labelled
+   * "Email". Keying `values` on the label alone silently dropped all but the last,
+   * handing downstream workflows a confidently wrong answer.
+   */
+  it('disambiguates every occurrence of a repeated label with its question ID', () => {
+    const submission = normalizeSubmission({
+      id: '1',
+      answers: {
+        '3': { text: 'Email', type: 'control_email', answer: 'first@example.com' },
+        '7': { text: 'Email', type: 'control_email', answer: 'second@example.com' },
+        '9': { text: 'Message', type: 'control_textarea', answer: 'Hello' },
+      },
+    })
+
+    expect(submission.values).toEqual({
+      'Email (3)': 'first@example.com',
+      'Email (7)': 'second@example.com',
+      Message: 'Hello',
+    })
+    /* Never an arbitrary winner under the bare key. */
+    expect(submission.values.Email).toBeUndefined()
+  })
+
+  it('keeps a unique label bare', () => {
+    const submission = normalizeSubmission({
+      id: '1',
+      answers: { '3': { text: 'Email', type: 'control_email', answer: 'only@example.com' } },
+    })
+
+    expect(submission.values).toEqual({ Email: 'only@example.com' })
+  })
+
+  /** The id-keyed record stays complete regardless of how labels collide. */
+  it('never loses an answer from the id-keyed record', () => {
+    const submission = normalizeSubmission({
+      id: '1',
+      answers: {
+        '3': { text: 'Email', type: 'control_email', answer: 'a@example.com' },
+        '7': { text: 'Email', type: 'control_email', answer: 'b@example.com' },
+      },
+    })
+
+    expect(Object.keys(submission.answers)).toEqual(['3', '7'])
+    expect(submission.answers['3'].answer).toBe('a@example.com')
+    expect(submission.answers['7'].answer).toBe('b@example.com')
+  })
+})

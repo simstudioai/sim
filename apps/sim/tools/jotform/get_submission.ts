@@ -83,7 +83,7 @@ export const getSubmissionTool: ToolConfig<JotformGetSubmissionParams, JotformSu
           values: {
             type: 'json',
             description:
-              'The same answers re-keyed by question label, each rendered as a single string',
+              'The same answers re-keyed by question label, each rendered as a single string. A label shared by more than one question is suffixed with its question ID on every occurrence, so no answer is lost.',
           },
         },
       },

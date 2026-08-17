@@ -72,27 +72,47 @@ function normalizeAnswer(raw: Record<string, unknown>): JotformSubmissionAnswer 
   }
 }
 
+/** Renders one answer as the single string `values` holds. */
+function renderAnswer(answer: JotformSubmissionAnswer): string | null {
+  if (answer.prettyFormat !== null) return answer.prettyFormat
+
+  const raw = answer.answer
+  if (raw === null || raw === undefined) return null
+  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+    return String(raw)
+  }
+  return JSON.stringify(raw)
+}
+
 /**
  * Answers are keyed by question id, which is useless downstream without the form's
  * question list. `values` re-keys them by question label with the answer rendered as
  * text — `prettyFormat` when Jotform supplies one, the raw scalar otherwise — so a
  * submission can be read without a second call.
+ *
+ * Labels are not unique: a form can carry two questions both labelled "Email", and
+ * keying on the label alone would silently drop all but the last. So a label is used
+ * bare only when it appears once on the submission; every occurrence of a repeated
+ * label is suffixed with its question id instead. Disambiguating *every* occurrence
+ * rather than only the later ones keeps the result independent of answer order — and
+ * makes a newly duplicated label read as absent rather than as an arbitrary winner.
+ * `answers` remains the complete, id-keyed record either way.
  */
 function buildValues(answers: Record<string, JotformSubmissionAnswer>): Record<string, string> {
-  const values: Record<string, string> = {}
+  const labelCounts = new Map<string, number>()
   for (const answer of Object.values(answers)) {
     if (!answer.text) continue
-    if (answer.prettyFormat !== null) {
-      values[answer.text] = answer.prettyFormat
-      continue
-    }
-    const raw = answer.answer
-    if (raw === null || raw === undefined) continue
-    if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
-      values[answer.text] = String(raw)
-    } else {
-      values[answer.text] = JSON.stringify(raw)
-    }
+    labelCounts.set(answer.text, (labelCounts.get(answer.text) ?? 0) + 1)
+  }
+
+  const values: Record<string, string> = {}
+  for (const [qid, answer] of Object.entries(answers)) {
+    if (!answer.text) continue
+    const rendered = renderAnswer(answer)
+    if (rendered === null) continue
+
+    const key = (labelCounts.get(answer.text) ?? 0) > 1 ? `${answer.text} (${qid})` : answer.text
+    values[key] = rendered
   }
   return values
 }
