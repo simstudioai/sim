@@ -1,16 +1,19 @@
 import { Buffer } from 'buffer'
 import type { Readable } from 'stream'
 import type { Principal } from '@sim/auth/principal'
+import { createLogger } from '@sim/logger'
 import JSZip from 'jszip'
 import { readZipCentralDirectoryStats } from '@/lib/file-parsers/zip-guard'
+import { buildFolderPath, FolderPathError } from '@/lib/folders/paths'
+import { archiveWorkspaceFileFolderIfEmpty } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import {
+  purgeCreatedWorkspaceFile,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createWorkspaceFileFromBuffer } from '@/lib/workspace-files/application/create-workspace-file'
-import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
-import {
-  deleteWorkspaceFileFolderOperation,
-  ensureWorkspaceFileFolderPathOperation,
-} from '@/lib/workspace-files/application/workspace-file-folders'
+import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -30,6 +33,8 @@ import type { UserFile } from '@/executor/types'
  * or lying header can never leave a partial tree behind. Peak memory stays ~one
  * entry in both passes.
  */
+
+const logger = createLogger('ArchiveExtraction')
 
 /** Input archive download/size cap. */
 export const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
@@ -255,6 +260,14 @@ function throwInflateCapError(reason: 'entry' | 'total', entryName: string): nev
  * re-inflates and uploads one entry at a time. Peak memory stays ~one entry in
  * both passes; the cost is inflating twice (CPU only, bounded by the caps).
  *
+ * When `prepareRootFolder` is provided it takes precedence over
+ * `rootFolderSegments`: it runs once, only after the caps have been proven and
+ * only when at least one safe entry exists, and extraction lands under the
+ * segments it returns. `materializedRootFolderCount` must equal the number of
+ * folders that callback will create, so the `maxMaterializedItems` pre-check
+ * (files + implied folders + root folders) counts them and rejects an
+ * over-limit archive before the callback materializes anything.
+ *
  * Filesystem-noise entries (`__MACOSX/`, `.DS_Store`, `Thumbs.db`) are extracted
  * verbatim unless `skipNoiseEntries` is set — the HTTP decompress route preserves
  * them; the agent-facing extract path drops them. Decompression is not byte-preserving,
@@ -267,6 +280,9 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     workspaceId: string
     principal: Principal
     rootFolderSegments?: string[]
+    prepareRootFolder?: () => Promise<string[]>
+    materializedRootFolderCount?: number
+    maxMaterializedItems?: number
     skipNoiseEntries?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
   }
@@ -275,6 +291,9 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     workspaceId,
     principal,
     rootFolderSegments = [],
+    prepareRootFolder,
+    materializedRootFolderCount = 0,
+    maxMaterializedItems,
     skipNoiseEntries = false,
     secretProvenance = { status: 'unknown' },
   } = opts
@@ -323,6 +342,38 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     )
   }
 
+  for (const { entry, segments } of safeEntries) {
+    try {
+      buildFolderPath(segments.slice(0, -1))
+    } catch (error) {
+      if (!(error instanceof FolderPathError)) throw error
+      throw new ArchiveError(
+        'invalid',
+        `Archive contains an invalid folder path: ${error.message}`,
+        entry.name
+      )
+    }
+  }
+
+  if (maxMaterializedItems !== undefined) {
+    const folderPaths = new Set<string>()
+    for (const { segments } of safeEntries) {
+      for (let depth = 1; depth < segments.length; depth += 1) {
+        folderPaths.add(segments.slice(0, depth).join('\0'))
+      }
+    }
+    const materializedItems =
+      safeEntries.length +
+      folderPaths.size +
+      (safeEntries.length > 0 ? materializedRootFolderCount : 0)
+    if (materializedItems > maxMaterializedItems) {
+      throw new ArchiveError(
+        'too_many_entries',
+        `Archive would create ${materializedItems} files and folders; the maximum is ${maxMaterializedItems}.`
+      )
+    }
+  }
+
   // Cheap declared-size fast-reject for honestly-declared archives.
   let declaredTotal = 0
   for (const { entry } of safeEntries) {
@@ -346,6 +397,9 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     validatedTotal += result.size
   }
 
+  const resolvedRootFolderSegments =
+    safeEntries.length > 0 && prepareRootFolder ? await prepareRootFolder() : rootFolderSegments
+
   // Pass 2 — extract: the archive is proven within caps; inflate again and upload.
   // Uploads themselves can still fail mid-loop (storage/DB errors, quota crossed
   // by another writer), so a failure rolls back every file written so far *and*
@@ -356,6 +410,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   const folderIdCache = new Map<string, string | null>()
   /** Only folders this call inserted, in creation order — never a reused one. */
   const createdFolderIds: string[] = []
+  const createdFiles: WorkspaceFileRecord[] = []
   const extracted: UserFile[] = []
   let totalBytes = 0
   try {
@@ -366,7 +421,7 @@ export async function decompressArchiveBufferToWorkspaceFiles(
       const entryBuffer = result.buffer as Buffer
 
       const leafName = segments[segments.length - 1]
-      const folderSegments = [...rootFolderSegments, ...segments.slice(0, -1)]
+      const folderSegments = [...resolvedRootFolderSegments, ...segments.slice(0, -1)]
       const folderKey = folderSegments.join('/')
       let folderId = folderIdCache.get(folderKey)
       if (folderId === undefined) {
@@ -396,9 +451,11 @@ export async function decompressArchiveBufferToWorkspaceFiles(
             // roll back an otherwise valid extraction.
             exactName: false,
             secretProvenance: extractedSecretProvenance,
+            notifyWorkspaceChange: false,
           },
         })
       ).file
+      createdFiles.push(uploaded)
       extracted.push({
         id: uploaded.id,
         name: uploaded.name,
@@ -410,28 +467,41 @@ export async function decompressArchiveBufferToWorkspaceFiles(
       })
     }
   } catch (error) {
-    for (const file of extracted) {
+    for (const file of createdFiles) {
       try {
-        await deleteWorkspaceFileOperation.execute({
-          principal,
-          input: { fileId: file.id, assertedWorkspaceId: workspaceId },
+        await purgeCreatedWorkspaceFile({
+          workspaceId,
+          fileId: file.id,
+          key: file.key,
+          expectedName: file.name,
+          expectedFolderId: file.folderId ?? null,
+          expectedUpdatedAt: file.updatedAt,
         })
-      } catch {
-        // Best-effort: a file whose cleanup fails is still soft-deletable by hand;
-        // the original error is what the caller needs to see.
+      } catch (cleanupError) {
+        // Best-effort cleanup never masks the extraction failure.
+        logger.error('Failed to purge extracted file during rollback', {
+          workspaceId,
+          fileId: file.id,
+          key: file.key,
+          cleanupError,
+        })
       }
     }
     // Deepest-first (creation order records parents before children), so a parent is
     // never removed out from under a child that is still being cleaned up.
     for (let index = createdFolderIds.length - 1; index >= 0; index--) {
       try {
-        await deleteWorkspaceFileFolderOperation.execute({
-          principal,
-          input: { workspaceId, folderId: createdFolderIds[index], recursive: true },
+        await archiveWorkspaceFileFolderIfEmpty({
+          workspaceId,
+          folderId: createdFolderIds[index],
         })
-      } catch {
-        // Best-effort: a folder whose cleanup fails is still deletable by hand;
-        // the original error is what the caller needs to see.
+      } catch (cleanupError) {
+        // Best-effort cleanup never masks the extraction failure.
+        logger.warn('Failed to archive created folder during rollback', {
+          workspaceId,
+          folderId: createdFolderIds[index],
+          cleanupError,
+        })
       }
     }
     throw error

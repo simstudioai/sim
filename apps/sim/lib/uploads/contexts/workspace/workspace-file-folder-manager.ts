@@ -493,8 +493,9 @@ export async function createWorkspaceFileFolder(params: {
   name: string
   parentId?: string | null
   sortOrder?: number
+  exactName?: boolean
 }): Promise<WorkspaceFileFolderRecord> {
-  const name = normalizeWorkspaceFileItemName(params.name, 'Folder')
+  const requestedName = normalizeWorkspaceFileItemName(params.name, 'Folder')
 
   const folder = await db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
@@ -519,22 +520,35 @@ export async function createWorkspaceFileFolder(params: {
       }
     }
 
-    const existingFolders = await tx
-      .select({ id: folderTable.id })
-      .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.workspaceId, params.workspaceId),
-          isFileFolder,
-          eq(folderTable.name, name),
-          folderParentCondition(parentId),
-          isNull(folderTable.deletedAt)
-        )
-      )
-      .limit(1)
+    const name =
+      params.exactName === false
+        ? await deduplicateFolderName(
+            tx,
+            params.workspaceId,
+            parentId,
+            requestedName,
+            FILE_FOLDER_RESOURCE_TYPE
+          )
+        : requestedName
 
-    if (existingFolders.length > 0) {
-      throw new WorkspaceFileFolderConflictError(name)
+    if (params.exactName !== false) {
+      const existingFolders = await tx
+        .select({ id: folderTable.id })
+        .from(folderTable)
+        .where(
+          and(
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            eq(folderTable.name, name),
+            folderParentCondition(parentId),
+            isNull(folderTable.deletedAt)
+          )
+        )
+        .limit(1)
+
+      if (existingFolders.length > 0) {
+        throw new WorkspaceFileFolderConflictError(name)
+      }
     }
 
     const [sortOrderResult] = await tx
@@ -1568,5 +1582,69 @@ export async function deleteWorkspaceFileFolderByPath(params: {
       .returning({ id: folderTable.id })
 
     return { folders: archivedFolders.length, files: archivedFiles.length }
+  })
+}
+
+/** Archives an exact folder only while it has no active files or child folders. */
+export async function archiveWorkspaceFileFolderIfEmpty(params: {
+  workspaceId: string
+  folderId: string
+}): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+
+    const [folder] = await tx
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.id, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .limit(1)
+    if (!folder) return false
+
+    const [childFolder] = await tx
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.parentId, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .limit(1)
+    const [file] = await tx
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.folderId, params.folderId),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(1)
+    if (childFolder || file) throw new OrchestrationError('conflict', 'Folder is not empty')
+
+    const [archived] = await tx
+      .update(folderTable)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(folderTable.id, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .returning({ id: folderTable.id })
+    return Boolean(archived)
   })
 }

@@ -17,6 +17,7 @@ const {
   mockInitiateMultipart,
   mockListMultipartParts,
   mockResolveBillingContext,
+  mockUploadStorageProvider,
 } = vi.hoisted(() => ({
   mockAbortProviderUpload: vi.fn(),
   mockCheckStorageQuota: vi.fn(),
@@ -27,6 +28,7 @@ const {
   mockInitiateMultipart: vi.fn(),
   mockListMultipartParts: vi.fn(),
   mockResolveBillingContext: vi.fn(),
+  mockUploadStorageProvider: vi.fn(() => 's3' as const),
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -63,7 +65,7 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   headProviderObject: mockHeadObject,
   initiateMultipartProviderUpload: mockInitiateMultipart,
   listMultipartProviderParts: mockListMultipartParts,
-  uploadStorageProvider: vi.fn(() => 's3'),
+  uploadStorageProvider: mockUploadStorageProvider,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -109,6 +111,7 @@ describe('upload sessions', () => {
     resetDbChainMock()
     mockResolveBillingContext.mockResolvedValue({ workspaceId: WORKSPACE_ID })
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
+    mockUploadStorageProvider.mockReturnValue('s3')
     mockCreatePutTransfer.mockResolvedValue({
       method: 'put',
       url: 'https://storage.example/upload',
@@ -621,6 +624,30 @@ describe('upload sessions', () => {
     expect(mockInitiateMultipart).toHaveBeenCalledWith(
       expect.objectContaining({ key: FINAL_KEY, uploadId: 'upload-1' })
     )
+    expect(mockCreatePutTransfer).not.toHaveBeenCalled()
+  })
+
+  it('uses proxy-safe multipart parts for large local uploads', async () => {
+    const fileSize = UPLOAD_SESSION_PART_SIZE + 1
+    mockUploadStorageProvider.mockReturnValue('local')
+    mockInitiateMultipart.mockResolvedValueOnce({ provider: 'local', providerUploadId: null })
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      uploadRow({
+        fileSize,
+        method: 'multipart',
+        storageProvider: 'local',
+        partSize: UPLOAD_SESSION_PART_SIZE,
+        partCount: 2,
+      }),
+    ])
+
+    const created = await createWorkspaceUpload(fileSize)
+
+    expect(created.transfer).toEqual({
+      method: 'multipart',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+    })
     expect(mockCreatePutTransfer).not.toHaveBeenCalled()
   })
 

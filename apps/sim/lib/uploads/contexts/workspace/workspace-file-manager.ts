@@ -390,6 +390,7 @@ export async function uploadWorkspaceFile(
     folderPath?: string
     exactName?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
+    notifyWorkspaceChange?: boolean
   }
 ): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
@@ -512,9 +513,9 @@ export async function uploadWorkspaceFile(
         `Successfully uploaded workspace file: ${uniqueName} with key: ${uploadResult.key}`
       )
 
-      // Fan out the live-tree signal for this server-buffered path. Upload-session
-      // finalization sends its own notification after registering metadata.
-      await notifyWorkspaceFilesChanged(workspaceId)
+      if (options?.notifyWorkspaceChange !== false) {
+        await notifyWorkspaceFilesChanged(workspaceId)
+      }
 
       return mapUploadedWorkspaceFileRecord(finalized.inserted, workspaceId, folderPath)
     } catch (error) {
@@ -2046,6 +2047,59 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     logger.error(`Failed to delete workspace file ${fileId}:`, error)
     throw error
   }
+}
+
+/**
+ * Permanently removes a file created by an in-flight archive extraction only while
+ * its name, folder, and update timestamp still match the creation result. This is
+ * rollback-only: ordinary user deletion remains recoverable through {@link deleteWorkspaceFile}.
+ */
+export async function purgeCreatedWorkspaceFile(params: {
+  workspaceId: string
+  fileId: string
+  key: string
+  expectedName: string
+  expectedFolderId: string | null
+  expectedUpdatedAt: Date
+}): Promise<boolean> {
+  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
+  const expectedFolder =
+    params.expectedFolderId === null
+      ? isNull(workspaceFiles.folderId)
+      : eq(workspaceFiles.folderId, params.expectedFolderId)
+  const purgedKey = await db.transaction(async (tx) => {
+    const [deleted] = await tx
+      .delete(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.id, params.fileId),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.key, params.key),
+          eq(workspaceFiles.originalName, params.expectedName),
+          expectedFolder,
+          eq(workspaceFiles.updatedAt, params.expectedUpdatedAt),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .returning({
+        key: workspaceFiles.key,
+        size: workspaceFiles.size,
+        sizeBytes: workspaceFiles.sizeBytes,
+      })
+    if (!deleted) return null
+
+    await decrementStorageUsageForBillingContextInTx(
+      tx,
+      storageBillingContext,
+      workspaceFileSize(deleted)
+    )
+    return deleted.key
+  })
+
+  if (!purgedKey) return false
+  await deleteFile({ key: purgedKey, context: 'workspace' })
+  return true
 }
 
 /**

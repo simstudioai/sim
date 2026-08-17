@@ -207,11 +207,6 @@ export async function createUploadSession(
     })
   }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
-  const method: UploadTransferMethod =
-    params.fileSize <= UPLOAD_SESSION_PUT_MAX_BYTES ? 'put' : 'multipart'
-  const partSize = method === 'multipart' ? UPLOAD_SESSION_PART_SIZE : null
-  const partCount =
-    method === 'multipart' ? Math.ceil(params.fileSize / UPLOAD_SESSION_PART_SIZE) : null
 
   if (requiresStorageQuota(params.purpose)) {
     if (!workspaceId) throw new Error(`${params.purpose} upload is missing workspaceId`)
@@ -223,6 +218,11 @@ export async function createUploadSession(
   }
 
   const provider = uploadStorageProvider()
+  const putMaxBytes = provider === 'local' ? UPLOAD_SESSION_PART_SIZE : UPLOAD_SESSION_PUT_MAX_BYTES
+  const method: UploadTransferMethod = params.fileSize <= putMaxBytes ? 'put' : 'multipart'
+  const partSize = method === 'multipart' ? UPLOAD_SESSION_PART_SIZE : null
+  const partCount =
+    method === 'multipart' ? Math.ceil(params.fileSize / UPLOAD_SESSION_PART_SIZE) : null
   if (provider === 'local') await maybeCleanupLocalUploadArtifacts()
   const objectMetadata = uploadSessionObjectMetadata({
     id,

@@ -59,6 +59,12 @@ export const fileOperations = {
     workspaceApiKey: 'allow',
     ...ALL_COPILOT_PRINCIPAL_POLICY,
   }),
+  extractArchive: defineWorkspaceOperation({
+    id: 'files.extract_archive',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
   updateContent: defineWorkspaceOperation({
     id: 'files.update_content',
     minimumRole: 'write',

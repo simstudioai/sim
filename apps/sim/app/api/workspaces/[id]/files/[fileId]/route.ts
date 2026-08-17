@@ -1,5 +1,6 @@
 import {
   deleteWorkspaceFileContract,
+  extractWorkspaceFileContract,
   renameWorkspaceFileContract,
 } from '@/lib/api/contracts/workspace-files'
 import {
@@ -14,10 +15,27 @@ import {
   internalFilePresenters,
 } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
+import { extractWorkspaceFile } from '@/lib/workspace-files/application/extract-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+
+/**
+ * POST /api/workspaces/[id]/files/[fileId]
+ * Unzip an archive file into a new folder beside it (requires write permission)
+ */
+export const POST = defineInternalJsonRoute({
+  contract: extractWorkspaceFileContract,
+  auth: internalSessionAuth,
+  operation: fileOperations.extractArchive,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal file behavior' }),
+  errorPolicy: internalFileErrorPolicies.extractArchive,
+  mapInput: ({ params }) => ({ fileId: params.fileId, assertedWorkspaceId: params.id }),
+  useCase: extractWorkspaceFile,
+  present: (result) => ({ success: true, ...result }),
+})
 
 /**
  * PATCH /api/workspaces/[id]/files/[fileId]
