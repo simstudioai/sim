@@ -3,12 +3,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
+const { mockFetchWithRetry, mockParseBuffer } = vi.hoisted(() => ({
+  mockFetchWithRetry: vi.fn(),
+  mockParseBuffer: vi.fn(),
+}))
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: mockFetchWithRetry,
   VALIDATE_RETRY_OPTIONS: {},
 }))
+vi.mock('@/lib/file-parsers', () => ({ parseBuffer: mockParseBuffer }))
 vi.mock('@/components/icons', () => ({ MicrosoftSharepointIcon: () => null }))
 
 import {
@@ -27,6 +31,8 @@ const POLICIES_DRIVE_ID = 'b!policies'
 interface GraphRoute {
   status?: number
   body?: unknown
+  /** Serve `body` as bytes, for the `/content` endpoint the downloader reads. */
+  raw?: boolean
 }
 
 /** Folder-shaped drive item for children listings. */
@@ -49,6 +55,9 @@ function mockGraph(routes: Record<string, GraphRoute>) {
       status,
       json: async () => route.body,
       text: async () => JSON.stringify(route.body ?? {}),
+      /** `readBodyWithLimit` falls back to this when there is no stream body. */
+      arrayBuffer: async () =>
+        Buffer.from(route.raw ? String(route.body ?? '') : JSON.stringify(route.body ?? {})),
     } as unknown as Response
   })
   return requested
@@ -411,6 +420,47 @@ describe('listDocuments', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
+  /**
+   * The reported failure: a document library of Office SOPs synced as
+   * "success, 0 documents" because the listing filter accepted only plain text,
+   * which is indistinguishable from a wrong folder path.
+   */
+  it('lists Office documents and PDFs alongside text files', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'Market Data SOP.docx'),
+        file('f2', 'Vendor Contract.pdf'),
+        file('f3', 'User List.xlsx'),
+        file('f4', 'Overview.pptx'),
+        file('f5', 'notes.txt'),
+      ])
+    )
+
+    const result = await list(undefined, listContext())
+
+    expect(result.documents.map((doc) => doc.title)).toEqual([
+      'Market Data SOP.docx',
+      'Vendor Contract.pdf',
+      'User List.xlsx',
+      'Overview.pptx',
+      'notes.txt',
+    ])
+  })
+
+  it('still excludes files with no extractable text', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'diagram.png'),
+        file('f2', 'recording.mp4'),
+        file('f3', 'notes.txt'),
+      ])
+    )
+
+    const result = await list(undefined, listContext())
+
+    expect(result.documents.map((doc) => doc.externalId)).toEqual(['f3'])
+  })
+
   it('builds a metadata-only contentHash that getDocument can reproduce', async () => {
     mockGraph(childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt')]))
 
@@ -418,6 +468,73 @@ describe('listDocuments', () => {
 
     expect(result.documents[0].contentHash).toBe('sharepoint:f1:2026-01-01T00:00:00Z')
     expect(result.documents[0].contentDeferred).toBe(true)
+  })
+})
+
+describe('getDocument content extraction', () => {
+  function itemRoute(itemId: string, name: string) {
+    return {
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/${itemId}?$select=${ITEM_SELECT}`]: {
+        body: file(itemId, name),
+      },
+    }
+  }
+
+  /** The content endpoint is fetched directly, not through the JSON `graphGet`. */
+  function contentRoute(itemId: string, body: string) {
+    return {
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/${itemId}/content`]: { body, raw: true },
+    }
+  }
+
+  function get(externalId: string) {
+    return sharepointConnector.getDocument!(
+      'token',
+      { siteUrl: SITE_URL },
+      externalId,
+      listContext()
+    )
+  }
+
+  it('indexes the parsed text of an Office document', async () => {
+    mockGraph({ ...itemRoute('f1', 'SOP.docx'), ...contentRoute('f1', 'ignored') })
+    mockParseBuffer.mockResolvedValue({
+      content: 'Approved vendor list',
+      metadata: { extractionMethod: 'mammoth' },
+    })
+
+    const doc = await get('f1')
+
+    expect(doc?.content).toBe('Approved vendor list')
+    expect(doc?.skippedReason).toBeUndefined()
+    expect(doc?.contentDeferred).toBe(false)
+  })
+
+  /**
+   * A degraded extraction must become a visible `failed` row, not a silent drop
+   * and not indexed placeholder text — the same treatment oversized files get.
+   */
+  it('surfaces a degraded extraction as a skipped document with an actionable reason', async () => {
+    mockGraph({ ...itemRoute('f2', 'Deck.ppt'), ...contentRoute('f2', 'ole2') })
+    mockParseBuffer.mockResolvedValue({
+      content: 'Unable to extract text from PowerPoint file.',
+      metadata: { extractionMethod: 'fallback', degraded: true },
+    })
+
+    const doc = await get('f2')
+
+    expect(doc?.content).toBe('')
+    expect(doc?.skippedReason).toContain('PPTX')
+    expect(doc?.externalId).toBe('f2')
+  })
+
+  it('reads a text file without invoking a parser', async () => {
+    mockGraph({ ...itemRoute('f3', 'notes.txt'), ...contentRoute('f3', 'plain notes') })
+
+    const doc = await get('f3')
+
+    expect(doc?.content).toBe('plain notes')
+    expect(mockParseBuffer).not.toHaveBeenCalled()
   })
 })
 
