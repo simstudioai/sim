@@ -5,6 +5,10 @@ export function dependentKey(dependent: ForkDependentReconfig): string {
   return `${dependent.targetWorkflowId}:${dependent.targetBlockId}:${dependent.subBlockKey}`
 }
 
+function sameDependencyScope(left: ForkDependentReconfig, right: ForkDependentReconfig): boolean {
+  return left.dependencyScope === right.dependencyScope
+}
+
 /**
  * Marker stored for a descendant whose value an in-session parent re-pick invalidated, kept
  * distinct from the user's own empty pick. It reads as blank everywhere it is consumed - the
@@ -47,7 +51,13 @@ export function applyDependentRepick(
 
     for (const field of blockFields) {
       const fieldKey = dependentKey(field)
-      if (visitedFields.has(fieldKey) || !field.consumesContextKeys.includes(contextKey)) continue
+      if (
+        !sameDependencyScope(changedField, field) ||
+        visitedFields.has(fieldKey) ||
+        !field.consumesContextKeys.includes(contextKey)
+      ) {
+        continue
+      }
 
       visitedFields.add(fieldKey)
       nextState[fieldKey] = DEPENDENT_CLEARED_BY_PARENT
@@ -136,10 +146,11 @@ export interface DependentConfigurationState {
  * because its children resolve in a different scope. An unchanged mapping only needs a selector
  * when a required value is missing; its stored values are already valid and sync-ready.
  *
- * Anything the session already touched stays shown - the user picked it, cleared it, or a parent
- * re-pick invalidated it. Re-deriving pure satisfaction would pull the field (and, when it is its
- * block's only one, the whole workflow card) out from under the user the instant they filled it
- * in, and would hide a descendant a parent re-pick just blanked.
+ * A field a parent re-pick invalidated reads as blank through `effectiveDependentValue`, so a
+ * REQUIRED one stays on screen here and keeps gating Sync. An optional one drops out of the
+ * default view - `getDisplayedDependentFields` brings it back under explicit edit mode - and
+ * hiding it loses nothing, because `submittedDependentValue` omits it from the payload rather
+ * than blanking the target.
  */
 export function isDependentConfigurationActionable(
   field: ForkDependentReconfig,
@@ -148,7 +159,6 @@ export function isDependentConfigurationActionable(
 ): boolean {
   if (!state.parentResolved) return false
   if (state.parentChanged || state.copying) return true
-  if (reconfig[dependentKey(field)] !== undefined) return true
   return field.required && effectiveDependentValue(field, reconfig, false) === ''
 }
 
@@ -165,9 +175,15 @@ export function getActionableDependentFields(
   const actionable = new Set(
     fields.filter((field) => isDependentConfigurationActionable(field, reconfig, state))
   )
-  const providersByContextKey = new Map<string, ForkDependentReconfig>()
+  const providersByScope = new Map<string | undefined, Map<string, ForkDependentReconfig>>()
   for (const field of fields) {
-    if (field.providesContextKey) providersByContextKey.set(field.providesContextKey, field)
+    if (!field.providesContextKey) continue
+    let providers = providersByScope.get(field.dependencyScope)
+    if (!providers) {
+      providers = new Map()
+      providersByScope.set(field.dependencyScope, providers)
+    }
+    providers.set(field.providesContextKey, field)
   }
 
   const pending = Array.from(actionable)
@@ -175,7 +191,7 @@ export function getActionableDependentFields(
     const field = pending[index]
     if (!field) continue
     for (const contextKey of field.consumesContextKeys) {
-      const provider = providersByContextKey.get(contextKey)
+      const provider = providersByScope.get(field.dependencyScope)?.get(contextKey)
       if (!provider || actionable.has(provider)) continue
       actionable.add(provider)
       pending.push(provider)
@@ -183,4 +199,19 @@ export function getActionableDependentFields(
   }
 
   return fields.filter((field) => actionable.has(field))
+}
+
+/**
+ * Fields rendered in the mapping UI. Required missing fields remain visible by default; an
+ * explicit edit action reveals every active selector under a resolved parent without changing
+ * which fields gate Sync.
+ */
+export function getDisplayedDependentFields(
+  fields: ForkDependentReconfig[],
+  reconfig: Record<string, string>,
+  state: DependentConfigurationState,
+  showConfigured: boolean
+): ForkDependentReconfig[] {
+  if (!state.parentResolved) return []
+  return showConfigured ? fields : getActionableDependentFields(fields, reconfig, state)
 }

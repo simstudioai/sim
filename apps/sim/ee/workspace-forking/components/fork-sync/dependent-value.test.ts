@@ -10,6 +10,7 @@ import {
   effectiveCopyDependentValue,
   effectiveDependentValue,
   getActionableDependentFields,
+  getDisplayedDependentFields,
   isDependentClearedByParent,
   isDependentConfigurationActionable,
   submittedDependentValue,
@@ -177,6 +178,63 @@ describe('applyDependentRepick', () => {
     expect(next).toEqual({ [dependentKey(spreadsheet)]: 'sheet-doc' })
     expect(effectiveDependentValue(range, next, false)).toBe('Sheet1!A1:D')
   })
+
+  it('only changes the selected field when it provides no selector context', () => {
+    const leaf = field({ subBlockKey: 'issueKey', currentValue: 'ISSUE-1' })
+    const unrelated = field({ subBlockKey: 'label', currentValue: 'keep-me' })
+
+    expect(
+      applyDependentRepick(
+        { [dependentKey(unrelated)]: 'still-keep-me' },
+        leaf,
+        [leaf, unrelated],
+        'ISSUE-2'
+      )
+    ).toEqual({
+      [dependentKey(leaf)]: 'ISSUE-2',
+      [dependentKey(unrelated)]: 'still-keep-me',
+    })
+  })
+
+  it('does not clear a descendant belonging to another nested tool instance', () => {
+    const projectOne = field({
+      subBlockKey: 'tools[0].projectId',
+      dependencyScope: 'tools[0]',
+      providesContextKey: 'projectId',
+    })
+    const issueOne = field({
+      subBlockKey: 'tools[0].issueKey',
+      dependencyScope: 'tools[0]',
+      consumesContextKeys: ['projectId'],
+    })
+    const projectTwo = field({
+      subBlockKey: 'tools[1].projectId',
+      dependencyScope: 'tools[1]',
+      providesContextKey: 'projectId',
+    })
+    const issueTwo = field({
+      subBlockKey: 'tools[1].issueKey',
+      dependencyScope: 'tools[1]',
+      consumesContextKeys: ['projectId'],
+    })
+    const previous = {
+      [dependentKey(issueOne)]: 'P1-1',
+      [dependentKey(issueTwo)]: 'P2-1',
+    }
+
+    expect(
+      applyDependentRepick(
+        previous,
+        projectOne,
+        [projectOne, issueOne, projectTwo, issueTwo],
+        'P1-NEW'
+      )
+    ).toEqual({
+      [dependentKey(projectOne)]: 'P1-NEW',
+      [dependentKey(issueOne)]: DEPENDENT_CLEARED_BY_PARENT,
+      [dependentKey(issueTwo)]: 'P2-1',
+    })
+  })
 })
 
 describe('submittedDependentValue', () => {
@@ -261,23 +319,6 @@ describe('submittedDependentValue', () => {
     expect(submittedDependentValue(untouched, {}, mappedParent)).toBe('INBOX')
     expect(submittedDependentValue(copied, {}, { copying: true, parentChanged: false })).toBe('doc')
   })
-
-  it('only changes the selected field when it provides no selector context', () => {
-    const leaf = field({ subBlockKey: 'issueKey', currentValue: 'ISSUE-1' })
-    const unrelated = field({ subBlockKey: 'label', currentValue: 'keep-me' })
-
-    expect(
-      applyDependentRepick(
-        { [dependentKey(unrelated)]: 'still-keep-me' },
-        leaf,
-        [leaf, unrelated],
-        'ISSUE-2'
-      )
-    ).toEqual({
-      [dependentKey(leaf)]: 'ISSUE-2',
-      [dependentKey(unrelated)]: 'still-keep-me',
-    })
-  })
 })
 
 describe('isDependentConfigurationActionable', () => {
@@ -348,47 +389,6 @@ describe('isDependentConfigurationActionable', () => {
           copying: true,
         }
       )
-    ).toBe(true)
-  })
-
-  it('keeps a required field on screen after the user fills it in', () => {
-    const issue = field({ subBlockKey: 'issueKey', required: true, currentValue: '' })
-    const picked = applyDependentRepick({}, issue, [issue], 'ISSUE-7', '')
-
-    expect(
-      isDependentConfigurationActionable(issue, picked, {
-        parentResolved: true,
-        parentChanged: false,
-        copying: false,
-      })
-    ).toBe(true)
-  })
-
-  it('keeps an optional descendant on screen once a parent re-pick blanked it', () => {
-    const spreadsheet = field({
-      subBlockKey: 'spreadsheetId',
-      currentValue: 'doc-old',
-      providesContextKey: 'spreadsheetId',
-    })
-    const range = field({
-      subBlockKey: 'range',
-      currentValue: 'A1:D50',
-      consumesContextKeys: ['spreadsheetId'],
-    })
-    const next = applyDependentRepick(
-      {},
-      spreadsheet,
-      [spreadsheet, range],
-      'doc-new',
-      effectiveDependentValue(spreadsheet, {}, false)
-    )
-
-    expect(
-      isDependentConfigurationActionable(range, next, {
-        parentResolved: true,
-        parentChanged: false,
-        copying: false,
-      })
     ).toBe(true)
   })
 
@@ -503,35 +503,6 @@ describe('getActionableDependentFields', () => {
     ).toEqual(['spreadsheetId', 'sheetName'])
   })
 
-  it("keeps the block's only required field (and its provider) after the user fills it in", () => {
-    const spreadsheet = field({
-      subBlockKey: 'spreadsheetId',
-      title: 'Spreadsheet',
-      currentValue: 'doc-target',
-      providesContextKey: 'spreadsheetId',
-    })
-    const sheet = field({
-      subBlockKey: 'sheetName',
-      title: 'Sheet',
-      currentValue: '',
-      required: true,
-      consumesContextKeys: ['spreadsheetId'],
-    })
-    const fields = [spreadsheet, sheet]
-
-    // The card is on screen because the required sheet is missing; the user picks one.
-    expect(
-      getActionableDependentFields(fields, {}, unchangedMappedParent).map((f) => f.subBlockKey)
-    ).toEqual(['spreadsheetId', 'sheetName'])
-    const picked = applyDependentRepick({}, sheet, fields, 'Sheet1', '')
-
-    // The block still has configurable fields, so its workflow card cannot unmount underneath
-    // the user - who would otherwise be unable to see or change what they just picked.
-    expect(
-      getActionableDependentFields(fields, picked, unchangedMappedParent).map((f) => f.subBlockKey)
-    ).toEqual(['spreadsheetId', 'sheetName'])
-  })
-
   it('walks transitive providers and leaves unrelated optional fields hidden', () => {
     const unrelated = field({
       subBlockKey: 'optionalLabel',
@@ -566,5 +537,64 @@ describe('getActionableDependentFields', () => {
         unchangedMappedParent
       ).map((dependent) => dependent.subBlockKey)
     ).toEqual(['siteId', 'driveId', 'spreadsheetId'])
+  })
+
+  it('finds a required child provider only within the same nested tool instance', () => {
+    const projectOne = field({
+      subBlockKey: 'tools[0].projectId',
+      dependencyScope: 'tools[0]',
+      providesContextKey: 'projectId',
+    })
+    const projectTwo = field({
+      subBlockKey: 'tools[1].projectId',
+      dependencyScope: 'tools[1]',
+      providesContextKey: 'projectId',
+    })
+    const issueOne = field({
+      subBlockKey: 'tools[0].issueKey',
+      dependencyScope: 'tools[0]',
+      currentValue: '',
+      required: true,
+      consumesContextKeys: ['projectId'],
+    })
+
+    expect(
+      getActionableDependentFields(
+        [projectOne, projectTwo, issueOne],
+        {},
+        unchangedMappedParent
+      ).map((dependent) => dependent.subBlockKey)
+    ).toEqual(['tools[0].projectId', 'tools[0].issueKey'])
+  })
+})
+
+describe('getDisplayedDependentFields', () => {
+  const unchangedMappedParent = {
+    parentResolved: true,
+    parentChanged: false,
+    copying: false,
+  }
+
+  it('reveals configured and optional fields only after the explicit edit action', () => {
+    const configuredRequired = field({ subBlockKey: 'projectId', required: true })
+    const optional = field({ subBlockKey: 'issueKey', currentValue: '', required: false })
+
+    expect(
+      getDisplayedDependentFields([configuredRequired, optional], {}, unchangedMappedParent, false)
+    ).toEqual([])
+    expect(
+      getDisplayedDependentFields([configuredRequired, optional], {}, unchangedMappedParent, true)
+    ).toEqual([configuredRequired, optional])
+  })
+
+  it('never shows selectors before their parent mapping is resolved', () => {
+    expect(
+      getDisplayedDependentFields(
+        [field()],
+        {},
+        { ...unchangedMappedParent, parentResolved: false },
+        true
+      )
+    ).toEqual([])
   })
 })
