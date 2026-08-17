@@ -33,14 +33,14 @@ afterEach(() => {
 describe('configure --set-endpoint', () => {
   it('refuses to store an endpoint that would later crash the URL parser', async () => {
     await expect(run('--set-endpoint', 'not-a-url')).rejects.toThrow(
-      'Invalid endpoint "not-a-url" from --set-endpoint. Use an absolute URL, e.g. https://sim.ai or http://localhost:3000'
+      'Invalid endpoint "not-a-url" from --set-endpoint. Use an absolute URL, e.g. https://www.sim.ai or http://localhost:3000'
     )
     expect(readConfigProfile('default')).toEqual({})
   })
 
   it('refuses a scheme the HTTP client cannot speak', async () => {
     await expect(run('--set-endpoint', 'ftp://x.com')).rejects.toThrow(
-      'Unsupported endpoint scheme "ftp" from --set-endpoint. Use http or https, e.g. https://sim.ai'
+      'Unsupported endpoint scheme "ftp" from --set-endpoint. Use http or https, e.g. https://www.sim.ai'
     )
     expect(readConfigProfile('default')).toEqual({})
   })

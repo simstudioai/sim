@@ -12,7 +12,18 @@ import {
 import { configPath, credentialsPath } from './paths'
 
 export const DEFAULT_PROFILE = 'default'
-export const DEFAULT_ENDPOINT = 'https://sim.ai'
+
+/**
+ * The API host, which is the `www` one and not the apex.
+ *
+ * `sim.ai` answers `/api/**` with a 301 to `www.sim.ai`, and the CLI refuses to
+ * follow a redirect — a 301 rewrites a POST into a bodyless GET, so following
+ * one turns a write into a silent no-op and hands the API key to whatever host
+ * `Location` names. Defaulting to the apex therefore made every command fail
+ * for anyone who never set an endpoint, and before the refusal existed it was
+ * worse: reads succeeded while writes quietly did nothing.
+ */
+export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
 
 /**
  * Output formats, in the order `--help` lists them.
