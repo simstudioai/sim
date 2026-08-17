@@ -96,6 +96,36 @@ describe('profile resolution', () => {
     expect(resolveProfile({ endpoint: 'https://sim.ai///' }).endpoint).toBe('https://sim.ai')
   })
 
+  it('fails fast on an endpoint Node cannot parse, naming the source', () => {
+    expect(() => resolveProfile({ endpoint: 'not-a-url' })).toThrow(
+      'Invalid endpoint "not-a-url" from flag. Use an absolute URL, e.g. https://sim.ai or http://localhost:3000'
+    )
+
+    process.env.SIM_ENDPOINT = 'not-a-url'
+    expect(() => resolveProfile()).toThrow('Invalid endpoint "not-a-url" from env.')
+
+    Reflect.deleteProperty(process.env, 'SIM_ENDPOINT')
+    writeConfigProfile('default', { endpoint: 'not-a-url' })
+    expect(() => resolveProfile()).toThrow('Invalid endpoint "not-a-url" from config.')
+  })
+
+  it('rejects a parseable endpoint the HTTP client could never call', () => {
+    expect(() => resolveProfile({ endpoint: 'ftp://x.com' })).toThrow(
+      'Unsupported endpoint scheme "ftp" from flag. Use http or https, e.g. https://sim.ai'
+    )
+  })
+
+  it('accepts every endpoint shape a self-hosted install needs', () => {
+    for (const endpoint of [
+      'http://localhost:3000',
+      'https://10.0.0.7:8443',
+      'https://sim.internal:8080/sim',
+      'http://127.0.0.1:3000/',
+    ]) {
+      expect(resolveProfile({ endpoint }).endpoint).toBe(endpoint.replace(/\/+$/, ''))
+    }
+  })
+
   it('fails fast on an unrecognized active output format', () => {
     process.env.SIM_OUTPUT = 'xml'
     expect(() => resolveProfile()).toThrow(

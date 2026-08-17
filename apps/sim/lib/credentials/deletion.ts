@@ -109,9 +109,14 @@ export async function deleteConnectionCredential(
  * Scoped by `accountId`, not by owner — the caller is already authorized
  * against the credential, which may belong to another user.
  *
- * The reference check is a predicate on the delete: `credential.accountId` is
- * `ON DELETE CASCADE`, so a credential racing a separate check would be reaped
- * by Postgres without {@link clearCredentialRefs} ever running.
+ * The reference check is a predicate on the delete rather than a separate
+ * SELECT, which narrows the race from check-then-act down to a single
+ * statement — it does not close it. The caller issues the credential delete and
+ * this account delete as two statements (`orchestration/index.ts`), so under
+ * READ COMMITTED a `credential` row another workspace commits after this
+ * statement takes its snapshot is invisible here and is then reaped by
+ * `credential.accountId ON DELETE CASCADE` without {@link clearCredentialRefs}
+ * ever running. The window is narrow, but a hit is silent data loss.
  */
 export async function deleteOrphanedOAuthAccount(accountId: string): Promise<void> {
   const deleted = await db

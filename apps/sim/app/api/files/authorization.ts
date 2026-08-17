@@ -31,6 +31,13 @@ interface AuthorizationResult {
 type WorkspacePermission = 'read' | 'write' | 'admin'
 
 /**
+ * The two contexts stored under a `workspace/…` key. They share a bucket and a
+ * workspace-membership permission model; only the owning module differs — a
+ * mothership attachment belongs to a chat, a workspace file to the Files module.
+ */
+type WorkspaceScopedContext = 'workspace' | 'mothership'
+
+/**
  * Whether a resolved workspace permission satisfies a file operation. Read and
  * download paths accept any membership; destructive operations (`requireWrite`)
  * require write or admin, matching the permission needed to create the file.
@@ -49,12 +56,12 @@ function workspacePermissionSatisfies(
  */
 async function lookupWorkspaceFileByKey(
   key: string,
-  options?: { includeDeleted?: boolean }
+  options?: { includeDeleted?: boolean; context?: WorkspaceScopedContext }
 ): Promise<{ workspaceId: string; uploadedBy: string } | null> {
   try {
-    const { includeDeleted = false } = options ?? {}
+    const { includeDeleted = false, context = 'workspace' } = options ?? {}
     // Priority 1: Check new workspaceFiles table
-    const fileRecord = await getFileMetadataByKey(key, 'workspace', { includeDeleted })
+    const fileRecord = await getFileMetadataByKey(key, context, { includeDeleted })
 
     if (fileRecord) {
       return {
@@ -158,7 +165,14 @@ export async function verifyFileAccess(
 
     // 1. Workspace / mothership files: Check database first (most reliable for both local and cloud)
     if (inferredContext === 'workspace' || inferredContext === 'mothership') {
-      return await verifyWorkspaceFileAccess(cloudKey, userId, customConfig, isLocal, requireWrite)
+      return await verifyWorkspaceFileAccess(
+        cloudKey,
+        userId,
+        customConfig,
+        isLocal,
+        requireWrite,
+        inferredContext
+      )
     }
 
     // 2. Execution files: workspace_id/workflow_id/execution_id/filename
@@ -200,10 +214,11 @@ async function verifyWorkspaceFileAccess(
   userId: string,
   customConfig?: StorageConfig,
   isLocal?: boolean,
-  requireWrite = false
+  requireWrite = false,
+  context: WorkspaceScopedContext = 'workspace'
 ): Promise<boolean> {
   try {
-    const anyWorkspaceFileRecord = await getFileMetadataByKey(cloudKey, 'workspace', {
+    const anyWorkspaceFileRecord = await getFileMetadataByKey(cloudKey, context, {
       includeDeleted: true,
     })
     if (anyWorkspaceFileRecord?.deletedAt) {
@@ -215,7 +230,7 @@ async function verifyWorkspaceFileAccess(
     }
 
     // Priority 1: Check database (most reliable, works for both local and cloud)
-    const workspaceFileRecord = await lookupWorkspaceFileByKey(cloudKey)
+    const workspaceFileRecord = await lookupWorkspaceFileByKey(cloudKey, { context })
     if (workspaceFileRecord) {
       const permission = await getUserEntityPermissions(
         userId,

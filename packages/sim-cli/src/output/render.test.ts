@@ -180,6 +180,18 @@ describe('printRecord', () => {
     expect(logged[1]).toContain('alpha')
   })
 
+  it('clamps a very wide value in table mode only', () => {
+    // A signed download URL is the whole point of the command that prints it;
+    // clamping it before the format branch corrupted `text`, silently.
+    const url = `https://example.com/${'a'.repeat(400)}`
+    printRecord('table', [['url', url]], {})
+    printRecord('text', [['url', url]], {})
+
+    expect(logged[0]).toMatch(/…$/)
+    expect(logged[0].length).toBeLessThan(url.length)
+    expect(logged[1]).toBe(`url\t${url}`)
+  })
+
   it.each(['text', 'table'] as const)('sanitizes API-controlled labels in %s output', (format) => {
     printRecord(format, [[`${ESC}]0;pwned${BEL}safe\nlabel`, 'value']], {})
 
@@ -208,6 +220,10 @@ describe('formatters', () => {
     expect(duration(999)).toBe('999ms')
     expect(duration(1500)).toBe('1.5s')
     expect(duration(90_000)).toBe('1m30s')
+  })
+
+  it('rounds the high-resolution milliseconds the API reports', () => {
+    expect(duration(9.145596999907866)).toBe('9ms')
   })
 })
 

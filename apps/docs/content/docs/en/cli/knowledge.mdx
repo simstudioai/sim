@@ -61,7 +61,7 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -116,7 +116,7 @@ sim knowledge documents list <knowledgeBaseId> [options]
 ## Update document
 
 ```bash
-sim knowledge documents update <id> <documentId> [options]
+sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 ```
 
 **Arguments**
@@ -125,7 +125,7 @@ sim knowledge documents update <id> <documentId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 | `documentId` | Yes | Unique knowledge document identifier. |
 
 </CommandTable>
@@ -209,7 +209,7 @@ sim knowledge create [options]
 | `--name <value>` | Yes | Human-readable knowledge base name. |
 | `--description <value>` | No | Optional knowledge base description. |
 | `--chunking-config <json\|@file>` | No | Chunking configuration; defaults are applied when omitted. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -225,7 +225,7 @@ sim knowledge folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -241,7 +241,7 @@ sim knowledge folders delete <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -252,7 +252,7 @@ sim knowledge folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -291,8 +291,8 @@ Also available as `sim knowledge folders mv`.
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
-| `destination` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -318,7 +318,7 @@ sim knowledge delete <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -350,7 +350,7 @@ sim knowledge list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -361,7 +361,7 @@ sim knowledge list [options]
 ## List tags
 
 ```bash
-sim knowledge tags list <id>
+sim knowledge tags list <knowledgeBaseId>
 ```
 
 **Arguments**
@@ -370,7 +370,7 @@ sim knowledge tags list <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -423,7 +423,7 @@ sim knowledge update <id> [options]
 | `--name <value>` | No | New knowledge base name. |
 | `--description <value>` | No | New knowledge base description. |
 | `--chunking-config <json\|@file>` | No | New document chunking configuration. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -440,7 +440,7 @@ sim knowledge mv <id> <folder>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | Unique knowledge base identifier. |
-| `folder` | Yes | Folder path; the leading / is optional |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 

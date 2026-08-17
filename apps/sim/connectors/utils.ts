@@ -135,6 +135,162 @@ export function htmlToPlainText(html: string): string {
 }
 
 /**
+ * Extensions a file-based connector reads straight off the wire as UTF-8. These are
+ * the formats connectors have always accepted, and they deliberately keep bypassing
+ * the knowledge-base parsers: routing `.csv` through `CsvParser` or `.json` through
+ * the JSON parser would reformat content that is already indexed, changing what is
+ * embedded for every existing connector document on its next re-index.
+ */
+const CONNECTOR_TEXT_EXTENSIONS = [
+  'txt',
+  'md',
+  'html',
+  'htm',
+  'csv',
+  'json',
+  'jsonl',
+  'xml',
+  'yaml',
+  'yml',
+  'log',
+  'rst',
+  'tsv',
+] as const
+
+/**
+ * Binary document formats extracted through the shared knowledge-base file parsers.
+ * Listing them separately from {@link CONNECTOR_TEXT_EXTENSIONS} is what keeps this
+ * additive: a format that synced yesterday takes exactly the path it took yesterday.
+ *
+ * The set covers the variants a real document library actually holds, not just the
+ * headline extension of each family — macro-enabled (`docm`, `xlsm`, `pptm`) and
+ * template (`dotx`, `xltx`, `potx`) files are the same OOXML packages, the binary
+ * workbook (`xlsb`) and legacy BIFF workbook (`xls`) are read by SheetJS, and the
+ * OpenDocument trio covers LibreOffice and Google Docs exports.
+ *
+ * `rtf` is deliberately absent: no bundled library extracts it, and `DocParser`
+ * would pass its control words through as if they were prose. See
+ * {@link CONNECTOR_INDEXABLE_EXTENSIONS} for how an unsupported format surfaces.
+ */
+const CONNECTOR_PARSED_EXTENSIONS = [
+  'pdf',
+  'doc',
+  'docx',
+  'docm',
+  'dotx',
+  'xls',
+  'xlsx',
+  'xlsm',
+  'xlsb',
+  'xltx',
+  'ppt',
+  'pptx',
+  'pptm',
+  'potx',
+  'odt',
+  'ods',
+  'odp',
+] as const
+
+/**
+ * Every extension a file-based connector will download and index.
+ *
+ * Previously each connector carried its own text-only whitelist, so an Office
+ * document in a synced folder was dropped during listing — no document, no failed
+ * row, no log line. A library of `.docx` SOPs therefore synced as "success, 0
+ * documents", which is indistinguishable from a wrong folder path.
+ */
+export const CONNECTOR_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set<string>([
+  ...CONNECTOR_TEXT_EXTENSIONS,
+  ...CONNECTOR_PARSED_EXTENSIONS,
+])
+
+/** Extracts a lowercased, dotless extension from a file name. */
+export function connectorFileExtension(fileName: string): string | undefined {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex === -1 || dotIndex === fileName.length - 1) return undefined
+  return fileName.slice(dotIndex + 1).toLowerCase()
+}
+
+/**
+ * Reports whether a connector should download and index a file, based on its name.
+ */
+export function isIndexableConnectorFile(fileName: string): boolean {
+  const extension = connectorFileExtension(fileName)
+  return extension !== undefined && CONNECTOR_INDEXABLE_EXTENSIONS.has(extension)
+}
+
+/**
+ * Raised when a binary document yielded no text a search index should hold —
+ * either the parser produced nothing, or it reported a degraded extraction whose
+ * "content" is scraped bytes or a placeholder message. Callers surface it as a
+ * skipped document, the same way {@link ConnectorFileTooLargeError} is handled,
+ * so the file stays visible with an actionable reason instead of polluting the
+ * index or vanishing.
+ */
+export class ConnectorTextExtractionError extends Error {
+  constructor(
+    readonly fileName: string,
+    readonly extension: string
+  ) {
+    super(`No text could be extracted from "${fileName}"`)
+    this.name = 'ConnectorTextExtractionError'
+  }
+}
+
+/**
+ * Human-readable skip reason for a document whose text could not be extracted.
+ * Legacy formats get the concrete remedy — re-saving genuinely fixes them, because
+ * the modern container is one the bundled parsers read.
+ */
+export function extractionFailedSkipReason(extension: string): string {
+  const legacyFormats: Record<string, string> = { doc: 'DOCX', ppt: 'PPTX', xls: 'XLSX' }
+  const modernFormat = legacyFormats[extension]
+  return modernFormat
+    ? `No text could be extracted from this ${extension.toUpperCase()} file. Re-save it as ${modernFormat} to index it.`
+    : 'No text could be extracted from this file — it may be scanned, image-only, or password-protected.'
+}
+
+/**
+ * Converts a downloaded file body to indexable text.
+ *
+ * Text formats are decoded as UTF-8 (with HTML additionally reduced to plain text),
+ * and binary document formats go through `parseBuffer`, which applies the OOXML
+ * zip-bomb guard and each parser's own extraction limits. An extension with no
+ * parser falls back to a UTF-8 decode rather than failing the file.
+ *
+ * A parsed format that yields no usable text throws {@link ConnectorTextExtractionError}
+ * rather than returning what the parser handed back. The `doc` and `ppt` parsers
+ * never throw by design — on a legacy binary or an image-only deck they return a
+ * placeholder sentence or raw ZIP internals, which an interactive upload can show
+ * a user but an automated sync must never embed.
+ */
+export async function extractConnectorText(buffer: Buffer, fileName: string): Promise<string> {
+  const extension = connectorFileExtension(fileName)
+
+  if (extension === 'html' || extension === 'htm') {
+    return htmlToPlainText(buffer.toString('utf8'))
+  }
+
+  if (extension && (CONNECTOR_PARSED_EXTENSIONS as readonly string[]).includes(extension)) {
+    /**
+     * Imported here rather than at module scope: every connector imports this
+     * file, but only the file-based ones ever reach a binary document, and the
+     * parser registry pulls in SheetJS and friends. Mirrors how the parsers
+     * themselves defer `officeparser`/`mammoth`/`unpdf`.
+     */
+    const { parseBuffer } = await import('@/lib/file-parsers')
+    const result = await parseBuffer(buffer, extension)
+    if (result.metadata?.degraded || !result.content.trim()) {
+      throw new ConnectorTextExtractionError(fileName, extension)
+    }
+    return result.content
+  }
+
+  return buffer.toString('utf8')
+}
+
+/**
  * Computes a SHA-256 hash of the given content string.
  * Used by connectors for change detection during sync.
  */

@@ -81,6 +81,10 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
     destination: '/agents/custom-tools',
     permanent: true,
   },
+  // evernote integration page removed; without this the /tools/:slug rule below
+  // would permanently redirect /tools/evernote into a 404.
+  { source: '/tools/evernote', destination: '/integrations', permanent: true },
+  { source: '/integrations/evernote', destination: '/integrations', permanent: true },
   { source: '/tools', destination: '/integrations', permanent: true },
   { source: '/tools/:slug', destination: '/integrations/:slug', permanent: true },
   // Old blocks/triggers index pages were folded into the workflows overview.

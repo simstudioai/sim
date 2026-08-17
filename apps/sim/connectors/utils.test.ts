@@ -1,8 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExternalDocument } from '@/connectors/types'
+
+const { mockParseBuffer } = vi.hoisted(() => ({ mockParseBuffer: vi.fn() }))
 
 vi.mock('@/components/icons', () => ({
   JiraIcon: () => null,
@@ -29,6 +31,7 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: vi.fn(),
   VALIDATE_RETRY_OPTIONS: {},
 }))
+vi.mock('@/lib/file-parsers', () => ({ parseBuffer: mockParseBuffer }))
 vi.mock('@/tools/jira/utils', () => ({ extractAdfText: vi.fn(), getJiraCloudId: vi.fn() }))
 vi.mock('@/tools/confluence/utils', () => ({ getConfluenceCloudId: vi.fn() }))
 vi.mock('@/tools/jsm/utils', () => ({
@@ -62,7 +65,11 @@ import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
+  ConnectorTextExtractionError,
+  extractConnectorText,
+  extractionFailedSkipReason,
   htmlToPlainText,
+  isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
   readBodyWithLimit,
@@ -1363,5 +1370,186 @@ describe('htmlToPlainText entity decoding', () => {
 
   it('leaves an unknown named entity untouched', () => {
     expect(htmlToPlainText('<p>&copy; &notreal;</p>')).toBe('&copy; &notreal;')
+  })
+})
+
+describe('isIndexableConnectorFile', () => {
+  it('accepts the Office and PDF formats the knowledge base can parse', () => {
+    for (const name of [
+      'sop.pdf',
+      'sop.doc',
+      'sop.docx',
+      'sheet.xls',
+      'sheet.xlsx',
+      'deck.ppt',
+      'deck.pptx',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('still accepts the plain-text formats connectors already synced', () => {
+    for (const name of ['a.txt', 'a.md', 'a.html', 'a.htm', 'a.csv', 'a.log', 'a.tsv', 'a.rst']) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  /**
+   * A document library holds the whole family, not just the headline extension:
+   * macro-enabled and template variants are the same OOXML packages, `xlsb` is the
+   * binary workbook, and the OpenDocument trio covers LibreOffice/Google exports.
+   */
+  it('accepts macro-enabled, template, binary and OpenDocument variants', () => {
+    for (const name of [
+      'report.docm',
+      'letterhead.dotx',
+      'model.xlsm',
+      'model.xlsb',
+      'budget.xltx',
+      'deck.pptm',
+      'brand.potx',
+      'notes.odt',
+      'sheet.ods',
+      'slides.odp',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('rejects formats with no text to extract', () => {
+    for (const name of ['logo.png', 'clip.mp4', 'archive.zip', 'binary.exe']) {
+      expect(isIndexableConnectorFile(name)).toBe(false)
+    }
+  })
+
+  /**
+   * No bundled library extracts RTF. `DocParser`'s plaintext branch would accept
+   * it and pass its control words through as prose, so it stays out of the set and
+   * is reported as an unsupported extension instead.
+   */
+  it('rejects rtf rather than indexing its control words as prose', () => {
+    expect(isIndexableConnectorFile('policy.rtf')).toBe(false)
+  })
+
+  it('rejects a name with no extension, and one ending in a bare dot', () => {
+    expect(isIndexableConnectorFile('README')).toBe(false)
+    expect(isIndexableConnectorFile('trailing.')).toBe(false)
+  })
+
+  it('ignores extension case', () => {
+    expect(isIndexableConnectorFile('SOP.DOCX')).toBe(true)
+  })
+})
+
+describe('extractConnectorText', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('routes a binary document format through the shared parsers', async () => {
+    mockParseBuffer.mockResolvedValue({ content: 'extracted docx text' })
+    const buffer = Buffer.from('PK binary')
+
+    const content = await extractConnectorText(buffer, 'Market Data SOP.docx')
+
+    expect(content).toBe('extracted docx text')
+    expect(mockParseBuffer).toHaveBeenCalledWith(buffer, 'docx')
+  })
+
+  it('passes each parsed variant to the parser under its own extension', async () => {
+    mockParseBuffer.mockResolvedValue({ content: 'text' })
+
+    for (const extension of ['docm', 'xlsm', 'xlsb', 'pptm', 'odt', 'ods', 'odp']) {
+      await extractConnectorText(Buffer.from('PK'), `file.${extension}`)
+      expect(mockParseBuffer).toHaveBeenLastCalledWith(expect.any(Buffer), extension)
+    }
+  })
+
+  /**
+   * The formats that synced before this change must keep taking the byte-for-byte
+   * identical path. Sending `.csv` through `CsvParser` would silently reformat
+   * every already-indexed connector document on its next re-index.
+   */
+  it('decodes already-supported text formats as UTF-8 without invoking a parser', async () => {
+    for (const name of ['notes.txt', 'data.csv', 'config.yaml', 'rows.tsv', 'feed.xml']) {
+      const content = await extractConnectorText(Buffer.from('a,b'), name)
+      expect(content).toBe('a,b')
+    }
+    expect(mockParseBuffer).not.toHaveBeenCalled()
+  })
+
+  it('reduces HTML to plain text rather than parsing it', async () => {
+    const content = await extractConnectorText(Buffer.from('<p>Hello&nbsp;world</p>'), 'page.htm')
+
+    expect(content).toBe('Hello world')
+    expect(mockParseBuffer).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a UTF-8 decode for an extension with no parser', async () => {
+    const content = await extractConnectorText(Buffer.from('plain'), 'notes.unknownext')
+
+    expect(content).toBe('plain')
+    expect(mockParseBuffer).not.toHaveBeenCalled()
+  })
+
+  it('propagates a parser failure so the sync records a failed document', async () => {
+    mockParseBuffer.mockRejectedValue(new Error('corrupt archive'))
+
+    await expect(extractConnectorText(Buffer.from('bad'), 'broken.docx')).rejects.toThrow(
+      'corrupt archive'
+    )
+  })
+
+  /**
+   * `DocParser` and `PptxParser` never throw by design: on a legacy binary or an
+   * image-only deck they return scraped ZIP internals or an English placeholder
+   * sentence so an interactive upload still shows the user something. Indexing
+   * that would embed junk, so a degraded result must not become content.
+   */
+  it('rejects a degraded extraction instead of indexing placeholder text', async () => {
+    mockParseBuffer.mockResolvedValue({
+      content: 'Unable to extract text from PowerPoint file. Please ensure the file contains text.',
+      metadata: { extractionMethod: 'fallback', degraded: true },
+    })
+
+    await expect(extractConnectorText(Buffer.from('ole2'), 'Deck.ppt')).rejects.toThrow(
+      ConnectorTextExtractionError
+    )
+  })
+
+  it('rejects an extraction that produced only whitespace', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '   \n  ', metadata: {} })
+
+    await expect(extractConnectorText(Buffer.from('pdf'), 'scanned.pdf')).rejects.toThrow(
+      ConnectorTextExtractionError
+    )
+  })
+
+  it('carries the extension so the caller can name the format in its skip reason', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+
+    await expect(extractConnectorText(Buffer.from('x'), 'Deck.PPT')).rejects.toMatchObject({
+      extension: 'ppt',
+      fileName: 'Deck.PPT',
+    })
+  })
+
+  it('does not apply the degraded check to text formats', async () => {
+    const content = await extractConnectorText(Buffer.from('   '), 'blank.txt')
+
+    expect(content).toBe('   ')
+    expect(mockParseBuffer).not.toHaveBeenCalled()
+  })
+})
+
+describe('extractionFailedSkipReason', () => {
+  it('tells the user which modern format to re-save a legacy file as', () => {
+    expect(extractionFailedSkipReason('doc')).toContain('DOCX')
+    expect(extractionFailedSkipReason('ppt')).toContain('PPTX')
+    expect(extractionFailedSkipReason('xls')).toContain('XLSX')
+  })
+
+  it('explains the likely cause for a modern format', () => {
+    expect(extractionFailedSkipReason('pdf')).toMatch(/scanned, image-only, or password-protected/)
   })
 })

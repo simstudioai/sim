@@ -7,8 +7,17 @@ const TABLE_SORT_HELP =
   'Ordered sort keys: [{"field":"createdAt","direction":"desc"}] (direction: asc or desc)'
 const CUSTOM_TOOL_SCHEMA_HELP =
   'OpenAI function schema: {"type":"function","function":{"name":"...","parameters":{"type":"object","properties":{}}}}'
+/**
+ * Every folder-path input the API accepts.
+ *
+ * `folderPath` is what marks the field for per-segment encoding, so a folder is
+ * typed by the name the app shows it under. It belongs on the shared constant
+ * rather than on each of the thirty-odd fields, because one that was missed
+ * would silently be the only place `/Folder 1` is still rejected.
+ */
 const FOLDER_PATH_INPUT = {
-  describe: 'Folder path; the leading / is optional',
+  describe: 'Folder path as shown in the app; the leading / is optional',
+  folderPath: true,
 } as const
 const FOLDER_PATH_FLAG = {
   ...FOLDER_PATH_INPUT,
@@ -18,7 +27,7 @@ const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
-const KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS = { id: 'knowledgeBaseId' } as const
+const KNOWLEDGE_BASE_PATH_ARGUMENT = { id: 'knowledgeBaseId' } as const
 const WORKFLOW_RUN_SCOPE = {
   id: {
     name: 'workflow',
@@ -26,10 +35,11 @@ const WORKFLOW_RUN_SCOPE = {
     describe: 'Workflow ID',
   },
 } as const
+const FOLDER_COLUMN: ColumnSpec = { header: 'folder', path: 'folderPath', format: 'folder-path' }
 const FOLDER_LIST_COLUMNS: ColumnSpec[] = [
-  { header: 'path' },
+  { header: 'path', format: 'folder-path' },
   { header: 'name' },
-  { header: 'parent', path: 'parentPath' },
+  { header: 'parent', path: 'parentPath', format: 'folder-path' },
   { header: 'updated', path: 'updatedAt', format: 'timestamp' },
 ]
 
@@ -123,7 +133,7 @@ export const CLI_CONTRACT: CliContract = {
   bulkUpdateKnowledgeDocuments: {
     command: 'knowledge documents batch-update',
     describe: 'Enable or disable every matching document',
-    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     flags: {
       documentIds: { name: 'document', list: true },
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
@@ -133,6 +143,15 @@ export const CLI_CONTRACT: CliContract = {
   undeployWorkflow: {
     command: 'workflows undeploy',
     describe: 'Take a workflow out of deployment',
+  },
+  // `GET /workflows/[id]/deployment` is a collection-shaped path holding one
+  // record, so the derived `list` promised a page of deployments there is no
+  // such thing as. `status` is what the singular group beside `versions` can be
+  // asked for.
+  getWorkflowDeployment: {
+    command: 'workflows deployment status',
+    renamedFrom: ['workflows deployment list'],
+    describe: 'Show a workflow’s current deployment',
   },
   setSecret: { hidden: true },
 
@@ -145,7 +164,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
   deleteKnowledgeDocument: {
-    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     confirm: 'This deletes the document and its embeddings.',
   },
   deleteFile: { confirm: 'This archives the file.' },
@@ -179,7 +198,14 @@ export const CLI_CONTRACT: CliContract = {
       workflowIds: { name: 'workflow', list: true },
       folderPaths: { ...FOLDER_PATH_FLAG, list: true },
       triggers: { name: 'trigger', list: true },
-      details: { describe: 'Response detail level' },
+      // The `workflow` column below reads `workflow.name`, which the API only
+      // sends at `full` — at its own `basic` default every row's workflow was an
+      // em-dash and a run had nothing naming what ran. Asked for by default so
+      // the declared columns can be filled; an explicit `--details basic` wins.
+      details: {
+        requestDefault: 'full',
+        describe: 'Response detail level; full is requested by default to name each run’s workflow',
+      },
       includeTraceSpans: {
         boolean: true,
         describe: 'Include trace spans in JSON or YAML output (implies full detail)',
@@ -313,7 +339,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: [
       { header: 'id' },
       { header: 'name' },
-      { header: 'folder', path: 'folderPath' },
+      FOLDER_COLUMN,
       { header: 'rows', path: 'rowCount' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
@@ -323,7 +349,7 @@ export const CLI_CONTRACT: CliContract = {
     columns: [
       { header: 'id' },
       { header: 'name' },
-      { header: 'folder', path: 'folderPath' },
+      FOLDER_COLUMN,
       { header: 'deployed', path: 'isDeployed', format: 'bool' },
       { header: 'runs', path: 'runCount' },
       { header: 'last run', path: 'lastRunAt', format: 'timestamp' },
@@ -336,7 +362,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'name' },
       // Now that files live in folders, which one is the difference between two
       // identically-named rows.
-      { header: 'folder', path: 'folderPath' },
+      FOLDER_COLUMN,
       { header: 'size', format: 'bytes' },
       { header: 'type' },
       { header: 'uploaded by', path: 'uploadedByEmail' },
@@ -349,15 +375,21 @@ export const CLI_CONTRACT: CliContract = {
     columns: [
       { header: 'id' },
       { header: 'name' },
-      { header: 'folder', path: 'folderPath' },
+      FOLDER_COLUMN,
       { header: 'docs', path: 'docCount' },
       { header: 'tokens', path: 'tokenCount' },
       { header: 'model', path: 'embeddingModel' },
     ],
   },
-  getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS },
+  // Every command whose `[id]` is the parent knowledge base rather than the
+  // thing being acted on names it in its own help and error messages. `update`
+  // and `tags list` were left out, so the same value was `<id>` on one command
+  // and `<knowledgeBaseId>` on its neighbours.
+  getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  updateKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
+  listKnowledgeTags: { pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT },
   listKnowledgeDocuments: {
-    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
+    pathArgumentNames: KNOWLEDGE_BASE_PATH_ARGUMENT,
     columns: [
       { header: 'id' },
       { header: 'filename' },
@@ -461,9 +493,9 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── The expanded files surface ───────────────────────────────────────────
-  // Every one of these derives badly. `/files/move` and `/files/bulk-delete`
-  // are verbs sitting where the deriver expects a sub-resource, so it made them
-  // groups holding a lone `create`.
+  // Every one of these derives badly. `/files/move`, `/files/bulk-delete` and
+  // `/files/[fileId]/restore` are verbs sitting where the deriver expects a
+  // sub-resource, so it made them groups holding a lone `create`.
   bulkDeleteFiles: {
     // `batch-` for the bulk form, matching `tables rows batch-delete`.
     command: 'files batch-delete',
@@ -481,7 +513,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'name' },
       { header: 'size', format: 'bytes' },
       { header: 'type' },
-      { header: 'folder', path: 'folderPath' },
+      FOLDER_COLUMN,
       { header: 'uploaded by', path: 'uploadedByEmail' },
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
@@ -510,6 +542,13 @@ export const CLI_CONTRACT: CliContract = {
     // Derived to `files update`, which contradicted its own summary.
     command: 'files rename',
     describe: 'Rename a file',
+  },
+  restoreFile: {
+    // `files restore create` created nothing; it is the inverse of the delete
+    // that archived the file.
+    command: 'files restore',
+    renamedFrom: ['files restore create'],
+    describe: 'Restore an archived file',
   },
   updateFileContent: {
     command: 'files set-content',
@@ -659,9 +698,9 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── The expanded tables surface ──────────────────────────────────────────
-  // `/cancel-runs`, `/rows/find`, `/columns/run` and the enrichment path all put
-  // a verb where the deriver expects a sub-resource, so each became
-  // a group holding a lone `create`.
+  // `/cancel-runs`, `/rows/find`, `/query/count`, `/columns/run` and the
+  // enrichment path all put a verb where the deriver expects a sub-resource, so
+  // each became a group holding a lone `create`.
   cancelTableRuns: {
     command: 'tables cancel-runs',
     describe: 'Stop every running column job',
@@ -674,12 +713,29 @@ export const CLI_CONTRACT: CliContract = {
     command: 'tables rows find',
     describe: 'Find rows matching a predicate',
     flags: {
-      q: { describe: 'Value to find' },
+      // `--q` was the wire field spelled out; the same idea is `--query` on
+      // `knowledge search`, and one concept should not have two flag names.
+      q: { name: 'query', renamedFrom: ['q'], describe: 'Value to find' },
       predicate: { name: 'filter', json: true, describe: TABLE_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
     itemsPath: 'matches',
     columns: [{ header: 'ordinal' }, { header: 'row', path: 'rowId' }, { header: 'column' }],
+  },
+  queryRowsCount: {
+    // `tables count create` counted rows and created nothing. The count is a
+    // question about rows, so it belongs beside the other row commands.
+    command: 'tables rows count',
+    renamedFrom: ['tables count create'],
+    describe: 'Count rows matching a filter',
+    flags: {
+      predicate: {
+        name: 'filter',
+        renamedFrom: ['predicate'],
+        json: true,
+        describe: TABLE_FILTER_HELP,
+      },
+    },
   },
   runTableColumn: {
     command: 'tables columns run',

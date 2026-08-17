@@ -12,14 +12,16 @@ import {
   credentialsPath,
   deleteProfile,
   listProfiles,
+  type ResolvedProfile,
   readCredentialsProfile,
   type SettingSource,
   writeConfigProfile,
   writeCredentialsProfile,
 } from '../config/index'
-import { profileFrom } from '../context'
-import { SimApiError } from '../http/client'
-import { printRecord } from '../output/render'
+import { clientFrom, profileFrom } from '../context'
+import { type GetWorkspaceResponse, V2_OPERATIONS } from '../generated/v2-api'
+import { resolvePath, SimApiError, type SimClient } from '../http/client'
+import { printRecord, safeOneLine } from '../output/render'
 
 /**
  * Best-effort browser launch. Failure is not an error: the URL is always printed
@@ -203,13 +205,146 @@ export function logoutCommand(): Command {
     })
 }
 
+interface VerifiedWorkspace {
+  id: string
+  name: string
+  memberCount: number
+}
+
+/**
+ * The outcome of checking the resolved settings against the API.
+ *
+ * Split by cause rather than into a boolean because each cause has a different
+ * fix, and `whoami` exists to name that fix: a rejected key needs a new login, a
+ * missing workspace needs `sim configure`, and an unreachable endpoint needs
+ * neither.
+ */
+type Verification =
+  | { status: 'verified'; workspace: VerifiedWorkspace; detail: null }
+  | {
+      status: 'rejected' | 'unreachable' | 'unauthenticated' | 'no-workspace' | 'disabled'
+      workspace: null
+      detail: string
+    }
+
+/**
+ * The only answers that are a verdict on the credentials themselves.
+ *
+ * 401 and 403 are the server judging the key; 404 means the configured
+ * workspace is not one this key can see. Everything else — a 502 from a proxy
+ * mid-deploy, a 429, a transport failure (status 0), an endpoint answering 200
+ * with a login page — says nothing about the key, and calling it `rejected`
+ * told a user to run `sim login` for something logging in cannot fix. That is
+ * the flaky-VPN confusion the exit-code split exists to prevent.
+ */
+const CREDENTIAL_VERDICT_STATUSES = new Set([401, 403, 404])
+
+/**
+ * `whoami` is the command people run to answer "am I set up correctly?", so the
+ * exit status has to carry that answer — reporting a junk key with exit 0 is the
+ * defect this mapping closes.
+ *
+ * 1 is the CLI's blanket "explained failure" code and means the credentials
+ * themselves are wrong. 2 is reserved for a check that could not be made at all:
+ * that is a different fix — retrying or setting a workspace helps, logging in
+ * again does not — and a script must be able to tell the two apart.
+ */
+const WHOAMI_EXIT_CODES = {
+  verified: 0,
+  disabled: 0,
+  unauthenticated: 1,
+  rejected: 1,
+  unreachable: 2,
+  'no-workspace': 2,
+} as const satisfies Record<Verification['status'], number>
+
+/**
+ * Confirms the resolved key really works, by reading the profile's own
+ * workspace.
+ *
+ * `getWorkspace` is the check because it is the cheapest read that proves all
+ * three settings at once — the endpoint answers, the key is accepted, and the
+ * key can reach the configured workspace — and because it comes back with the
+ * workspace's *name*, which is what tells a user the id they pasted is the
+ * workspace they meant.
+ *
+ * It is workspace-scoped, so a profile with no workspace has nothing to check
+ * against. That is reported rather than papered over with an account-scoped call
+ * a workspace-bound key would fail for reasons having nothing to do with its
+ * validity.
+ */
+async function verifyProfile(
+  client: Pick<SimClient, 'request'>,
+  profile: ResolvedProfile
+): Promise<Verification> {
+  if (!profile.apiKey) {
+    return {
+      status: 'unauthenticated',
+      workspace: null,
+      detail: `no API key — run: sim login --profile ${profile.name}`,
+    }
+  }
+  if (!profile.workspaceId) {
+    return {
+      status: 'no-workspace',
+      workspace: null,
+      detail: `no workspace to check against — run: sim configure --profile ${profile.name} --set-workspace <id>`,
+    }
+  }
+
+  const operation = V2_OPERATIONS.getWorkspace
+  try {
+    const response = await client.request<GetWorkspaceResponse>(
+      resolvePath(operation.path, { workspaceId: profile.workspaceId }),
+      { method: operation.method }
+    )
+    const { id, name, memberCount } = response.data
+    // Projected field by field: the record carries display fields the machine
+    // output has no business inventing a contract for.
+    return { status: 'verified', workspace: { id, name, memberCount }, detail: null }
+  } catch (error) {
+    if (!(error instanceof SimApiError)) throw error
+    return {
+      status: CREDENTIAL_VERDICT_STATUSES.has(error.status) ? 'rejected' : 'unreachable',
+      workspace: null,
+      detail: error.message,
+    }
+  }
+}
+
+function presentVerification(verification: Verification): string {
+  if (verification.status === 'verified') {
+    const { name, memberCount } = verification.workspace
+    const members = `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`
+    // The name is server-supplied and lands in a terminal unescaped otherwise.
+    return `${chalk.green('✓')} ${safeOneLine(name)} · ${members}`
+  }
+
+  const detail = safeOneLine(verification.detail)
+  switch (verification.status) {
+    case 'rejected':
+      return `${chalk.red('✗')} ${detail}`
+    case 'unauthenticated':
+      return chalk.yellow(`not logged in — ${detail}`)
+    case 'disabled':
+      return chalk.dim(detail)
+    default:
+      return chalk.yellow(`could not check — ${detail}`)
+  }
+}
+
 export function whoamiCommand(): Command {
   return new Command('whoami')
-    .description('Show the resolved profile and where each setting came from')
-    .action((_options: unknown, command: Command) => {
-      const profile = profileFrom(command)
+    .description('Show the resolved profile, where each setting came from, and whether it works')
+    .option('--no-verify', 'Skip the API check and only print the resolved settings')
+    .action(async (options: { verify: boolean }, command: Command) => {
+      const { client, profile } = clientFrom(command)
       const { sources } = profile
       const authentication = presentAuthentication(sources.apiKey)
+
+      const verification: Verification = options.verify
+        ? await verifyProfile(client, profile)
+        : { status: 'disabled', workspace: null, detail: 'not checked (--no-verify)' }
 
       const annotate = (value: string, source: string) =>
         source === 'unset' ? chalk.dim('not set') : `${value} ${chalk.dim(`(${source})`)}`
@@ -227,6 +362,7 @@ export function whoamiCommand(): Command {
           ],
           ['Workspace', annotate(profile.workspaceId ?? '', sources.workspaceId)],
           ['Output', annotate(profile.output, sources.output)],
+          ['Verified', presentVerification(verification)],
         ],
         {
           profile: profile.name,
@@ -240,8 +376,18 @@ export function whoamiCommand(): Command {
             workspaceId: sources.workspaceId,
             output: sources.output,
           },
+          verification: {
+            status: verification.status,
+            workspace: verification.workspace,
+            detail: verification.detail,
+          },
         }
       )
+
+      // Set rather than thrown: the resolved settings above are the answer the
+      // user came for, and a thrown error would replace them with one red line.
+      const exitCode = WHOAMI_EXIT_CODES[verification.status]
+      if (exitCode !== 0) process.exitCode = exitCode
     })
 }
 

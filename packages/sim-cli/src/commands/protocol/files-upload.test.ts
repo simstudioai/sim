@@ -139,4 +139,29 @@ describe('files upload', () => {
     })
     expect(logged[0]).not.toContain('secret-token')
   })
+
+  it('encodes the destination folder, which the local path must never be', async () => {
+    // This command builds its own body, so it never reached the encoder every
+    // contract-driven `--folder` goes through: the same flag, the same value,
+    // accepted by `files list` and rejected here as non-canonical.
+    const path = join(dir, 'notes.txt')
+    writeFileSync(path, 'hello')
+    mockRequest
+      .mockResolvedValueOnce({
+        data: {
+          session: { id: 'upload_1' },
+          uploadToken: 'secret-token',
+          transfer: { method: 'put', url: 'https://storage.example/file', headers: {} },
+        },
+      })
+      .mockResolvedValueOnce({ data: { file: { id: 'file_1' } } })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await program().parseAsync(['node', 'sim', 'file', 'upload', path, '--folder', '/Q1 (draft)'])
+
+    expect(mockRequest.mock.calls[0][1].body).toMatchObject({
+      folderPath: '/Q1%20%28draft%29',
+    })
+  })
 })
