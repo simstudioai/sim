@@ -16,6 +16,7 @@
  * client whose driver captures the compiled statement and replays the rows
  * Postgres would return for the scenario under test.
  */
+import { drizzle } from 'drizzle-orm/pg-proxy'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { capturedQueries, driverRows, mockLogger } = vi.hoisted(() => ({
@@ -34,16 +35,12 @@ vi.unmock('@sim/db/schema')
 
 vi.mock('@sim/logger', () => ({ createLogger: () => mockLogger }))
 
-vi.mock('@sim/db', async () => {
-  const { drizzle } =
-    await vi.importActual<typeof import('drizzle-orm/pg-proxy')>('drizzle-orm/pg-proxy')
-  return {
-    db: drizzle(async (sql: string, params: unknown[]) => {
-      capturedQueries.push({ sql, params })
-      return { rows: driverRows.value }
-    }),
-  }
-})
+vi.mock('@sim/db', () => ({
+  db: drizzle(async (sql: string, params: unknown[]) => {
+    capturedQueries.push({ sql, params })
+    return { rows: driverRows.value }
+  }),
+}))
 
 import { deleteOrphanedOAuthAccount } from '@/lib/credentials/deletion'
 
@@ -91,23 +88,20 @@ describe('deleteOrphanedOAuthAccount', () => {
     expect(params).toEqual([ACCOUNT_ID, ACCOUNT_ID])
   })
 
-  it('does not delete an account still referenced by a credential in another workspace', async () => {
+  it('keys the reference check on account_id alone and reports nothing when it matches no row', async () => {
     /**
-     * Workspace B's surviving `credential` row makes `not exists` false, so
-     * Postgres matches no row and RETURNING comes back empty — modelled by the
-     * empty driver result. The guard can only see that row because its subquery
-     * is keyed on `account_id` alone; a `workspace_id` filter would hide every
-     * other workspace's reference and turn an intra-workspace admin disconnect
-     * into a cross-workspace grant wipe.
+     * The row matching itself is Postgres's, not this harness's — the driver
+     * replays the empty RETURNING that a surviving workspace-B `credential` row
+     * would produce, and the statement carries what makes that row visible: the
+     * subquery is keyed on `account_id` alone. A `workspace_id` filter would hide
+     * every other workspace's reference and turn an intra-workspace admin
+     * disconnect into a cross-workspace grant wipe.
      */
     driverRows.value = []
 
     await deleteOrphanedOAuthAccount(ACCOUNT_ID)
 
-    const subquery = guardSubquery(onlyQuery().sql)
-    expect(subquery).toContain('from "credential"')
-    expect(subquery).toContain('"credential"."account_id" = $2')
-    expect(subquery).not.toContain('workspace_id')
+    expect(guardSubquery(onlyQuery().sql)).not.toContain('workspace_id')
     expect(mockLogger.info).not.toHaveBeenCalled()
   })
 

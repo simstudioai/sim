@@ -273,13 +273,24 @@ describe('webflow collection-scope resolution', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
-  /** A non-array `collections` fails the sync loudly rather than syncing an empty scope. */
+  /**
+   * A non-array `collections` fails the sync loudly rather than syncing an empty
+   * scope. The rejection is pinned to a `TypeError` — the spec-mandated failure
+   * for a `for...of` over a non-iterable — rather than to the engine's wording,
+   * and to the point of failure: the collection listing is the only request made
+   * and nothing is written back to the sync context.
+   */
   it('throws when collections is not an array', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ collections: { id: 'col-1' } }))
 
+    const syncContext: Record<string, unknown> = {}
     await expect(
-      webflowConnector.listDocuments(ACCESS_TOKEN, SITE_ONLY, undefined, {})
-    ).rejects.toThrow(/not iterable/)
+      webflowConnector.listDocuments(ACCESS_TOKEN, SITE_ONLY, undefined, syncContext)
+    ).rejects.toThrow(TypeError)
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(syncContext.collectionNames).toBeUndefined()
+    expect(syncContext.listingCapped).toBeUndefined()
   })
 
   it('leaves listingCapped unset when the site listing and its page are both well formed', async () => {
