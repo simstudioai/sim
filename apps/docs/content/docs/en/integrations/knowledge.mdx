@@ -42,7 +42,7 @@ Search for similar content in a knowledge base using vector similarity
 | `knowledgeBaseId` | string | Yes | ID of the knowledge base to search in |
 | `query` | string | No | Search query text \(optional when using tag filters\) |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |
-| `tagFilters` | array | No | Array of tag filters with tagName and tagValue properties |
+| `tagFilters` | array | No | Array of tag filters using either tagName or tagId together with tagValue properties |
 | `searchMode` | string | No | Retrieval mode: 'vector' \(default\) uses semantic similarity only, 'hybrid' also runs a full-text leg and fuses both |
 | `rerankerEnabled` | boolean | No | Whether to apply Cohere reranking to vector search results |
 | `rerankerModel` | string | No | Cohere rerank model to use \(one of: rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5\) |

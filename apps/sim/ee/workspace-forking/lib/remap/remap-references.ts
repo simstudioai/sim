@@ -101,13 +101,50 @@ export const REGISTRY_KIND_TO_FORK_KIND: Partial<
 /**
  * Dependent subblock types whose values are name/slot-based rather than id-based, so they stay
  * valid on a COPIED parent (tag definitions are copied verbatim - same names, same slots) and on a
- * MAPPED parent (mapping asserts the resources are equivalent). The dependent-clear passes preserve
- * these when their parent was remapped to a non-empty target; a CLEARED parent still clears them.
+ * MAPPED parent (mapping asserts the resources are equivalent). Basic knowledge tag filters are
+ * also portable; their advanced canonical partner stores workspace-local tag-definition UUIDs and
+ * is handled separately. A CLEARED parent still clears every dependent.
  */
-const PRESERVED_NAME_BASED_DEPENDENT_TYPES = new Set<string>([
-  'knowledge-tag-filters',
-  'document-tag-entry',
-])
+const PRESERVED_NAME_BASED_DEPENDENT_TYPES = new Set<string>(['document-tag-entry'])
+
+function isPortableNameBasedDependent(config: SubBlockConfig): boolean {
+  return (
+    PRESERVED_NAME_BASED_DEPENDENT_TYPES.has(config.type) ||
+    (config.type === 'knowledge-tag-filters' && config.mode !== 'advanced')
+  )
+}
+
+function removeLiteralTagIdFilters(
+  config: SubBlockConfig | undefined,
+  value: unknown
+): { changed: boolean; value: unknown } {
+  if (config?.type !== 'knowledge-tag-filters' || config.mode !== 'advanced') {
+    return { changed: false, value }
+  }
+
+  let parsed = value
+  const wasString = typeof value === 'string'
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return { changed: false, value }
+    }
+  }
+  if (!Array.isArray(parsed)) return { changed: false, value }
+
+  const retainedFilters = parsed.filter((entry) => {
+    if (!isRecordLike(entry) || typeof entry.tagId !== 'string') return true
+    const tagId = entry.tagId.trim()
+    return tagId.length === 0 || isReference(tagId) || isEnvVarReference(tagId)
+  })
+  if (retainedFilters.length === parsed.length) return { changed: false, value }
+  if (retainedFilters.length === 0) return { changed: true, value: '' }
+  return {
+    changed: true,
+    value: wasString ? JSON.stringify(retainedFilters) : retainedFilters,
+  }
+}
 
 /**
  * Dependent subblock types preserved ONLY when their parent was remapped via a COPY: a copied
@@ -597,22 +634,29 @@ export function remapToolBlockResources(
         // A verbatim manual-parent dependent is never cleared, even when reachable from a
         // second (remapped) parent.
         if (gates.isManualParentDependent(clear.subBlockId)) continue
-        // Tag fields are name/slot-based, portable onto a copied or mapped-equivalent
-        // parent - preserve them when the parent remapped to a target instead of clearing.
+        // Name/slot-based tag fields (document tags and basic tag filters) are portable onto a
+        // copied or mapped-equivalent parent. Advanced filters contain definition UUIDs and clear
+        // when they contain literal IDs.
         // A COPIED parent additionally keeps copy-faithful dependents (column picks - the
         // copy duplicates the table schema verbatim, so column ids stay valid).
         if (
           parentRemappedNonEmpty &&
           dependentCfg &&
-          (PRESERVED_NAME_BASED_DEPENDENT_TYPES.has(dependentCfg.type) ||
+          (isPortableNameBasedDependent(dependentCfg) ||
             (parentCopied && PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(dependentCfg.type)))
         ) {
           continue
         }
+        const canonicalKey = dependentCfg?.canonicalParamId
+        const canonicalKeyBelongsToAnotherMember =
+          canonicalKey !== undefined &&
+          canonicalKey !== clear.subBlockId &&
+          configBySubBlockId.has(canonicalKey)
         const clearKeys = new Set(
-          [clear.subBlockId, dependentCfg?.canonicalParamId].filter(
-            (key): key is string => typeof key === 'string' && key.length > 0
-          )
+          [
+            clear.subBlockId,
+            ...(canonicalKey && !canonicalKeyBelongsToAnotherMember ? [canonicalKey] : []),
+          ].filter((key): key is string => typeof key === 'string' && key.length > 0)
         )
         // A dependent that was itself remapped followed the parent onto the target -
         // keep it (matching the top-level pass), under whichever key it was written.
@@ -628,8 +672,18 @@ export function remapToolBlockResources(
           ) {
             continue
           }
-          if (isManualCanonicalValue(dependentCfg, clearKey)) continue
-          setParam(clearKey, '')
+          const filteredTagIds = removeLiteralTagIdFilters(dependentCfg, existing)
+          if (
+            dependentCfg?.id === clearKey &&
+            gates.isActiveManualMember(clearKey) &&
+            !filteredTagIds.changed
+          ) {
+            continue
+          }
+          if (isManualCanonicalValue(dependentCfg, clearKey) && !filteredTagIds.changed) {
+            continue
+          }
+          setParam(clearKey, filteredTagIds.changed ? filteredTagIds.value : '')
         }
       }
     }
@@ -1060,12 +1114,13 @@ export function remapForkSubBlocks(
  * value is non-empty) is preserved along with its own dependents (the tool's
  * arguments), because mapping asserts the servers are equivalent and
  * {@link remapForkSubBlocks} already followed the selection onto the target
- * server; and the name/slot-based tag fields (`knowledge-tag-filters`,
- * `document-tag-entry`) are preserved under any parent remapped to a non-empty
- * target - a copy duplicates the tag definitions verbatim and a mapping asserts
- * equivalence. A CLEARED parent (unmapped / fork-create) still clears its
- * dependents. Children of an unchanged parent are preserved; a no-op for
- * unknown block types or when nothing was remapped.
+ * server; and name/slot-based tag fields (`document-tag-entry` and basic
+ * `knowledge-tag-filters`) are preserved under any parent remapped to a
+ * non-empty target. Advanced tag filters use workspace-local definition UUIDs,
+ * so literal-ID filters clear while dynamic references remain user-owned. A
+ * CLEARED parent (unmapped / fork-create) still clears its dependents. Children
+ * of an unchanged parent are preserved; a no-op for unknown block types or when
+ * nothing was remapped.
  */
 export function clearDependentsOnRemap(
   subBlocks: SubBlockRecord,
@@ -1102,7 +1157,7 @@ export function clearDependentsOnRemap(
   }
 
   // A parent key remapped to a non-empty target (a cleared one is empty post-remap): its
-  // name/slot-based dependents (tag filters / document tags) stay valid on the target -
+  // name/slot-based dependents (basic tag filters / document tags) stay valid on the target -
   // mapping asserts equivalence and a copy duplicates the tag definitions verbatim.
   const isRemappedToNonEmpty = (key: string): boolean => {
     const parent = subBlocks[key]
@@ -1127,7 +1182,7 @@ export function clearDependentsOnRemap(
       if (mcpParent && dependent.type === 'mcp-tool-selector') {
         preservedDependents.add(dependent.id)
       }
-      if (nonEmptyParent && PRESERVED_NAME_BASED_DEPENDENT_TYPES.has(dependent.type)) {
+      if (nonEmptyParent && isPortableNameBasedDependent(dependent)) {
         preservedDependents.add(dependent.id)
       }
       if (copiedParent && PRESERVED_UNDER_COPY_DEPENDENT_TYPES.has(dependent.type)) {
@@ -1174,7 +1229,14 @@ export function clearDependentsOnRemap(
     }
     // A live manual (advanced) member is user-owned and verbatim by policy - a parent remap
     // must not blank it (matching how manual values are never remapped). A dormant one may.
-    if (gates.isActiveManualMember(id)) continue
+    const subBlockConfig = config.subBlocks.find((subBlock) => subBlock.id === id)
+    if (gates.isActiveManualMember(id)) {
+      const filteredTagIds = removeLiteralTagIdFilters(subBlockConfig, existing.value)
+      if (!filteredTagIds.changed) continue
+      next ??= { ...subBlocks }
+      next[id] = { ...existing, value: filteredTagIds.value }
+      continue
+    }
     next ??= { ...subBlocks }
     next[id] = { ...existing, value: '' }
   }

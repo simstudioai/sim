@@ -39,7 +39,8 @@ interface FieldFormat {
 
 interface TagFilterItem {
   id: string
-  tagName: string
+  tagName?: string
+  tagId?: string
   fieldType?: string
   operator?: string
   tagValue: string
@@ -114,9 +115,8 @@ const isTagFilterArray = (value: unknown): value is TagFilterItem[] => {
   return (
     typeof firstItem === 'object' &&
     firstItem !== null &&
-    'tagName' in firstItem &&
     'tagValue' in firstItem &&
-    typeof firstItem.tagName === 'string'
+    (typeof firstItem.tagName === 'string' || typeof firstItem.tagId === 'string')
   )
 }
 
@@ -201,10 +201,10 @@ export const getDisplayValue = (value: unknown): string => {
   }
 
   if (isTagFilterArray(parsedValue)) {
-    const names = parsedValue
-      .filter((f) => typeof f.tagName === 'string' && f.tagName.trim() !== '')
-      .map((f) => f.tagName)
-    return summarizeNames(names) ?? '-'
+    const identifiers = parsedValue
+      .map((filter) => filter.tagName?.trim() || filter.tagId?.trim() || '')
+      .filter(Boolean)
+    return summarizeNames(identifiers) ?? '-'
   }
 
   if (isDocumentTagArray(parsedValue)) {

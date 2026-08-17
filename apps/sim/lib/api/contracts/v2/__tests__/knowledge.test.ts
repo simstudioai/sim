@@ -93,6 +93,17 @@ function parseTagFilter(filter: unknown) {
  * a mis-cased `valueto` was stripped and its `between` filter lost its bound.
  */
 describe('v2 knowledge search tag filter', () => {
+  it('keeps tag IDs outside the public v2 filter surface', () => {
+    expect(parseTagFilter({ tagId: 'tag-definition-id', value: 'billing' })?.success).toBe(false)
+    expect(
+      parseTagFilter({
+        tagName: 'category',
+        tagId: 'tag-definition-id',
+        value: 'billing',
+      })?.success
+    ).toBe(false)
+  })
+
   it('rejects an operator no field type implements', () => {
     expect(
       parseTagFilter({ tagName: 'category', operator: 'nosuchop', value: 'billing' })?.success

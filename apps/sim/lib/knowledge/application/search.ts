@@ -40,7 +40,7 @@ import {
 import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import {
-  type KnowledgeTagNameFilter,
+  type KnowledgeTagFilter,
   resolveKnowledgeTagFilters,
 } from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
@@ -67,10 +67,10 @@ export class KnowledgeSearchProvenanceUnavailableError extends Error {
 }
 
 /**
- * Search filters tags by display name. The resolution to storage slots is
- * shared with the document list so both knowledge reads speak one vocabulary.
+ * Search filters address tags by display name or by stable tag-definition ID.
+ * Both forms resolve to authoritative storage slots before search executes.
  */
-export type KnowledgeSearchTagFilter = KnowledgeTagNameFilter
+export type KnowledgeSearchTagFilter = KnowledgeTagFilter
 
 export interface SearchKnowledgeInput {
   /** Optional assertion from a trusted adapter or public contract. */

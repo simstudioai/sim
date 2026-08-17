@@ -148,6 +148,51 @@ describe('Knowledge Tools', () => {
   })
 
   describe('knowledgeSearchTool', () => {
+    describe('request body', () => {
+      it.each([
+        {
+          mode: 'basic',
+          filter: {
+            id: 'filter-basic',
+            tagName: 'category',
+            tagId: '',
+            fieldType: 'text',
+            operator: 'eq',
+            tagValue: 'api',
+          },
+          expectedIdentifier: { tagName: 'category' },
+        },
+        {
+          mode: 'advanced',
+          filter: {
+            id: 'filter-advanced',
+            tagName: '',
+            tagId: 'tag-definition-id',
+            fieldType: 'text',
+            operator: 'eq',
+            tagValue: 'api',
+          },
+          expectedIdentifier: { tagId: 'tag-definition-id' },
+        },
+      ])('normalizes the actual $mode UI filter shape', ({ filter, expectedIdentifier }) => {
+        const body = knowledgeSearchTool.request.body({
+          knowledgeBaseId: 'kb-123',
+          tagFilters: JSON.stringify([filter]),
+        })
+
+        expect(body.tagFilters).toEqual([
+          {
+            ...expectedIdentifier,
+            tagSlot: '',
+            fieldType: 'text',
+            operator: 'eq',
+            value: 'api',
+            valueTo: undefined,
+          },
+        ])
+      })
+    })
+
     describe('transformResponse', () => {
       it('should restructure cost information for logging', async () => {
         const apiResponse = {

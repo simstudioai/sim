@@ -22,6 +22,24 @@ describe('v1 knowledge search tag filter', () => {
     expect(parsed.data).toEqual({ tagName: 'category', operator: 'eq', value: 'billing' })
   })
 
+  it('keeps tag IDs outside the public v1 filter surface', () => {
+    expect(
+      v1SearchTagFilterSchema.safeParse({
+        tagId: 'tag-definition-id',
+        operator: 'eq',
+        value: 'billing',
+      }).success
+    ).toBe(false)
+
+    const parsed = v1SearchTagFilterSchema.parse({
+      tagName: 'category',
+      tagId: 'tag-definition-id',
+      operator: 'eq',
+      value: 'billing',
+    })
+    expect(parsed).toEqual({ tagName: 'category', operator: 'eq', value: 'billing' })
+  })
+
   it('rejects an operator no field type implements', () => {
     expect(
       v1SearchTagFilterSchema.safeParse({

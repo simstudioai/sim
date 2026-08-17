@@ -33,11 +33,13 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Array of tag filters with tagName and tagValue properties',
+      description:
+        'Array of tag filters using either tagName or tagId together with tagValue properties',
       items: {
         type: 'object',
         properties: {
           tagName: { type: 'string' },
+          tagId: { type: 'string' },
           tagValue: { type: 'string' },
         },
       },
