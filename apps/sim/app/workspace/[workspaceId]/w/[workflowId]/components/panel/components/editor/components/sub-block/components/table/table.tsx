@@ -5,11 +5,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
-  formatDisplayText,
-  getValidWorkflowSearchRange,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { maskSecretText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import {
   getActiveWorkflowSearchHighlight,
@@ -27,7 +27,7 @@ interface TableProps {
   subBlockId: string
   columns: string[]
   /**
-   * Conceals the value columns until a cell is focused. The first column is the
+   * Conceals the value columns except while a cell is focused. The first column is the
    * key half of a key/value secrets table and stays legible — masking it would
    * leave the user unable to tell the rows apart.
    */
@@ -97,12 +97,7 @@ function TableCell({
     valuePath: [rowIndex, 'cells', column],
   })
 
-  /**
-   * A masked cell reveals itself while focused so it stays editable, and while
-   * workflow search has an active match inside it so the hit is findable.
-   */
-  const shouldMask =
-    password && !isFocused && !getValidWorkflowSearchRange(cellValue, workflowSearchHighlight)
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
   const displayValue = shouldMask ? maskSecretText(cellValue) : cellValue
 
   // Get field state and handlers for this cell

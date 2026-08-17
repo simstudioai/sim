@@ -162,11 +162,43 @@ const MSSQL_MAX_RESULT_ROWS = 10_000
 const MSSQL_MAX_RESULT_BYTES = 10 * 1024 * 1024
 
 /**
+ * Bytes held back from {@link MSSQL_MAX_RESULT_BYTES} for the part of the
+ * response body that is not a row.
+ *
+ * {@link toRowsResponseBody} wraps `rows` in `message`, `rowCount`, and — when
+ * the recordset was capped — `truncated` and `truncationReason`, none of which
+ * the per-row accounting can see. Those are a few hundred bytes at their
+ * longest (the truncation prose is the bulk of it), so the reserve is set an
+ * order of magnitude above the worst case and costs 0.04% of the ceiling. The
+ * alternative, serializing the assembled body to check it, would re-serialize
+ * the whole recordset a second time for no useful precision.
+ */
+const MSSQL_RESPONSE_ENVELOPE_BYTES = 4096
+
+/** What the serialized `rows` array itself may occupy. */
+const MSSQL_MAX_ROWS_BYTES = MSSQL_MAX_RESULT_BYTES - MSSQL_RESPONSE_ENVELOPE_BYTES
+
+/**
  * Truncates a recordset to the row and byte ceilings.
  *
- * Measures with `JSON.stringify` on each row because that is what the route will
- * do anyway, so the number bounds the response the caller actually receives
- * rather than an in-memory estimate that does not correspond to it.
+ * Measures each row with `JSON.stringify` because that is what the route will do
+ * anyway, so the number bounds the response the caller actually receives rather
+ * than an in-memory estimate that does not correspond to it. Each row is
+ * serialized exactly once and its cost accumulated, rather than re-serializing
+ * the growing array per row, which would be quadratic on a large recordset.
+ *
+ * The size is `Buffer.byteLength(..., 'utf8')`, not `String.length`. `length`
+ * counts UTF-16 code units while `NextResponse.json` emits UTF-8, and every
+ * character above U+007F costs more bytes than code units — worst case 3:1, for
+ * the U+0800–U+FFFF range that holds CJK, so a recordset of Chinese text passed
+ * a 10 MB `length` budget while serializing to nearly 30 MB. (Astral characters
+ * such as emoji are only 2:1: 4 bytes across 2 surrogate code units.)
+ *
+ * The array's own punctuation is counted too — one byte per row covers the
+ * opening `[` for the first row and the separating `,` for each one after it,
+ * with the leading byte standing in for the closing `]` — and
+ * {@link MSSQL_RESPONSE_ENVELOPE_BYTES} covers the fields around it. Without
+ * both, a result packed exactly to the ceiling still emitted a body over it.
  *
  * A row is admitted only when it still fits, so a single row larger than the
  * byte ceiling is dropped rather than admitted as a lone exception — otherwise
@@ -179,13 +211,19 @@ function capRecordset(rows: unknown[]): { rows: unknown[]; truncated: boolean } 
   if (rows.length === 0) return { rows, truncated: false }
 
   const capped: unknown[] = []
-  let bytes = 0
+  /** The closing `]`; each row below pays for its own `[` or `,`. */
+  let bytes = 1
 
   for (const row of rows) {
     if (capped.length >= MSSQL_MAX_RESULT_ROWS) break
-    const rowBytes = JSON.stringify(row)?.length ?? 0
-    if (bytes + rowBytes > MSSQL_MAX_RESULT_BYTES) break
-    bytes += rowBytes
+    const serialized = JSON.stringify(row)
+    /**
+     * `JSON.stringify` answers `undefined` for a value it cannot represent, but
+     * an array element in that position serializes as the four bytes of `null`.
+     */
+    const rowBytes = serialized === undefined ? 4 : Buffer.byteLength(serialized, 'utf8')
+    if (bytes + rowBytes + 1 > MSSQL_MAX_ROWS_BYTES) break
+    bytes += rowBytes + 1
     capped.push(row)
   }
 

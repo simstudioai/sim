@@ -30,7 +30,10 @@ import {
   getValidWorkflowSearchRange,
   type WorkflowSearchTextHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { maskSecretText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
+import {
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import {
   checkTagTrigger,
   TagDropdown,
@@ -250,7 +253,7 @@ interface CodeProps {
   blockId: string
   subBlockId: string
   placeholder?: string
-  /** Whether to conceal the value until the editor is focused */
+  /** Whether to conceal the value except while the editor is focused */
   password?: boolean
   language?: 'javascript' | 'json' | 'python' | 'shell'
   generationType?: GenerationType
@@ -763,6 +766,8 @@ export const Code = memo(function Code({
     valuePath: [],
   })
 
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+
   const highlightCode = useMemo(
     () =>
       createHighlightFunction(
@@ -964,7 +969,7 @@ export const Code = memo(function Code({
             onKeyDown={handleKeyDown}
             onFocus={handleEditorFocus}
             onBlur={handleEditorBlur}
-            highlight={password && !isFocused ? highlightMaskedCode : highlightCode}
+            highlight={shouldMask ? highlightMaskedCode : highlightCode}
             {...getCodeEditorProps({ isStreaming: isAiStreaming, isPreview, disabled })}
           />
 

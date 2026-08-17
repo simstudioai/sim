@@ -14,8 +14,9 @@ globalThis.ResizeObserver = class {
   disconnect() {}
 } as unknown as typeof ResizeObserver
 
-const { SECRET } = vi.hoisted(() => ({
+const { SECRET, searchTargetRef } = vi.hoisted(() => ({
   SECRET: '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjE\n-----END-----',
+  searchTargetRef: { current: null as Record<string, unknown> | null },
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -107,7 +108,7 @@ vi.mock(
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider',
-  () => ({ useActiveSearchTarget: () => null })
+  () => ({ useActiveSearchTarget: () => searchTargetRef.current })
 )
 
 vi.mock(
@@ -165,6 +166,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  searchTargetRef.current = null
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -189,6 +191,18 @@ function mount(password: boolean) {
 }
 
 const highlighted = () => container.querySelector('[data-testid="code-highlight"]')?.innerHTML ?? ''
+
+/** A live workflow-search hit on the base64 body of the secret. */
+const SECRET_MATCH = 'b3BlbnNzaC1rZXktdjE'
+const SECRET_MATCH_START = SECRET.indexOf(SECRET_MATCH)
+const SECRET_SEARCH_TARGET = {
+  subBlockId: 'privateKey',
+  targetKind: 'subblock',
+  valuePath: [],
+  query: SECRET_MATCH,
+  rawValue: SECRET_MATCH,
+  range: { start: SECRET_MATCH_START, end: SECRET_MATCH_START + SECRET_MATCH.length },
+}
 
 describe('Code password masking', () => {
   it('conceals the editor contents while unfocused', () => {
@@ -219,5 +233,24 @@ describe('Code password masking', () => {
 
     expect(highlighted()).toContain('BEGIN OPENSSH PRIVATE KEY')
     expect(highlighted()).not.toContain('•')
+  })
+
+  it('stays concealed while workflow search targets a match inside the secret', () => {
+    searchTargetRef.current = SECRET_SEARCH_TARGET
+
+    mount(true)
+
+    expect(highlighted()).not.toContain('b3BlbnNzaC1rZXktdjE')
+    expect(highlighted()).not.toContain('BEGIN OPENSSH PRIVATE KEY')
+    expect(highlighted()).toContain('•')
+  })
+
+  it('highlights a targeted match when the field holds no secret', () => {
+    searchTargetRef.current = SECRET_SEARCH_TARGET
+
+    mount(false)
+
+    expect(highlighted()).toContain('<mark')
+    expect(highlighted()).toContain('b3BlbnNzaC1rZXktdjE')
   })
 })

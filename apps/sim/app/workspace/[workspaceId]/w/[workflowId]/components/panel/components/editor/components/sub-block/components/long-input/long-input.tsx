@@ -11,11 +11,11 @@ import { cn, Textarea } from '@sim/emcn'
 import { ChevronsUpDown, Wand } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { Button } from '@/components/ui/button'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
-  formatDisplayText,
-  getValidWorkflowSearchRange,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
-import { maskSecretText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
+  maskSecretText,
+  shouldMaskSecretValue,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -50,7 +50,7 @@ const MIN_HEIGHT_PX = 80
 interface LongInputProps {
   /** Placeholder text to display when empty */
   placeholder?: string
-  /** Whether to conceal the value until the textarea is focused */
+  /** Whether to conceal the value except while the textarea is focused */
   password?: boolean
   /** Unique identifier for the block */
   blockId: string
@@ -85,7 +85,7 @@ interface LongInputProps {
  * - Handles drag-and-drop for connections and variable references
  * - Provides environment variable and tag autocomplete
  * - Resizable with custom drag handle
- * - Password masking with reveal on focus
+ * - Password masking, revealed only while focused
  * - Integrates with ReactFlow for zoom control
  */
 export function LongInput({
@@ -200,13 +200,7 @@ export function LongInput({
   // During streaming, use local content; otherwise use the controller value
   const value = wandHook.isStreaming ? localContent : ctrl.valueString
 
-  /**
-   * A masked field reveals itself while focused so it stays editable, and while
-   * workflow search has an active match inside it so the hit is findable —
-   * matching the short-input treatment of the same flag.
-   */
-  const shouldMask =
-    Boolean(password) && !isFocused && !getValidWorkflowSearchRange(value, workflowSearchHighlight)
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
   const displayValue = shouldMask ? maskSecretText(value) : value
 
   const handleBlur = useCallback(() => {

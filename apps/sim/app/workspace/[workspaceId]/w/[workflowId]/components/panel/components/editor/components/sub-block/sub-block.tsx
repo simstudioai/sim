@@ -106,6 +106,12 @@ interface SubBlockProps {
   labelSuffix?: React.ReactNode
   /** Provides sibling values for dependency resolution in non-preview contexts (e.g. tool-input) */
   dependencyContext?: Record<string, unknown>
+  /**
+   * Whether workflow search currently targets this field. Supplied by the editor
+   * and used only to keep the memo comparator honest — no renderer consumes it,
+   * because a search hit deliberately does not reveal a masked secret. See
+   * `shouldMaskSecretValue`.
+   */
   isSearchHighlighted?: boolean
 }
 
@@ -458,7 +464,6 @@ const arePropsEqual = (prevProps: SubBlockProps, nextProps: SubBlockProps): bool
  * @param canonicalToggle - Metadata and handlers for the basic/advanced mode toggle
  * @param labelSuffix - Additional content rendered after the label text
  * @param dependencyContext - Sibling values for dependency resolution in non-preview contexts (e.g. tool-input)
- * @param isSearchHighlighted - Whether workflow search should highlight this field
  */
 function SubBlockComponent({
   blockId,
@@ -470,7 +475,6 @@ function SubBlockComponent({
   canonicalToggle,
   labelSuffix,
   dependencyContext,
-  isSearchHighlighted,
 }: SubBlockProps): JSX.Element {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -652,7 +656,6 @@ function SubBlockComponent({
             disabled={isDisabled}
             wandControlRef={wandControlRef}
             hideInternalWand={true}
-            isSearchHighlighted={isSearchHighlighted}
           />
         )
 

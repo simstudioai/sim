@@ -2,11 +2,12 @@
  * @vitest-environment node
  */
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { KEY, SECRET } = vi.hoisted(() => ({
+const { KEY, SECRET, searchTargetRef } = vi.hoisted(() => ({
   KEY: 'BROWSER_LOGIN',
   SECRET: 'hunter2-plaintext',
+  searchTargetRef: { current: null as Record<string, unknown> | null },
 }))
 
 vi.mock('@sim/emcn', () => ({
@@ -70,7 +71,7 @@ vi.mock(
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider',
-  () => ({ useActiveSearchTarget: () => null })
+  () => ({ useActiveSearchTarget: () => searchTargetRef.current })
 )
 
 vi.mock(
@@ -91,7 +92,22 @@ function render(password: boolean) {
   )
 }
 
+/** A live workflow-search hit on the value cell of the only row. */
+const VALUE_CELL_SEARCH_TARGET = {
+  blockId: 'block-1',
+  subBlockId: 'variables',
+  targetKind: 'subblock',
+  valuePath: [0, 'cells', 'Value'],
+  query: SECRET,
+  rawValue: SECRET,
+  range: { start: 0, end: SECRET.length },
+}
+
 describe('Table password masking', () => {
+  beforeEach(() => {
+    searchTargetRef.current = null
+  })
+
   it('conceals value cells while leaving the key column legible', () => {
     const html = render(true)
 
@@ -106,5 +122,23 @@ describe('Table password masking', () => {
     expect(html).toContain(SECRET)
     expect(html).toContain(KEY)
     expect(html).not.toContain('•')
+  })
+
+  it('keeps a value cell concealed while workflow search targets it', () => {
+    searchTargetRef.current = VALUE_CELL_SEARCH_TARGET
+
+    const html = render(true)
+
+    expect(html).not.toContain(SECRET)
+    expect(html).toContain('•')
+  })
+
+  it('highlights a targeted value cell when the sub-block holds no secret', () => {
+    searchTargetRef.current = VALUE_CELL_SEARCH_TARGET
+
+    const html = render(false)
+
+    expect(html).toContain('<mark')
+    expect(html).toContain(SECRET)
   })
 })

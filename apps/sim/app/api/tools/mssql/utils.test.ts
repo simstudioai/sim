@@ -558,6 +558,50 @@ describe('executeQuery result caps', () => {
     expect(result.truncated).toBe(true)
     expect(result.truncationReason).toMatch(/exceeds the 10 MB response ceiling/)
   })
+
+  /**
+   * `String.length` counts UTF-16 code units and the response is emitted as
+   * UTF-8, so a CJK recordset costs three bytes for every unit the old
+   * accounting charged one for. Measured with `length` these rows fit; measured
+   * as the bytes that actually go on the wire they are ~3x over.
+   */
+  it('bounds a multibyte recordset by UTF-8 bytes, not UTF-16 code units', async () => {
+    const cjk = Array.from({ length: 20 }, () => ({ blob: '世'.repeat(1024 * 1024) }))
+    const result = await executeQuery(makeCapPool(cjk), 'SELECT 1')
+
+    expect(Buffer.byteLength(JSON.stringify(result.rows), 'utf8')).toBeLessThanOrEqual(
+      10 * 1024 * 1024
+    )
+    expect(result.rows.length).toBeGreaterThan(0)
+    expect(result.truncated).toBe(true)
+  })
+
+  /** Emoji are 4 UTF-8 bytes across 2 surrogate code units — a 2:1 undercount. */
+  it('bounds an astral-plane recordset by UTF-8 bytes', async () => {
+    const emoji = Array.from({ length: 20 }, () => ({ blob: '😀'.repeat(1024 * 1024) }))
+    const result = await executeQuery(makeCapPool(emoji), 'SELECT 1')
+
+    expect(Buffer.byteLength(JSON.stringify(result.rows), 'utf8')).toBeLessThanOrEqual(
+      10 * 1024 * 1024
+    )
+    expect(result.truncated).toBe(true)
+  })
+
+  /**
+   * Rows sized to divide the ceiling exactly, so an accounting that ignores the
+   * array's commas and the fields around it lands precisely on the limit and the
+   * body it emits is over by the punctuation and the envelope.
+   */
+  it('keeps the emitted body inside the ceiling once array and envelope overhead is counted', async () => {
+    const rowPayload = 'x'.repeat(2048 - '{"blob":""}'.length)
+    const packed = Array.from({ length: 6000 }, () => ({ blob: rowPayload }))
+    const result = await executeQuery(makeCapPool(packed), 'SELECT 1')
+
+    const body = toRowsResponseBody(result, 'Query executed successfully. rows returned.')
+
+    expect(result.truncated).toBe(true)
+    expect(Buffer.byteLength(JSON.stringify(body), 'utf8')).toBeLessThanOrEqual(10 * 1024 * 1024)
+  })
 })
 
 describe('toRowsResponseBody truncation disclosure', () => {
