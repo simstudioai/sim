@@ -55,7 +55,16 @@ const LIST_FADE_CLASSNAME = {
     '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)]',
 } as const
 
-/** Borderless search field layered over a fading command-result list. */
+/**
+ * Borderless search field layered over a fading command-result list.
+ *
+ * The input carries `pl-[3px]` with a compensating `-ml-[3px]`: inputs clip
+ * glyph ink at their padding box, and the brand font's `j` overhangs left of
+ * its pen origin, so with zero padding a leading `j` loses its hook — worst
+ * at low zoom, where the clip edge snaps to whole device pixels and eats up
+ * to 2 CSS px. The negative margin keeps the text at the same x, aligned
+ * with the result-row titles.
+ */
 export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
   function CommandSearch(
     { surface, cycleResultsOnTab = false, endAdornment, onKeyDown, ...props },
@@ -85,7 +94,7 @@ export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
         <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
         <Command.Input
           ref={ref}
-          className='h-8 min-w-0 flex-1 cursor-text bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+          className='-ml-[3px] h-8 min-w-0 flex-1 cursor-text bg-transparent pl-[3px] text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
           onKeyDown={handleKeyDown}
           {...props}
         />
