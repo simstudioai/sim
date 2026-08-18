@@ -117,9 +117,8 @@ const STATIC_CONNECT_SRC = [
   ...(isDev ? ['ws://localhost:4722'] : []),
   ...(isHosted
     ? [
-        // Cookie-consent runtime — the banner's policy lookup and consent writes.
-        // Without this the request is blocked, the runtime silently falls back to
-        // an offline policy, and the banner shows to every visitor worldwide.
+        // Blocked here, the consent runtime silently falls back to an offline
+        // policy and the banner shows to every visitor worldwide.
         CONSENT_BACKEND_URL,
         'https://www.googletagmanager.com',
         'https://*.google-analytics.com',

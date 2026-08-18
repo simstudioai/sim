@@ -1,11 +1,7 @@
 /**
- * Cookie-consent runtime configuration.
- *
- * Lives in `lib` rather than beside the banner because the CSP builder
- * (`lib/core/security/csp`) has to allow the same origin the runtime calls —
- * two copies of the URL would drift, and the failure mode is silent: a blocked
- * request makes the runtime fall back to an offline policy that shows the
- * banner to every visitor worldwide and records nothing.
+ * Cookie-consent runtime configuration. Lives in `lib` so the CSP builder
+ * (`lib/core/security/csp`) can allow the same origin without a second copy of
+ * the URL to drift.
  */
 
 /**

@@ -38,6 +38,13 @@ export type LegalBlock =
        * the group reads as three unaligned grids.
        */
       columnWidths?: string[]
+      /**
+       * Indices of columns rendered as inline code — cookie names, config keys.
+       * A marker rather than a `<code>` in the row data, because a row carries
+       * content and the renderer owns chrome, and because JSX inside an array
+       * literal needs a key that means nothing here.
+       */
+      codeColumns?: number[]
       rows: ReactNode[][]
     }
 

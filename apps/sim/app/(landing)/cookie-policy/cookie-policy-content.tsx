@@ -1,6 +1,12 @@
 import { ConsentPreferencesLink } from '@/app/_shell/consent/consent-preferences-link'
 import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/prose-page'
 
+/** Shared column widths so the three cookie tables read as one aligned grid. */
+const COOKIE_TABLE_WIDTHS = ['w-[24%]', 'w-[16%]', 'w-[45%]', 'w-[15%]']
+
+/** The cookie-name column reads as code. */
+const COOKIE_TABLE_CODE_COLUMNS = [0]
+
 /**
  * Cookie Policy content — the inventory a consent banner has to stand on,
  * expressed as the typed {@link LegalPageConfig} that `ProsePage` renders, so it
@@ -12,9 +18,6 @@ import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/pros
  * Tag Manager: naming a cookie the site no longer sets is as wrong as omitting
  * one it does.
  */
-/** Shared column widths so the three cookie tables read as one aligned grid. */
-const COOKIE_TABLE_WIDTHS = ['w-[24%]', 'w-[16%]', 'w-[45%]', 'w-[15%]']
-
 export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
   title: 'Cookie Policy',
   description:
@@ -114,33 +117,34 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           caption: 'Necessary',
           columns: ['Cookie', 'Provider', 'Purpose', 'Retention'],
           columnWidths: COOKIE_TABLE_WIDTHS,
+          codeColumns: COOKIE_TABLE_CODE_COLUMNS,
           rows: [
             [
-              <code>better-auth.session_token</code>,
+              'better-auth.session_token',
               'Sim',
               'Keeps you signed in and identifies your session.',
               '30 days',
             ],
             [
-              <code>better-auth.session_data</code>,
+              'better-auth.session_data',
               'Sim',
               'Short-lived signed cache of your session so each page load does not re-read the database.',
               '5 minutes',
             ],
             [
-              <code>c15t</code>,
+              'c15t',
               'Sim (via c15t)',
               'Records the cookie choice you made so the banner is not shown again.',
               '365 days',
             ],
             [
-              <code>sidebar_collapsed</code>,
+              'sidebar_collapsed',
               'Sim',
               'Remembers whether the workspace sidebar is collapsed, so the layout does not jump on load.',
               '1 year',
             ],
             [
-              <code>__cf_bm</code>,
+              '__cf_bm',
               'Cloudflare',
               'Bot-management check on requests to providers we load, such as HubSpot and X.',
               '30 minutes',
@@ -152,34 +156,25 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           caption: 'Analytics',
           columns: ['Cookie', 'Provider', 'Purpose', 'Retention'],
           columnWidths: COOKIE_TABLE_WIDTHS,
+          codeColumns: COOKIE_TABLE_CODE_COLUMNS,
           rows: [
+            ['_ga', 'Google Analytics', 'Distinguishes one visitor from another.', '13 months'],
             [
-              <code>_ga</code>,
-              'Google Analytics',
-              'Distinguishes one visitor from another.',
-              '13 months',
-            ],
-            [
-              <code>_ga_*</code>,
+              '_ga_*',
               'Google Analytics',
               'Holds the session state for a specific Analytics property.',
               '13 months',
             ],
             [
-              <code>__hstc</code>,
+              '__hstc',
               'HubSpot',
               'Tracks visits across sessions for the main tracker.',
               '6 months',
             ],
+            ['hubspotutk', 'HubSpot', 'Identifies a visitor across form submissions.', '6 months'],
+            ['__hssc', 'HubSpot', 'Tracks the current session.', '30 minutes'],
             [
-              <code>hubspotutk</code>,
-              'HubSpot',
-              'Identifies a visitor across form submissions.',
-              '6 months',
-            ],
-            [<code>__hssc</code>, 'HubSpot', 'Tracks the current session.', '30 minutes'],
-            [
-              <code>__hssrc</code>,
+              '__hssrc',
               'HubSpot',
               'Detects whether the visitor restarted their browser.',
               'Session',
@@ -191,43 +186,29 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           caption: 'Marketing',
           columns: ['Cookie', 'Provider', 'Purpose', 'Retention'],
           columnWidths: COOKIE_TABLE_WIDTHS,
+          codeColumns: COOKIE_TABLE_CODE_COLUMNS,
           rows: [
             [
-              <code>guest_id</code>,
+              'guest_id',
               'X (Twitter)',
               'Identifies a browser to the X conversion pixel.',
               '13 months',
             ],
             [
-              <code>guest_id_ads</code>,
+              'guest_id_ads',
               'X (Twitter)',
               'Measures conversions from X advertising.',
               '13 months',
             ],
             [
-              <code>guest_id_marketing</code>,
+              'guest_id_marketing',
               'X (Twitter)',
               'Measures the performance of X marketing campaigns.',
               '13 months',
             ],
-            [
-              <code>personalization_id</code>,
-              'X (Twitter)',
-              'Personalizes the ads shown on X.',
-              '13 months',
-            ],
-            [
-              <code>muc_ads</code>,
-              'X (Twitter)',
-              'Measures ad conversions across X domains.',
-              '13 months',
-            ],
-            [
-              <code>_gcl_*</code>,
-              'Google Ads',
-              'Attributes a sign-up to the ad that led to it.',
-              '90 days',
-            ],
+            ['personalization_id', 'X (Twitter)', 'Personalizes the ads shown on X.', '13 months'],
+            ['muc_ads', 'X (Twitter)', 'Measures ad conversions across X domains.', '13 months'],
+            ['_gcl_*', 'Google Ads', 'Attributes a sign-up to the ad that led to it.', '90 days'],
           ],
         },
       ],

@@ -6,8 +6,8 @@ import type { LegalBlock } from '@/app/(landing)/components/prose-page/types'
  * Renders a single {@link LegalBlock} into its canonical chrome. The block's
  * `kind` discriminant selects the element (paragraph / subheading `<h3>` /
  * bulleted list / callout box / reference table); all sizing and color come
- * from `PROSE_TYPE`, so
- * Terms and Privacy share one visual treatment for every block type. Content
+ * from `PROSE_TYPE`, so Terms and Privacy share one visual treatment for every
+ * block type. Content
  * only - no layout knob. Server Component.
  */
 
@@ -40,15 +40,15 @@ export function LegalBlockView({ block }: LegalBlockViewProps) {
       return (
         <div className={PROSE_TYPE.tableWrap}>
           <table className={PROSE_TYPE.table}>
+            {block.caption ? (
+              <caption className={PROSE_TYPE.tableCaption}>{block.caption}</caption>
+            ) : null}
             {block.columnWidths ? (
               <colgroup>
                 {block.columnWidths.map((width, index) => (
                   <col key={block.columns[index] ?? `col-${index}`} className={width} />
                 ))}
               </colgroup>
-            ) : null}
-            {block.caption ? (
-              <caption className={PROSE_TYPE.tableCaption}>{block.caption}</caption>
             ) : null}
             <thead>
               <tr>
@@ -69,7 +69,7 @@ export function LegalBlockView({ block }: LegalBlockViewProps) {
                         key={`${rowKey}-${block.columns[cellIndex]}`}
                         className={PROSE_TYPE.tableCell}
                       >
-                        {cell}
+                        {block.codeColumns?.includes(cellIndex) ? <code>{cell}</code> : cell}
                       </td>
                     ))}
                   </tr>

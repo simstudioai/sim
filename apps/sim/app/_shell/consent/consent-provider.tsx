@@ -19,9 +19,7 @@ const ConsentRuntime = dynamic(
 
 /**
  * Mounts the consent runtime alongside the app rather than wrapping it, so
- * consent state changes can never re-render the page tree. Nothing outside
- * {@link ConsentRuntime} reads consent today; a surface that needs to (a footer
- * "Cookie preferences" link, say) would move the provider above it.
+ * consent state changes can never re-render the page tree.
  */
 export function ConsentProvider() {
   return <ConsentRuntime />
