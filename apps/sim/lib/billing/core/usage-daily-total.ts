@@ -310,8 +310,13 @@ export async function reconcileUsageDailyTotals(options?: {
 }): Promise<{ bucketsWritten: number; bucketsDeleted: number }> {
   const executor = options?.executor ?? db
   const periodEndsAfter = options?.periodEndsAfter
+  // Bound through the column, never interpolated raw: drizzle swaps
+  // postgres-js's temporal serializer for an identity function, so a bare Date
+  // reaches the wire encoder and throws. `check:sql-date-binding` does not see
+  // this shape — its detector does not follow member expressions like
+  // `options?.periodEndsAfter` — so the binding has to be got right by hand.
   const ledgerPeriodScope = periodEndsAfter
-    ? sql`and ${usageLog.billingPeriodEnd} >= ${periodEndsAfter}`
+    ? sql`and ${usageLog.billingPeriodEnd} >= ${sql.param(periodEndsAfter, usageLog.billingPeriodEnd)}`
     : sql``
 
   /**
@@ -365,7 +370,7 @@ export async function reconcileUsageDailyTotals(options?: {
 
     const deletedRows = await tx.execute(sql`
     delete from ${usageLogDailyTotal} as rollup
-    where ${periodEndsAfter ? sql`rollup.billing_period_end >= ${periodEndsAfter} and` : sql``}
+    where ${periodEndsAfter ? sql`rollup.billing_period_end >= ${sql.param(periodEndsAfter, usageLogDailyTotal.billingPeriodEnd)} and` : sql``}
       not exists (
         select 1
         from (${ledgerBuckets}) as ledger
