@@ -2,8 +2,11 @@ import { Command } from 'commander'
 import { attachFileGet } from './files-get'
 import { attachFileUpload } from './files-upload'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
+import { attachLogsFollow } from './logs-follow'
 import { attachResourceDirectoryCommands } from './resource-directory'
 import { attachTableImport } from './tables-import'
+import { attachWorkflowRunFollow } from './workflow-run-follow'
+import { attachWorkflowRunWait } from './workflow-run-wait'
 
 function group(program: Command, name: string): Command {
   const existing = program.commands.find((command) => command.name() === name)
@@ -43,10 +46,18 @@ export function attachProtocolCommands(program: Command): void {
     createFolder: 'createTableFolder',
   })
 
-  attachResourceDirectoryCommands(group(program, 'workflows'), {
+  const workflows = group(program, 'workflows')
+  attachResourceDirectoryCommands(workflows, {
     kind: 'workflow',
     resources: 'listWorkflows',
     folders: 'listWorkflowFolders',
     createFolder: 'createWorkflowFolder',
   })
+  // Both augment commands the generated pass already built — `run` gains
+  // `--follow`, and `runs` gains `wait` — so they must attach after it, which is
+  // the order `buildProgram` calls them in.
+  attachWorkflowRunFollow(workflows)
+  attachWorkflowRunWait(group(workflows, 'runs'))
+
+  attachLogsFollow(group(program, 'logs'))
 }
