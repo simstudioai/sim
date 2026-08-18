@@ -188,6 +188,56 @@ describe('/api/v2/custom-tools/[id]', () => {
     expect(mocks.update).not.toHaveBeenCalled()
   })
 
+  /**
+   * The list omits a row it cannot project, so this surface must not answer the
+   * same row with a 500 — a caller who lists and sees nothing, then fetches by
+   * id and sees a server fault, can act on neither answer. Both surfaces say
+   * "not addressable here"; the recoveries (DELETE, or a PATCH carrying a valid
+   * schema) do not go through the projection and still work.
+   */
+  describe('a stored row that cannot be projected onto the contract', () => {
+    const unrepairable = { ...tool, schema: 'this is not json' }
+    const repairable = { ...tool, schema: JSON.stringify(tool.schema) }
+
+    it('answers a read with the same 404 the list implies by omitting it', async () => {
+      mocks.get.mockResolvedValue({ tool: unrepairable })
+
+      const response = await GET(request('GET'), context)
+
+      expect(response.status).toBe(404)
+      expect((await response.json()).error).toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'Custom tool not found',
+      })
+    })
+
+    it('answers a write with the same 404, leaving delete and a full-schema patch as the recoveries', async () => {
+      mocks.update.mockResolvedValue({ tool: unrepairable })
+      expect(
+        (await PATCH(request('PATCH', { workspaceId: WORKSPACE_ID, code: 'return 2' }), context))
+          .status
+      ).toBe(404)
+
+      mocks.remove.mockResolvedValue({ tool: unrepairable })
+      expect((await DELETE(request('DELETE'), context)).status).toBe(200)
+    })
+
+    it('serves a repairable row on both single-resource verbs', async () => {
+      mocks.get.mockResolvedValue({ tool: repairable })
+      const read = await GET(request('GET'), context)
+      expect(read.status).toBe(200)
+      expect((await read.json()).data.schema).toEqual(tool.schema)
+
+      mocks.update.mockResolvedValue({ tool: repairable })
+      const written = await PATCH(
+        request('PATCH', { workspaceId: WORKSPACE_ID, code: 'return 2' }),
+        context
+      )
+      expect(written.status).toBe(200)
+      expect((await written.json()).data.schema).toEqual(tool.schema)
+    })
+  })
+
   it('conceals cross-tenant access while preserving same-workspace role denials', async () => {
     mocks.get.mockRejectedValueOnce(new NoWorkspaceAccessError())
     expect((await GET(request('GET'), context)).status).toBe(404)

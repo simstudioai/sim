@@ -95,26 +95,29 @@ export const updateAnnotationTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
     return {
       success: true,
       output: {
-        id: data.id || 0,
-        message: data.message || 'Annotation updated successfully',
+        annotationId: params?.annotationId ?? null,
+        message: (data.message as string) ?? null,
       },
     }
   },
 
   outputs: {
-    id: {
+    annotationId: {
       type: 'number',
-      description: 'The ID of the updated annotation',
+      description:
+        'The annotation that was updated, echoed from the request — Grafana answers a patch with only a message and returns no id',
+      nullable: true,
     },
     message: {
       type: 'string',
-      description: 'Confirmation message',
+      description: `Confirmation message from Grafana, e.g. "Annotation patched"`,
+      nullable: true,
     },
   },
 }

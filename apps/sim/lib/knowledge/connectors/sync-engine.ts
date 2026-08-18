@@ -10,7 +10,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
-import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import {
   assertBillingAttributionSnapshot,
@@ -64,6 +64,59 @@ const MAX_CONSECUTIVE_FAILURES = 10
 function sanitizeStorageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
 }
+
+/**
+ * Sanitizes a source file's name for a storage key, keeping its extension.
+ *
+ * `sanitizeStorageTitle` truncates a long title outright, which for a source file
+ * would cut the extension off the end — and the extension is what
+ * `resolveStoredArtifactExtension` reads to pick a parser. Such a document would
+ * still parse correctly by falling back to its display name, but only by luck;
+ * preserving the suffix keeps the storage key authoritative for every file rather
+ * than for most of them.
+ */
+function sanitizeStorageFileName(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex <= 0) return sanitizeStorageTitle(fileName)
+
+  const extension = sanitizeStorageTitle(fileName.slice(dotIndex))
+  const base = sanitizeStorageTitle(fileName.slice(0, dotIndex)).slice(
+    0,
+    Math.max(1, MAX_SAFE_TITLE_LENGTH - extension.length)
+  )
+  return base + extension
+}
+
+/**
+ * The bytes to store for a connector document, together with the name and type
+ * that describe them.
+ *
+ * The stored object must declare the format it actually holds, because
+ * `resolveStoredArtifactExtension` picks the parser off its storage key. A
+ * connector that hands over the source file keeps that file's own name and type,
+ * so the shared pipeline parses it exactly as an upload of the same file — which
+ * is what routes PDFs to OCR. A connector that extracted text itself stores
+ * `.txt`, since that is what the bytes now are; keeping the source extension
+ * there would re-parse extracted text as the original binary.
+ */
+function connectorStoredArtifact(extDoc: ExternalDocument): {
+  bytes: Buffer
+  fileName: string
+  mimeType: string
+} {
+  if (extDoc.sourceFile) {
+    return {
+      bytes: extDoc.sourceFile.bytes,
+      fileName: sanitizeStorageFileName(extDoc.sourceFile.fileName),
+      mimeType: extDoc.sourceFile.mimeType,
+    }
+  }
+  return {
+    bytes: Buffer.from(extDoc.content, 'utf-8'),
+    fileName: `${sanitizeStorageTitle(extDoc.title)}.txt`,
+    mimeType: 'text/plain',
+  }
+}
 type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
 
 type DocOp =
@@ -94,14 +147,17 @@ type DocClassification =
  * are left `unchanged` (re-indexing identical content would be pointless).
  */
 export function classifyExternalDoc(
-  extDoc: Pick<ExternalDocument, 'content' | 'contentDeferred' | 'contentHash' | 'skippedReason'>,
+  extDoc: Pick<
+    ExternalDocument,
+    'content' | 'sourceFile' | 'contentDeferred' | 'contentHash' | 'skippedReason'
+  >,
   existing: { id: string; contentHash: string | null } | undefined,
   forceRehydrate = false
 ): DocClassification {
   if (extDoc.skippedReason) {
     return existing ? { type: 'unchanged' } : { type: 'skip' }
   }
-  if (!extDoc.content.trim() && !extDoc.contentDeferred) {
+  if (!hasPayload(extDoc) && !extDoc.contentDeferred) {
     return { type: 'drop' }
   }
   if (!existing) {
@@ -114,6 +170,42 @@ export function classifyExternalDoc(
     return { type: 'update', existingId: existing.id }
   }
   return { type: 'unchanged' }
+}
+
+/**
+ * Merges a hydrated document over the listing stub it was fetched for.
+ *
+ * Every field the connector restates on hydration has to be carried, not just the
+ * content. A stub is built before the file is fetched and declares `text/plain`,
+ * so any field left behind keeps a value that is wrong for the bytes now attached
+ * — which is how a hydrated PDF ends up still claiming plain text. Storage reads
+ * `sourceFile.mimeType`, so that particular staleness is invisible until
+ * something reaches for the obvious field instead.
+ *
+ * Extracted from the hydration loop so the merge is a stated contract with a test
+ * rather than an inline spread that is easy to under-specify.
+ */
+export function mergeHydratedDocument(
+  stub: ExternalDocument,
+  hydrated: ExternalDocument,
+  contentHash: string
+): ExternalDocument {
+  return {
+    ...stub,
+    title: hydrated.title || stub.title,
+    content: hydrated.content,
+    sourceFile: hydrated.sourceFile,
+    mimeType: hydrated.mimeType,
+    contentHash,
+    contentDeferred: false,
+    sourceUrl: hydrated.sourceUrl ?? stub.sourceUrl,
+    metadata: { ...stub.metadata, ...hydrated.metadata },
+  }
+}
+
+/** Whether a document carries anything to index — extracted text or the source file. */
+function hasPayload(extDoc: Pick<ExternalDocument, 'content' | 'sourceFile'>): boolean {
+  return extDoc.sourceFile !== undefined || extDoc.content.trim().length > 0
 }
 
 /** Estimated source bytes for a pending op, taken from its listing metadata. */
@@ -244,6 +336,148 @@ export function shouldReconcileDeletions(
   if (isIncremental) return false
   if (syncContext?.listingTruncated) return false
   return !syncContext?.listingCapped || Boolean(fullSync)
+}
+
+/**
+ * Minimum number of documents a connector must still own before an empty
+ * listing is treated as suspect. Below it, an empty listing is far more likely
+ * to be a genuinely emptied source than a broken one, the blast radius of
+ * reconciling is a handful of documents, and any ratio-based judgement is
+ * statistically meaningless.
+ */
+const SUSPECT_LISTING_MIN_OWNED_DOCS = 3
+/**
+ * Minimum owned-document count before the proportional (collapse) guard
+ * applies. A source can legitimately shrink hard when it is small — going from
+ * 8 documents to 1 is ordinary editing — so the collapse guard only engages on
+ * corpora large enough that a near-total disappearance in a single sync is
+ * implausible without an upstream fault.
+ */
+const SUSPECT_COLLAPSE_MIN_OWNED_DOCS = 50
+/**
+ * A listing covering less than this fraction of the documents the connector
+ * still owns is treated as suspect. Deliberately far below any plausible
+ * bulk edit (10% means 10,000 documents collapsing to under 1,000) so normal
+ * housekeeping never trips it, while the partial-outage shapes seen in the
+ * wild — an auth wall or an interstitial served for most of a source — do.
+ */
+const SUSPECT_COLLAPSE_MAX_RATIO = 0.1
+
+/** Why a listing is considered untrustworthy evidence of deletion. */
+export type SuspectListingReason = 'empty' | 'collapsed'
+
+/**
+ * A prior sync's listing, reconstructed from its sync-log counters.
+ *
+ * `trustworthy` is false when that run could have been an incremental listing:
+ * an incremental run that observed no changes is indistinguishable from a full
+ * run that observed nothing, and treating the former as corroboration would let
+ * a single bad listing confirm itself.
+ */
+export interface PreviousListingObservation {
+  listedCount: number
+  ownedCount: number
+  trustworthy: boolean
+}
+
+/**
+ * Classifies a listing as untrustworthy evidence that documents were deleted.
+ *
+ * A connector that returns nothing (or almost nothing) while the knowledge base
+ * still holds a real corpus for it is far more likely to be broken than to be
+ * reporting a genuinely emptied source: observed causes include an HTTP 200
+ * interstitial served instead of an index, and a source moved behind auth.
+ * Neither surfaces as an error, so the sync looks clean and the listing looks
+ * authoritative.
+ */
+export function classifySuspectListing(
+  listedCount: number,
+  ownedCount: number
+): SuspectListingReason | null {
+  if (ownedCount < SUSPECT_LISTING_MIN_OWNED_DOCS) return null
+  if (listedCount === 0) return 'empty'
+  if (
+    ownedCount >= SUSPECT_COLLAPSE_MIN_OWNED_DOCS &&
+    listedCount < ownedCount * SUSPECT_COLLAPSE_MAX_RATIO
+  ) {
+    return 'collapsed'
+  }
+  return null
+}
+
+/**
+ * Decides whether a suspect listing may still reconcile deletions.
+ *
+ * A suspect listing is only acted on once the *same* observation repeats on a
+ * consecutive sync, so a single transient upstream fault can never remove
+ * documents — not even reversibly, since a soft delete hides them from search
+ * immediately. A genuinely emptied source keeps reconciling: its second sync
+ * corroborates the first, tombstones everything, and the third sync completes
+ * the existing two-strike purge.
+ *
+ * A forced `fullSync` overrides the guard, matching its existing meaning
+ * elsewhere here — an explicit human request to reconcile against this listing
+ * right now.
+ */
+export function evaluateListingSafety(
+  listedCount: number,
+  ownedCount: number,
+  previous: PreviousListingObservation | null,
+  fullSync: boolean | undefined
+): { reason: SuspectListingReason | null; blocked: boolean; corroborated: boolean } {
+  const reason = classifySuspectListing(listedCount, ownedCount)
+  if (!reason) return { reason: null, blocked: false, corroborated: false }
+  if (fullSync) return { reason, blocked: false, corroborated: false }
+
+  const corroborated = Boolean(
+    previous?.trustworthy && classifySuspectListing(previous.listedCount, previous.ownedCount)
+  )
+  return { reason, blocked: !corroborated, corroborated }
+}
+
+/**
+ * Reconstructs the previous completed sync's listing from its log counters.
+ *
+ * No schema change is needed: every document the previous run listed landed in
+ * exactly one of added/updated/unchanged/failed, and `lastSyncDocCount` records
+ * how many documents the connector owned when that run finished. Documents the
+ * user excluded also land in `docsUnchanged`, which can only inflate the
+ * reconstructed listing — erring toward "the previous listing looked healthy",
+ * i.e. toward blocking deletions.
+ */
+async function loadPreviousListingObservation(
+  connectorId: string,
+  currentSyncLogId: string,
+  previousOwnedCount: number,
+  trustworthy: boolean
+): Promise<PreviousListingObservation | null> {
+  const rows = await db
+    .select({
+      docsAdded: knowledgeConnectorSyncLog.docsAdded,
+      docsUpdated: knowledgeConnectorSyncLog.docsUpdated,
+      docsUnchanged: knowledgeConnectorSyncLog.docsUnchanged,
+      docsFailed: knowledgeConnectorSyncLog.docsFailed,
+    })
+    .from(knowledgeConnectorSyncLog)
+    .where(
+      and(
+        eq(knowledgeConnectorSyncLog.connectorId, connectorId),
+        eq(knowledgeConnectorSyncLog.status, 'completed'),
+        ne(knowledgeConnectorSyncLog.id, currentSyncLogId)
+      )
+    )
+    .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
+    .limit(1)
+
+  const previous = rows[0]
+  if (!previous) return null
+
+  return {
+    listedCount:
+      previous.docsAdded + previous.docsUpdated + previous.docsUnchanged + previous.docsFailed,
+    ownedCount: previousOwnedCount,
+    trustworthy,
+  }
 }
 
 /**
@@ -391,6 +625,9 @@ async function resolveAccessToken(
 ): Promise<string> {
   if (connectorConfig.auth.mode === 'apiKey') {
     if (!connector.encryptedApiKey) {
+      if (connectorConfig.auth.optional) {
+        return ''
+      }
       throw new Error('API key connector is missing encrypted API key')
     }
     const { decrypted } = await decryptApiKey(connector.encryptedApiKey)
@@ -856,7 +1093,7 @@ export async function executeSync(
               }
               return null
             }
-            if (!fullDoc?.content.trim()) {
+            if (!fullDoc || !hasPayload(fullDoc)) {
               // An empty re-fetch leaves an already-indexed update as last-known-good; count
               // it as unchanged so the totals still reconcile with documents seen. Not a
               // verified refresh, though — see failedExternalIds below.
@@ -881,18 +1118,7 @@ export async function executeSync(
               result.docsUnchanged++
               return null
             }
-            return {
-              ...op,
-              extDoc: {
-                ...op.extDoc,
-                title: fullDoc.title || op.extDoc.title,
-                content: fullDoc.content,
-                contentHash: hydratedHash,
-                contentDeferred: false,
-                sourceUrl: fullDoc.sourceUrl ?? op.extDoc.sourceUrl,
-                metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
-              },
-            }
+            return { ...op, extDoc: mergeHydratedDocument(op.extDoc, fullDoc, hydratedHash) }
           })
         )
 
@@ -1004,11 +1230,51 @@ export async function executeSync(
       options?.fullSync
     )
 
-    const reconcileDeletionsAllowed = shouldReconcileDeletions(
+    let reconcileDeletionsAllowed = shouldReconcileDeletions(
       isIncremental,
       syncContext,
       options?.fullSync
     )
+
+    /**
+     * Backstop shared by every connector: a listing that reports (almost)
+     * nothing while this connector still owns a real corpus is treated as a
+     * fault, not as evidence of deletion, until a consecutive sync sees the
+     * same thing. Only evaluated when reconciliation would otherwise run, so
+     * healthy syncs pay nothing and no existing gate is loosened.
+     */
+    const ownedDocCount = existingDocs.length + tombstonedDocs.length
+    if (reconcileDeletionsAllowed && classifySuspectListing(seenExternalIds.size, ownedDocCount)) {
+      const previousObservation = await loadPreviousListingObservation(
+        connectorId,
+        syncLogId,
+        connector.lastSyncDocCount ?? ownedDocCount,
+        !connectorConfig.supportsIncrementalSync || connector.syncMode === 'full'
+      )
+      const listingSafety = evaluateListingSafety(
+        seenExternalIds.size,
+        ownedDocCount,
+        previousObservation,
+        options?.fullSync
+      )
+      logger.warn('Suspect connector listing detected', {
+        connectorId,
+        connectorType: connector.connectorType,
+        reason: listingSafety.reason,
+        listedDocs: seenExternalIds.size,
+        ownedDocs: ownedDocCount,
+        liveDocs: existingDocs.length,
+        tombstonedDocs: tombstonedDocs.length,
+        previousListedDocs: previousObservation?.listedCount ?? null,
+        previousObservationTrusted: previousObservation?.trustworthy ?? false,
+        deletionReconciliation: listingSafety.blocked ? 'skipped' : 'proceeding',
+        syncRunId: syncContext.syncRunId,
+      })
+      if (listingSafety.blocked) {
+        reconcileDeletionsAllowed = false
+      }
+    }
+
     const gatedSoftDeleteIds = reconcileDeletionsAllowed ? softDeleteIds : []
     const gatedHardDeleteIds = reconcileDeletionsAllowed ? hardDeleteIds : []
 
@@ -1471,18 +1737,17 @@ async function addDocument(
   sourceConfig?: Record<string, unknown>
 ): Promise<DocumentData> {
   const documentId = generateId()
-  const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
-  const safeTitle = sanitizeStorageTitle(extDoc.title)
-  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, `${safeTitle}.txt`)}`
+  const artifact = connectorStoredArtifact(extDoc)
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, artifact.fileName)}`
 
   const fileInfo = await StorageService.uploadFile({
-    file: contentBuffer,
-    fileName: `${safeTitle}.txt`,
-    contentType: 'text/plain',
+    file: artifact.bytes,
+    fileName: artifact.fileName,
+    contentType: artifact.mimeType,
     context: 'knowledge-base',
     customKey,
     preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, `${safeTitle}.txt`),
+    metadata: kbOwnershipMetadata(kbOwner, artifact.fileName),
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -1490,8 +1755,6 @@ async function addDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  const processingFilename = `${safeTitle}.txt`
 
   try {
     await db.transaction(async (tx) => {
@@ -1506,8 +1769,8 @@ async function addDocument(
         filename: extDoc.title,
         fileUrl,
         storageKey: fileInfo.key,
-        fileSize: contentBuffer.length,
-        mimeType: 'text/plain',
+        fileSize: artifact.bytes.length,
+        mimeType: artifact.mimeType,
         chunkCount: 0,
         tokenCount: 0,
         characterCount: 0,
@@ -1533,10 +1796,10 @@ async function addDocument(
 
   return {
     documentId,
-    filename: processingFilename,
+    filename: artifact.fileName,
     fileUrl,
-    fileSize: contentBuffer.length,
-    mimeType: 'text/plain',
+    fileSize: artifact.bytes.length,
+    mimeType: artifact.mimeType,
   }
 }
 
@@ -1560,18 +1823,17 @@ async function updateDocument(
     .limit(1)
   const oldFileUrl = existingRows[0]?.fileUrl
 
-  const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
-  const safeTitle = sanitizeStorageTitle(extDoc.title)
-  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, `${safeTitle}.txt`)}`
+  const artifact = connectorStoredArtifact(extDoc)
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, artifact.fileName)}`
 
   const fileInfo = await StorageService.uploadFile({
-    file: contentBuffer,
-    fileName: `${safeTitle}.txt`,
-    contentType: 'text/plain',
+    file: artifact.bytes,
+    fileName: artifact.fileName,
+    contentType: artifact.mimeType,
     context: 'knowledge-base',
     customKey,
     preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, `${safeTitle}.txt`),
+    metadata: kbOwnershipMetadata(kbOwner, artifact.fileName),
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -1579,8 +1841,6 @@ async function updateDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  const processingFilename = `${safeTitle}.txt`
 
   try {
     await db.transaction(async (tx) => {
@@ -1595,7 +1855,11 @@ async function updateDocument(
           filename: extDoc.title,
           fileUrl,
           storageKey: fileInfo.key,
-          fileSize: contentBuffer.length,
+          fileSize: artifact.bytes.length,
+          // Re-stated on every update: a document first stored as connector-extracted
+          // text and later re-synced as its source file has to stop declaring
+          // `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
+          mimeType: artifact.mimeType,
           contentHash: extDoc.contentHash,
           sourceUrl: extDoc.sourceUrl ?? null,
           ...tagValues,
@@ -1654,9 +1918,9 @@ async function updateDocument(
 
   return {
     documentId: existingDocId,
-    filename: processingFilename,
+    filename: artifact.fileName,
     fileUrl,
-    fileSize: contentBuffer.length,
-    mimeType: 'text/plain',
+    fileSize: artifact.bytes.length,
+    mimeType: artifact.mimeType,
   }
 }

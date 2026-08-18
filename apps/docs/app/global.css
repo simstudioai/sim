@@ -47,8 +47,15 @@ body {
      --text-caption and --text-small, because the mono face reads small at 12px. */
   --text-code: 0.78125rem;
 
-  --font-mono-stack: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  /* The platform's code face. `apps/sim/tailwind.config.ts` lists `var(--font-martian-mono)`
+     first, but nothing in the app ever defines that variable — `apps/sim/app/layout.tsx`
+     applies only `season.variable` — so every code surface in the product resolves to the
+     system stack below. Docs match what the app actually renders rather than the token it
+     nominally references; loading a webfont here would make docs the odd one out, not the
+     aligned one. If the app ever wires that font up for real, add the var back in both
+     places at once. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 }
 
 /* Pure white light mode background */
@@ -238,10 +245,6 @@ body {
 .font-sans {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-}
-
-.font-mono {
-  font-family: var(--font-mono-stack);
 }
 
 /* Platform UI font — Season Sans, used by the chip chrome to match the main app */
@@ -489,12 +492,6 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   padding: 0 !important;
 }
 
-/* The first group sits flush against the top padding — it has nothing to be
-   separated from. */
-[data-separator]:not([data-separator] ~ [data-separator]) {
-  margin-top: 0;
-}
-
 /* Active state — aligned with platform --surface-active */
 #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
 #nd-sidebar button[data-active="true"] {
@@ -657,33 +654,26 @@ aside[data-sidebar],
   writing-mode: horizontal-tb !important;
 }
 
-/* Apply Geist Mono to code elements */
 code,
 pre,
 pre code {
-  font-family: var(--font-mono-stack);
+  font-family: var(--font-mono);
 }
 
-/* Inline code — neutral colors aligned with sim design system */
+/* Inline code chip, matching the one the app renders for markdown
+   (`apps/sim/lib/content/mdx.tsx`).
+
+   Two things here are deliberate rather than oversights. The border is gone because the app's
+   chip has none, and at inline size a hairline reads as a boxed-in label rather than a
+   highlight. The color is unset so the chip composites over whatever encloses it — inline
+   code inside a link picks up the link color instead of sitting on it as a grey island, which
+   is the behavior the app's chip was written for. */
 :not(pre) > code {
-  padding: 0.2em 0.4em;
-  border-radius: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
   font-size: 0.875em;
-  font-weight: 500;
-}
-
-/* Inline code — platform surface-4 / text-body / border-1 */
-:not(pre) > code {
-  background-color: var(--surface-4);
-  color: var(--text-body);
-  border: 1px solid var(--border-1);
-}
-
-/* Remove heavy shadows globally — aligned with sim design system (shadow-card: 0 1px 3px rgba(0,0,0,0.04)) */
-figure.shiki,
-figure[data-rehype-pretty-code-figure],
-.shiki {
-  box-shadow: none !important;
+  font-weight: 400;
+  background-color: var(--surface-5);
 }
 
 /* Search dialog — lighter shadow + constrained size */
@@ -703,9 +693,11 @@ figure[data-rehype-pretty-code-figure],
   z-index: 60 !important;
 }
 
+/* Code metrics — the platform's `Code.Viewer` runs 13px on a 21px line box
+   (`text-small` / `leading-[21px]`); identical snippets should not read larger here. */
 pre {
-  font-size: 0.875rem;
-  line-height: 1.7;
+  font-size: var(--text-small);
+  line-height: 21px;
   tab-size: 2;
   -webkit-overflow-scrolling: touch;
 }
@@ -935,7 +927,9 @@ span.font-mono.font-medium[data-method="delete"] {
   background-color: var(--badge-error-bg);
 }
 
-/* Sidebar links with method badges — match regular item padding */
+/* Sidebar links with method badges — match regular item padding. Radius follows the
+   platform's two-tier convention (documented on emcn's `DropdownMenu`): floating surfaces
+   take 12px, rows inside one take 8px. These are rows. */
 html #nd-sidebar a:has(span.font-mono.font-medium) {
   display: flex !important;
   align-items: center !important;
@@ -944,7 +938,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   font-size: 0.875rem !important;
   line-height: 1.4 !important;
   font-weight: 450 !important;
-  border-radius: 0.75rem !important;
+  border-radius: 0.5rem !important;
 }
 
 /* Sidebar method badges — fixed-width for right-aligned labels */
@@ -974,11 +968,6 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
 /* API page code/card containers — transparent background */
 #nd-page:has(.api-page-header) {
   --color-fd-card: transparent !important;
-}
-
-#nd-page:has(.api-page-header) figure.shiki {
-  border-radius: 0.75rem !important;
-  background-color: transparent !important;
 }
 
 /* API page code example panels — transparent */
@@ -1075,18 +1064,13 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   background-color: var(--badge-error-bg) !important;
 }
 
-/* Path text inside method+path bar — monospace, bright like Gumloop */
+/* The path inside the method+path bar is a heading, not a chip — strip the inline-code
+   surface so it reads as the endpoint itself. */
 #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
   color: var(--text-body) !important;
   background: none !important;
-  border: none !important;
   padding: 0 !important;
   font-size: var(--text-small) !important;
-}
-/* Inline code in API pages — neutral color aligned with sim design.
-   Exclude code inside the method+path bar (handled above). */
-#nd-page:has(.api-page-header) .prose :not(pre) > code {
-  color: var(--text-body) !important;
 }
 
 /* Response Section — custom dropdown-based rendering (Mintlify style) */
@@ -1168,7 +1152,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   font-size: var(--text-code);
   line-height: 1.25rem;
   font-weight: 400;
-  font-family: var(--font-mono-stack);
+  font-family: var(--font-mono);
 }
 
 /* Status-code trigger — matches the content-type label beside it. */
@@ -1309,7 +1293,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   font-size: var(--text-code);
   line-height: 1;
   font-weight: 400;
-  font-family: var(--font-mono-stack);
+  font-family: var(--font-mono);
 }
 
 /* Everything inside a type token inherits the token's own face, size, and ink.
@@ -1475,7 +1459,7 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
   font-size: var(--text-code) !important;
   line-height: 1.25rem !important;
   font-weight: 400 !important;
-  font-family: var(--font-mono-stack) !important;
+  font-family: var(--font-mono) !important;
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
@@ -1617,97 +1601,335 @@ main article tbody tr:last-child td {
   border-bottom: none !important;
 }
 
-/* Code blocks — aligned with platform chat code block styling */
+/* Code blocks — platform field chrome.
 
-/* Standalone code block figure — border + rounded */
-figure.shiki:not(div > figure.shiki),
-figure[data-rehype-pretty-code-figure]:not(div > figure[data-rehype-pretty-code-figure]),
-figure:has(pre):not(div > figure:has(pre)) {
-  border-radius: 0.5rem !important;
-  border: 1px solid var(--border) !important;
-  overflow: hidden !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+   Three renderers emit these figures and only two go through components/ui/code-block.tsx, so
+   the shell and the fumadocs internals that component cannot reach — the title row, the scroll
+   viewport, the tab strip `<Tabs>` puts above a fence — are all defined here. The component
+   keeps only the copy control and the prose margin. */
+
+/* Local aliases, not new design values: each names an existing platform token pair whose light
+   and dark halves differ (`--surface-5`/`--code-bg`, `--text-muted`/`--code-line-number`).
+
+   `--code-surface` has three consumers. `--code-gutter` has one, and is an alias anyway because
+   a `.dark` twin would have to restate the sibling-combinator `:has()` its consumer is matched
+   by — the expensive form, which re-checks on every line insertion. */
+:root {
+  --code-surface: var(--surface-5);
+  --code-gutter: var(--text-muted);
 }
 
-/* Code block inside tabs (API examples) — no extra border, inherits from parent */
-div > figure.shiki {
-  border: none !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+.dark {
+  --code-surface: var(--code-bg);
+  --code-gutter: var(--code-line-number);
 }
 
-/* Tabbed code block container (cURL/JS/Go tabs) */
+/* Code block shell — `chipFieldSurfaceClass`'s `rounded-lg` and `--border-1` hairline, over
+   the `--surface-5` / `--code-bg` fill. (`--surface-5` is `chipFilledFillTokens`' light fill;
+   the dark half is the code surface emcn's `Code` container paints. The chip field uses
+   `--surface-4` on dark, which is not a code surface.)
+
+   Three renderers emit these figures: the MDX `pre` mapping and fumadocs-openapi's
+   `renderCodeBlock` both go through `components/ui/code-block.tsx`, but its `UsageTab` renders
+   `ClientCodeBlock` directly and takes no override. The shell could be a class on the
+   component for the first two, at the cost of defining it twice — once there and once here for
+   the third. One definition covering all three is the simpler seam.
+
+   Vertical margin is deliberately not set here: prose fences want `my-4` (the component
+   supplies it) and API samples sit flush inside their panel with `my-0`.
+
+   @see packages/emcn/src/components/chip/chip-chrome.ts — `chipFieldSurfaceClass`, the constant
+   this mirrors. Keep the two in step by hand. */
+figure.shiki,
 div:has(> [role="tablist"]):has(> div > figure.shiki) {
-  border-radius: 0.5rem !important;
-  border: 1px solid var(--border) !important;
-  overflow: hidden !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-1);
+  background-color: var(--code-surface);
+  overflow: hidden;
+  box-shadow: none;
 }
 
-/* Tab list bar — match platform surface-4 */
+/* Title row — the platform's `--surface-4`-over-`--surface-5` pairing, the same split
+   ChipModal uses between its outer frame and inner panel. */
+figure.shiki > div:first-child:has(figcaption),
 div:has(> div > figure.shiki) > [role="tablist"] {
-  background: none !important;
-  border-bottom: 1px solid var(--surface-active) !important;
-}
-
-/* Tab triggers — muted text, active gets foreground */
-div:has(> div > figure.shiki) > [role="tablist"] button {
-  color: var(--text-muted) !important;
-  font-weight: 470 !important;
-}
-
-div:has(> div > figure.shiki) > [role="tablist"] button:hover {
-  color: var(--text-body) !important;
-}
-
-div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
-  color: var(--text-primary) !important;
-}
-
-/* Code block title header (figcaption with filename) */
-figure.shiki > div:first-child:has(figcaption) {
-  background-color: var(--surface-4) !important;
-  border-bottom: 1px solid var(--surface-active) !important;
+  height: 34px;
+  padding-inline: 0.625rem;
+  background-color: var(--surface-4);
+  border-bottom: 1px solid var(--border-1);
 }
 
 figure.shiki figcaption {
-  color: var(--text-muted) !important;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
 }
 
-/* Code block pre element — transparent bg */
-figure.shiki pre {
-  background-color: transparent !important;
+/* fumadocs derives a file-type icon from the title's extension and leaves it at
+   `currentColor`; the platform paints row icons `--text-icon`. */
+figure.shiki > div:first-child:has(figcaption) svg {
+  color: var(--text-icon);
 }
 
-/* Code viewport scroll area — transparent bg */
+/* Line-number gutter, mirroring the one `Code.Viewer` draws in the app.
+
+   Only multi-line fences get one, column and digit together. A line number on a one-line shell
+   command references nothing, and these docs are mostly one-line commands. Reserving the column
+   but leaving it blank was tried and is worse: the code picks up a 44px indent with nothing in
+   it, which reads as a rendering fault rather than as alignment. Single-line fences therefore
+   keep fumadocs' default padding, so adjacent blocks can start their text 28px apart —
+   acceptable, because each fence is its own bordered card, and differing padding between cards
+   is far less noticeable than an unexplained indent inside one.
+
+   The column is opened through fumadocs' own `--padding-left`, not by overriding its `.line`
+   rule: that rule is `.shiki:not(.not-fumadocs-codeblock *) .line`, and `:not()` carries its
+   argument's specificity, so it lands at (0,3,0) — above anything reasonable to write here.
+
+   Declared at every level the variable could be shadowed at, because it is inherited and the
+   nearest declaration wins: fumadocs sets it on `.shiki`, which is on the `figure` for prose
+   fences but on the `figure` AND the inner `pre` for API samples.
+
+   The `!important` and the viewport selector are belt-and-braces, not strictly required —
+   fumadocs' declaration is (0,2,0) and these selectors are (0,3,1) and (0,4,1), so they
+   already win, and nothing declares this property on the viewport. They are kept because the
+   specificity of `:has()` and `:not()` is easy to miscount in the direction that puts the line
+   numbers on top of the code. Remove them only alongside a visual check.
+ */
+figure.shiki:has(.line ~ .line),
+figure.shiki:has(.line ~ .line) > div[role="region"],
+figure.shiki:has(.line ~ .line) .shiki {
+  --padding-left: 2.75rem !important;
+}
+
+figure.shiki code {
+  counter-reset: line;
+}
+
+/* Gated on the same condition as the digit these anchor: without it, every line of every
+   single-line fence becomes a positioned containing block for a pseudo-element that never
+   renders. */
+figure.shiki code:has(.line ~ .line) .line {
+  position: relative;
+  counter-increment: line;
+}
+
+figure.shiki code:has(.line ~ .line) .line::before {
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  width: 1.75rem;
+  text-align: right;
+  color: var(--code-gutter);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* The code fill is painted here, on the scroll viewport, rather than left to show through from
+   the figure or the tab group. Those diverge per renderer: fumadocs gives a standalone figure
+   `bg-fd-card` but an in-tab figure `bg-fd-secondary`, and this app forces
+   `--color-fd-card: transparent` on API reference pages. The result was measurable — a request
+   panel showing the page background (#fff light, `--bg` dark) beside a response panel showing
+   the code surface. The viewport is the one box all three renderers agree on. */
 figure.shiki > div[role="region"] {
-  background-color: transparent !important;
+  background-color: var(--code-surface);
+  /* fumadocs ships 14px of vertical padding, the platform's viewer 8px; 10px splits them and
+     keeps a single-line fence from looking hollow at the tighter 21px line box. */
+  padding-block: 10px;
 }
 
-/* Copy button — minimal ghost style */
-figure.shiki button[aria-label="Copy Text"],
-figure.shiki button[aria-label="Copied Text"] {
-  color: var(--text-muted) !important;
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
+/* Shiki emits `--shiki-*-bg` custom properties under `defaultColor: false`; keep the `pre` clear
+   so nothing paints over the viewport fill. */
+figure.shiki pre {
+  background-color: transparent;
 }
 
-figure.shiki button[aria-label="Copy Text"]:hover {
-  color: var(--text-icon) !important;
+/* Untitled blocks float the copy control over the code, so the last column has to clear it:
+   an 8px offset plus emcn's 20px icon button, with room to breathe. fumadocs reserves 32px,
+   which the glyphs run into.
+
+   `!important` is load-bearing: fumadocs writes this same custom property as an inline style
+   on the viewport, and an inline declaration outranks any stylesheet rule without it. */
+figure.shiki:not(:has(figcaption)),
+figure.shiki:not(:has(figcaption)) > div[role="region"],
+figure.shiki:not(:has(figcaption)) .shiki {
+  --padding-right: 2.75rem !important;
 }
 
-figure.shiki button[aria-label="Copied Text"] {
-  color: var(--brand-accent) !important;
+/* Copy control on the one block this app does not render.
+
+   Prose fences and the API reference's request/response samples both render
+   `components/ui/code-block.tsx`, which uses an emcn `Button`. Only fumadocs-openapi's
+   `UsageTab` is left — it renders `ClientCodeBlock` directly and takes no override — so these
+   rules bring its button to the same geometry and color as emcn's `variant='quiet' size='icon'`.
+
+   Every rule here is qualified with `:has(> svg[class*="lucide"])`. Without it they also match
+   the emcn `Button`, whose `aria-label` is identical, and re-declare chrome that component
+   owns — silently pinning docs to today's `buttonVariants` values.
+
+   The container carries an opaque `--code-surface` pad rather than fumadocs' `backdrop-blur-lg`.
+   The blur went milky over a filled block, but something has to sit behind the button: these
+   fences scroll horizontally and a long line runs straight under a transparent one. Matching
+   the block's own fill hides the code cleanly instead of frosting it. */
+figure.shiki > div:has(> button[aria-label$="Text"] > svg[class*="lucide"]) {
+  top: 0.5rem;
+  right: 0.5rem;
+  padding-left: 0.25rem;
+  border-radius: 0.25rem;
+  background-color: var(--code-surface);
+  backdrop-filter: none;
 }
 
-/* Copy button container — remove backdrop blur bg */
-figure.shiki > div:has(> button[aria-label]) {
-  background: none !important;
-  backdrop-filter: none !important;
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]),
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 0.25rem;
+  width: 20px;
+  height: 20px;
+  color: var(--text-icon-muted);
+  background: none;
+  box-shadow: none;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]) {
+  @variant hover-hover {
+    background-color: var(--surface-active);
+  }
+}
+
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
+  color: var(--brand-accent);
+}
+
+/* One block per API reference page — the request "usage tabs" (cURL / JavaScript / Go / …) —
+   is rendered by fumadocs-openapi's `UsageTab`, which hardcodes its own `ClientCodeBlock`.
+   `renderCodeBlock` covers every other sample, and `OperationClientOptions` exposes only
+   `APIExampleSelector`, so there is no supported prop that reaches this one. Its lucide
+   clipboard is masked over with emcn's `Duplicate` / `Check` artwork so the copy glyph is the
+   same everywhere.
+
+   Scoped to `svg.lucide-*`: any block that already renders the real emcn icon is untouched,
+   and if fumadocs ever adds an override for these tabs, these rules simply stop matching.
+   The paths are copied from `packages/emcn/src/icons/{duplicate,check}.tsx` — a mask cannot
+   reference a component — so they must be updated together if that artwork changes. */
+figure.shiki button[aria-label$="Text"] > svg[class*="lucide"] {
+  display: none;
+}
+
+figure.shiki button[aria-label$="Text"]:has(> svg[class*="lucide"])::before {
+  content: "";
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask-image: var(--copy-glyph);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: var(--copy-glyph);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]) {
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25'/%3E%3Crect x='5.25' y='5.25' width='14' height='14' rx='2'/%3E%3C/svg%3E");
+}
+
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.25 2.75L7.25 15.75L1.75 10.25'/%3E%3C/svg%3E");
+}
+
+/* Tabbed fences (`<Tabs>` around code) — collapse the strip and the figure into one box so
+   the group reads as a single control rather than a bar stacked on a card.
+
+   Every rule in this group carries the full `:has(> div > figure.shiki)` qualifier. Dropping
+   it on the panel rules would match prose `<Tabs>` too — nine pages use those — and strip the
+   padding they rely on. */
+/* The strip becomes the group's title row; it and a titled fence's caption row are the same
+   object, so they share the rule above rather than restating its body.
+
+   Its scrollbar is hidden, matching what the platform does for a scrolling tab strip
+   (`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden` on emcn's `TabStrip`).
+   fumadocs makes the strip `overflow-x-auto`, and an endpoint with ten status codes overflows it
+   in the API reference's narrow rail — leaving a scrollbar across the bottom of a 34px header,
+   which reads as the header being clipped rather than as something scrollable. The code viewport
+   below keeps its scrollbar: there the overflow is content, and hiding it would hide that a line
+   continues. */
+div:has(> div > figure.shiki) > [role="tablist"] {
+  align-items: center;
+  gap: 0.25rem;
+  padding-inline: 0.375rem;
+  scrollbar-width: none;
+}
+
+div:has(> div > figure.shiki) > [role="tablist"]::-webkit-scrollbar {
+  display: none;
+}
+
+/* Triggers read as chips — a `--surface-active` pad on the selected tab, at `ChipTag`'s 6px
+   inline-tag corner — rather than fumadocs' underline, which drew a hard black rule the
+   platform uses nowhere. */
+div:has(> div > figure.shiki) > [role="tablist"] button {
+  height: 22px;
+  padding-inline: 0.5rem;
+  border: none;
+  border-radius: 0.375rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: 470;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+
+/* Kept as its own rule rather than nested into the block above: biome's
+   `noDuplicateProperties` reads a nested `@variant` setting the same property as a duplicate
+   declaration and fails the build. */
+div:has(> div > figure.shiki) > [role="tablist"] button {
+  @variant hover-hover {
+    color: var(--text-body);
+  }
+}
+
+/* The API reference's request-sample tabs draw their active indicator as an absolutely
+   positioned hairline child rather than a border, so the chip pad below would sit under a
+   second, redundant underline. Matched structurally — it is the only element fumadocs renders
+   before the trigger's label — rather than by its utility classes, which are upstream's to
+   change. */
+div:has(> div > figure.shiki) > [role="tablist"] button > div:first-child {
+  display: none;
+}
+
+div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
+  background-color: var(--surface-active);
+  color: var(--text-primary);
+}
+
+/* The panel is scaffolding, not chrome. fumadocs gives it `p-4`, its own `rounded-xl`, and a
+   `bg-fd-background` fill that would paint white inside the group's surface; strip all three
+   so the fence sits flush and the group reads as one box. */
+div:has(> [role="tablist"]):has(> div > figure.shiki) > [role="tabpanel"] {
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+/* A fence inside a panel is already inside the group's box — drop its own shell. Its
+   viewport padding supplies the inset the panel's `p-4` used to. */
+div:has(> [role="tablist"]):has(> div > figure.shiki) > [role="tabpanel"] > figure.shiki {
+  margin: 0;
+  border: none;
+  border-radius: 0;
 }
 
 /* Cards container — vertical list with line dividers instead of grid boxes */

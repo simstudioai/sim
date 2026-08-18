@@ -93,34 +93,6 @@ export async function findActiveFolder(
 }
 
 /**
- * A folder in a workspace's tree regardless of archive state.
- *
- * {@link findActiveFolder} answers "is this a valid destination"; this answers "does this row
- * exist here at all". Delete needs the second question — `deleteFolder` reuses an already
- * archived folder's own `deletedAt` so a cascade that failed partway can be retried, and
- * filtering archived rows out would strand those stragglers.
- */
-export async function findFolderInWorkspace(
-  folderId: string,
-  workspaceId: string,
-  resourceType: FolderResourceType
-): Promise<typeof folder.$inferSelect | null> {
-  const [row] = await db
-    .select()
-    .from(folder)
-    .where(
-      and(
-        eq(folder.id, folderId),
-        eq(folder.workspaceId, workspaceId),
-        eq(folder.resourceType, resourceType)
-      )
-    )
-    .limit(1)
-
-  return row ?? null
-}
-
-/**
  * Where a restored resource should land: its original folder when that folder is reachable,
  * otherwise the workspace root.
  *

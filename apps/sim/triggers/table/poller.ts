@@ -1,4 +1,4 @@
-import { TableIcon } from '@/components/icons'
+import { Table } from '@sim/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { listTablesContract } from '@/lib/api/contracts/tables'
 import type { TableDefinition } from '@/lib/table'
@@ -39,7 +39,7 @@ export const tableNewRowTrigger: TriggerConfig = {
   provider: 'table',
   description: 'Triggers when rows are inserted or updated in a table',
   version: '1.0.0',
-  icon: TableIcon,
+  icon: Table,
 
   subBlocks: [
     {

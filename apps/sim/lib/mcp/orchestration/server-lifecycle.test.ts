@@ -167,6 +167,81 @@ describe('MCP server lifecycle orchestration', () => {
     )
   })
 
+  it('resets the connection when a headers server rotates the headers that authenticate it', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        headers: { authorization: 'Bearer original' },
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      headers: { authorization: 'Bearer rotated' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: { authorization: 'Bearer rotated' },
+        connectionStatus: 'disconnected',
+        lastConnected: null,
+        lastError: null,
+      })
+    )
+    // Rotating headers invalidates nothing OAuth holds, so the grant survives.
+    expect(mockRevokeOauthTokens).not.toHaveBeenCalled()
+  })
+
+  it('leaves the connection alone when a headers rewrite changes nothing', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+        headers: { authorization: 'Bearer original' },
+        oauthClientId: null,
+        oauthClientSecret: null,
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/mcp',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performUpdateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      serverId: 'server-1',
+      headers: { authorization: 'Bearer original' },
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ connectionStatus: 'disconnected' })
+    )
+  })
+
   it('audits only the columns an edit wrote, not the params it was handed', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -275,6 +350,64 @@ describe('MCP server lifecycle orchestration', () => {
     expect(result.success).toBe(true)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({ connectionStatus: 'disconnected', lastConnected: null })
+    )
+  })
+
+  it('stores an explicit retries of 0 rather than folding it into the default', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/anything',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/anything',
+      authType: 'headers',
+      retries: 0,
+    })
+
+    expect(result.success).toBe(true)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ retries: 0 }))
+  })
+
+  it('keeps an explicit auth type when an OAuth client ID is also supplied', async () => {
+    mockGenerateMcpServerId.mockReturnValue('server-1')
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Example',
+        transport: 'streamable-http',
+        url: 'https://example.com/anything',
+        authType: 'headers',
+      },
+    ])
+
+    const result = await performCreateMcpServer({
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Example',
+      url: 'https://example.com/anything',
+      authType: 'headers',
+      oauthClientId: 'client-1',
+      oauthClientIdProvided: true,
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.authType).toBe('headers')
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ authType: 'headers', oauthClientId: 'client-1' })
     )
   })
 

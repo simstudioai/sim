@@ -90,7 +90,6 @@ export const deleteExpenseTool: ToolConfig<DeleteExpenseParams, SapConcurProxyRe
       type: 'json',
       description:
         'Empty body on success (HTTP 204 No Content). Error details when status is non-2xx',
-      properties: {},
     },
   },
 }

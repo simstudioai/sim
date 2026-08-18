@@ -4,7 +4,7 @@
  * Framework-agnostic logging utilities for the Sim platform.
  * Provides standardized console logging with environment-aware configuration.
  */
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import chalk from 'chalk'
 import { getRequestContext } from './request-context'
 
@@ -131,22 +131,47 @@ const getLogConfig = () => {
 }
 
 /**
+ * Renders an error as the plain object `JSON.stringify` cannot produce for it.
+ *
+ * `message`, `stack` and `name` are non-enumerable on `Error.prototype`, so a
+ * plain stringify emits `{}`. Own enumerable properties are copied too — driver
+ * and HTTP errors carry the useful part (`code`, `status`) there.
+ */
+const errorToPlainObject = (error: Error, isDev: boolean): Record<string, unknown> => {
+  const errorObj: Record<string, unknown> = {
+    message: error.message,
+    stack: isDev ? error.stack : undefined,
+    name: error.name,
+  }
+  for (const key of Object.keys(error)) {
+    if (!(key in errorObj)) {
+      errorObj[key] = (error as unknown as Record<string, unknown>)[key]
+    }
+  }
+  return errorObj
+}
+
+/**
  * Format objects for logging
+ *
+ * Errors held under a key are unwrapped as well as bare ones — `{ error }` is
+ * the common call shape, and it would otherwise print as `{"error":{}}`.
  */
 const formatObject = (obj: unknown, isDev: boolean): string => {
   try {
     if (obj instanceof Error) {
-      const errorObj: Record<string, unknown> = {
-        message: obj.message,
-        stack: isDev ? obj.stack : undefined,
-        name: obj.name,
+      return JSON.stringify(errorToPlainObject(obj, isDev), null, isDev ? 2 : 0)
+    }
+    if (isRecordLike(obj)) {
+      let unwrapped: Record<string, unknown> | undefined
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+        if (!(value instanceof Error)) continue
+        unwrapped ??= { ...(obj as Record<string, unknown>) }
+        unwrapped[key] = errorToPlainObject(value, isDev)
       }
-      for (const key of Object.keys(obj)) {
-        if (!(key in errorObj)) {
-          errorObj[key] = (obj as unknown as Record<string, unknown>)[key]
-        }
+      if (unwrapped) {
+        return JSON.stringify(unwrapped, null, isDev ? 2 : 0)
       }
-      return JSON.stringify(errorObj, null, isDev ? 2 : 0)
     }
     return JSON.stringify(obj, null, isDev ? 2 : 0)
   } catch {
@@ -154,7 +179,17 @@ const formatObject = (obj: unknown, isDev: boolean): string => {
   }
 }
 
-/** Merges caller-supplied log arguments into the structured entry. */
+/**
+ * Merges caller-supplied log arguments into the structured entry.
+ *
+ * `Error.message` and `Error.stack` are non-enumerable, so `JSON.stringify`
+ * renders an error held under a key as `{}` — and `logger.x('...', { error })`
+ * is by far the most common call shape, which would otherwise reduce the one
+ * field worth reading to an empty object. Errors nested in an object argument
+ * are therefore unwrapped like a bare `Error` argument. `error` stays a plain
+ * message string so log queries can group on it; richer diagnostics are opt-in
+ * via `describeError` from `@sim/utils/errors`.
+ */
 const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<string, unknown> => {
   for (const arg of args) {
     if (arg === null || arg === undefined) continue
@@ -162,7 +197,18 @@ const mergeArgs = (entry: Record<string, unknown>, args: unknown[]): Record<stri
       entry.error = arg.message
       entry.stack = arg.stack
     } else if (typeof arg === 'object') {
-      Object.assign(entry, arg)
+      const source = arg as Record<string, unknown>
+      for (const key of Object.keys(source)) {
+        const value = source[key]
+        if (value instanceof Error) {
+          entry[key] = value.message
+          if (key === 'error' && entry.stack === undefined) {
+            entry.stack = value.stack
+          }
+        } else {
+          entry[key] = value
+        }
+      }
     } else {
       entry.extra = arg
     }

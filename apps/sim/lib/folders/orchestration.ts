@@ -665,7 +665,17 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
   }
 }
 
-export async function updateFolder(params: UpdateFolderParams): Promise<FolderMutationResult> {
+export async function updateFolder(
+  params: UpdateFolderParams,
+  /**
+   * `notify: false` for a caller that mutates several folders in one gesture
+   * and sends a single batch notification of its own. Every per-folder notify
+   * carries an identical body and triggers an identical workspace-wide
+   * invalidation, so a batch would otherwise fan out one internal round trip
+   * per item. Omitted, the orchestration notifies as before.
+   */
+  options?: { notify?: boolean }
+): Promise<FolderMutationResult> {
   const config = folderResourceConfig(params.resourceType)
 
   try {
@@ -748,7 +758,9 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
     })
 
     // Live resource list (e.g. tables): a rename/move changes the folder in the browser.
-    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    if (options?.notify ?? true) {
+      await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    }
     return { success: true, folder }
   } catch (error) {
     if (getPostgresErrorCode(error) === '23505') {
@@ -769,7 +781,20 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
  * its original stamp (the cascade only archives active folders), so anything archived under
  * the new stamp would never match on restore and would be stranded permanently.
  */
-export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFolderResult> {
+export async function deleteFolder(
+  params: DeleteFolderParams,
+  /**
+   * `projectAudit: false` for a caller that projects `FOLDER_DELETED` itself —
+   * an application use case attributes the entry to the acting `Principal`,
+   * which the `actorId: userId` entry below cannot express for a non-human
+   * principal. Omitted, the orchestration keeps recording its own entry, so
+   * every existing caller is unchanged.
+   *
+   * `notify: false` for a caller deleting several folders in one gesture that
+   * sends a single batch notification of its own — see {@link bulkDeleteFolders}.
+   */
+  options?: { projectAudit?: boolean; notify?: boolean }
+): Promise<DeleteFolderResult> {
   const existing = await withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
     const [row] = await tx
       .select({ deletedAt: folderTable.deletedAt })
@@ -790,8 +815,8 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
   }
 
   return deleteFolderWithoutTreeLock(params, existing.deletedAt, {
-    projectAudit: true,
-    notify: true,
+    projectAudit: options?.projectAudit ?? true,
+    notify: options?.notify ?? true,
   })
 }
 

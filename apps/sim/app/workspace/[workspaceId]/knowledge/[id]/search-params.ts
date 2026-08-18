@@ -16,22 +16,6 @@ export const addConnectorParam = {
   parser: parseAsString,
 } as const
 
-/**
- * `page` is the 1-based document-list pagination index for this knowledge base.
- * Distinct from the single-document subview's `page` (a different route). The
- * default page (1) clears from the URL.
- */
-export const pageParam = {
-  key: 'page',
-  parser: parseAsInteger.withDefault(1),
-} as const
-
-/** Pagination view-state: clean URLs, no back-stack churn. */
-export const pageUrlKeys = {
-  history: 'replace',
-  clearOnDefault: true,
-} as const
-
 /** Document `enabled` filter buckets, matching the status filter dropdown. */
 const ENABLED_FILTERS = ['all', 'enabled', 'disabled'] as const
 
@@ -56,12 +40,16 @@ export const kbDocumentSortParams = createSortParams(KB_SORT_COLUMNS, {
 })
 
 /**
- * Grouped filter/search URL state for the document list.
+ * Grouped filter/search/pagination URL state for the document list.
  *
  * - `q` is the document name search. The input is controlled directly by the
  *   instant nuqs value; only its URL write is debounced via
  *   `useDebouncedSearchSetter` — never written on every keystroke.
  * - `enabled` filters by processing/enabled status (`all` clears from the URL).
+ * - `page` is the 1-based pagination index, grouped here so a search or filter
+ *   change resets it in the SAME write. Resetting it from a second hook escapes
+ *   the search's debounce and writes the URL on every keystroke. Distinct from
+ *   the single-document subview's `page`, which is a different route.
  *
  * `tagFilterEntries` is intentionally NOT represented here: it is an array of
  * rich filter-rule objects (slot, field type, operator, value, value-to per
@@ -71,6 +59,7 @@ export const kbDocumentSortParams = createSortParams(KB_SORT_COLUMNS, {
 export const documentFiltersParsers = {
   q: parseAsString.withDefault(''),
   enabled: parseAsStringLiteral(ENABLED_FILTERS).withDefault('all'),
+  page: parseAsInteger.withDefault(1),
 } as const
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */

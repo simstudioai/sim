@@ -128,6 +128,7 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       status: 'cancelled',
       level: 'info',
       endedAt: '2026-08-05T12:00:01.000Z',
+      totalDurationMs: 1000,
       error: null,
     })
   })

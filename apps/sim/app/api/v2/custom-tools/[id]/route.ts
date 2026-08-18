@@ -15,13 +15,25 @@ import {
   getWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
-import { toV2CustomTool } from '@/app/api/v2/custom-tools/utils'
+import { MalformedCustomToolRowError, toV2CustomTool } from '@/app/api/v2/custom-tools/utils'
+import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const NOT_FOUND_MESSAGE = 'Custom tool not found'
+
+/**
+ * Conceals cross-tenant denials, and answers a row that cannot be projected
+ * onto the contract with the same `404` — so this surface and the list, which
+ * omits such a row, tell one caller one story. See {@link toV2CustomTool}.
+ */
 const customToolResourceErrorPolicy = createV2ResourceConcealmentPolicy({
-  notFoundMessage: 'Custom tool not found',
+  notFoundMessage: NOT_FOUND_MESSAGE,
+  render: (error) =>
+    error instanceof MalformedCustomToolRowError
+      ? v2Error('NOT_FOUND', NOT_FOUND_MESSAGE)
+      : v2CaughtOrchestrationError(error),
 })
 
 /** GET /api/v2/custom-tools/[id] — Fetch a single custom tool. */

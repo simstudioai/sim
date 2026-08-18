@@ -527,4 +527,20 @@ describe('serializeCredentials — type distinguishes reconnect flow', () => {
     )
     expect(json[0].type).toBeUndefined()
   })
+
+  it('shows what a workspace secret is for, and omits the field when nothing was recorded', () => {
+    const json = JSON.parse(
+      serializeCredentials([
+        {
+          providerId: 'STRIPE_KEY',
+          description: 'Stripe live key for billing',
+          scope: 'workspace',
+          createdAt: now,
+        },
+        { providerId: 'OPENAI_API_KEY', description: null, scope: 'workspace', createdAt: now },
+      ])
+    )
+    expect(json[0].description).toBe('Stripe live key for billing')
+    expect(json[1]).not.toHaveProperty('description')
+  })
 })

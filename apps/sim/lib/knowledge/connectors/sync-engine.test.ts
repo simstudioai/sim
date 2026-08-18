@@ -4,6 +4,13 @@
 import { authOAuthUtilsMock } from '@sim/testing'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  classifySuspectListing,
+  evaluateListingSafety,
+  mergeHydratedDocument,
+  type PreviousListingObservation,
+} from '@/lib/knowledge/connectors/sync-engine'
+import type { ExternalDocument } from '@/connectors/types'
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
@@ -23,7 +30,7 @@ vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
 }))
 
-const mockMapTags = vi.fn()
+const { mockMapTags } = vi.hoisted(() => ({ mockMapTags: vi.fn() }))
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
@@ -535,5 +542,163 @@ describe('chunkOpsByByteBudget', () => {
       5
     )
     expect(chunks).toHaveLength(1)
+  })
+})
+
+describe('classifySuspectListing', () => {
+  it('trusts a healthy listing', () => {
+    expect(classifySuspectListing(100, 100)).toBeNull()
+    expect(classifySuspectListing(90, 100)).toBeNull()
+  })
+
+  it('flags an empty listing against a real corpus', () => {
+    expect(classifySuspectListing(0, 3)).toBe('empty')
+    expect(classifySuspectListing(0, 10_000)).toBe('empty')
+  })
+
+  it('ignores an empty listing on a trivially small corpus', () => {
+    expect(classifySuspectListing(0, 0)).toBeNull()
+    expect(classifySuspectListing(0, 2)).toBeNull()
+  })
+
+  it('flags a near-total collapse on a large corpus', () => {
+    expect(classifySuspectListing(3, 10_000)).toBe('collapsed')
+    expect(classifySuspectListing(49, 500)).toBe('collapsed')
+  })
+
+  it('allows an ordinary bulk deletion through', () => {
+    expect(classifySuspectListing(1000, 10_000)).toBeNull()
+    expect(classifySuspectListing(1, 8)).toBeNull()
+    expect(classifySuspectListing(4, 49)).toBeNull()
+  })
+})
+
+describe('evaluateListingSafety', () => {
+  const previous = (
+    listedCount: number,
+    ownedCount: number,
+    trustworthy = true
+  ): PreviousListingObservation => ({ listedCount, ownedCount, trustworthy })
+
+  it('leaves a healthy listing untouched', () => {
+    expect(evaluateListingSafety(100, 100, null, undefined)).toEqual({
+      reason: null,
+      blocked: false,
+      corroborated: false,
+    })
+  })
+
+  it('blocks the first suspect empty listing', () => {
+    expect(evaluateListingSafety(0, 500, previous(500, 500), undefined)).toEqual({
+      reason: 'empty',
+      blocked: true,
+      corroborated: false,
+    })
+  })
+
+  it('blocks when there is no previous completed sync to corroborate', () => {
+    expect(evaluateListingSafety(0, 500, null, undefined).blocked).toBe(true)
+  })
+
+  it('reconciles once a consecutive sync sees the same empty listing', () => {
+    expect(evaluateListingSafety(0, 500, previous(0, 500), undefined)).toEqual({
+      reason: 'empty',
+      blocked: false,
+      corroborated: true,
+    })
+  })
+
+  it('refuses to be corroborated by a possibly-incremental previous run', () => {
+    expect(evaluateListingSafety(0, 500, previous(0, 500, false), undefined).blocked).toBe(true)
+  })
+
+  it('blocks then allows a proportional collapse across two syncs', () => {
+    expect(evaluateListingSafety(3, 10_000, previous(10_000, 10_000), undefined).blocked).toBe(true)
+    expect(evaluateListingSafety(3, 10_000, previous(2, 10_000), undefined)).toEqual({
+      reason: 'collapsed',
+      blocked: false,
+      corroborated: true,
+    })
+  })
+
+  it('lets an explicit fullSync override the guard', () => {
+    expect(evaluateListingSafety(0, 500, null, true)).toEqual({
+      reason: 'empty',
+      blocked: false,
+      corroborated: false,
+    })
+  })
+})
+
+describe('mergeHydratedDocument', () => {
+  const stub = (): ExternalDocument => ({
+    externalId: 'file-1',
+    title: 'Report.pdf',
+    content: '',
+    mimeType: 'text/plain',
+    contentHash: 'sharepoint:file-1:v1',
+    contentDeferred: true,
+    metadata: { fileSize: 2_400_000 },
+  })
+
+  /**
+   * A stub is built during listing, before the file is fetched, so it declares
+   * `text/plain` for everything. Leaving that behind makes a hydrated PDF keep
+   * claiming plain text — invisible while storage reads `sourceFile.mimeType`,
+   * and a trap for anything that reaches for the obvious field instead.
+   */
+  it('carries the hydrated MIME type over the stub placeholder', () => {
+    const merged = mergeHydratedDocument(
+      stub(),
+      {
+        ...stub(),
+        content: '',
+        mimeType: 'application/pdf',
+        sourceFile: {
+          bytes: Buffer.from('%PDF'),
+          fileName: 'Report.pdf',
+          mimeType: 'application/pdf',
+        },
+      },
+      'sharepoint:file-1:v2'
+    )
+
+    expect(merged.mimeType).toBe('application/pdf')
+    expect(merged.sourceFile?.mimeType).toBe('application/pdf')
+  })
+
+  it('carries the source file and clears the deferred flag', () => {
+    const merged = mergeHydratedDocument(
+      stub(),
+      { ...stub(), sourceFile: { bytes: Buffer.from('x'), fileName: 'a.pdf', mimeType: 'a/b' } },
+      'h'
+    )
+
+    expect(merged.sourceFile?.bytes.toString()).toBe('x')
+    expect(merged.contentDeferred).toBe(false)
+    expect(merged.contentHash).toBe('h')
+  })
+
+  it('keeps text-path content and merges metadata over the stub', () => {
+    const merged = mergeHydratedDocument(
+      stub(),
+      { ...stub(), content: 'plain notes', metadata: { createdBy: 'A' } },
+      'h'
+    )
+
+    expect(merged.content).toBe('plain notes')
+    expect(merged.sourceFile).toBeUndefined()
+    expect(merged.metadata).toEqual({ fileSize: 2_400_000, createdBy: 'A' })
+  })
+
+  it('falls back to the stub title and sourceUrl when hydration omits them', () => {
+    const merged = mergeHydratedDocument(
+      { ...stub(), sourceUrl: 'https://example.com/a' },
+      { ...stub(), title: '', content: 'x' },
+      'h'
+    )
+
+    expect(merged.title).toBe('Report.pdf')
+    expect(merged.sourceUrl).toBe('https://example.com/a')
   })
 })

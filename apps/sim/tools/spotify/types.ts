@@ -57,27 +57,6 @@ export const ALBUM_WITH_ARTISTS_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-/** Track properties for basic track info */
-export const TRACK_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Spotify track ID' },
-  name: { type: 'string', description: 'Track name' },
-  artists: {
-    type: 'array',
-    description: 'List of artists',
-    items: { type: 'object', properties: SIMPLIFIED_ARTIST_OUTPUT_PROPERTIES },
-  },
-  album: {
-    type: 'object',
-    description: 'Album information',
-    properties: SIMPLIFIED_ALBUM_OUTPUT_PROPERTIES,
-  },
-  duration_ms: { type: 'number', description: 'Track duration in milliseconds' },
-  explicit: { type: 'boolean', description: 'Whether the track has explicit content' },
-  popularity: { type: 'number', description: 'Popularity score (0-100)' },
-  preview_url: { type: 'string', description: 'URL to 30-second preview', optional: true },
-  external_url: { type: 'string', description: 'Spotify URL' },
-} as const satisfies Record<string, OutputProperty>
-
 /** Track properties without explicit and preview_url (for listings) */
 export const TRACK_LIST_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Spotify track ID' },
@@ -146,30 +125,6 @@ export const SEARCH_PLAYLIST_OUTPUT_PROPERTIES = {
 export const PLAYLIST_OWNER_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Spotify user ID' },
   display_name: { type: 'string', description: 'Display name' },
-} as const satisfies Record<string, OutputProperty>
-
-/** Playlist list item properties */
-export const PLAYLIST_LIST_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Spotify playlist ID' },
-  name: { type: 'string', description: 'Playlist name' },
-  description: { type: 'string', description: 'Playlist description', optional: true },
-  public: { type: 'boolean', description: 'Whether the playlist is public' },
-  collaborative: { type: 'boolean', description: 'Whether the playlist is collaborative' },
-  owner: { type: 'string', description: 'Owner display name' },
-  total_tracks: { type: 'number', description: 'Number of tracks' },
-  image_url: { type: 'string', description: 'Playlist cover image URL', optional: true },
-  external_url: { type: 'string', description: 'Spotify URL' },
-} as const satisfies Record<string, OutputProperty>
-
-/** Device properties */
-export const DEVICE_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Device ID' },
-  name: { type: 'string', description: 'Device name' },
-  type: { type: 'string', description: 'Device type (Computer, Smartphone, etc.)' },
-  volume_percent: { type: 'number', description: 'Current volume (0-100)' },
-  is_active: { type: 'boolean', description: 'Whether device is active' },
-  is_private_session: { type: 'boolean', description: 'Whether in private session' },
-  is_restricted: { type: 'boolean', description: 'Whether device is restricted' },
 } as const satisfies Record<string, OutputProperty>
 
 /** Simplified device properties (for playback state) */

@@ -285,6 +285,7 @@ export const POST = withRouteHandler(
         result = await executeWorkflowService({
           workflowId,
           userId,
+          isPublicApiAccess,
           input: body.input ?? {},
           triggerType: 'api',
           requestId,

@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { createElement, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
   Check,
@@ -14,6 +14,7 @@ import {
   toast,
 } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
+import { isRecordLike } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -60,7 +61,11 @@ import type {
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useWorkspaceCredential } from '@/hooks/queries/credentials'
+import {
+  useUpdateWorkspaceCredential,
+  useWorkspaceCredential,
+  useWorkspaceCredentials,
+} from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -136,6 +141,12 @@ export interface CredentialItemData {
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
   scope?: SecretInputScope
+  /**
+   * What the secret is for (secret_input, workspace scope only), written by the
+   * agent that asked for it. Never shown or editable in the card — it exists so
+   * the saved secret carries its purpose into workspace settings.
+   */
+  description?: string
   /**
    * Existing credential to reconnect in place (service_account only). Present =
    * rotate the secret on this credential; absent = create a new one.
@@ -353,22 +364,23 @@ export const SPECIAL_TAG_NAMES = [
   'question',
 ] as const
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 function isOptionsItemData(value: unknown): value is OptionsItemData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return typeof value.title === 'string' && typeof value.description === 'string'
 }
 
+/**
+ * Arrays are accepted alongside keyed objects: an agent that emits
+ * `<options>[{title,description},…]</options>` still renders, with the array
+ * index standing in as the option key.
+ */
 function isOptionsTagData(value: unknown): value is OptionsTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value) && !Array.isArray(value)) return false
   return Object.values(value).every(isOptionsItemData)
 }
 
 function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.reason === 'string' &&
     typeof value.message === 'string' &&
@@ -378,7 +390,7 @@ function isUsageUpgradeTagData(value: unknown): value is UsageUpgradeTagData {
 }
 
 function isCredentialItemData(value: unknown): value is CredentialItemData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(CREDENTIAL_TAG_TYPES as readonly string[]).includes(value.type)
@@ -452,7 +464,7 @@ export function parseLastCredentialTag(content: string): CredentialTagData | nul
 }
 
 function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.message === 'string' &&
     (value.code === undefined || typeof value.code === 'string') &&
@@ -461,7 +473,7 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
 }
 
 function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type)
@@ -479,7 +491,7 @@ function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceT
 }
 
 function isQuestionOption(value: unknown): value is QuestionOption {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return typeof value.id === 'string' && typeof value.label === 'string'
 }
 
@@ -497,7 +509,7 @@ const SELF_PROVIDED_OPTION_LABELS = new Set([
 ])
 
 function isQuestionItem(value: unknown): value is QuestionItem {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (
     typeof value.type !== 'string' ||
     !(QUESTION_TYPES as readonly string[]).includes(value.type)
@@ -551,7 +563,7 @@ function recoverQuestionPrompts(body: string): string | null {
     const parsed = JSON.parse(body) as unknown
     const items = Array.isArray(parsed) ? parsed : [parsed]
     const prompts = items
-      .filter(isRecord)
+      .filter(isRecordLike)
       .map((item) => (typeof item.prompt === 'string' ? item.prompt.trim() : ''))
       .filter((prompt) => prompt.length > 0)
     return prompts.length > 0 ? prompts.join('\n\n') : null
@@ -1749,6 +1761,63 @@ interface CredentialControlProps {
   onConnected?: () => void
 }
 
+/**
+ * Attaches the agent-authored descriptions to workspace secrets once their values
+ * are saved, reusing the credential update endpoint the secrets settings page
+ * calls. It runs after the value write because that write is what mints the
+ * credential row a description hangs on, and it is best-effort: the value is the
+ * point of the card, so a failed note never fails the save. Personal rows are
+ * skipped — their credential rows are per-workspace mirrors of one user-global
+ * secret, so no single row can own a description.
+ */
+function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const describedByName = useMemo(() => {
+    const entries = new Map<string, string>()
+    for (const item of items) {
+      if (item.type !== 'secret_input' || item.scope === 'personal') continue
+      const name = item.name?.trim()
+      const description = item.description?.trim()
+      if (name && description) entries.set(name, description)
+    }
+    return entries
+  }, [items])
+
+  const credentialsQuery = useWorkspaceCredentials({
+    workspaceId,
+    type: 'env_workspace',
+    enabled: describedByName.size > 0,
+  })
+  const updateCredential = useUpdateWorkspaceCredential()
+  const refetchCredentials = credentialsQuery.refetch
+
+  return useCallback(
+    async (savedNames: string[]) => {
+      const pending = savedNames.filter((name) => describedByName.has(name))
+      if (pending.length === 0) return
+
+      try {
+        const { data } = await refetchCredentials()
+        const idByEnvKey = new Map((data ?? []).map((row) => [row.envKey, row.id]))
+        await Promise.all(
+          pending.map(async (name) => {
+            const credentialId = idByEnvKey.get(name)
+            if (!credentialId) return
+            await updateCredential.mutateAsync({
+              credentialId,
+              description: describedByName.get(name),
+            })
+          })
+        )
+      } catch {
+        // Swallowed deliberately: the secret is stored, and the card must not
+        // report failure over a missing note.
+      }
+    },
+    [describedByName, refetchCredentials, updateCredential.mutateAsync]
+  )
+}
+
 function SecretInputDisplay({ data, divided = false, onSaved }: CredentialControlProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const secretName = (data.name ?? '').trim()
@@ -1763,6 +1832,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
   const personalQuery = usePersonalEnvironment()
   const personalEnv = personalQuery.data
   const { canEdit } = useUserPermissionsContext()
+  const attachDescriptions = useWorkspaceSecretDescriptions(useMemo(() => [data], [data]))
 
   // Setting a workspace var needs write/admin (same gate as the secrets manager);
   // personal vars are the user's own, so any member may set them.
@@ -1788,6 +1858,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
         await savePersonal.mutateAsync({ variables: merged })
       } else {
         await upsertWorkspace.mutateAsync({ workspaceId, variables: { [secretName]: value } })
+        await attachDescriptions([secretName])
       }
       setValue('')
       setSaved(true)
@@ -2359,6 +2430,7 @@ function CredentialInputCard({
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
   const personalQuery = usePersonalEnvironment()
+  const attachDescriptions = useWorkspaceSecretDescriptions(data)
   const [secretDrafts, setSecretDrafts] = useState<Record<number, string>>({})
   const [savedSecretRows, setSavedSecretRows] = useState<Set<number>>(() => new Set())
   const [connectedIntegrationRows, setConnectedIntegrationRows] = useState<Set<number>>(
@@ -2516,6 +2588,8 @@ function CredentialInputCard({
       toast.error(`Couldn't save secrets. Please try again.`)
       return false
     }
+
+    await attachDescriptions(Object.keys(workspaceVariables))
 
     const nextSavedSecretRows = new Set(savedSecretRows)
     for (const index of enteredSecretIndexes) nextSavedSecretRows.add(index)

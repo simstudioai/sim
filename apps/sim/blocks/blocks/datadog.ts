@@ -3,6 +3,35 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DatadogResponse } from '@/tools/datadog/types'
 
+/**
+ * Normalizes a `switch` sub-block value. Switches serialize their state as the
+ * strings `'true'`/`'false'`, so `Boolean(value)` would read `'false'` as true.
+ * Returns `undefined` when the switch was never set so the tool falls back to
+ * Datadog's own default.
+ */
+function toSwitchBoolean(value: unknown): boolean | undefined {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return undefined
+}
+
+/**
+ * Coerce a numeric block input, dropping anything that is not a finite number.
+ *
+ * These are free-text fields, so they can carry a typo or an unresolved
+ * reference, and a bare `Number()` would put the literal `NaN` into the request
+ * — `JSON.stringify` writes it as `null` and it reaches a query string as the
+ * string "NaN", either of which Datadog rejects with a message naming nothing
+ * the user typed. An untouched subBlock resolves to `null` and an empty one to
+ * `''`; both are omissions rather than zeros, while an explicit `0` is
+ * meaningful (page 0, offset 0, a zero threshold) and is kept.
+ */
+function datadogNumber(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 export const DatadogBlock: BlockConfig<DatadogResponse> = {
   type: 'datadog',
   name: 'Datadog',
@@ -44,6 +73,10 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
           { text: ', for scope', field: 'scope' },
           { text: ', until', field: 'end' },
         ],
+        datadog_unmute_monitor: [
+          { text: 'Unmute monitor', field: 'muteMonitorId', core: true },
+          { text: ', for scope', field: 'scope' },
+        ],
         datadog_query_logs: [
           { text: 'Search logs matching', field: 'logQuery', core: true },
           { text: ', since', field: 'logFrom' },
@@ -55,6 +88,87 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
         ],
         datadog_list_downtimes: ['List scheduled downtimes'],
         datadog_cancel_downtime: [{ text: 'Cancel downtime', field: 'downtimeId', core: true }],
+        datadog_list_incidents: ['List incidents'],
+        datadog_get_incident: [{ text: 'Read incident', field: 'incidentId', core: true }],
+        datadog_create_incident: [
+          { text: 'Declare incident', field: 'incidentTitle', core: true },
+          { text: ', at severity', field: 'incidentSeverity' },
+        ],
+        datadog_update_incident: [
+          { text: 'Update incident', field: 'incidentId', core: true },
+          { text: ', to severity', field: 'incidentSeverity' },
+        ],
+        datadog_add_incident_todo: [
+          { text: 'Add follow-up task to incident', field: 'incidentId', core: true },
+          { text: ', assigned to', field: 'todoAssignees' },
+        ],
+        datadog_list_slos: [
+          'List SLOs',
+          { text: ', named like', field: 'sloQuery' },
+          { text: ', tagged', field: 'sloTagsQuery' },
+        ],
+        datadog_get_slo: [{ text: 'Read SLO', field: 'sloId', core: true }],
+        datadog_create_slo: [
+          { text: 'Create SLO', field: 'sloName', core: true },
+          { text: ', of type', field: 'sloType' },
+        ],
+        datadog_update_slo: [{ text: 'Update SLO', field: 'sloId', core: true }],
+        datadog_delete_slo: [{ text: 'Delete SLO', field: 'sloId', core: true }],
+        datadog_get_slo_history: [
+          { text: 'Read SLO history for', field: 'sloId', core: true },
+          { text: ', since', field: 'sloFromTs' },
+        ],
+        datadog_list_dashboards: ['List dashboards'],
+        datadog_get_dashboard: [{ text: 'Read dashboard', field: 'dashboardId', core: true }],
+        datadog_create_dashboard: [
+          { text: 'Create dashboard', field: 'dashboardTitle', core: true },
+        ],
+        datadog_delete_dashboard: [{ text: 'Delete dashboard', field: 'dashboardId', core: true }],
+        datadog_list_synthetics_tests: ['List Synthetic tests'],
+        datadog_get_synthetics_test: [
+          { text: 'Read Synthetic test', field: 'syntheticsPublicId', core: true },
+        ],
+        datadog_get_synthetics_results: [
+          { text: 'Read results for Synthetic test', field: 'syntheticsPublicId', core: true },
+        ],
+        datadog_get_browser_synthetics_results: [
+          {
+            text: 'Read results for browser Synthetic test',
+            field: 'syntheticsPublicId',
+            core: true,
+          },
+        ],
+        datadog_trigger_synthetics_tests: [
+          { text: 'Trigger Synthetic tests', field: 'syntheticsPublicIds', core: true },
+        ],
+        datadog_update_synthetics_status: [
+          { text: 'Set Synthetic test', field: 'syntheticsPublicId', core: true },
+          { text: 'to', field: 'syntheticsNewStatus' },
+        ],
+        datadog_list_security_signals: [
+          { text: 'Search security signals matching', field: 'signalQuery', core: true },
+          { text: ', since', field: 'signalFrom' },
+        ],
+        datadog_get_security_signal: [
+          { text: 'Read security signal', field: 'signalId', core: true },
+        ],
+        datadog_update_security_signal_state: [
+          { text: 'Set security signal', field: 'signalId', core: true },
+          { text: 'to state', field: 'signalState' },
+        ],
+        datadog_update_security_signal_assignee: [
+          { text: 'Assign security signal', field: 'signalId', core: true },
+          { text: ', to', field: 'signalAssigneeUuid' },
+        ],
+        datadog_list_security_rules: [
+          'List detection rules',
+          { text: ', matching', field: 'ruleQuery' },
+        ],
+        datadog_search_spans: [
+          { text: 'Search APM spans matching', field: 'spanQuery', core: true },
+          { text: ', since', field: 'spanFrom' },
+        ],
+        datadog_list_services: ['List services in the catalog'],
       },
     },
   },
@@ -72,11 +186,43 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
         { label: 'Get Monitor', id: 'datadog_get_monitor' },
         { label: 'List Monitors', id: 'datadog_list_monitors' },
         { label: 'Mute Monitor', id: 'datadog_mute_monitor' },
+        { label: 'Unmute Monitor', id: 'datadog_unmute_monitor' },
         { label: 'Query Logs', id: 'datadog_query_logs' },
         { label: 'Send Logs', id: 'datadog_send_logs' },
         { label: 'Create Downtime', id: 'datadog_create_downtime' },
         { label: 'List Downtimes', id: 'datadog_list_downtimes' },
         { label: 'Cancel Downtime', id: 'datadog_cancel_downtime' },
+        { label: 'List Incidents', id: 'datadog_list_incidents' },
+        { label: 'Get Incident', id: 'datadog_get_incident' },
+        { label: 'Create Incident', id: 'datadog_create_incident' },
+        { label: 'Update Incident', id: 'datadog_update_incident' },
+        { label: 'Add Incident Todo', id: 'datadog_add_incident_todo' },
+        { label: 'List SLOs', id: 'datadog_list_slos' },
+        { label: 'Get SLO', id: 'datadog_get_slo' },
+        { label: 'Create SLO', id: 'datadog_create_slo' },
+        { label: 'Update SLO', id: 'datadog_update_slo' },
+        { label: 'Delete SLO', id: 'datadog_delete_slo' },
+        { label: 'Get SLO History', id: 'datadog_get_slo_history' },
+        { label: 'List Dashboards', id: 'datadog_list_dashboards' },
+        { label: 'Get Dashboard', id: 'datadog_get_dashboard' },
+        { label: 'Create Dashboard', id: 'datadog_create_dashboard' },
+        { label: 'Delete Dashboard', id: 'datadog_delete_dashboard' },
+        { label: 'List Synthetic Tests', id: 'datadog_list_synthetics_tests' },
+        { label: 'Get Synthetic Test', id: 'datadog_get_synthetics_test' },
+        { label: 'Get Synthetic Test Results', id: 'datadog_get_synthetics_results' },
+        {
+          label: 'Get Browser Synthetic Test Results',
+          id: 'datadog_get_browser_synthetics_results',
+        },
+        { label: 'Trigger Synthetic Tests', id: 'datadog_trigger_synthetics_tests' },
+        { label: 'Pause Or Start Synthetic Test', id: 'datadog_update_synthetics_status' },
+        { label: 'List Security Signals', id: 'datadog_list_security_signals' },
+        { label: 'Get Security Signal', id: 'datadog_get_security_signal' },
+        { label: 'Update Security Signal State', id: 'datadog_update_security_signal_state' },
+        { label: 'Assign Security Signal', id: 'datadog_update_security_signal_assignee' },
+        { label: 'List Security Rules', id: 'datadog_list_security_rules' },
+        { label: 'Search Spans', id: 'datadog_search_spans' },
+        { label: 'List Services', id: 'datadog_list_services' },
       ],
       value: () => 'datadog_submit_metrics',
     },
@@ -385,44 +531,64 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       condition: { field: 'operation', value: 'datadog_list_monitors' },
       mode: 'advanced',
     },
+    {
+      id: 'listMonitorPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '50',
+      tooltip:
+        'Monitors per page (max 1000). Datadog only applies a page size when a page number is sent, so setting this alone uses page 0.',
+      condition: { field: 'operation', value: 'datadog_list_monitors' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listMonitorPage',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '0',
+      tooltip:
+        'Page to start from (0-indexed). Leaving both this and Page Size blank returns every monitor in the org without pagination.',
+      condition: { field: 'operation', value: 'datadog_list_monitors' },
+      mode: 'advanced',
+    },
 
-    // Mute Monitor inputs
+    // Mute / Unmute Monitor inputs
     {
       id: 'muteMonitorId',
       title: 'Monitor ID',
       type: 'short-input',
       placeholder: '12345678',
-      condition: { field: 'operation', value: 'datadog_mute_monitor' },
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['datadog_mute_monitor', 'datadog_unmute_monitor'],
+      },
+      required: { field: 'operation', value: ['datadog_mute_monitor', 'datadog_unmute_monitor'] },
     },
     {
       id: 'scope',
       title: 'Scope',
       type: 'short-input',
-      placeholder: 'host:myhost (optional)',
-      condition: { field: 'operation', value: 'datadog_mute_monitor' },
+      placeholder: 'host:myhost (leave blank for all scopes)',
+      condition: {
+        field: 'operation',
+        value: ['datadog_mute_monitor', 'datadog_unmute_monitor'],
+      },
       mode: 'advanced',
     },
     {
       id: 'end',
-      title: 'End Time (Unix Timestamp)',
+      title: 'Mute Until (Unix Timestamp)',
       type: 'short-input',
-      placeholder: 'Leave empty for indefinite',
+      placeholder: 'Leave empty to mute until unmuted',
       condition: { field: 'operation', value: 'datadog_mute_monitor' },
       mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a Unix timestamp (seconds since epoch) based on the user's description.
-The timestamp should be a number representing seconds since January 1, 1970 UTC.
-Examples:
-- "in 1 hour" -> Calculate current time plus 3600 seconds
-- "tomorrow morning" -> Calculate tomorrow at 09:00:00 UTC as Unix timestamp
-- "end of day" -> Calculate today at 23:59:59 UTC as Unix timestamp
-
-Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
-        placeholder: 'Describe when mute should end (e.g., "in 1 hour", "tomorrow")...',
-        generationType: 'timestamp',
-      },
+    },
+    {
+      id: 'unmuteAllScopes',
+      title: 'Clear All Scopes',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_unmute_monitor' },
+      mode: 'advanced',
     },
 
     // Query Logs inputs
@@ -494,6 +660,14 @@ Return ONLY the relative time string - no explanations, no quotes, no extra text
       title: 'Limit',
       type: 'short-input',
       placeholder: '50',
+      condition: { field: 'operation', value: 'datadog_query_logs' },
+      mode: 'advanced',
+    },
+    {
+      id: 'logCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor returned by a previous call',
       condition: { field: 'operation', value: 'datadog_query_logs' },
       mode: 'advanced',
     },
@@ -605,12 +779,60 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'datadog_create_downtime' },
       mode: 'advanced',
     },
+    {
+      id: 'downtimeMonitorTags',
+      title: 'Monitor Tags',
+      type: 'short-input',
+      placeholder: 'team:backend,priority:high',
+      condition: { field: 'operation', value: 'datadog_create_downtime' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a comma-separated list of Datadog monitor tags based on the user's description.
+Each tag uses the "key:value" form.
+Examples: "team:backend,priority:high", "env:production", "service:checkout"
+
+Return ONLY the comma-separated tag list - no explanations, no extra text.`,
+        placeholder: 'Describe which monitors to target...',
+      },
+    },
+    {
+      id: 'downtimeTimezone',
+      title: 'Timezone',
+      type: 'short-input',
+      placeholder: 'UTC or America/New_York',
+      condition: { field: 'operation', value: 'datadog_create_downtime' },
+      mode: 'advanced',
+    },
+    {
+      id: 'downtimeMuteFirstRecovery',
+      title: 'Mute First Recovery Notification',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_create_downtime' },
+      mode: 'advanced',
+    },
 
     // List Downtimes inputs
     {
       id: 'currentOnly',
       title: 'Current Only',
       type: 'switch',
+      condition: { field: 'operation', value: 'datadog_list_downtimes' },
+      mode: 'advanced',
+    },
+    {
+      id: 'downtimeLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '30',
+      condition: { field: 'operation', value: 'datadog_list_downtimes' },
+      mode: 'advanced',
+    },
+    {
+      id: 'downtimeOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
       condition: { field: 'operation', value: 'datadog_list_downtimes' },
       mode: 'advanced',
     },
@@ -623,6 +845,1021 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       placeholder: 'abc123',
       condition: { field: 'operation', value: 'datadog_cancel_downtime' },
       required: true,
+    },
+
+    // Incidents inputs
+    {
+      id: 'incidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: '00000000-0000-0000-1234-000000000000',
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_incident', 'datadog_update_incident', 'datadog_add_incident_todo'],
+      },
+      required: {
+        field: 'operation',
+        value: ['datadog_get_incident', 'datadog_update_incident', 'datadog_add_incident_todo'],
+      },
+    },
+    {
+      id: 'incidentTitle',
+      title: 'Incident Title',
+      type: 'short-input',
+      placeholder: 'Checkout API returning 500s',
+      condition: {
+        field: 'operation',
+        value: ['datadog_create_incident', 'datadog_update_incident'],
+      },
+      required: { field: 'operation', value: 'datadog_create_incident' },
+    },
+    {
+      id: 'incidentCustomerImpacted',
+      title: 'Customer Impacted',
+      type: 'switch',
+      condition: {
+        field: 'operation',
+        value: ['datadog_create_incident', 'datadog_update_incident'],
+      },
+    },
+    {
+      id: 'incidentSeverity',
+      title: 'Severity',
+      type: 'dropdown',
+      options: [
+        { label: 'SEV-0', id: 'SEV-0' },
+        { label: 'SEV-1', id: 'SEV-1' },
+        { label: 'SEV-2', id: 'SEV-2' },
+        { label: 'SEV-3', id: 'SEV-3' },
+        { label: 'SEV-4', id: 'SEV-4' },
+        { label: 'SEV-5', id: 'SEV-5' },
+        { label: 'Unknown', id: 'UNKNOWN' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['datadog_create_incident', 'datadog_update_incident'],
+      },
+    },
+    {
+      id: 'incidentCustomerImpactScope',
+      title: 'Customer Impact Scope',
+      type: 'long-input',
+      placeholder: 'Checkout unavailable for EU customers',
+      condition: {
+        field: 'operation',
+        value: ['datadog_create_incident', 'datadog_update_incident'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'incidentTypeUuid',
+      title: 'Incident Type UUID',
+      type: 'short-input',
+      placeholder: 'Leave empty to use the default incident type',
+      condition: { field: 'operation', value: 'datadog_create_incident' },
+      mode: 'advanced',
+    },
+    {
+      id: 'incidentIsTest',
+      title: 'Test Incident',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_create_incident' },
+      mode: 'advanced',
+    },
+    {
+      id: 'incidentCustomerImpactStart',
+      title: 'Customer Impact Start',
+      type: 'short-input',
+      placeholder: '2026-01-02T09:42:36Z',
+      condition: { field: 'operation', value: 'datadog_update_incident' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp for when customer impact began. Return ONLY the timestamp string.',
+        placeholder: 'Describe when customer impact started...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'incidentCustomerImpactEnd',
+      title: 'Customer Impact End',
+      type: 'short-input',
+      placeholder: '2026-01-02T10:15:00Z',
+      condition: { field: 'operation', value: 'datadog_update_incident' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp for when customer impact ended. Return ONLY the timestamp string.',
+        placeholder: 'Describe when customer impact ended...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'incidentDetected',
+      title: 'Detected At',
+      type: 'short-input',
+      placeholder: '2026-01-02T09:40:00Z',
+      condition: { field: 'operation', value: 'datadog_update_incident' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp for when the incident was detected. Return ONLY the timestamp string.',
+        placeholder: 'Describe when the incident was detected...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'incidentFields',
+      title: 'Fields (JSON)',
+      type: 'code',
+      placeholder: '{"state": {"type": "dropdown", "value": "resolved"}}',
+      condition: {
+        field: 'operation',
+        value: ['datadog_create_incident', 'datadog_update_incident'],
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog incident fields object based on the user's description.
+Each key is a field name and each value is an object with "type" and "value".
+Examples:
+- {"severity": {"type": "dropdown", "value": "SEV-2"}}
+- {"state": {"type": "dropdown", "value": "resolved"}}
+- {"services": {"type": "multiselect", "value": ["checkout", "payments"]}}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the incident fields to set...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'incidentNotificationHandles',
+      title: 'Notification Handles',
+      type: 'short-input',
+      placeholder: '@slack-incidents, @oncall@example.com',
+      condition: {
+        field: 'operation',
+        value: ['datadog_create_incident', 'datadog_update_incident'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'incidentInclude',
+      title: 'Include Related Resources',
+      type: 'short-input',
+      placeholder: 'users, attachments',
+      condition: {
+        field: 'operation',
+        value: ['datadog_list_incidents', 'datadog_get_incident'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'incidentPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '10',
+      condition: { field: 'operation', value: 'datadog_list_incidents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'incidentPageOffset',
+      title: 'Page Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_incidents' },
+      mode: 'advanced',
+    },
+    {
+      id: 'todoContent',
+      title: 'Task Content',
+      type: 'long-input',
+      placeholder: 'Restore lost data',
+      condition: { field: 'operation', value: 'datadog_add_incident_todo' },
+      required: true,
+    },
+    {
+      id: 'todoAssignees',
+      title: 'Assignees',
+      type: 'short-input',
+      placeholder: '@jane@example.com, @oncall',
+      condition: { field: 'operation', value: 'datadog_add_incident_todo' },
+      required: true,
+    },
+    {
+      id: 'todoDueDate',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: '2026-01-10T05:00:00Z',
+      condition: { field: 'operation', value: 'datadog_add_incident_todo' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate an ISO 8601 timestamp for when the task is due. Return ONLY the timestamp string.',
+        placeholder: 'Describe when the task is due...',
+        generationType: 'timestamp',
+      },
+    },
+
+    // SLO inputs
+    {
+      id: 'sloId',
+      title: 'SLO ID',
+      type: 'short-input',
+      placeholder: 'e6ce9c47b6c04d3d9dbfbb1cb4b7a8a3',
+      condition: {
+        field: 'operation',
+        value: [
+          'datadog_get_slo',
+          'datadog_update_slo',
+          'datadog_delete_slo',
+          'datadog_get_slo_history',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'datadog_get_slo',
+          'datadog_update_slo',
+          'datadog_delete_slo',
+          'datadog_get_slo_history',
+        ],
+      },
+    },
+    {
+      id: 'sloName',
+      title: 'SLO Name',
+      type: 'short-input',
+      placeholder: 'Checkout API availability',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      required: { field: 'operation', value: ['datadog_create_slo'] },
+    },
+    {
+      id: 'sloType',
+      title: 'SLO Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Metric', id: 'metric' },
+        { label: 'Monitor', id: 'monitor' },
+      ],
+      value: () => 'metric',
+      condition: { field: 'operation', value: ['datadog_create_slo'] },
+      required: { field: 'operation', value: ['datadog_create_slo'] },
+    },
+    {
+      id: 'sloUpdateType',
+      title: 'SLO Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Keep current', id: '' },
+        { label: 'Metric', id: 'metric' },
+        { label: 'Monitor', id: 'monitor' },
+      ],
+      condition: { field: 'operation', value: ['datadog_update_slo'] },
+    },
+    {
+      id: 'sloThresholds',
+      title: 'Thresholds (JSON)',
+      type: 'code',
+      placeholder: '[{"timeframe": "30d", "target": 99.9, "warning": 99.95}]',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      required: { field: 'operation', value: ['datadog_create_slo'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Datadog SLO thresholds based on the user's description.
+Each threshold object has:
+- "timeframe": one of "7d", "30d", or "90d"
+- "target": the target percentage (e.g., 99.9)
+- "warning": optional warning percentage, must be greater than the target
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the SLO targets...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'sloMetricQuery',
+      title: 'Metric Query (JSON)',
+      type: 'code',
+      placeholder:
+        '{"numerator": "sum:requests{status:ok}.as_count()", "denominator": "sum:requests{*}.as_count()"}',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog metric SLO query object based on the user's description.
+The object has:
+- "numerator": the query counting good events
+- "denominator": the query counting all events
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the good events and total events...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'sloMonitorIds',
+      title: 'Monitor IDs',
+      type: 'short-input',
+      placeholder: '12345678, 23456789',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloGroups',
+      title: 'Monitor Groups',
+      type: 'short-input',
+      placeholder: 'env:prod, role:mysql',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Availability of the checkout API',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloTags',
+      title: 'Tags',
+      type: 'short-input',
+      placeholder: 'env:prod, team:core',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloTargetThreshold',
+      title: 'Target Threshold',
+      type: 'short-input',
+      placeholder: '99.9',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloWarningThreshold',
+      title: 'Warning Threshold',
+      type: 'short-input',
+      placeholder: '99.95',
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloTimeframe',
+      title: 'Timeframe',
+      type: 'dropdown',
+      options: [
+        { label: '7 days', id: '7d' },
+        { label: '30 days', id: '30d' },
+        { label: '90 days', id: '90d' },
+      ],
+      condition: { field: 'operation', value: ['datadog_create_slo', 'datadog_update_slo'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloIds',
+      title: 'Filter by IDs',
+      type: 'short-input',
+      placeholder: 'id1, id2',
+      condition: { field: 'operation', value: 'datadog_list_slos' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloQuery',
+      title: 'Filter by Name',
+      type: 'short-input',
+      placeholder: 'checkout',
+      condition: { field: 'operation', value: 'datadog_list_slos' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloTagsQuery',
+      title: 'Filter by Tag',
+      type: 'short-input',
+      placeholder: 'env:prod',
+      condition: { field: 'operation', value: 'datadog_list_slos' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloMetricsQuery',
+      title: 'Filter by Metrics Query',
+      type: 'short-input',
+      placeholder: 'aws.elb.request_count',
+      condition: { field: 'operation', value: 'datadog_list_slos' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'datadog_list_slos' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloOffset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_slos' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloWithConfiguredAlertIds',
+      title: 'Include SLO Monitor IDs',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_get_slo' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloForce',
+      title: 'Force Delete',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_delete_slo' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloFromTs',
+      title: 'From (Unix Timestamp)',
+      type: 'short-input',
+      placeholder: 'e.g., 1701360000',
+      condition: { field: 'operation', value: 'datadog_get_slo_history' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Unix timestamp in seconds for the start of the window. Return ONLY the numeric timestamp.',
+        placeholder: 'Describe the start time (e.g., "7 days ago")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'sloToTs',
+      title: 'To (Unix Timestamp)',
+      type: 'short-input',
+      placeholder: 'e.g., 1701446400',
+      condition: { field: 'operation', value: 'datadog_get_slo_history' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Unix timestamp in seconds for the end of the window. Return ONLY the numeric timestamp.',
+        placeholder: 'Describe the end time (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'sloTarget',
+      title: 'Target',
+      type: 'short-input',
+      placeholder: '99.9',
+      condition: { field: 'operation', value: 'datadog_get_slo_history' },
+      mode: 'advanced',
+    },
+    {
+      id: 'sloApplyCorrection',
+      title: 'Apply Corrections',
+      type: 'switch',
+      value: () => 'true',
+      condition: { field: 'operation', value: 'datadog_get_slo_history' },
+      mode: 'advanced',
+    },
+
+    // Dashboard inputs
+    {
+      id: 'dashboardId',
+      title: 'Dashboard ID',
+      type: 'short-input',
+      placeholder: 'abc-def-ghi',
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_dashboard', 'datadog_delete_dashboard'],
+      },
+      required: {
+        field: 'operation',
+        value: ['datadog_get_dashboard', 'datadog_delete_dashboard'],
+      },
+    },
+    {
+      id: 'dashboardTitle',
+      title: 'Dashboard Title',
+      type: 'short-input',
+      placeholder: 'Checkout service overview',
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      required: true,
+    },
+    {
+      id: 'dashboardLayoutType',
+      title: 'Layout Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Ordered', id: 'ordered' },
+        { label: 'Free', id: 'free' },
+      ],
+      value: () => 'ordered',
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      required: true,
+    },
+    {
+      id: 'dashboardWidgets',
+      title: 'Widgets (JSON)',
+      type: 'code',
+      placeholder:
+        '[{"definition": {"type": "timeseries", "title": "CPU", "requests": [{"q": "avg:system.cpu.user{*}"}]}}]',
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Datadog dashboard widgets based on the user's description.
+Each widget has a "definition" object with at least a "type" (e.g., "timeseries", "query_value", "toplist"),
+a "title", and the widget's "requests" array.
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the widgets you want on the dashboard...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'dashboardDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Latency, errors, and saturation for checkout',
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      mode: 'advanced',
+    },
+    {
+      id: 'dashboardTags',
+      title: 'Tags',
+      type: 'short-input',
+      placeholder: 'team:core',
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      mode: 'advanced',
+    },
+    {
+      id: 'dashboardNotifyList',
+      title: 'Notify List',
+      type: 'short-input',
+      placeholder: 'jane@example.com, john@example.com',
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      mode: 'advanced',
+    },
+    {
+      id: 'dashboardTemplateVariables',
+      title: 'Template Variables (JSON)',
+      type: 'code',
+      placeholder: '[{"name": "env", "prefix": "env", "available_values": ["prod", "staging"]}]',
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Datadog dashboard template variables based on the user's description.
+Each variable has a "name", an optional "prefix" (the tag key), and optional "available_values".
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the template variables...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'dashboardReflowType',
+      title: 'Reflow Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Auto', id: 'auto' },
+        { label: 'Fixed', id: 'fixed' },
+      ],
+      condition: { field: 'operation', value: 'datadog_create_dashboard' },
+      mode: 'advanced',
+    },
+    {
+      id: 'dashboardFilterShared',
+      title: 'Shared Only',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_list_dashboards' },
+      mode: 'advanced',
+    },
+    {
+      id: 'dashboardFilterDeleted',
+      title: 'Deleted Only',
+      type: 'switch',
+      condition: { field: 'operation', value: 'datadog_list_dashboards' },
+      mode: 'advanced',
+    },
+    {
+      id: 'dashboardCount',
+      title: 'Count',
+      type: 'short-input',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'datadog_list_dashboards' },
+      mode: 'advanced',
+    },
+    {
+      id: 'dashboardStart',
+      title: 'Start Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_dashboards' },
+      mode: 'advanced',
+    },
+
+    // Synthetics inputs
+    {
+      id: 'syntheticsPublicId',
+      title: 'Test Public ID',
+      type: 'short-input',
+      placeholder: 'abc-def-ghi',
+      condition: {
+        field: 'operation',
+        value: [
+          'datadog_get_synthetics_test',
+          'datadog_get_synthetics_results',
+          'datadog_get_browser_synthetics_results',
+          'datadog_update_synthetics_status',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'datadog_get_synthetics_test',
+          'datadog_get_synthetics_results',
+          'datadog_get_browser_synthetics_results',
+          'datadog_update_synthetics_status',
+        ],
+      },
+    },
+    {
+      id: 'syntheticsNewStatus',
+      title: 'New Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Live', id: 'live' },
+        { label: 'Paused', id: 'paused' },
+      ],
+      value: () => 'live',
+      condition: { field: 'operation', value: 'datadog_update_synthetics_status' },
+      required: true,
+    },
+    {
+      id: 'syntheticsPublicIds',
+      title: 'Test Public IDs',
+      type: 'short-input',
+      placeholder: 'abc-def-ghi, jkl-mno-pqr',
+      condition: { field: 'operation', value: 'datadog_trigger_synthetics_tests' },
+      required: true,
+    },
+    {
+      id: 'syntheticsFromTs',
+      title: 'From (Unix Milliseconds)',
+      type: 'short-input',
+      placeholder: 'e.g., 1701360000000',
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_synthetics_results', 'datadog_get_browser_synthetics_results'],
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Unix timestamp in MILLISECONDS for the start of the window. Return ONLY the numeric timestamp.',
+        placeholder: 'Describe the start time (e.g., "1 hour ago")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'syntheticsToTs',
+      title: 'To (Unix Milliseconds)',
+      type: 'short-input',
+      placeholder: 'e.g., 1701446400000',
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_synthetics_results', 'datadog_get_browser_synthetics_results'],
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Unix timestamp in MILLISECONDS for the end of the window. Return ONLY the numeric timestamp.',
+        placeholder: 'Describe the end time (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'syntheticsProbeDc',
+      title: 'Locations',
+      type: 'short-input',
+      placeholder: 'aws:eu-west-3, aws:us-east-1',
+      condition: {
+        field: 'operation',
+        value: ['datadog_get_synthetics_results', 'datadog_get_browser_synthetics_results'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'syntheticsPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '100',
+      condition: { field: 'operation', value: 'datadog_list_synthetics_tests' },
+      mode: 'advanced',
+    },
+    {
+      id: 'syntheticsPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_synthetics_tests' },
+      mode: 'advanced',
+    },
+
+    // Security monitoring inputs
+    {
+      id: 'signalId',
+      title: 'Signal ID',
+      type: 'short-input',
+      placeholder: 'AAAAAWgN8Xwgr1vKDQAAAABBV2dOOFh3ZzZobm1mWXJFYTR0OA',
+      condition: {
+        field: 'operation',
+        value: [
+          'datadog_get_security_signal',
+          'datadog_update_security_signal_state',
+          'datadog_update_security_signal_assignee',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'datadog_get_security_signal',
+          'datadog_update_security_signal_state',
+          'datadog_update_security_signal_assignee',
+        ],
+      },
+    },
+    {
+      id: 'signalState',
+      title: 'Triage State',
+      type: 'dropdown',
+      options: [
+        { label: 'Open', id: 'open' },
+        { label: 'Under Review', id: 'under_review' },
+        { label: 'Archived', id: 'archived' },
+      ],
+      value: () => 'open',
+      condition: { field: 'operation', value: 'datadog_update_security_signal_state' },
+      required: true,
+    },
+    {
+      id: 'signalArchiveReason',
+      title: 'Archive Reason',
+      type: 'dropdown',
+      options: [
+        { label: 'None', id: 'none' },
+        { label: 'False Positive', id: 'false_positive' },
+        { label: 'Testing Or Maintenance', id: 'testing_or_maintenance' },
+        { label: 'Remediated', id: 'remediated' },
+        { label: 'Investigated, Case Opened', id: 'investigated_case_opened' },
+        { label: 'True Positive - Benign', id: 'true_positive_benign' },
+        { label: 'True Positive - Malicious', id: 'true_positive_malicious' },
+        { label: 'Other', id: 'other' },
+      ],
+      condition: { field: 'operation', value: 'datadog_update_security_signal_state' },
+      mode: 'advanced',
+    },
+    {
+      id: 'signalArchiveComment',
+      title: 'Archive Comment',
+      type: 'long-input',
+      placeholder: 'Known scanner traffic from the security team',
+      condition: { field: 'operation', value: 'datadog_update_security_signal_state' },
+      mode: 'advanced',
+    },
+    {
+      id: 'signalAssigneeUuid',
+      title: 'Assignee UUID',
+      type: 'short-input',
+      placeholder: '773b045d-ccf8-4808-bd3b-955ef6a8c940',
+      condition: { field: 'operation', value: 'datadog_update_security_signal_assignee' },
+      required: true,
+    },
+    {
+      id: 'signalQuery',
+      title: 'Search Query',
+      type: 'long-input',
+      placeholder: 'security:attack status:high',
+      condition: { field: 'operation', value: 'datadog_list_security_signals' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog security signal search query based on the user's description.
+The query uses facet syntax: facet:value
+Examples:
+- "security:attack status:high" - High severity attack signals
+- "@workflow.rule.name:\"Brute Force\"" - Signals from a specific rule
+- "source:cloudtrail status:critical" - Critical CloudTrail signals
+
+Return ONLY the search query string - no explanations.`,
+        placeholder: 'Describe the signals you want to find...',
+      },
+    },
+    {
+      id: 'signalFrom',
+      title: 'From',
+      type: 'short-input',
+      placeholder: '2026-01-02T09:42:36.320Z',
+      condition: { field: 'operation', value: 'datadog_list_security_signals' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Convert the described start time into an absolute ISO-8601 UTC date-time, e.g. 2026-01-02T09:42:36.320Z. Datadog signal search rejects relative expressions such as "now-1h", so always resolve them against the current date. Return ONLY the timestamp.',
+        placeholder: 'Describe the start time (e.g., "1 hour ago")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'signalTo',
+      title: 'To',
+      type: 'short-input',
+      placeholder: '2026-01-03T09:42:36.320Z',
+      condition: { field: 'operation', value: 'datadog_list_security_signals' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Convert the described end time into an absolute ISO-8601 UTC date-time, e.g. 2026-01-03T09:42:36.320Z. Datadog signal search rejects relative expressions such as "now", so always resolve them against the current date. Return ONLY the timestamp.',
+        placeholder: 'Describe the end time (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'signalSort',
+      title: 'Sort',
+      type: 'dropdown',
+      options: [
+        { label: 'Newest First', id: '-timestamp' },
+        { label: 'Oldest First', id: 'timestamp' },
+      ],
+      condition: { field: 'operation', value: 'datadog_list_security_signals' },
+      mode: 'advanced',
+    },
+    {
+      id: 'signalLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'datadog_list_security_signals' },
+      mode: 'advanced',
+    },
+    {
+      id: 'signalCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor returned by a previous call',
+      condition: { field: 'operation', value: 'datadog_list_security_signals' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ruleQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'type:log_detection source:cloudtrail',
+      condition: { field: 'operation', value: 'datadog_list_security_rules' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ruleSort',
+      title: 'Sort',
+      type: 'dropdown',
+      options: [
+        { label: 'Name', id: 'name' },
+        { label: 'Name (descending)', id: '-name' },
+        { label: 'Creation Date', id: 'creation_date' },
+        { label: 'Creation Date (descending)', id: '-creation_date' },
+        { label: 'Update Date', id: 'update_date' },
+        { label: 'Update Date (descending)', id: '-update_date' },
+      ],
+      condition: { field: 'operation', value: 'datadog_list_security_rules' },
+      mode: 'advanced',
+    },
+    {
+      id: 'rulePageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'datadog_list_security_rules' },
+      mode: 'advanced',
+    },
+    {
+      id: 'rulePageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_security_rules' },
+      mode: 'advanced',
+    },
+
+    // APM inputs
+    {
+      id: 'spanQuery',
+      title: 'Span Query',
+      type: 'long-input',
+      placeholder: 'service:checkout AND @http.status_code:[500 TO 599]',
+      condition: { field: 'operation', value: 'datadog_search_spans' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Datadog span search query based on the user's description.
+The query uses facet syntax: facet:value
+Examples:
+- "service:checkout AND @http.status_code:[500 TO 599]" - Server errors in checkout
+- "env:prod resource_name:\"GET /cart\"" - Spans for a specific endpoint
+- "@duration:>1000000000" - Spans slower than one second (duration is in nanoseconds)
+
+Return ONLY the search query string - no explanations.`,
+        placeholder: 'Describe the spans you want to find...',
+      },
+    },
+    {
+      id: 'spanFrom',
+      title: 'From',
+      type: 'short-input',
+      placeholder: 'now-15m',
+      condition: { field: 'operation', value: 'datadog_search_spans' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Datadog relative time string such as now-15m, now-1h, or now-1d. Return ONLY the string.',
+        placeholder: 'Describe the start time (e.g., "15 minutes ago")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'spanTo',
+      title: 'To',
+      type: 'short-input',
+      placeholder: 'now',
+      condition: { field: 'operation', value: 'datadog_search_spans' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Datadog relative time string such as now or now-5m. Return ONLY the string.',
+        placeholder: 'Describe the end time (e.g., "now")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'spanSort',
+      title: 'Sort',
+      type: 'dropdown',
+      options: [
+        { label: 'Newest First', id: '-timestamp' },
+        { label: 'Oldest First', id: 'timestamp' },
+      ],
+      condition: { field: 'operation', value: 'datadog_search_spans' },
+      mode: 'advanced',
+    },
+    {
+      id: 'spanLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'datadog_search_spans' },
+      mode: 'advanced',
+    },
+    {
+      id: 'spanCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'Cursor returned by a previous call',
+      condition: { field: 'operation', value: 'datadog_search_spans' },
+      mode: 'advanced',
+    },
+    {
+      id: 'servicePageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'datadog_list_services' },
+      mode: 'advanced',
+    },
+    {
+      id: 'servicePageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'datadog_list_services' },
+      mode: 'advanced',
+    },
+    {
+      id: 'serviceSchemaVersion',
+      title: 'Schema Version',
+      type: 'dropdown',
+      options: [
+        { label: 'v2', id: 'v2' },
+        { label: 'v2.1', id: 'v2.1' },
+        { label: 'v2.2', id: 'v2.2' },
+      ],
+      condition: { field: 'operation', value: 'datadog_list_services' },
+      mode: 'advanced',
     },
 
     // Authentication (common)
@@ -649,10 +1886,39 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
           'datadog_get_monitor',
           'datadog_list_monitors',
           'datadog_mute_monitor',
+          'datadog_unmute_monitor',
           'datadog_query_logs',
           'datadog_create_downtime',
           'datadog_list_downtimes',
           'datadog_cancel_downtime',
+          'datadog_list_incidents',
+          'datadog_get_incident',
+          'datadog_create_incident',
+          'datadog_update_incident',
+          'datadog_add_incident_todo',
+          'datadog_list_slos',
+          'datadog_get_slo',
+          'datadog_create_slo',
+          'datadog_update_slo',
+          'datadog_delete_slo',
+          'datadog_get_slo_history',
+          'datadog_list_dashboards',
+          'datadog_get_dashboard',
+          'datadog_create_dashboard',
+          'datadog_delete_dashboard',
+          'datadog_list_synthetics_tests',
+          'datadog_get_synthetics_test',
+          'datadog_get_synthetics_results',
+          'datadog_get_browser_synthetics_results',
+          'datadog_trigger_synthetics_tests',
+          'datadog_update_synthetics_status',
+          'datadog_list_security_signals',
+          'datadog_get_security_signal',
+          'datadog_update_security_signal_state',
+          'datadog_update_security_signal_assignee',
+          'datadog_list_security_rules',
+          'datadog_search_spans',
+          'datadog_list_services',
         ],
       },
       required: true,
@@ -667,7 +1933,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
         { label: 'US5 (us5.datadoghq.com)', id: 'us5.datadoghq.com' },
         { label: 'EU (datadoghq.eu)', id: 'datadoghq.eu' },
         { label: 'AP1 (ap1.datadoghq.com)', id: 'ap1.datadoghq.com' },
+        { label: 'AP2 (ap2.datadoghq.com)', id: 'ap2.datadoghq.com' },
+        { label: 'UK1 (uk1.datadoghq.com)', id: 'uk1.datadoghq.com' },
         { label: 'US1-FED (ddog-gov.com)', id: 'ddog-gov.com' },
+        { label: 'US2-FED (us2.ddog-gov.com)', id: 'us2.ddog-gov.com' },
       ],
       value: () => 'datadoghq.com',
       mode: 'advanced',
@@ -682,23 +1951,50 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       'datadog_get_monitor',
       'datadog_list_monitors',
       'datadog_mute_monitor',
+      'datadog_unmute_monitor',
       'datadog_query_logs',
       'datadog_send_logs',
       'datadog_create_downtime',
       'datadog_list_downtimes',
       'datadog_cancel_downtime',
+      'datadog_list_incidents',
+      'datadog_get_incident',
+      'datadog_create_incident',
+      'datadog_update_incident',
+      'datadog_add_incident_todo',
+      'datadog_list_slos',
+      'datadog_get_slo',
+      'datadog_create_slo',
+      'datadog_update_slo',
+      'datadog_delete_slo',
+      'datadog_get_slo_history',
+      'datadog_list_dashboards',
+      'datadog_get_dashboard',
+      'datadog_create_dashboard',
+      'datadog_delete_dashboard',
+      'datadog_list_synthetics_tests',
+      'datadog_get_synthetics_test',
+      'datadog_get_synthetics_results',
+      'datadog_get_browser_synthetics_results',
+      'datadog_trigger_synthetics_tests',
+      'datadog_update_synthetics_status',
+      'datadog_list_security_signals',
+      'datadog_get_security_signal',
+      'datadog_update_security_signal_state',
+      'datadog_update_security_signal_assignee',
+      'datadog_list_security_rules',
+      'datadog_search_spans',
+      'datadog_list_services',
     ],
     config: {
       tool: (params) => params.operation,
       params: (params) => {
-        // Base params that are always needed
-        const baseParams: Record<string, any> = {
+        const baseParams: { apiKey: string; applicationKey: string; site: string } = {
           apiKey: params.apiKey,
           applicationKey: params.applicationKey,
           site: params.site,
         }
 
-        // Only include params relevant to each operation
         switch (params.operation) {
           case 'datadog_submit_metrics':
             return { ...baseParams, series: params.series }
@@ -707,8 +2003,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             return {
               ...baseParams,
               query: params.query,
-              from: params.from ? Number(params.from) : undefined,
-              to: params.to ? Number(params.to) : undefined,
+              from: datadogNumber(params.from),
+              to: datadogNumber(params.to),
             }
 
           case 'datadog_create_event':
@@ -729,7 +2025,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               query: params.monitorQuery,
               message: params.message,
               tags: params.monitorTags,
-              priority: params.monitorPriority ? Number(params.monitorPriority) : undefined,
+              priority: datadogNumber(params.monitorPriority),
               options: params.options,
             }
 
@@ -741,14 +2037,30 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...baseParams,
               name: params.listMonitorName || undefined,
               tags: params.listMonitorTags || undefined,
+              /**
+               * `monitorTags` belongs to Create Monitor but serializes for every operation, and
+               * the block merges these params over the raw inputs. Without an explicit clear, a
+               * leftover value would filter this list while presenting it as complete.
+               */
+              monitorTags: undefined,
+              pageSize: datadogNumber(params.listMonitorPageSize),
+              page: datadogNumber(params.listMonitorPage),
             }
 
           case 'datadog_mute_monitor':
             return {
               ...baseParams,
               monitorId: params.muteMonitorId,
-              scope: params.scope,
-              end: params.end ? Number(params.end) : undefined,
+              scope: params.scope || undefined,
+              end: datadogNumber(params.end),
+            }
+
+          case 'datadog_unmute_monitor':
+            return {
+              ...baseParams,
+              monitorId: params.muteMonitorId,
+              scope: params.scope || undefined,
+              allScopes: toSwitchBoolean(params.unmuteAllScopes),
             }
 
           case 'datadog_query_logs':
@@ -757,7 +2069,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               query: params.logQuery,
               from: params.logFrom,
               to: params.logTo,
-              limit: params.logLimit ? Number(params.logLimit) : undefined,
+              limit: datadogNumber(params.logLimit),
+              cursor: params.logCursor || undefined,
             }
 
           case 'datadog_send_logs':
@@ -768,16 +2081,260 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...baseParams,
               scope: params.downtimeScope,
               message: params.downtimeMessage,
-              start: params.downtimeStart ? Number(params.downtimeStart) : undefined,
-              end: params.downtimeEnd ? Number(params.downtimeEnd) : undefined,
+              start: datadogNumber(params.downtimeStart),
+              end: datadogNumber(params.downtimeEnd),
               monitorId: params.downtimeMonitorId,
+              monitorTags: params.downtimeMonitorTags || undefined,
+              timezone: params.downtimeTimezone || undefined,
+              muteFirstRecoveryNotification: toSwitchBoolean(params.downtimeMuteFirstRecovery),
             }
 
           case 'datadog_list_downtimes':
-            return { ...baseParams, currentOnly: params.currentOnly }
+            return {
+              ...baseParams,
+              currentOnly: toSwitchBoolean(params.currentOnly),
+              limit: datadogNumber(params.downtimeLimit),
+              offset: datadogNumber(params.downtimeOffset),
+            }
 
           case 'datadog_cancel_downtime':
             return { ...baseParams, downtimeId: params.downtimeId }
+
+          case 'datadog_list_incidents':
+            return {
+              ...baseParams,
+              include: params.incidentInclude || undefined,
+              pageSize: datadogNumber(params.incidentPageSize),
+              pageOffset: datadogNumber(params.incidentPageOffset),
+            }
+
+          case 'datadog_get_incident':
+            return {
+              ...baseParams,
+              incidentId: params.incidentId,
+              include: params.incidentInclude || undefined,
+            }
+
+          case 'datadog_create_incident':
+            return {
+              ...baseParams,
+              title: params.incidentTitle,
+              customerImpacted: toSwitchBoolean(params.incidentCustomerImpacted) ?? false,
+              severity: params.incidentSeverity || undefined,
+              customerImpactScope: params.incidentCustomerImpactScope || undefined,
+              incidentTypeUuid: params.incidentTypeUuid || undefined,
+              isTest: toSwitchBoolean(params.incidentIsTest),
+              fields: params.incidentFields || undefined,
+              notificationHandles: params.incidentNotificationHandles || undefined,
+            }
+
+          case 'datadog_update_incident':
+            return {
+              ...baseParams,
+              incidentId: params.incidentId,
+              title: params.incidentTitle || undefined,
+              severity: params.incidentSeverity || undefined,
+              customerImpacted: toSwitchBoolean(params.incidentCustomerImpacted),
+              customerImpactScope: params.incidentCustomerImpactScope || undefined,
+              customerImpactStart: params.incidentCustomerImpactStart || undefined,
+              customerImpactEnd: params.incidentCustomerImpactEnd || undefined,
+              detected: params.incidentDetected || undefined,
+              fields: params.incidentFields || undefined,
+              notificationHandles: params.incidentNotificationHandles || undefined,
+            }
+
+          case 'datadog_add_incident_todo':
+            return {
+              ...baseParams,
+              incidentId: params.incidentId,
+              content: params.todoContent,
+              assignees: params.todoAssignees,
+              dueDate: params.todoDueDate || undefined,
+            }
+
+          case 'datadog_list_slos':
+            return {
+              ...baseParams,
+              ids: params.sloIds || undefined,
+              query: params.sloQuery || undefined,
+              tagsQuery: params.sloTagsQuery || undefined,
+              metricsQuery: params.sloMetricsQuery || undefined,
+              limit: datadogNumber(params.sloLimit),
+              offset: datadogNumber(params.sloOffset),
+            }
+
+          case 'datadog_get_slo':
+            return {
+              ...baseParams,
+              sloId: params.sloId,
+              withConfiguredAlertIds: toSwitchBoolean(params.sloWithConfiguredAlertIds),
+            }
+
+          case 'datadog_create_slo':
+            return {
+              ...baseParams,
+              name: params.sloName,
+              type: params.sloType,
+              thresholds: params.sloThresholds,
+              description: params.sloDescription || undefined,
+              tags: params.sloTags || undefined,
+              query: params.sloMetricQuery || undefined,
+              monitorIds: params.sloMonitorIds || undefined,
+              groups: params.sloGroups || undefined,
+              targetThreshold: datadogNumber(params.sloTargetThreshold),
+              warningThreshold: datadogNumber(params.sloWarningThreshold),
+              timeframe: params.sloTimeframe || undefined,
+            }
+
+          case 'datadog_update_slo':
+            return {
+              ...baseParams,
+              sloId: params.sloId,
+              name: params.sloName || undefined,
+              type: params.sloUpdateType || undefined,
+              thresholds: params.sloThresholds || undefined,
+              description: params.sloDescription || undefined,
+              tags: params.sloTags || undefined,
+              query: params.sloMetricQuery || undefined,
+              monitorIds: params.sloMonitorIds || undefined,
+              groups: params.sloGroups || undefined,
+              targetThreshold: datadogNumber(params.sloTargetThreshold),
+              warningThreshold: datadogNumber(params.sloWarningThreshold),
+              timeframe: params.sloTimeframe || undefined,
+            }
+
+          case 'datadog_delete_slo':
+            return {
+              ...baseParams,
+              sloId: params.sloId,
+              force: toSwitchBoolean(params.sloForce),
+            }
+
+          case 'datadog_get_slo_history':
+            return {
+              ...baseParams,
+              sloId: params.sloId,
+              fromTs: datadogNumber(params.sloFromTs),
+              toTs: datadogNumber(params.sloToTs),
+              target: datadogNumber(params.sloTarget),
+              applyCorrection: toSwitchBoolean(params.sloApplyCorrection),
+            }
+
+          case 'datadog_list_dashboards':
+            return {
+              ...baseParams,
+              filterShared: toSwitchBoolean(params.dashboardFilterShared),
+              filterDeleted: toSwitchBoolean(params.dashboardFilterDeleted),
+              count: datadogNumber(params.dashboardCount),
+              start: datadogNumber(params.dashboardStart),
+            }
+
+          case 'datadog_get_dashboard':
+            return { ...baseParams, dashboardId: params.dashboardId }
+
+          case 'datadog_create_dashboard':
+            return {
+              ...baseParams,
+              title: params.dashboardTitle,
+              layoutType: params.dashboardLayoutType,
+              widgets: params.dashboardWidgets,
+              description: params.dashboardDescription || undefined,
+              notifyList: params.dashboardNotifyList || undefined,
+              templateVariables: params.dashboardTemplateVariables || undefined,
+              tags: params.dashboardTags || undefined,
+              reflowType: params.dashboardReflowType || undefined,
+            }
+
+          case 'datadog_delete_dashboard':
+            return { ...baseParams, dashboardId: params.dashboardId }
+
+          case 'datadog_list_synthetics_tests':
+            return {
+              ...baseParams,
+              pageSize: datadogNumber(params.syntheticsPageSize),
+              pageNumber: datadogNumber(params.syntheticsPageNumber),
+            }
+
+          case 'datadog_get_synthetics_test':
+            return { ...baseParams, publicId: params.syntheticsPublicId }
+
+          case 'datadog_get_synthetics_results':
+          case 'datadog_get_browser_synthetics_results':
+            return {
+              ...baseParams,
+              publicId: params.syntheticsPublicId,
+              fromTs: datadogNumber(params.syntheticsFromTs),
+              toTs: datadogNumber(params.syntheticsToTs),
+              probeDc: params.syntheticsProbeDc || undefined,
+            }
+
+          case 'datadog_trigger_synthetics_tests':
+            return { ...baseParams, publicIds: params.syntheticsPublicIds }
+
+          case 'datadog_update_synthetics_status':
+            return {
+              ...baseParams,
+              publicId: params.syntheticsPublicId,
+              newStatus: params.syntheticsNewStatus,
+            }
+
+          case 'datadog_list_security_signals':
+            return {
+              ...baseParams,
+              query: params.signalQuery || undefined,
+              from: params.signalFrom || undefined,
+              to: params.signalTo || undefined,
+              sort: params.signalSort || undefined,
+              cursor: params.signalCursor || undefined,
+              limit: datadogNumber(params.signalLimit),
+            }
+
+          case 'datadog_get_security_signal':
+            return { ...baseParams, signalId: params.signalId }
+
+          case 'datadog_update_security_signal_state':
+            return {
+              ...baseParams,
+              signalId: params.signalId,
+              state: params.signalState,
+              archiveReason: params.signalArchiveReason || undefined,
+              archiveComment: params.signalArchiveComment || undefined,
+            }
+
+          case 'datadog_update_security_signal_assignee':
+            return {
+              ...baseParams,
+              signalId: params.signalId,
+              assigneeUuid: params.signalAssigneeUuid,
+            }
+
+          case 'datadog_list_security_rules':
+            return {
+              ...baseParams,
+              query: params.ruleQuery || undefined,
+              sort: params.ruleSort || undefined,
+              pageSize: datadogNumber(params.rulePageSize),
+              pageNumber: datadogNumber(params.rulePageNumber),
+            }
+
+          case 'datadog_search_spans':
+            return {
+              ...baseParams,
+              query: params.spanQuery || undefined,
+              from: params.spanFrom || undefined,
+              to: params.spanTo || undefined,
+              sort: params.spanSort || undefined,
+              cursor: params.spanCursor || undefined,
+              limit: datadogNumber(params.spanLimit),
+            }
+
+          case 'datadog_list_services':
+            return {
+              ...baseParams,
+              pageSize: datadogNumber(params.servicePageSize),
+              pageNumber: datadogNumber(params.servicePageNumber),
+              schemaVersion: params.serviceSchemaVersion || undefined,
+            }
 
           default:
             return baseParams
@@ -810,10 +2367,11 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     monitorPriority: { type: 'number', description: 'Monitor priority (1-5)' },
     options: { type: 'json', description: 'Monitor options' },
     monitorId: { type: 'string', description: 'Monitor ID' },
-    muteMonitorId: { type: 'string', description: 'Monitor ID to mute' },
-    scope: { type: 'string', description: 'Scope for muting' },
-    end: { type: 'number', description: 'End time for mute' },
     // Logs
+    muteMonitorId: { type: 'string', description: 'Monitor ID to mute or unmute' },
+    scope: { type: 'string', description: 'Scope to mute or unmute' },
+    end: { type: 'number', description: 'Unix timestamp when the mute ends' },
+    unmuteAllScopes: { type: 'boolean', description: 'Clear mute settings for every scope' },
     logQuery: { type: 'string', description: 'Log search query' },
     logFrom: { type: 'string', description: 'Log start time' },
     logTo: { type: 'string', description: 'Log end time' },
@@ -825,28 +2383,183 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     downtimeStart: { type: 'number', description: 'Downtime start time' },
     downtimeEnd: { type: 'number', description: 'Downtime end time' },
     downtimeMonitorId: { type: 'string', description: 'Monitor ID for downtime' },
+    downtimeMonitorTags: {
+      type: 'string',
+      description: 'Comma-separated monitor tags to target',
+    },
+    downtimeTimezone: { type: 'string', description: 'Display timezone for the downtime' },
+    downtimeLimit: { type: 'number', description: 'Downtimes to return per page' },
+    downtimeOffset: { type: 'number', description: 'Index of the first downtime to return' },
+    downtimeMuteFirstRecovery: {
+      type: 'boolean',
+      description: 'Mute the first recovery notification',
+    },
     currentOnly: { type: 'boolean', description: 'Filter to current downtimes' },
     downtimeId: { type: 'string', description: 'Downtime ID to cancel' },
     listMonitorName: { type: 'string', description: 'Filter monitors by name' },
     listMonitorTags: { type: 'string', description: 'Filter monitors by tags' },
+    listMonitorPageSize: {
+      type: 'number',
+      description:
+        'Monitors to return per page (max 1000). Datadog only applies this when a page number is sent, so setting it alone uses page 0.',
+    },
+    listMonitorPage: {
+      type: 'number',
+      description:
+        'Monitor page number (0-indexed). With neither this nor the page size set, Datadog returns every monitor in the org without pagination.',
+    },
+    // Incidents
+    incidentId: { type: 'string', description: 'Incident UUID' },
+    incidentTitle: { type: 'string', description: 'Incident title' },
+    incidentCustomerImpacted: { type: 'boolean', description: 'Whether customers were impacted' },
+    incidentSeverity: { type: 'string', description: 'Incident severity' },
+    incidentCustomerImpactScope: { type: 'string', description: 'Summary of the customer impact' },
+    incidentCustomerImpactStart: { type: 'string', description: 'Customer impact start timestamp' },
+    incidentCustomerImpactEnd: { type: 'string', description: 'Customer impact end timestamp' },
+    incidentDetected: { type: 'string', description: 'Detection timestamp' },
+    incidentTypeUuid: { type: 'string', description: 'Incident type UUID' },
+    incidentIsTest: { type: 'boolean', description: 'Whether the incident is a test' },
+    incidentFields: { type: 'json', description: 'User-defined incident fields' },
+    incidentNotificationHandles: { type: 'string', description: 'Handles to notify' },
+    incidentInclude: { type: 'string', description: 'Related resources to include' },
+    incidentPageSize: { type: 'number', description: 'Incidents per page' },
+    incidentPageOffset: { type: 'number', description: 'Incident page offset' },
+    todoContent: { type: 'string', description: 'Follow-up task content' },
+    todoAssignees: { type: 'string', description: 'Follow-up task assignees' },
+    todoDueDate: { type: 'string', description: 'Follow-up task due date' },
+    // SLOs
+    sloId: { type: 'string', description: 'SLO ID' },
+    sloName: { type: 'string', description: 'SLO name' },
+    sloType: { type: 'string', description: 'SLO type' },
+    sloUpdateType: {
+      type: 'string',
+      description: 'Replacement SLO type, or blank to keep current',
+    },
+    sloThresholds: { type: 'json', description: 'SLO thresholds' },
+    sloDescription: { type: 'string', description: 'SLO description' },
+    sloTags: { type: 'string', description: 'SLO tags' },
+    sloMetricQuery: { type: 'json', description: 'Metric SLO numerator and denominator' },
+    sloMonitorIds: { type: 'string', description: 'Monitor IDs for monitor SLOs' },
+    sloGroups: { type: 'string', description: 'Monitor groups for monitor SLOs' },
+    sloTargetThreshold: { type: 'number', description: 'Primary target threshold' },
+    sloWarningThreshold: { type: 'number', description: 'Primary warning threshold' },
+    sloTimeframe: { type: 'string', description: 'Primary timeframe' },
+    sloIds: { type: 'string', description: 'Filter SLOs by IDs' },
+    sloQuery: { type: 'string', description: 'Filter SLOs by name' },
+    sloTagsQuery: { type: 'string', description: 'Filter SLOs by tag' },
+    sloMetricsQuery: { type: 'string', description: 'Filter SLOs by metrics query' },
+    sloLimit: { type: 'number', description: 'Max SLOs to return' },
+    sloOffset: { type: 'number', description: 'SLO list offset' },
+    sloWithConfiguredAlertIds: { type: 'boolean', description: 'Include SLO monitor IDs' },
+    sloForce: { type: 'boolean', description: 'Force SLO deletion' },
+    sloFromTs: { type: 'number', description: 'SLO history window start (Unix seconds)' },
+    sloToTs: { type: 'number', description: 'SLO history window end (Unix seconds)' },
+    sloTarget: { type: 'number', description: 'SLO target for history queries' },
+    sloApplyCorrection: { type: 'boolean', description: 'Apply SLO corrections' },
+    // Dashboards
+    dashboardId: { type: 'string', description: 'Dashboard ID' },
+    dashboardTitle: { type: 'string', description: 'Dashboard title' },
+    dashboardLayoutType: { type: 'string', description: 'Dashboard layout type' },
+    dashboardWidgets: { type: 'json', description: 'Dashboard widget definitions' },
+    dashboardDescription: { type: 'string', description: 'Dashboard description' },
+    dashboardTags: { type: 'string', description: 'Dashboard tags' },
+    dashboardNotifyList: { type: 'string', description: 'Handles notified on changes' },
+    dashboardTemplateVariables: { type: 'json', description: 'Template variable definitions' },
+    dashboardReflowType: { type: 'string', description: 'Dashboard reflow type' },
+    dashboardFilterShared: { type: 'boolean', description: 'Return only shared dashboards' },
+    dashboardFilterDeleted: { type: 'boolean', description: 'Return only deleted dashboards' },
+    dashboardCount: { type: 'number', description: 'Max dashboards to return' },
+    dashboardStart: { type: 'number', description: 'Dashboard list offset' },
+    // Synthetics
+    syntheticsPublicId: { type: 'string', description: 'Synthetic test public ID' },
+    syntheticsPublicIds: { type: 'string', description: 'Synthetic test public IDs to trigger' },
+    syntheticsNewStatus: { type: 'string', description: 'New Synthetic test status' },
+    syntheticsFromTs: { type: 'number', description: 'Results window start (Unix milliseconds)' },
+    syntheticsToTs: { type: 'number', description: 'Results window end (Unix milliseconds)' },
+    syntheticsProbeDc: { type: 'string', description: 'Locations to query results for' },
+    syntheticsPageSize: { type: 'number', description: 'Synthetic tests per page' },
+    syntheticsPageNumber: { type: 'number', description: 'Synthetic tests page number' },
+    // Security monitoring
+    signalId: { type: 'string', description: 'Security signal ID' },
+    signalState: { type: 'string', description: 'Security signal triage state' },
+    signalArchiveReason: { type: 'string', description: 'Archive reason' },
+    signalArchiveComment: { type: 'string', description: 'Archive comment' },
+    signalAssigneeUuid: { type: 'string', description: 'UUID of the assignee' },
+    signalQuery: { type: 'string', description: 'Security signal search query' },
+    signalFrom: { type: 'string', description: 'Signal search window start' },
+    signalTo: { type: 'string', description: 'Signal search window end' },
+    signalSort: { type: 'string', description: 'Signal sort order' },
+    signalLimit: { type: 'number', description: 'Max signals to return' },
+    signalCursor: { type: 'string', description: 'Signal pagination cursor' },
+    ruleQuery: { type: 'string', description: 'Detection rule search query' },
+    ruleSort: { type: 'string', description: 'Detection rule sort order' },
+    rulePageSize: { type: 'number', description: 'Detection rules per page' },
+    rulePageNumber: { type: 'number', description: 'Detection rules page number' },
+    // APM
+    spanQuery: { type: 'string', description: 'Span search query' },
+    spanFrom: { type: 'string', description: 'Span search window start' },
+    spanTo: { type: 'string', description: 'Span search window end' },
+    spanSort: { type: 'string', description: 'Span sort order' },
+    spanLimit: { type: 'number', description: 'Max spans to return' },
+    spanCursor: { type: 'string', description: 'Span pagination cursor' },
+    logCursor: { type: 'string', description: 'Log search pagination cursor' },
+    servicePageSize: { type: 'number', description: 'Service definitions per page' },
+    servicePageNumber: { type: 'number', description: 'Service definitions page number' },
+    serviceSchemaVersion: { type: 'string', description: 'Service definition schema version' },
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
     // Metrics
     series: { type: 'json', description: 'Timeseries data' },
     status: { type: 'string', description: 'Query status' },
+    errors: { type: 'json', description: 'Metric series rejected during submission' },
     // Events
     event: { type: 'json', description: 'Event data' },
-    events: { type: 'json', description: 'List of events' },
     // Monitors
     monitor: { type: 'json', description: 'Monitor data' },
     monitors: { type: 'json', description: 'List of monitors' },
+    monitorId: { type: 'number', description: 'ID of the muted or unmuted monitor' },
+    name: { type: 'string', description: 'Name of the muted or unmuted monitor' },
+    overallState: { type: 'string', description: 'Monitor state after muting or unmuting' },
     // Logs
     logs: { type: 'json', description: 'Log entries' },
     nextLogId: { type: 'string', description: 'Pagination cursor for logs' },
     // Downtimes
     downtime: { type: 'json', description: 'Downtime data' },
     downtimes: { type: 'json', description: 'List of downtimes' },
+    totalCount: { type: 'number', description: 'Total downtimes matching the filter' },
+    // Incidents
+    incident: { type: 'json', description: 'Incident data' },
+    incidents: { type: 'json', description: 'List of incidents' },
+    nextOffset: { type: 'number', description: 'Offset for the next page of incidents' },
+    todo: { type: 'json', description: 'Incident follow-up task' },
+    // SLOs
+    slo: { type: 'json', description: 'Service level objective' },
+    slos: { type: 'json', description: 'List of service level objectives' },
+    history: { type: 'json', description: 'SLO history for the requested window' },
+    sliValue: { type: 'number', description: 'Overall SLI value over the window' },
+    deletedIds: { type: 'json', description: 'IDs of deleted service level objectives' },
+    // Dashboards
+    dashboard: { type: 'json', description: 'Dashboard definition' },
+    dashboards: { type: 'json', description: 'List of dashboard summaries' },
+    deletedDashboardId: { type: 'string', description: 'ID of the deleted dashboard' },
+    // Synthetics
+    test: { type: 'json', description: 'Synthetic test configuration' },
+    tests: { type: 'json', description: 'List of Synthetic tests' },
+    results: { type: 'json', description: 'Synthetic test run results' },
+    lastTimestampFetched: { type: 'number', description: 'Timestamp of the latest test run' },
+    batchId: { type: 'string', description: 'Public ID of the triggered batch' },
+    triggeredCheckIds: { type: 'json', description: 'Public IDs of triggered tests' },
+    locations: { type: 'json', description: 'Locations the tests ran from' },
+    // Security monitoring
+    signal: { type: 'json', description: 'Security signal' },
+    signals: { type: 'json', description: 'List of security signals' },
+    rules: { type: 'json', description: 'List of detection rules' },
+    nextCursor: { type: 'string', description: 'Cursor for the next page of results' },
+    // APM
+    spans: { type: 'json', description: 'List of APM spans' },
+    elapsed: { type: 'number', description: 'Query time in milliseconds' },
+    services: { type: 'json', description: 'List of service definitions' },
   },
 }
 

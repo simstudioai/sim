@@ -4,11 +4,12 @@ import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   channelForDeploymentEnvironment,
-  DESKTOP_RELEASE_REPO,
   type DesktopReleaseCandidate,
   MANIFEST_ASSET_NAME,
+  releaseRepositoryForChannel,
+  releasesApiUrl,
+  resolveLatestRelease,
   rewriteManifestUrls,
-  selectReleaseForChannel,
 } from '@/lib/desktop/update-feed'
 
 const logger = createLogger('DesktopUpdateFeedAPI')
@@ -19,8 +20,6 @@ const logger = createLogger('DesktopUpdateFeedAPI')
  */
 const REVALIDATE_SECONDS = 300
 const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
-
-const RELEASES_API_URL = `https://api.github.com/repos/${DESKTOP_RELEASE_REPO}/releases?per_page=30`
 
 /**
  * The per-environment desktop update feed (see `lib/desktop/update-feed.ts`).
@@ -38,27 +37,35 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
    * let a caller choose which app-identity release the feed serves.
    */
   const channel = channelForDeploymentEnvironment(env.APPCONFIG_ENVIRONMENT)
+  const releaseRepository = releaseRepositoryForChannel(channel)
 
   // A token raises the GitHub API quota from 60/h per NAT IP to 5000/h.
   // Optional: the repo is public, so the feed works without one.
   const githubToken = process.env.GITHUB_TOKEN
-  const releasesResponse = await fetch(RELEASES_API_URL, {
-    headers: {
-      accept: 'application/vnd.github+json',
-      ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
-    },
-    next: { revalidate: REVALIDATE_SECONDS },
-  })
-  if (!releasesResponse.ok) {
-    logger.error('GitHub releases lookup failed', {
-      status: releasesResponse.status,
-      channel,
+  const resolved = await resolveLatestRelease(channel, async (page) => {
+    const response = await fetch(releasesApiUrl(releaseRepository, page), {
+      headers: {
+        accept: 'application/vnd.github+json',
+        ...(githubToken ? { authorization: `Bearer ${githubToken}` } : {}),
+      },
+      next: { revalidate: REVALIDATE_SECONDS },
     })
+    if (!response.ok) {
+      logger.error('GitHub releases lookup failed', {
+        status: response.status,
+        page,
+        channel,
+        releaseRepository,
+      })
+      return null
+    }
+    return (await response.json()) as DesktopReleaseCandidate[]
+  })
+  if ('error' in resolved) {
     return NextResponse.json({ error: 'Release feed unavailable' }, { status: 502 })
   }
-  const releases = (await releasesResponse.json()) as DesktopReleaseCandidate[]
 
-  const release = selectReleaseForChannel(releases, channel)
+  const release = resolved.release
   if (!release) {
     return NextResponse.json(
       { error: `No desktop release for channel ${channel}` },
@@ -100,7 +107,7 @@ export const GET = withRouteHandler(async (_request: NextRequest): Promise<Respo
     })
     return NextResponse.json({ error: 'Release manifest unavailable' }, { status: 502 })
   }
-  const manifest = rewriteManifestUrls(manifestSource, release.tag_name)
+  const manifest = rewriteManifestUrls(manifestSource, release.tag_name, releaseRepository)
 
   return new NextResponse(manifest, {
     status: 200,

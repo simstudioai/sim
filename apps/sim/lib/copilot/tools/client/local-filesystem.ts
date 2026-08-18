@@ -152,24 +152,6 @@ function mountForPath(mounts: LocalFilesystemMount[], path: string): LocalFilesy
   return match
 }
 
-function omitHostPaths(data: LocalFilesystemData): LocalFilesystemData {
-  if ('mount' in data) {
-    if (!data.mount) return data
-    const { path: _path, ...mount } = data.mount as LocalFilesystemMount & { path?: unknown }
-    return { ...data, mount }
-  }
-  if ('mounts' in data) {
-    return {
-      ...data,
-      mounts: data.mounts.map((rawMount) => {
-        const { path: _path, ...mount } = rawMount as LocalFilesystemMount & { path?: unknown }
-        return mount
-      }),
-    }
-  }
-  return data
-}
-
 async function executeUserLocalGlob(
   toolCallId: string,
   args: Record<string, unknown>,
@@ -400,10 +382,4 @@ export function executeLocalFilesystemTool(
       }
     }
   )
-}
-
-export const userLocalVfsTestHelpers = {
-  mountVfsRoot,
-  vfsPathForUri,
-  localUriForVfsPath,
 }

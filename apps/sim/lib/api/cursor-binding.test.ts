@@ -1,9 +1,12 @@
 /**
  * @vitest-environment node
  */
+import { globSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseV2KnowledgeTagFiltersParam } from '@/lib/api/contracts/v2/knowledge'
 import {
+  cursorRoute,
   cursorScopeKey,
   instantScopePart,
   parseUnorderedList,
@@ -14,6 +17,7 @@ import {
   cursorSortKey,
   decodeOffsetCursor,
   decodeSortedCursor,
+  encodeCursor,
   encodeOffsetCursor,
   encodeScopedCursor,
   encodeSortedCursor,
@@ -33,11 +37,18 @@ import {
  * `GET /skills` and `GET /knowledge/{id}/documents`, the keyset used by the nine
  * SQL-ordered lists, and the wrapper that binds the domain-minted tokens on
  * `GET /logs`, `GET /audit-logs`, and `GET /billing/logs` — to that one rule.
+ *
+ * The scope also carries the list's own identity, because two lists that filter
+ * identically are still two sequences — see the `list identity` block.
  */
+
+/** Stand-in for one v2 list route, as its contract declares it. */
+const LIST = cursorRoute({ method: 'GET', path: '/api/v2/files' })
+
 describe('v2 cursor binding', () => {
   const sort = cursorSortKey('name', 'asc')
   const filters = { workspaceId: 'ws-1', search: undefined as string | undefined }
-  const scope = cursorScopeKey(filters)
+  const scope = cursorScopeKey(LIST, filters)
 
   describe('offset cursor', () => {
     it('resumes a cursor replayed under the same query state', () => {
@@ -59,10 +70,10 @@ describe('v2 cursor binding', () => {
       const cursor = encodeOffsetCursor(sort, scope, 40)
 
       expect(() =>
-        decodeOffsetCursor(cursor, sort, cursorScopeKey({ ...filters, search: 'deploy' }))
+        decodeOffsetCursor(cursor, sort, cursorScopeKey(LIST, { ...filters, search: 'deploy' }))
       ).toThrow(/requested filters/)
       expect(() =>
-        decodeOffsetCursor(cursor, sort, cursorScopeKey({ ...filters, workspaceId: 'ws-2' }))
+        decodeOffsetCursor(cursor, sort, cursorScopeKey(LIST, { ...filters, workspaceId: 'ws-2' }))
       ).toThrow(/requested filters/)
     })
 
@@ -100,7 +111,7 @@ describe('v2 cursor binding', () => {
      */
     it('rejects a cursor replayed under a different filter', () => {
       const cursor = encodeSortedCursor(sort, keys, scope)
-      const narrowed = cursorScopeKey({ ...filters, search: 'deploy' })
+      const narrowed = cursorScopeKey(LIST, { ...filters, search: 'deploy' })
 
       expect(decodeSortedCursor(cursor, sort, narrowed)).toEqual({ status: 'refiltered' })
       expect(() => readSortedCursor(cursor, 'name', 'asc', narrowed)).toThrow(/requested filters/)
@@ -117,13 +128,10 @@ describe('v2 cursor binding', () => {
       ).toThrow(/sortBy\/sortOrder/)
     })
 
-    it('refuses an unfiltered cursor replayed under a filter, and the reverse', () => {
-      const unfiltered = encodeSortedCursor(sort, keys, undefined)
+    it('refuses a cursor minted with no scope stamp at all', () => {
+      const unstamped = encodeCursor({ sort, keys })
 
-      expect(() => readSortedCursor(unfiltered, 'name', 'asc', scope)).toThrow(/requested filters/)
-      expect(() =>
-        readSortedCursor(encodeSortedCursor(sort, keys, scope), 'name', 'asc', undefined)
-      ).toThrow(/requested filters/)
+      expect(() => readSortedCursor(unstamped, 'name', 'asc', scope)).toThrow(/requested filters/)
     })
 
     it('treats an absent cursor as page one', () => {
@@ -142,7 +150,7 @@ describe('v2 cursor binding', () => {
       const cursor = encodeScopedCursor(scope, 'domain-token')
 
       expect(() =>
-        readScopedCursor(cursor, cursorScopeKey({ ...filters, search: 'deploy' }))
+        readScopedCursor(cursor, cursorScopeKey(LIST, { ...filters, search: 'deploy' }))
       ).toThrow(/requested filters/)
     })
 
@@ -173,15 +181,20 @@ describe('v2 cursor binding', () => {
     })
 
     it('does not depend on the order the parts are written', () => {
-      expect(cursorScopeKey({ b: '2', a: '1' })).toBe(cursorScopeKey({ a: '1', b: '2' }))
+      expect(cursorScopeKey(LIST, { b: '2', a: '1' })).toBe(
+        cursorScopeKey(LIST, { a: '1', b: '2' })
+      )
     })
 
     it('treats an omitted part and an undefined part as the same scope', () => {
-      expect(cursorScopeKey({ a: '1', b: undefined })).toBe(cursorScopeKey({ a: '1' }))
+      expect(cursorScopeKey(LIST, { a: '1', b: undefined })).toBe(cursorScopeKey(LIST, { a: '1' }))
     })
 
-    it('has no fingerprint at all when nothing is filtered', () => {
-      expect(cursorScopeKey({ a: undefined })).toBeUndefined()
+    it('still fingerprints the list when nothing is filtered', () => {
+      const bare = cursorScopeKey(LIST, { a: undefined })
+
+      expect(bare).toHaveLength(22)
+      expect(bare).toBe(cursorScopeKey(LIST))
     })
 
     /**
@@ -189,27 +202,119 @@ describe('v2 cursor binding', () => {
      * and `{a:'1|2'}` are different reads and must fingerprint differently.
      */
     it('separates parts rather than concatenating their values', () => {
-      expect(cursorScopeKey({ a: '1', b: '2' })).not.toBe(cursorScopeKey({ a: '1|2' }))
-      expect(cursorScopeKey({ a: '1' })).not.toBe(cursorScopeKey({ b: '1' }))
+      expect(cursorScopeKey(LIST, { a: '1', b: '2' })).not.toBe(cursorScopeKey(LIST, { a: '1|2' }))
+      expect(cursorScopeKey(LIST, { a: '1' })).not.toBe(cursorScopeKey(LIST, { b: '1' }))
     })
 
     it('stays short enough to sit inside an opaque token', () => {
-      expect(cursorScopeKey({ search: 'x'.repeat(200) })).toHaveLength(22)
+      expect(cursorScopeKey(LIST, { search: 'x'.repeat(200) })).toHaveLength(22)
+    })
+  })
+
+  /**
+   * The whole point of the scope: two lists that filter identically are still
+   * two sequences. Every v2 workspace list shares a `workspaceId`-only filter
+   * set and the same `{sort,keys,filter}` payload shape, so a fingerprint over
+   * filters alone made each of them accept the others' tokens and answer 200
+   * with a page that silently skipped rows.
+   */
+  describe('list identity', () => {
+    const workspace = { workspaceId: 'ws-1' }
+
+    it('separates two lists that filter identically', () => {
+      const tables = cursorRoute({ method: 'GET', path: '/api/v2/tables' })
+      const knowledge = cursorRoute({ method: 'GET', path: '/api/v2/knowledge' })
+      const credentials = cursorRoute({ method: 'GET', path: '/api/v2/credentials' })
+
+      const keys = new Set(
+        [tables, knowledge, credentials].map((route) => cursorScopeKey(route, workspace))
+      )
+
+      expect(keys.size).toBe(3)
+    })
+
+    it('refuses a cursor minted by another list', () => {
+      const tablesScope = cursorScopeKey(cursorRoute({ method: 'GET', path: '/api/v2/tables' }), {
+        workspaceId: 'ws-1',
+      })
+      const knowledgeScope = cursorScopeKey(
+        cursorRoute({ method: 'GET', path: '/api/v2/knowledge' }),
+        { workspaceId: 'ws-1' }
+      )
+      const fromTables = encodeSortedCursor(
+        sort,
+        ['2026-03-17T10:09:31.755Z', 'tbl_1'],
+        tablesScope
+      )
+
+      expect(() => readSortedCursor(fromTables, 'name', 'asc', knowledgeScope)).toThrow(
+        /requested filters/
+      )
+      expect(readSortedCursor(fromTables, 'name', 'asc', tablesScope)).toEqual([
+        '2026-03-17T10:09:31.755Z',
+        'tbl_1',
+      ])
+    })
+
+    it('separates two parents of the same nested list', () => {
+      const rowsOf = (tableId: string) =>
+        cursorScopeKey(
+          cursorRoute({ method: 'GET', path: '/api/v2/tables/[tableId]/rows' }, { tableId })
+        )
+
+      const fromX = encodeScopedCursor(rowsOf('tbl_x'), 'domain-token')
+
+      expect(() => readScopedCursor(fromX, rowsOf('tbl_y'))).toThrow(/requested filters/)
+      expect(readScopedCursor(fromX, rowsOf('tbl_x'))).toBe('domain-token')
+    })
+
+    /**
+     * A template binds every parent to one scope, which is the defect this
+     * exists to prevent — so an unresolved placeholder is a hard failure rather
+     * than a fingerprint of the literal `[tableId]`.
+     */
+    it('refuses to fingerprint an unresolved path param', () => {
+      expect(() =>
+        cursorScopeKey(cursorRoute({ method: 'GET', path: '/api/v2/tables/[tableId]/rows' }))
+      ).toThrow(/tableId/)
+    })
+  })
+
+  /**
+   * A token that does not decode says nothing about the sort, and the sort
+   * message tells a caller who changed nothing to go re-read the sort docs.
+   */
+  describe('undecodable cursor', () => {
+    it('reports that the token is unreadable, not that the sort changed', () => {
+      expect(() => readSortedCursor('GARBAGE', 'name', 'asc', scope)).toThrow(
+        /not a valid pagination cursor/
+      )
+      expect(() => readSortedCursor('GARBAGE', 'name', 'asc', scope)).not.toThrow(/sortBy/)
+      expect(() => decodeOffsetCursor('GARBAGE', sort, scope)).toThrow(
+        /not a valid pagination cursor/
+      )
+      expect(() => decodeOffsetCursor('GARBAGE', sort, scope)).not.toThrow(/sortBy/)
+    })
+
+    it('still names the sort when the token decodes and the sort is what changed', () => {
+      expect(() =>
+        readSortedCursor(encodeSortedCursor(sort, ['a', 'b'], scope), 'createdAt', 'asc', scope)
+      ).toThrow(/sortBy\/sortOrder/)
     })
   })
 })
 
 describe('unordered filter scope parts', () => {
   it('fingerprints a reordered set identically', () => {
-    const a = cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })
-    const b = cursorScopeKey({ workflowIds: unorderedScopePart('B,A') })
+    const a = cursorScopeKey(LIST, { workflowIds: unorderedScopePart('A,B') })
+    const b = cursorScopeKey(LIST, { workflowIds: unorderedScopePart('B,A') })
     expect(a).toBe(b)
   })
   it('fingerprints a duplicate-bearing set identically', () => {
     // The filters compile to `inArray`, which is set membership, so A,A,B
     // selects exactly what A,B does and must resume the same page.
-    expect(cursorScopeKey({ workflowIds: unorderedScopePart('A,A,B') })).toBe(
-      cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })
+    expect(cursorScopeKey(LIST, { workflowIds: unorderedScopePart('A,A,B') })).toBe(
+      cursorScopeKey(LIST, { workflowIds: unorderedScopePart('A,B') })
     )
     expect(unorderedScopePart('B,A,B')).toBe('A,B')
   })
@@ -292,12 +397,52 @@ describe('unordered filter scope parts', () => {
   })
 
   it('still separates genuinely different sets', () => {
-    expect(cursorScopeKey({ workflowIds: unorderedScopePart('A,B') })).not.toBe(
-      cursorScopeKey({ workflowIds: unorderedScopePart('A,C') })
+    expect(cursorScopeKey(LIST, { workflowIds: unorderedScopePart('A,B') })).not.toBe(
+      cursorScopeKey(LIST, { workflowIds: unorderedScopePart('A,C') })
     )
   })
   it('treats an all-empty list as absent, matching the parsers', () => {
     expect(unorderedScopePart(',,')).toBeUndefined()
     expect(unorderedScopePart('A,,B')).toBe('A,B')
   })
+})
+
+/**
+ * The declaration sweep in `contracts/v2/__tests__/list-pagination.test.ts`
+ * reconciles each list's cursor binding against its CONTRACT, and never looks at
+ * the `cursorScopeKey` call the route actually makes — which is precisely where
+ * the missing list and parent identity sat. This closes that half: the scope a
+ * route builds must start from its own route identity, and a nested list must
+ * resolve the path params that name its parent.
+ */
+describe('every v2 route binds its cursor to its route identity', () => {
+  const routeFiles = globSync('app/api/v2/**/route.ts', {
+    cwd: join(import.meta.dirname, '..', '..'),
+    absolute: true,
+  })
+
+  it('finds the v2 route tree', () => {
+    expect(routeFiles.length).toBeGreaterThan(50)
+  })
+
+  it.each(routeFiles.filter((file) => readFileSync(file, 'utf8').includes('cursorScopeKey(')))(
+    '%s',
+    (file) => {
+      const source = readFileSync(file, 'utf8')
+      const calls = [...source.matchAll(/cursorScopeKey\(\s*([A-Za-z_][\w.]*)/g)].map(
+        (match) => match[1]
+      )
+
+      expect(calls.length).toBeGreaterThan(0)
+      for (const first of calls) {
+        expect(first).toBe('cursorRoute')
+      }
+
+      if (file.includes('[')) {
+        for (const call of source.matchAll(/cursorRoute\(([^)]*)\)/g)) {
+          expect(call[1]).toContain(',')
+        }
+      }
+    }
+  )
 })

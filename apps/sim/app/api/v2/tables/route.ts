@@ -1,5 +1,5 @@
 import { v2CreateTableContract, v2ListTablesContract } from '@/lib/api/contracts/v2/tables'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { tableOperations } from '@/lib/table/application/operations'
@@ -12,7 +12,7 @@ export const revalidate = 0
 
 /** Every param that changes which tables, in which order, this list returns. */
 function tableCursorFilters(query: { workspaceId: string; folderPath?: string; search?: string }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListTablesContract), {
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
     search: query.search,

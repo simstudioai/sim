@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
@@ -323,10 +323,6 @@ function toNumberOrNull(value: unknown): number | null {
 
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function toRecordOrNull(value: unknown): Record<string, unknown> | null {
-  return isRecordLike(value) ? value : null
 }
 
 function renameTypeField(value: unknown, targetKey: string): Record<string, unknown> | null {

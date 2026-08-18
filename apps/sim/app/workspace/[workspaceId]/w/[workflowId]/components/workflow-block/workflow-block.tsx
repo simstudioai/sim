@@ -50,6 +50,7 @@ import {
 import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import {
   getDisplayValue,
   hasDisplayableRowValue,
@@ -96,10 +97,10 @@ import {
   SELECTOR_TYPES_HYDRATION_REQUIRED,
   type SubBlockConfig,
 } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
 import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
+import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
 import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSandboxes } from '@/hooks/queries/sandboxes'
@@ -380,6 +381,12 @@ const SubBlockRow = memo(function SubBlockRow({
     () => resolveDropdownLabel(subBlock, rawValue),
     [subBlock, rawValue]
   )
+  const dynamicOptionDisplayName = useDynamicSubBlockOptionDisplayName({
+    workspaceId,
+    blockId,
+    subBlock,
+    value: rawValue,
+  })
 
   const resolveContextValue = useCallback(
     (key: string): string | undefined => {
@@ -568,6 +575,7 @@ const SubBlockRow = memo(function SubBlockRow({
   const hydratedName =
     credentialName ||
     dropdownLabel ||
+    dynamicOptionDisplayName ||
     variablesDisplayValue ||
     filterDisplayValue ||
     toolsDisplayValue ||

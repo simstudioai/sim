@@ -294,9 +294,27 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       'workflowIds',
       'Comma-separated workflow identifiers to include. An empty entry is rejected.'
     ).optional(),
+    /**
+     * Not a closed enum, which is why an unrecognized member is not a 400.
+     * `workflow_execution_logs.trigger` holds the core trigger types *and* the
+     * webhook provider id a run arrived on — `executeWebhookJobInternal` passes
+     * `payload.provider` straight through as the trigger — so the live
+     * vocabulary is the union of the core set and every webhook provider that
+     * has ever fired, including spellings retired since (`microsoft-teams`
+     * alongside `microsoftteams`). Pinning an enum here would reject the
+     * historical values a diagnostic search exists to find, so the filter states
+     * that an unmatched member simply selects nothing rather than pretending to
+     * validate one.
+     *
+     * Matching is exact and case-sensitive because the column is: every value
+     * ever written is lowercase, so `API` and `ALL` name nothing. They are
+     * caller mistakes, but the boundary cannot tell them apart from an unknown
+     * provider id, and normalizing case here would silently repair one class of
+     * typo while leaving the rest — so the case rule is documented instead.
+     */
     triggers: v2CommaListSchema(
       'triggers',
-      'Comma-separated trigger types to include. An empty entry is rejected. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
+      'Comma-separated trigger types to include. An empty entry is rejected. Values are matched exactly and are case-sensitive — every recorded trigger is lowercase, so `API` matches nothing while `api` matches. The vocabulary is open: it covers the core trigger types (`manual`, `api`, `schedule`, `chat`, `webhook`, `mcp`, `copilot`, `workflow`, `custom_block`) and the provider id of any webhook trigger (`slack`, `gmail`, `github`, …), so an unrecognized member is not rejected — it selects no runs. The literal value `all` is a sentinel that disables this filter entirely, so a list containing it returns runs of every trigger type; no real trigger type is named `all`.'
     ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
     startDate: v2RunWindowBoundSchema('startDate').optional(),

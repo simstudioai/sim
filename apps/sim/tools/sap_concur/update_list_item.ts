@@ -91,6 +91,11 @@ export const updateListItemTool: ToolConfig<UpdateListItemParams, SapConcurProxy
       description: 'Updated list item',
       properties: {
         id: { type: 'string', description: 'List item UUID', optional: true },
+        listId: {
+          type: 'string',
+          description: 'UUID of the list that contains the list item',
+          optional: true,
+        },
         code: { type: 'string', description: 'Long code format for the item', optional: true },
         shortCode: { type: 'string', description: 'Short code identifier', optional: true },
         value: { type: 'string', description: 'Display value of the item', optional: true },

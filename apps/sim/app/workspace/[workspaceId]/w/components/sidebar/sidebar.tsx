@@ -77,6 +77,7 @@ import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
@@ -355,6 +356,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       leftIcon={item.icon}
       active={active}
       fullWidth
+      className={SIDEBAR_RAIL_CHIP_CLASS}
       onClick={
         item.onClick
           ? (e) => {
@@ -374,6 +376,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
       leftIcon={item.icon}
       active={active}
       fullWidth
+      className={SIDEBAR_RAIL_CHIP_CLASS}
       onClick={item.onClick}
     >
       {item.label}
@@ -454,6 +457,7 @@ export const Sidebar = memo(function Sidebar({
     config: permissionConfig,
     filterBlocks,
     isBlockAllowed,
+    isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
   const { navigateToSettings } = useSettingsNavigation()
@@ -469,8 +473,14 @@ export const Sidebar = memo(function Sidebar({
   )
 
   useEffect(() => {
-    initializeSearchData(filterBlocks)
-  }, [initializeSearchData, filterBlocks, providerModelSignature, customBlockOverlayVersion])
+    initializeSearchData(filterBlocks, isToolAllowed)
+  }, [
+    initializeSearchData,
+    filterBlocks,
+    isToolAllowed,
+    providerModelSignature,
+    customBlockOverlayVersion,
+  ])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
@@ -1351,7 +1361,7 @@ export const Sidebar = memo(function Sidebar({
       />
       <div className='relative h-full'>
         <aside
-          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
+          className='group/rail sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
           data-collapsed={isCollapsed || undefined}
           aria-label='Workspace sidebar'
           onClick={handleSidebarClick}
@@ -1404,11 +1414,24 @@ export const Sidebar = memo(function Sidebar({
                * between them. `gap-[1px]` rather than `gap-px`: the `px` spacing key
                * is remapped to `--border-width`, which thins to 0.5px on hidpi so
                * hairline rules stay hairlines.
+               *
+               * The expanded width is EXPLICIT (2 icon chips × 32px + the 1px gap;
+               * 32px when the desktop inset title bar hides the collapse chip), never
+               * `auto`: `w-0 → auto` cannot interpolate, so on expand the cluster
+               * snapped to full width while the rail was still 51px wide — and since
+               * the cluster refuses to flex-shrink (min-width: auto) while the
+               * workspace chip's wrapper is `min-w-0 flex-1`, the workspace chip
+               * crushed to zero and the hover-filled Search chip landed exactly under
+               * the cursor on the workspace icon: a visible flash on every expand.
+               * With both endpoints explicit, the width tweens in step with the rail
+               * and the workspace chip keeps its space throughout.
                */}
               <div
                 className={cn(
-                  'flex h-[30px] items-center gap-[1px] overflow-hidden transition-all duration-200',
-                  isCollapsed && 'w-0 opacity-0'
+                  'flex h-[30px] items-center gap-[1px] overflow-hidden transition-all duration-200 [transition-timing-function:cubic-bezier(0.25,0.1,0.25,1)]',
+                  isCollapsed
+                    ? 'w-0 opacity-0'
+                    : 'w-[65px] [[data-sim-desktop-title-bar=inset]_&]:w-[32px]'
                 )}
               >
                 <SidebarTooltip

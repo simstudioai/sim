@@ -21,9 +21,16 @@ vi.mock('@/lib/table/rows/secret-provenance', () => ({
   updateTableRowsWithDerivedSecretProvenance: vi.fn(),
 }))
 vi.mock('@/lib/table/workflow-columns', () => ({
-  assertValidSchema: vi.fn(),
   runWorkflowColumn: vi.fn().mockResolvedValue(undefined),
   stripGroupDeps: (schema: unknown) => schema,
+}))
+/**
+ * These ceiling fixtures declare groups whose output columns are not in the
+ * schema, so the invariant check has to stay stubbed for them to exercise the
+ * count limit. It moved to its own leaf module, so the stub follows it.
+ */
+vi.mock('@/lib/table/schema-invariants', () => ({
+  assertValidSchema: vi.fn(),
 }))
 
 import { TABLE_LIMITS } from '@/lib/table/constants'

@@ -142,7 +142,13 @@ export async function createMcpServer(
 
   const transport = params.transport || 'streamable-http'
   const timeout = params.timeout || 30000
-  const retries = params.retries || 3
+  /**
+   * `0` is a published, in-range value meaning "no retry", so the default may
+   * only apply when the field is absent. `||` folded it into `3`, which is the
+   * opposite of what the caller asked for; the update path already guards on
+   * `!== undefined`.
+   */
+  const retries = params.retries ?? 3
   const enabled = params.enabled !== false
   const serverId = params.url ? generateMcpServerId(params.workspaceId, params.url) : generateId()
 
@@ -195,7 +201,14 @@ export async function createMcpServer(
         }
       }
     }
-    if (params.oauthClientId) resolvedAuthType = 'oauth'
+    /**
+     * An OAuth client id only *implies* an auth type; it may not overrule one
+     * the caller stated. Unconditional promotion turned an explicit
+     * `authType: 'headers'` into `oauth`, so the caller's own header
+     * configuration was never used to authenticate. The update path already
+     * promotes only when `authType` is absent.
+     */
+    if (!params.authType && params.oauthClientId) resolvedAuthType = 'oauth'
 
     if (existingServer) {
       const credsChanged = await oauthCredsChanged({
@@ -378,6 +391,7 @@ export async function updateMcpServer(
       .select({
         url: mcpServers.url,
         authType: mcpServers.authType,
+        headers: mcpServers.headers,
         oauthClientId: mcpServers.oauthClientId,
         oauthClientSecret: mcpServers.oauthClientSecret,
       })
@@ -415,8 +429,26 @@ export async function updateMcpServer(
     // Turning OAuth off must revoke and delete its now-orphaned tokens, not just reset the connection.
     const oauthDisabled = currentServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
     const shouldClearOauth = urlChanged || credsChanged || oauthDisabled
+    /**
+     * On a `headers` server the headers *are* the credential, so rotating them
+     * invalidates the connection exactly as an OAuth credential change does —
+     * and the registration path already counts headers as a connection input.
+     * The reset is scoped to that auth type: under `oauth` (or `none`) the
+     * headers authenticate nothing, and clearing an OAuth server's status
+     * strands it, since discovery only reruns for an OAuth row that is
+     * `connected`. Header revocation never revokes the OAuth grant, so this
+     * stays out of `shouldClearOauth`.
+     */
+    const headersInvalidateAuth =
+      resolvedAuthType === 'headers' &&
+      params.headers !== undefined &&
+      !isEqual(currentServer.headers ?? {}, params.headers)
     // An auth-type flip (either direction) or OAuth creds/URL change invalidates the connection: reset and clear stale state.
-    if (authTypeChanged || (shouldClearOauth && resolvedAuthType === 'oauth')) {
+    if (
+      authTypeChanged ||
+      headersInvalidateAuth ||
+      (shouldClearOauth && resolvedAuthType === 'oauth')
+    ) {
       updateData.connectionStatus = 'disconnected'
       updateData.lastConnected = null
       updateData.lastError = null

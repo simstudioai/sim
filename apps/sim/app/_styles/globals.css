@@ -11,7 +11,7 @@
  */
 :root {
   --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
-  --sidebar-collapsed-width: 51px; /* icon rail on web; desktop overrides to 0 before first paint */
+  --sidebar-collapsed-width: 48px; /* icon rail on web; desktop overrides to 0 before first paint */
   --sidebar-expanded-width: 238px; /* SIDEBAR_WIDTH.DEFAULT; the width to restore to, held even while collapsed */
   --desktop-title-bar-height: 0px; /* macOS traffic-light lane; desktop overrides before first paint */
   --workspace-content-title-bar-inset: 0px; /* lane the content pane must leave clear; only non-zero when the pane, not the sidebar, sits under it */
@@ -58,6 +58,13 @@
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
+  /* Full-screen takeovers replace the app entirely, so they sit above every
+     other layer including poppers. The desktop shell gate is the outermost of
+     them: an incompatible shell invalidates everything the web app renders
+     inside it, so it outranks in-app takeovers rather than tying with them and
+     letting document order decide. */
+  --z-takeover: 500;
+  --z-shell-gate: 600;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);

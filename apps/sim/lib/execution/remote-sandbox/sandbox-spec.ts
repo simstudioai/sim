@@ -13,8 +13,6 @@ import { sandboxCliToolRecipes } from '@/lib/execution/remote-sandbox/cli-tools.
  */
 export type SandboxLanguage = `${CodeLanguage.JavaScript}` | `${CodeLanguage.Python}`
 
-export const SANDBOX_LANGUAGES = [CodeLanguage.JavaScript, CodeLanguage.Python] as const
-
 export function isSandboxLanguage(value: string): value is SandboxLanguage {
   return value === CodeLanguage.JavaScript || value === CodeLanguage.Python
 }

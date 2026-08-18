@@ -17,10 +17,17 @@ const GREENHOUSE_API_BASE = 'https://harvest.greenhouse.io/v1'
  */
 const MAX_APPLICATIONS_FOR_SCORECARDS = 10
 
+/** Concurrent per-application scorecard requests issued during one getDocument call. */
+const SCORECARD_FETCH_CONCURRENCY = 5
+
 /**
  * Greenhouse Harvest allows up to 500 candidates per page. We page through the
  * full list using the `page` query parameter and stop when the `Link` response
  * header no longer advertises a `rel="next"` relationship.
+ *
+ * `per_page` is deliberately constant across pages: `page` selects the n-th chunk
+ * *of `per_page` records*, so shrinking it on a later page would slide the window
+ * backwards and skip candidates.
  */
 const CANDIDATES_PER_PAGE = 500
 
@@ -165,13 +172,16 @@ function candidateDisplayName(candidate: GreenhouseCandidate): string {
 /**
  * Computes the metadata-based content hash for a candidate. Both the listing stub
  * and `getDocument` use the same formula so the sync engine can detect changes
- * without downloading the deferred content. Greenhouse advances a candidate's
- * `updated_at` when the candidate record changes; profile-affecting activity
- * (notes, emails, stage changes, scorecard submissions) typically also touches it,
- * which is why `updated_after` listing and this hash track the same field.
+ * without downloading the deferred content.
+ *
+ * `last_activity` is mixed in alongside `updated_at` because the document body is
+ * assembled from the activity feed and scorecards, and Greenhouse does not document
+ * that appending a note, email, or scorecard advances `updated_at`. Both fields are
+ * returned by the list and the single-candidate endpoints, so the stub and
+ * `getDocument` always agree.
  */
-function buildContentHash(id: number, updatedAt?: string | null): string {
-  return `greenhouse:${id}:${updatedAt ?? ''}`
+function buildContentHash(candidate: GreenhouseCandidate): string {
+  return `greenhouse:${candidate.id}:${candidate.updated_at ?? ''}:${candidate.last_activity ?? ''}`
 }
 
 /**
@@ -256,7 +266,7 @@ function candidateToStub(candidate: GreenhouseCandidate): ExternalDocument {
     contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: buildSourceUrl(candidate.id),
-    contentHash: buildContentHash(candidate.id, candidate.updated_at),
+    contentHash: buildContentHash(candidate),
     metadata: buildMetadata(candidate),
   }
 }
@@ -435,41 +445,85 @@ async function fetchActivityFeed(accessToken: string, id: string): Promise<Green
 }
 
 /**
- * Fetches all scorecards across a candidate's applications. Individual
- * application failures are tolerated so partial feedback is still indexed.
+ * Fetches the scorecards for a single application.
+ *
+ * `complete` is false only when a transient failure hid feedback that still exists.
+ * Harvest's error table lists both `404 Not Found -- Resource not found` and
+ * `403 Forbidden -- You don't have access to that record`, and neither clears on a
+ * retry: the application is gone, or this API key is permanently not permitted to
+ * read its scorecards. Both are therefore a settled absence — marking them partial
+ * would re-hydrate the candidate on every sync forever without ever converging.
+ * A rate-limiting 403 never reaches here: `fetchWithRetry` only treats a 403 as
+ * retryable when the response headers prove a rate limit, and a retry exhaustion
+ * throws into the catch below as the transient failure it is.
+ */
+async function fetchScorecardsForApplication(
+  accessToken: string,
+  applicationId: number
+): Promise<{ scorecards: GreenhouseScorecard[]; complete: boolean }> {
+  try {
+    const response = await fetchWithRetry(
+      `${GREENHOUSE_API_BASE}/applications/${applicationId}/scorecards`,
+      {
+        method: 'GET',
+        headers: { Authorization: buildAuthHeader(accessToken), Accept: 'application/json' },
+      }
+    )
+
+    if (!response.ok) {
+      if (response.status === 404 || response.status === 403) {
+        return { scorecards: [], complete: true }
+      }
+      throw new Error(`Failed to fetch Greenhouse scorecards: ${response.status}`)
+    }
+
+    const data = (await response.json()) as GreenhouseScorecard[]
+    return { scorecards: Array.isArray(data) ? data : [], complete: true }
+  } catch (error) {
+    logger.warn('Failed to fetch scorecards for application', {
+      applicationId,
+      error: toError(error).message,
+    })
+    return { scorecards: [], complete: false }
+  }
+}
+
+/**
+ * Fetches all scorecards across a candidate's applications, in bounded-concurrency
+ * batches. Application order is preserved so the rendered content is stable across
+ * syncs.
+ *
+ * `complete` is false only when a transient failure hid feedback that still
+ * exists. The deliberate {@link MAX_APPLICATIONS_FOR_SCORECARDS} bound keeps it
+ * true: it truncates identically on every run, so marking it partial would
+ * re-hydrate the same candidate forever without ever converging.
  */
 async function fetchScorecards(
   accessToken: string,
   applicationIds: number[]
-): Promise<GreenhouseScorecard[]> {
-  const all: GreenhouseScorecard[] = []
+): Promise<{ scorecards: GreenhouseScorecard[]; complete: boolean }> {
+  const bounded = applicationIds.slice(0, MAX_APPLICATIONS_FOR_SCORECARDS)
+  let complete = true
+  if (bounded.length < applicationIds.length) {
+    logger.warn('Candidate exceeds the scorecard application bound; later applications skipped', {
+      applications: applicationIds.length,
+      fetched: bounded.length,
+    })
+  }
 
-  for (const applicationId of applicationIds.slice(0, MAX_APPLICATIONS_FOR_SCORECARDS)) {
-    try {
-      const response = await fetchWithRetry(
-        `${GREENHOUSE_API_BASE}/applications/${applicationId}/scorecards`,
-        {
-          method: 'GET',
-          headers: { Authorization: buildAuthHeader(accessToken), Accept: 'application/json' },
-        }
-      )
-
-      if (!response.ok) {
-        if (response.status === 404) continue
-        throw new Error(`Failed to fetch Greenhouse scorecards: ${response.status}`)
-      }
-
-      const data = (await response.json()) as GreenhouseScorecard[]
-      if (Array.isArray(data)) all.push(...data)
-    } catch (error) {
-      logger.warn('Failed to fetch scorecards for application', {
-        applicationId,
-        error: toError(error).message,
-      })
+  const scorecards: GreenhouseScorecard[] = []
+  for (let i = 0; i < bounded.length; i += SCORECARD_FETCH_CONCURRENCY) {
+    const batch = bounded.slice(i, i + SCORECARD_FETCH_CONCURRENCY)
+    const results = await Promise.all(
+      batch.map((applicationId) => fetchScorecardsForApplication(accessToken, applicationId))
+    )
+    for (const result of results) {
+      scorecards.push(...result.scorecards)
+      if (!result.complete) complete = false
     }
   }
 
-  return all
+  return { scorecards, complete }
 }
 
 /**
@@ -501,6 +555,9 @@ export const greenhouseConnector: ConnectorConfig = {
       typeof sourceConfig.createdAfter === 'string' ? sourceConfig.createdAfter.trim() : ''
     const createdBefore =
       typeof sourceConfig.createdBefore === 'string' ? sourceConfig.createdBefore.trim() : ''
+
+    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    const remaining = maxCandidates > 0 ? Math.max(0, maxCandidates - prevFetched) : 0
 
     const queryParams = new URLSearchParams({
       per_page: String(CANDIDATES_PER_PAGE),
@@ -537,13 +594,9 @@ export const greenhouseConnector: ConnectorConfig = {
     const candidates = Array.isArray(data) ? data : []
     const linkHasNext = hasNextPage(response.headers.get('link'))
 
-    const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
     let pageCandidates = candidates
-    if (maxCandidates > 0) {
-      const remaining = Math.max(0, maxCandidates - prevFetched)
-      if (pageCandidates.length > remaining) {
-        pageCandidates = pageCandidates.slice(0, remaining)
-      }
+    if (maxCandidates > 0 && pageCandidates.length > remaining) {
+      pageCandidates = pageCandidates.slice(0, remaining)
     }
 
     const documents = pageCandidates.map(candidateToStub)
@@ -551,9 +604,19 @@ export const greenhouseConnector: ConnectorConfig = {
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
     const hitLimit = maxCandidates > 0 && totalFetched >= maxCandidates
-    if (hitLimit && syncContext) syncContext.listingCapped = true
-
     const hasMore = !hitLimit && linkHasNext
+
+    /**
+     * Deletion reconciliation hard-deletes every stored document missing from the
+     * listing, so the cap flag must be raised only when candidates that still exist
+     * were genuinely left unlisted: either this page was trimmed to fit the cap, or
+     * the cap stopped paging while Greenhouse still advertises a `rel="next"` page.
+     * A run that reaches the cap exactly as the source is exhausted is a complete
+     * listing and must stay reconcilable.
+     */
+    if (syncContext && (pageCandidates.length < candidates.length || (hitLimit && linkHasNext))) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,
@@ -577,13 +640,24 @@ export const greenhouseConnector: ConnectorConfig = {
         ? candidate.application_ids
         : []
 
-      const [feed, scorecards] = await Promise.all([
+      const [feed, { scorecards, complete }] = await Promise.all([
         fetchActivityFeed(accessToken, externalId),
         fetchScorecards(accessToken, applicationIds),
       ])
 
       const content = formatContent(candidate, feed, scorecards)
       if (!content.trim()) return null
+
+      /**
+       * A failed scorecard fetch yields usable but incomplete content. Storing it
+       * under the canonical hash would freeze the gap in place until the candidate
+       * itself changes, so a partial marker is appended instead: it never matches
+       * the list stub's hash, so the next sync re-hydrates and self-heals once
+       * Greenhouse responds.
+       */
+      const contentHash = complete
+        ? buildContentHash(candidate)
+        : `${buildContentHash(candidate)}:partial`
 
       return {
         externalId: String(candidate.id),
@@ -592,15 +666,20 @@ export const greenhouseConnector: ConnectorConfig = {
         contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: buildSourceUrl(candidate.id),
-        contentHash: buildContentHash(candidate.id, candidate.updated_at),
+        contentHash,
         metadata: buildMetadata(candidate),
       }
     } catch (error) {
+      /**
+       * `fetchCandidate` already returns null on a 404, so a thrown error here is
+       * transient (429, 5xx, network) and must propagate for the engine to record a
+       * failed row instead of dropping a candidate that still exists.
+       */
       logger.warn('Failed to get Greenhouse candidate', {
         externalId,
         error: toError(error).message,
       })
-      return null
+      throw toError(error)
     }
   },
 
@@ -611,6 +690,25 @@ export const greenhouseConnector: ConnectorConfig = {
     const maxCandidates = sourceConfig.maxCandidates as string | undefined
     if (maxCandidates && (Number.isNaN(Number(maxCandidates)) || Number(maxCandidates) < 0)) {
       return { valid: false, error: 'Max candidates must be a non-negative number' }
+    }
+
+    const jobId = sourceConfig.jobId
+    if (typeof jobId === 'string' && jobId.trim() && !/^\d+$/.test(jobId.trim())) {
+      return { valid: false, error: 'Job ID must be a numeric Greenhouse job ID (e.g. 123456)' }
+    }
+
+    const timestampFields = [
+      ['createdAfter', 'Created After'],
+      ['createdBefore', 'Created Before'],
+    ] as const
+    for (const [field, label] of timestampFields) {
+      const value = sourceConfig[field]
+      if (typeof value === 'string' && value.trim() && Number.isNaN(Date.parse(value.trim()))) {
+        return {
+          valid: false,
+          error: `${label} must be a valid ISO 8601 timestamp (e.g. 2024-01-01T00:00:00Z)`,
+        }
+      }
     }
 
     try {

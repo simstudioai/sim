@@ -6,16 +6,25 @@ import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 
 // The indexer resolves a tool's params via the tool registry; stub it so the
 // injected blockConfigs subBlocks drive resolution deterministically in tests.
+// Exposed as vi.fn()s (with the historical defaults) so a test that needs an
+// AUTHORITATIVE resolution - i.e. one carrying `paramVisibility` - can opt in.
+const { mockGetToolIdForOperation, mockGetSubBlocksForToolInput } = vi.hoisted(() => ({
+  mockGetToolIdForOperation: vi.fn((): string | undefined => undefined),
+  mockGetSubBlocksForToolInput: vi.fn(
+    (
+      _toolId: string,
+      _type: string,
+      _values: unknown,
+      _modes: unknown,
+      provided?: { subBlocks?: SubBlockConfig[] }
+    ) => ({ subBlocks: provided?.subBlocks ?? [] })
+  ),
+}))
+
 vi.mock('@/tools/params', () => ({
-  getToolIdForOperation: () => undefined,
+  getToolIdForOperation: mockGetToolIdForOperation,
   getToolParametersConfig: () => null,
-  getSubBlocksForToolInput: (
-    _toolId: string,
-    _type: string,
-    _values: unknown,
-    _modes: unknown,
-    provided?: { subBlocks?: SubBlockConfig[] }
-  ) => ({ subBlocks: provided?.subBlocks ?? [] }),
+  getSubBlocksForToolInput: mockGetSubBlocksForToolInput,
   formatParameterLabel: (label: string) => label,
 }))
 
@@ -1005,6 +1014,52 @@ describe('collectClearedDependents', () => {
       },
     ])
   })
+
+  it('does not mark a cleared model-supplied tool param as required', () => {
+    // The pre-sync modal treats a `user-or-llm` param as non-blocking (the agent fills it at
+    // runtime). This collector must agree: a `required` entry here makes promote SKIP the
+    // target's redeploy, so disagreeing would let a sync through and then silently withhold
+    // the deployment.
+    mockGetToolIdForOperation.mockReturnValueOnce('gmail_read')
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'gmail')
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'folder',
+            title: 'Label',
+            type: 'folder-selector',
+            dependsOn: ['credential'],
+            required: true,
+            paramVisibility: 'user-or-llm',
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    const targetDraft: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        { type: 'gmail', title: 'Gmail', params: { credential: 'c-target', folder: 'INBOX' } },
+      ]),
+    }
+    const merged: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        { type: 'gmail', title: 'Gmail', params: { credential: 'c-new', folder: '' } },
+      ]),
+    }
+    const result = collectClearedDependents('agent', 'b1', 'Agent', targetDraft, merged)
+    // Still surfaced (the value really was cleared), just not gating the redeploy.
+    expect(result).toEqual([
+      {
+        blockId: 'b1',
+        blockName: 'Agent',
+        subBlockKey: 'tools[0].folder',
+        title: 'Label',
+        toolName: 'Gmail',
+        required: false,
+      },
+    ])
+  })
 })
 
 describe('applyDependentOverrides', () => {
@@ -1060,6 +1115,56 @@ describe('applyDependentOverrides', () => {
     )
     const tools = (result.tools as { value: Array<{ params: { folder: string } }> }).value
     expect(tools[0].params.folder).toBe('Label_99')
+  })
+
+  it('applies an invalidated nested child as empty so it cannot survive under a new provider', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'jira') {
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'projectId',
+            title: 'Project',
+            type: 'project-selector',
+            dependsOn: ['credential'],
+            selectorKey: 'jira.projects',
+          },
+          {
+            id: 'issueKey',
+            title: 'Issue',
+            type: 'issue-selector',
+            dependsOn: ['projectId'],
+            selectorKey: 'jira.issues',
+          },
+        ])
+      }
+      return undefined as unknown as BlockConfig
+    })
+    const subBlocks: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        {
+          type: 'jira',
+          title: 'Jira',
+          params: { credential: 'c-new', projectId: 'project-old', issueKey: 'OLD-1' },
+        },
+      ]),
+    }
+
+    const result = applyDependentOverrides(
+      subBlocks,
+      'agent',
+      new Map([
+        ['tools[0].projectId', 'project-new'],
+        ['tools[0].issueKey', ''],
+      ])
+    )
+    const tools = (
+      result.tools as {
+        value: Array<{ params: { projectId: string; issueKey: string } }>
+      }
+    ).value
+    expect(tools[0].params).toMatchObject({ projectId: 'project-new', issueKey: '' })
   })
 
   it('rejects a nested override for a non-allowlisted tool param', () => {

@@ -50,7 +50,8 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   createSkillUseCase: { operation: { id: 'skills.create' }, execute: mocks.create },
 }))
 
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application'
 import { cursorSortKey, encodeOffsetCursor } from '@/app/api/v2/lib/response'
 import { GET, POST } from '@/app/api/v2/skills/route'
@@ -75,7 +76,7 @@ function skillCursor({
 }): string {
   return encodeOffsetCursor(
     cursorSortKey(sortBy, sortOrder),
-    cursorScopeKey({ workspaceId: WORKSPACE_ID, search }),
+    cursorScopeKey(cursorRoute(v2ListSkillsContract), { workspaceId: WORKSPACE_ID, search }),
     offset
   )
 }

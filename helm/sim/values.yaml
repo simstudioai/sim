@@ -122,6 +122,7 @@ app:
     SMTP_USER: ""                                         # SMTP username (optional — omit for unauthenticated relays like MailHog)
     SMTP_PASS: ""                                         # SMTP password (optional — omit for unauthenticated relays)
     SMTP_SECURE: ""                                       # Set to "true" to force TLS on connect; defaults to true when SMTP_PORT=465
+    SMTP_EHLO_NAME: ""                                    # Hostname sent in the SMTP EHLO greeting; defaults to the app's own domain. Set only if the relay expects a different one
     GMAIL_CREDENTIALS_JSON: ""                            # Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
     GMAIL_SENDER: ""                                      # Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 
@@ -321,6 +322,11 @@ app:
   # app container — NOT written into the chart-managed Secret and NOT required to be mapped
   # when externalSecrets.enabled=true. Override any key by setting `app.envDefaults.KEY` in
   # your values file. Move a key into `app.env` above only if it must be treated as secret.
+  #
+  # To REMOVE a key rather than change it, override it with `null` — Helm deletes a default
+  # key when it is overridden with null (e.g. `FREE_TABLES_LIMIT: null`). Setting it to ""
+  # does NOT remove it: every key under `app.env` ships as a "" placeholder, so the templates
+  # must read "" as "unspecified". See "Removing an inherited env key" in README.md.
   envDefaults:
     # Application URLs (override in app.env or app.envDefaults for production)
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"

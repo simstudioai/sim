@@ -32,8 +32,14 @@ export async function setWorkspaceSecret(params: {
   name: string
   value: string
   userId: string
+  /**
+   * Teammate-facing note on the credential row. `undefined` leaves any existing
+   * description untouched so rotating a value can't silently erase it; `null`
+   * clears it.
+   */
+  description?: string | null
 }): Promise<SecretMutationResult> {
-  const { workspaceId, name, value, userId } = params
+  const { workspaceId, name, value, userId, description } = params
   const { encrypted } = await encryptSecret(value)
   const updatedAt = new Date()
 
@@ -76,7 +82,7 @@ export async function setWorkspaceSecret(params: {
     })
     await tx
       .update(credential)
-      .set({ updatedAt })
+      .set(description === undefined ? { updatedAt } : { updatedAt, description })
       .where(
         and(
           eq(credential.workspaceId, workspaceId),

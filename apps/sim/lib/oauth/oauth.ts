@@ -40,6 +40,7 @@ import {
   MicrosoftSharepointIcon,
   MicrosoftTeamsIcon,
   MondayIcon,
+  NetSuiteIcon,
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
@@ -70,12 +71,14 @@ import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import {
   SALESFORCE_ADDITIONAL_PROVIDER_IDS,
   SALESFORCE_LOGIN_HOSTS,
   SALESFORCE_PROVIDER_ID_LABELS,
 } from '@/lib/oauth/salesforce'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
@@ -258,6 +261,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/ediscovery',
+          // Least-privilege scope for read-only consumers. The knowledge base
+          // connector only lists matters, holds, and saved queries, all of which
+          // accept ediscovery.readonly; the block's export tools still need the
+          // read-write scope above.
+          'https://www.googleapis.com/auth/ediscovery.readonly',
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
         serviceAccountProviderId: 'google-service-account',
@@ -328,11 +336,18 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'openid',
           'profile',
           'email',
-          'User.Read.All',
           'User.ReadWrite.All',
           'Group.ReadWrite.All',
           'GroupMember.ReadWrite.All',
-          'Directory.Read.All',
+          'LicenseAssignment.Read.All',
+          'LicenseAssignment.ReadWrite.All',
+          'UserAuthenticationMethod.ReadWrite.All',
+          'AuditLog.Read.All',
+          'Application.Read.All',
+          'AppRoleAssignment.ReadWrite.All',
+          'RoleManagement.ReadWrite.Directory',
+          'Device.Read.All',
+          'Policy.Read.All',
           'offline_access',
         ],
       },
@@ -861,6 +876,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'snowflake',
   },
+  netsuite: {
+    name: 'Oracle NetSuite',
+    icon: NetSuiteIcon,
+    services: {
+      netsuite: {
+        name: 'Oracle NetSuite',
+        description:
+          'Manage NetSuite records, queries, datasets, batches, metadata, and asynchronous jobs.',
+        providerId: 'netsuite',
+        serviceAccountProviderId: 'netsuite-service-account',
+        icon: NetSuiteIcon,
+        baseProviderIcon: NetSuiteIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'netsuite',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
@@ -1165,6 +1198,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Desk.tickets.READ',
           'Desk.tickets.UPDATE',
           'Desk.contacts.READ',
+          // READ only: the knowledge base connector syncs Help Center articles
+          // via GET /articles and GET /articles/{id}; nothing authors one.
+          'Desk.articles.READ',
+          // GET /organizations documents `Desk.organization.READ , Desk.basic.READ`.
+          // Sibling endpoints spell the same construction "requires X and Y"
+          // (dependencyMappings, roles), so the comma is AND, not OR.
+          'Desk.organization.READ',
           // READ only: the agent picker for `assigneeId` lists agents, and no
           // tool creates, edits or deletes one.
           'Desk.agents.READ',
@@ -1486,6 +1526,12 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        // Box refresh tokens are single-use: "the Refresh Token is invalidated and a
+        // new Refresh Token is returned" and "A Refresh Token is valid for 60 days and
+        // can be used to obtain a new Access Token and Refresh Token only once."
+        // (developer.box.com/guides/authentication/tokens/refresh). Without rotation the
+        // new token is discarded and the credential dies on the second refresh.
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'docusign': {
@@ -1495,7 +1541,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         'DOCUSIGN_CLIENT_SECRET'
       )
       return {
-        tokenEndpoint: 'https://account-d.docusign.com/oauth/token',
+        tokenEndpoint: getDocusignOAuthUrl('/oauth/token'),
         clientId,
         clientSecret,
         useBasicAuth: true,
@@ -1542,7 +1588,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         additionalHeaders: {
-          'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+          'User-Agent': REDDIT_USER_AGENT,
         },
       }
     }
@@ -1741,9 +1787,16 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
     case 'zoho-desk': {
       // Zoho's refresh_token grant returns a new access token but no new refresh
       // token, so rotation stays off (the existing refresh token is preserved).
-      // The refresh must target the accounts server; a US/multi-DC-enabled client
-      // uses accounts.zoho.com. Data residency for API calls is honored separately
-      // via the persisted Desk base URL derived from the token response api_domain.
+      // The refresh must target the accounts server of the data center that issued
+      // the token - "if location=eu, you will need to make access token request to
+      // https://accounts.zoho.eu" (zoho.com/accounts/protocol/oauth/multi-dc.html).
+      // accounts.zoho.com is correct here because the authorize and code-exchange
+      // legs in lib/auth/connectors/providers.ts are also pinned to the US accounts
+      // server, so every refresh token in the system is US-issued. Making refresh
+      // DC-aware requires making the grant DC-aware first (read the `accounts-server`
+      // callback param) and threading the credential's persisted `__zoho_domain__`
+      // marker into refreshOAuthToken, which today only receives the token string.
+      // Data residency for API calls is already honored via that persisted Desk base.
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'zoho-desk',
         'ZOHO_CLIENT_ID',
@@ -1972,7 +2025,6 @@ export async function refreshOAuthToken(
         hasClientId: !!config.clientId,
         hasClientSecret: !!config.clientSecret,
         hasRefreshToken: !!refreshToken,
-        refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
       })
       return {
         ok: false,

@@ -63,6 +63,9 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],
   'notion-service-account': ['notion'],
+  // NetSuite remains an API-key catalog integration, like Snowflake, while its
+  // block uses the shared reusable-credential selector.
+  'netsuite-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
@@ -95,6 +98,16 @@ const serviceAccount = (providerId: string) => ({
 })
 
 describe('service-account coverage', () => {
+  it('exposes NetSuite reusable credentials without changing its API-key catalog class', () => {
+    const netSuiteIntegration = INTEGRATIONS.find((integration) => integration.type === 'netsuite')
+    expect(netSuiteIntegration?.authType).toBe('api-key')
+    expect(OAUTH_PROVIDERS.netsuite.services.netsuite).toMatchObject({
+      providerId: 'netsuite',
+      serviceAccountProviderId: 'netsuite-service-account',
+      authType: 'service_account',
+    })
+  })
+
   it('pins the table to exactly the registered service-account provider ids', () => {
     expect(REGISTERED_SERVICE_ACCOUNT_IDS).toEqual(Object.keys(EXPECTED_COVERAGE).sort())
   })

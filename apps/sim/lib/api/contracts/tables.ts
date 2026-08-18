@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
+  booleanQueryFlagSchema,
   folderIdSchema,
   privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
@@ -31,6 +32,7 @@ import {
   FILTER_OPS,
   MAX_RUN_TARGET_ROW_IDS,
   MAX_SELECT_OPTIONS,
+  MAX_TABLE_BATCH_ITEMS,
   NAME_PATTERN,
   SORT_DIRECTIONS,
   TABLE_LIMITS,
@@ -347,6 +349,25 @@ export const updateTableMetadataBodySchema = z.object({
 export const rowDataSchema = domainObjectSchema<RowData>()
 export const tableDefinitionSchema = domainObjectSchema<TableDefinition>()
 export const tableRowSchema = domainObjectSchema<TableRow>()
+
+/**
+ * One row as the single-row routes actually emit it: the stored cells plus
+ * position, with timestamps already serialized.
+ *
+ * Deliberately not {@link tableRowSchema}. That one describes a `TableRow`,
+ * which carries the per-cell `executions` sidecar and `Date` objects — accurate
+ * for the list and query routes, which return exactly that, and wrong for the
+ * single-row routes, which have always projected a narrower object with ISO
+ * strings. Two shapes on the wire need two schemas; collapsing them would make
+ * one of the two lie to its clients.
+ */
+export const tableRowWireSchema = z.object({
+  id: z.string(),
+  data: rowDataSchema,
+  position: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
 
 /**
  * Plain-object base for the single-row insert body. Kept un-refined so callers
@@ -800,19 +821,39 @@ export const tableRowsQueryBaseSchema = z.object({
         .optional()
     )
     .default(0),
+  /**
+   * Absent, null, and empty all fall through to the `true` default, so a bare request still
+   * gets its count. Everything else goes to {@link booleanQueryFlagSchema}, which accepts a real
+   * boolean as well as the URL strings — `requestJson` parses this schema on the CLIENT before
+   * building the URL, so the value arrives as the caller's own type, and a string-only coercion
+   * silently read the grid's `includeTotal: param === 0` as `false` — leaving `totalCount` null on
+   * every table, and select-all falling back to the unfiltered row count.
+   *
+   * Unparseable values now reject rather than resolving to `false`, matching `limit` and `offset`
+   * in this same schema, which have always thrown on garbage.
+   */
   includeTotal: z
     .preprocess(
-      (value) =>
-        value === null || value === undefined || value === '' ? undefined : value === 'true',
-      z.boolean().optional()
+      (value) => (value === null || value === undefined || value === '' ? undefined : value),
+      booleanQueryFlagSchema.optional()
     )
     .default(true),
 })
 
-export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
-  (data) => !(data.after && data.sort),
-  { message: 'after cursor cannot be combined with sort — cursors paginate the default order' }
+const unboundedTableRowsLimitSchema = z.preprocess(
+  (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
+  z
+    .number({ error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .min(1, 'Limit must be at least 1')
+    .optional()
 )
+
+export const tableRowsQuerySchema = tableRowsQueryBaseSchema
+  .extend({ limit: unboundedTableRowsLimitSchema })
+  .refine((data) => !(data.after && data.sort), {
+    message: 'after cursor cannot be combined with sort — cursors paginate the default order',
+  })
 
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: workspaceIdSchema,
@@ -1052,14 +1093,7 @@ export const rowQueryBodySchema = z.object({
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
   // count; the byte budget may still end a page early with nextCursor set.
-  limit: z.preprocess(
-    (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
-    z
-      .number({ error: 'Limit must be a number' })
-      .int('Limit must be an integer')
-      .min(1, 'Limit must be at least 1')
-      .optional()
-  ),
+  limit: unboundedTableRowsLimitSchema,
   cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
 })
 
@@ -1410,11 +1444,27 @@ export const upsertTableRowContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(
       z.object({
-        row: tableRowSchema,
+        row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
       })
     ),
+  },
+})
+
+/**
+ * Reads one row. The sibling of {@link updateTableRowContract} and
+ * {@link deleteTableRowContract}, which take their workspace scope from a body;
+ * a GET has none, so it is asserted on the query string instead.
+ */
+export const getTableRowContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/rows/[rowId]',
+  params: tableRowParamsSchema,
+  query: getTableQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ row: tableRowWireSchema })),
   },
 })
 
@@ -1427,7 +1477,7 @@ export const updateTableRowContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(
       z.object({
-        row: tableRowSchema,
+        row: tableRowWireSchema,
         message: z.string(),
       })
     ),
@@ -1684,8 +1734,16 @@ export const updateWorkflowGroupBodySchema = z.object({
   deploymentMode: workflowGroupDeploymentModeSchema
     .optional()
     .describe('Replacement workflow execution mode.'),
-  /** Update the group's provenance. Omit to leave unchanged. */
-  type: workflowGroupTypeSchema.optional().describe('Replacement workflow-group producer type.'),
+  /**
+   * Echo of the group's provenance. A producer is fixed at creation: this body
+   * has no `enrichmentId` field, so it can never supply the coordinate a new
+   * type would need. A `type` that differs from the stored one is a 400.
+   */
+  type: workflowGroupTypeSchema
+    .optional()
+    .describe(
+      "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation."
+    ),
   /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */
   autoRun: z.boolean().optional().describe('Replacement automatic-run setting.'),
 })
@@ -2190,3 +2248,125 @@ export type TableViewWire = z.output<typeof tableViewSchema>
 export type TableViewConfigInput = z.input<typeof tableViewConfigSchema>
 export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
 export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>
+
+const bulkTableIdListSchema = z
+  .array(requiredFieldSchema('id entries cannot be empty'))
+  .max(MAX_TABLE_BATCH_ITEMS, `cannot contain more than ${MAX_TABLE_BATCH_ITEMS} ids`)
+  .default([])
+
+/**
+ * Bounds a mixed selection from the Tables list, which interleaves folder rows
+ * and table rows in one grid. Both lists travel in one request so a mixed
+ * selection commits as one authorized operation instead of a client-sequenced
+ * fan-out.
+ *
+ * The cap is on the combined count: each list is individually bounded first so
+ * a 10,000-entry array is rejected before the combined arithmetic, and folders
+ * cost more than tables because they cascade.
+ */
+function refineBoundedTableSelection(
+  selection: { tableIds: string[]; folderIds: string[] },
+  ctx: z.RefinementCtx
+): void {
+  const total = selection.tableIds.length + selection.folderIds.length
+  if (total === 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tableIds'],
+      message: 'At least one table or folder must be selected',
+    })
+    return
+  }
+  if (total > MAX_TABLE_BATCH_ITEMS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tableIds'],
+      message: `tableIds and folderIds cannot contain more than ${MAX_TABLE_BATCH_ITEMS} ids combined`,
+    })
+  }
+}
+
+export const bulkMoveTablesBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns every selected item.'),
+    tableIds: bulkTableIdListSchema.describe('Tables to move, by identifier.'),
+    folderIds: bulkTableIdListSchema.describe('Table folders to re-parent, by identifier.'),
+    targetFolderId: folderIdSchema
+      .nullable()
+      .describe('Destination folder in the table folder tree. `null` is the workspace root.'),
+  })
+  .superRefine(refineBoundedTableSelection)
+export type BulkMoveTablesBody = z.input<typeof bulkMoveTablesBodySchema>
+
+export const bulkDeleteTablesBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns every selected item.'),
+    tableIds: bulkTableIdListSchema.describe('Tables to archive, by identifier.'),
+    folderIds: bulkTableIdListSchema.describe(
+      'Table folders to delete, by identifier. Each cascades to everything inside it.'
+    ),
+  })
+  .superRefine(refineBoundedTableSelection)
+export type BulkDeleteTablesBody = z.input<typeof bulkDeleteTablesBodySchema>
+
+const bulkTableItemKindSchema = z.enum(['table', 'folder'])
+
+const bulkTableItemSchema = z.object({
+  kind: bulkTableItemKindSchema,
+  id: z.string(),
+  name: z.string(),
+})
+
+/** An id nothing active resolved to. Carries no name, because nothing was found to name. */
+const bulkTableMissingSchema = z.object({ kind: bulkTableItemKindSchema, id: z.string() })
+
+/**
+ * An item the batch reached but could not act on for a reason the caller can
+ * act on in turn — a delete lock, a folder cycle. Distinct from `notFound`,
+ * which also absorbs the items the caller may not write to.
+ */
+const bulkTableFailureSchema = bulkTableItemSchema.extend({ reason: z.string() })
+
+/**
+ * Items dropped because a selected folder already carries them: a table filed
+ * inside a selected folder, or a subfolder of another selected folder.
+ */
+const bulkTableSkippedSchema = z.array(bulkTableItemSchema)
+
+export const bulkMoveTablesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/bulk-move',
+  body: bulkMoveTablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        moved: z.array(bulkTableItemSchema),
+        skipped: bulkTableSkippedSchema,
+        notFound: z.array(bulkTableMissingSchema),
+        failed: z.array(bulkTableFailureSchema),
+      })
+    ),
+  },
+})
+export const bulkDeleteTablesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/bulk-delete',
+  body: bulkDeleteTablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        deleted: z.array(bulkTableItemSchema),
+        skipped: bulkTableSkippedSchema,
+        notFound: z.array(bulkTableMissingSchema),
+        failed: z.array(bulkTableFailureSchema),
+        /** Totals across the explicit archives and every folder cascade they triggered. */
+        deletedItems: z.object({
+          tables: z.number().int(),
+          folders: z.number().int(),
+        }),
+      })
+    ),
+  },
+})

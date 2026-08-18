@@ -1,5 +1,5 @@
+import { Table } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
-import { TableIcon } from '@/components/icons'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToPredicate, sortRulesToSortSpec } from '@/lib/table/query-builder/converters'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
@@ -221,7 +221,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
   // and mark v1 `table` superseded.
   preview: true,
   bgColor: '#10B981',
-  icon: TableIcon,
+  icon: Table,
   canvasPresentation: {
     defaultTitle: 'Table',
     /*

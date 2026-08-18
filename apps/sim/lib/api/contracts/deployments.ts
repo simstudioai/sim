@@ -59,11 +59,6 @@ export const deploymentVersionOrActiveParamsSchema = z.object({
   version: z.union([deploymentVersionPathSchema, z.literal('active')]),
 })
 
-export const deploymentVersionRouteParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.string().min(1, 'Invalid version'),
-})
-
 export const updatePublicApiBodySchema = z.object({
   isPublicApi: z.boolean(),
 })

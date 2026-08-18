@@ -383,4 +383,62 @@ describe('defineInternalJsonRoute', () => {
       __privateMetadata: { value: 'ok' },
     })
   })
+
+  it('selects a declared success status from the application result', async () => {
+    const replayableContract = defineRouteContract({
+      method: 'POST',
+      path: '/api/test/internal-json-route',
+      response: {
+        mode: 'json',
+        schema: z.object({ value: z.string() }),
+        status: [200, 201],
+      },
+    })
+    const handler = defineInternalJsonRoute({
+      contract: replayableContract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'created', created: true }
+        },
+      },
+      present: ({ value }) => ({ value }),
+      statusForResult: ({ created }) => (created ? 201 : 200),
+    })
+
+    const response = await handler(
+      new NextRequest('http://localhost/api/test/internal-json-route', { method: 'POST' })
+    )
+
+    expect(response.status).toBe(201)
+    await expect(response.json()).resolves.toEqual({ value: 'created' })
+  })
+
+  it('fails closed when the application selects an undeclared success status', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'ok' }
+        },
+      },
+      statusForResult: () => 201,
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: 'Internal server error' })
+  })
 })

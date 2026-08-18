@@ -14,6 +14,7 @@ import {
 } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import {
   and,
   count,
@@ -96,9 +97,7 @@ export interface AdminMutationActor {
 }
 
 function metadataRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function metadataNumber(metadata: Record<string, unknown>, key: string): number | null {

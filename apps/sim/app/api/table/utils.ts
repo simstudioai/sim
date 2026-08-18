@@ -2,11 +2,6 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
-import {
-  createTableColumnBodySchema,
-  deleteTableColumnBodySchema,
-  updateTableColumnBodySchema,
-} from '@/lib/api/contracts/tables'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   asOrchestrationError,
@@ -298,26 +293,6 @@ export function accessError(
   return NextResponse.json({ error: message }, { status: result.status })
 }
 
-/**
- * Converts a TableAccessDenied result to an appropriate HTTP response.
- * Use with checkTableAccess or checkTableWriteAccess.
- */
-export function tableAccessError(
-  result: TableAccessDenied,
-  requestId: string,
-  context?: string
-): NextResponse {
-  const status = result.notFound ? 404 : 403
-  const message = result.notFound ? 'Table not found' : (result.reason ?? 'Access denied')
-  logger.warn(`[${requestId}] ${message}${context ? `: ${context}` : ''}`)
-  return NextResponse.json({ error: message }, { status })
-}
-
-async function verifyTableWorkspace(tableId: string, workspaceId: string): Promise<boolean> {
-  const table = await getTableById(tableId)
-  return table?.workspaceId === workspaceId
-}
-
 export function errorResponse(
   message: string,
   status: number,
@@ -345,15 +320,3 @@ export function forbiddenResponse(message = 'Access denied') {
 export function notFoundResponse(message = 'Resource not found') {
   return errorResponse(message, 404)
 }
-
-export function serverErrorResponse(message = 'Internal server error') {
-  return errorResponse(message, 500)
-}
-
-/**
- * Re-exports from `lib/api/contracts/tables` so existing routes that import
- * these names keep working while sharing a single source of truth.
- */
-export const CreateColumnSchema = createTableColumnBodySchema
-export const UpdateColumnSchema = updateTableColumnBodySchema
-export const DeleteColumnSchema = deleteTableColumnBodySchema

@@ -282,23 +282,6 @@ export function getMeaningfulWorkflowDescription(
 }
 
 /**
- * Generate a complete MCP tool definition from workflow metadata and input format.
- */
-export function generateToolDefinition(
-  workflowName: string,
-  workflowDescription: string | undefined | null,
-  inputFormat: InputFormatField[],
-  customToolName?: string,
-  customDescription?: string
-): McpToolDefinition {
-  return {
-    name: customToolName || sanitizeToolName(workflowName),
-    description: customDescription || workflowDescription || `Execute ${workflowName} workflow`,
-    inputSchema: generateToolInputSchema(inputFormat),
-  }
-}
-
-/**
  * Extract input format from a workflow's blocks.
  * Looks for any valid start block and extracts its inputFormat configuration.
  */

@@ -117,15 +117,6 @@ export const MEETING_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output definition for meeting object (used in create/get meeting responses)
- */
-export const MEETING_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Meeting object with all properties',
-  properties: MEETING_OUTPUT_PROPERTIES,
-}
-
-/**
  * Meeting list item output properties (subset returned in list responses)
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meetings
  */
@@ -144,18 +135,6 @@ export const MEETING_LIST_ITEM_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Output definition for meetings array in list responses
- */
-export const MEETINGS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'List of meetings',
-  items: {
-    type: 'object',
-    properties: MEETING_LIST_ITEM_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Pagination output properties for meeting list endpoints
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/meetings
  */
@@ -166,15 +145,6 @@ export const MEETING_PAGE_INFO_OUTPUT_PROPERTIES = {
   totalRecords: { type: 'number', description: 'Total number of records' },
   nextPageToken: { type: 'string', description: 'Token for next page of results' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete page info output definition for meeting lists
- */
-export const MEETING_PAGE_INFO_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pagination information',
-  properties: MEETING_PAGE_INFO_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for recording file objects
@@ -230,27 +200,6 @@ export const RECORDING_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete recording object output definition
- */
-export const RECORDING_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Recording object with all files',
-  properties: RECORDING_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for recordings array in list responses
- */
-export const RECORDINGS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'List of recordings',
-  items: {
-    type: 'object',
-    properties: RECORDING_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Pagination output properties for recording list endpoints
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/recordingsList
  */
@@ -261,15 +210,6 @@ export const RECORDING_PAGE_INFO_OUTPUT_PROPERTIES = {
   totalRecords: { type: 'number', description: 'Total number of records' },
   nextPageToken: { type: 'string', description: 'Token for next page of results' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete page info output definition for recording lists
- */
-export const RECORDING_PAGE_INFO_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pagination information',
-  properties: RECORDING_PAGE_INFO_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for participant objects
@@ -292,18 +232,6 @@ export const PARTICIPANT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete participants array output definition
- */
-export const PARTICIPANTS_ARRAY_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'List of meeting participants',
-  items: {
-    type: 'object',
-    properties: PARTICIPANT_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
  * Pagination output properties for participant list endpoints
  * @see https://developers.zoom.us/docs/api/rest/reference/zoom-api/methods/#operation/pastMeetingParticipants
  */
@@ -312,15 +240,6 @@ export const PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES = {
   totalRecords: { type: 'number', description: 'Total number of records' },
   nextPageToken: { type: 'string', description: 'Token for next page of results' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete page info output definition for participant lists
- */
-export const PARTICIPANT_PAGE_INFO_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pagination information',
-  properties: PARTICIPANT_PAGE_INFO_OUTPUT_PROPERTIES,
-}
 
 // Common parameters for all Zoom tools
 interface ZoomBaseParams {

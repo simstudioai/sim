@@ -4,11 +4,8 @@ import type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
 export type { StorageConfig, StorageContext } from '@/lib/uploads/shared/types'
 
-export const UPLOAD_DIR = '/uploads'
-
 const storageProvider = getConfiguredStorageProviderId()
 
-export const hasBlobConfig = storageProvider === 'azure'
 export const USE_BLOB_STORAGE = storageProvider === 'azure'
 export const USE_S3_STORAGE = storageProvider === 's3'
 export const USE_GCS_STORAGE = storageProvider === 'gcs'
@@ -357,29 +354,4 @@ function getGcsConfig(context: StorageContext): StorageConfig {
     default:
       return { bucket: GCS_CONFIG.bucket }
   }
-}
-
-/**
- * Check if a specific storage context is configured
- * Returns false if the context would fall back to general config but general isn't configured
- */
-export function isStorageContextConfigured(context: StorageContext): boolean {
-  const config = getStorageConfig(context)
-
-  if (USE_BLOB_STORAGE) {
-    return !!(
-      config.containerName &&
-      (config.connectionString || (config.accountName && config.accountKey))
-    )
-  }
-
-  if (USE_S3_STORAGE) {
-    return !!(config.bucket && config.region)
-  }
-
-  if (USE_GCS_STORAGE) {
-    return !!config.bucket
-  }
-
-  return true
 }

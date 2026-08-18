@@ -1,4 +1,3 @@
-// Document sorting options
 export type DocumentSortField =
   | 'filename'
   | 'fileSize'

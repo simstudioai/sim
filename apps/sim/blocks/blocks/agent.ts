@@ -6,6 +6,7 @@ import {
   getModelCapabilityCondition,
   getModelOptions,
   getProviderCredentialSubBlocks,
+  getSerializedModelProviderId,
   normalizeFileInput,
   RESPONSE_FORMAT_WAND_CONFIG,
 } from '@/blocks/utils'
@@ -29,6 +30,9 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
+
+/** Model the agent block falls back to when `model` is unset or the auto pseudo-model. */
+const AGENT_FALLBACK_MODEL = 'claude-sonnet-5'
 const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 const MODELS_WITH_THINKING = getModelsWithThinking()
@@ -521,21 +525,10 @@ Return ONLY the JSON array.`,
     ],
     config: {
       tool: (params: Record<string, any>) => {
-        const model = params.model || 'claude-sonnet-5'
-        if (!model) {
-          throw new Error('No model selected')
-        }
-        // sim-auto resolves to a concrete pool model at execution time, where
-        // the agent handler derives the provider from the resolved model and
-        // never reads this serialized value. Serialization still needs the
-        // same provider-id shape every other model stores, so look up the
-        // runtime fallback model's provider.
-        const lookupModel = isAutoModel(model) ? 'claude-sonnet-5' : model
-        const tool = getBaseModelProviders()[lookupModel]
-        if (!tool) {
-          throw new Error(`Invalid model selected: ${model}`)
-        }
-        return tool
+        const model = params.model || AGENT_FALLBACK_MODEL
+        // sim-auto has no provider of its own until the pool resolves it at execution time.
+        const lookupModel = isAutoModel(model) ? AGENT_FALLBACK_MODEL : model
+        return getSerializedModelProviderId(lookupModel, AGENT_FALLBACK_MODEL)
       },
       params: (params: Record<string, any>) => {
         const normalizedFiles = normalizeFileInput(params.files)

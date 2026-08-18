@@ -576,9 +576,6 @@ async function processPastChat(chatId: string, tagOverride?: string): Promise<Ag
 }
 
 // Back-compat alias; used by processContexts above
-async function processPastChatViaApi(chatId: string, tag?: string) {
-  return processPastChat(chatId, tag)
-}
 
 async function processKnowledgeFromDb(
   knowledgeBaseId: string,

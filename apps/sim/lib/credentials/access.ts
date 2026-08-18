@@ -12,6 +12,15 @@ type ActiveCredentialMember = typeof credentialMember.$inferSelect
 type CredentialRecord = typeof credential.$inferSelect
 
 export type CredentialType = (typeof credentialTypeEnum.enumValues)[number]
+export type OrdinaryCredentialType = Exclude<CredentialType, 'managed_oauth'>
+
+/** Narrows credentials exposed through ordinary user-managed credential surfaces. */
+export function requireOrdinaryCredentialType(type: CredentialType): OrdinaryCredentialType {
+  if (type === 'managed_oauth') {
+    throw new Error('Managed OAuth credential reached an ordinary credential surface')
+  }
+  return type
+}
 
 /**
  * Credential types shared at the workspace level — every type except a user's

@@ -295,15 +295,3 @@ export const tiktokWebhookResponseSchema = z.union([
   z.object({ ok: z.literal(true) }),
   z.object({ error: z.string().min(1) }),
 ])
-
-export const tiktokWebhookContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/webhooks/tiktok',
-  headers: tiktokWebhookHeadersSchema,
-  // Body is validated after HMAC verification against the raw payload.
-  body: tiktokWebhookEnvelopeSchema,
-  response: {
-    mode: 'json',
-    schema: tiktokWebhookResponseSchema,
-  },
-})

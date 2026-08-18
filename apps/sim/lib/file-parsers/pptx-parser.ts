@@ -101,6 +101,7 @@ export class PptxParser implements FileParser {
       content,
       metadata: {
         extractionMethod: 'fallback',
+        degraded: true,
         characterCount: content.length,
         warning: 'Basic text extraction used',
       },

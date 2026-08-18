@@ -3,9 +3,6 @@ import type { AzureDevOpsComment, AzureDevOpsWorkItem } from '@/tools/azure_devo
 /** States for Azure DevOps Basic process work items (Issue, Task, Epic). */
 export const AZURE_DEVOPS_BASIC_WORK_ITEM_STATES = ['To Do', 'Doing', 'Done'] as const
 
-/** Work item types for Azure DevOps Basic process. */
-export const AZURE_DEVOPS_BASIC_WORK_ITEM_TYPES = ['Issue', 'Task', 'Epic'] as const
-
 export type AzureDevOpsJsonPatchOp = {
   op: string
   path: string

@@ -26,15 +26,6 @@ export const POINT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete point object output definition
- */
-export const POINT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Point object with ID, payload, and optional vector',
-  properties: POINT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for scored point objects returned by search/query operations
  */
 export const SCORED_POINT_OUTPUT_PROPERTIES = {
@@ -56,15 +47,6 @@ export const SCORED_POINT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete scored point object output definition
- */
-export const SCORED_POINT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Scored point with ID, version, score, payload, and optional vector',
-  properties: SCORED_POINT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for upsert operation result
  */
 export const UPSERT_RESULT_OUTPUT_PROPERTIES = {
@@ -75,15 +57,6 @@ export const UPSERT_RESULT_OUTPUT_PROPERTIES = {
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete upsert result output definition
- */
-export const UPSERT_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Upsert operation result with operation ID and status',
-  properties: UPSERT_RESULT_OUTPUT_PROPERTIES,
-}
 
 /**
  * Common response properties for all Qdrant operations

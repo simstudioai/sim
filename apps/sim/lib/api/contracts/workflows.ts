@@ -509,13 +509,6 @@ export const importWorkflowAsSuperuserBodySchema = z.object({
 
 export type ImportWorkflowAsSuperuserBody = z.input<typeof importWorkflowAsSuperuserBodySchema>
 
-export const importWorkflowAsSuperuserPermissiveBodySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    targetWorkspaceId: z.string().optional(),
-  })
-  .passthrough()
-
 export const importWorkflowAsSuperuserResponseSchema = z.object({
   success: z.literal(true),
   newWorkflowId: z.string(),
@@ -669,9 +662,16 @@ export const workflowExecutionStatusQuerySchema = z.object({
  * `lib/execution/cancel-workflow-execution` (contracts stay import-clean of
  * server modules). Keeping the internal route's extra outcomes out of here is
  * what stops the published v2 schema advertising reasons v2 cannot emit.
+ *
+ * `already_cancelled`/`already_completed`/`already_failed` report a run that was
+ * already terminal when the request arrived: the request is satisfied, but no
+ * durable write happened, so they always pair with `durablyRecorded: false`.
  */
 export const cancelWorkflowExecutionReasonSchema = z.enum([
   'recorded',
+  'already_cancelled',
+  'already_completed',
+  'already_failed',
   'redis_unavailable',
   'redis_write_failed',
   'paused_event_publish_failed',
@@ -679,17 +679,20 @@ export const cancelWorkflowExecutionReasonSchema = z.enum([
 ])
 
 /**
- * The internal route's vocabulary. It resolves four outcomes before the service
- * is ever reached: `queue_cancelled` (the run was still queued, so no execution
- * log row existed), `already_cancelled` (reconciling a run already cancelled),
- * and the two stop-signal failures. Several ride on `success: true` responses,
- * so validating them against the service enum makes `requestJson` reject
- * cancellations that genuinely applied.
+ * The internal route's vocabulary. It reimplements cancellation rather than
+ * calling the service, so it resolves three further outcomes of its own:
+ * `queue_cancelled` (the run was still queued, so no execution log row existed),
+ * `active_resume_signal_failed`, and `cancellation_not_finalized`. Several ride
+ * on `success: true` responses, so validating them against the service enum
+ * makes `requestJson` reject cancellations that genuinely applied.
+ *
+ * The `already_*` outcomes are no longer route-local: the service now observes
+ * the run's terminal status itself, so both surfaces name a terminal no-op with
+ * the same member.
  */
 export const internalCancelWorkflowExecutionReasonSchema = z.enum([
   ...cancelWorkflowExecutionReasonSchema.options,
   'queue_cancelled',
-  'already_cancelled',
   'active_resume_signal_failed',
   'cancellation_not_finalized',
 ])

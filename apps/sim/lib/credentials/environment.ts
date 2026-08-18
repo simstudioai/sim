@@ -3,7 +3,7 @@ import { credential, credentialMember, permissions, workspace } from '@sim/db/sc
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -217,6 +217,8 @@ interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
   envKey: string
   envOwnerUserId: string | null
+  /** Always null on `env_personal`: a mirror row cannot own a user-global secret's note. */
+  description: string | null
   updatedAt: Date
 }
 
@@ -552,7 +554,53 @@ export async function upsertPersonalEnvCredentialForUser(params: {
   await db.transaction(upsert)
 }
 
-/** Deletes one caller-owned personal secret's credential metadata in every workspace. */
+export interface PersonalEnvCredentialMetadata {
+  id: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+/**
+ * Reads one caller-owned personal secret's credential metadata without scoping to
+ * a workspace.
+ *
+ * A personal secret is stored once per user; the `env_personal` credential rows
+ * are per-workspace mirrors, so a reader that needs the secret's own timestamps
+ * must not require a mirror in one particular workspace. The earliest mirror is
+ * the authoritative creation time — later ones are written when the caller joins
+ * another workspace, long after the secret itself was created.
+ */
+export async function getPersonalEnvCredentialMetadata(params: {
+  userId: string
+  envKey: string
+}): Promise<PersonalEnvCredentialMetadata | null> {
+  const [row] = await db
+    .select({
+      id: credential.id,
+      createdAt: credential.createdAt,
+      updatedAt: credential.updatedAt,
+    })
+    .from(credential)
+    .where(
+      and(
+        eq(credential.type, 'env_personal'),
+        eq(credential.envOwnerUserId, params.userId),
+        eq(credential.envKey, params.envKey)
+      )
+    )
+    .orderBy(asc(credential.createdAt))
+    .limit(1)
+
+  return row ?? null
+}
+
+/**
+ * Deletes one caller-owned personal secret's credential metadata in every workspace.
+ *
+ * Deliberately unscoped by workspace: the value being removed alongside it lives
+ * in the user-global `environment` row, so leaving mirrors behind in other
+ * workspaces would advertise a secret that no longer exists.
+ */
 export async function deletePersonalEnvCredentialForUser(params: {
   userId: string
   envKey: string
@@ -694,6 +742,7 @@ export async function getAccessibleEnvCredentials(
       type: credential.type,
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
+      description: credential.description,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -726,6 +775,7 @@ export async function getAccessibleEnvCredentials(
       type: row.type,
       envKey: row.envKey,
       envOwnerUserId: row.envOwnerUserId,
+      description: row.type === 'env_workspace' ? row.description : null,
       updatedAt: row.updatedAt,
     }))
 }

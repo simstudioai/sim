@@ -9,6 +9,7 @@ import type { AuthResult } from '@/lib/auth/hybrid'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   getCredential,
+  type ResolvedCredential,
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
   resolveServiceAccountToken,
@@ -45,6 +46,8 @@ export interface ResolveCredentialTokenInput {
    */
   callerUserId?: string
   auditRequest?: CredentialAuditRequest
+  /** Reuses a credential lookup already performed by the route's managed-OAuth dispatch. */
+  resolvedCredential?: ResolvedCredential | null
 }
 
 export type ResolveCredentialTokenResult =
@@ -187,7 +190,9 @@ export async function resolveCredentialToken(
      * on the other, so they resolve together — this runs per credentialed tool call.
      */
     const [resolved, authz] = await Promise.all([
-      resolveOAuthAccountId(credentialId),
+      input.resolvedCredential === undefined
+        ? resolveOAuthAccountId(credentialId)
+        : input.resolvedCredential,
       authorizeCredentialUseForAuth(auth, { credentialId, workflowId, callerUserId }),
     ])
 

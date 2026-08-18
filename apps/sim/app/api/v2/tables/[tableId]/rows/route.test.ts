@@ -38,7 +38,18 @@ vi.mock('@/lib/table/application/rows', () => ({
   deleteTableRows: { operation: { id: 'tables.rows.delete_many' }, execute: mocks.deleteRows },
 }))
 
+import { v2ListTableRowsContract } from '@/lib/api/contracts/v2/tables'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { DELETE, GET, PATCH, POST } from '@/app/api/v2/tables/[tableId]/rows/route'
+
+/** A row cursor exactly as the route mints one, for the table given. */
+function rowCursor(tableId: string, inner: string): string {
+  return encodeScopedCursor(
+    cursorScopeKey(cursorRoute(v2ListTableRowsContract, { tableId })),
+    inner
+  )
+}
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -102,7 +113,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
   })
 
   it('passes the opaque native row cursor through the route unchanged', async () => {
-    const cursor = 'native-row-cursor'
+    const cursor = rowCursor('table-1', 'native-row-cursor')
     mocks.listRows.mockResolvedValue({
       table: TABLE,
       rows: [ROW],
@@ -122,11 +133,32 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         tableId: 'table-1',
         assertedWorkspaceId: WORKSPACE_ID,
         limit: 25,
-        cursor,
+        cursor: 'native-row-cursor',
       },
       request: req,
     })
-    expect((await response.json()).nextCursor).toBe('next-native-cursor')
+    expect((await response.json()).nextCursor).toBe(rowCursor('table-1', 'next-native-cursor'))
+  })
+
+  /**
+   * The row codec binds the sort and predicate a page was produced under but
+   * carries no table identity, so an unfiltered token from one table decoded
+   * cleanly against another and answered 200 with that other table's rows.
+   */
+  it('refuses a row cursor minted on a different table', async () => {
+    const foreign = rowCursor('table-2', 'native-row-cursor')
+    const response = await GET(
+      request(
+        'GET',
+        undefined,
+        `?workspaceId=${WORKSPACE_ID}&limit=25&cursor=${encodeURIComponent(foreign)}`
+      ),
+      CONTEXT
+    )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toMatch(/requested filters/)
+    expect(mocks.listRows).not.toHaveBeenCalled()
   })
 
   it('rejects an unauthenticated request', async () => {
@@ -158,6 +190,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         // or a value the column cannot hold is a 400, not a dropped key or a
         // nulled cell. Every first-party surface leaves this unset.
         strictWrite: true,
+        dataKeying: 'names',
       },
       request: single,
     })
@@ -175,6 +208,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         assertedWorkspaceId: WORKSPACE_ID,
         rows: [{ name: 'Ada' }],
         strictWrite: true,
+        dataKeying: 'names',
       },
       request: batch,
     })

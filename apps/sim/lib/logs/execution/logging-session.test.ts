@@ -1,10 +1,21 @@
+/**
+ * @vitest-environment node
+ */
+
+import { workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dbMocks = vi.hoisted(() => ({
   eq: vi.fn(),
   and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+  sql: Object.assign(
+    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
+    {
+      /** `elapsedDurationMsSql` binds `ended_at` through the column's own mapper. */
+      param: vi.fn((value: unknown, encoder?: unknown) => ({ value, encoder })),
+    }
+  ),
 }))
 
 const {
@@ -1681,6 +1692,38 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
       .map(([strings]) => String(Array.from(strings)))
       .filter((query) => query.includes("!= 'cancelled'"))
     expect(statusGuards).toHaveLength(1)
+  })
+
+  it('terminalizes the row it force-fails: end timestamp, derived duration, deadline cleared', async () => {
+    await LoggingSession.markExecutionAsFailed('exec-terminal', 'boom', undefined, 'wf-1')
+
+    const payload = dbChainMockFns.set.mock.calls[0]?.[0] as {
+      level: string
+      status: string
+      endedAt: Date
+      totalDurationMs: { strings: TemplateStringsArray; values: unknown[] }
+      executionDeadlineAt: Date | null
+      executionData: unknown
+    }
+    expect(payload.level).toBe('error')
+    expect(payload.status).toBe('failed')
+    expect(payload.endedAt).toBeInstanceOf(Date)
+    expect(payload.executionDeadlineAt).toBeNull()
+
+    /**
+     * The duration is the derived SQL fragment, not a number the caller carried
+     * in — `elapsedDurationMsSql` measures against the row's own `started_at`
+     * and preserves what a paused row already banked.
+     */
+    expect(String(Array.from(payload.totalDurationMs.strings))).toContain("= 'pending' THEN ")
+    expect(payload.totalDurationMs.values).toContain(workflowExecutionLogs.totalDurationMs)
+
+    /**
+     * The end instant is bound through `started_at`'s encoder specifically.
+     * `endedAt`'s encoder renders identically and would silently subtract the
+     * timestamp from itself — a duration of zero on every force-failed run.
+     */
+    expect(dbMocks.sql.param).toHaveBeenCalledWith(payload.endedAt, workflowExecutionLogs.startedAt)
   })
 
   it('clears Redis markers when marking failed (terminal boundary outside completeWorkflowExecution)', async () => {

@@ -117,17 +117,17 @@ export const createExpectedExpenseTool: ToolConfig<
         },
         transactionAmount: {
           type: 'json',
-          description: 'Transaction amount {value, currencyCode}',
+          description: 'Transaction amount {value, currency}',
           optional: true,
         },
         postedAmount: {
           type: 'json',
-          description: 'Posted amount {value, currencyCode}',
+          description: 'Posted amount {value, currency}',
           optional: true,
         },
         approvedAmount: {
           type: 'json',
-          description: 'Approved amount {value, currencyCode}',
+          description: 'Approved amount {value, currency}',
           optional: true,
         },
         remainingAmount: {
@@ -154,7 +154,7 @@ export const createExpectedExpenseTool: ToolConfig<
         allocations: {
           type: 'json',
           description:
-            'Budget allocations array (allocationId, allocationAmount, approvedAmount, postedAmount, expenseId, percentEdited, systemAllocation, percentage)',
+            'Budget allocations array (allocationId, allocationAmount {value, currency}, approvedAmount {value, currency}, postedAmount {value, currency}, expenseId, percentEdited, systemAllocation, percentage)',
           optional: true,
         },
         tripData: {

@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { describeError, findCause, getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { MANAGED_OAUTH_DELEGATION_HEADER } from '@/lib/api/contracts/oauth-connections'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
   type GenerateInternalDelegationTokenInput,
@@ -1345,10 +1346,7 @@ async function consumePrivateToolPayloadMetadata(
   if (!requestedType) return 'verified'
 
   const inspection = inspectPrivateToolMetadataEnvelope(headers, payload, requestedType)
-  const record =
-    payload !== null && typeof payload === 'object' && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : undefined
+  const record = isRecordLike(payload) ? (payload as Record<string, unknown>) : undefined
 
   if (requestedType === RESOLVED_SECRET_NAMES_DURABLE_FILES_METADATA_V2 && record) {
     const capability = inspectPrivateToolMetadataResponseCapability(headers, requestedType)
@@ -1703,11 +1701,12 @@ async function executeToolImplementation(
         `[${requestId}] Tool ${toolId} needs access token for credential: ${contextParams.credential}`
       )
       try {
-        const workflowId = contextParams._context?.workflowId
-        const userId = contextParams._context?.userId
+        const workflowId = scope.workflowId
+        const userId = scope.userId
 
         const tokenPayload: OAuthTokenPayload = {
           credentialId: contextParams.credential as string,
+          toolId,
         }
         if (workflowId) {
           tokenPayload.workflowId = workflowId
@@ -1716,8 +1715,9 @@ async function executeToolImplementation(
           tokenPayload.impersonateEmail = contextParams.impersonateUserEmail as string
         }
         if (tool?.oauth?.provider) {
-          const { getCanonicalScopesForProvider } = await import('@/lib/oauth/utils')
-          const providerScopes = getCanonicalScopesForProvider(tool.oauth.provider)
+          const providerScopes =
+            tool.oauth.requiredScopes ??
+            (await import('@/lib/oauth/utils')).getCanonicalScopesForProvider(tool.oauth.provider)
           if (providerScopes.length > 0) {
             tokenPayload.scopes = providerScopes
           }
@@ -1765,6 +1765,21 @@ async function executeToolImplementation(
             tokenHeaders.Authorization = `Bearer ${internalToken}`
           } catch (_e) {
             // Swallow token generation errors; the request will fail and be reported upstream
+          }
+          const managedCredentialDelegation =
+            executionContext?.executorDelegationOrigin ??
+            (workflowId && userId
+              ? {
+                  subjectUserId: userId,
+                  workflowId,
+                  ...(scope.executionId ? { executionId: scope.executionId } : {}),
+                }
+              : undefined)
+          if (managedCredentialDelegation) {
+            const delegationHeaders = await buildExecutorDelegationHeaders(
+              managedCredentialDelegation
+            )
+            tokenHeaders[MANAGED_OAUTH_DELEGATION_HEADER] = delegationHeaders.Authorization
           }
         }
 
@@ -2789,10 +2804,7 @@ async function executeToolRequest(
 
       const errorToTransform = createTransformedErrorFromErrorInfo(errorInfo, tool.errorExtractor)
       const hasStructuredErrorPayload =
-        errorData !== null &&
-        typeof errorData === 'object' &&
-        !Array.isArray(errorData) &&
-        ('error' in errorData || 'message' in errorData)
+        isRecordLike(errorData) && ('error' in errorData || 'message' in errorData)
 
       if (response.status === 413 && !hasStructuredErrorPayload) {
         logger.error(

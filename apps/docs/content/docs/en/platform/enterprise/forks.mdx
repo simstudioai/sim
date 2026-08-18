@@ -174,7 +174,7 @@ How each resource behaves at **fork** time vs **sync** time. Use this when you a
 | [Excluded workflows](#excluded-workflows) | Never | Never — not sent, not overwritten, not archived |
 | Files | Optional copy (default on) | Map or copy |
 | Tables | Optional copy (default on) | Map or copy |
-| Knowledge bases (+ documents) | Optional copy; referenced docs come with the KB | Map or copy; documents follow the KB |
+| Knowledge bases (+ documents) | Optional copy; uploaded documents come with the KB, [connector-synced ones do not](#connector-synced-documents-are-not-copied) | Map or copy; documents follow the KB |
 | Custom tools | Optional copy (default on) | Map or copy |
 | Skills | Optional copy (default on) | Map or copy |
 | External MCP servers | Optional copy (config only; sign-in cleared) | Map or copy (config only; sign-in cleared) |
@@ -227,10 +227,27 @@ Only **deployed** workflows move. Deploy is the commit; sync is the force push/p
 
 | | Behavior |
 |---|----------|
-| **Fork** | Optional copy (default on). Tag definitions come with the knowledge base. Documents that the forked workflows actually reference are included. Deselect → knowledge base / document fields clear. |
+| **Fork** | Optional copy (default on). Tag definitions come with the knowledge base, along with every **uploaded** document in it. Deselect → knowledge base / document fields clear. |
 | **Sync** | Map or copy the knowledge base. Documents are not mapped by themselves — they follow the knowledge base (copied with it, or re-picked when you map to an existing one). |
 
-**Example:** An agent searches knowledge base “Product docs.” Fork with that knowledge base selected → the child gets the base, tags, and the documents the agent used. On sync, mapping to the child’s existing “Product docs” means re-picking which document the tool should use.
+**Example:** An agent searches knowledge base “Product docs.” Fork with that knowledge base selected → the child gets the base, tags, and the uploaded documents. On sync, mapping to the child’s existing “Product docs” means re-picking which document the tool should use.
+
+#### Connector-synced documents are not copied
+
+Connectors themselves never cross a fork edge — the child gets no Confluence, Notion, Google Drive, or other sync running against it. Documents that a **connector** put in the knowledge base are therefore not copied either. Only documents you **uploaded** come across.
+
+<Callout type="warn">
+  Fork a knowledge base whose content is entirely connector-synced and the child gets the base, its tags, and its settings — but **no documents**. Add the connector in the child to fill it.
+</Callout>
+
+This is deliberate. A copied connector document would arrive detached from any connector, so nothing would ever update, re-sync, or remove it — and when you added the connector in the child it would ingest every page again *alongside* the stale copy. Chain a few forks (prod → UAT → staging) and each hop leaves another dead generation behind, so one page comes back several times in a single knowledge search. Skipping them keeps the child’s own connector the single owner of that content.
+
+| To get connector content into the child | Do this |
+|---|---|
+| Keep it live | Add the same connector in the child and let it sync. It re-ingests everything, so nothing is lost. |
+| Keep a frozen snapshot | Download the documents from the source and upload them to the child’s knowledge base — uploaded documents copy on every later fork. |
+
+A document whose connector was **deleted** in the source is no longer connector-managed, so it copies like any other uploaded document.
 
 ---
 

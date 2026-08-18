@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
@@ -233,11 +234,7 @@ export async function routeExecution(
   // nested "args" object. Unwrap that before validation so the generated
   // JSON Schema sees the flat tool contract shape.
   let normalizedPayload = payload ?? {}
-  if (
-    normalizedPayload &&
-    typeof normalizedPayload === 'object' &&
-    !Array.isArray(normalizedPayload)
-  ) {
+  if (isRecordLike(normalizedPayload)) {
     const raw = normalizedPayload as Record<string, unknown>
     if (raw.args && typeof raw.args === 'object' && !raw.operation) {
       const nested = raw.args as Record<string, unknown>

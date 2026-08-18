@@ -10,10 +10,8 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { fileStorageStatusContract } from '@/lib/api/contracts/storage-transfer'
-import { getUsageLimitsContract } from '@/lib/api/contracts/usage-limits'
 import {
   type CreateWorkspaceFileBody,
   createWorkspaceFileContract,
@@ -68,16 +66,6 @@ export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
 export const WORKSPACE_STORAGE_INFO_STALE_TIME = 60 * 1000
 /** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
 export const CLOUD_STORAGE_CONFIGURED_STALE_TIME = Number.POSITIVE_INFINITY
-
-/**
- * Storage info type
- */
-interface StorageInfo {
-  usedBytes: number
-  limitBytes: number
-  percentUsed: number
-  plan?: string
-}
 
 /**
  * Hook to fetch a single workspace file record by ID.
@@ -464,44 +452,6 @@ export function useWorkspaceFileBinary(
       error instanceof DocNotReadyError
         ? backoffWithJitter(failureCount, null, { baseMs: 600, maxMs: 2500 })
         : Math.min(1000 * 2 ** failureCount, 5000),
-  })
-}
-
-/**
- * Fetch storage info from API
- */
-async function fetchStorageInfo(signal?: AbortSignal): Promise<StorageInfo | null> {
-  try {
-    const data = await requestJson(getUsageLimitsContract, { signal })
-
-    if (data.success && data.storage) {
-      return {
-        usedBytes: data.storage.usedBytes,
-        limitBytes: data.storage.limitBytes,
-        percentUsed: data.storage.percentUsed,
-        plan: data.usage?.plan || 'free',
-      }
-    }
-
-    return null
-  } catch (error) {
-    if (isApiClientError(error) && error.status === 404) {
-      return null
-    }
-    throw error
-  }
-}
-
-/**
- * Hook to fetch storage info
- */
-export function useStorageInfo(enabled = true) {
-  return useQuery({
-    queryKey: workspaceFilesKeys.storageInfo(),
-    queryFn: ({ signal }) => fetchStorageInfo(signal),
-    enabled,
-    retry: false, // Don't retry on 404
-    staleTime: WORKSPACE_STORAGE_INFO_STALE_TIME, // 1 minute - storage info doesn't change often
   })
 }
 

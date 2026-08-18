@@ -390,24 +390,23 @@ export const v2TableColumnInputSchema = z
   .strict()
   .superRefine(refineColumnOptions)
 
-const v2InitialTableColumnInputSchema = z
-  .object({
-    ...v2TableColumnInputShape,
-    workflowGroupId: z
-      .string()
-      .optional()
-      .describe('Workflow group initially associated with the column.'),
-  })
-  .strict()
-  .superRefine(refineColumnOptions)
-
+/**
+ * Initial columns take the same shape as every other v2 column input.
+ *
+ * They deliberately cannot name a workflow group: v2 has no way to declare one
+ * on this body and mints group ids server-side, so any id a caller supplied
+ * would necessarily dangle. A dangling `workflowGroupId` is a schema invariant
+ * violation, and `createTable` does not check it while every later schema
+ * mutation does — so accepting the field made the table's own columns and
+ * groups permanently unaddable, with no update body field able to clear it.
+ */
 export const v2CreateTableBodySchema = v1CreateTableBodySchema
   .omit({ folderId: true, schema: true })
   .extend({
     schema: z
       .object({
         columns: z
-          .array(v2InitialTableColumnInputSchema)
+          .array(v2TableColumnInputSchema)
           .min(1, 'Table must have at least one column')
           .max(
             TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
@@ -1275,10 +1274,19 @@ export const v2ListWorkflowGroupsContract = defineRouteContract({
  * shape carries `workflowGroupId` because the client mints the group id before
  * posting; v2 server-generates it, so the field is stamped from the group being
  * written rather than being a caller's to supply (and get wrong).
+ *
+ * `.strict()` is what makes that omission observable. `omit()` yields an
+ * ordinary object schema, and the enclosing body's `.strict()` binds its own
+ * level only — so a caller who kept the first-party `workflowGroupId` had it
+ * stripped, silently overwritten with the server-minted id, and answered 201.
+ * The same key is now a 400 naming the field, matching how `POST /v2/tables`
+ * refuses it on initial columns.
  */
-const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema.omit({
-  workflowGroupId: true,
-})
+const v2WorkflowGroupOutputColumnSchema = workflowGroupOutputColumnSchema
+  .omit({
+    workflowGroupId: true,
+  })
+  .strict()
 
 /**
  * A group names its producer two mutually exclusive ways, and the underlying

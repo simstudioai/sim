@@ -1,3 +1,4 @@
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface RedditLockParams {
@@ -48,7 +49,7 @@ export const lockTool: ToolConfig<RedditLockParams, RedditLockResponse> = {
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         'Content-Type': 'application/x-www-form-urlencoded',
       }
     },
@@ -131,7 +132,7 @@ export const unlockTool: ToolConfig<RedditLockParams, RedditLockResponse> = {
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         'Content-Type': 'application/x-www-form-urlencoded',
       }
     },

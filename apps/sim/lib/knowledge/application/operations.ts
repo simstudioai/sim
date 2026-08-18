@@ -65,6 +65,18 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  bulkMoveItems: defineWorkspaceOperation({
+    id: 'knowledge.bulk_move_items',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
+  bulkDeleteItems: defineWorkspaceOperation({
+    id: 'knowledge.bulk_delete_items',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
   bulkDelete: defineWorkspaceOperation({
     id: 'knowledge.bulk_delete',
     minimumRole: 'write',

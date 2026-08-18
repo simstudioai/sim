@@ -207,3 +207,118 @@ describe('public-context access (profile-pictures / og-images / workspace-logos)
     expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * The `workspace/` prefix carries two module contexts — a Files-module workspace
+ * file and a mothership chat attachment — and both authorize identically here, by
+ * membership of the owning workspace. Filtering the binding lookup to `workspace`
+ * alone silently missed every attachment and fell through to object metadata,
+ * which cannot see a soft delete.
+ */
+describe('workspace-scoped access (workspace files and mothership attachments)', () => {
+  const ATTACHMENT_KEY = 'workspace/ws-1/1786000000000-a3f2-photo.png'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // No legacy `workspace_file` row and no object metadata, so a denial can only
+    // come from the binding itself rather than a fallback happening to grant.
+    dbChainMockFns.limit.mockResolvedValue([])
+    mockGetFileMetadata.mockResolvedValue({})
+  })
+
+  function read(cloudKey: string, context: 'workspace' | 'mothership') {
+    return verifyFileAccess(cloudKey, USER_ID, undefined, context, false)
+  }
+
+  interface BoundRow {
+    workspaceId: string
+    userId: string
+    context: string
+    deletedAt: Date | null
+  }
+
+  /**
+   * Installs the single row bound to the key, applying the same `context` and
+   * `includeDeleted` filters the real `getFileMetadataByKey` applies. Honoring the
+   * arguments is the whole point: a mock that returns the row unconditionally would
+   * pass against a lookup hard-filtered to `context = 'workspace'`, which is exactly
+   * the bug these tests exist to catch.
+   */
+  function bindRow(row: BoundRow) {
+    mockGetFileMetadataByKey.mockImplementation(
+      async (_key: string, context?: string, options?: { includeDeleted?: boolean }) => {
+        if (context && row.context !== context) return null
+        if (!options?.includeDeleted && row.deletedAt) return null
+        return row
+      }
+    )
+  }
+
+  it.each(['workspace', 'mothership'] as const)(
+    'grants a %s-context binding on workspace membership',
+    async (rowContext) => {
+      bindRow({
+        workspaceId: 'ws-1',
+        userId: USER_ID,
+        context: rowContext,
+        deletedAt: null,
+      })
+      mockGetUserEntityPermissions.mockResolvedValue('read')
+
+      await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(true)
+      expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(USER_ID, 'workspace', 'ws-1')
+      // The binding answered, so the weaker object-metadata path is never consulted.
+      expect(mockGetFileMetadata).not.toHaveBeenCalled()
+    }
+  )
+
+  it('resolves the binding regardless of which workspace-scoped context the caller names', async () => {
+    bindRow({
+      workspaceId: 'ws-1',
+      userId: USER_ID,
+      context: 'mothership',
+      deletedAt: null,
+    })
+    mockGetUserEntityPermissions.mockResolvedValue('read')
+
+    await expect(read(ATTACHMENT_KEY, 'mothership')).resolves.toBe(true)
+  })
+
+  it('denies a soft-deleted attachment instead of falling through to object metadata', async () => {
+    bindRow({
+      workspaceId: 'ws-1',
+      userId: USER_ID,
+      context: 'mothership',
+      deletedAt: new Date('2026-08-01T00:00:00Z'),
+    })
+    mockGetFileMetadata.mockResolvedValue({ workspaceId: 'ws-1' })
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+
+    await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+
+  it('denies a cross-tenant read of an attachment', async () => {
+    bindRow({
+      workspaceId: 'victim-ws',
+      userId: 'other-user',
+      context: 'mothership',
+      deletedAt: null,
+    })
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+
+    await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(false)
+  })
+
+  it('does not accept a binding whose context is not workspace-scoped', async () => {
+    bindRow({
+      workspaceId: 'ws-1',
+      userId: USER_ID,
+      context: 'copilot',
+      deletedAt: null,
+    })
+
+    await expect(read(ATTACHMENT_KEY, 'workspace')).resolves.toBe(false)
+    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
+  })
+})

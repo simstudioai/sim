@@ -1,5 +1,6 @@
 import { isBrowserToolName } from '@sim/browser-protocol'
 import { isTerminalToolName } from '@sim/terminal-protocol'
+import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeDesktopToolContract } from '@/lib/api/contracts/desktop-tool-authorization'
 import { parseRequest } from '@/lib/api/server'
@@ -43,10 +44,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return createNotFoundResponse('Pending client tool call not found')
   }
 
-  const args =
-    toolCall.args && typeof toolCall.args === 'object' && !Array.isArray(toolCall.args)
-      ? (toolCall.args as Record<string, unknown>)
-      : {}
+  const args = isRecordLike(toolCall.args) ? (toolCall.args as Record<string, unknown>) : {}
   const isBrowserTool = isBrowserToolName(toolCall.toolName)
   const isTerminalTool = isTerminalToolName(toolCall.toolName)
   const authorized =

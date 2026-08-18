@@ -13,6 +13,7 @@ import { knowledgeSelectors } from '@/hooks/selectors/providers/knowledge/select
 import { linearSelectors } from '@/hooks/selectors/providers/linear/selectors'
 import { microsoftSelectors } from '@/hooks/selectors/providers/microsoft/selectors'
 import { mondaySelectors } from '@/hooks/selectors/providers/monday/selectors'
+import { netsuiteSelectors } from '@/hooks/selectors/providers/netsuite/selectors'
 import { notionSelectors } from '@/hooks/selectors/providers/notion/selectors'
 import { pipedriveSelectors } from '@/hooks/selectors/providers/pipedrive/selectors'
 import { sharepointSelectors } from '@/hooks/selectors/providers/sharepoint/selectors'
@@ -51,6 +52,7 @@ export const selectorRegistry = {
   ...wealthboxSelectors,
   ...jiraSelectors,
   ...mondaySelectors,
+  ...netsuiteSelectors,
   ...linearSelectors,
   ...knowledgeSelectors,
   ...webflowSelectors,

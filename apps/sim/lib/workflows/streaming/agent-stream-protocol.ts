@@ -25,6 +25,7 @@
  * See docs: workflows/deployment/agent-events.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { isToolCallEndStatus, type ToolCallEndStatus } from '@/providers/stream-events'
 
 /** Lookup key. Lowercase because HTTP/2 lowercases on the wire; `Headers.get` is case-insensitive either way. */
@@ -112,17 +113,13 @@ export type ChatStreamFrame =
   | ChatStreamErrorFrame
   | ChatStreamStreamErrorFrame
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
-}
-
 /**
  * Answer text frame: `{ blockId, chunk }` with no `event` discriminator.
  * Positively defined so thinking/tool/terminal frames can never be appended
  * into the answer by a client that checks this first.
  */
 export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     typeof value.blockId === 'string' &&
     typeof value.chunk === 'string' &&
@@ -132,12 +129,12 @@ export function isChatChunkFrame(value: unknown): value is ChatStreamChunkFrame 
 }
 
 export function isChatChunkResetFrame(value: unknown): value is ChatStreamChunkResetFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return value.event === 'chunk_reset' && typeof value.blockId === 'string'
 }
 
 export function isChatThinkingFrame(value: unknown): value is ChatStreamThinkingFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     value.event === 'thinking' &&
     typeof value.blockId === 'string' &&
@@ -146,7 +143,7 @@ export function isChatThinkingFrame(value: unknown): value is ChatStreamThinking
 }
 
 export function isChatToolFrame(value: unknown): value is ChatStreamToolFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return (
     value.event === 'tool' &&
     typeof value.blockId === 'string' &&
@@ -163,17 +160,17 @@ export function isChatToolFrame(value: unknown): value is ChatStreamToolFrame {
 }
 
 export function isChatFinalFrame(value: unknown): value is ChatStreamFinalFrame {
-  if (!isRecord(value)) return false
-  return value.event === 'final' && isRecord(value.data)
+  if (!isRecordLike(value)) return false
+  return value.event === 'final' && isRecordLike(value.data)
 }
 
 export function isChatErrorFrame(value: unknown): value is ChatStreamErrorFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return value.event === 'error'
 }
 
 export function isChatStreamErrorFrame(value: unknown): value is ChatStreamStreamErrorFrame {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   return value.event === 'stream_error'
 }
 

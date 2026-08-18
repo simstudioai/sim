@@ -114,6 +114,15 @@ describe('buildSelectorContextFromBlock', () => {
     expect(ctx.workspaceId).toBe('ws-123')
   })
 
+  it('exposes the NetSuite async job ID to dependent task selectors', () => {
+    const ctx = buildSelectorContextFromBlock('netsuite', {
+      operation: { id: 'operation', type: 'dropdown', value: 'netsuite_get_async_status' },
+      jobId: { id: 'jobId', type: 'short-input', value: 'job-7' },
+    })
+
+    expect(ctx.jobId).toBe('job-7')
+  })
+
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       operation: { id: 'operation', type: 'dropdown', value: 'search' },

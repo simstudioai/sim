@@ -783,11 +783,3 @@ export function getPredefinedTableStyle(styleId: string): SafeXmlNode | undefine
   cache.set(styleId, node)
   return node
 }
-
-/** Exported for testing: number of known predefined style UUIDs. */
-export const PREDEFINED_STYLE_COUNT = styleIdMap.size
-
-/** Exported for testing: all known style IDs. */
-export function getAllPredefinedStyleIds(): string[] {
-  return Array.from(styleIdMap.keys())
-}

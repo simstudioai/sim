@@ -20,9 +20,11 @@ import {
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
 import { environmentKeys } from '@/hooks/queries/environment'
+import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import {
   fetchWorkspaceCredentialList,
+  requireWorkspaceCredentialListResponse,
   WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
 } from '@/hooks/queries/utils/fetch-workspace-credentials'
 
@@ -74,7 +76,7 @@ export function useWorkspaceCredentials(params: {
         },
         signal,
       })
-      return data.credentials ?? []
+      return requireWorkspaceCredentialListResponse(data)
     },
     enabled: Boolean(workspaceId) && enabled,
     staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
@@ -104,7 +106,7 @@ export function useWorkspaceCredential(credentialId?: string, enabled = true) {
 export function useCreateCredentialDraft() {
   return useMutation({
     mutationFn: async (payload: ContractBodyInput<typeof createCredentialDraftContract>) => {
-      await requestJson(createCredentialDraftContract, { body: payload })
+      return requestJson(createCredentialDraftContract, { body: payload })
     },
   })
 }
@@ -154,34 +156,52 @@ export function useUpdateWorkspaceCredential() {
       const previousLists = queryClient.getQueriesData<WorkspaceCredential[]>({
         queryKey: workspaceCredentialKeys.lists(),
       })
+      const previousDetail = queryClient.getQueryData<WorkspaceCredential | null>(
+        workspaceCredentialKeys.detail(variables.credentialId)
+      )
+
+      /** Applies the in-flight edit to one cached credential. */
+      const withEdit = (cred: WorkspaceCredential): WorkspaceCredential => ({
+        ...cred,
+        ...(variables.displayName !== undefined ? { displayName: variables.displayName } : {}),
+        ...(variables.description !== undefined
+          ? { description: variables.description ?? null }
+          : {}),
+      })
+
+      /*
+       * The detail cache is patched alongside the lists, not just cancelled: a
+       * detail-backed editor compares its drafts against this entry to decide
+       * whether it is dirty, so leaving it stale keeps the surface dirty after a
+       * successful save until the `onSettled` refetch lands — long enough for
+       * Discard to restore the pre-save value over the committed one.
+       */
+      queryClient.setQueryData<WorkspaceCredential | null>(
+        workspaceCredentialKeys.detail(variables.credentialId),
+        (old) => (old ? withEdit(old) : old)
+      )
 
       queryClient.setQueriesData<WorkspaceCredential[]>(
         { queryKey: workspaceCredentialKeys.lists() },
         (old) => {
           if (!old) return old
-          return old.map((cred) =>
-            cred.id === variables.credentialId
-              ? {
-                  ...cred,
-                  ...(variables.displayName !== undefined
-                    ? { displayName: variables.displayName }
-                    : {}),
-                  ...(variables.description !== undefined
-                    ? { description: variables.description ?? null }
-                    : {}),
-                }
-              : cred
-          )
+          return old.map((cred) => (cred.id === variables.credentialId ? withEdit(cred) : cred))
         }
       )
 
-      return { previousLists }
+      return { previousLists, previousDetail }
     },
-    onError: (_err, _variables, context) => {
+    onError: (_err, variables, context) => {
       if (context?.previousLists) {
         for (const [queryKey, data] of context.previousLists) {
           queryClient.setQueryData(queryKey, data)
         }
+      }
+      if (context?.previousDetail !== undefined) {
+        queryClient.setQueryData(
+          workspaceCredentialKeys.detail(variables.credentialId),
+          context.previousDetail
+        )
       }
     },
     onSettled: (_data, _error, variables) => {
@@ -210,6 +230,7 @@ export function useDeleteWorkspaceCredential() {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
       queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY })
       queryClient.invalidateQueries({ queryKey: environmentKeys.all })
+      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
   })
 }

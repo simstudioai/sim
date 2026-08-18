@@ -5,12 +5,7 @@ import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/r
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { executeTool as executeAppTool } from '@/tools'
 import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
-import type {
-  ToolCallDescriptor,
-  ToolExecutionContext,
-  ToolExecutionResult,
-  ToolHandler,
-} from './types'
+import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
 
 const logger = createLogger('ToolExecutor')
 const FUNCTION_EXECUTE_TOOL_ID = 'function_execute'
@@ -27,10 +22,6 @@ export function registerHandlers(entries: Record<string, ToolHandler>): void {
   for (const [toolId, handler] of Object.entries(entries)) {
     handlerRegistry.set(toolId, handler)
   }
-}
-
-export function getRegisteredToolIds(): string[] {
-  return Array.from(handlerRegistry.keys())
 }
 
 export function hasHandler(toolId: string): boolean {
@@ -142,31 +133,6 @@ function normalizeToolParams(
       DEFAULT_EXECUTION_TIMEOUT_MS
     ),
   }
-}
-
-async function executeToolBatch(
-  toolCalls: ToolCallDescriptor[],
-  context: ToolExecutionContext
-): Promise<Map<string, ToolExecutionResult>> {
-  const results = new Map<string, ToolExecutionResult>()
-
-  const executions = toolCalls.map(async ({ toolCallId, toolId, params }) => {
-    const result = await executeTool(toolId, params, context)
-    results.set(toolCallId, result)
-  })
-
-  await Promise.allSettled(executions)
-
-  for (const { toolCallId } of toolCalls) {
-    if (!results.has(toolCallId)) {
-      results.set(toolCallId, {
-        success: false,
-        error: 'Tool execution did not produce a result',
-      })
-    }
-  }
-
-  return results
 }
 
 function buildAppToolParams(

@@ -23,6 +23,8 @@ const OPTIONS = {
   executionId: 'execution-1',
 }
 
+const NO_WRITES = { workflowLogTerminalized: false, sidecarCancelled: false } as const
+
 const ACTIVE_TARGET = {
   tableId: 'table-1',
   rowId: 'row-1',
@@ -64,6 +66,7 @@ describe('cancelWorkflowGroupExecution', () => {
       rowId: 'row-1',
       groupId: 'group-1',
       blockErrors: { 'block-1': 'Provider failed' },
+      writes: { workflowLogTerminalized: true, sidecarCancelled: true },
     })
 
     expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
@@ -80,6 +83,7 @@ describe('cancelWorkflowGroupExecution', () => {
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
     expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
@@ -164,6 +168,7 @@ describe('cancelWorkflowGroupExecution', () => {
 
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'not_workflow_group',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -177,6 +182,7 @@ describe('cancelWorkflowGroupExecution', () => {
 
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'not_workflow_group',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -196,6 +202,7 @@ describe('cancelWorkflowGroupExecution', () => {
 
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'not_workflow_group',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -215,12 +222,19 @@ describe('cancelWorkflowGroupExecution', () => {
 
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'cancelled_without_sidecar',
+      writes: { workflowLogTerminalized: true, sidecarCancelled: false },
     })
 
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+    /**
+     * `totalDurationMs` is derived in-statement from the row's `started_at`, so
+     * a cancelled run carries the duration every other terminal write records
+     * and stays visible to the `/api/v2/logs` duration filters.
+     */
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       status: 'cancelled',
       endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
       executionDeadlineAt: null,
     })
     const logUpdateValues = collectConditionValues(dbChainMockFns.where.mock.calls[2]?.[0])
@@ -242,6 +256,7 @@ describe('cancelWorkflowGroupExecution', () => {
 
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'already_cancelled_without_sidecar',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -262,6 +277,7 @@ describe('cancelWorkflowGroupExecution', () => {
 
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'not_workflow_group',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -281,6 +297,7 @@ describe('cancelWorkflowGroupExecution', () => {
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'conflict',
       status: 'completed',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -311,6 +328,7 @@ describe('cancelWorkflowGroupExecution', () => {
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'conflict',
       status: 'completed',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -328,6 +346,7 @@ describe('cancelWorkflowGroupExecution', () => {
       rowId: 'row-1',
       groupId: 'group-1',
       blockErrors: { 'block-1': 'Provider failed' },
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -346,6 +365,7 @@ describe('cancelWorkflowGroupExecution', () => {
       rowId: 'row-1',
       groupId: 'group-1',
       blockErrors: { 'block-1': 'Provider failed' },
+      writes: { workflowLogTerminalized: false, sidecarCancelled: true },
     })
 
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
@@ -364,6 +384,7 @@ describe('cancelWorkflowGroupExecution', () => {
       rowId: 'row-1',
       groupId: 'group-1',
       blockErrors: { 'block-1': 'Provider failed' },
+      writes: { workflowLogTerminalized: false, sidecarCancelled: true },
     })
 
     const sidecarUpdateValues = collectConditionValues(dbChainMockFns.where.mock.calls[2]?.[0])
@@ -388,6 +409,7 @@ describe('cancelWorkflowGroupExecution', () => {
     await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
       kind: 'conflict',
       status: 'error',
+      writes: NO_WRITES,
     })
 
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
@@ -406,6 +428,7 @@ describe('cancelWorkflowGroupExecution', () => {
       rowId: 'row-1',
       groupId: 'group-1',
       blockErrors: { 'block-1': 'Provider failed' },
+      writes: { workflowLogTerminalized: true, sidecarCancelled: false },
     })
 
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
@@ -422,6 +445,7 @@ describe('cancelWorkflowGroupExecution', () => {
       await expect(cancelWorkflowGroupExecution(OPTIONS)).resolves.toEqual({
         kind: 'conflict',
         status,
+        writes: NO_WRITES,
       })
 
       expect(dbChainMockFns.update).not.toHaveBeenCalled()

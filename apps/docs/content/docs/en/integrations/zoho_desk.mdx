@@ -5,7 +5,7 @@ description: Manage Zoho Desk tickets, comments, threads, and contacts
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="zoho_desk"
   color="#FFFFFF"
 />
@@ -522,3 +522,4 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | `orgId` | string | Zoho Desk organization ID |
 | `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`. |
 | `prevState` | json | Previous state of the resource \(update events only\) |
+

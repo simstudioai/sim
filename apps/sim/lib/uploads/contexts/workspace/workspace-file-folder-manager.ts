@@ -493,8 +493,11 @@ export async function createWorkspaceFileFolder(params: {
   name: string
   parentId?: string | null
   sortOrder?: number
+  exactName?: boolean
+  /** Validates the exact post-deduplication name before the folder row is inserted. */
+  validateResolvedName?: (name: string) => void
 }): Promise<WorkspaceFileFolderRecord> {
-  const name = normalizeWorkspaceFileItemName(params.name, 'Folder')
+  const requestedName = normalizeWorkspaceFileItemName(params.name, 'Folder')
 
   const folder = await db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
@@ -519,22 +522,37 @@ export async function createWorkspaceFileFolder(params: {
       }
     }
 
-    const existingFolders = await tx
-      .select({ id: folderTable.id })
-      .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.workspaceId, params.workspaceId),
-          isFileFolder,
-          eq(folderTable.name, name),
-          folderParentCondition(parentId),
-          isNull(folderTable.deletedAt)
+    const deduplicate = params.exactName === false
+    const name = deduplicate
+      ? await deduplicateFolderName(
+          tx,
+          params.workspaceId,
+          parentId,
+          requestedName,
+          FILE_FOLDER_RESOURCE_TYPE
         )
-      )
-      .limit(1)
+      : requestedName
 
-    if (existingFolders.length > 0) {
-      throw new WorkspaceFileFolderConflictError(name)
+    params.validateResolvedName?.(name)
+
+    if (!deduplicate) {
+      const existingFolders = await tx
+        .select({ id: folderTable.id })
+        .from(folderTable)
+        .where(
+          and(
+            eq(folderTable.workspaceId, params.workspaceId),
+            isFileFolder,
+            eq(folderTable.name, name),
+            folderParentCondition(parentId),
+            isNull(folderTable.deletedAt)
+          )
+        )
+        .limit(1)
+
+      if (existingFolders.length > 0) {
+        throw new WorkspaceFileFolderConflictError(name)
+      }
     }
 
     const [sortOrderResult] = await tx
@@ -1094,92 +1112,6 @@ export async function moveWorkspaceFileItems(params: {
   })
 }
 
-export async function archiveWorkspaceFileFolderRecursive(
-  workspaceId: string,
-  folderId: string
-): Promise<WorkspaceFileArchiveResult> {
-  const now = new Date()
-
-  return db.transaction(async (tx) => {
-    await acquireWorkspaceFileFolderMutationLock(tx, workspaceId)
-
-    const [folder] = await tx
-      .select({ id: folderTable.id })
-      .from(folderTable)
-      .where(
-        and(
-          eq(folderTable.id, folderId),
-          eq(folderTable.workspaceId, workspaceId),
-          isFileFolder,
-          isNull(folderTable.deletedAt)
-        )
-      )
-      .limit(1)
-
-    if (!folder) throw new OrchestrationError('not_found', 'Folder not found')
-
-    const activeFolders = await tx
-      .select({ id: folderTable.id, parentId: folderTable.parentId })
-      .from(folderTable)
-      .where(
-        and(eq(folderTable.workspaceId, workspaceId), isFileFolder, isNull(folderTable.deletedAt))
-      )
-      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
-    assertBulkAffectedItemsWithinLimit(activeFolders.length)
-    const folderIds = [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
-    assertBulkAffectedItemsWithinLimit(folderIds.length)
-
-    const affectedFiles = await tx
-      .select({ id: workspaceFiles.id })
-      .from(workspaceFiles)
-      .where(
-        and(
-          inArray(workspaceFiles.folderId, folderIds),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
-    assertBulkAffectedItemsWithinLimit(folderIds.length + affectedFiles.length)
-
-    const archivedFiles = await tx
-      .update(workspaceFiles)
-      .set({ deletedAt: now, updatedAt: now })
-      .where(
-        and(
-          inArray(workspaceFiles.folderId, folderIds),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          eq(workspaceFiles.context, 'workspace'),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-      .returning({ id: workspaceFiles.id })
-
-    const archivedFolders = await tx
-      .update(folderTable)
-      .set({ deletedAt: now, updatedAt: now })
-      .where(
-        and(
-          inArray(folderTable.id, folderIds),
-          eq(folderTable.workspaceId, workspaceId),
-          isFileFolder,
-          isNull(folderTable.deletedAt)
-        )
-      )
-      .returning({ id: folderTable.id })
-
-    logger.info('Archived workspace file folder recursively', {
-      workspaceId,
-      folderId,
-      folders: archivedFolders.length,
-      files: archivedFiles.length,
-    })
-
-    return { folders: archivedFolders.length, files: archivedFiles.length }
-  })
-}
-
 export async function restoreWorkspaceFileFolder(
   workspaceId: string,
   folderId: string
@@ -1654,5 +1586,61 @@ export async function deleteWorkspaceFileFolderByPath(params: {
       .returning({ id: folderTable.id })
 
     return { folders: archivedFolders.length, files: archivedFiles.length }
+  })
+}
+
+/** Archives an exact folder only while it has no active files or child folders. */
+export async function archiveWorkspaceFileFolderIfEmpty(params: {
+  workspaceId: string
+  folderId: string
+}): Promise<boolean> {
+  const isTargetFolder = and(
+    eq(folderTable.id, params.folderId),
+    eq(folderTable.workspaceId, params.workspaceId),
+    isFileFolder,
+    isNull(folderTable.deletedAt)
+  )
+  return db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+
+    const [folder] = await tx
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(isTargetFolder)
+      .limit(1)
+    if (!folder) return false
+
+    const [childFolder] = await tx
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.parentId, params.folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .limit(1)
+    const [file] = await tx
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          eq(workspaceFiles.folderId, params.folderId),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(1)
+    if (childFolder || file) throw new OrchestrationError('conflict', 'Folder is not empty')
+
+    const [archived] = await tx
+      .update(folderTable)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(isTargetFolder)
+      .returning({ id: folderTable.id })
+    return Boolean(archived)
   })
 }

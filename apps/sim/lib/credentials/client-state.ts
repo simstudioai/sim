@@ -4,15 +4,6 @@ export const PENDING_OAUTH_CREDENTIAL_DRAFT_KEY = 'sim.pending-oauth-credential-
 export const PENDING_CREDENTIAL_CREATE_REQUEST_KEY = 'sim.pending-credential-create-request'
 export const PENDING_CREDENTIAL_CREATE_REQUEST_EVENT = 'sim:pending-credential-create-request'
 
-interface PendingOAuthCredentialDraft {
-  workspaceId: string
-  providerId: string
-  displayName: string
-  existingCredentialIds: string[]
-  existingAccountIds: string[]
-  requestedAt: number
-}
-
 export interface PendingCredentialCreateRequest {
   workspaceId: string
   type: 'env_personal' | 'env_workspace'
@@ -27,23 +18,6 @@ function parseJson<T>(raw: string | null): T | null {
   } catch {
     return null
   }
-}
-
-export function readPendingOAuthCredentialDraft(): PendingOAuthCredentialDraft | null {
-  if (typeof window === 'undefined') return null
-  return parseJson<PendingOAuthCredentialDraft>(
-    window.sessionStorage.getItem(PENDING_OAUTH_CREDENTIAL_DRAFT_KEY)
-  )
-}
-
-export function writePendingOAuthCredentialDraft(payload: PendingOAuthCredentialDraft) {
-  if (typeof window === 'undefined') return
-  window.sessionStorage.setItem(PENDING_OAUTH_CREDENTIAL_DRAFT_KEY, JSON.stringify(payload))
-}
-
-export function clearPendingOAuthCredentialDraft() {
-  if (typeof window === 'undefined') return
-  window.sessionStorage.removeItem(PENDING_OAUTH_CREDENTIAL_DRAFT_KEY)
 }
 
 export function readPendingCredentialCreateRequest(): PendingCredentialCreateRequest | null {
@@ -78,6 +52,11 @@ interface OAuthReturnBase {
   displayName: string
   providerId: string
   preCount: number
+  baselineCredentials?: Array<{
+    id: string
+    accountId: string | null
+    updatedAt?: string
+  }>
   workspaceId: string
   reconnect?: boolean
   requestedAt: number

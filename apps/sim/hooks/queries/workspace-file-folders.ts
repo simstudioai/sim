@@ -11,6 +11,7 @@ import {
   updateWorkspaceFileFolderContract,
   type WorkspaceFileFolderApi,
 } from '@/lib/api/contracts/workspace-file-folders'
+import { extractWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
 import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,
@@ -80,6 +81,25 @@ export function useCreateWorkspaceFileFolder() {
         body: { name: variables.name, parentId: variables.parentId },
       })
       return data.folder
+    },
+    onSettled: (_data, _error, variables) => {
+      invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)
+    },
+  })
+}
+
+export function useExtractWorkspaceFile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (variables: { workspaceId: string; fileId: string; fileName: string }) =>
+      requestJson(extractWorkspaceFileContract, {
+        params: { id: variables.workspaceId, fileId: variables.fileId },
+      }),
+    onSuccess: (data, variables) => {
+      toast.success(`Unzipped "${variables.fileName}" into "${data.folderName}"`)
+    },
+    onError: (error) => {
+      toast.error(toError(error).message)
     },
     onSettled: (_data, _error, variables) => {
       invalidateWorkspaceFileBrowsers(queryClient, variables.workspaceId)

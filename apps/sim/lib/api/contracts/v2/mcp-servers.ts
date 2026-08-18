@@ -117,12 +117,13 @@ export const v2McpServerSchema = z
       'Whether the server tools are available to workflows.'
     ),
     /**
-     * These three are written only by a real discovery. Registration stores a
-     * configuration without contacting the endpoint, so it leaves all three at
-     * their defaults rather than asserting a connection nothing has verified.
+     * These three are written only by a real discovery. Registration's one
+     * outbound touch is the auth-type probe, which classifies the endpoint and
+     * never records a connection, so registration leaves all three at their
+     * defaults rather than asserting a connection nothing has verified.
      */
     connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
-      'Result of the most recent connection attempt. Registration and re-registration store a configuration without contacting the endpoint, so a server begins — and returns to — `disconnected` until a tool discovery runs.'
+      'Result of the most recent connection attempt. Registration and re-registration establish no connection — the auth-type probe they may send does not count as one — so a server begins, and returns to, `disconnected` until a tool discovery runs.'
     ),
     lastError: mcpServerSchema.shape.lastError.describe(
       'Message from the most recent failed connection, or null when absent. A re-registration clears it, since the configuration it described no longer applies.'
@@ -221,12 +222,18 @@ export const v2CreateMcpServerBodySchema = z
       )
       .meta({ default: 'streamable-http' }),
     url: v2McpServerUrlSchema,
+    /**
+     * No published `default`: when the field is omitted the stored value is
+     * detected, not defaulted, so a `default` here would be wrong on create and
+     * — inherited by the `.partial()` update body — would make an SDK that
+     * materializes JSON-Schema defaults revoke a stored OAuth grant on every
+     * unrelated PATCH.
+     */
     authType: mcpAuthTypeSchema
       .optional()
       .describe(
-        'Authentication method. Applied server-side as `headers` when omitted; registration never contacts the server, so an omitted value is never detected from it.'
-      )
-      .meta({ default: 'headers' }),
+        'Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.'
+      ),
     /** Write-only. Reads expose `hasHeaders` and `headerNames` instead. */
     headers: v2McpServerHeadersSchema
       .optional()

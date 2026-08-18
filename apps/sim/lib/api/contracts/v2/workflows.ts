@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/contracts/deployments'
 import {
   booleanQueryFlagSchema,
+  missingFieldError,
   noInputSchema,
   runIdSchema,
   workspaceIdSchema,
@@ -398,7 +399,7 @@ export const v2CreateWorkflowBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace in which to create the workflow.'),
     name: z
-      .string()
+      .string({ error: missingFieldError('name is required') })
       .trim()
       .min(1, 'name is required')
       .max(255, 'name is too long')
@@ -787,6 +788,15 @@ export const v2RollbackWorkflowContract = defineRouteContract({
  * `@/executor/utils/errors` (duplicated literally: contracts are
  * client-importable and must not pull executor modules). APPEND-ONLY: callers
  * route on these instead of substring-matching messages.
+ *
+ * `OUTPUT_TOO_LARGE` was retired rather than kept for the append-only promise:
+ * an oversize run response is not an in-band failure and never reached
+ * classification, so the code was never emitted on any response. See
+ * `WorkflowExecutionErrorCode` for the full reasoning; the oversize case is an
+ * HTTP 413 carrying `workflow_response_too_large` in the error envelope.
+ *
+ * Block attribution is NOT uniform across the operations that carry this
+ * object — see `blockId` below.
  */
 export const v2ExecutionErrorSchema = z
   .object({
@@ -799,14 +809,41 @@ export const v2ExecutionErrorSchema = z
         'INVALID_INPUT',
         'BLOCK_EXECUTION_FAILED',
         'CHILD_WORKFLOW_FAILED',
-        'OUTPUT_TOO_LARGE',
         'EXECUTION_FAILED',
       ])
-      .describe('Stable machine-readable execution failure code.'),
-    /** Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider. */
-    blockId: z.string().optional().describe('Identifier of the failing block, when attributable.'),
-    blockName: z.string().optional().describe('Display name of the failing block.'),
-    blockType: z.string().optional().describe('Integration or block type that failed.'),
+      .describe(
+        'Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`.'
+      ),
+    /**
+     * Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider.
+     *
+     * Attribution is produced at execution time from the failing block's throw
+     * site, so it reaches the caller only on the synchronous execute response.
+     * The polled run resource and the resume response reclassify a persisted
+     * error *string* — the log row keeps no structured error — so these three
+     * fields are absent there and the code collapses to `EXECUTION_FAILED`.
+     * That is a known asymmetry, documented rather than silently promised:
+     * a caller that needs the failing block reads the run's trace spans, which
+     * do carry `blockId`, `name`, and `type`.
+     */
+    blockId: z
+      .string()
+      .optional()
+      .describe(
+        'Identifier of the failing block. Present on the synchronous execute response only; the polled run resource and the resume response cannot attribute a block.'
+      ),
+    blockName: z
+      .string()
+      .optional()
+      .describe(
+        'Display name of the failing block. Present on the synchronous execute response only.'
+      ),
+    blockType: z
+      .string()
+      .optional()
+      .describe(
+        'Integration or block type that failed. Present on the synchronous execute response only.'
+      ),
   })
   .meta({
     id: 'ExecutionError',
@@ -1191,19 +1228,36 @@ export const v2ListWorkflowRunsContract = defineRouteContract({
 /**
  * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
- * window doesn't exist here. `error` is the same structured object the execute
- * response carries.
+ * window doesn't exist here. `error` is the same *shape* the execute response
+ * carries, but not the same content: this resource reclassifies the persisted
+ * error string, so it never attributes a block. See `v2ExecutionErrorSchema`.
  */
 export const v2WorkflowRunStatusSchema = z
   .object({
     runId: v2WorkflowRunIdSchema,
     workflowId: z.string().describe('Workflow that produced the run.'),
     status: v2WorkflowRunStatusValueSchema,
-    trigger: z.string().nullable().describe('Trigger type, or null before the run is recorded.'),
+    /**
+     * Kept nullable on the wire while never being null in practice: every
+     * projection this resource has — the queued job, the queued resume, and the
+     * durable log row — backfills both fields (`api` and the job's creation time
+     * when the run is not yet recorded), so no caller has observed a null here.
+     * The nullability is the schema's tolerance for a future projection, not a
+     * state a caller needs to branch on, which is why neither description
+     * promises a null that never arrives.
+     */
+    trigger: z
+      .string()
+      .nullable()
+      .describe(
+        'Trigger type that started the run. Backfilled as `api` for a run that is still queued, so it is populated from the first poll.'
+      ),
     startedAt: z
       .string()
       .nullable()
-      .describe('ISO 8601 start timestamp, or null while queued.')
+      .describe(
+        'ISO 8601 start timestamp. A queued run reports the time it was enqueued, so it is populated from the first poll.'
+      )
       .meta({ format: 'date-time' }),
     endedAt: z
       .string()
@@ -1224,7 +1278,9 @@ export const v2WorkflowRunStatusSchema = z
       .describe('Credit cost, or null when unavailable.'),
     error: v2ExecutionErrorSchema
       .nullable()
-      .describe('Structured execution failure, or null when none occurred.'),
+      .describe(
+        'Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response.'
+      ),
     /** Populated only with `includeOutput=true` on completed runs. */
     output: z
       .unknown()
@@ -1234,7 +1290,9 @@ export const v2WorkflowRunStatusSchema = z
     blockOutputs: z
       .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
       .nullable()
-      .describe('Selected block outputs when requested, otherwise null.'),
+      .describe(
+        'Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only.'
+      ),
   })
   .meta({
     id: 'WorkflowRunStatus',
@@ -1257,11 +1315,19 @@ export const v2GetWorkflowRunContract = defineRouteContract({
        * working identically; it only widens what parses.
        */
       includeOutput: booleanQueryFlagSchema
-        .describe('Include final and block outputs when true.')
+        .describe(
+          'Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.'
+        )
         .optional()
         .default(false),
+      /**
+       * Block *ids*, unlike the execute request's `selectedOutputs`, which also
+       * accepts `BlockName.path` and resolves it against the live workflow. This
+       * resource reads a recorded run and never loads the workflow's blocks, so
+       * a name has no id to resolve to and selects nothing.
+       */
       selectedOutputs: workflowExecutionStatusQuerySchema.shape.selectedOutputs.describe(
-        'Comma-separated block output references to include.'
+        'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.'
       ),
     })
     .strict()
@@ -1283,25 +1349,29 @@ export const v2CancelWorkflowRunDataSchema = z
     redisAvailable: z
       .boolean()
       .describe('Whether the distributed cancellation channel was available.'),
-    durablyRecorded: z.boolean().describe('Whether cancellation was recorded durably.'),
+    durablyRecorded: z
+      .boolean()
+      .describe(
+        'Whether this request durably recorded a cancellation. Always false for a run that was already terminal, where the request is satisfied but nothing was written.'
+      ),
     locallyAborted: z.boolean().describe('Whether an in-process execution was aborted.'),
     pausedCancelled: z.boolean().describe('Whether a paused execution was cancelled.'),
     /**
      * Always emitted by the cancellation service — it is not a partial-failure
-     * marker. `recorded` is the full-success value; the other four name the step
-     * that degraded.
+     * marker. `recorded` is the full-success value; the `already_*` values name
+     * a terminal no-op; the rest name the step that degraded.
      */
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
       .describe(
-        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
+        'Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.'
       ),
   })
   .meta({
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
     description:
-      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, so poll the run to observe its final state.',
+      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 

@@ -133,13 +133,6 @@ export function buildPlanName(type: 'pro' | 'team', credits: number): string {
 }
 
 /**
- * Get the list of valid plan names for a given category.
- */
-export function getValidPlanNames(type: 'pro' | 'team'): string[] {
-  return CREDIT_TIERS.map((t) => buildPlanName(type, t.credits))
-}
-
-/**
  * Get the user-facing display name for a plan.
  * @example getDisplayPlanName('pro_25000') => 'Max'
  * @example getDisplayPlanName('team_6000') => 'Pro for Teams'

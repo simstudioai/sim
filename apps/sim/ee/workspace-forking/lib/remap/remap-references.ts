@@ -1,23 +1,26 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import type { z } from 'zod'
 import type { forkRemapKindSchema } from '@/lib/api/contracts/workspace-fork'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import {
   coerceObjectArray,
-  isRecord,
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   getWorkflowSearchSubBlockResourceDefinition,
   parseWorkflowSearchSubBlockResources,
   type StructuredWorkflowSearchResourceKind,
 } from '@/lib/workflows/search-replace/resources/registry'
+import {
+  getDependsOnFields,
+  getSubBlocksDependingOnChange,
+  getTransitiveSubBlockDependents,
+} from '@/lib/workflows/subblocks/dependencies'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -30,15 +33,19 @@ import {
   resolveCanonicalMode,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import {
+  isSubBlockRequired,
+  resolveToolParamRequired,
+} from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields, getSubBlocksDependingOnChange } from '@/blocks/utils'
 import {
   collectForkFileUploadKeys,
   remapForkFileUploadValue,
 } from '@/ee/workspace-forking/lib/remap/remap-files'
 import { isEnvVarReference, isReference } from '@/executor/constants'
+import type { ParameterVisibility } from '@/tools/types'
 
 /**
  * Resource kinds the fork remapper rewrites across workspaces, derived from the
@@ -345,7 +352,7 @@ function remapEnvInValue(
   }
   // Recurse plain objects so `{{ENV}}` nested in array-form tool params (and other
   // object-valued subblocks) is rewritten, not just top-level strings/arrays.
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     let changed = false
     const next: Record<string, unknown> = {}
     for (const [key, nested] of Object.entries(value)) {
@@ -389,7 +396,7 @@ interface ToolBlockRemapOptions {
  * fields (handled by the callers / the workflow id map), not block params, so they
  * pass through here untouched. Returns a new tool object only when something changed.
  * After remapping, dependent params (via `dependsOn`) of any changed resource are
- * cleared with the same {@link getWorkflowSearchDependentClears} walk search-replace
+ * cleared with the same {@link getTransitiveSubBlockDependents} walk search-replace
  * uses, so a child scoped to the old parent isn't left stale.
  */
 export function remapToolBlockResources(
@@ -398,7 +405,7 @@ export function remapToolBlockResources(
 ): Record<string, unknown> {
   if (typeof tool.type !== 'string') return tool
   const params = tool.params
-  if (!isRecord(params)) return tool
+  if (!isRecordLike(params)) return tool
 
   let nextParams: Record<string, unknown> | null = null
   const setParam = (paramId: string, value: unknown) => {
@@ -588,7 +595,7 @@ export function remapToolBlockResources(
       const parentCfg = configBySubBlockId.get(subBlockId)
       const parentRemappedNonEmpty = isNonEmptyValue(readParam(parentCfg, subBlockId))
       const parentCopied = parentRemappedNonEmpty && copyRemappedSubBlockIds.has(subBlockId)
-      for (const clear of getWorkflowSearchDependentClears(toolBlockSubBlocks, subBlockId)) {
+      for (const clear of getTransitiveSubBlockDependents(toolBlockSubBlocks, [subBlockId])) {
         const dependentCfg = configBySubBlockId.get(clear.subBlockId)
         // A verbatim manual-parent dependent is never cleared, even when reachable from a
         // second (remapped) parent.
@@ -678,7 +685,7 @@ function remapForkToolInputValue(
       next.push(nextTool)
     }
 
-    if (!isRecord(tool) || typeof tool.type !== 'string') {
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') {
       keep(tool)
       return
     }
@@ -701,7 +708,11 @@ function remapForkToolInputValue(
       keep(tool)
       return
     }
-    if (tool.type === 'mcp' && isRecord(tool.params) && typeof tool.params.serverId === 'string') {
+    if (
+      tool.type === 'mcp' &&
+      isRecordLike(tool.params) &&
+      typeof tool.params.serverId === 'string'
+    ) {
       const serverId = tool.params.serverId
       const target = resolve('mcp-server', serverId)
       opts.record?.('mcp-server', serverId, target != null)
@@ -774,7 +785,7 @@ function remapForkSkillInputValue(
   if (!array) return value
   let changed = false
   const next = array.flatMap((entry) => {
-    if (!isRecord(entry) || typeof entry.skillId !== 'string') return [entry]
+    if (!isRecordLike(entry) || typeof entry.skillId !== 'string') return [entry]
     if (entry.skillId.startsWith('builtin-')) return [entry]
     const target = resolve('skill', entry.skillId)
     opts.record?.('skill', entry.skillId, target != null)
@@ -1128,7 +1139,7 @@ export function clearDependentsOnRemap(
     }
   }
 
-  // Same BFS as `getWorkflowSearchDependentClears`, with each preserved dependent's subtree
+  // Same BFS as `getTransitiveSubBlockDependents`, with each preserved dependent's subtree
   // pruned (skipping it keeps its own dependents - e.g. a tool's arguments - out of the clear
   // set). A dependent under an ACTIVE MANUAL parent is verbatim by policy (the manual value is
   // never remapped), so it is pruned the same way.
@@ -1188,20 +1199,6 @@ export interface NeedsConfigurationField {
   required: boolean
 }
 
-/** Evaluate a subblock's `required` (boolean | condition | fn) against a value map. */
-export function isSubBlockRequired(
-  required: SubBlockConfig['required'],
-  values: Record<string, unknown>
-): boolean {
-  if (required === true) return true
-  if (!required) return false
-  // The object/function forms are structurally a SubBlockCondition.
-  return evaluateSubBlockCondition(
-    required as Parameters<typeof evaluateSubBlockCondition>[0],
-    values
-  )
-}
-
 /** Nested `tool-input` dependents (Agent/tool blocks) the TARGET configured that a remap cleared. */
 function collectClearedToolParamDependents(
   toolInputKey: string,
@@ -1221,12 +1218,12 @@ function collectClearedToolParamDependents(
   for (let index = 0; index < mergedTools.length; index++) {
     const tool = mergedTools[index]
     const targetTool = targetTools[index]
-    if (!isRecord(tool) || typeof tool.type !== 'string') continue
-    if (!isRecord(targetTool) || targetTool.type !== tool.type) continue
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') continue
+    if (!isRecordLike(targetTool) || targetTool.type !== tool.type) continue
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) continue
-    const targetParams = isRecord(targetTool.params) ? targetTool.params : {}
-    const mergedParams = isRecord(tool.params) ? tool.params : {}
+    const targetParams = isRecordLike(targetTool.params) ? targetTool.params : {}
+    const mergedParams = isRecordLike(tool.params) ? tool.params : {}
     // A tool's `operation` lives at the tool level, not in params, but conditions
     // reference it - merge it in so condition/required gating matches the editor.
     const mergedValues =
@@ -1242,6 +1239,27 @@ function collectClearedToolParamDependents(
       scopeCanonicalModesForTool(parentCanonicalModes, index, tool.type)
     )
     const toolLabel = typeof tool.title === 'string' && tool.title ? tool.title : toolConfig.name
+    // Resolved visibility per param, so `required` here means the same thing it means in the
+    // pre-sync modal. Without this the two paths disagree: the modal would let a sync through
+    // (a model-supplied param is not the user's to fill) and then this collector would mark it
+    // required, which SKIPS the target's redeploy in `promote.ts` - leaving the fork silently
+    // running its previous deployed version.
+    const paramVisibilityById = new Map<string, ParameterVisibility | undefined>()
+    for (const resolved of getToolInputParamConfigs({
+      tool: { ...tool, type: tool.type, params: mergedParams },
+      toolIndex: index,
+      parentCanonicalModes,
+    })) {
+      if (!resolved.authoritative) continue
+      const visibility = resolved.config.paramVisibility
+      paramVisibilityById.set(resolved.paramId, visibility)
+      if (
+        resolved.config.canonicalParamId &&
+        !paramVisibilityById.has(resolved.config.canonicalParamId)
+      ) {
+        paramVisibilityById.set(resolved.config.canonicalParamId, visibility)
+      }
+    }
     for (const cfg of toolConfig.subBlocks) {
       if (!cfg.dependsOn || !cfg.id) continue
       // Only flag a param the TARGET tool had configured (not one the source carried in).
@@ -1257,7 +1275,7 @@ function collectClearedToolParamDependents(
         subBlockKey: `${toolInputKey}[${index}].${cfg.id}`,
         title: cfg.title ?? cfg.id,
         toolName: toolLabel,
-        required: isSubBlockRequired(cfg.required, mergedValues),
+        required: resolveToolParamRequired(cfg, mergedValues, paramVisibilityById),
       })
     }
   }
@@ -1364,10 +1382,10 @@ export function readTargetDraftDependentValue(
   if (nested) {
     const { toolInputId, index, paramId } = nested
     const targetTool = coerceObjectArray(targetDraftSubBlocks[toolInputId]?.value).array?.[index]
-    if (!isRecord(targetTool) || typeof targetTool.type !== 'string') return ''
+    if (!isRecordLike(targetTool) || typeof targetTool.type !== 'string') return ''
     const sourceTool = coerceObjectArray(sourceSubBlocks?.[toolInputId]?.value).array?.[index]
-    if (!isRecord(sourceTool) || sourceTool.type !== targetTool.type) return ''
-    const params = isRecord(targetTool.params) ? targetTool.params : {}
+    if (!isRecordLike(sourceTool) || sourceTool.type !== targetTool.type) return ''
+    const params = isRecordLike(targetTool.params) ? targetTool.params : {}
     const value = params[paramId]
     return typeof value === 'string' ? value : ''
   }
@@ -1395,7 +1413,7 @@ function applyNestedToolOverrides(
   const merged = array.map((tool, index) => {
     const forTool = items.filter((item) => item.index === index)
     if (forTool.length === 0) return tool
-    if (!isRecord(tool) || typeof tool.type !== 'string') return tool
+    if (!isRecordLike(tool) || typeof tool.type !== 'string') return tool
     const toolConfig = getBlock(tool.type)
     if (!toolConfig) return tool
     const allowed = new Set(
@@ -1403,7 +1421,7 @@ function applyNestedToolOverrides(
         .filter((cfg) => cfg.id && cfg.dependsOn && cfg.selectorKey)
         .map((cfg) => cfg.id)
     )
-    const params = isRecord(tool.params) ? tool.params : {}
+    const params = isRecordLike(tool.params) ? tool.params : {}
     let nextParams: Record<string, unknown> | null = null
     for (const item of forTool) {
       if (!allowed.has(item.paramId)) continue

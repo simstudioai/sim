@@ -78,11 +78,14 @@ const PAGED_LISTS = [
  *   server reports. The MCP *server* list is not bounded that way — nothing caps
  *   how many servers a workspace registers — which is why it is paged and does
  *   not appear here.
+ * - The credential-provider catalog is bounded by the code-defined OAuth and
+ *   service-account registries.
  * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
  *   cannot grow past them.
  * - A table's saved views and its dispatchable groups are capped per table.
  */
 const FULL_SET_LISTS = [
+  'GET /api/v2/credentials/providers',
   'GET /api/v2/files/folders',
   'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',
@@ -172,6 +175,35 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/workflows/[id]/runs': ['status', 'trigger', 'startDate', 'endDate', 'order'],
   'GET /api/v2/workflows/[id]/versions': [],
   'GET /api/v2/workspaces/[workspaceId]/members': [],
+}
+
+/**
+ * The path params each nested paged list binds its cursor to — the ones that
+ * name WHICH parent resource the sequence belongs to.
+ *
+ * {@link CURSOR_BINDINGS} covers only what a contract accepts as query or body,
+ * so a nested list's parent id is invisible to it: an empty binding there reads
+ * the same whether the list genuinely has no filters or whether its parent was
+ * forgotten. Both readings were true at once — `GET /workflows/[id]/versions`
+ * and `GET /workspaces/[workspaceId]/members` declared `[]`, accepted a sibling
+ * parent's token, and answered 200 from a position in a sequence the caller
+ * never walked.
+ *
+ * Every placeholder in a paged list's path is bound, with no exemptions. A path
+ * param is never merely an asserted scope the way a `workspaceId` *query* param
+ * is on the table lists — that one is refused by authorization before paging,
+ * which is why it is exempted in {@link UNBOUND_PARAMS} instead. A placeholder
+ * is what picks the sequence out, so leaving one unbound is exactly the defect
+ * above. Routes apply this through `cursorRoute(contract, params)`, which
+ * resolves the path before fingerprinting it.
+ */
+const CURSOR_BOUND_PATH_PARAMS: Record<string, readonly string[]> = {
+  'GET /api/v2/knowledge/[id]/documents': ['id'],
+  'GET /api/v2/tables/[tableId]/rows': ['tableId'],
+  'POST /api/v2/tables/[tableId]/query': ['tableId'],
+  'GET /api/v2/workflows/[id]/runs': ['id'],
+  'GET /api/v2/workflows/[id]/versions': ['id'],
+  'GET /api/v2/workspaces/[workspaceId]/members': ['workspaceId'],
 }
 
 /**
@@ -554,6 +586,24 @@ describe('v2 list pagination split', () => {
       'A paged v2 list must declare its cursor binding in CURSOR_BINDINGS. A cursor names a position in one sequence; every param that decides that sequence has to be stamped into the token, or replaying it across a filter change answers from a sequence the caller never asked for.'
     ).toEqual([])
     expect([...declared].sort()).toEqual([...PAGED_LISTS].sort())
+  })
+
+  it('binds every paged list to the parent its path names', () => {
+    for (const key of PAGED_LISTS) {
+      const placeholders = [...key.matchAll(/\[([^\]]+)\]/g)].map(([, name]) => name)
+
+      expect(
+        [...(CURSOR_BOUND_PATH_PARAMS[key] ?? [])].sort(),
+        `${key} does not bind its cursor to the path param naming its parent resource. Pass it through cursorRoute(contract, params) in the route and declare it in CURSOR_BOUND_PATH_PARAMS; otherwise a sibling parent's token decodes cleanly here and answers from a sequence the caller never walked.`
+      ).toEqual(placeholders.sort())
+    }
+  })
+
+  it('never declares a path binding for a list that has no such parent', () => {
+    for (const [key, bound] of Object.entries(CURSOR_BOUND_PATH_PARAMS)) {
+      expect(PAGED_LISTS.includes(key as never), `${key} is not a paged list`).toBe(true)
+      expect(bound.length, `${key} declares an empty path binding`).toBeGreaterThan(0)
+    }
   })
 
   it('binds every sequence-affecting param a paged list accepts', async () => {

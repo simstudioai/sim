@@ -1,10 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import {
+  createTableDefinition,
+  hybridAuthMockFns,
+  type TableDefinitionFactoryOptions,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table'
 
 const { mockCheckAccess, mockMarkTableImporting, mockRunTableImport } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
@@ -34,22 +37,8 @@ vi.mock('@/app/api/table/utils', async () => {
 
 import { POST } from '@/app/api/table/[tableId]/import-async/route'
 
-function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: { columns: [{ name: 'name', type: 'string' }] },
-    metadata: null,
-    rowCount: 0,
-    maxRows: 1_000_000,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  }
+const TABLE_FIXTURE: TableDefinitionFactoryOptions = {
+  columns: [{ name: 'name', type: 'string' }],
 }
 
 function makeRequest(body: unknown, tableId = 'tbl_1') {
@@ -76,7 +65,7 @@ describe('POST /api/table/[tableId]/import-async', () => {
       userId: 'user-1',
       authType: 'session',
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockCheckAccess.mockResolvedValue({ ok: true, table: createTableDefinition(TABLE_FIXTURE) })
     mockMarkTableImporting.mockResolvedValue(true)
     mockRunTableImport.mockResolvedValue(undefined)
   })
@@ -126,7 +115,10 @@ describe('POST /api/table/[tableId]/import-async', () => {
   })
 
   it('returns 400 when the target table is archived', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable({ archivedAt: new Date() }) })
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: createTableDefinition({ ...TABLE_FIXTURE, archivedAt: new Date() }),
+    })
     const response = await makeRequest(validBody)
     expect(response.status).toBe(400)
     expect(mockRunTableImport).not.toHaveBeenCalled()

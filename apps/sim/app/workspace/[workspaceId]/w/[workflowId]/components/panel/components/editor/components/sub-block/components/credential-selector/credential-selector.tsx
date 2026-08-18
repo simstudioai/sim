@@ -253,7 +253,9 @@ export function CredentialSelector({
 
   const comboboxOptions = useMemo(() => {
     if (isAllCredentials) {
-      const oauthCredentials = allWorkspaceCredentials.filter((c) => c.type === 'oauth')
+      const oauthCredentials = allWorkspaceCredentials.filter(
+        (credential) => credential.type === 'oauth'
+      )
       return oauthCredentials.map((cred) => ({ label: cred.displayName, value: cred.id }))
     }
     if (isMergedKinds) return []
@@ -409,7 +411,9 @@ export function CredentialSelector({
       }
 
       const matchedCred = (
-        isAllCredentials ? allWorkspaceCredentials.filter((c) => c.type === 'oauth') : credentials
+        isAllCredentials
+          ? allWorkspaceCredentials.filter((credential) => credential.type === 'oauth')
+          : credentials
       ).find((c) => c.id === value)
       if (matchedCred) {
         handleSelect(value)
@@ -467,6 +471,7 @@ export function CredentialSelector({
                 providerId: effectiveProviderId,
                 preCount: credentials.filter((c) => c.type !== 'service_account').length,
                 workspaceId,
+                reconnect: true,
                 requestedAt: Date.now(),
               })
               setShowOAuthModal(true)

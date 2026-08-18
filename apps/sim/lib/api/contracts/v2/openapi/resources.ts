@@ -1,4 +1,10 @@
-import { v2ListCredentialsContract } from '@/lib/api/contracts/v2/credentials'
+import {
+  v2CreateCredentialConnectionContract,
+  v2CreateServiceAccountCredentialContract,
+  v2DeleteCredentialContract,
+  v2ListCredentialProvidersContract,
+  v2ListCredentialsContract,
+} from '@/lib/api/contracts/v2/credentials'
 import {
   v2CreateCustomToolContract,
   v2DeleteCustomToolContract,
@@ -166,9 +172,67 @@ const CREDENTIAL_EXAMPLE = {
   updatedAt: '2026-06-20T14:02:11.000Z',
 } as const
 
+const CREDENTIAL_PROVIDER_EXAMPLE = {
+  type: 'oauth',
+  serviceId: 'salesforce',
+  name: 'Salesforce',
+  description: 'Connect to Salesforce CRM data and operations.',
+  providerFamily: 'salesforce',
+  available: true,
+  supportsReconnect: true,
+  authorizationOptions: [
+    { providerId: 'salesforce', label: 'Production' },
+    { providerId: 'salesforce-sandbox', label: 'Sandbox' },
+  ],
+} as const
+
+const SERVICE_ACCOUNT_PROVIDER_EXAMPLE = {
+  type: 'service_account',
+  serviceId: 'zoom-service-account',
+  providerId: 'zoom-service-account',
+  name: 'Zoom server-to-server app',
+  description: 'Connect Zoom with a server-to-server app.',
+  providerFamily: 'zoom',
+  available: true,
+  docsUrl: 'https://docs.sim.ai/integrations/zoom-service-account',
+  requiresClientGeneratedCredentialId: false,
+  fields: [
+    {
+      id: 'clientId',
+      label: 'Client ID',
+      placeholder: 'Paste the client ID',
+      required: true,
+      secret: false,
+      multiline: false,
+    },
+    {
+      id: 'clientSecret',
+      label: 'Client secret',
+      placeholder: 'Paste the client secret',
+      required: true,
+      secret: true,
+      multiline: false,
+    },
+    {
+      id: 'orgId',
+      label: 'Account ID',
+      placeholder: 'Paste the account ID',
+      required: true,
+      secret: false,
+      multiline: false,
+    },
+  ],
+} as const
+
+const CREDENTIAL_CONNECTION_EXAMPLE = {
+  authorizationUrl: 'https://www.sim.ai/api/auth/oauth2/authorize?draftId=draft-123',
+  expiresAt: '2026-06-20T14:17:11.000Z',
+} as const
+
 const SECRET_EXAMPLE = {
   name: 'STRIPE_API_KEY',
   scope: 'workspace',
+  description: 'Production billing key — rotate quarterly.',
   role: 'admin',
   createdAt: '2026-06-01T09:14:00.000Z',
   updatedAt: '2026-06-20T14:02:11.000Z',
@@ -784,7 +848,7 @@ const declaredRoutes = [
       operationId: 'listCredentials',
       summary: 'List Credentials',
       description:
-        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are not exposed.',
+        'List OAuth and service-account connections visible to the caller. Secret material is never returned.',
       errors: RESOURCE_ERRORS,
       success: { description: 'Credentials visible to the caller.' },
     }),
@@ -801,6 +865,135 @@ const declaredRoutes = [
         'List credentials response',
         'Credential metadata visible to the caller.',
         [{ data: [CREDENTIAL_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ListCredentialProvidersContract,
+    resourceOperation('Credentials', {
+      operationId: 'listCredentialProviders',
+      summary: 'List Credential Providers',
+      description: `List catalogued OAuth and service-account connection methods and whether each is available to the caller in this workspace and deployment. Optionally search provider names with a case-insensitive substring match. OAuth authorization options contain the exact provider IDs accepted by the browser connection endpoint; service-account methods list the exact create-body fields and mark secret fields write-only. ${FULL_SET_LIST}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Credential provider catalog with caller-specific availability.' },
+    }),
+    {
+      query: documentedSchema(
+        v2ListCredentialProvidersContract.query,
+        'ListCredentialProvidersQuery',
+        'List credential providers query',
+        'Workspace and optional provider-name search used to filter caller-specific availability.'
+      ),
+      response: documentedSchema(
+        v2ListCredentialProvidersContract.response.schema,
+        'ListCredentialProvidersResponse',
+        'List credential providers response',
+        'OAuth and service-account connection methods.',
+        [
+          {
+            data: [CREDENTIAL_PROVIDER_EXAMPLE, SERVICE_ACCOUNT_PROVIDER_EXAMPLE],
+            nextCursor: null,
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateServiceAccountCredentialContract,
+    resourceOperation('Credentials', {
+      operationId: 'createServiceAccountCredential',
+      summary: 'Create Service-Account Credential',
+      description: `Verify and store one service-account credential. Use provider discovery to select a service-account provider and submit its required fields. Secret fields are write-only and are never returned. A retried source match returns the existing credential with 200; a newly created credential returns 201. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: {
+        byStatus: {
+          200: { description: 'An existing credential matched the verified source.' },
+          201: { description: 'The service-account credential was created.' },
+        },
+      },
+    }),
+    {
+      query: v2CreateServiceAccountCredentialContract.query,
+      body: documentedSchema(
+        v2CreateServiceAccountCredentialContract.body,
+        'CreateServiceAccountCredentialRequest',
+        'Create service-account credential request',
+        'Provider identifier, optional display metadata, and the write-only fields declared by provider discovery.',
+        [
+          {
+            workspaceId: WORKSPACE_ID,
+            type: 'service_account',
+            providerId: 'zoom-service-account',
+            displayName: 'Zoom automation',
+            clientId: 'YOUR_CLIENT_ID',
+            clientSecret: 'YOUR_CLIENT_SECRET',
+            orgId: 'YOUR_ACCOUNT_ID',
+          },
+        ]
+      ),
+      response: documentedSchema(
+        v2CreateServiceAccountCredentialContract.response.schema,
+        'CreateServiceAccountCredentialResponse',
+        'Create service-account credential response',
+        'Verified credential metadata without secret material.',
+        [{ data: CREDENTIAL_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2CreateCredentialConnectionContract,
+    resourceOperation('Credentials', {
+      operationId: 'createCredentialConnection',
+      summary: 'Create Credential Connection',
+      description: `Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL in a browser, sign in as the personal API-key owner, complete provider authorization, then refresh the credentials list. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'A short-lived browser authorization URL.' },
+    }),
+    {
+      query: v2CreateCredentialConnectionContract.query,
+      body: documentedSchema(
+        v2CreateCredentialConnectionContract.body,
+        'CreateCredentialConnectionBody',
+        'Create credential connection body',
+        'For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved.'
+      ),
+      response: documentedSchema(
+        v2CreateCredentialConnectionContract.response.schema,
+        'CreateCredentialConnectionResponse',
+        'Create credential connection response',
+        'Short-lived Sim browser entrypoint and its expiry.',
+        [{ data: CREDENTIAL_CONNECTION_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DeleteCredentialContract,
+    resourceOperation('Credentials', {
+      operationId: 'deleteCredential',
+      summary: 'Disconnect Credential',
+      description: `Disconnect an OAuth or service-account credential and clear its stored workflow, deployment, paused-run, knowledge-connector, and webhook references. Credential admin access is required. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'The credential was disconnected.' },
+    }),
+    {
+      params: documentedSchema(
+        v2DeleteCredentialContract.params,
+        'DeleteCredentialParams',
+        'Disconnect credential path parameters',
+        'Credential selected for disconnection.'
+      ),
+      query: documentedSchema(
+        v2DeleteCredentialContract.query,
+        'DeleteCredentialQuery',
+        'Disconnect credential query',
+        'Workspace expected to own the credential.'
+      ),
+      response: documentedSchema(
+        v2DeleteCredentialContract.response.schema,
+        'DeleteCredentialResponse',
+        'Disconnect credential response',
+        'Acknowledgement that the credential was disconnected.',
+        [{ data: { id: CREDENTIAL_EXAMPLE.id, deleted: true } }]
       ),
     }
   ),
@@ -953,7 +1146,8 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
     },
     {
       name: 'Credentials',
-      description: 'List OAuth and service-account connections without secret material.',
+      description:
+        'Discover providers, create service-account credentials, connect or reconnect OAuth accounts, disconnect credentials, and list connections without secret material.',
     },
     {
       name: 'Secrets',

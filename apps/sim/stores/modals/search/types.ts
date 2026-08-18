@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import type { BlockConfig } from '@/blocks/types'
 
 /**
@@ -78,7 +79,11 @@ export interface SearchModalState {
   close: () => void
 
   /**
-   * Initialize search data. Called once on app load.
+   * Initialize search data. Re-runs whenever the caller's permission config
+   * resolves or changes, since both predicates are derived from it.
    */
-  initializeData: (filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]) => void
+  initializeData: (
+    filterBlocks: <T extends { type: string }>(blocks: T[]) => T[],
+    isToolAllowed: IsToolAllowed
+  ) => void
 }

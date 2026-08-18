@@ -62,8 +62,12 @@ import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
+  extractConnectorText,
+  htmlToPlainText,
+  isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   takeIndexableWithinCap,
@@ -1308,5 +1312,173 @@ describe('takeIndexableWithinCap', () => {
     expect(res.documents).toHaveLength(0)
     expect(res.indexableCount).toBe(0)
     expect(res.capReached).toBe(true)
+  })
+})
+
+describe('htmlToPlainText entity decoding', () => {
+  it('decodes decimal numeric references', () => {
+    expect(htmlToPlainText('<p>Sim&#8217;s docs &#8211; part &#8230;</p>')).toBe(
+      'Sim’s docs – part …'
+    )
+  })
+
+  it('decodes hex numeric references, case-insensitively', () => {
+    expect(htmlToPlainText('<p>&#x2019;&#X2013;</p>')).toBe('’–')
+  })
+
+  it('decodes astral-plane code points as a surrogate pair', () => {
+    expect(htmlToPlainText('<p>&#128512;</p>')).toBe('\u{1F600}')
+  })
+
+  it('still decodes the named entities it always handled', () => {
+    expect(htmlToPlainText('<p>&lt;a&gt; &quot;b&quot; &#39;c&#39; d&amp;e&nbsp;f</p>')).toBe(
+      '<a> "b" \'c\' d&e f'
+    )
+  })
+
+  it('does not double-decode an escaped entity', () => {
+    expect(htmlToPlainText('<p>&amp;#8217;</p>')).toBe('&#8217;')
+  })
+
+  it('does not double-decode a numerically escaped ampersand into a named entity', () => {
+    expect(htmlToPlainText('<p>&#38;amp; &#x26;lt;</p>')).toBe('&amp; &lt;')
+  })
+
+  it('remaps windows-1252 C1 references the way a browser renders them', () => {
+    expect(htmlToPlainText('<p>Sim&#146;s &#147;docs&#148; &#151; part &#133;</p>')).toBe(
+      'Sim’s “docs” — part …'
+    )
+  })
+
+  it('leaves NUL and other control references as literal text', () => {
+    expect(htmlToPlainText('<p>a&#0;b&#1;c&#x7f;d</p>')).toBe('a&#0;b&#1;c&#x7f;d')
+  })
+
+  it('decodes whitespace references and folds them into the whitespace collapse', () => {
+    expect(htmlToPlainText('<p>a&#10;&#9;b</p>')).toBe('a b')
+  })
+
+  it('leaves malformed and out-of-range references as literal text', () => {
+    expect(htmlToPlainText('<p>&#1114112; &#xD800; &#; &#x;</p>')).toBe(
+      '&#1114112; &#xD800; &#; &#x;'
+    )
+  })
+
+  it('leaves an unknown named entity untouched', () => {
+    expect(htmlToPlainText('<p>&copy; &notreal;</p>')).toBe('&copy; &notreal;')
+  })
+})
+
+describe('isIndexableConnectorFile', () => {
+  it('accepts the Office and PDF formats the knowledge base can parse', () => {
+    for (const name of [
+      'sop.pdf',
+      'sop.doc',
+      'sop.docx',
+      'sheet.xls',
+      'sheet.xlsx',
+      'deck.ppt',
+      'deck.pptx',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('still accepts the plain-text formats connectors already synced', () => {
+    for (const name of ['a.txt', 'a.md', 'a.html', 'a.htm', 'a.csv', 'a.log', 'a.tsv', 'a.rst']) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  /**
+   * A document library holds the whole family, not just the headline extension:
+   * macro-enabled and template variants are the same OOXML packages, `xlsb` is the
+   * binary workbook, and the OpenDocument trio covers LibreOffice/Google exports.
+   */
+  it('accepts macro-enabled, template, binary and OpenDocument variants', () => {
+    for (const name of [
+      'report.docm',
+      'letterhead.dotx',
+      'model.xlsm',
+      'model.xlsb',
+      'budget.xltx',
+      'deck.pptm',
+      'brand.potx',
+      'notes.odt',
+      'sheet.ods',
+      'slides.odp',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('rejects formats with no text to extract', () => {
+    for (const name of ['logo.png', 'clip.mp4', 'archive.zip', 'binary.exe']) {
+      expect(isIndexableConnectorFile(name)).toBe(false)
+    }
+  })
+
+  /**
+   * No bundled library extracts RTF. `DocParser`'s plaintext branch would accept
+   * it and pass its control words through as prose, so it stays out of the set and
+   * is reported as an unsupported extension instead.
+   */
+  it('rejects rtf rather than indexing its control words as prose', () => {
+    expect(isIndexableConnectorFile('policy.rtf')).toBe(false)
+  })
+
+  it('rejects a name with no extension, and one ending in a bare dot', () => {
+    expect(isIndexableConnectorFile('README')).toBe(false)
+    expect(isIndexableConnectorFile('trailing.')).toBe(false)
+  })
+
+  it('ignores extension case', () => {
+    expect(isIndexableConnectorFile('SOP.DOCX')).toBe(true)
+  })
+})
+
+describe('extractConnectorText', () => {
+  it('decodes a text format as UTF-8', () => {
+    expect(extractConnectorText(Buffer.from('a,b'), 'data.csv')).toBe('a,b')
+  })
+
+  it('reduces HTML to plain text', () => {
+    expect(extractConnectorText(Buffer.from('<p>Hello&nbsp;world</p>'), 'page.htm')).toBe(
+      'Hello world'
+    )
+  })
+
+  it('leaves whitespace-only content alone for the caller to reject', () => {
+    expect(extractConnectorText(Buffer.from('   '), 'blank.txt')).toBe('   ')
+  })
+})
+
+describe('pipelineParsedMimeType', () => {
+  /**
+   * A format the shared parsers handle is delivered to them verbatim. Extracting
+   * it here would strand the document on a weaker parser — notably skipping the
+   * OCR the pipeline routes PDFs through — and discard the original bytes.
+   */
+  it.each([
+    ['Report.pdf', 'application/pdf'],
+    ['Deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ['Book.xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+    ['Notes.odt', 'application/vnd.oasis.opendocument.text'],
+    ['Legacy.doc', 'application/msword'],
+  ])('hands %s to the pipeline as %s', (fileName, mimeType) => {
+    expect(pipelineParsedMimeType(fileName)).toBe(mimeType)
+  })
+
+  it('leaves text formats to the connector', () => {
+    for (const name of ['notes.txt', 'data.csv', 'page.htm', 'feed.xml', 'rows.tsv']) {
+      expect(pipelineParsedMimeType(name)).toBeUndefined()
+    }
+  })
+
+  /** Derived from the extension, so a mislabelled source cannot misroute a PDF. */
+  it('is case-insensitive and ignores unknown formats', () => {
+    expect(pipelineParsedMimeType('REPORT.PDF')).toBe('application/pdf')
+    expect(pipelineParsedMimeType('archive.zip')).toBeUndefined()
+    expect(pipelineParsedMimeType('README')).toBeUndefined()
   })
 })

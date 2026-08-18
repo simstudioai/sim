@@ -267,11 +267,6 @@ export const mcpJsonRpcMessageSchema = z
   })
   .passthrough()
 
-export const mcpRequestBodySchema = z.union([
-  mcpJsonRpcMessageSchema,
-  z.array(mcpJsonRpcMessageSchema),
-])
-
 export const mcpToolCallParamsSchema = z
   .object({
     name: z.string().min(1),
@@ -414,27 +409,6 @@ export const discoverMcpToolsContract = defineRouteContract({
   },
 })
 export type DiscoverMcpToolsResponse = ContractJsonResponse<typeof discoverMcpToolsContract>
-
-export const refreshMcpToolsContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/mcp/tools/discover',
-  query: mcpWorkspaceQuerySchema,
-  body: refreshMcpToolsBodySchema,
-  response: {
-    mode: 'json',
-    schema: mcpSuccessResponseSchema(
-      z.object({
-        refreshed: z.array(z.object({ serverId: z.string(), toolCount: z.number() })),
-        failed: z.array(z.object({ serverId: z.string(), error: z.string() })),
-        summary: z.object({
-          total: z.number(),
-          successful: z.number(),
-          failed: z.number(),
-        }),
-      })
-    ),
-  },
-})
 
 export const listStoredMcpToolsContract = defineRouteContract({
   method: 'GET',

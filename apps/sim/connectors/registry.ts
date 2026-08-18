@@ -2,12 +2,12 @@ import { airtableConnectorMeta } from '@/connectors/airtable/meta'
 import { asanaConnectorMeta } from '@/connectors/asana/meta'
 import { ashbyConnectorMeta } from '@/connectors/ashby/meta'
 import { azureDevopsConnectorMeta } from '@/connectors/azure-devops/meta'
+import { boxConnectorMeta } from '@/connectors/box/meta'
 import { clickupConnectorMeta } from '@/connectors/clickup/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { discordConnectorMeta } from '@/connectors/discord/meta'
 import { docusignConnectorMeta } from '@/connectors/docusign/meta'
 import { dropboxConnectorMeta } from '@/connectors/dropbox/meta'
-import { evernoteConnectorMeta } from '@/connectors/evernote/meta'
 import { fathomConnectorMeta } from '@/connectors/fathom/meta'
 import { firefliesConnectorMeta } from '@/connectors/fireflies/meta'
 import { githubConnectorMeta } from '@/connectors/github/meta'
@@ -20,6 +20,8 @@ import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import { googleFormsConnectorMeta } from '@/connectors/google-forms/meta'
 import { googleMeetConnectorMeta } from '@/connectors/google-meet/meta'
 import { googleSheetsConnectorMeta } from '@/connectors/google-sheets/meta'
+import { googleSlidesConnectorMeta } from '@/connectors/google-slides/meta'
+import { googleVaultConnectorMeta } from '@/connectors/google-vault/meta'
 import { grainConnectorMeta } from '@/connectors/grain/meta'
 import { granolaConnectorMeta } from '@/connectors/granola/meta'
 import { greenhouseConnectorMeta } from '@/connectors/greenhouse/meta'
@@ -29,20 +31,25 @@ import { intercomConnectorMeta } from '@/connectors/intercom/meta'
 import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import { jsmConnectorMeta } from '@/connectors/jsm/meta'
 import { linearConnectorMeta } from '@/connectors/linear/meta'
+import { microsoftExcelConnectorMeta } from '@/connectors/microsoft-excel/meta'
 import { microsoftTeamsConnectorMeta } from '@/connectors/microsoft-teams/meta'
+import { mintlifyConnectorMeta } from '@/connectors/mintlify/meta'
 import { mondayConnectorMeta } from '@/connectors/monday/meta'
 import { notionConnectorMeta } from '@/connectors/notion/meta'
 import { obsidianConnectorMeta } from '@/connectors/obsidian/meta'
 import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
 import { outlookConnectorMeta } from '@/connectors/outlook/meta'
+import { pagerdutyConnectorMeta } from '@/connectors/pagerduty/meta'
 import { redditConnectorMeta } from '@/connectors/reddit/meta'
 import { rootlyConnectorMeta } from '@/connectors/rootly/meta'
 import { s3ConnectorMeta } from '@/connectors/s3/meta'
 import { salesforceConnectorMeta } from '@/connectors/salesforce/meta'
 import { sentryConnectorMeta } from '@/connectors/sentry/meta'
 import { servicenowConnectorMeta } from '@/connectors/servicenow/meta'
+import { sftpConnectorMeta } from '@/connectors/sftp/meta'
 import { sharepointConnectorMeta } from '@/connectors/sharepoint/meta'
 import { slackConnectorMeta } from '@/connectors/slack/meta'
+import { trelloConnectorMeta } from '@/connectors/trello/meta'
 import { typeformConnectorMeta } from '@/connectors/typeform/meta'
 import type { ConnectorMeta, ConnectorMetaRegistry } from '@/connectors/types'
 import { webflowConnectorMeta } from '@/connectors/webflow/meta'
@@ -50,6 +57,7 @@ import { wordpressConnectorMeta } from '@/connectors/wordpress/meta'
 import { xConnectorMeta } from '@/connectors/x/meta'
 import { youtubeConnectorMeta } from '@/connectors/youtube/meta'
 import { zendeskConnectorMeta } from '@/connectors/zendesk/meta'
+import { zohoDeskConnectorMeta } from '@/connectors/zoho-desk/meta'
 import { zoomConnectorMeta } from '@/connectors/zoom/meta'
 
 /**
@@ -64,12 +72,12 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   asana: asanaConnectorMeta,
   ashby: ashbyConnectorMeta,
   azure_devops: azureDevopsConnectorMeta,
+  box: boxConnectorMeta,
   clickup: clickupConnectorMeta,
   confluence: confluenceConnectorMeta,
   discord: discordConnectorMeta,
   docusign: docusignConnectorMeta,
   dropbox: dropboxConnectorMeta,
-  evernote: evernoteConnectorMeta,
   fathom: fathomConnectorMeta,
   fireflies: firefliesConnectorMeta,
   github: githubConnectorMeta,
@@ -82,6 +90,8 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   google_forms: googleFormsConnectorMeta,
   google_meet: googleMeetConnectorMeta,
   google_sheets: googleSheetsConnectorMeta,
+  google_slides: googleSlidesConnectorMeta,
+  google_vault: googleVaultConnectorMeta,
   grain: grainConnectorMeta,
   granola: granolaConnectorMeta,
   greenhouse: greenhouseConnectorMeta,
@@ -91,26 +101,32 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   jira: jiraConnectorMeta,
   jsm: jsmConnectorMeta,
   linear: linearConnectorMeta,
+  microsoft_excel: microsoftExcelConnectorMeta,
   microsoft_teams: microsoftTeamsConnectorMeta,
+  mintlify: mintlifyConnectorMeta,
   monday: mondayConnectorMeta,
   notion: notionConnectorMeta,
   obsidian: obsidianConnectorMeta,
   onedrive: onedriveConnectorMeta,
   outlook: outlookConnectorMeta,
+  pagerduty: pagerdutyConnectorMeta,
   reddit: redditConnectorMeta,
   rootly: rootlyConnectorMeta,
   s3: s3ConnectorMeta,
   salesforce: salesforceConnectorMeta,
   sentry: sentryConnectorMeta,
   servicenow: servicenowConnectorMeta,
+  sftp: sftpConnectorMeta,
   sharepoint: sharepointConnectorMeta,
   slack: slackConnectorMeta,
+  trello: trelloConnectorMeta,
   typeform: typeformConnectorMeta,
   webflow: webflowConnectorMeta,
   wordpress: wordpressConnectorMeta,
   x: xConnectorMeta,
   youtube: youtubeConnectorMeta,
   zendesk: zendeskConnectorMeta,
+  zoho_desk: zohoDeskConnectorMeta,
   zoom: zoomConnectorMeta,
 }
 

@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { noInputSchema, nonEmptyIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  noInputSchema,
+  nonEmptyIdSchema,
+  withMissingFieldMessage,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import {
   skillContentSchema,
   skillDescriptionSchema,
@@ -113,14 +118,23 @@ export const v2ListSkillsQuerySchema = v2SkillWorkspaceQuerySchema
 
 export type V2ListSkillsQuery = z.output<typeof v2ListSkillsQuerySchema>
 
+/**
+ * Create body. Every field is required, so each one carries the missing-value
+ * wording the shared field primitives cannot: those are also spelled `.optional()`
+ * on the update body, where an omitted field is legal, so the message belongs
+ * here rather than on the shared schema.
+ */
 export const v2CreateSkillBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace in which to create the skill.'),
-    name: skillNameSchema.describe(
+    name: withMissingFieldMessage(skillNameSchema, 'Skill name is required').describe(
       'Kebab-case name, unique within the workspace and not reserved by a built-in skill.'
     ),
-    description: skillDescriptionSchema.describe('One-line summary of when the skill applies.'),
-    content: skillContentSchema.describe(
+    description: withMissingFieldMessage(
+      skillDescriptionSchema,
+      'Description is required'
+    ).describe('One-line summary of when the skill applies.'),
+    content: withMissingFieldMessage(skillContentSchema, 'Content is required').describe(
       'Skill body containing the instructions given to the agent.'
     ),
   })

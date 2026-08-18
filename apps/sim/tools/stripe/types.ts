@@ -988,26 +988,6 @@ export const CHARGE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete Charge object output definition
- */
-export const CHARGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Stripe Charge object',
-  properties: CHARGE_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for Charge metadata (summary)
- */
-export const CHARGE_METADATA_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Stripe unique identifier' },
-  status: { type: 'string', description: 'Current state of the resource' },
-  amount: { type: 'number', description: 'Amount in smallest currency unit (e.g., cents)' },
-  currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
-  paid: { type: 'boolean', description: 'Whether payment has been received' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Output definition for Product objects
  * @see https://docs.stripe.com/api/products/object
  */
@@ -1050,24 +1030,6 @@ export const PRODUCT_OUTPUT_PROPERTIES = {
   unit_label: { type: 'string', description: 'Label for quantity units', optional: true },
   updated: { type: 'number', description: 'Unix timestamp when the product was last updated' },
   url: { type: 'string', description: 'URL of a publicly-accessible webpage', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete Product object output definition
- */
-export const PRODUCT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Stripe Product object',
-  properties: PRODUCT_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for Product metadata (summary)
- */
-export const PRODUCT_METADATA_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Stripe unique identifier' },
-  name: { type: 'string', description: 'Display name' },
-  active: { type: 'boolean', description: 'Whether the resource is currently active' },
 } as const satisfies Record<string, OutputProperty>
 
 /**
@@ -1158,29 +1120,6 @@ export const PRICE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete Price object output definition
- */
-export const PRICE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Stripe Price object',
-  properties: PRICE_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for Price metadata (summary)
- */
-export const PRICE_METADATA_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Stripe unique identifier' },
-  product: { type: 'string', description: 'Associated product ID' },
-  unit_amount: {
-    type: 'number',
-    description: 'Amount in smallest currency unit (e.g., cents)',
-    optional: true,
-  },
-  currency: { type: 'string', description: 'Three-letter ISO currency code (lowercase)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
  * Output definition for Event request object
  * @see https://docs.stripe.com/api/events/object#event_object-request
  */
@@ -1237,24 +1176,6 @@ export const EVENT_OUTPUT_PROPERTIES = {
   pending_webhooks: { type: 'number', description: 'Number of pending webhooks' },
   request: EVENT_REQUEST_OUTPUT,
   type: { type: 'string', description: 'Event type (e.g., invoice.created, charge.refunded)' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete Event object output definition
- */
-export const EVENT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Stripe Event object',
-  properties: EVENT_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for Event metadata (summary)
- */
-export const EVENT_METADATA_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Stripe unique identifier' },
-  type: { type: 'string', description: 'Event type identifier' },
-  created: { type: 'number', description: 'Unix timestamp of creation' },
 } as const satisfies Record<string, OutputProperty>
 
 /**

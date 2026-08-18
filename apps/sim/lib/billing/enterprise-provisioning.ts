@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, outboxEvent, subscription, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, count, desc, eq, ilike, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
@@ -78,9 +79,7 @@ async function waitForEnterpriseWebhookAcknowledgement(
 }
 
 function metadataRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+  return isRecordLike(value) ? (value as Record<string, unknown>) : {}
 }
 
 function isNonterminalSubscriptionStatus(status: string | null | undefined): boolean {

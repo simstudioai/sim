@@ -54,21 +54,21 @@ describe('listWorkspaceCredentials', () => {
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true, canAdmin: false })
-    mocks.listVisible.mockResolvedValue([])
-    mocks.listForWorkspacePrincipal.mockResolvedValue([])
+    mocks.listVisible.mockResolvedValue({ data: [], nextCursorKeys: null })
+    mocks.listForWorkspacePrincipal.mockResolvedValue({ data: [], nextCursorKeys: null })
   })
 
-  it('rejects unsupported principals before canonical workspace loading', async () => {
+  it('preserves per-credential visibility for sessions', async () => {
     const principal: SessionPrincipal = {
       kind: 'session',
       userId: 'user-1',
       sessionId: 'session-1',
     }
 
-    await expect(listWorkspaceCredentials.execute({ principal, input })).rejects.toMatchObject({
-      code: 'forbidden',
-    })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+    await listWorkspaceCredentials.execute({ principal, input })
+    expect(mocks.listVisible).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', types: ['oauth', 'service_account'] })
+    )
   })
 
   it('lists shared connections for a workspace key without creator identity', async () => {

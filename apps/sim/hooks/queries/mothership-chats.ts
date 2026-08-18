@@ -10,7 +10,6 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   addMothershipChatResourceContract,
-  createMothershipChatContract,
   deleteMothershipChatContract,
   forkMothershipChatContract,
   getMothershipChatContract,
@@ -678,47 +677,6 @@ export function useSetMothershipChatPinned(workspaceId?: string) {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
-    },
-  })
-}
-
-async function createChat(workspaceId: string): Promise<{ id: string }> {
-  const { id } = await requestJson(createMothershipChatContract, { body: { workspaceId } })
-  return { id }
-}
-
-export function useCreateMothershipChat(workspaceId?: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: () => {
-      if (!workspaceId) throw new Error('workspaceId is required')
-      return createChat(workspaceId)
-    },
-    onSuccess: (data) => {
-      if (!workspaceId) return
-      const existing =
-        queryClient.getQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId)) ??
-        []
-      const newChat: MothershipChatMetadata = {
-        id: data.id,
-        name: 'New chat',
-        updatedAt: new Date(),
-        isActive: false,
-        isUnread: false,
-        isPinned: false,
-        deletedAt: null,
-      }
-      const pinnedCount = existing.findIndex((chat) => !chat.isPinned)
-      const insertAt = pinnedCount === -1 ? existing.length : pinnedCount
-      queryClient.setQueryData<MothershipChatMetadata[]>(mothershipChatKeys.list(workspaceId), [
-        ...existing.slice(0, insertAt),
-        newChat,
-        ...existing.slice(insertAt),
-      ])
-    },
-    onSettled: () => {
-      if (!workspaceId) return
       queryClient.invalidateQueries({ queryKey: mothershipChatKeys.list(workspaceId) })
     },
   })

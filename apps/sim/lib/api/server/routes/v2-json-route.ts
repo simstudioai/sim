@@ -126,11 +126,74 @@ const v2PayloadTooLargeResponse = () => v2Error('PAYLOAD_TOO_LARGE', 'Request bo
 export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body must be valid JSON')
 
 /**
+ * Whether the request declared a media type that is not a JSON body at all.
+ *
+ * Only consulted once a body has already **failed** to parse as JSON — see
+ * {@link v2InvalidBodyResponse} — so this decides how to describe a request
+ * that is failing either way, never whether one is accepted.
+ *
+ * An absent `Content-Type` is not a mismatch. A body sent without one is
+ * indistinguishable from a client that simply omits the header, and today's
+ * callers include ones that do; treating absence as a refusal is the likeliest
+ * way to turn a working client into a 415.
+ *
+ * `text/plain` is not a mismatch either, and that carve-out is load-bearing:
+ * `fetch(url, { method: 'POST', body: JSON.stringify(x) })` with no explicit
+ * headers sends `text/plain;charset=UTF-8`, so it is the default media type of
+ * a hand-written JSON body from a browser rather than a declaration that the
+ * body is not JSON.
+ *
+ * Anything else — `application/x-www-form-urlencoded`, `multipart/form-data`,
+ * `application/xml` — is a positive statement that the body is in some other
+ * format, which is exactly what 415 names.
+ */
+function declaresNonJsonBody(request: Request): boolean {
+  const header = request.headers.get('content-type')
+  if (!header) return false
+  const mediaType = header.split(';', 1)[0].trim().toLowerCase()
+  if (!mediaType || mediaType === 'text/plain') return false
+  const subtype = mediaType.slice(mediaType.indexOf('/') + 1)
+  return subtype !== 'json' && !subtype.endsWith('+json')
+}
+
+/**
+ * The v2 answer to a body that could not be read as JSON: `415` when the caller
+ * declared a non-JSON media type, `400` otherwise.
+ *
+ * `400 "Request body must be valid JSON"` is the same answer for a truncated
+ * JSON body and for a form-encoded one, which leaves a caller who sent
+ * `application/x-www-form-urlencoded` hunting a syntax error in a body that has
+ * none. `UNSUPPORTED_MEDIA_TYPE` was already a declared `V2ErrorCode` with no
+ * path that reached it; this is that path.
+ *
+ * Deliberately a **re-classification of an existing failure**, not a new gate.
+ * It runs only after the JSON read has already failed, so no request that
+ * succeeds today can start failing: `curl -d '{"a":1}'` without `-H` sends
+ * form-urlencoded around a body that parses as JSON perfectly well, and that
+ * caller keeps working exactly as before. A pre-parse content-type gate would
+ * have broken them — and would also have to special-case the multipart bodies
+ * `defineV2BodyLifecycleRoute` legitimately accepts. Only the status and
+ * `error.code` of an already-4xx request change.
+ */
+export function v2InvalidBodyResponse(request: Request): NextResponse {
+  return declaresNonJsonBody(request)
+    ? v2Error('UNSUPPORTED_MEDIA_TYPE', 'Request body must be sent as application/json')
+    : v2InvalidJsonResponse()
+}
+
+/**
  * The parse failures every v2 route renders the same way.
  *
  * The builders spread this, and so must the handful of raw `withRouteHandler`
  * v2 routes that call `parseRequest` directly — they are exactly the routes a
  * builder default cannot reach.
+ *
+ * `invalidJsonResponse` is the request-unaware 400. `parseRequest` invokes it
+ * with no arguments, so the media-type-aware {@link v2InvalidBodyResponse} can
+ * only be installed by a caller that still holds the request — which
+ * {@link defineV2JsonRoute} does, overriding this entry. A raw route wanting the
+ * same 415 passes `invalidJsonResponse: () => v2InvalidBodyResponse(request)`
+ * after spreading this.
  */
 export const V2_PARSE_DEFAULTS = {
   payloadTooLargeResponse: v2PayloadTooLargeResponse,
@@ -360,6 +423,7 @@ export function defineV2JsonRoute<
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
         ...V2_PARSE_DEFAULTS,
+        invalidJsonResponse: () => v2InvalidBodyResponse(request),
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })

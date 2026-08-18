@@ -80,6 +80,30 @@ export const groupIdUrlKeys = {
   clearOnDefault: true,
 } as const
 
+/** `credential-group-id` deep-links Credential Groups to one collection's detail view. */
+export const credentialGroupIdParam = {
+  key: 'credential-group-id',
+  parser: parseAsString,
+} as const
+
+/** Opening a credential group is a destination; closing replaces the detail URL. */
+export const credentialGroupIdUrlKeys = {
+  history: 'push',
+  clearOnDefault: true,
+} as const
+
+/** Active view inside a credential-group detail page. */
+export const credentialGroupTabParam = {
+  key: 'credential-group-tab',
+  parser: parseAsStringLiteral(['details', 'people'] as const).withDefault('details'),
+} as const
+
+/** Tab view-state: clean URLs, no back-stack churn. */
+export const credentialGroupTabUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
 /**
  * `group-tab` is the active tab inside the deep-linked permission-group detail
  * view, so a shared `group-id` link can land on the same tab (mirrors

@@ -14,6 +14,13 @@ import type { ConnectorMeta } from '@/connectors/types'
  * query (e.g. drop `is:unresolved`). When `maxIssues` caps the listing, the
  * engine sets `listingCapped` and skips deletion, so capped runs never remove
  * unseen issues.
+ *
+ * "Aged out" has a hard bound worth stating: Sentry's issue search floors every
+ * query at 90 days (less, on an install whose event retention is shorter), so an
+ * issue with no event in that window matches no query and is removed on the next
+ * full sync. That bound is the source's, not this connector's — it applied
+ * identically to the project-scoped listing endpoint this connector used before —
+ * and no setting here can widen it.
  */
 export const DEFAULT_QUERY = 'is:unresolved'
 
@@ -86,7 +93,8 @@ export const sentryConnectorMeta: ConnectorMeta = {
         { label: 'Last 24 hours', id: '24h' },
         { label: 'Last 14 days', id: '14d' },
       ],
-      description: 'Time window for the issue stats Sentry computes on the project issues list.',
+      description:
+        'Time window for the per-issue event stats Sentry computes on the issues list. It does not change which issues are synced.',
     },
     {
       id: 'maxIssues',

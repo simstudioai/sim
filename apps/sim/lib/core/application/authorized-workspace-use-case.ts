@@ -56,6 +56,8 @@ export interface AuthorizedWorkspaceUseCaseDefinition<
     | ((
         args: AuthorizedWorkspaceUseCaseContext<O, I, C>
       ) => WorkspaceAuthorizationOptions<C> | Promise<WorkspaceAuthorizationOptions<C>>)
+  /** Applies current domain-resource policy after workspace authorization. */
+  authorizeResource?(args: AuthorizedWorkspaceUseCaseContext<O, I, C>): void | Promise<void>
   execute(args: AuthorizedWorkspaceUseCaseContext<O, I, C>): Promise<R>
   projectAudit?(
     args: AuthorizedWorkspaceUseCaseResultContext<O, I, C, R>
@@ -111,7 +113,8 @@ export function defineAuthorizedWorkspaceUseCase<
 >(definition: AuthorizedWorkspaceUseCaseDefinition<O, I, C, R>): OperationUseCase<O, I, R> {
   /**
    * Everything that runs before the business transaction: allowed-principal
-   * check, canonical load, asserted-scope comparison, current access check.
+   * check, canonical load, asserted-scope comparison, current workspace and
+   * resource access checks.
    *
    * `execute` and `authorize` share it rather than each spelling it out, so a
    * `HEAD` probe cannot answer a different question from the `GET` it stands
@@ -145,6 +148,7 @@ export function defineAuthorizedWorkspaceUseCase<
       context,
       authorizationOptions
     )
+    await definition.authorizeResource?.(executionContext)
     return executionContext
   }
 

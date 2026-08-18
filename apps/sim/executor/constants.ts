@@ -41,6 +41,7 @@ export enum BlockType {
   WORKFLOW_INPUT = 'workflow_input',
 
   CREDENTIAL = 'credential',
+  CREDENTIAL_GROUP = 'credential_group',
 
   WAIT = 'wait',
 
@@ -169,12 +170,6 @@ export const LOOP_REFERENCE = {
   INDEX_PATH: 'loop.index',
 } as const
 
-export const PARALLEL_REFERENCE = {
-  INDEX: 'index',
-  CURRENT_ITEM: 'currentItem',
-  ITEMS: 'items',
-} as const
-
 export const DEFAULTS = {
   BLOCK_TYPE: 'unknown',
   BLOCK_TITLE: 'Untitled Block',
@@ -277,12 +272,6 @@ export function buildResumeUiUrl(
   return `${prefix}${PAUSE_RESUME.PATH.UI_RESUME}/${workflowId}/${executionId}`
 }
 
-export const PARSING = {
-  JSON_RADIX: 10,
-  PREVIEW_LENGTH: 200,
-  PREVIEW_SUFFIX: '...',
-} as const
-
 export type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'files' | 'plain'
 
 interface ConditionConfig {
@@ -349,26 +338,6 @@ export function isAnnotationOnlyBlock(blockType: string | undefined): boolean {
   return blockType === BlockType.NOTE
 }
 
-export function supportsHandles(blockType: string | undefined): boolean {
-  return !isAnnotationOnlyBlock(blockType)
-}
-
-export function getDefaultTokens() {
-  return {
-    input: DEFAULTS.TOKENS.PROMPT,
-    output: DEFAULTS.TOKENS.COMPLETION,
-    total: DEFAULTS.TOKENS.TOTAL,
-  }
-}
-
-export function getDefaultCost() {
-  return {
-    input: DEFAULTS.COST.INPUT,
-    output: DEFAULTS.COST.OUTPUT,
-    total: DEFAULTS.COST.TOTAL,
-  }
-}
-
 export function buildReference(path: string): string {
   return `${REFERENCE.START}${path}${REFERENCE.END}`
 }
@@ -377,24 +346,8 @@ export function buildLoopReference(property: string): string {
   return buildReference(`${REFERENCE.PREFIX.LOOP}${REFERENCE.PATH_DELIMITER}${property}`)
 }
 
-export function buildParallelReference(property: string): string {
-  return buildReference(`${REFERENCE.PREFIX.PARALLEL}${REFERENCE.PATH_DELIMITER}${property}`)
-}
-
-export function buildVariableReference(variableName: string): string {
-  return buildReference(`${REFERENCE.PREFIX.VARIABLE}${REFERENCE.PATH_DELIMITER}${variableName}`)
-}
-
-export function buildBlockReference(blockId: string, path?: string): string {
-  return buildReference(path ? `${blockId}${REFERENCE.PATH_DELIMITER}${path}` : blockId)
-}
-
 export function buildLoopIndexCondition(maxIterations: number): string {
   return `${buildLoopReference(LOOP_REFERENCE.INDEX)} < ${maxIterations}`
-}
-
-export function buildEnvVarReference(varName: string): string {
-  return `${REFERENCE.ENV_VAR_START}${varName}${REFERENCE.ENV_VAR_END}`
 }
 
 export function isReference(value: string): boolean {
@@ -463,10 +416,6 @@ export function stripCustomToolPrefix(name: string): string {
   return name.startsWith(AGENT.CUSTOM_TOOL_PREFIX)
     ? name.slice(AGENT.CUSTOM_TOOL_PREFIX.length)
     : name
-}
-
-export function stripMcpToolPrefix(name: string): string {
-  return name.startsWith(MCP.TOOL_PREFIX) ? name.slice(MCP.TOOL_PREFIX.length) : name
 }
 
 export function escapeRegExp(value: string): string {

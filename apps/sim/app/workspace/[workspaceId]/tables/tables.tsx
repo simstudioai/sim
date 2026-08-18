@@ -9,7 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { TableDefinition } from '@/lib/table'
-import { generateUniqueTableName } from '@/lib/table/constants'
+import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
   DropdownOption,
@@ -22,9 +22,14 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
+  FILTER_SECTION_LABEL_CLASS,
+  OwnerAvatar,
   ownerCell,
   Resource,
+  reportBulkOutcome,
+  selectionLabel,
   timeCell,
+  useResourceRowSelection,
 } from '@/app/workspace/[workspaceId]/components'
 import type {
   MoveOptionNode,
@@ -33,6 +38,7 @@ import type {
 import {
   buildDescendantIndex,
   buildMoveOptions,
+  buildMoveOptionsExcludingSubtrees,
   FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
@@ -42,9 +48,11 @@ import {
   parseFolderedRowId,
   parseMoveOptionValue,
   sortResources,
+  splitFolderedRowIds,
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -64,6 +72,8 @@ import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hoo
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import {
   exportTable,
+  useBulkDeleteTables,
+  useBulkMoveTables,
   useCreateTable,
   useDeleteTable,
   useImportCsv,
@@ -91,6 +101,10 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
 ]
+
+/** This list's private drag MIME, so a drag started on another list is never mistaken for one
+ *  of these rows. */
+const TABLE_ROW_DRAG_MIME = 'application/x-sim-workspace-table-rows'
 
 /** Root label for breadcrumbs and the "move to workspace root" destination. */
 const ROOT_LABEL = FOLDERED_RESOURCE_HEADERS.table.rootLabel
@@ -154,6 +168,8 @@ export function Tables() {
   const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const moveTable = useMoveTable(workspaceId)
+  const bulkMoveTables = useBulkMoveTables(workspaceId)
+  const bulkDeleteTables = useBulkDeleteTables(workspaceId)
   const importCsv = useImportCsv()
   const createFolder = useCreateFolder()
   const updateFolder = useUpdateFolder()
@@ -203,6 +219,7 @@ export function Tables() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleteFolderDialogOpen, setIsDeleteFolderDialogOpen] = useState(false)
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [activeFolder, setActiveFolder] = useState<WorkflowFolder | null>(null)
@@ -241,6 +258,20 @@ export function Tables() {
   const uploading = uploadProgress.total > 0
   const csvInputRef = useRef<HTMLInputElement>(null)
 
+  /**
+   * Indexed once. These resolve a dragged row's current placement and run per dragged row inside
+   * `dragover`, which fires continuously — a linear scan there is O(selection x resources) per
+   * event, and the worst case (hesitating over the folder the selection already lives in) does
+   * not short-circuit.
+   */
+  const tableById = useMemo(() => {
+    const byId = new Map<string, TableDefinition>()
+    for (const table of tables) byId.set(table.id, table)
+    return byId
+  }, [tables])
+  const tableByIdRef = useRef(tableById)
+  tableByIdRef.current = tableById
+
   const tablesRef = useRef(tables)
   tablesRef.current = tables
 
@@ -258,7 +289,8 @@ export function Tables() {
     closeMenu: closeRowContextMenu,
   } = useContextMenu()
 
-  const [contextMenuKind, setContextMenuKind] = useState<'table' | 'folder'>('table')
+  /** Which row kind the row context menu acts on — whichever active slot the handler filled. */
+  const contextMenuKind: 'table' | 'folder' = activeFolder ? 'folder' : 'table'
 
   /**
    * Descendants of every folder, so a move destination that sits inside the moved folder can
@@ -459,6 +491,41 @@ export function Tables() {
     [listRename.startRename]
   )
 
+  /**
+   * A dialog owns the keyboard while it is open. Without this, Escape closes the dialog AND
+   * clears the selection behind it, so a bulk-delete confirm submits against a selection the
+   * user just emptied; Delete and Cmd/Ctrl+A leak through the same way.
+   */
+  const isAnyDialogOpen = () =>
+    isDeleteDialogOpen || isDeleteFolderDialogOpen || isBulkDeleteDialogOpen || isImportDialogOpen
+
+  const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
+
+  const {
+    selectedRowIds,
+    selectable: selectableConfig,
+    replaceSelection,
+    clearSelection,
+  } = useResourceRowSelection({
+    visibleRowIds,
+    isKeyboardBlocked: () => !canEdit || listRename.editingId !== null || isAnyDialogOpen(),
+    onDeleteSelected: () => handleBulkDelete(),
+  })
+
+  const { folderIds: selectedFolderIds, resourceIds: selectedTableIds } = useMemo(
+    () => splitFolderedRowIds(selectedRowIds),
+    [selectedRowIds]
+  )
+
+  const bulkDeleteLabel = useMemo(() => {
+    const count = selectedTableIds.length + selectedFolderIds.length
+    const firstName =
+      selectedTableIds.length > 0
+        ? tables.find((table) => table.id === selectedTableIds[0])?.name
+        : folderById.get(selectedFolderIds[0])?.name
+    return selectionLabel(count, firstName)
+  }, [selectedTableIds, selectedFolderIds, tables, folderById])
+
   const currentFolderActions: DropdownOption[] | undefined = useMemo(() => {
     if (!currentFolderId) return undefined
     const folder = folderById.get(currentFolderId)
@@ -570,18 +637,7 @@ export function Tables() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: m.image ? (
-          <img
-            src={m.image}
-            alt={m.name}
-            referrerPolicy='no-referrer'
-            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
-          />
-        ) : (
-          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-            {m.name.charAt(0).toUpperCase()}
-          </span>
-        ),
+        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
       })),
     [members]
   )
@@ -592,7 +648,7 @@ export function Tables() {
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='text-[var(--text-secondary)] text-caption'>Row Count</span>
+          <span className={FILTER_SECTION_LABEL_CLASS}>Row Count</span>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -612,7 +668,7 @@ export function Tables() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='text-[var(--text-secondary)] text-caption'>Owner</span>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -719,31 +775,57 @@ export function Tables() {
     (e: React.MouseEvent, rowId: string) => {
       const item = resolveRowItem(rowId)
       if (!item) return
+      /**
+       * Right-clicking outside the selection retargets it, so the menu always acts on what is
+       * highlighted. Right-clicking inside it leaves the selection alone and the menu switches
+       * its move/delete entries to the bulk handlers.
+       */
+      if (canEdit && !selectedRowIds.has(rowId)) replaceSelection([rowId])
       if (item.kind === 'folder') {
         setActiveFolder(item.folder)
         setActiveTable(null)
-        setContextMenuKind('folder')
       } else {
         setActiveTable(item.table)
         setActiveFolder(null)
-        setContextMenuKind('table')
       }
       handleRowCtxMenu(e)
     },
-    [resolveRowItem, handleRowCtxMenu]
+    [resolveRowItem, handleRowCtxMenu, canEdit, selectedRowIds, replaceSelection]
   )
 
+  /** Move targets for a table: every folder, since a table has no subtree. */
   const tableMoveOptions: MoveOptionNode[] = useMemo(
     () => buildMoveOptions({ folders, rootLabel: ROOT_LABEL }),
     [folders]
   )
 
-  const folderMoveOptions: MoveOptionNode[] = useMemo(() => {
-    if (!activeFolder) return []
-    const excluded = new Set<string>([activeFolder.id])
-    for (const id of descendantFolderIds.get(activeFolder.id) ?? []) excluded.add(id)
-    return buildMoveOptions({ folders, rootLabel: ROOT_LABEL, excludedFolderIds: excluded })
-  }, [activeFolder, folders, descendantFolderIds])
+  const folderMoveOptions: MoveOptionNode[] = useMemo(
+    () =>
+      activeFolder
+        ? buildMoveOptionsExcludingSubtrees({
+            folders,
+            rootLabel: ROOT_LABEL,
+            excludeFolderIds: [activeFolder.id],
+            descendantsByFolderId: descendantFolderIds,
+          })
+        : [],
+    [activeFolder, folders, descendantFolderIds]
+  )
+
+  /**
+   * Destinations for the action bar's move menu. Every selected folder — and everything beneath
+   * it — is excluded, since a folder cannot be filed into itself or its own subtree.
+   */
+  const bulkMoveOptions: MoveOptionNode[] = useMemo(
+    () =>
+      buildMoveOptionsExcludingSubtrees({
+        folders,
+        rootLabel: ROOT_LABEL,
+        excludeFolderIds: selectedFolderIds,
+        descendantsByFolderId: descendantFolderIds,
+      }),
+    [selectedFolderIds, folders, descendantFolderIds]
+  )
 
   const handleMoveTable = useCallback(
     (optionValue: string) => {
@@ -753,7 +835,7 @@ export function Tables() {
        * Placement is re-read from the live list rather than trusted from `activeTable`, which
        * is a snapshot taken when the menu opened. A refetch or a concurrent move since then
        * would make the no-op check compare against a stale location and skip a write the user
-       * asked for. Matches the knowledge-base move.
+       * asked for.
        */
       const current = tablesRef.current.find((table) => table.id === activeTable.id) ?? activeTable
       if ((current.folderId ?? null) === folderId) {
@@ -794,22 +876,135 @@ export function Tables() {
     [activeFolder, folderById, moveFolderTo, closeRowContextMenu]
   )
 
+  /**
+   * The one move path for every multi-row gesture — dropping a selection onto a folder row and
+   * the action bar's "Move to" menu both land here, so a mixed selection of tables and folders
+   * commits as a single operation instead of one request per row.
+   */
+  const moveRowsTo = useCallback(
+    (rows: { tableIds: string[]; folderIds: string[] }, targetFolderId: string | null) => {
+      if (rows.tableIds.length === 0 && rows.folderIds.length === 0) return
+      if (rows.tableIds.length + rows.folderIds.length > MAX_TABLE_BATCH_ITEMS) {
+        toast.error(`Select ${MAX_TABLE_BATCH_ITEMS} or fewer items to move at once`)
+        return
+      }
+      bulkMoveTables.mutate(
+        { ...rows, targetFolderId },
+        {
+          onSuccess: (result) => {
+            clearSelection()
+            reportBulkOutcome(result, 'moved')
+          },
+        }
+      )
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutate is stable in v5
+    [clearSelection]
+  )
+
+  const handleBulkMove = useCallback(
+    (optionValue: string) => {
+      moveRowsTo(
+        { tableIds: selectedTableIds, folderIds: selectedFolderIds },
+        parseMoveOptionValue(optionValue)
+      )
+    },
+    [moveRowsTo, selectedTableIds, selectedFolderIds]
+  )
+
+  /**
+   * Enforced here rather than only on the action bar: the row context menu and the Delete key
+   * reach the same operation, and the server rejects an over-cap request outright — so without
+   * this the user confirms a delete that cannot succeed.
+   */
+  const exceedsBatchCap = selectedTableIds.length + selectedFolderIds.length > MAX_TABLE_BATCH_ITEMS
+
+  const handleBulkDelete = useCallback(() => {
+    if (selectedTableIds.length === 0 && selectedFolderIds.length === 0) return
+    if (exceedsBatchCap) {
+      toast.error(`Select ${MAX_TABLE_BATCH_ITEMS} or fewer items to delete at once`)
+      return
+    }
+    setIsBulkDeleteDialogOpen(true)
+  }, [selectedTableIds, selectedFolderIds, exceedsBatchCap])
+
+  const confirmBulkDelete = useCallback(async () => {
+    try {
+      const result = await bulkDeleteTables.mutateAsync({
+        tableIds: selectedTableIds,
+        folderIds: selectedFolderIds,
+      })
+      setIsBulkDeleteDialogOpen(false)
+      clearSelection()
+      reportBulkOutcome(result, 'deleted')
+    } catch (err) {
+      // The mutation toasts the request failure itself; the modal stays open to allow a retry.
+      logger.error('Failed to delete selected items:', err)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+  }, [selectedTableIds, selectedFolderIds, clearSelection])
+
+  /**
+   * A context menu opened on a multi-row selection acts on the whole selection. Resolved inside
+   * these handlers rather than at each menu prop, so the menus stay unaware selection exists.
+   */
+  const hasMultiSelection = selectedRowIds.size > 1
+  const hasMultiSelectionRef = useRef(hasMultiSelection)
+  hasMultiSelectionRef.current = hasMultiSelection
+
+  const activeMoveOptions = hasMultiSelection ? bulkMoveOptions : tableMoveOptions
+  const activeFolderMoveOptions = hasMultiSelection ? bulkMoveOptions : folderMoveOptions
+
+  const handleMoveTableFromMenu = useCallback(
+    (optionValue: string) => {
+      if (hasMultiSelectionRef.current) return handleBulkMove(optionValue)
+      return handleMoveTable(optionValue)
+    },
+    [handleBulkMove, handleMoveTable]
+  )
+
+  const handleMoveFolderFromMenu = useCallback(
+    (optionValue: string) => {
+      if (hasMultiSelectionRef.current) return handleBulkMove(optionValue)
+      return handleMoveFolder(optionValue)
+    },
+    [handleBulkMove, handleMoveFolder]
+  )
+
+  const handleDeleteTableFromMenu = useCallback(() => {
+    if (hasMultiSelectionRef.current) {
+      handleBulkDelete()
+      return
+    }
+    setIsDeleteDialogOpen(true)
+  }, [handleBulkDelete])
+
+  const handleDeleteFolderFromMenu = useCallback(() => {
+    if (hasMultiSelectionRef.current) {
+      handleBulkDelete()
+      return
+    }
+    setIsDeleteFolderDialogOpen(true)
+  }, [handleBulkDelete])
+
   const rowDragDropConfig = useFolderRowDragDrop({
+    dragMime: TABLE_ROW_DRAG_MIME,
     canEdit,
     editingRowId: listRename.editingId,
     descendantsByFolderId: descendantFolderIds,
     getFolderParentId: (folderId) => folderById.get(folderId)?.parentId ?? null,
-    getResourceFolderId: (tableId) =>
-      tablesRef.current.find((table) => table.id === tableId)?.folderId ?? null,
+    getResourceFolderId: (tableId) => tableByIdRef.current.get(tableId)?.folderId ?? null,
     getRowLabel: (rowId) => {
       const parsed = parseFolderedRowId(rowId)
       return parsed.kind === 'folder'
         ? (folderById.get(parsed.id)?.name ?? 'Folder')
-        : (tablesRef.current.find((table) => table.id === parsed.id)?.name ?? 'Table')
+        : (tableByIdRef.current.get(parsed.id)?.name ?? 'Table')
     },
-    onMoveFolder: (folderId, targetFolderId) => moveFolderTo(folderId, targetFolderId),
-    onMoveResource: (tableId, targetFolderId) =>
-      moveTable.mutate({ tableId, folderId: targetFolderId }),
+    onMoveRows: ({ folderIds, resourceIds }, targetFolderId) =>
+      moveRowsTo({ folderIds, tableIds: resourceIds }, targetFolderId),
+    selection: { selectedRowIds, visibleRowIds, replaceSelection },
+    onSpringOpenFolder: setCurrentFolderId,
+    currentFolderId,
   })
 
   const handleDelete = async () => {
@@ -1027,9 +1222,31 @@ export function Tables() {
     ]
   )
 
-  // Stable identities so the memoized Resource.Header / Resource.Options can
+  // Stable identities so the memoized Resource.Header / Resource.Options / Resource.Table can
   // actually bail — inline object/element props would defeat their memo.
   const headerAside = useMemo(() => <ImportProgressMenu workspaceId={workspaceId} />, [workspaceId])
+
+  const actionBar = useMemo(
+    () => (
+      <ResourceActionBar
+        selectedCount={selectedRowIds.size}
+        onMove={canEdit ? handleBulkMove : undefined}
+        moveOptions={canEdit ? bulkMoveOptions : undefined}
+        onDelete={canEdit ? handleBulkDelete : undefined}
+        isLoading={bulkMoveTables.isPending || bulkDeleteTables.isPending}
+        maxSelectable={MAX_TABLE_BATCH_ITEMS}
+      />
+    ),
+    [
+      selectedRowIds.size,
+      canEdit,
+      handleBulkMove,
+      bulkMoveOptions,
+      handleBulkDelete,
+      bulkMoveTables.isPending,
+      bulkDeleteTables.isPending,
+    ]
+  )
   const filterConfig = useMemo(() => ({ content: filterContent }), [filterContent])
 
   return (
@@ -1041,6 +1258,7 @@ export function Tables() {
           breadcrumbs={breadcrumbs}
           actions={headerActions}
           aside={headerAside}
+          breadcrumbDrop={rowDragDropConfig.breadcrumb}
         />
         <Resource.Options
           search={searchConfig}
@@ -1051,9 +1269,11 @@ export function Tables() {
         <Resource.Table
           columns={COLUMNS}
           rows={rows}
+          selectable={canEdit ? selectableConfig : undefined}
           rowDragDrop={rowDragDropConfig}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
+          overlay={actionBar}
         />
       </Resource>
 
@@ -1086,7 +1306,7 @@ export function Tables() {
         onCopyId={() => {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
-        onDelete={() => setIsDeleteDialogOpen(true)}
+        onDelete={handleDeleteTableFromMenu}
         onRename={() => {
           if (activeTable) listRename.startRename(activeTable.id, activeTable.name)
         }}
@@ -1103,8 +1323,8 @@ export function Tables() {
         }}
         onTogglePin={handleTogglePin}
         pinned={activeTable ? pinnedTableIds.has(activeTable.id) : false}
-        onMove={canEdit ? handleMoveTable : undefined}
-        moveOptions={canEdit ? tableMoveOptions : undefined}
+        onMove={canEdit ? handleMoveTableFromMenu : undefined}
+        moveOptions={canEdit ? activeMoveOptions : undefined}
         disableDelete={!canEdit}
         disableRename={!canEdit}
         disableImport={!canEdit}
@@ -1124,11 +1344,11 @@ export function Tables() {
         onCopyId={() => {
           if (activeFolder) navigator.clipboard.writeText(activeFolder.id)
         }}
-        onDelete={() => setIsDeleteFolderDialogOpen(true)}
+        onDelete={handleDeleteFolderFromMenu}
         onTogglePin={handleTogglePin}
         pinned={activeFolder ? pinnedFolderIds.has(activeFolder.id) : false}
-        onMove={canEdit ? handleMoveFolder : undefined}
-        moveOptions={canEdit ? folderMoveOptions : undefined}
+        onMove={canEdit ? handleMoveFolderFromMenu : undefined}
+        moveOptions={canEdit ? activeFolderMoveOptions : undefined}
         canEdit={canEdit}
       />
 
@@ -1186,6 +1406,32 @@ export function Tables() {
           label: 'Delete',
           onClick: handleDeleteFolder,
           pending: deleteFolder.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
+
+      <ChipConfirmModal
+        open={isBulkDeleteDialogOpen}
+        onOpenChange={setIsBulkDeleteDialogOpen}
+        srTitle='Delete Selected'
+        title='Delete Selected'
+        text={[
+          'Are you sure you want to delete ',
+          { text: bulkDeleteLabel, bold: true },
+          '? ',
+          {
+            text:
+              selectedFolderIds.length > 0
+                ? 'Every table and subfolder inside the selected folders will be deleted too.'
+                : 'All of their rows will be removed.',
+            error: true,
+          },
+          ' You can restore those tables from Recently Deleted in Settings.',
+        ]}
+        confirm={{
+          label: 'Delete',
+          onClick: confirmBulkDelete,
+          pending: bulkDeleteTables.isPending,
           pendingLabel: 'Deleting...',
         }}
       />

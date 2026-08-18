@@ -2,7 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isPlainRecord, isRecordLike, sortObjectKeysDeep } from './object.js'
+import {
+  isPlainRecord,
+  isRecordLike,
+  sortObjectKeysDeep,
+  toRecord,
+  toRecordOrNull,
+} from './object.js'
 
 class Sample {
   value = 1
@@ -20,6 +26,33 @@ describe('isRecordLike', () => {
     expect(isRecordLike(null)).toBe(false)
     expect(isRecordLike('not-a-record')).toBe(false)
     expect(isRecordLike(42)).toBe(false)
+  })
+})
+
+describe('toRecord', () => {
+  it('returns the value itself for records, preserving identity', () => {
+    const source = { a: 1 }
+    expect(toRecord(source)).toBe(source)
+  })
+
+  it('falls back to a fresh empty object for arrays, null, and primitives', () => {
+    expect(toRecord([])).toEqual({})
+    expect(toRecord(null)).toEqual({})
+    expect(toRecord('nope')).toEqual({})
+    expect(toRecord(undefined)).not.toBe(toRecord(undefined))
+  })
+})
+
+describe('toRecordOrNull', () => {
+  it('returns the value itself for records, preserving identity', () => {
+    const source = { a: 1 }
+    expect(toRecordOrNull(source)).toBe(source)
+  })
+
+  it('falls back to null for arrays, null, and primitives', () => {
+    expect(toRecordOrNull([])).toBeNull()
+    expect(toRecordOrNull(null)).toBeNull()
+    expect(toRecordOrNull(42)).toBeNull()
   })
 })
 

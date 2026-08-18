@@ -342,6 +342,14 @@ export interface SubBlockConfig {
   max?: number
   columns?: string[]
   placeholder?: string
+  /**
+   * Conceals the stored value in the editor until the field is focused.
+   *
+   * Honoured only by the `short-input`, `long-input`, `code`, and `table`
+   * renderers (`PASSWORD_MASKED_SUBBLOCK_TYPES`). On any other type it is a
+   * silent no-op that leaves the secret in plaintext, so a new usage must teach
+   * that renderer to mask. `blocks/password-masking.test.ts` enforces this.
+   */
   password?: boolean
   readOnly?: boolean
   showCopyButton?: boolean
@@ -489,7 +497,8 @@ export interface SubBlockConfig {
   // Called when component mounts with a stored value to display the correct label before options load
   fetchOptionById?: (
     blockId: string,
-    optionId: string
+    optionId: string,
+    signal?: AbortSignal
   ) => Promise<{ label: string; id: string } | null>
   /**
    * tool-input only: tool categories the consuming block cannot execute. They

@@ -4,8 +4,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   escapeCql,
+  extractCursor,
   isCurrentContent,
   preserveConfluenceCallouts,
+  readIncludedLabels,
 } from '@/connectors/confluence/confluence'
 import { htmlToPlainText } from '@/connectors/utils'
 
@@ -51,6 +53,69 @@ describe('isCurrentContent', () => {
   it.concurrent('excludes trashed and deleted content', () => {
     expect(isCurrentContent({ id: '1', status: 'trashed' })).toBe(false)
     expect(isCurrentContent({ id: '1', status: 'deleted' })).toBe(false)
+  })
+})
+
+describe('extractCursor', () => {
+  it.concurrent('reads the cursor from a v1 CQL search next link', () => {
+    // Exact shape documented for GET /wiki/rest/api/content/search.
+    expect(
+      extractCursor('/rest/api/content/search?cql=type=page&limit=25&cursor=raNDoMsTRiNg')
+    ).toBe('raNDoMsTRiNg')
+  })
+
+  it.concurrent('reads the cursor from a v2 relative next link', () => {
+    expect(extractCursor('/wiki/api/v2/spaces/123/pages?limit=250&cursor=abc123')).toBe('abc123')
+  })
+
+  it.concurrent('url-decodes an encoded cursor value', () => {
+    expect(extractCursor('/rest/api/content/search?cursor=a%2Bb%2Fc%3D')).toBe('a+b/c=')
+  })
+
+  it.concurrent('returns undefined when the source is exhausted (no next link)', () => {
+    expect(extractCursor(undefined)).toBeUndefined()
+    expect(extractCursor(null)).toBeUndefined()
+    expect(extractCursor('')).toBeUndefined()
+  })
+
+  it.concurrent('returns undefined for a next link carrying no cursor', () => {
+    expect(extractCursor('/rest/api/content/search?cql=type=page&limit=25')).toBeUndefined()
+  })
+
+  it.concurrent('returns undefined for a non-string next link', () => {
+    expect(extractCursor({ href: '/x?cursor=a' })).toBeUndefined()
+    expect(extractCursor(42)).toBeUndefined()
+  })
+
+  it.concurrent('handles an absolute next link', () => {
+    expect(extractCursor('https://api.atlassian.com/wiki/api/v2/pages?cursor=xyz')).toBe('xyz')
+  })
+})
+
+describe('readIncludedLabels', () => {
+  it.concurrent('reads names from the include-labels wrapper', () => {
+    expect(
+      readIncludedLabels({
+        labels: {
+          results: [
+            { id: '1', name: 'engineering' },
+            { id: '2', name: 'published' },
+          ],
+        },
+      })
+    ).toEqual(['engineering', 'published'])
+  })
+
+  it.concurrent('returns an empty array when labels are absent or empty', () => {
+    expect(readIncludedLabels({})).toEqual([])
+    expect(readIncludedLabels({ labels: {} })).toEqual([])
+    expect(readIncludedLabels({ labels: { results: [] } })).toEqual([])
+  })
+
+  it.concurrent('drops entries with a missing or empty name rather than emitting blanks', () => {
+    expect(
+      readIncludedLabels({ labels: { results: [{ id: '1' }, { name: '' }, { name: 'kept' }] } })
+    ).toEqual(['kept'])
   })
 })
 

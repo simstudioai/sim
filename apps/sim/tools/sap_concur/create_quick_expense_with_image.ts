@@ -2,9 +2,9 @@ import type {
   CreateQuickExpenseWithImageParams,
   SapConcurProxyResponse,
 } from '@/tools/sap_concur/types'
-import { SAP_CONCUR_UPLOAD_URL } from '@/tools/sap_concur/upload_receipt_image'
 import {
   baseProxyBody,
+  SAP_CONCUR_UPLOAD_URL,
   transformSapConcurProxyResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
@@ -78,14 +78,14 @@ export const createQuickExpenseWithImageTool: ToolConfig<
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Receipt image (UserFile). Allowed: PDF, PNG, JPEG, TIFF (max 50MB)',
+      description: 'Receipt image (UserFile). Allowed: PNG, PDF, TIFF, JPEG. Maximum size 50 MB',
     },
     body: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Quick expense payload (transactionAmount, transactionDate, expenseTypeId, vendor, ...)',
+        'Quick expense payload. Required: expenseTypeId, transactionAmount {currencyCode, value}, transactionDate (YYYY-MM-DD). Optional: comment, entryDetails, location {city, countryCode, countrySubDivisionCode, id, name}, paymentTypeId (CASHX | CPAID | PENDC), vendor.',
     },
   },
   request: {

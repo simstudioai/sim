@@ -257,6 +257,24 @@ describe('MCP server application use cases', () => {
     expect(mocks.discoverServerTools).not.toHaveBeenCalled()
   })
 
+  it('answers a disabled server with a conflict instead of an untyped fault', async () => {
+    mocks.getServer.mockResolvedValueOnce({ ...server, enabled: false })
+
+    await expect(
+      discoverMcpServerToolsUseCase.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        input: { workspaceId: workspace.workspaceId, serverId: server.id },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+
+    /**
+     * Discovery loads its configuration through a query that filters on
+     * `enabled`, so reaching it raised a plain `Error` — rendered as a 500 for
+     * a documented registration value — and stamped a bogus failure on the row.
+     */
+    expect(mocks.discoverServerTools).not.toHaveBeenCalled()
+  })
+
   it('discovers one server tools for the acting subject, honouring refresh', async () => {
     const tools = [
       {

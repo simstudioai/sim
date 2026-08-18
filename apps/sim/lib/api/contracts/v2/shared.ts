@@ -65,12 +65,12 @@ import {
  * - **`search`** ({@link v2SearchSchema}) — a case-insensitive substring match
  *   against the resource's *single* natural name field, and nothing else:
  *   `name` for files/folders/workflows/tables/knowledge bases/MCP servers/
- *   skills, `title` for custom tools, `filename` for knowledge documents
- *   (`GET /knowledge/{id}/documents`), and `displayName` for both credentials
- *   and secrets (`GET /secrets`, where the secret's name *is* the credential
- *   `displayName`). It never matches ids, descriptions, or content. `%` and `_` in the term are matched
- *   literally, not as wildcards. Empty is rejected rather than silently
- *   ignored — omit the param instead.
+ *   skills/credential providers, `title` for custom tools, `filename` for
+ *   knowledge documents (`GET /knowledge/{id}/documents`), and `displayName`
+ *   for both credentials and secrets (`GET /secrets`, where the secret's name
+ *   *is* the credential `displayName`). It never matches ids, descriptions, or
+ *   content. `%` and `_` in the term are matched literally, not as wildcards.
+ *   Empty is rejected rather than silently ignored — omit the param instead.
  * - **`sortBy` + `sortOrder`** ({@link v2SortFields}) — `sortBy` is a
  *   per-resource enum, never a free string, because the value selects a column
  *   in the query. `sortOrder` is `asc`/`desc`. Both always have a default, so
@@ -93,9 +93,12 @@ import {
  *
  * Every one of these is pushed into SQL, except on `GET /skills` (which narrows the
  * static builtin registry with the same search term, merges it into the DB rows,
- * then re-sorts the merged array) and `GET /files/folders` (which applies `parentPath` and `search`
- * in JS; its sort is pushed into SQL like every other folder list). Both read a
- * full result set to produce a page; neither is a pattern to copy.
+ * then re-sorts the merged array), `GET /files/folders` (which applies
+ * `parentPath` and `search` in JS; its sort is pushed into SQL like every other
+ * folder list), and `GET /credentials/providers` (whose bounded catalog is
+ * assembled from code-defined registries before its caller-specific
+ * availability is projected). These read a full result set to produce a page;
+ * none is a pattern to copy.
  *
  * ## Which lists are paged
  *
@@ -111,7 +114,8 @@ import {
  * load; `GET /knowledge/{id}/tags`, capped by the fixed tag-slot table;
  * `GET /mcp-servers/{id}/tools`, capped by tool discovery itself; and
  * `GET /tables/{tableId}/views` and `GET /tables/{tableId}/groups`, capped per
- * table.
+ * table; and the credential-provider catalog, bounded by code-defined OAuth
+ * and service-account registries.
  *
  * Adding `limit`/`cursor` to a full-set list is additive, but giving it a
  * *default* `limit` truncates callers reading the whole set today, so once v2 is

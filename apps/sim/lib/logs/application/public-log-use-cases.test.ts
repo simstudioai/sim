@@ -101,6 +101,8 @@ const log = {
   executionId: 'run-1',
   workspaceId: 'workspace-1',
   workflowId: 'workflow-1',
+  /** Null exactly when the left join found no workflow row — the delete signal. */
+  workflowName: 'Support triage',
   workflowFolderId: 'folder-1',
   workflowUserId: 'owner-1',
   workflowOwnerEmail: 'owner@example.com',
@@ -187,6 +189,35 @@ describe('public log application use cases', () => {
 
   it('keeps null for a folder whose path cannot be resolved', async () => {
     mocks.getLog.mockResolvedValueOnce({ ...log, workflowFolderId: 'folder-archived' })
+
+    const result = await getPublicLog.execute({
+      principal: workspacePrincipal,
+      input: { runId: 'run-1' },
+    })
+
+    expect(result.workflowFolderPath).toBeNull()
+  })
+
+  /**
+   * A deleted workflow nulls the log's `workflow_id`, so the left join returns a
+   * null folder that is shape-identical to a workflow sitting at the root. Read
+   * as the root, the run reports `/` beside `deleted: true` and hands the caller
+   * a `folderPaths` value for a workflow that is in no folder at all.
+   */
+  it('reports no folder path for a run whose workflow has been deleted', async () => {
+    mocks.getLogScope.mockResolvedValueOnce({
+      executionId: 'run-1',
+      workspaceId: 'workspace-1',
+      workflowId: null,
+    })
+    mocks.getLog.mockResolvedValueOnce({
+      ...log,
+      workflowId: null,
+      workflowName: null,
+      workflowFolderId: null,
+      workflowUserId: null,
+      workflowOwnerEmail: null,
+    })
 
     const result = await getPublicLog.execute({
       principal: workspacePrincipal,

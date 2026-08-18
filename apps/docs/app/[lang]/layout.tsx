@@ -2,8 +2,7 @@ import type { ReactNode } from 'react'
 import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
-import { Geist_Mono, Inter } from 'next/font/google'
-import Script from 'next/script'
+import { Inter } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import {
   SidebarFolder,
@@ -23,12 +22,6 @@ import '../global.css'
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-geist-sans',
-  display: 'swap',
-})
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
   display: 'swap',
 })
 
@@ -86,16 +79,11 @@ export default async function Layout({ children, params }: LayoutProps) {
   }
 
   return (
-    <html
-      lang={lang}
-      className={`${inter.variable} ${geistMono.variable} ${season.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang={lang} className={`${inter.variable} ${season.variable}`} suppressHydrationWarning>
       <head>
-        <Script
+        <script
           id='website-json-ld'
           type='application/ld+json'
-          strategy='beforeInteractive'
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
         />
       </head>

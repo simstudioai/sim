@@ -15,7 +15,9 @@ const SECRET_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
 export const v2SecretScopeSchema = z
   .enum(['workspace', 'personal'])
-  .describe('Whether the secret belongs to the workspace or the caller.')
+  .describe(
+    'Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace.'
+  )
 export type V2SecretScope = z.output<typeof v2SecretScopeSchema>
 
 export const v2SecretNameSchema = z
@@ -31,6 +33,12 @@ export const v2SecretSchema = z
   .object({
     name: v2SecretNameSchema,
     scope: v2SecretScopeSchema,
+    description: z
+      .string()
+      .nullable()
+      .describe(
+        'What the secret is for, as set on the workspace secret. Always null for a personal secret, which has no shared audience.'
+      ),
     role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
     createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was created.'),
     updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was last updated.'),
@@ -76,7 +84,9 @@ export type V2SecretParams = z.output<typeof v2SecretParamsSchema>
 
 export const v2SetSecretBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
+    workspaceId: workspaceIdSchema.describe(
+      'Workspace the request is authorized against. A workspace secret is written to it; a personal secret is written to the caller and is available in all of their workspaces.'
+    ),
     scope: v2SecretScopeSchema,
     value: z
       .string()
@@ -84,13 +94,32 @@ export const v2SetSecretBodySchema = z
       .max(65_536, 'value is too long')
       .describe('Write-only secret value. It is never returned.')
       .meta({ writeOnly: true }),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'description must be at most 500 characters')
+      .nullish()
+      .describe(
+        'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.'
+      ),
   })
   .strict()
+  .superRefine((data, ctx) => {
+    if (data.scope === 'personal' && data.description !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['description'],
+        message: 'description is only supported for a workspace secret',
+      })
+    }
+  })
 export type V2SetSecretBody = z.input<typeof v2SetSecretBodySchema>
 
 export const v2DeleteSecretQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
+    workspaceId: workspaceIdSchema.describe(
+      'Workspace the request is authorized against. A workspace secret is deleted from it; a personal secret is deleted for the caller in all of their workspaces.'
+    ),
     scope: v2SecretScopeSchema,
   })
   .strict()

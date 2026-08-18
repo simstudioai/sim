@@ -136,7 +136,10 @@ describe('search modal store', () => {
 
     mockGetAllBlocks.mockReturnValue([visibleBlock, hiddenBlock])
 
-    useSearchModalStore.getState().initializeData((blocks) => blocks)
+    useSearchModalStore.getState().initializeData(
+      (blocks) => blocks,
+      () => true
+    )
 
     const { tools } = useSearchModalStore.getState().data
     expect(tools).toHaveLength(1)

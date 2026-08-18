@@ -38,7 +38,12 @@ import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
-import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
+import {
+  EMPTY_JOB_FIELDS,
+  latestJobsForTables,
+  latestNonExportJobJson,
+  mapJobRow,
+} from '@/lib/table/jobs/service'
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -46,6 +51,7 @@ import {
   createExactEmptyTableRowSecretProvenance,
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
+import { assertValidSchema } from '@/lib/table/schema-invariants'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -167,6 +173,12 @@ function applyColumnOrderToSchema(
 /**
  * Gets a table by ID with full details.
  *
+ * One round trip: the table's latest non-export job comes back in the same SELECT as
+ * a correlated lateral ({@link latestNonExportJobJson}) rather than a second query.
+ * The two cannot be separated — the reported `rowCount` is the stored count minus the
+ * running delete job's `pendingDeleteRemaining`, so dropping the job read would
+ * overstate the count mid-delete and let over-capacity inserts through.
+ *
  * @param tableId - Table ID to fetch
  * @returns Table definition or null if not found
  */
@@ -191,6 +203,7 @@ export async function getTableById(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
+      latestJob: latestNonExportJobJson(userTableDefinitions.id),
       ...LOCK_SELECT,
     })
     .from(userTableDefinitions)
@@ -205,7 +218,7 @@ export async function getTableById(
 
   const table = results[0]
   const metadata = (table.metadata as TableMetadata) ?? null
-  const { pendingDeleteRemaining, ...jobFields } = await latestJobForTable(tableId, executor)
+  const { pendingDeleteRemaining, ...jobFields } = mapJobRow(table.latestJob)
   return {
     id: table.id,
     name: table.name,
@@ -547,6 +560,16 @@ export async function createTable(
 
   // Stamp stable ids so the table is id-keyed from its first row write.
   const schema = withGeneratedColumnIds(data.schema)
+
+  // The same invariants every later schema mutation enforces, run over what is
+  // about to be persisted. `validateTableSchema` above only checks columns in
+  // isolation, so a create could store a column naming a workflow group the
+  // schema does not declare — which no update path can clear, and which then
+  // fails every subsequent add-column and add-group with a 400. Imported lazily
+  // because `workflow-columns` transitively reaches the executable tool
+  // registry, which a static edge would pull into every page graph that renders
+  // a table.
+  assertValidSchema(schema, undefined)
 
   // Row limits are enforced per-write against the current plan (see assertRowCapacity); the stored
   // column is vestigial, so it just takes the caller's value (if any) or the default.
@@ -934,7 +957,15 @@ export async function moveTableToFolder(
   tableId: string,
   workspaceId: string,
   folderId: string | null,
-  requestId: string
+  requestId: string,
+  /**
+   * `notify: false` for a caller moving several tables in one gesture that
+   * sends a single batch notification of its own. Each notify is an internal
+   * HTTP round trip with an identical body and triggers an identical
+   * workspace-wide invalidation, so a per-item fan-out makes every connected
+   * client refetch the same list once per moved table.
+   */
+  options?: { notify?: boolean }
 ): Promise<{ name: string }> {
   const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
     folderId,
@@ -970,7 +1001,7 @@ export async function moveTableToFolder(
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
   // Live tables list: a move changes each table's folder placement in the list result.
-  await notifyWorkspaceTablesChanged(workspaceId)
+  if (options?.notify ?? true) await notifyWorkspaceTablesChanged(workspaceId)
 
   return { name }
 }

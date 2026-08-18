@@ -1,7 +1,6 @@
 import type { SVGProps } from 'react'
 
 export const ISO_LINE_STROKE_WIDTH = 3.2
-export const ISO_ENDPOINT_STROKE_WIDTH = 3.3
 export const ISO_STROKE = 'color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted))'
 export const ISO_FILL_LOW = 'var(--surface-6)'
 export const ISO_FILL_MID = 'color-mix(in srgb, var(--surface-3) 58%, var(--surface-6))'

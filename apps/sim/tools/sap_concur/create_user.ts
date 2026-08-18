@@ -59,7 +59,8 @@ export const createUserTool: ToolConfig<CreateUserParams, SapConcurProxyResponse
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'SCIM User payload (schemas, userName, name, emails, active, etc.)',
+      description:
+        'SCIM User payload. Required: schemas (include both "urn:ietf:params:scim:schemas:core:2.0:User" and "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"), userName, name.familyName, name.givenName, emails[].value, and companyId — which is required and immutable and must be set inside the "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" block, not at the top level. Optional: active, displayName, timezone, and other SCIM User attributes.',
     },
   },
   request: {

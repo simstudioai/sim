@@ -24,7 +24,8 @@ vi.mock('@/lib/billing/application/list-billing-logs', () => ({
   listBillingLogs: { operation: { id: 'billing.logs.list' }, execute: mocks.execute },
 }))
 
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { UNKNOWN_CURSOR_MESSAGE } from '@/lib/billing/core/usage-log'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/billing/logs/route'
@@ -35,7 +36,7 @@ function ledgerCursor(
   inner: string,
   filters: { source?: string; workspaceId?: string; period?: string }
 ): string {
-  return encodeScopedCursor(cursorScopeKey(filters), inner)
+  return encodeScopedCursor(cursorScopeKey(cursorRoute(v2ListBillingLogsContract), filters), inner)
 }
 
 const auth = {

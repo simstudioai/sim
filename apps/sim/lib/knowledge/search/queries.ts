@@ -3,6 +3,11 @@ import { document, embedding } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import {
+  coerceTagFilterValue,
+  escapeLikePattern,
+  uncompilableTagFilterError,
+} from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 const logger = createLogger('KnowledgeSearchQueries')
@@ -90,7 +95,6 @@ export interface SearchParams {
   distanceThreshold?: number
 }
 
-// Use shared embedding utility
 export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 
 /** All valid tag slot keys */
@@ -168,31 +172,33 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
   const column = embeddingTable[tagSlot]
   if (!column) return null
 
-  // Handle text operators
   if (fieldType === 'text') {
-    const stringValue = String(value)
+    const coerced = coerceTagFilterValue(value, 'text')
+    if (!coerced.ok) return null
+    const stringValue = coerced.value as string
+    const escaped = escapeLikePattern(stringValue)
     switch (operator) {
       case 'eq':
         return sql`LOWER(${column}) = LOWER(${stringValue})`
       case 'neq':
         return sql`LOWER(${column}) != LOWER(${stringValue})`
       case 'contains':
-        return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}%`})`
+        return sql`LOWER(${column}) LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
       case 'not_contains':
-        return sql`LOWER(${column}) NOT LIKE LOWER(${`%${stringValue}%`})`
+        return sql`LOWER(${column}) NOT LIKE LOWER(${`%${escaped}%`}) ESCAPE '\\'`
       case 'starts_with':
-        return sql`LOWER(${column}) LIKE LOWER(${`${stringValue}%`})`
+        return sql`LOWER(${column}) LIKE LOWER(${`${escaped}%`}) ESCAPE '\\'`
       case 'ends_with':
-        return sql`LOWER(${column}) LIKE LOWER(${`%${stringValue}`})`
+        return sql`LOWER(${column}) LIKE LOWER(${`%${escaped}`}) ESCAPE '\\'`
       default:
         return sql`LOWER(${column}) = LOWER(${stringValue})`
     }
   }
 
-  // Handle number operators
   if (fieldType === 'number') {
-    const numValue = typeof value === 'number' ? value : Number.parseFloat(String(value))
-    if (Number.isNaN(numValue)) return null
+    const coerced = coerceTagFilterValue(value, 'number')
+    if (!coerced.ok) return null
+    const numValue = coerced.value as number
 
     switch (operator) {
       case 'eq':
@@ -209,10 +215,9 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
         return sql`${column} <= ${numValue}`
       case 'between':
         if (valueTo !== undefined) {
-          const numValueTo =
-            typeof valueTo === 'number' ? valueTo : Number.parseFloat(String(valueTo))
-          if (Number.isNaN(numValueTo)) return sql`${column} = ${numValue}`
-          return sql`${column} >= ${numValue} AND ${column} <= ${numValueTo}`
+          const coercedTo = coerceTagFilterValue(valueTo, 'number')
+          if (!coercedTo.ok) return sql`${column} = ${numValue}`
+          return sql`${column} >= ${numValue} AND ${column} <= ${coercedTo.value as number}`
         }
         return sql`${column} = ${numValue}`
       default:
@@ -220,13 +225,11 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Handle date operators - expects YYYY-MM-DD format from frontend
+  // Date values arrive as YYYY-MM-DD strings from the frontend.
   if (fieldType === 'date') {
-    const dateStr = String(value)
-    // Validate YYYY-MM-DD format
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      return null
-    }
+    const coerced = coerceTagFilterValue(value, 'date')
+    if (!coerced.ok) return null
+    const dateStr = coerced.value as string
 
     switch (operator) {
       case 'eq':
@@ -243,10 +246,11 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
         return sql`${column}::date <= ${dateStr}::date`
       case 'between':
         if (valueTo !== undefined) {
-          const dateStrTo = String(valueTo)
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStrTo)) {
+          const coercedTo = coerceTagFilterValue(valueTo, 'date')
+          if (!coercedTo.ok) {
             return sql`${column}::date = ${dateStr}::date`
           }
+          const dateStrTo = coercedTo.value as string
           return sql`${column}::date >= ${dateStr}::date AND ${column}::date <= ${dateStrTo}::date`
         }
         return sql`${column}::date = ${dateStr}::date`
@@ -255,9 +259,10 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Handle boolean operators
   if (fieldType === 'boolean') {
-    const boolValue = value === true || value === 'true'
+    const coerced = coerceTagFilterValue(value, 'boolean')
+    if (!coerced.ok) return null
+    const boolValue = coerced.value as boolean
     switch (operator) {
       case 'eq':
         return sql`${column} = ${boolValue}`
@@ -268,46 +273,35 @@ function buildFilterCondition(filter: StructuredFilter, embeddingTable: any) {
     }
   }
 
-  // Fallback to equality
   return sql`${column} = ${value}`
 }
 
 /**
- * Build SQL conditions from structured filters with operator support
- * - Same tag multiple times: OR logic
- * - Different tags: AND logic
+ * Build SQL conditions from structured filters with operator support. Every
+ * filter is a conjunct, including two that name the same tag.
+ *
+ * Search used to group filters by slot and OR same-slot conditions together,
+ * which made the two surfaces over the same tag vocabulary answer different
+ * questions: the document list ANDs every filter, so `gte 9` plus `lte 2` on one
+ * number tag returned nothing there and a full page of results from search —
+ * a widening on the billed endpoint, the same failure mode as dropping a filter.
+ * OR also made a range on a single text tag (`contains A` and `contains B`)
+ * inexpressible, while the union it produced stays reachable as separate
+ * searches. Neither contract ever documented the OR, so no caller could have
+ * been relying on it deliberately.
+ *
+ * Every filter reaching here has already been validated, so one that fails to
+ * compile is a defect rather than a predicate to skip. Skipping it dropped the
+ * tag term from the WHERE clause entirely and answered a filtered search with
+ * the whole knowledge base under a 200 — and search is billed, so the caller
+ * paid for the widened scan. It is reported as a validation failure instead.
  */
-function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: any) {
-  // Group filters by tagSlot
-  const filtersBySlot = new Map<string, StructuredFilter[]>()
-  for (const filter of filters) {
-    const slot = filter.tagSlot
-    if (!filtersBySlot.has(slot)) {
-      filtersBySlot.set(slot, [])
-    }
-    filtersBySlot.get(slot)!.push(filter)
-  }
-
-  // Build conditions: OR within same slot, AND across different slots
-  const conditions: ReturnType<typeof sql>[] = []
-
-  for (const [slot, slotFilters] of filtersBySlot) {
-    const slotConditions = slotFilters
-      .map((f) => buildFilterCondition(f, embeddingTable))
-      .filter((c): c is ReturnType<typeof sql> => c !== null)
-
-    if (slotConditions.length === 0) continue
-
-    if (slotConditions.length === 1) {
-      // Single condition for this slot
-      conditions.push(slotConditions[0])
-    } else {
-      // Multiple conditions for same slot - OR them together
-      conditions.push(sql`(${sql.join(slotConditions, sql` OR `)})`)
-    }
-  }
-
-  return conditions
+export function getStructuredTagFilters(filters: StructuredFilter[], embeddingTable: any) {
+  return filters.map((filter) => {
+    const condition = buildFilterCondition(filter, embeddingTable)
+    if (condition === null) throw uncompilableTagFilterError(filter)
+    return condition
+  })
 }
 
 /**
@@ -439,7 +433,6 @@ export async function handleTagOnlySearch(params: SearchParams): Promise<SearchR
   const tagFilterConditions = getStructuredTagFilters(structuredFilters, embedding)
 
   if (strategy.useParallel) {
-    // Parallel approach for many KBs
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
 
     const queryPromises = knowledgeBaseIds.map(async (kbId) => {
@@ -497,7 +490,6 @@ export async function handleVectorOnlySearch(params: SearchParams): Promise<Sear
   const distanceExpr = sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance')
 
   if (strategy.useParallel) {
-    // Parallel approach for many KBs
     const parallelLimit = Math.ceil(topK / knowledgeBaseIds.length) + 5
 
     const queryPromises = knowledgeBaseIds.map(async (kbId) => {
@@ -735,14 +727,12 @@ export async function handleTagAndVectorSearch(params: SearchParams): Promise<Se
     throw new Error('Query vector and distance threshold are required for tag and vector search')
   }
 
-  // Step 1: Filter by tags first
   const tagFilteredIds = await executeTagFilterQuery(knowledgeBaseIds, structuredFilters)
 
   if (tagFilteredIds.length === 0) {
     return []
   }
 
-  // Step 2: Perform vector search only on tag-filtered results
   return await executeVectorSearchOnIds(
     tagFilteredIds.map((r) => r.id),
     queryVector,

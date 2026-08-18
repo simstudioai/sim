@@ -1,3 +1,4 @@
+import { truncate } from '@sim/utils/string'
 import type { SapConcurBaseParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
 import type { OutputProperty } from '@/tools/types'
 
@@ -12,9 +13,7 @@ export const scimUserOutputProperties: Record<string, OutputProperty> = {
   displayName: { type: 'string', description: 'Display name', optional: true },
   nickName: { type: 'string', description: 'Casual or alternate name', optional: true },
   title: { type: 'string', description: 'Job title', optional: true },
-  userType: { type: 'string', description: 'User type (e.g., Employee)', optional: true },
   preferredLanguage: { type: 'string', description: 'Preferred language tag', optional: true },
-  locale: { type: 'string', description: 'Locale (e.g., en-US)', optional: true },
   timezone: { type: 'string', description: 'Timezone (e.g., America/Los_Angeles)', optional: true },
   active: { type: 'boolean', description: 'Whether the user is active', optional: true },
   dateOfBirth: { type: 'string', description: 'Date of birth (YYYY-MM-DD)', optional: true },
@@ -24,10 +23,13 @@ export const scimUserOutputProperties: Record<string, OutputProperty> = {
     optional: true,
     properties: {
       formatted: { type: 'string', description: 'Formatted full name', optional: true },
+      academicTitle: { type: 'string', description: 'Academic title', optional: true },
       familyName: { type: 'string', description: 'Family (last) name', optional: true },
       familyNamePrefix: { type: 'string', description: 'Family name prefix', optional: true },
       givenName: { type: 'string', description: 'Given (first) name', optional: true },
+      legalName: { type: 'string', description: 'Legal name (read-only)', optional: true },
       middleName: { type: 'string', description: 'Middle name', optional: true },
+      middleInitial: { type: 'string', description: 'Middle initial', optional: true },
       honorificPrefix: { type: 'string', description: 'Honorific prefix', optional: true },
       honorificSuffix: { type: 'string', description: 'Honorific suffix', optional: true },
     },
@@ -41,8 +43,6 @@ export const scimUserOutputProperties: Record<string, OutputProperty> = {
       properties: {
         value: { type: 'string', description: 'Email address' },
         type: { type: 'string', description: 'Type (e.g., work, home)', optional: true },
-        primary: { type: 'boolean', description: 'Primary email flag', optional: true },
-        display: { type: 'string', description: 'Display label', optional: true },
         notifications: {
           type: 'boolean',
           description: 'Whether email notifications are enabled',
@@ -79,27 +79,20 @@ export const scimUserOutputProperties: Record<string, OutputProperty> = {
       type: 'json',
       properties: {
         type: { type: 'string', description: 'Address type (work, home, etc.)', optional: true },
-        formatted: { type: 'string', description: 'Formatted address', optional: true },
         streetAddress: { type: 'string', description: 'Street address', optional: true },
         locality: { type: 'string', description: 'City / locality', optional: true },
         region: { type: 'string', description: 'State / region', optional: true },
         postalCode: { type: 'string', description: 'Postal code', optional: true },
         country: { type: 'string', description: 'ISO 3166-1 country code', optional: true },
-        primary: { type: 'boolean', description: 'Primary address flag', optional: true },
       },
     },
   },
   entitlements: {
     type: 'array',
-    description: 'Entitlements granted to the user',
+    description:
+      'Concur products the user is entitled to. Supported values: Expense, Invoice, Request, Travel',
     optional: true,
-    items: { type: 'json' },
-  },
-  roles: {
-    type: 'array',
-    description: 'Roles assigned to the user',
-    optional: true,
-    items: { type: 'json' },
+    items: { type: 'string' },
   },
   schemas: {
     type: 'array',
@@ -116,7 +109,7 @@ export const scimUserOutputProperties: Record<string, OutputProperty> = {
       lastModified: { type: 'string', description: 'Last modified timestamp', optional: true },
       resourceType: { type: 'string', description: 'Resource type (User)', optional: true },
       location: { type: 'string', description: 'Resource URL', optional: true },
-      version: { type: 'string', description: 'ETag version', optional: true },
+      version: { type: 'number', description: 'Resource version number', optional: true },
     },
   },
   emergencyContacts: {
@@ -142,6 +135,52 @@ export const scimUserOutputProperties: Record<string, OutputProperty> = {
     type: 'json',
     description: 'Read-only locale and date/time/number preference overrides',
     optional: true,
+    properties: {
+      preference24Hour: { type: 'string', description: '24-hour clock preference', optional: true },
+      preferenceCurrencySymbolLocation: {
+        type: 'string',
+        description: 'Position of the currency symbol',
+        optional: true,
+      },
+      preferenceDateFormat: { type: 'string', description: 'Date format', optional: true },
+      preferenceDefaultCalView: {
+        type: 'string',
+        description: 'Default calendar view',
+        optional: true,
+      },
+      preferenceDistance: { type: 'string', description: 'Distance unit', optional: true },
+      preferenceEndDayViewHour: {
+        type: 'number',
+        description: 'End hour of the day view (0-23)',
+        optional: true,
+      },
+      preferenceFirstDayOfWeek: {
+        type: 'string',
+        description: 'First day of the week',
+        optional: true,
+      },
+      preferenceHourMinuteSeparator: {
+        type: 'string',
+        description: 'Hour/minute separator character',
+        optional: true,
+      },
+      preferenceNegativeCurrencyFormat: {
+        type: 'string',
+        description: 'Negative currency format',
+        optional: true,
+      },
+      preferenceNegativeNumberFormat: {
+        type: 'string',
+        description: 'Negative number format',
+        optional: true,
+      },
+      preferenceNumberFormat: { type: 'string', description: 'Number format', optional: true },
+      preferenceStartDayViewHour: {
+        type: 'number',
+        description: 'Start hour of the day view (0-23)',
+        optional: true,
+      },
+    },
   },
   'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User': {
     type: 'json',
@@ -198,11 +237,6 @@ export const scimUserOutputProperties: Record<string, OutputProperty> = {
       userUuid: { type: 'string', description: 'SAP global user UUID', optional: true },
     },
   },
-  'urn:ietf:params:scim:schemas:extension:sap:concur:2.0:User': {
-    type: 'json',
-    description: 'SAP Concur SCIM extension (Concur-specific attributes)',
-    optional: true,
-  },
 }
 
 export const scimListResponseOutputProperties: Record<string, OutputProperty> = {
@@ -227,9 +261,10 @@ export const scimListResponseOutputProperties: Record<string, OutputProperty> = 
     description: '1-based index of the first result',
     optional: true,
   },
-  cursor: {
+  nextCursor: {
     type: 'string',
-    description: 'SCIM v4.1 cursor for the next page of results',
+    description:
+      'SCIM v4.1 cursor to pass as the cursor query param to fetch the next page. Absent on the last page.',
     optional: true,
   },
   Resources: {
@@ -245,6 +280,8 @@ export const scimListResponseOutputProperties: Record<string, OutputProperty> = 
 
 export const SAP_CONCUR_PROXY_URL = '/api/tools/sap_concur/proxy'
 
+export const SAP_CONCUR_UPLOAD_URL = '/api/tools/sap_concur/upload'
+
 export function baseProxyBody(params: SapConcurBaseParams): Record<string, unknown> {
   const body: Record<string, unknown> = {
     datacenter: params.datacenter ?? 'us.api.concursolutions.com',
@@ -258,27 +295,88 @@ export function baseProxyBody(params: SapConcurBaseParams): Record<string, unkno
   return body
 }
 
+/**
+ * Build a Concur query object from loosely typed tool params.
+ *
+ * Runs at execution time, after variable resolution, so it is the legal place to coerce
+ * types. The agent/LLM tool-call path invokes tools directly and bypasses
+ * `tools.config.params`, so a model emitting the string `'false'` would otherwise reach
+ * Concur as the literal text `false`, which most filters read as truthy. Only a value that
+ * is exactly `'true'` or `'false'` is converted — operator-prefixed filter strings such as
+ * `eq:true` or `sw:foo` must pass through untouched. Non-finite numbers are dropped rather
+ * than serialized as `NaN`, which the proxy's own schema would reject as `null`.
+ */
 export function buildListQuery(
   params: Record<string, string | number | boolean | undefined | null>
 ): Record<string, string | number | boolean> {
   const query: Record<string, string | number | boolean> = {}
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue
-    if (typeof value === 'string' && value.trim() === '') continue
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) continue
+      query[key] = value
+      continue
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed === '') continue
+      if (trimmed === 'true' || trimmed === 'false') {
+        query[key] = trimmed === 'true'
+        continue
+      }
+      query[key] = value
+      continue
+    }
     query[key] = value
   }
   return query
 }
 
+/**
+ * Cap for a non-JSON proxy body echoed back in the thrown error, enough to identify an
+ * HTML error page or gateway response without pasting a whole document into the message.
+ */
+const PROXY_NON_JSON_BODY_MAX_LENGTH = 200
+
+/**
+ * Normalize the proxy route's envelope into a tool response.
+ *
+ * The body is read as text and parsed explicitly: anything that fails between the tool and
+ * the route — an ALB/Next 502 or 504, an HTML error page, an empty body on a dropped
+ * connection — would otherwise surface as an opaque `SyntaxError` from `response.json()`.
+ */
 export async function transformSapConcurProxyResponse(
   response: Response
 ): Promise<SapConcurProxyResponse> {
-  const data = (await response.json()) as
-    | { success: true; output: { status: number; data: unknown } }
+  const text = await response.text()
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new Error(
+      `Concur proxy returned a non-JSON response (HTTP ${response.status}): ${truncate(
+        text,
+        PROXY_NON_JSON_BODY_MAX_LENGTH
+      )}`
+    )
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(
+      `Concur proxy returned a non-JSON response (HTTP ${response.status}): ${truncate(
+        text,
+        PROXY_NON_JSON_BODY_MAX_LENGTH
+      )}`
+    )
+  }
+  const data = parsed as
+    | { success: true; output?: { status: number; data: unknown } }
     | { success: false; error?: string; status?: number }
   if (!('success' in data) || data.success === false) {
     const errMessage = 'error' in data && data.error ? data.error : 'Concur request failed'
     throw new Error(errMessage)
+  }
+  if (!data.output) {
+    throw new Error('Concur proxy returned no output')
   }
   return {
     success: true,

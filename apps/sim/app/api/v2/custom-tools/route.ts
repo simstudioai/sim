@@ -2,7 +2,7 @@ import {
   v2CreateCustomToolContract,
   v2ListCustomToolsContract,
 } from '@/lib/api/contracts/v2/custom-tools'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
   defineV2JsonRoute,
   v2ApiKeyAuth,
@@ -14,7 +14,7 @@ import {
   createWorkspaceCustomToolUseCase,
   listWorkspaceCustomToolsUseCase,
 } from '@/lib/custom-tools/application/use-cases'
-import { toV2CustomTool } from '@/app/api/v2/custom-tools/utils'
+import { toV2CustomTool, toV2CustomToolList } from '@/app/api/v2/custom-tools/utils'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +22,7 @@ export const revalidate = 0
 
 /** Every param that changes which custom tools, in which order, this list returns. */
 function customToolCursorFilters(query: { workspaceId: string; search?: string }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListCustomToolsContract), {
     workspaceId: query.workspaceId,
     search: query.search,
   })
@@ -46,7 +46,7 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: listWorkspaceCustomToolsUseCase,
   present: ({ tools, nextCursorKeys }, { query }) => ({
-    data: tools.map(toV2CustomTool),
+    data: toV2CustomToolList(tools),
     nextCursor: writeSortedCursor(
       nextCursorKeys,
       query.sortBy,

@@ -1,4 +1,5 @@
 import { validatePathSegment } from '@/lib/core/security/input-validation'
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type { RedditCommentsParams, RedditCommentsResponse } from '@/tools/reddit/types'
 import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -129,7 +130,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         Accept: 'application/json',
       }
     },

@@ -137,25 +137,6 @@ export function formatApiKeyForDisplay(apiKey: string): string {
 }
 
 /**
- * Gets the last 4 characters of an encrypted API key by decrypting it first
- * @param encryptedKey - The encrypted API key from the database
- * @returns Promise<string> - The last 4 characters
- */
-async function getEncryptedApiKeyLast4(encryptedKey: string): Promise<string> {
-  try {
-    if (isEncryptedKey(encryptedKey)) {
-      const decryptedKey = await decryptApiKeyFromStorage(encryptedKey)
-      return getApiKeyLast4(decryptedKey)
-    }
-    // For plain text keys (legacy), return last 4 directly
-    return getApiKeyLast4(encryptedKey)
-  } catch (error) {
-    logger.error('Failed to get last 4 characters of API key:', { error })
-    return '****'
-  }
-}
-
-/**
  * Validates API key format (basic validation)
  * @param apiKey - The API key to validate
  * @returns boolean - true if the format appears valid

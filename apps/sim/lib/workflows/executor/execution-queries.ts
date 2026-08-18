@@ -104,6 +104,11 @@ export interface WorkflowExecutionOwnership {
    * that has no log row yet, and a paused-only run.
    */
   workflowGroupWorkspaceId: string | null
+  /**
+   * Status the durable log row already carried. `null` when there is no log row
+   * — a queue-only run, or a paused-only run.
+   */
+  priorStatus: string | null
 }
 
 /**
@@ -112,10 +117,12 @@ export interface WorkflowExecutionOwnership {
  * operating on an execution id because execution ids are globally unique, not
  * nested DB keys under a workflow.
  *
- * The workflow-group origin rides along on the same log row the ownership check
- * already reads. A group run owns a table cell sidecar, so cancelling only the
- * workflow log would leave the cell stuck as running — and resolving that from a
- * second SELECT of the identical row would double the read on every cancel.
+ * The workflow-group origin and the row's current status both ride along on the
+ * same log row the ownership check already reads. A group run owns a table cell
+ * sidecar, so cancelling only the workflow log would leave the cell stuck as
+ * running; and a cancel has to tell a live run apart from one that had already
+ * finished. Resolving either from a second SELECT of the identical row would
+ * double the read on every cancel.
  */
 export async function resolveWorkflowExecutionOwnership(
   executionId: string,
@@ -126,6 +133,7 @@ export async function resolveWorkflowExecutionOwnership(
       .select({
         workflowId: workflowExecutionLogs.workflowId,
         workspaceId: workflowExecutionLogs.workspaceId,
+        status: workflowExecutionLogs.status,
         executionOrigin: workflowExecutionOriginSql(),
       })
       .from(workflowExecutionLogs)
@@ -149,6 +157,7 @@ export async function resolveWorkflowExecutionOwnership(
     return {
       belongsToWorkflow: durableWorkflowIds.every((value) => value === workflowId),
       workflowGroupWorkspaceId,
+      priorStatus: logRow?.status ?? null,
     }
   }
 
@@ -157,5 +166,6 @@ export async function resolveWorkflowExecutionOwnership(
   return {
     belongsToWorkflow: job?.metadata.workflowId === workflowId,
     workflowGroupWorkspaceId: null,
+    priorStatus: null,
   }
 }

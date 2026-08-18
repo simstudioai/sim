@@ -244,6 +244,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     vi.clearAllMocks()
     mockCopyForkResourceContainers.mockResolvedValue({
       idMap: new Map(),
+      folderIdMap: new Map(),
       mappingEntries: [],
       contentPlan: {
         sourceWorkspaceId: 'src-ws',
@@ -313,6 +314,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
   it('copies selected files (keyMap + blobTasks), persists the file mapping, and threads file + folder content-ref maps', async () => {
     mockPlanForkFileCopies.mockResolvedValue({
       keyMap: new Map([['workspace/SRC/a.png', 'workspace/DST/a.png']]),
+      folderIdMap: new Map(),
       idMap: new Map([['file-src', 'file-dst']]),
       blobTasks: [
         {
@@ -386,6 +388,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     // mapping row is what makes the next sync resolve the copy instead of re-offering it.
     mockCopyForkResourceContainers.mockResolvedValue({
       idMap: new Map([['table', new Map([['tbl-unref', 'tbl-copy']])]]),
+      folderIdMap: new Map(),
       mappingEntries: [
         { resourceType: 'table', parentResourceId: 'tbl-unref', childResourceId: 'tbl-copy' },
       ],
@@ -409,6 +412,7 @@ describe('copyPromoteUnmappedResources - files + folder content-refs', () => {
     })
     mockPlanForkFileCopies.mockResolvedValue({
       keyMap: new Map<string, string>(),
+      folderIdMap: new Map(),
       idMap: new Map<string, string>(),
       blobTasks: [],
     })

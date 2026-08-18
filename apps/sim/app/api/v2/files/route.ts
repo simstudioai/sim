@@ -3,7 +3,7 @@ import {
   v2CreateFileContract,
   v2ListFilesContract,
 } from '@/lib/api/contracts/v2/files'
-import { cursorScopeKey } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
@@ -24,7 +24,7 @@ function fileCursorFilters(query: {
   folderPath?: string
   search?: string
 }) {
-  return cursorScopeKey({
+  return cursorScopeKey(cursorRoute(v2ListFilesContract), {
     workspaceId: query.workspaceId,
     scope: query.scope,
     folderPath: query.folderPath,

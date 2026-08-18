@@ -1,7 +1,6 @@
 'use client'
 
-import { Plus } from '@sim/emcn'
-import { Database } from '@sim/emcn/icons'
+import { Database, Plus } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
 import {
   type BreadcrumbItem,
@@ -29,7 +28,7 @@ const ACTIONS: ChromeActionSpec[] = [
 
 const BREADCRUMBS: BreadcrumbItem[] = [
   { label: KNOWLEDGE_HEADER.rootLabel, icon: Database, onClick: noop },
-  { label: '…', icon: Database, terminal: true },
+  { label: '…', terminal: true },
 ]
 
 export default function KnowledgeBaseLoading() {

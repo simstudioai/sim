@@ -1,0 +1,153 @@
+---
+title: Sim CLI
+description: Drive workflows, tables, files, knowledge bases, and logs from your shell
+---
+
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+`sim` is the command line for Sim. Sign in once, then run workflows, query tables,
+move files, search knowledge bases, and read run logs from the terminal. Every
+command has a `--output json` mode, so results pipe cleanly into `jq`, cron jobs,
+CI pipelines, and any other tool you already use.
+
+## Install
+
+<Tabs items={['npm', 'pnpm', 'bun']}>
+  <Tab value="npm">
+    ```bash
+    npm install -g sim
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```bash
+    pnpm add -g sim
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add -g sim
+    ```
+  </Tab>
+</Tabs>
+
+Requires Node.js 20 or newer. Verify with `sim --version`.
+
+To run it without installing, use `npx sim <command>`.
+
+Using Sim as a library instead? See the [TypeScript](/api-reference/typescript)
+and [Python](/api-reference/python) SDKs, or the
+[HTTP API](/api-reference/getting-started).
+
+## Your first command
+
+<Steps>
+
+<Step>
+### Sign in
+
+```bash
+sim login
+```
+
+The terminal prints a pairing code and a URL. Approve it in the browser and pick
+a workspace. There is no loopback listener, so this works over SSH and in
+containers.
+
+See [Authentication](/cli/authentication) for CI keys, multiple accounts, and
+self-hosted deployments.
+</Step>
+
+<Step>
+### Check what you are pointed at
+
+```bash
+sim whoami
+```
+
+This prints the resolved endpoint, workspace, and output format — and **where
+each one came from**. It is the fastest way to explain a surprising result.
+</Step>
+
+<Step>
+### List your workflows
+
+```bash
+sim workflows list
+```
+
+```
+ID      NAME           FOLDER     DEPLOYED  RUNS  LAST RUN
+wf_7Yb2 Refund triage  /Support   yes       412   2026-08-15 14:02:11
+wf_9Kd4 Weekly digest  /Reporting no        18    2026-08-11 09:00:04
+```
+</Step>
+
+<Step>
+### Run one
+
+```bash
+sim workflows run wf_7Yb2 --input '{"ticketId":"T-4821"}'
+```
+
+A workflow must be deployed before it can be run. Deploy from the editor, or
+with `sim workflows deploy <id>`.
+</Step>
+
+</Steps>
+
+## How commands are shaped
+
+Every command reads the same way:
+
+```bash
+sim <resource> [sub-resource] <verb> [arguments] [options]
+```
+
+```bash
+sim workflows list
+sim tables rows query tbl_123 --limit 50
+sim knowledge documents upload kb_123 ./handbook.pdf
+```
+
+Resource groups are plural, and each also accepts its singular spelling —
+`sim workflow get` and `sim workflows get` are the same command. `knowledge`
+also answers to `kb`.
+
+Every command accepts `--help`, at any depth:
+
+```bash
+sim --help
+sim tables --help
+sim tables rows query --help
+```
+
+## What you can do
+
+| Group | What it covers |
+| --- | --- |
+| [`workflows`](/cli/workflows) | Run, deploy, roll back, import, export, and organize workflows |
+| [`logs`](/cli/logs) | Read run diagnostics, including the full trace tree |
+| [`tables`](/cli/tables) | Query, insert, update, and import rows; manage columns and views |
+| [`files`](/cli/files) | Upload, download, share, and organize workspace files |
+| [`knowledge`](/cli/knowledge) | Search knowledge bases and manage their documents and tags |
+| [`skills`](/cli/skills) | Manage agent skills |
+| [`mcp-servers`](/cli/mcp-servers) | Manage MCP server connections and their tools |
+| [`custom-tools`](/cli/custom-tools) | Manage custom tool definitions |
+| [`credentials`](/cli/credentials) | Connect, reconnect, and disconnect integration credentials |
+| [`secrets`](/cli/secrets) | Set and remove workspace secrets |
+| [`billing`](/cli/billing) | Check plan status and credit usage |
+| [`audit-logs`](/cli/audit-logs) | Read organization audit logs |
+| [`workspaces`](/cli/workspaces) | Inspect the active workspace and its members |
+
+The [command reference](/cli/commands) documents every subcommand, argument, and
+flag, and is generated from the CLI itself.
+
+## Where to go next
+
+- [Authentication](/cli/authentication) — signing in, API keys for CI, and multiple accounts
+- [Configuration](/cli/configuration) — profiles, config files, environment variables, and precedence
+- [Output formats](/cli/output) — `table`, `json`, `yaml`, and `text`, and when to use each
+- [Scripting](/cli/scripting) — piping, file inputs, exit codes, and automation recipes
+- [Troubleshooting](/cli/troubleshooting) — what each error means, and how to resolve it
+- [Command reference](/cli/commands) — every command, argument, and flag

@@ -138,6 +138,16 @@ export function normalizeError(error: unknown): string {
  * substring-matching messages; this module is the single place raw errors are
  * interpreted, so the executor can later attach codes natively at throw sites
  * without a wire change.
+ *
+ * Append-only binds what a caller can observe, and an oversize run response has
+ * never been observable here: it is not an in-band failure at all. The execution
+ * service short-circuits it into an HTTP 413 carrying `workflow_response_too_large`
+ * in the error envelope, so no run ever reaches classification with an oversize
+ * output. `OUTPUT_TOO_LARGE` was therefore a code no caller could ever have
+ * routed on — publishing it only invited a branch that never runs, and an
+ * exhaustive `switch` in a generated SDK to claim coverage it does not have.
+ * Retiring an unreachable member narrows the published type without changing a
+ * single response; adding a reachable member later is still the append-only path.
  */
 export type WorkflowExecutionErrorCode =
   | 'TIMEOUT'
@@ -146,7 +156,6 @@ export type WorkflowExecutionErrorCode =
   | 'INVALID_INPUT'
   | 'BLOCK_EXECUTION_FAILED'
   | 'CHILD_WORKFLOW_FAILED'
-  | 'OUTPUT_TOO_LARGE'
   | 'EXECUTION_FAILED'
 
 export interface StructuredExecutionError {

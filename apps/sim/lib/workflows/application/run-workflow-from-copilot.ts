@@ -236,6 +236,8 @@ async function executeCopilotRun(params: {
         enabled: true,
         useDraftState: params.input.useDraftState,
         workflowTriggerType: 'copilot',
+        /** `requirePrincipalSubjectUserId` above rejects every principal that cannot name a caller. */
+        enforceCredentialAccess: true,
         triggerBlockId: params.triggerBlockId,
         stopAfterBlockId: params.stopAfterBlockId,
         runFromBlock: params.runFromBlock,

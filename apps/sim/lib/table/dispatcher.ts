@@ -781,18 +781,6 @@ export async function completeDispatchIfActive(dispatchId: string): Promise<bool
   return transitioned.length > 0
 }
 
-export async function markDispatchCancelled(dispatchId: string): Promise<void> {
-  await db
-    .update(tableRunDispatches)
-    .set({ status: 'cancelled', cancelledAt: new Date() })
-    .where(
-      and(
-        eq(tableRunDispatches.id, dispatchId),
-        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
-      )
-    )
-}
-
 /** Mark every active dispatch on this table as cancelled. Single atomic
  *  UPDATE so the dispatcher's next iteration observes the cancel. Returns the
  *  dispatches that were cancelled so the caller can emit per-dispatch SSE

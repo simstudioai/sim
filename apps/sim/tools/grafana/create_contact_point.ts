@@ -127,6 +127,10 @@ export const createContactPointTool: ToolConfig<
       type: 'boolean',
       description: 'Whether resolve notifications are suppressed',
     },
-    provenance: { type: 'string', description: 'Provisioning source (empty if API-managed)' },
+    provenance: {
+      type: 'string',
+      description:
+        'Provisioning source — "api" for API-managed, empty when created with X-Disable-Provenance and therefore still editable in the Grafana UI',
+    },
   },
 }

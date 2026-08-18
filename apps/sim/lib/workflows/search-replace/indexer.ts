@@ -1,18 +1,20 @@
+import { isRecordLike } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import { COMPARISON_OPERATORS, LOGICAL_OPERATORS } from '@/lib/table/query-builder/constants'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import {
   getSearchableJsonStringLeaves,
   isSearchableJsonValueSubBlock,
   shouldParseSerializedSubBlockValue,
 } from '@/lib/workflows/search-replace/json-value-fields'
 import {
+  buildBlockNamesByReferencePrefix,
   getResourceKindForSubBlock,
   matchesSearchText,
   parseInlineReferences,
   parseStructuredResourceReferences,
+  resolveInlineReferenceSearchText,
 } from '@/lib/workflows/search-replace/resources'
 import { getWorkflowSearchSubflowFields } from '@/lib/workflows/search-replace/subflow-fields'
 import type {
@@ -23,6 +25,7 @@ import type {
 } from '@/lib/workflows/search-replace/types'
 import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/value-walker'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
@@ -138,20 +141,12 @@ const TOOL_INPUT_TEXT_EXCLUDED_PATH_KEYS = new Set(['schema'])
 type WorkflowSearchSubBlockConfig = Pick<SubBlockConfig, 'id' | 'type'> & Partial<SubBlockConfig>
 type DisplayLabelLeaf = { value: string; path: WorkflowSearchValuePath; fieldTitle?: string }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
 function looksLikeStoredSkillList(value: unknown): boolean {
   return (
     Array.isArray(value) &&
     value.length > 0 &&
     value.every(
-      (item) =>
-        item &&
-        typeof item === 'object' &&
-        !Array.isArray(item) &&
-        typeof (item as Record<string, unknown>).skillId === 'string'
+      (item) => isRecordLike(item) && typeof (item as Record<string, unknown>).skillId === 'string'
     )
   )
 }
@@ -166,7 +161,7 @@ function looksLikeStructuredString(value: string): boolean {
 
 function getFallbackToolParamType(value: unknown, paramType?: string): SubBlockType {
   if (paramType === 'object') return 'workflow-input-mapper'
-  if (value && typeof value === 'object' && !Array.isArray(value)) return 'workflow-input-mapper'
+  if (isRecordLike(value)) return 'workflow-input-mapper'
   if (typeof value !== 'string') return DEFAULT_SUBBLOCK_TYPE as SubBlockType
 
   const trimmed = value.trim()
@@ -176,7 +171,7 @@ function getFallbackToolParamType(value: unknown, paramType?: string): SubBlockT
 
   try {
     const parsed: unknown = JSON.parse(trimmed)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (isRecordLike(parsed)) {
       return 'workflow-input-mapper'
     }
   } catch {}
@@ -315,10 +310,11 @@ function getOptionLabelLeaves(
 
 function getMcpDynamicArgEnumLabelLeaves(value: unknown, schema: unknown): DisplayLabelLeaf[] {
   const parsedValue = typeof value === 'string' ? safeParseJson(value) : value
-  if (!isRecord(parsedValue) || !isRecord(schema) || !isRecord(schema.properties)) return []
+  if (!isRecordLike(parsedValue) || !isRecordLike(schema) || !isRecordLike(schema.properties))
+    return []
 
   return Object.entries(schema.properties).flatMap(([paramName, paramSchema]) => {
-    if (!isRecord(paramSchema) || !Array.isArray(paramSchema.enum)) return []
+    if (!isRecordLike(paramSchema) || !Array.isArray(paramSchema.enum)) return []
     const selectedValue = parsedValue[paramName]
     if (selectedValue === undefined || selectedValue === null || selectedValue === '') return []
     return [
@@ -788,7 +784,7 @@ export function getToolInputParamConfigs({
   )
   const allToolSubBlocks = blockConfig?.subBlocks ?? subBlocksResult.subBlocks
   const getDependentValuePaths = (changedSubBlockId: string): WorkflowSearchValuePath[] =>
-    getWorkflowSearchDependentClears(allToolSubBlocks, changedSubBlockId).map((clear) => [
+    getTransitiveSubBlockDependents(allToolSubBlocks, [changedSubBlockId]).map((clear) => [
       'params',
       clear.subBlockId,
     ])
@@ -943,6 +939,7 @@ function addToolInputMatches({
   blockConfigs,
   customTools,
   mcpToolNamesById,
+  blockNamesByReferencePrefix,
 }: {
   matches: WorkflowSearchMatch[]
   block: WorkflowSearchBlockState
@@ -964,6 +961,7 @@ function addToolInputMatches({
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
   customTools?: WorkflowSearchIndexerOptions['customTools']
   mcpToolNamesById?: WorkflowSearchIndexerOptions['mcpToolNamesById']
+  blockNamesByReferencePrefix: ReadonlyMap<string, string>
 }) {
   const parentCanonicalModes = getSearchCanonicalModes(block)
 
@@ -1064,7 +1062,11 @@ function addToolInputMatches({
       for (const leaf of getSearchableStringLeaves(paramValue, subBlockType, 'reference')) {
         const inlineReferences = parseInlineReferences(leaf.value)
         inlineReferences.forEach((reference, referenceIndex) => {
-          const searchable = `${reference.rawValue} ${reference.searchText}`
+          const searchText = resolveInlineReferenceSearchText(
+            reference,
+            blockNamesByReferencePrefix
+          )
+          const searchable = `${reference.rawValue} ${reference.searchText} ${searchText}`
           if (
             !includeResourceMatchesWithoutQuery &&
             !matchesSearchText(searchable, query, caseSensitive)
@@ -1094,7 +1096,7 @@ function addToolInputMatches({
             target: { kind: 'subblock' },
             kind: reference.kind,
             rawValue: reference.rawValue,
-            searchText: reference.searchText,
+            searchText,
             range: reference.range,
             dependentValuePaths: nestedDependentValuePaths,
             resource: reference.resource,
@@ -1256,6 +1258,7 @@ export function indexWorkflowSearchMatches(
 
   const matches: WorkflowSearchMatch[] = []
   const resourceQueryEnabled = includeResourceMatchesWithoutQuery || Boolean(query)
+  const blockNamesByReferencePrefix = buildBlockNamesByReferencePrefix(workflow.blocks)
 
   for (const block of Object.values(workflow.blocks)) {
     const blockConfig = blockConfigs[block.type] ?? getBlock(block.type)
@@ -1389,6 +1392,7 @@ export function indexWorkflowSearchMatches(
           blockConfigs,
           customTools,
           mcpToolNamesById,
+          blockNamesByReferencePrefix,
         })
         continue
       }
@@ -1477,7 +1481,11 @@ export function indexWorkflowSearchMatches(
       for (const leaf of referenceLeaves) {
         const inlineReferences = parseInlineReferences(leaf.value)
         inlineReferences.forEach((reference, referenceIndex) => {
-          const searchable = `${reference.rawValue} ${reference.searchText}`
+          const searchText = resolveInlineReferenceSearchText(
+            reference,
+            blockNamesByReferencePrefix
+          )
+          const searchable = `${reference.rawValue} ${reference.searchText} ${searchText}`
           if (
             !includeResourceMatchesWithoutQuery &&
             !matchesSearchText(searchable, query, caseSensitive)
@@ -1505,7 +1513,7 @@ export function indexWorkflowSearchMatches(
             target: { kind: 'subblock' },
             kind: reference.kind,
             rawValue: reference.rawValue,
-            searchText: reference.searchText,
+            searchText,
             range: reference.range,
             resource: reference.resource,
             editable,

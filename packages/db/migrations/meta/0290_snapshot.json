@@ -1,5 +1,5 @@
 {
-  "id": "3967bd75-0a06-4485-b854-827f8dc44ad0",
+  "id": "836e092e-f975-4cb6-b12e-f02f5e11551a",
   "prevId": "b381a516-8a98-4877-ae12-f37461e980ef",
   "version": "7",
   "dialect": "postgresql",
@@ -10857,6 +10857,13 @@
           "notNull": true,
           "default": true
         },
+        "auto_focus_on_click": {
+          "name": "auto_focus_on_click",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
         "timezone": {
           "name": "timezone",
           "type": "text",
@@ -12807,52 +12814,6 @@
             },
             {
               "expression": "billing_period_end",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "source",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "cost",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"usage_log\".\"billing_entity_type\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "usage_log_billing_entity_created_at_cost_idx": {
-          "name": "usage_log_billing_entity_created_at_cost_idx",
-          "columns": [
-            {
-              "expression": "billing_entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "billing_entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

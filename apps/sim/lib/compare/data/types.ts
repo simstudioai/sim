@@ -237,16 +237,6 @@ export interface CompetitorProfile {
   facts: ComparisonFacts
 }
 
-/** A fact awaiting verification. Used as an intermediate research artifact, never shipped. */
-export function unknownFact(reason?: string): Fact {
-  return {
-    value: 'Unknown',
-    detail: reason,
-    confidence: 'unknown',
-    sources: [],
-  }
-}
-
 /**
  * Broad grouping for {@link SimFeature} entries. A single feature catalog
  * entry belongs to exactly one category, but can carry additional

@@ -20,6 +20,18 @@ export default {
      * class unique to this directory silently resolves to nothing.
      */
     './lib/**/*.{js,ts,jsx,tsx,mdx}',
+    /**
+     * Block definitions and their shared helpers emit classes too — most
+     * importantly `blocks/icon-color.ts`, whose `getTileIconColorClass` returns
+     * the only bare `text-black` candidate in the app. Scanned files spell it
+     * exclusively as `dark:text-black` or `text-black/75`, which compile to
+     * different selectors, so leaving this directory out meant `.text-black`
+     * was never generated at all and every light-background brand tile
+     * inherited the ambient (near-white) color instead.
+     */
+    './blocks/**/*.{js,ts,jsx,tsx}',
+    './ee/**/*.{js,ts,jsx,tsx}',
+    './content/**/*.{js,ts,jsx,tsx}',
     '../../packages/emcn/src/**/*.{js,ts,jsx,tsx}',
     '../../packages/workflow-renderer/src/**/*.{js,ts,jsx,tsx}',
     '!./app/node_modules/**',

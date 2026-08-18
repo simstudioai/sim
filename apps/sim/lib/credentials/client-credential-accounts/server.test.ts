@@ -92,4 +92,29 @@ describe('parseClientCredentialAccountSecretBlob', () => {
     expect(parsed.clientSecret).toBe('secret')
     expect(parsed.authMethod).toBeUndefined()
   })
+
+  it('requires every descriptor field for a NetSuite certificate blob', () => {
+    const netSuiteBlob = blob({
+      providerId: 'netsuite-service-account',
+      clientSecret: undefined,
+      orgId: 'https://1234567.suitetalk.api.netsuite.com',
+      certificateId: 'cert-1',
+      privateKey: '-----BEGIN PRIVATE KEY-----',
+    })
+    expect(
+      parseClientCredentialAccountSecretBlob(netSuiteBlob, 'netsuite-service-account')
+    ).toMatchObject({ certificateId: 'cert-1' })
+
+    expect(() =>
+      parseClientCredentialAccountSecretBlob(
+        blob({
+          providerId: 'netsuite-service-account',
+          clientSecret: undefined,
+          orgId: 'https://1234567.suitetalk.api.netsuite.com',
+          privateKey: '-----BEGIN PRIVATE KEY-----',
+        }),
+        'netsuite-service-account'
+      )
+    ).toThrow(MALFORMED)
+  })
 })

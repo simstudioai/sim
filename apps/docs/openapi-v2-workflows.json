@@ -51,6 +51,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose workflows should be listed."
             }
           },
@@ -1423,9 +1424,9 @@
             "name": "includeOutput",
             "in": "query",
             "required": false,
-            "description": "Include final and block outputs when true.",
+            "description": "Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.",
             "schema": {
-              "description": "Include final and block outputs when true.",
+              "description": "Include the final workflow output when true. It does not gate `blockOutputs`, which `selectedOutputs` selects on its own.",
               "type": "boolean"
             }
           },
@@ -1433,9 +1434,9 @@
             "name": "selectedOutputs",
             "in": "query",
             "required": false,
-            "description": "Comma-separated block output references to include.",
+            "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
             "schema": {
-              "description": "Comma-separated block output references to include.",
+              "description": "Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.",
               "type": "string"
             }
           }
@@ -1712,6 +1713,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace whose folders should be listed."
             }
           },
@@ -1964,6 +1966,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
               "description": "Workspace containing the folder."
             }
           },
@@ -2292,7 +2295,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
               }
             },
             "required": ["code", "message"],
@@ -2499,6 +2502,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the workflow."
           },
           "name": {
@@ -3828,6 +3832,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to import the workflow."
           },
           "workflow": {
@@ -3882,21 +3887,20 @@
               "INVALID_INPUT",
               "BLOCK_EXECUTION_FAILED",
               "CHILD_WORKFLOW_FAILED",
-              "OUTPUT_TOO_LARGE",
               "EXECUTION_FAILED"
             ],
-            "description": "Stable machine-readable execution failure code."
+            "description": "Stable machine-readable execution failure code. `BLOCK_EXECUTION_FAILED` and `CHILD_WORKFLOW_FAILED` are reported only where block attribution is available; elsewhere a block-level failure is reported as `EXECUTION_FAILED`."
           },
           "blockId": {
-            "description": "Identifier of the failing block, when attributable.",
+            "description": "Identifier of the failing block. Present on the synchronous execute response only; the polled run resource and the resume response cannot attribute a block.",
             "type": "string"
           },
           "blockName": {
-            "description": "Display name of the failing block.",
+            "description": "Display name of the failing block. Present on the synchronous execute response only.",
             "type": "string"
           },
           "blockType": {
-            "description": "Integration or block type that failed.",
+            "description": "Integration or block type that failed. Present on the synchronous execute response only.",
             "type": "string"
           }
         },
@@ -4292,7 +4296,7 @@
                 "type": "null"
               }
             ],
-            "description": "Trigger type, or null before the run is recorded."
+            "description": "Trigger type that started the run. Backfilled as `api` for a run that is still queued, so it is populated from the first poll."
           },
           "startedAt": {
             "anyOf": [
@@ -4303,7 +4307,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 start timestamp, or null while queued.",
+            "description": "ISO 8601 start timestamp. A queued run reports the time it was enqueued, so it is populated from the first poll.",
             "format": "date-time"
           },
           "endedAt": {
@@ -4453,7 +4457,7 @@
                 "type": "null"
               }
             ],
-            "description": "Structured execution failure, or null when none occurred."
+            "description": "Structured execution failure, or null when none occurred. Reclassified from the persisted error message, so `blockId`/`blockName`/`blockType` are absent and a block-level failure reports `EXECUTION_FAILED` here even when the same run reported `BLOCK_EXECUTION_FAILED` on its synchronous execute response."
           },
           "output": {
             "anyOf": [
@@ -4481,7 +4485,7 @@
                 "type": "null"
               }
             ],
-            "description": "Selected block outputs when requested, otherwise null."
+            "description": "Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only."
           }
         },
         "required": [
@@ -4661,7 +4665,7 @@
           },
           "durablyRecorded": {
             "type": "boolean",
-            "description": "Whether cancellation was recorded durably."
+            "description": "Whether this request durably recorded a cancellation. Always false for a run that was already terminal, where the request is satisfied but nothing was written."
           },
           "locallyAborted": {
             "type": "boolean",
@@ -4672,10 +4676,13 @@
             "description": "Whether a paused execution was cancelled."
           },
           "reason": {
-            "description": "Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.",
+            "description": "Machine-readable cancellation outcome, present on every cancellation including full successes. `recorded` is the success value. `already_cancelled`, `already_completed`, and `already_failed` mean the run had already reached that terminal state, so nothing was cancelled and `durablyRecorded` is false. `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal was not written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step for a paused run.",
             "type": "string",
             "enum": [
               "recorded",
+              "already_cancelled",
+              "already_completed",
+              "already_failed",
               "redis_unavailable",
               "redis_write_failed",
               "paused_event_publish_failed",
@@ -4693,7 +4700,7 @@
         ],
         "additionalProperties": false,
         "title": "Cancel workflow run result",
-        "description": "Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, so poll the run to observe its final state."
+        "description": "Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed."
       },
       "CancelWorkflowRunResponse": {
         "type": "object",
@@ -4839,6 +4846,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace in which to create the folder."
           },
           "path": {
@@ -4882,6 +4890,7 @@
           "workspaceId": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 128,
             "description": "Workspace containing the folder."
           },
           "path": {

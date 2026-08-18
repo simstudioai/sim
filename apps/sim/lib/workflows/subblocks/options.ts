@@ -143,3 +143,30 @@ export async function fetchWorkspaceSandboxOption(
   }
   return option
 }
+
+/**
+ * Loads the trigger vocabulary the Logs page filter offers — the core trigger
+ * types plus one entry per registered webhook provider — for the Logs block's
+ * trigger filter, so both surfaces name a run's origin identically.
+ *
+ * The registry is reached lazily: `getTriggerOptions` reads the block and trigger
+ * registries, and importing it at module scope from a module that block
+ * definitions themselves import would close an initialization cycle.
+ *
+ * Entries sharing a label are merged into one option whose id is the comma-joined
+ * set of values (`copilot,mothership` for "Sim agent"). The filter is a
+ * comma-separated list end to end, so a merged id selects every value behind the
+ * label instead of offering two identical rows.
+ */
+export async function fetchTriggerTypeOptions(): Promise<SubBlockOption[]> {
+  const { getTriggerOptions } = await import('@/lib/logs/get-trigger-options')
+
+  const valuesByLabel = new Map<string, string[]>()
+  for (const option of getTriggerOptions()) {
+    const values = valuesByLabel.get(option.label)
+    if (values) values.push(option.value)
+    else valuesByLabel.set(option.label, [option.value])
+  }
+
+  return Array.from(valuesByLabel, ([label, values]) => ({ id: values.join(','), label }))
+}

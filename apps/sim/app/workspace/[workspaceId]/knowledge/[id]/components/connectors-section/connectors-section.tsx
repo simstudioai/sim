@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   Badge,
   Button,
@@ -11,7 +12,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Loader,
   Tooltip,
 } from '@sim/emcn'
 import {
@@ -19,6 +19,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  Loader,
   Pause,
   Play,
   RefreshCw,
@@ -60,6 +61,22 @@ interface ConnectorsSectionProps {
 /** 5-minute cooldown after a manual sync trigger */
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000
 
+const EMPTY_REQUIRED_SCOPES: string[] = []
+
+type IdSetSetter = Dispatch<SetStateAction<Set<string>>>
+
+function addToSet(setter: IdSetSetter, id: string) {
+  setter((prev) => new Set(prev).add(id))
+}
+
+function removeFromSet(setter: IdSetSetter, id: string) {
+  setter((prev) => {
+    const next = new Set(prev)
+    next.delete(id)
+    return next
+  })
+}
+
 const STATUS_CONFIG = {
   active: { label: 'Active', variant: 'green' as const },
   syncing: { label: 'Syncing', variant: 'amber' as const },
@@ -86,26 +103,14 @@ export function ConnectorsSection({
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [deleteDocuments, setDeleteDocuments] = useState(false)
 
-  const closeDeleteModal = useCallback(() => {
+  const closeDeleteModal = () => {
     setDeleteTarget(null)
     setDeleteDocuments(false)
-  }, [])
+  }
   const [editingConnector, setEditingConnector] = useState<ConnectorData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [syncingIds, setSyncingIds] = useState<Set<string>>(() => new Set())
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(() => new Set())
-
-  const addToSet = useCallback((setter: typeof setSyncingIds, id: string) => {
-    setter((prev) => new Set(prev).add(id))
-  }, [])
-
-  const removeFromSet = useCallback((setter: typeof setSyncingIds, id: string) => {
-    setter((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
-  }, [])
 
   const syncTriggeredAt = useRef<Record<string, number>>({})
   const cooldownTimersRef = useRef<Set<ReturnType<typeof setTimeout>> | null>(null)
@@ -120,69 +125,61 @@ export function ConnectorsSection({
     }
   }, [])
 
-  const isSyncOnCooldown = useCallback((connectorId: string) => {
+  const isSyncOnCooldown = (connectorId: string) => {
     const triggeredAt = syncTriggeredAt.current[connectorId]
     if (!triggeredAt) return false
     return Date.now() - triggeredAt < SYNC_COOLDOWN_MS
-  }, [])
+  }
 
-  const handleSync = useCallback(
-    (connectorId: string, rehydrate = false) => {
-      if (isSyncOnCooldown(connectorId)) return
+  const handleSync = (connectorId: string, rehydrate = false) => {
+    if (isSyncOnCooldown(connectorId)) return
 
-      syncTriggeredAt.current[connectorId] = Date.now()
-      addToSet(setSyncingIds, connectorId)
+    syncTriggeredAt.current[connectorId] = Date.now()
+    addToSet(setSyncingIds, connectorId)
 
-      triggerSync(
-        { knowledgeBaseId, connectorId, rehydrate },
-        {
-          onSuccess: () => {
-            setError(null)
-            const timer = setTimeout(() => {
-              cooldownTimersRef.current?.delete(timer)
-              forceUpdate((n) => n + 1)
-            }, SYNC_COOLDOWN_MS)
-            cooldownTimersRef.current?.add(timer)
-          },
-          onError: (err) => {
-            logger.error('Sync trigger failed', { error: err.message })
-            setError(err.message)
-            delete syncTriggeredAt.current[connectorId]
+    triggerSync(
+      { knowledgeBaseId, connectorId, rehydrate },
+      {
+        onSuccess: () => {
+          setError(null)
+          const timer = setTimeout(() => {
+            cooldownTimersRef.current?.delete(timer)
             forceUpdate((n) => n + 1)
-          },
-          onSettled: () => removeFromSet(setSyncingIds, connectorId),
-        }
-      )
-    },
-    [knowledgeBaseId, triggerSync, isSyncOnCooldown, addToSet, removeFromSet]
-  )
-
-  const handleTogglePause = useCallback(
-    (connector: ConnectorData) => {
-      addToSet(setUpdatingIds, connector.id)
-      updateConnector(
-        {
-          knowledgeBaseId,
-          connectorId: connector.id,
-          updates: {
-            status:
-              connector.status === 'paused' || connector.status === 'disabled'
-                ? 'active'
-                : 'paused',
-          },
+          }, SYNC_COOLDOWN_MS)
+          cooldownTimersRef.current?.add(timer)
         },
-        {
-          onSettled: () => removeFromSet(setUpdatingIds, connector.id),
-          onSuccess: () => setError(null),
-          onError: (err) => {
-            logger.error('Toggle pause failed', { error: err.message })
-            setError(err.message)
-          },
-        }
-      )
-    },
-    [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
-  )
+        onError: (err) => {
+          logger.error('Sync trigger failed', { error: err.message })
+          setError(err.message)
+          delete syncTriggeredAt.current[connectorId]
+          forceUpdate((n) => n + 1)
+        },
+        onSettled: () => removeFromSet(setSyncingIds, connectorId),
+      }
+    )
+  }
+
+  const handleTogglePause = (connector: ConnectorData) => {
+    addToSet(setUpdatingIds, connector.id)
+    updateConnector(
+      {
+        knowledgeBaseId,
+        connectorId: connector.id,
+        updates: {
+          status:
+            connector.status === 'paused' || connector.status === 'disabled' ? 'active' : 'paused',
+        },
+      },
+      {
+        onSettled: () => removeFromSet(setUpdatingIds, connector.id),
+        onSuccess: () => setError(null),
+        onError: (err) => {
+          logger.error('Toggle pause failed', { error: err.message })
+          setError(err.message)
+        },
+      }
+    )
+  }
 
   const handleDeleteConnector = () => {
     if (!deleteTarget) return
@@ -315,10 +312,10 @@ function ConnectorCard({
 
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes = useMemo(
-    () => (connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []),
-    [connectorDef]
-  )
+  const requiredScopes =
+    connectorDef?.auth.mode === 'oauth'
+      ? (connectorDef.auth.requiredScopes ?? EMPTY_REQUIRED_SCOPES)
+      : EMPTY_REQUIRED_SCOPES
 
   const { data: credentials, refetch: refetchCredentials } = useOAuthCredentials(providerId, {
     workspaceId,
@@ -358,27 +355,22 @@ function ConnectorCard({
     >
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='relative size-9 flex-shrink-0'>
-            <div
-              className={cn(
-                'flex size-full items-center justify-center rounded-xl border',
-                brandBg
-                  ? 'border-[var(--border-1)]'
-                  : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
-              )}
-              style={brandBg ? { background: brandBg } : undefined}
-            >
-              {Icon && (
-                <Icon
-                  className={cn(
-                    'size-5',
-                    brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
-                  )}
-                />
-              )}
-            </div>
-            {connector.status === 'disabled' && (
-              <TriangleAlert className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
+          <div
+            className={cn(
+              'flex size-9 flex-shrink-0 items-center justify-center rounded-xl border',
+              brandBg
+                ? 'border-[var(--border-1)]'
+                : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
+            )}
+            style={brandBg ? { background: brandBg } : undefined}
+          >
+            {Icon && (
+              <Icon
+                className={cn(
+                  'size-5',
+                  brandBg ? getTileIconColorClass(brandBg) : 'text-[var(--text-icon)]'
+                )}
+              />
             )}
           </div>
           <div className='flex min-w-0 flex-col gap-0.5'>
@@ -578,6 +570,7 @@ function ConnectorCard({
                       providerId: providerId!,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }
@@ -612,6 +605,7 @@ function ConnectorCard({
                       providerId: providerId!,
                       preCount: credentials?.length ?? 0,
                       workspaceId,
+                      reconnect: true,
                       requestedAt: Date.now(),
                     })
                   }

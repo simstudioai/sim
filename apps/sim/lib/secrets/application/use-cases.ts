@@ -4,7 +4,10 @@ import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getWorkspaceEnvKeyAdminAccess } from '@/lib/credentials/environment'
+import {
+  getPersonalEnvCredentialMetadata,
+  getWorkspaceEnvKeyAdminAccess,
+} from '@/lib/credentials/environment'
 import {
   listVisibleWorkspaceCredentials,
   type VisibleWorkspaceCredential,
@@ -115,27 +118,88 @@ async function requireWorkspaceSecretMutationAccess(params: {
   }
 }
 
-async function getSecretMetadata(params: {
+async function findSecretMetadata(params: {
   workspaceId: string
   userId: string
   scope: SecretScope
   name: string
-}): Promise<VisibleWorkspaceCredential> {
+}): Promise<VisibleWorkspaceCredential | null> {
   const { data } = await listSecretMetadata({
     ...params,
     search: params.name,
     sortBy: 'name',
     sortOrder: 'asc',
   })
-  const row = data.find(
-    (candidate) =>
-      candidate.envKey === params.name &&
-      (params.scope === 'workspace'
-        ? candidate.type === 'env_workspace'
-        : candidate.type === 'env_personal' && candidate.envOwnerUserId === params.userId)
+  return (
+    data.find(
+      (candidate) =>
+        candidate.envKey === params.name &&
+        (params.scope === 'workspace'
+          ? candidate.type === 'env_workspace'
+          : candidate.type === 'env_personal' && candidate.envOwnerUserId === params.userId)
+    ) ?? null
   )
-  if (!row) throw new Error(`Secret metadata was not created for ${params.scope}:${params.name}`)
+}
+
+async function getWorkspaceSecretMetadata(params: {
+  workspaceId: string
+  userId: string
+  name: string
+}): Promise<VisibleWorkspaceCredential> {
+  const row = await findSecretMetadata({ ...params, scope: 'workspace' })
+  if (!row) throw new Error(`Secret metadata was not created for workspace:${params.name}`)
   return row
+}
+
+/**
+ * Resolves the metadata a personal-scope write reports back.
+ *
+ * A personal secret is stored once per user, and its `env_personal` credential
+ * rows are per-workspace mirrors written only for the workspaces the caller holds
+ * an explicit grant on. A caller whose access to this workspace is inherited — an
+ * organization admin with no `permissions` row — authorizes fine and commits the
+ * value, but has no mirror here; deciding the response from that mirror would
+ * report a committed write as a failure. The workspace's own mirror still answers
+ * when it exists because it carries the real per-workspace metadata; otherwise the
+ * secret's earliest mirror does, and a secret with no mirror anywhere was created
+ * by this very write.
+ */
+async function getPersonalSecretMetadata(params: {
+  workspaceId: string
+  userId: string
+  name: string
+  updatedAt: Date
+}): Promise<VisibleWorkspaceCredential> {
+  const mirror = await findSecretMetadata({
+    workspaceId: params.workspaceId,
+    userId: params.userId,
+    scope: 'personal',
+    name: params.name,
+  })
+  if (mirror) return mirror
+
+  const stored = await getPersonalEnvCredentialMetadata({
+    userId: params.userId,
+    envKey: params.name,
+  })
+
+  return {
+    /** No credential row backs this projection; the id is never presented. */
+    id: stored?.id ?? `env_personal:${params.userId}:${params.name}`,
+    workspaceId: params.workspaceId,
+    type: 'env_personal',
+    displayName: params.name,
+    description: null,
+    providerId: null,
+    accountId: null,
+    envKey: params.name,
+    envOwnerUserId: params.userId,
+    createdBy: params.userId,
+    createdAt: stored?.createdAt ?? params.updatedAt,
+    updatedAt: params.updatedAt,
+    hasServiceAccountKey: false,
+    role: 'admin',
+  }
 }
 
 const authorizationOptions = {}
@@ -186,6 +250,12 @@ export interface SetSecretInput {
   name: string
   scope: SecretScope
   value: string
+  /**
+   * Workspace scope only, and rejected at the contract for personal scope: an
+   * `env_personal` row is a per-workspace mirror of one user-global secret, so a
+   * description written here would exist in this workspace alone.
+   */
+  description?: string | null
 }
 
 export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
@@ -195,6 +265,12 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const userId = principalUserId(principal)
+    if (input.scope === 'personal' && input.description !== undefined) {
+      throw new OrchestrationError(
+        'validation',
+        'description is only supported for a workspace secret'
+      )
+    }
     if (input.scope === 'workspace') {
       await requireWorkspaceSecretMutationAccess({
         workspaceId: context.workspaceId,
@@ -203,20 +279,28 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
       })
     }
 
-    const mutation =
-      input.scope === 'workspace'
-        ? await setWorkspaceSecret({
-            workspaceId: context.workspaceId,
-            name: input.name,
-            value: input.value,
-            userId,
-          })
-        : await setPersonalSecret({ userId, name: input.name, value: input.value })
-    const secret = await getSecretMetadata({
+    if (input.scope === 'workspace') {
+      const mutation = await setWorkspaceSecret({
+        workspaceId: context.workspaceId,
+        name: input.name,
+        value: input.value,
+        userId,
+        description: input.description,
+      })
+      const secret = await getWorkspaceSecretMetadata({
+        workspaceId: context.workspaceId,
+        userId,
+        name: input.name,
+      })
+      return { secret, userId, created: mutation.created }
+    }
+
+    const mutation = await setPersonalSecret({ userId, name: input.name, value: input.value })
+    const secret = await getPersonalSecretMetadata({
       workspaceId: context.workspaceId,
       userId,
-      scope: input.scope,
       name: input.name,
+      updatedAt: mutation.updatedAt,
     })
     return { secret, userId, created: mutation.created }
   },
@@ -226,7 +310,11 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     resourceId: `${input.scope}:${input.name}`,
     resourceName: input.name,
     description: `Set ${input.scope} secret "${input.name}"`,
-    metadata: { scope: input.scope, name: input.name },
+    metadata: {
+      scope: input.scope,
+      name: input.name,
+      ...(input.description !== undefined ? { descriptionUpdated: true } : {}),
+    },
   }),
 })
 

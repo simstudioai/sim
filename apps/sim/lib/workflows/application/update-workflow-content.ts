@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -87,7 +88,7 @@ function coerceWorkflowVariableValue(value: unknown, type: string): unknown {
   try {
     const parsed: unknown = JSON.parse(String(value))
     if (type === 'array' && Array.isArray(parsed)) return parsed
-    if (type === 'object' && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (type === 'object' && isRecordLike(parsed)) {
       return parsed
     }
   } catch (error) {
@@ -103,10 +104,9 @@ function applyVariableOperations(
   currentVariables: unknown,
   operations: readonly WorkflowVariableOperation[]
 ): { variables: Record<string, WorkflowVariable>; changed: boolean } {
-  const current =
-    currentVariables && typeof currentVariables === 'object' && !Array.isArray(currentVariables)
-      ? (currentVariables as Record<string, unknown>)
-      : {}
+  const current = isRecordLike(currentVariables)
+    ? (currentVariables as Record<string, unknown>)
+    : {}
   const byName = new Map<string, WorkflowVariable>()
   for (const value of Object.values(current)) {
     if (

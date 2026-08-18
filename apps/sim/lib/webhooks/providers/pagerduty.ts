@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { toRecord } from '@sim/utils/object'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -40,10 +41,6 @@ function validatePagerDutySignature(secret: string, signature: string, body: str
     .map((part) => part.trim())
     .filter((part) => part.startsWith('v1='))
     .some((part) => safeCompare(part.slice(3), computed))
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return (value as Record<string, unknown>) || {}
 }
 
 /**
@@ -97,7 +94,7 @@ export const pagerdutyHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId || triggerId === 'pagerduty_webhook') return true
 
-    const event = asRecord(asRecord(body).event)
+    const event = toRecord(toRecord(body).event)
     const eventType = event.event_type as string | undefined
 
     const { isPagerDutyEventMatch } = await import('@/triggers/pagerduty/utils')
@@ -111,8 +108,8 @@ export const pagerdutyHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const event = asRecord(asRecord(body).event)
-    const data = asRecord(event.data)
+    const event = toRecord(toRecord(body).event)
+    const data = toRecord(event.data)
     const priority = referenceSummary(data.priority)
 
     return {
@@ -139,7 +136,7 @@ export const pagerdutyHandler: WebhookProviderHandler = {
   },
 
   extractIdempotencyId(body: unknown) {
-    const event = asRecord(asRecord(body).event)
+    const event = toRecord(toRecord(body).event)
     return (event.id as string | undefined) || null
   },
 
@@ -177,10 +174,10 @@ export const pagerdutyHandler: WebhookProviderHandler = {
       throw new Error(`Failed to create PagerDuty webhook subscription: ${res.status}`)
     }
 
-    const created = asRecord((await res.json().catch(() => ({}))) as unknown)
-    const subscription = asRecord(created.webhook_subscription)
+    const created = toRecord((await res.json().catch(() => ({}))) as unknown)
+    const subscription = toRecord(created.webhook_subscription)
     const externalId = subscription.id as string | undefined
-    const secret = asRecord(subscription.delivery_method).secret as string | undefined
+    const secret = toRecord(subscription.delivery_method).secret as string | undefined
 
     // The subscription exists once PagerDuty returns success; if it is missing
     // its id or signing secret, delete it so it is not orphaned, then fail.

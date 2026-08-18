@@ -26,6 +26,7 @@ import { incidentioHandler } from '@/lib/webhooks/providers/incidentio'
 import { instantlyHandler } from '@/lib/webhooks/providers/instantly'
 import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
+import { jotformHandler } from '@/lib/webhooks/providers/jotform'
 import { jsmHandler } from '@/lib/webhooks/providers/jsm'
 import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
@@ -90,6 +91,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   intercom: intercomHandler,
   instantly: instantlyHandler,
   jira: jiraHandler,
+  jotform: jotformHandler,
   jsm: jsmHandler,
   lemlist: lemlistHandler,
   linear: linearHandler,

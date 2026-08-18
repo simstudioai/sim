@@ -159,6 +159,20 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     resolveServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
+    /**
+     * `enabled: false` is a documented registration value, but discovery loads
+     * its configuration through a query that filters on `enabled`, so a
+     * disabled server surfaced as an untyped "not accessible" fault — rendered
+     * as a Sim-side 500 — and stamped a bogus failure on the row on the way
+     * out. It is a state conflict the caller resolves by enabling the server.
+     */
+    if (!context.server.enabled) {
+      throw new OrchestrationError(
+        'conflict',
+        'The MCP server is disabled; enable it before listing its tools'
+      )
+    }
+
     const tools = await mcpService.discoverServerTools(
       requirePrincipalSubjectUserId(principal),
       context.server.id,

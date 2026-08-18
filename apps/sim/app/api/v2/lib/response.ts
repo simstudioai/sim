@@ -100,6 +100,28 @@ const RETRY_AFTER_SECONDS_BY_STATUS: Partial<Record<number, number>> = {
   503: ADMISSION_RETRY_AFTER_SECONDS,
 }
 
+/**
+ * The challenge every v2 `401` carries, so a 401 is a complete one.
+ *
+ * RFC 9110 §11.6.1 makes `WWW-Authenticate` a MUST on 401 — a 401 without it is
+ * a refusal that never says what would have been accepted, and a generic HTTP
+ * client has nothing to react to.
+ *
+ * The scheme name is deliberately Sim-specific rather than a registered one.
+ * v2 authenticates from the `x-api-key` header and accepts no `Authorization`
+ * scheme at all — `Authorization: Bearer <key>` is not a channel here — so
+ * `Bearer` and `Basic` would both be false advertising. `Basic` is worse than
+ * false: a browser reacts to it by opening a native credential prompt that
+ * cannot produce an API key. An unregistered scheme is what remains, and it is
+ * legal: §11.6.1's grammar requires *an* `auth-scheme` token, not a registered
+ * one. Every challenge implies "retry via `Authorization: <scheme> …`" by
+ * construction, so the token is chosen to be one no client has a built-in
+ * handler for — the challenge surfaces to a human instead of triggering an
+ * automatic retry down a channel v2 does not read — and the real channel is
+ * named outright in the `header` parameter beside it.
+ */
+const V2_AUTH_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key"'
+
 type RateLimitHeaderSource = Pick<RateLimitResult, 'limit' | 'remaining' | 'resetAt'>
 
 function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
@@ -183,6 +205,7 @@ export function v2Error(
       status,
       headers: {
         ...PRIVATE_NO_STORE,
+        ...(status === 401 ? { 'WWW-Authenticate': V2_AUTH_CHALLENGE } : {}),
         ...(retryAfterSeconds === undefined ? {} : { 'Retry-After': retryAfterSeconds.toString() }),
         ...options.headers,
       },
@@ -251,22 +274,14 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
 interface OffsetCursorPayload {
   /** The ordering the offset counts positions within. */
   sort: string
-  /** Fingerprint of the filters the offset counts positions within. */
-  filter?: string
+  /** Fingerprint of the list and filters the offset counts positions within. */
+  filter: string
   offset: number
 }
 
-/** An offset cursor stamped with the sort and filters that produced it. */
-export function encodeOffsetCursor(
-  sort: string,
-  filter: string | undefined,
-  offset: number
-): string {
-  return encodeCursor({
-    sort,
-    ...(filter ? { filter } : {}),
-    offset,
-  } satisfies OffsetCursorPayload)
+/** An offset cursor stamped with the sort and scope that produced it. */
+export function encodeOffsetCursor(sort: string, filter: string, offset: number): string {
+  return encodeCursor({ sort, filter, offset } satisfies OffsetCursorPayload)
 }
 
 /**
@@ -288,14 +303,15 @@ export function encodeOffsetCursor(
 export function decodeOffsetCursor(
   cursor: string | undefined,
   sort: string,
-  filter?: string | undefined
+  filter: string
 ): number {
   if (!cursor) return 0
   const decoded = decodeCursor<Partial<OffsetCursorPayload>>(cursor)
-  if (!decoded || decoded.sort !== sort) {
+  if (!decoded) throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
+  if (decoded.sort !== sort) {
     throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
   }
-  if ((decoded.filter ?? undefined) !== (filter || undefined)) {
+  if ((decoded.filter ?? undefined) !== filter) {
     throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)
   }
   const { offset } = decoded
@@ -317,29 +333,27 @@ export function cursorSortKey(sortBy: string, sortOrder: string): string {
 interface SortedCursorPayload {
   sort: string
   keys: CursorKey[]
-  /** Fingerprint of the filters the page was read under; absent = unfiltered. */
-  filter?: string
+  /** Fingerprint of the list and filters the page was read under. */
+  filter: string
 }
 
 /**
- * A keyset cursor stamped with the sort AND the filters that produced it. The
+ * A keyset cursor stamped with the sort AND the scope that produced it. The
  * keys are only meaningful under that exact ordering, and only name a useful
  * position within that exact row set, so both stamps travel with them.
  */
-export function encodeSortedCursor(
-  sort: string,
-  keys: CursorKey[],
-  filter?: string | undefined
-): string {
-  return encodeCursor({ sort, keys, ...(filter ? { filter } : {}) } satisfies SortedCursorPayload)
+export function encodeSortedCursor(sort: string, keys: CursorKey[], filter: string): string {
+  return encodeCursor({ sort, keys, filter } satisfies SortedCursorPayload)
 }
 
 type DecodedSortedCursor =
   | { status: 'absent' }
   | { status: 'ok'; keys: CursorKey[] }
-  /** Malformed, or minted under a different sort — the page cannot be resumed. */
+  /** Not a pagination cursor at all — it does not decode into one. */
+  | { status: 'unreadable' }
+  /** Minted under a different sort — the keys compare the wrong column. */
   | { status: 'invalid' }
-  /** Minted under different filters — the position names another sequence. */
+  /** Minted under a different list or different filters — another sequence. */
   | { status: 'refiltered' }
 
 /**
@@ -365,14 +379,15 @@ type DecodedSortedCursor =
 export function decodeSortedCursor(
   cursor: string | undefined,
   sort: string,
-  filter?: string | undefined
+  filter: string
 ): DecodedSortedCursor {
   if (!cursor) return { status: 'absent' }
   const decoded = decodeCursor<Partial<SortedCursorPayload>>(cursor)
-  if (!decoded || decoded.sort !== sort || !Array.isArray(decoded.keys)) {
-    return { status: 'invalid' }
+  if (!decoded || typeof decoded.sort !== 'string' || !Array.isArray(decoded.keys)) {
+    return { status: 'unreadable' }
   }
-  if ((decoded.filter ?? undefined) !== (filter || undefined)) return { status: 'refiltered' }
+  if (decoded.sort !== sort) return { status: 'invalid' }
+  if ((decoded.filter ?? undefined) !== filter) return { status: 'refiltered' }
   return { status: 'ok', keys: decoded.keys }
 }
 
@@ -392,9 +407,12 @@ export function readSortedCursor(
   cursor: string | undefined,
   sortBy: string,
   sortOrder: string,
-  filter?: string | undefined
+  filter: string
 ): CursorKey[] | undefined {
   const decoded = decodeSortedCursor(cursor, cursorSortKey(sortBy, sortOrder), filter)
+  if (decoded.status === 'unreadable') {
+    throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
+  }
   if (decoded.status === 'invalid') {
     throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
   }
@@ -416,14 +434,14 @@ export function writeSortedCursor(
   keys: CursorKey[] | null | undefined,
   sortBy: string,
   sortOrder: string,
-  filter?: string | undefined
+  filter: string
 ): string | null {
   return keys ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), keys, filter) : null
 }
 
 interface ScopedCursorPayload {
-  /** Fingerprint of the filters and sort the inner token was minted under. */
-  scope?: string
+  /** Fingerprint of the list, filters, and sort the inner token was minted under. */
+  scope: string
   /** The domain codec's own opaque token, passed through untouched. */
   inner: string
 }
@@ -438,8 +456,8 @@ interface ScopedCursorPayload {
  * lists the same binding as the rest of the surface — one rule for v2 callers
  * rather than "some lists notice, some don't".
  */
-export function encodeScopedCursor(scope: string | undefined, inner: string): string {
-  return encodeCursor({ ...(scope ? { scope } : {}), inner } satisfies ScopedCursorPayload)
+export function encodeScopedCursor(scope: string, inner: string): string {
+  return encodeCursor({ scope, inner } satisfies ScopedCursorPayload)
 }
 
 /**
@@ -456,16 +474,13 @@ export function encodeScopedCursor(scope: string | undefined, inner: string): st
  * reached through the wrapper instead of through the token, and it slipped past
  * the unresolvable-cursor 400 that exists to stop it.
  */
-export function readScopedCursor(
-  cursor: string | undefined,
-  scope: string | undefined
-): string | undefined {
+export function readScopedCursor(cursor: string | undefined, scope: string): string | undefined {
   if (!cursor) return undefined
   const decoded = decodeCursor<Partial<ScopedCursorPayload>>(cursor)
   if (!decoded || typeof decoded.inner !== 'string' || decoded.inner.length === 0) {
     throw new OrchestrationError('validation', UNREADABLE_CURSOR_MESSAGE)
   }
-  if ((decoded.scope ?? undefined) !== (scope || undefined)) {
+  if ((decoded.scope ?? undefined) !== scope) {
     throw new OrchestrationError('validation', REFILTERED_CURSOR_MESSAGE)
   }
   return decoded.inner

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import {
   FUNCTION_NODE_MAJOR,
   FUNCTION_NPM_CLI_PACKAGE_CONTRACT,
@@ -36,12 +37,8 @@ export interface FunctionSandboxParityManifest {
   commands: string[]
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function requireRecord(value: unknown, field: string): Record<string, unknown> {
-  if (!isRecord(value)) throw new Error(`${field} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${field} must be an object`)
   return value
 }
 

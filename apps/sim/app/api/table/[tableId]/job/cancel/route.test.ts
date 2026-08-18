@@ -1,10 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table'
 
 const { mockCheckAccess, mockMarkJobCanceled, mockGetTableJob, mockAppendTableEvent } = vi.hoisted(
   () => ({
@@ -31,24 +30,6 @@ vi.mock('@/app/api/table/utils', async () => {
 
 import { POST } from '@/app/api/table/[tableId]/job/cancel/route'
 
-function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: { columns: [] },
-    metadata: null,
-    rowCount: 0,
-    maxRows: 1_000_000,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  }
-}
-
 function makeRequest(body: unknown, tableId = 'tbl_1') {
   const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/job/cancel`, {
     method: 'POST',
@@ -68,7 +49,7 @@ describe('POST /api/table/[tableId]/job/cancel', () => {
       userId: 'user-1',
       authType: 'session',
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockCheckAccess.mockResolvedValue({ ok: true, table: createTableDefinition() })
     mockMarkJobCanceled.mockResolvedValue(true)
     mockGetTableJob.mockResolvedValue({
       id: 'job_1',

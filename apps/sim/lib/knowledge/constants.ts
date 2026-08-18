@@ -2,12 +2,16 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 
 /** Max character length for a knowledge base description, enforced at every layer (UI, internal API, v1 API). */
 export const KNOWLEDGE_BASE_DESCRIPTION_MAX_LENGTH = 10_000
-/** Hard bound for full-workspace knowledge-base list projections. */
-export const MAX_KNOWLEDGE_BASES_PER_WORKSPACE = 10_000
+
 /** Hard bound for path-indexed knowledge folder trees and recursive cascades. */
 export const MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE = MAX_FOLDERS_PER_WORKSPACE
-/** Hard bound for connector-type rows projected onto one knowledge-base list. */
-export const MAX_KNOWLEDGE_CONNECTOR_TYPE_ROWS_PER_LIST = 100_000
+
+/**
+ * Maximum items a knowledge bulk request may address by identifier. Lives here
+ * rather than in the application batch policy so the boundary contracts can
+ * bound their id arrays without pulling a server-only module into client code.
+ */
+export const MAX_KNOWLEDGE_BATCH_ITEMS = 100
 /** Maximum documents accepted by one internal bulk-create command. */
 export const MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE = 100
 /** Maximum connector documents mutated atomically by one command. */

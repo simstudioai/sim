@@ -5,7 +5,6 @@ import {
   type CopilotRunStatus,
   type CopilotToolPermissionDecision,
   copilotAsyncToolCalls,
-  copilotRunCheckpoints,
   copilotRuns,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -158,24 +157,6 @@ export async function updateRunStatus(
   )
 }
 
-async function getLatestRunForExecution(executionId: string) {
-  return await withDbSpan(
-    TraceSpan.CopilotAsyncRunsGetLatestForExecution,
-    'SELECT',
-    'copilot_runs',
-    { [TraceAttr.CopilotExecutionId]: executionId },
-    async () => {
-      const [run] = await db
-        .select()
-        .from(copilotRuns)
-        .where(eq(copilotRuns.executionId, executionId))
-        .orderBy(desc(copilotRuns.startedAt))
-        .limit(1)
-      return run ?? null
-    }
-  )
-}
-
 // Un-instrumented: called from a 4 Hz resume poll; per-call spans
 // swamped traces. Use Prom histograms if latency visibility is needed.
 export async function getLatestRunForStream(streamId: string, userId?: string) {
@@ -211,38 +192,6 @@ export async function getRunSegment(runId: string) {
         .where(eq(copilotRuns.id, runId))
         .limit(1)
       return run ?? null
-    }
-  )
-}
-
-async function createRunCheckpoint(input: {
-  runId: string
-  pendingToolCallId: string
-  conversationSnapshot: Record<string, unknown>
-  agentState: Record<string, unknown>
-  providerRequest: Record<string, unknown>
-}) {
-  return await withDbSpan(
-    TraceSpan.CopilotAsyncRunsCreateRunCheckpoint,
-    'INSERT',
-    'copilot_run_checkpoints',
-    {
-      [TraceAttr.RunId]: input.runId,
-      [TraceAttr.CopilotCheckpointPendingToolCallId]: input.pendingToolCallId,
-    },
-    async () => {
-      const [checkpoint] = await db
-        .insert(copilotRunCheckpoints)
-        .values({
-          runId: input.runId,
-          pendingToolCallId: input.pendingToolCallId,
-          conversationSnapshot: input.conversationSnapshot,
-          agentState: input.agentState,
-          providerRequest: input.providerRequest,
-        })
-        .returning()
-
-      return checkpoint
     }
   )
 }
@@ -627,21 +576,6 @@ export async function recordToolPermissionDecision(
   )
 }
 
-async function listAsyncToolCallsForRun(runId: string) {
-  return await withDbSpan(
-    TraceSpan.CopilotAsyncRunsListForRun,
-    'SELECT',
-    'copilot_async_tool_calls',
-    { [TraceAttr.RunId]: runId },
-    async () =>
-      db
-        .select()
-        .from(copilotAsyncToolCalls)
-        .where(eq(copilotAsyncToolCalls.runId, runId))
-        .orderBy(desc(copilotAsyncToolCalls.createdAt))
-  )
-}
-
 export async function getAsyncToolCalls(toolCallIds: string[]) {
   if (toolCallIds.length === 0) return []
   return await withDbSpan(
@@ -679,36 +613,6 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
             eq(copilotAsyncToolCalls.toolCallId, toolCallId),
             inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
             isNull(copilotAsyncToolCalls.claimedBy)
-          )
-        )
-        .returning()
-      return row ?? null
-    }
-  )
-}
-
-async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
-  return await withDbSpan(
-    TraceSpan.CopilotAsyncRunsReleaseClaim,
-    'UPDATE',
-    'copilot_async_tool_calls',
-    {
-      [TraceAttr.ToolCallId]: toolCallId,
-      [TraceAttr.CopilotAsyncToolWorkerId]: workerId,
-    },
-    async () => {
-      const [row] = await db
-        .update(copilotAsyncToolCalls)
-        .set({
-          claimedBy: null,
-          claimedAt: null,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-            inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
-            eq(copilotAsyncToolCalls.claimedBy, workerId)
           )
         )
         .returning()

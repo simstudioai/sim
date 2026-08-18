@@ -408,6 +408,42 @@ describe('view config column-reference normalization', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
+  /**
+   * The layout half used to answer 200 and store a name no read ever shows,
+   * while the same unknown name in `filter` answered 400 — one request, two
+   * policies.
+   */
+  it('refuses a hidden column that does not exist for a strict caller', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(create({ hiddenColumns: ['ghost'] })).rejects.toMatchObject({
+      name: 'TableViewValidationError',
+    })
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unknown column in every other layout key too', async () => {
+    for (const config of [
+      { columnOrder: ['ghost'] },
+      { pinnedColumns: ['ghost'] },
+      { columnWidths: { ghost: 120 } },
+    ]) {
+      queueTableRows(tableViews, [{ total: 0 }])
+      await expect(create(config)).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    }
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('keeps storing a first-party layout reference that no longer resolves', async () => {
+    queueTableRows(tableViews, [{ total: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await create({ hiddenColumns: ['col_gone'] }, false)
+
+    expect(insertedConfig().hiddenColumns).toEqual(['col_gone'])
+  })
+
   it('refuses a sort on a column that does not exist for a strict caller', async () => {
     queueTableRows(tableViews, [{ total: 0 }])
     dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
@@ -509,6 +545,61 @@ describe('view config column-reference normalization', () => {
         strictRefs: true,
       })
     ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+  })
+
+  /**
+   * The carried-forward exemption exists so a dangling FILTER ref stays
+   * writable, not so it becomes a valid target for a NEW layout ref. Without
+   * scoping, a strict caller could store `hiddenColumns: ['col_gone']` purely
+   * because `col_gone` survives in the stored filter — a layout entry the very
+   * next read drops, which is the asymmetry the strict check closes.
+   */
+  it('refuses a NEW layout reference that resolves only via a carried-forward filter ref', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_gone'] },
+        columns,
+        strictRefs: true,
+      })
+    ).rejects.toMatchObject({ name: 'TableViewValidationError' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('still lets a strict save carry the stale filter reference forward with a valid layout', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_a'] },
+        columns,
+        strictRefs: true,
+      })
+    ).resolves.not.toBeNull()
+  })
+
+  it('leaves the non-strict grid path free to save that same layout reference', async () => {
+    const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
+    queueTableRows(tableViews, [{ ...storedRow, config: { filter: stale } }])
+    dbChainMockFns.returning.mockResolvedValueOnce([storedRow])
+
+    await expect(
+      updateTableView({
+        viewId: 'view-1',
+        tableId: 'table-1',
+        config: { filter: stale, hiddenColumns: ['col_gone'] },
+        columns,
+      })
+    ).resolves.not.toBeNull()
   })
 
   it('accepts that same new reference from a first-party caller', async () => {

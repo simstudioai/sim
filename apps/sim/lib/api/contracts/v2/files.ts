@@ -334,6 +334,29 @@ export const v2FileWorkspaceQuerySchema = z
 
 export type V2FileWorkspaceQuery = z.output<typeof v2FileWorkspaceQuerySchema>
 
+/**
+ * Metadata read: the workspace scope plus the same `scope` lifecycle selector the
+ * list endpoint uses, so a caller that found a file under `GET /files?scope=archived`
+ * can read it back with the identical spelling.
+ *
+ * The default stays `active`, which keeps the read on the live set and continues to
+ * answer `404` for a soft-deleted file. `scope` only relaxes the `deleted_at` predicate
+ * on the row lookup — the workspace the file belongs to, the asserted-workspace check,
+ * and the operation's authorization are unchanged, so it cannot widen who may read.
+ */
+export const v2GetFileMetadataQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    scope: v2FileScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to read from: `active` (default) resolves live files only and returns `404` for a file a `DELETE` soft-deleted; `archived` also resolves soft-deleted files, so metadata stays readable before `POST /files/{fileId}/restore`. Authorization is identical for both.'
+      ),
+  })
+  .strict()
+
+export type V2GetFileMetadataQuery = z.output<typeof v2GetFileMetadataQuerySchema>
+
 export const v2RenameFileBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
@@ -610,7 +633,7 @@ export const v2GetFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]/metadata',
   params: v2FileParamsSchema,
-  query: v2FileWorkspaceQuerySchema,
+  query: v2GetFileMetadataQuerySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2FileMetadataSchema),

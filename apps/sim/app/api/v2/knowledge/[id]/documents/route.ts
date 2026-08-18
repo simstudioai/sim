@@ -5,7 +5,7 @@ import {
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import { cursorScopeKey, unorderedScopeOf } from '@/lib/api/cursor-binding'
+import { cursorRoute, cursorScopeKey, unorderedScopeOf } from '@/lib/api/cursor-binding'
 import {
   defineV2BodyLifecycleRoute,
   defineV2JsonRoute,
@@ -59,8 +59,7 @@ function documentCursorFilters(
   query: { workspaceId: string; enabledFilter?: string; search?: string; tagFilters?: string }
 ) {
   const parsed = parseV2KnowledgeTagFiltersParam(query.tagFilters)
-  return cursorScopeKey({
-    knowledgeBaseId,
+  return cursorScopeKey(cursorRoute(v2ListKnowledgeDocumentsContract, { id: knowledgeBaseId }), {
     workspaceId: query.workspaceId,
     enabledFilter: query.enabledFilter,
     search: query.search,

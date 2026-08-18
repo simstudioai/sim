@@ -33,6 +33,10 @@ import {
 } from '@/lib/execution/payloads/large-value-metadata'
 import { compactBlockLogs, compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  cancelledExecutionLogFields,
+  terminalExecutionLogFields,
+} from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -246,6 +250,32 @@ function clearAutomaticResumeWaitingMetadataSql(contextId: string): SQL {
       THEN ${pausedExecutions.metadata} - 'automaticResumeWaiting'
     ELSE ${pausedExecutions.metadata}
   END`
+}
+
+/**
+ * The terminal columns a `workflow_execution_logs` row keeps when a partial
+ * resume moves it back to `pending`.
+ *
+ * The revival claim excludes only `cancelled`, so it also matches a row
+ * `markResumeFailed` already ended: one context's resume fails, a sibling
+ * context resumes successfully afterwards, and the run becomes live again
+ * carrying the end timestamp and duration of the attempt that failed. A live row
+ * must not carry a terminal stamp — and because `elapsedDurationMsSql` preserves
+ * a `pending` row's `total_duration_ms` as its pause checkpoint, leaving it
+ * there also hands the next terminal write a duration frozen at the failed
+ * resume rather than one it recomputes.
+ *
+ * A row revived from a non-terminal status is the opposite case: its columns are
+ * the checkpoint `completeWithPause` banked, which is precisely what that
+ * preservation rule exists to keep, so they survive untouched. The row's own
+ * status decides, read — like every expression in the same `SET` — against the
+ * pre-update row.
+ */
+const revivedExecutionLogStamp = {
+  endedAt: sql<Date | null>`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.endedAt} END`,
+  totalDurationMs: sql<
+    number | null
+  >`CASE WHEN ${workflowExecutionLogs.status} IN ('failed', 'completed') THEN NULL ELSE ${workflowExecutionLogs.totalDurationMs} END`,
 }
 
 function withoutAutomaticResumeWaitingReason(
@@ -1159,12 +1189,7 @@ export class PauseResumeManager {
       })()
 
       const submissionPayload =
-        normalizedResumeInputRaw &&
-        typeof normalizedResumeInputRaw === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw) &&
-        normalizedResumeInputRaw.submission &&
-        typeof normalizedResumeInputRaw.submission === 'object' &&
-        !Array.isArray(normalizedResumeInputRaw.submission)
+        isRecordLike(normalizedResumeInputRaw) && isRecordLike(normalizedResumeInputRaw.submission)
           ? (normalizedResumeInputRaw.submission as Record<string, any>)
           : (normalizedResumeInputRaw as Record<string, any>)
 
@@ -2103,7 +2128,7 @@ export class PauseResumeManager {
       } else {
         await tx
           .update(workflowExecutionLogs)
-          .set({ status: 'pending', executionDeadlineAt: null })
+          .set({ status: 'pending', executionDeadlineAt: null, ...revivedExecutionLogStamp })
           .where(
             and(
               eq(workflowExecutionLogs.executionId, targetParentExecutionId),
@@ -2172,7 +2197,7 @@ export class PauseResumeManager {
 
       await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'failed' })
+        .set(terminalExecutionLogFields('failed', now))
         .where(
           and(
             eq(workflowExecutionLogs.executionId, args.parentExecutionId),
@@ -2615,7 +2640,7 @@ export class PauseResumeManager {
       if (!cancellationAlreadyTerminal) {
         const [cancelledExecution] = await tx
           .update(workflowExecutionLogs)
-          .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+          .set(cancelledExecutionLogFields(now))
           .where(
             and(
               eq(workflowExecutionLogs.executionId, executionId),
