@@ -106,6 +106,41 @@ async function rollupReadsEnabled(): Promise<boolean> {
 }
 
 /**
+ * The bucket-key prefix every read scopes on.
+ *
+ * Shared so the scope cannot drift between readers: if the key changes, it
+ * changes in one place. Callers add their own narrowing on top — which is
+ * deliberately NOT folded in here, because the two readers scope differently
+ * and that difference is load-bearing.
+ */
+function periodScope(billingEntity: BillingEntity, periodStart: Date) {
+  return and(
+    eq(usageLogDailyTotal.billingEntityType, billingEntity.type),
+    eq(usageLogDailyTotal.billingEntityId, billingEntity.id),
+    eq(usageLogDailyTotal.billingPeriodStart, periodStart)
+  )
+}
+
+/** The bucket cost aggregate. `SUM` over no rows is `NULL`, never `'0'`. */
+const bucketCostSum = sql<string | null>`SUM(${usageLogDailyTotal.totalCost})`
+
+/**
+ * Folds grouped bucket rows into a keyed cost map.
+ *
+ * Returns `null` for an empty result — the shared "no buckets, aggregate the
+ * ledger instead" signal — so no reader has to restate it.
+ */
+function toCostMap<Row extends { totalCost: string | null }, Key>(
+  rows: Row[],
+  keyOf: (row: Row) => Key
+): Map<Key, number> | null {
+  if (rows.length === 0) {
+    return null
+  }
+  return new Map(rows.map((row) => [keyOf(row), Number.parseFloat(row.totalCost ?? '0')]))
+}
+
+/**
  * Reads the period's cost broken down by source.
  *
  * One read answers every whole-period aggregate: the unfiltered total is the
@@ -133,25 +168,17 @@ export async function readUsagePeriodTotalsBySource(
   }
 
   const rows = await executor
-    .select({
-      source: usageLogDailyTotal.source,
-      totalCost: sql<string | null>`SUM(${usageLogDailyTotal.totalCost})`,
-    })
+    .select({ source: usageLogDailyTotal.source, totalCost: bucketCostSum })
     .from(usageLogDailyTotal)
     .where(
       and(
-        eq(usageLogDailyTotal.billingEntityType, billingEntity.type),
-        eq(usageLogDailyTotal.billingEntityId, billingEntity.id),
-        eq(usageLogDailyTotal.billingPeriodStart, billingPeriod.start),
+        periodScope(billingEntity, billingPeriod.start),
         eq(usageLogDailyTotal.billingPeriodEnd, billingPeriod.end)
       )
     )
     .groupBy(usageLogDailyTotal.source)
 
-  if (rows.length === 0) {
-    return null
-  }
-  return new Map(rows.map((row) => [row.source, Number.parseFloat(row.totalCost ?? '0')]))
+  return toCostMap(rows, (row) => row.source)
 }
 
 /**
@@ -201,16 +228,11 @@ export async function readUsageDailyTotals(
   }
 
   const rows = await executor
-    .select({
-      dayIndex: usageLogDailyTotal.dayIndex,
-      totalCost: sql<string | null>`SUM(${usageLogDailyTotal.totalCost})`,
-    })
+    .select({ dayIndex: usageLogDailyTotal.dayIndex, totalCost: bucketCostSum })
     .from(usageLogDailyTotal)
     .where(
       and(
-        eq(usageLogDailyTotal.billingEntityType, billingEntity.type),
-        eq(usageLogDailyTotal.billingEntityId, billingEntity.id),
-        eq(usageLogDailyTotal.billingPeriodStart, periodStart),
+        periodScope(billingEntity, periodStart),
         inArray(usageLogDailyTotal.userId, userIds),
         // Mirrors the ledger query's `created_at >= period_start`. No upper
         // bound is needed: callers only take this path for a period still
@@ -220,10 +242,7 @@ export async function readUsageDailyTotals(
     )
     .groupBy(usageLogDailyTotal.dayIndex)
 
-  if (rows.length === 0) {
-    return null
-  }
-  return new Map(rows.map((row) => [row.dayIndex, Number.parseFloat(row.totalCost ?? '0')]))
+  return toCostMap(rows, (row) => row.dayIndex)
 }
 
 /**
