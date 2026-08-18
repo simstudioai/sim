@@ -1318,6 +1318,86 @@ describe('direct environment read edge cases', () => {
   })
 })
 
+describe('a shadowed environment binding disables direct-read detection', () => {
+  /**
+   * A local object that merely shares the runtime binding's name is not the mounted
+   * environment, so reading a same-named key off it is not a use of the secret. The trail
+   * must not claim uses that never happened.
+   */
+  it.each([
+    [
+      'const declaration',
+      "const environmentVariables = { API_KEY: 'x' }\nreturn environmentVariables.API_KEY",
+    ],
+    ['let declaration', "let environmentVariables = {}\nreturn environmentVariables['API_KEY']"],
+    [
+      'function parameter',
+      'function read(environmentVariables) { return environmentVariables.API_KEY }\nreturn read({})',
+    ],
+    [
+      'arrow parameter',
+      'const read = (environmentVariables) => environmentVariables.API_KEY\nreturn read({})',
+    ],
+    [
+      'destructured binding',
+      'const { environmentVariables } = payload\nreturn environmentVariables.API_KEY',
+    ],
+    [
+      'bare reassignment',
+      "environmentVariables = { API_KEY: 'x' }\nreturn environmentVariables.API_KEY",
+    ],
+  ])('javascript: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
+  })
+
+  it('javascript still reports an unshadowed read', async () => {
+    expect(
+      await directReadNames('return environmentVariables.API_KEY', CodeLanguage.JavaScript)
+    ).toEqual(['API_KEY'])
+  })
+
+  it.each([
+    ['assignment', "environmentVariables = {'API_KEY': 'x'}\nk = environmentVariables['API_KEY']"],
+    [
+      'def parameter',
+      "def read(environmentVariables):\n    return environmentVariables['API_KEY']",
+    ],
+    ['passed to a function', "log(environmentVariables)\nk = environmentVariables['API_KEY']"],
+    ['for target', "for environmentVariables in rows:\n    k = environmentVariables['API_KEY']"],
+    [
+      'with-as target',
+      "with open(p) as environmentVariables:\n    k = environmentVariables['API_KEY']",
+    ],
+  ])('python: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual([])
+  })
+
+  /** Cursor's cross-line case: the `.` sits on the previous line inside parentheses. */
+  it('python: attribute access split across a line', async () => {
+    expect(
+      await directReadNames(
+        "k = (other.\n     environmentVariables['API_KEY'])",
+        CodeLanguage.Python
+      )
+    ).toEqual([])
+  })
+
+  it('python: attribute access after a line continuation', async () => {
+    expect(
+      await directReadNames(
+        "k = other.\\\n    environmentVariables['API_KEY']",
+        CodeLanguage.Python
+      )
+    ).toEqual([])
+  })
+
+  it('python still reports an unshadowed read', async () => {
+    expect(
+      await directReadNames("k = environmentVariables['API_KEY']", CodeLanguage.Python)
+    ).toEqual(['API_KEY'])
+  })
+})
+
 describe('shell true positives survive the fail-closed rule', () => {
   it.each([
     ['bare unquoted', 'echo $API_KEY'],

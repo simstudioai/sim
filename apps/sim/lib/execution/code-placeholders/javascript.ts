@@ -35,6 +35,48 @@ export interface DirectEnvironmentRead {
 const ENVIRONMENT_VARIABLES_IDENTIFIER = 'environmentVariables'
 
 /**
+ * Node kinds whose `name` binds the identifier it holds. A `catch (e)` clause is absent
+ * because its binding is itself a `VariableDeclaration`.
+ */
+const BINDING_NODE_KINDS = new Set<ts.SyntaxKind>([
+  ts.SyntaxKind.VariableDeclaration,
+  ts.SyntaxKind.Parameter,
+  ts.SyntaxKind.BindingElement,
+  ts.SyntaxKind.FunctionDeclaration,
+  ts.SyntaxKind.FunctionExpression,
+  ts.SyntaxKind.ClassDeclaration,
+  ts.SyntaxKind.ClassExpression,
+  ts.SyntaxKind.ImportClause,
+  ts.SyntaxKind.ImportSpecifier,
+  ts.SyntaxKind.NamespaceImport,
+])
+
+/**
+ * Whether this node declares or reassigns the runtime environment identifier, so reads off
+ * it can no longer be attributed to the mounted object.
+ *
+ * `const environmentVariables = { API_KEY: 'x' }` — or a parameter, a destructured binding,
+ * or a bare reassignment — makes `environmentVariables.API_KEY` a read of the user's own
+ * object. Recording that would put a use in the trail that never happened, and a trail that
+ * claims uses is worse than one that misses them, so any such binding disables detection for
+ * the whole file rather than attempting scope resolution.
+ */
+function bindsEnvironmentVariables(node: ts.Node): boolean {
+  if (ts.isBinaryExpression(node)) {
+    return (
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left) &&
+      node.left.text === ENVIRONMENT_VARIABLES_IDENTIFIER
+    )
+  }
+  if (!BINDING_NODE_KINDS.has(node.kind)) return false
+  const name = Reflect.get(node, 'name') as ts.Node | undefined
+  return (
+    name !== undefined && ts.isIdentifier(name) && name.text === ENVIRONMENT_VARIABLES_IDENTIFIER
+  )
+}
+
+/**
  * Names a statically visible read off the runtime environment object, covering
  * `environmentVariables.NAME`, `environmentVariables['NAME']`, and their optional-chained
  * forms. A computed subscript is deliberately not resolved — see
@@ -73,6 +115,7 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
   const identifierNames: string[] = []
   const values: string[] = []
   const environmentReads: DirectEnvironmentRead[] = []
+  let environmentVariablesShadowed = false
   const visit = (node: ts.Node): void => {
     const isTemplateToken =
       node.kind === ts.SyntaxKind.TemplateHead ||
@@ -93,11 +136,18 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
     ) {
       const environmentRead = directEnvironmentRead(node)
       if (environmentRead) environmentReads.push(environmentRead)
+    } else if (!environmentVariablesShadowed && bindsEnvironmentVariables(node)) {
+      environmentVariablesShadowed = true
     }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return { identifierNames, values, environmentReads }
+  return {
+    identifierNames,
+    values,
+    /** A shadowed binding makes every read ambiguous, so none of them are reported. */
+    environmentReads: environmentVariablesShadowed ? [] : environmentReads,
+  }
 }
 
 function collectForbiddenSentinels(

@@ -115,8 +115,18 @@ async function upsertSecretUsage(
          */
         lastUsedAt: sql`greatest(${secretUsage.lastUsedAt}, excluded.last_used_at)`,
         firstUsedAt: sql`least(${secretUsage.firstUsedAt}, excluded.first_used_at)`,
-        lastExecutionId: sql`excluded.last_execution_id`,
-        lastTrigger: sql`excluded.last_trigger`,
+        /**
+         * The run that owns `last_used_at` has to own the metadata beside it. Assigning
+         * these unconditionally while the timestamp is chosen by `greatest` lets two runs
+         * completing out of order split one row between them — the newer run's timestamp
+         * next to the older run's execution id, so "View log" opens a run that is not the
+         * one the row says it last happened at. The guard keeps both from the same run.
+         *
+         * Postgres evaluates every SET expression against the pre-update row, so
+         * `secret_usage.last_used_at` here is the stored value, not the one being written.
+         */
+        lastExecutionId: sql`case when excluded.last_used_at >= ${secretUsage.lastUsedAt} then excluded.last_execution_id else ${secretUsage.lastExecutionId} end`,
+        lastTrigger: sql`case when excluded.last_used_at >= ${secretUsage.lastUsedAt} then excluded.last_trigger else ${secretUsage.lastTrigger} end`,
         updatedAt: now,
       },
     })
