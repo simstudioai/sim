@@ -35,6 +35,7 @@ import {
   Menu,
   nativeTheme,
   shell,
+  systemPreferences,
   WebContentsView,
 } from 'electron'
 import { isDispatchingAgentInput } from '@/main/browser-agent/cdp'
@@ -827,18 +828,60 @@ export async function importAgentCookies(
 const ALLOWED_SITE_PERMISSIONS = new Set(['clipboard-sanitized-write'])
 
 /**
+ * Grants a getUserMedia request only when macOS has actually authorized the
+ * devices it names. Granting site permission without the OS grant makes the
+ * page fail with a misleading NotReadableError instead of a permission prompt,
+ * and macOS kills the process outright when the bundle lacks usage strings —
+ * so the OS is asked FIRST, which surfaces the system prompt on first use.
+ */
+async function ensureOsMediaAccess(mediaTypes: readonly string[] | undefined): Promise<boolean> {
+  if (process.platform !== 'darwin') return true
+  const wanted = mediaTypes && mediaTypes.length > 0 ? mediaTypes : ['audio', 'video']
+  for (const type of wanted) {
+    const device = type === 'video' ? 'camera' : 'microphone'
+    if (systemPreferences.getMediaAccessStatus(device) === 'granted') continue
+    const granted = await systemPreferences.askForMediaAccess(device).catch(() => false)
+    if (!granted) return false
+  }
+  return true
+}
+
+/**
  * Default-deny hardening for the agent partition. Site permissions remain
- * denied apart from ALLOWED_SITE_PERMISSIONS, while uploads use Chromium's
- * native file chooser and downloads are saved into the device-level browser
- * download directory.
+ * denied apart from ALLOWED_SITE_PERMISSIONS and camera/microphone — the agent
+ * browser has to join a Google Meet or a Zoom web client like a real browser,
+ * and those are dead without getUserMedia. The OS grant still gates every
+ * media request, so the user's System Settings choice is the real authority.
+ * Uploads use Chromium's native file chooser and downloads are saved into the
+ * device-level browser download directory.
  */
 function configureAgentPartition(ses: Session): void {
   if (configuredPartitions.has(ses)) return
   configuredPartitions.add(ses)
-  ses.setPermissionRequestHandler((_wc, permission, callback) =>
+  ses.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    if (permission === 'media') {
+      const mediaTypes = (details as { mediaTypes?: readonly string[] })?.mediaTypes
+      void ensureOsMediaAccess(mediaTypes).then(callback)
+      return
+    }
     callback(ALLOWED_SITE_PERMISSIONS.has(permission))
-  )
-  ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_SITE_PERMISSIONS.has(permission))
+  })
+  ses.setPermissionCheckHandler((_wc, permission, _origin, details) => {
+    if (permission === 'media') {
+      if (process.platform !== 'darwin') return true
+      const mediaType = (details as { mediaType?: string })?.mediaType
+      if (mediaType === 'video')
+        return systemPreferences.getMediaAccessStatus('camera') === 'granted'
+      if (mediaType === 'audio') {
+        return systemPreferences.getMediaAccessStatus('microphone') === 'granted'
+      }
+      return (
+        systemPreferences.getMediaAccessStatus('microphone') === 'granted' ||
+        systemPreferences.getMediaAccessStatus('camera') === 'granted'
+      )
+    }
+    return ALLOWED_SITE_PERMISSIONS.has(permission)
+  })
   // Service workers do not inherit a tab's user agent. With only the tab's set,
   // the document request carries the browser string while the worker's own
   // script request still announces Electron — and on a site that routes its
@@ -1359,6 +1402,15 @@ export function setAutomationNeedsAttention(needsAttention: boolean): void {
  * other tab. Call after anything that changes which tab is active, so the
  * exemption follows the active tab rather than being stranded on the old one.
  */
+/**
+ * Re-applies the tab throttling policy after a caller temporarily suspended it
+ * (the panel's reveal pulse). Exempts the automation-active tab exactly as the
+ * internal policy does.
+ */
+export function reassertTabThrottling(): void {
+  applyActiveTabThrottling()
+}
+
 function applyActiveTabThrottling(): void {
   for (const tab of tabs) {
     if (tab.view.webContents.isDestroyed()) continue

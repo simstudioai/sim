@@ -1785,27 +1785,38 @@ describe('browser-agent session', () => {
     expect(event.preventDefault).toHaveBeenCalledOnce()
   })
 
-  it('permission handlers deny every request on the agent partition but the copy button', () => {
+  it('permission handlers deny everything on the agent partition but the copy button and media', async () => {
     const tab = session.ensureTab()
     const ses = (tab.view as unknown as MockView).webContents.session
     const requestHandler = ses.setPermissionRequestHandler.mock.calls[0][0] as (
       wc: unknown,
       permission: string,
-      callback: (granted: boolean) => void
+      callback: (granted: boolean) => void,
+      details?: unknown
     ) => void
     const checkHandler = ses.setPermissionCheckHandler.mock.calls[0][0] as (
       wc: unknown,
-      permission: string
+      permission: string,
+      origin?: string,
+      details?: unknown
     ) => boolean
 
     // Reading the clipboard would leak whatever the user last copied anywhere
     // else, so it stays denied alongside everything a page could spy through.
-    for (const permission of ['media', 'geolocation', 'notifications', 'clipboard-read']) {
+    for (const permission of ['geolocation', 'notifications', 'clipboard-read']) {
       const callback = vi.fn()
       requestHandler(null, permission, callback)
       expect(callback).toHaveBeenCalledWith(false)
       expect(checkHandler(null, permission)).toBe(false)
     }
+
+    // Media is the deliberate exception — the agent browser joins real
+    // meetings — but the grant is gated on the OS grant (mocked as granted
+    // here), so System Settings remains the real authority.
+    const mediaCallback = vi.fn()
+    requestHandler(null, 'media', mediaCallback, { mediaTypes: ['audio', 'video'] })
+    await vi.waitFor(() => expect(mediaCallback).toHaveBeenCalledWith(true))
+    expect(checkHandler(null, 'media', undefined, { mediaType: 'audio' })).toBe(true)
 
     // Chromium routes navigator.clipboard.writeText through this one; denying
     // it silently broke every copy button that does not use execCommand.
