@@ -132,6 +132,7 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
         assertedWorkspaceId: WORKSPACE_ID,
         data: { name: 'Ada' },
         strictWrite: true,
+        dataKeying: 'names',
       },
       request: req,
     })

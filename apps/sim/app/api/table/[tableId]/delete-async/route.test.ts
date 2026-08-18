@@ -1,10 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  createTableDefinition,
+  hybridAuthMockFns,
+  resetEnvFlagsMock,
+  setEnvFlags,
+  type TableDefinitionFactoryOptions,
+} from '@sim/testing'
 import { NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table'
 
 const {
   mockCheckAccess,
@@ -58,22 +63,9 @@ import { POST } from '@/app/api/table/[tableId]/delete-async/route'
 
 afterAll(resetEnvFlagsMock)
 
-function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: { columns: [{ name: 'status', type: 'string' }] },
-    metadata: null,
-    rowCount: 1000,
-    maxRows: 1_000_000,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  }
+const TABLE_FIXTURE: TableDefinitionFactoryOptions = {
+  columns: [{ name: 'status', type: 'string' }],
+  rowCount: 1000,
 }
 
 function makeRequest(body: unknown, tableId = 'tbl_1') {
@@ -99,7 +91,7 @@ describe('POST /api/table/[tableId]/delete-async', () => {
       userId: 'user-1',
       authType: 'session',
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockCheckAccess.mockResolvedValue({ ok: true, table: createTableDefinition(TABLE_FIXTURE) })
     mockMarkTableJobRunning.mockResolvedValue(true)
     mockRunTableDelete.mockResolvedValue(undefined)
     mockTableFilterError.mockReturnValue(null)
@@ -168,7 +160,10 @@ describe('POST /api/table/[tableId]/delete-async', () => {
   })
 
   it('returns 400 when the table is archived', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable({ archivedAt: new Date() }) })
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: createTableDefinition({ ...TABLE_FIXTURE, archivedAt: new Date() }),
+    })
     const response = await makeRequest(validBody)
     expect(response.status).toBe(400)
     expect(mockRunTableDelete).not.toHaveBeenCalled()

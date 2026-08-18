@@ -38,7 +38,12 @@ import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
-import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
+import {
+  EMPTY_JOB_FIELDS,
+  latestJobsForTables,
+  latestNonExportJobJson,
+  mapJobRow,
+} from '@/lib/table/jobs/service'
 import { assertSchemaMutable, TableLockedError } from '@/lib/table/mutation-locks'
 import { nKeysBetween } from '@/lib/table/order-key'
 import type { DbTransaction } from '@/lib/table/planner'
@@ -168,6 +173,12 @@ function applyColumnOrderToSchema(
 /**
  * Gets a table by ID with full details.
  *
+ * One round trip: the table's latest non-export job comes back in the same SELECT as
+ * a correlated lateral ({@link latestNonExportJobJson}) rather than a second query.
+ * The two cannot be separated — the reported `rowCount` is the stored count minus the
+ * running delete job's `pendingDeleteRemaining`, so dropping the job read would
+ * overstate the count mid-delete and let over-capacity inserts through.
+ *
  * @param tableId - Table ID to fetch
  * @returns Table definition or null if not found
  */
@@ -192,6 +203,7 @@ export async function getTableById(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
+      latestJob: latestNonExportJobJson(userTableDefinitions.id),
       ...LOCK_SELECT,
     })
     .from(userTableDefinitions)
@@ -206,7 +218,7 @@ export async function getTableById(
 
   const table = results[0]
   const metadata = (table.metadata as TableMetadata) ?? null
-  const { pendingDeleteRemaining, ...jobFields } = await latestJobForTable(tableId, executor)
+  const { pendingDeleteRemaining, ...jobFields } = mapJobRow(table.latestJob)
   return {
     id: table.id,
     name: table.name,
