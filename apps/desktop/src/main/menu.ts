@@ -126,10 +126,10 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       },
     },
     /**
-     * Hard refresh of the Sim shell itself, cache ignored — the recovery
-     * lever for picking up freshly deployed client code. Unlike plain
-     * Reload it never routes to a focused Browser/Terminal panel: the point
-     * is always the shell.
+     * Hard refresh, cache ignored. A focused Browser tab claims it first
+     * (same boundary as Reload/Close Tab); otherwise it reloads the Sim
+     * shell — the recovery lever for picking up freshly deployed client
+     * code.
      */
     {
       label: 'Force Reload',
@@ -137,6 +137,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
       click: (_item, focusedWindow) => {
         const win = focusedOrMain(focusedWindow)
         if (!win || win.isDestroyed()) return
+        if (deps.handleFocusedResourceShortcut(win, 'hard-reload')) return
         win.webContents.reloadIgnoringCache()
       },
     },

@@ -1964,6 +1964,9 @@ export function handleFocusedShortcut(
     case 'reload-or-clear':
       shortcutTab.view.webContents.reload()
       return true
+    case 'hard-reload':
+      shortcutTab.view.webContents.reloadIgnoringCache()
+      return true
   }
 
   const zoomAction = zoomActionForShortcut(shortcut)
