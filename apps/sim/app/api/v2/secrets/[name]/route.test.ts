@@ -169,6 +169,20 @@ describe('/api/v2/secrets/[name]', () => {
     expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('description')
   })
 
+  it('normalizes an empty description to null so it matches the UI clear path', async () => {
+    await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: '   ',
+      }),
+      context
+    )
+
+    expect(mocks.set.mock.calls[0][0].input.description).toBeNull()
+  })
+
   it('rejects a description on a personal secret rather than dropping it', async () => {
     const response = await PUT(
       request('PUT', {

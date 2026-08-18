@@ -16,7 +16,11 @@ const logger = createLogger('CredentialDetailForm')
 export interface CredentialDetailFormSection {
   isDirty: boolean
   isSaving: boolean
-  /** Resolves false when the write failed, which stops the metadata save from committing alone. */
+  /**
+   * Resolves true when the caller may proceed — including when there was nothing
+   * to write. False only when a write was attempted and failed, which stops the
+   * metadata save from committing alone.
+   */
   save: () => Promise<boolean>
   discard: () => void
 }
@@ -81,11 +85,8 @@ export function useCredentialDetailForm({
 
   const save = useCallback(async () => {
     if (!credential || isSaving) return
-    const savesMetadata = isAdmin && isMetadataDirty
-    if (!savesMetadata && !isSectionDirty) return
-
     if (isSectionDirty && !(await section?.save())) return
-    if (!savesMetadata) return
+    if (!isAdmin || !isMetadataDirty) return
 
     try {
       await updateCredential.mutateAsync({

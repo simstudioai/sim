@@ -19,8 +19,6 @@ const SECRET_RESULT: CommandSpec = {
   ],
 }
 
-const MAX_DESCRIPTION_LENGTH = 500
-
 interface SetSecretOptions {
   scope: (typeof SECRET_SCOPES)[number]
   value?: string
@@ -38,24 +36,23 @@ function validateSecretValue(value: string): string {
 /**
  * A description belongs to the workspace secret teammates share; a personal
  * secret has none, and the API rejects one. Failing here names the flag rather
- * than surfacing a validation error against the request body.
+ * than surfacing a validation error against the request body, and does so before
+ * the interactive value prompt. The length bound is left to the API, whose
+ * message already names the field — a copy here would silently drift from it.
  */
-function validateDescription(options: SetSecretOptions): string | undefined {
-  if (options.description === undefined) return undefined
-  if (options.scope === 'personal') {
+function validateDescriptionScope(
+  description: string | undefined,
+  scope: SetSecretOptions['scope']
+): string | undefined {
+  if (description === undefined) return undefined
+  if (scope === 'personal') {
     throw new SimApiError('--description is only supported for a workspace secret.', 0)
   }
-  if (options.description.length > MAX_DESCRIPTION_LENGTH) {
-    throw new SimApiError(
-      `Secret description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters.`,
-      0
-    )
-  }
-  return options.description
+  return description
 }
 
 async function setSecret(name: string, options: SetSecretOptions, command: Command): Promise<void> {
-  const description = validateDescription(options)
+  const description = validateDescriptionScope(options.description, options.scope)
   const value = validateSecretValue(options.value ?? (await promptSecret()))
   const { client, profile } = clientFrom(command)
   const operation = V2_OPERATIONS.setSecret
@@ -65,7 +62,7 @@ async function setSecret(name: string, options: SetSecretOptions, command: Comma
       workspaceId: client.requireWorkspace(),
       scope: options.scope,
       value,
-      ...(description !== undefined ? { description } : {}),
+      description,
     },
   })
 

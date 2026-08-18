@@ -5175,7 +5175,7 @@
             "writeOnly": true
           },
           "description": {
-            "description": "What the secret is for, shown to teammates. Omit to leave an existing description untouched; pass null to clear it. Workspace scope only.",
+            "description": "What the secret is for, shown to teammates. Omit to leave an existing description untouched; pass null or an empty string to clear it. Workspace scope only.",
             "anyOf": [
               {
                 "type": "string",
@@ -5190,14 +5190,7 @@
         "required": ["workspaceId", "scope", "value"],
         "additionalProperties": false,
         "title": "Set secret request",
-        "description": "Ownership scope and write-only value for the secret.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "scope": "workspace",
-            "value": "YOUR_SECRET_VALUE"
-          }
-        ]
+        "description": "Ownership scope and write-only value for the secret."
       },
       "V2SecretDeleteData": {
         "type": "object",

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -69,8 +69,7 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
   const isDirty = draft !== currentValue
   const isSaving = savePersonal.isPending || upsertWorkspace.isPending
 
-  /** Resolves false when the write failed, so a combined save can stop before its next step. */
-  const save = async (): Promise<boolean> => {
+  const save = useCallback(async (): Promise<boolean> => {
     if (!credential || !canEdit || isConflicted || !isDirty || isSaving) return true
     try {
       if (isPersonal) {
@@ -98,18 +97,40 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
       logger.error('Failed to save secret value', error)
       return false
     }
-  }
-
-  const discard = () => setDraft(currentValue)
-
-  return {
-    value: draft,
-    setValue: setDraft,
+  }, [
+    credential,
     canEdit,
     isConflicted,
     isDirty,
-    save,
-    discard,
     isSaving,
-  }
+    isPersonal,
+    envKey,
+    draft,
+    workspaceId,
+    refetchPersonal,
+    savePersonal.mutateAsync,
+    upsertWorkspace.mutateAsync,
+  ])
+
+  const discard = useCallback(() => setDraft(currentValue), [currentValue])
+
+  /**
+   * Memoized so the object itself is stable, not just its callbacks: consumers
+   * pass the whole value as one unit into {@link useCredentialDetailForm}'s
+   * `section`, where a fresh object each render would churn the combined
+   * save/discard identities regardless of the callbacks inside it.
+   */
+  return useMemo(
+    () => ({
+      value: draft,
+      setValue: setDraft,
+      canEdit,
+      isConflicted,
+      isDirty,
+      save,
+      discard,
+      isSaving,
+    }),
+    [draft, canEdit, isConflicted, isDirty, save, discard, isSaving]
+  )
 }

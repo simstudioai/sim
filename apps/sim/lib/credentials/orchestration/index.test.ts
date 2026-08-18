@@ -441,6 +441,42 @@ describe('performUpdateCredential — service-account secret rotation', () => {
   })
 })
 
+describe('performUpdateCredential — description scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockIsClientCredentialAccountProviderId.mockReturnValue(false)
+    mockGetClientCredentialAccountDescriptor.mockReturnValue(undefined)
+  })
+
+  it('applies a description to a workspace secret', async () => {
+    mockCredential({ type: 'env_workspace', envKey: 'STRIPE_API_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'Prod billing key',
+    })
+
+    expect(result.success).toBe(true)
+    expect(updatePayload().description).toBe('Prod billing key')
+  })
+
+  it('rejects a description on a personal secret instead of writing dead data', async () => {
+    mockCredential({ type: 'env_personal', envKey: 'MY_TEST_KEY', providerId: null })
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      description: 'invisible dead data',
+    })
+
+    // Dropping the only field leaves nothing to update, so the existing
+    // empty-update guard turns this into an explicit rejection.
+    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+  })
+})
+
 describe('createServiceAccountCredential', () => {
   beforeEach(() => {
     vi.clearAllMocks()

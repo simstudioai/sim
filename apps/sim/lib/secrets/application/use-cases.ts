@@ -265,6 +265,12 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const userId = principalUserId(principal)
+    if (input.scope === 'personal' && input.description !== undefined) {
+      throw new OrchestrationError(
+        'validation',
+        'description is only supported for a workspace secret'
+      )
+    }
     if (input.scope === 'workspace') {
       await requireWorkspaceSecretMutationAccess({
         workspaceId: context.workspaceId,

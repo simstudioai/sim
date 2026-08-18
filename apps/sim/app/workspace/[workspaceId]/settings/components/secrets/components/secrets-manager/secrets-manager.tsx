@@ -420,10 +420,9 @@ export function SecretsManager() {
   }, [envVars, searchTerm])
 
   /**
-   * Matches description as well as key, so a secret documented as "prod billing"
-   * is findable by that wording. The row has no description column, so a match on
-   * it is only legible on the secret's detail page. Personal secrets carry no
-   * shared description and stay key-only.
+   * The row has no description column, so a description-only match is legible
+   * only on the secret's detail page. Personal secrets carry no shared
+   * description and stay key-only.
    */
   const filteredWorkspaceEntries = useMemo(() => {
     const entries = Object.entries(workspaceVars)

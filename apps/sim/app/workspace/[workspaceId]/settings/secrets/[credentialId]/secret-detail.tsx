@@ -35,9 +35,17 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
 
   const valueField = useSecretValue({ workspaceId, credential })
 
+  /**
+   * Description is workspace-only because `env_personal` credentials are
+   * per-workspace mirrors of one user-global secret, so one saved here would
+   * exist in this workspace alone — and a personal secret has no teammates to
+   * inform. Gates the write and the render alike, so the two cannot disagree.
+   */
+  const isWorkspaceSecretAdmin = isAdmin && !isPersonal
+
   const form = useCredentialDetailForm({
     credential,
-    isAdmin,
+    isAdmin: isWorkspaceSecretAdmin,
     backHref: secretsHref,
     section: valueField,
   })
@@ -49,14 +57,6 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   )
 
   const canEditValue = valueField.canEdit && !valueField.isConflicted
-  /**
-   * Gates workspace-secret administration — Share and Description alike.
-   * Description is workspace-only because `env_personal` credentials are
-   * per-workspace mirrors of one user-global secret, so one saved here would
-   * exist in this workspace alone — and a personal secret has no teammates to
-   * inform.
-   */
-  const isWorkspaceSecretAdmin = isAdmin && !isPersonal
 
   const actions =
     credential && (isWorkspaceSecretAdmin || canEditValue) ? (

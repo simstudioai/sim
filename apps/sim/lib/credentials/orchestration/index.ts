@@ -194,7 +194,11 @@ export async function updateCredentialRecord(
 ): Promise<PerformCredentialResult> {
   try {
     const updates: Record<string, unknown> = {}
-    if (params.description !== undefined) {
+    // A description is teammate-facing, so it is meaningless on `env_personal`:
+    // those rows are per-workspace mirrors of one user-global secret, and every
+    // reader already hides or nulls the field for them. Enforced here rather than
+    // at one adapter so no surface can write dead data behind the invariant.
+    if (params.description !== undefined && params.credential.type !== 'env_personal') {
       updates.description = params.description ?? null
     }
     if (
