@@ -1174,3 +1174,34 @@ Update account settings such as name, email, website, company, industry, or time
 |   ↳ `usage` | string | URL of the monthly usage endpoint |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Jotform Webhook
+
+Trigger workflow when a Jotform form receives a new submission
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | The form to watch. It is the numeric segment of the form URL, and the List Forms operation returns it. |
+| `apiKey` | string | Yes | Used to register the webhook on the form automatically. Create one under Account Settings &gt; API. |
+| `apiRegion` | string | No | Data residency region the API key belongs to. A key only works on the host that issued it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formId` | string | ID of the form that was submitted |
+| `submissionId` | string | ID of the new submission |
+| `formTitle` | string | Title of the form at the time of submission |
+| `username` | string | Jotform account username that owns the form |
+| `ip` | string | IP address the submission came from |
+| `submissionType` | string | How the submission was made, e.g. WEB |
+| `pretty` | string | Human-readable summary of the answers, as comma-separated "Question Label:Answer" pairs |
+| `rawRequest` | json | Submitted answers keyed by question, in Jotform's q\{questionId\}_\{slugifiedLabel\} form. Values are strings, or objects for multi-part questions such as name and address. |
+| `raw` | json | Complete original webhook payload from Jotform |
+
