@@ -114,6 +114,9 @@ export function KnowledgeEmptyState({
       description='Upload documents to give your agents a memory they can search.'
       action={
         <div className='flex items-center gap-2'>
+          <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
+            New base
+          </Chip>
           <ChipLink
             href={KNOWLEDGE_DOCS_URL}
             target='_blank'
@@ -123,9 +126,6 @@ export function KnowledgeEmptyState({
           >
             Docs
           </ChipLink>
-          <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
-            New base
-          </Chip>
         </div>
       }
     />
