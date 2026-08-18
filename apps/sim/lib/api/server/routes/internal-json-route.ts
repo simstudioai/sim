@@ -215,21 +215,17 @@ export interface InternalJsonPresenterContext<I, P extends Principal> {
   input: I
 }
 
+type InternalJsonPresentFn<C extends JsonApiRouteContract, I, R, P extends Principal> = (
+  result: NoInfer<R>,
+  context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
+) => ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+
+/** The presenter is optional exactly when the result already is the response body. */
 type InternalJsonPresenter<C extends JsonApiRouteContract, I, R, P extends Principal> = [
   R,
 ] extends [ContractJsonResponse<C>]
-  ? {
-      present?(
-        result: NoInfer<R>,
-        context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
-      ): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
-  : {
-      present(
-        result: NoInfer<R>,
-        context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
-      ): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
-    }
+  ? { present?: InternalJsonPresentFn<C, I, R, P> }
+  : { present: InternalJsonPresentFn<C, I, R, P> }
 
 type InternalJsonRouteOptions<
   C extends JsonApiRouteContract,

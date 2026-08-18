@@ -2,7 +2,10 @@ import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/princip
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import { isPrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import { buildIdByName } from '@/lib/table/column-keys'
-import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  createUnknownTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import { tableRowSecretProvenanceSelectionKey } from '@/lib/table/secret-provenance-selection'
 import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 
@@ -92,13 +95,14 @@ export function resolveRowWriteProvenance(options: {
   const bundle = envelope.value
 
   const storageKeyFor = storageKeyResolver(table, keying)
-  const columnIdBySelectionKey = new Map<string, string | null>()
-  const rowKeyBySelectionKey = new Map<string, number>()
+  /** Every cell this write touches, by the selection key a bundle must name. */
+  const touchedBySelectionKey = new Map<string, { rowIndex: number; columnId: string | null }>()
   wireRows.forEach((row, rowIndex) => {
     for (const wireKey of Object.keys(row)) {
-      const selectionKey = tableRowSecretProvenanceSelectionKey(rowIndex, wireKey)
-      columnIdBySelectionKey.set(selectionKey, storageKeyFor(wireKey))
-      rowKeyBySelectionKey.set(selectionKey, rowIndex)
+      touchedBySelectionKey.set(tableRowSecretProvenanceSelectionKey(rowIndex, wireKey), {
+        rowIndex,
+        columnId: storageKeyFor(wireKey),
+      })
     }
   })
 
@@ -106,14 +110,14 @@ export function resolveRowWriteProvenance(options: {
   // those — otherwise a caller could certify a column it never wrote.
   if (
     bundle.complete &&
-    (bundle.selections.length !== columnIdBySelectionKey.size ||
-      bundle.selections.some((selection) => !columnIdBySelectionKey.has(selection.key)))
+    (bundle.selections.length !== touchedBySelectionKey.size ||
+      bundle.selections.some((selection) => !touchedBySelectionKey.has(selection.key)))
   ) {
     throw new TableRowProvenanceError()
   }
 
   if (!bundle.complete) {
-    return { stamps: wireRows.map(() => ({ complete: false, columns: {} })) }
+    return { stamps: wireRows.map(() => createUnknownTableRowSecretProvenance()) }
   }
 
   const stamps: TableRowSecretProvenanceWrite[] = wireRows.map(() => ({
@@ -122,9 +126,9 @@ export function resolveRowWriteProvenance(options: {
   }))
   const subjectUserId = requirePrincipalSubjectUserId(principal)
   for (const selection of bundle.selections) {
-    const rowIndex = rowKeyBySelectionKey.get(selection.key)
+    const touched = touchedBySelectionKey.get(selection.key)
     if (
-      rowIndex === undefined ||
+      !touched ||
       !isPrivateSecretProvenanceScopeCompatible(selection.provenance.scope, {
         userId: subjectUserId,
         workspaceId: options.workspaceId,
@@ -132,12 +136,11 @@ export function resolveRowWriteProvenance(options: {
     ) {
       throw new TableRowProvenanceError()
     }
-    const columnId = columnIdBySelectionKey.get(selection.key)
-    if (columnId === null || columnId === undefined) continue
-    if (Object.hasOwn(stamps[rowIndex].columns, columnId)) {
+    if (touched.columnId === null) continue
+    if (Object.hasOwn(stamps[touched.rowIndex].columns, touched.columnId)) {
       throw new TableRowProvenanceError()
     }
-    stamps[rowIndex].columns[columnId] = selection.provenance
+    stamps[touched.rowIndex].columns[touched.columnId] = selection.provenance
   }
   return { stamps }
 }

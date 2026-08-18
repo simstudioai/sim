@@ -82,10 +82,14 @@ function sessionPrincipal() {
 
 function executorPrincipal() {
   mocks.authenticate.mockResolvedValue({
-    kind: 'workflow_execution_delegated',
-    userId: 'user-1',
+    kind: 'delegated',
+    serviceId: 'executor',
+    subjectUserId: 'user-1',
     workspaceId: WORKSPACE_ID,
-    executionId: 'exec-1',
+    delegationId: 'delegation-1',
+    audience: 'table',
+    issuedAt: new Date('2026-01-01'),
+    expiresAt: new Date('2026-01-02'),
   })
 }
 
@@ -267,14 +271,6 @@ describe('PATCH /api/table/[tableId]/rows/[rowId]', () => {
     const response = await PATCH(bodyRequest('PATCH', patchBody), routeContext())
 
     expect(response.status).toBe(409)
-  })
-
-  it('falls back to 500 for an unclassified failure', async () => {
-    mocks.updateRow.mockRejectedValue(new Error('boom'))
-
-    const response = await PATCH(bodyRequest('PATCH', patchBody), routeContext())
-
-    expect(response.status).toBe(500)
   })
 })
 

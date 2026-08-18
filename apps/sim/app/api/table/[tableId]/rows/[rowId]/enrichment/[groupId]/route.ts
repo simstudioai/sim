@@ -1,6 +1,7 @@
 import { getEnrichmentDetailContract } from '@/lib/api/contracts/tables'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
-import { internalTableRowsErrorPolicy, internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { internalTableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
 import { tableOperations } from '@/lib/table/application/operations'
 import { readTableRowEnrichmentDetail } from '@/lib/table/application/rows'
 

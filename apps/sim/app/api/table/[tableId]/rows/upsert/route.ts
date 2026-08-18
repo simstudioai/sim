@@ -1,6 +1,7 @@
 import { upsertTableRowContract } from '@/lib/api/contracts/tables'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
-import { internalTableRowsErrorPolicy, internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
+import { internalTableRowsErrorPolicy } from '@/lib/table/api/row-route-policies'
 import { tableOperations } from '@/lib/table/application/operations'
 import { upsertTableRow } from '@/lib/table/application/rows'
 import type { RowData } from '@/lib/table/types'
@@ -9,11 +10,7 @@ import {
   negotiateTableRowsProvenance,
   readTableRowProvenanceEnvelope,
 } from '@/app/api/table/row-secret-provenance'
-import {
-  authTypeForPrincipal,
-  presentRowForPrincipal,
-  rowKeyingForPrincipal,
-} from '@/app/api/table/row-wire'
+import { presentRowForPrincipal, rowKeyingForPrincipal } from '@/app/api/table/row-wire'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +37,7 @@ export const POST = defineInternalJsonRoute({
     secretProvenanceEnvelope: readTableRowProvenanceEnvelope(request, body),
     includePersistedSecretProvenance: negotiateTableRowsProvenance(
       request,
-      authTypeForPrincipal(principal)
+      principal.kind !== 'session'
     ),
   }),
   useCase: upsertTableRow,

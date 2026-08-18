@@ -9,8 +9,6 @@ import {
 } from '@/lib/api/server/routes'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
-import { TableRowProvenanceError } from '@/lib/table/application/row-secret-provenance'
-import { TableRowsValidationError } from '@/lib/table/application/rows'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
   v2CaughtOrchestrationError,
@@ -99,27 +97,3 @@ export const internalTableErrorPolicies = {
     notFoundMessage: 'Table export not found',
   }),
 } as const
-
-/**
- * Row routes on the internal surface. The internal counterpart of
- * {@link v2TableRowsErrorPolicy}: a row-shape complaint and a provenance
- * envelope that does not authenticate are both the caller's to fix and answer
- * 400; everything else conceals a cross-tenant table behind the same not-found
- * wording the rest of the table surface uses.
- *
- * Built on the lock-aware base so a 423 keeps carrying `lock` — the only field
- * that tells a client which lock to clear. A row write is exactly as lockable
- * as a group mutation.
- */
-export const internalTableRowsErrorPolicy = extendInternalErrorPolicy(
-  internalTableErrorPolicies.concealTableGroupAuthorization,
-  (error) => {
-    if (error instanceof TableRowsValidationError) {
-      return internalErrorResponse(400, { error: error.message })
-    }
-    if (error instanceof TableRowProvenanceError) {
-      return internalErrorResponse(400, { error: error.message })
-    }
-    return null
-  }
-)

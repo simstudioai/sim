@@ -791,12 +791,13 @@ export async function upsertRow(
       })
       if (!updatedRow) throw new Error('Matched table row no longer exists')
 
-      const executions = await loadExecutionsForRow(trx, updatedRow.id)
+      // No executions sidecar: no upsert surface puts one on the wire, and
+      // loading it here would hold the write transaction open for a result that
+      // is discarded. See `getRowSummaryById` for the same reasoning on reads.
       return {
         row: {
           id: updatedRow.id,
           data: updatedRow.data as RowData,
-          executions,
           position: updatedRow.position,
           orderKey: updatedRow.orderKey ?? undefined,
           createdAt: updatedRow.createdAt,
@@ -842,7 +843,6 @@ export async function upsertRow(
       row: {
         id: insertedRow.id,
         data: insertedRow.data as RowData,
-        executions: {},
         position: insertedRow.position,
         orderKey: insertedRow.orderKey ?? undefined,
         createdAt: insertedRow.createdAt,
@@ -1409,14 +1409,6 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
   }
 }
 
-/**
- * Gets a single row by ID.
- *
- * @param tableId - Table ID
- * @param rowId - Row ID to fetch
- * @param workspaceId - Workspace ID for access control
- * @returns Row or null if not found
- */
 /** The stored row without its executions sidecar. */
 export type TableRowSummary = Omit<TableRow, 'executions'>
 
@@ -1464,6 +1456,7 @@ export async function getRowSummaryById(
   return row ? toRowSummary(row) : null
 }
 
+/** One row with its executions sidecar, for the write and background paths. */
 export async function getRowById(
   tableId: string,
   rowId: string,

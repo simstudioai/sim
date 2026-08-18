@@ -123,10 +123,14 @@ describe('POST /api/table/[tableId]/rows/upsert', () => {
 
   it('tells the use case a workflow execution speaks column names', async () => {
     mocks.authenticate.mockResolvedValue({
-      kind: 'workflow_execution_delegated',
-      userId: 'user-1',
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'user-1',
       workspaceId: WORKSPACE_ID,
-      executionId: 'exec-1',
+      delegationId: 'delegation-1',
+      audience: 'table',
+      issuedAt: new Date('2026-01-01'),
+      expiresAt: new Date('2026-01-02'),
     })
 
     await POST(request({ ...BODY, data: { Name: 'Ada' }, conflictTarget: 'Name' }), routeContext())

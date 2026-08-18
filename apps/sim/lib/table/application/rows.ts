@@ -1,6 +1,10 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  resolvePrincipalAttribution,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -273,6 +277,38 @@ function defaultedRowSecretProvenance(
   return provided ?? createExactEmptyTableRowSecretProvenance(storageData)
 }
 
+/**
+ * The stamp a single-row write should carry: resolved from the caller's envelope
+ * when it handed one over, otherwise defaulted. Shared by the update and upsert
+ * use cases so the envelope contract has one implementation, not two.
+ */
+function singleRowWriteProvenance(options: {
+  principal: Principal
+  workspaceId: string
+  table: TableDefinition
+  input: {
+    dataKeying: TableRowDataKeying
+    data: RowData
+    secretProvenance?: TableRowSecretProvenanceWrite
+    secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  }
+  storageData: RowData
+}): TableRowSecretProvenanceWrite | undefined {
+  const { principal, workspaceId, table, input, storageData } = options
+  if (!input.secretProvenanceEnvelope) {
+    return defaultedRowSecretProvenance(storageData, input.secretProvenance)
+  }
+  return resolveRowWriteProvenance({
+    envelope: input.secretProvenanceEnvelope,
+    principal,
+    workspaceId,
+    table,
+    keying: input.dataKeying,
+    wireRows: [input.data],
+    storageRows: [storageData],
+  }).stamps[0]
+}
+
 function defaultedRowsSecretProvenance(
   storageRows: RowData[],
   provided: Array<TableRowSecretProvenanceWrite | undefined> | undefined
@@ -535,14 +571,7 @@ interface CreateSingleTableRowInput extends TableScopedInput {
   /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
   dataKeying: TableRowDataKeying
   kind: 'single'
-  /**
-   * Tab that caused this write, when the calling surface knows it. Lets that tab
-   * skip refetching its own write — see {@link signalTableRowsChangedByActor},
-   * whose soundness condition is that the caller's hook reconciles the write
-   * locally across every cached rows query. Only the single-row paths accept
-   * one: a batch or filter-scoped write genuinely needs the acting tab to
-   * refetch. Absent by default, which broadcasts to every subscriber as before.
-   */
+  /** See {@link UpdateTableRowInput.actorClientId}. */
   actorClientId?: string
   data: RowData
   position?: number
@@ -920,17 +949,13 @@ export const updateTableRow = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
     const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
-    const secretProvenance = input.secretProvenanceEnvelope
-      ? resolveRowWriteProvenance({
-          envelope: input.secretProvenanceEnvelope,
-          principal,
-          workspaceId: context.workspaceId,
-          table: context.table,
-          keying: input.dataKeying,
-          wireRows: [input.data],
-          storageRows: [data],
-        }).stamps[0]
-      : defaultedRowSecretProvenance(data, input.secretProvenance)
+    const secretProvenance = singleRowWriteProvenance({
+      principal,
+      workspaceId: context.workspaceId,
+      table: context.table,
+      input,
+      storageData: data,
+    })
     const row = await updateRow(
       {
         tableId: context.tableId,
@@ -1008,14 +1033,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
 
 export interface DeleteTableRowInput extends TableScopedInput {
   rowId: string
-  /**
-   * Tab that caused this write, when the calling surface knows it. Lets that tab
-   * skip refetching its own write — see {@link signalTableRowsChangedByActor},
-   * whose soundness condition is that the caller's hook reconciles the write
-   * locally across every cached rows query. Only the single-row paths accept
-   * one: a batch or filter-scoped write genuinely needs the acting tab to
-   * refetch. Absent by default, which broadcasts to every subscriber as before.
-   */
+  /** See {@link UpdateTableRowInput.actorClientId}. */
   actorClientId?: string
 }
 
@@ -1113,7 +1131,8 @@ export interface UpsertTableRowInput extends TableScopedInput {
 }
 
 export interface UpsertTableRowResult extends TableResult {
-  row: TableRow
+  /** Without the executions sidecar — see {@link UpsertResult.row}. */
+  row: TableRowSummary
   operation: 'insert' | 'update'
   secretProvenance?: TableRowsProvenance
 }
@@ -1129,17 +1148,13 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
         : input.conflictTarget
     const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
-    const secretProvenance = input.secretProvenanceEnvelope
-      ? resolveRowWriteProvenance({
-          envelope: input.secretProvenanceEnvelope,
-          principal,
-          workspaceId: context.workspaceId,
-          table: context.table,
-          keying: input.dataKeying,
-          wireRows: [input.data],
-          storageRows: [data],
-        }).stamps[0]
-      : defaultedRowSecretProvenance(data, input.secretProvenance)
+    const secretProvenance = singleRowWriteProvenance({
+      principal,
+      workspaceId: context.workspaceId,
+      table: context.table,
+      input,
+      storageData: data,
+    })
     const result = await upsertRow(
       {
         tableId: context.tableId,

@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import type {
   Filter,
@@ -19,6 +19,7 @@ import {
   sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
 import { predicateToStorage, resolveFilterSelectValues } from '@/lib/table/select-values'
+import { toWireTimestamp } from '@/lib/table/wire'
 
 export interface RowWireTranslators {
   /** Inbound row data: wire keys → storage column ids. */
@@ -73,19 +74,28 @@ export function rowWireTranslators(
 }
 
 /**
+ * The principal kinds the internal table row routes admit — the auth policy
+ * yields exactly these two. Typed as the union rather than `Principal` so a
+ * third kind becomes an exhaustiveness error here instead of silently taking
+ * the name-keyed branch, which would drop every id-keyed cell of a write and
+ * report success.
+ */
+type TableRowRoutePrincipal = SessionPrincipal | WorkflowExecutionDelegatedPrincipal
+
+/**
  * The internal table routes serve two caller kinds on the same paths, and they
  * speak different column keyings: the first-party grid holds the schema it
  * rendered and addresses cells by stable id, while a workflow tool execution
  * speaks column names, because names are what tool enrichment surfaces to the
  * model. Keying is therefore a property of the caller, not of the endpoint.
  */
-export function authTypeForPrincipal(principal: Principal): AuthTypeValue {
-  return principal.kind === 'session' ? AuthType.SESSION : AuthType.INTERNAL_JWT
-}
-
-/** See {@link authTypeForPrincipal}. Feeds the use case's `dataKeying`. */
-export function rowKeyingForPrincipal(principal: Principal): TableRowDataKeying {
-  return principal.kind === 'session' ? 'ids' : 'names'
+export function rowKeyingForPrincipal(principal: TableRowRoutePrincipal): TableRowDataKeying {
+  switch (principal.kind) {
+    case 'session':
+      return 'ids'
+    case 'delegated':
+      return 'names'
+  }
 }
 
 /**
@@ -96,14 +106,21 @@ export function rowKeyingForPrincipal(principal: Principal): TableRowDataKeying 
 export function presentRowForPrincipal(
   row: Pick<TableRow, 'id' | 'data' | 'position' | 'createdAt' | 'updatedAt'>,
   schema: TableSchema,
-  principal: Principal
+  principal: TableRowRoutePrincipal
 ) {
-  const wire = rowWireTranslators(authTypeForPrincipal(principal), schema)
+  // Only the outbound mapper is needed here; building the full translator set
+  // would also index the schema name→id for inbound paths a presenter cannot reach.
+  const dataOut =
+    rowKeyingForPrincipal(principal) === 'names' ? namedRowMapper(schema.columns) : identity
   return {
     id: row.id,
-    data: wire.dataOut(row.data),
+    data: dataOut(row.data),
     position: row.position,
-    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
-    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
+    createdAt: toWireTimestamp(row.createdAt),
+    updatedAt: toWireTimestamp(row.updatedAt),
   }
+}
+
+function identity<T>(value: T): T {
+  return value
 }

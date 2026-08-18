@@ -225,12 +225,12 @@ export function readTableRowProvenanceEnvelope(
  */
 export function negotiateTableRowsProvenance(
   request: NextRequest,
-  authType: AuthTypeValue | undefined
+  isInternalCaller: boolean
 ): boolean {
   const negotiation = negotiatePrivateToolMetadataResponse(
     request.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-    authType === AuthType.INTERNAL_JWT
+    isInternalCaller
   )
   if (negotiation.status === 'rejected') throw new TableRowProvenanceError()
   return negotiation.status !== 'not-requested'
