@@ -45,9 +45,11 @@ export function CodeBlock({ title, ...props }: React.ComponentProps<typeof Fumad
   const figureRef = useRef<HTMLElement>(null)
 
   /**
-   * Reads the block's text the way fumadocs does: from a clone, with `.nd-copy-ignore` nodes
-   * replaced by newlines. Those nodes carry rendered gutter and diff markers, so copying the
-   * live `textContent` would paste line numbers along with the code.
+   * Reads the block's text the way fumadocs' own `CopyButton` does: from a clone, with
+   * `.nd-copy-ignore` nodes replaced by newlines. Shiki transformers emit those to mark content
+   * that is displayed but is not part of the code, so reading `pre.textContent` directly would
+   * copy it. (The line-number gutter here is a `::before`, and pseudo-element content never
+   * reaches `textContent` — it is not what this guards.)
    */
   function getCode() {
     const pre = figureRef.current?.getElementsByTagName('pre').item(0)
@@ -65,8 +67,9 @@ export function CodeBlock({ title, ...props }: React.ComponentProps<typeof Fumad
       className={cn('my-4', props.className)}
       allowCopy={false}
       /**
-       * fumadocs' own `className` is discarded rather than merged — its untitled-block variant
-       * carries a `backdrop-blur-lg` that goes milky over an opaque fill.
+       * The `className` fumadocs passes this render prop is deliberately neither destructured nor
+       * merged — its untitled-block variant carries a `backdrop-blur-lg` that goes milky over an
+       * opaque fill.
        */
       Actions={() => (
         <div className={cn('flex items-center', title ? '-me-1' : 'absolute top-2 right-2 z-[1]')}>
