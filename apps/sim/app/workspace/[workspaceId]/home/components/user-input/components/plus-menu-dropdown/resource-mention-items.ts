@@ -4,6 +4,7 @@ import {
   BROWSER_SESSION_RESOURCE_ID,
   TERMINAL_SESSION_RESOURCE_ID,
 } from '@/lib/copilot/resources/types'
+import { folderAncestorChain } from '@/lib/folders/tree'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import { browserTabTitle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-label'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
@@ -14,6 +15,57 @@ export interface ResourceMentionGroup {
 }
 
 export type ResourceMentionLevel = 'resource' | 'tab'
+
+export interface FolderMentionLocation {
+  familyType: 'workflow' | 'file'
+  parentNames: string[]
+}
+
+interface FolderMentionNode {
+  id: string
+  name: string
+  parentId: string | null
+}
+
+function folderFamilyType(
+  type: MothershipResourceType
+): FolderMentionLocation['familyType'] | null {
+  if (type === 'folder') return 'workflow'
+  if (type === 'filefolder') return 'file'
+  return null
+}
+
+/** Builds display-only locations for the folder rows in the flat resource picker. */
+export function buildFolderMentionLocationMap(
+  groups: readonly ResourceMentionGroup[]
+): Map<string, FolderMentionLocation> {
+  const locations = new Map<string, FolderMentionLocation>()
+
+  for (const group of groups) {
+    const familyType = folderFamilyType(group.type)
+    if (!familyType) continue
+
+    const nodes = new Map<string, FolderMentionNode>(
+      group.items.map((item) => [
+        item.id,
+        {
+          id: item.id,
+          name: item.name,
+          parentId: typeof item.parentId === 'string' ? item.parentId : null,
+        },
+      ])
+    )
+
+    for (const node of nodes.values()) {
+      const parentNames = folderAncestorChain(node.parentId, (id) => nodes.get(id))
+        .filter((parent) => parent.id !== node.id)
+        .map((parent) => parent.name)
+      locations.set(`${group.type}:${node.id}`, { familyType, parentNames })
+    }
+  }
+
+  return locations
+}
 
 /** A family query such as "browser" keeps that resource's live tabs visible. */
 export function resourceMentionMatches(item: AvailableItem, query: string): boolean {
