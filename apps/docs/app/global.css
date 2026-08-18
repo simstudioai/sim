@@ -1864,11 +1864,24 @@ figure.shiki button[aria-label="Copied Text"] {
    it on the panel rules would match prose `<Tabs>` too — nine pages use those — and strip the
    padding they rely on. */
 /* The strip becomes the group's title row; it and a titled fence's caption row are the same
-   object, so they share the rule above rather than restating its body. */
+   object, so they share the rule above rather than restating its body.
+
+   Its scrollbar is hidden, matching what the platform does for a scrolling tab strip
+   (`overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden` on emcn's `TabStrip`).
+   fumadocs makes the strip `overflow-x-auto`, and an endpoint with ten status codes overflows it
+   in the API reference's narrow rail — leaving a scrollbar across the bottom of a 34px header,
+   which reads as the header being clipped rather than as something scrollable. The code viewport
+   below keeps its scrollbar: there the overflow is content, and hiding it would hide that a line
+   continues. */
 div:has(> div > figure.shiki) > [role="tablist"] {
   align-items: center;
   gap: 0.25rem;
   padding-inline: 0.375rem;
+  scrollbar-width: none;
+}
+
+div:has(> div > figure.shiki) > [role="tablist"]::-webkit-scrollbar {
+  display: none;
 }
 
 /* Triggers read as chips — a `--surface-active` pad on the selected tab, at `ChipTag`'s 6px
