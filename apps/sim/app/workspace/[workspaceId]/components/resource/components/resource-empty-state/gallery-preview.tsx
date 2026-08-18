@@ -12,7 +12,7 @@ const ENTRIES = [
   { label: 'Knowledge', node: <KnowledgeEmptyState onCreate={() => {}} /> },
   { label: 'Tables', node: <TablesEmptyState onCreate={() => {}} /> },
   { label: 'Logs', node: <LogsEmptyState /> },
-  { label: 'Files', node: <FilesEmptyState /> },
+  { label: 'Files', node: <FilesEmptyState onUpload={() => {}} /> },
   { label: 'Skills', node: <SkillsEmptyState /> },
 ]
 

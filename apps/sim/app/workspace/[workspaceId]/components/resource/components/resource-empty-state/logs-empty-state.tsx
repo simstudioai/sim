@@ -1,58 +1,80 @@
+import { ChipLink } from '@sim/emcn'
+import { BookOpen } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
-import {
-  Bar,
-  Vignette,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/vignette'
 
-interface LogRow {
-  status: 'success' | 'error'
-  /** Width of the workflow-name skeleton. */
-  name: number
-  /** Trace span offset and width — together these read as a waterfall. */
-  spanStart: number
-  spanWidth: number
-  duration: number
-}
-
-const LOG_ROWS: LogRow[] = [
-  { status: 'success', name: 68, spanStart: 0, spanWidth: 118, duration: 22 },
-  { status: 'success', name: 52, spanStart: 12, spanWidth: 82, duration: 18 },
-  { status: 'error', name: 74, spanStart: 24, spanWidth: 50, duration: 26 },
-  { status: 'success', name: 58, spanStart: 14, spanWidth: 72, duration: 16 },
-  { status: 'success', name: 64, spanStart: 4, spanWidth: 102, duration: 20 },
-]
-
-const SPAN_ORIGIN_X = 150
+const LOGS_DOCS_URL = 'https://docs.sim.ai/logs-debugging'
 
 /**
- * Runs stacked newest-first, each one a status dot, a workflow name, and its
- * trace span — the spans stagger into the waterfall you get when you open a run.
+ * Neutral ink at graded strengths.
+ *
+ * `--surface-4`/`--surface-5` are near-white in light mode (#f5f5f5/#f3f3f3), so
+ * skeleton geometry built on them dissolves against the page. Mixing
+ * `--text-secondary` into transparent gives a real mid-grey that inverts with the
+ * theme — the idiom the workflow editor's vignette uses for the one bar it needs
+ * you to actually see.
  */
+const INK = {
+  title: 'color-mix(in srgb, var(--text-secondary) 32%, transparent)',
+  detail: 'color-mix(in srgb, var(--text-secondary) 15%, transparent)',
+} as const
+
+interface ActivityRow {
+  /** The only literal text in the graphic — everything else is skeleton. */
+  stamp: string
+  title: number
+  detail: number
+}
+
+const ROWS: ActivityRow[] = [
+  { stamp: 'Now', title: 72, detail: 112 },
+  { stamp: '12 min ago', title: 62, detail: 124 },
+  { stamp: '1h ago', title: 76, detail: 100 },
+  { stamp: 'Jul 8', title: 56, detail: 108 },
+]
+
+/**
+ * Runs settling into the feed, newest lifted onto its own card.
+ *
+ * Sized so four rows occupy the same ~148px the other resource graphics do —
+ * the frame centres graphic and copy together, so a taller graphic pushes the
+ * title down and the set stops reading as one collection.
+ *
+ * The vertical falloff is the same idea as the tables grid's corner fade — the
+ * list is a repeating structure, so cropping it costs nothing and it can dissolve
+ * into the page instead of ending on a hard last row.
+ */
+const FEED_FADE =
+  '[-webkit-mask-image:linear-gradient(to_bottom,#000_44%,transparent_100%)] [mask-image:linear-gradient(to_bottom,#000_44%,transparent_100%)]'
+
 function LogsGraphic() {
   return (
-    <Vignette>
-      {LOG_ROWS.map((row, index) => (
+    <div aria-hidden='true' className={`w-[286px] ${FEED_FADE}`}>
+      {ROWS.map((row, index) => (
         <div
-          key={`${row.name}-${index}`}
-          className='absolute left-0 flex h-[24px] w-full items-center'
-          style={{ top: 12 + index * 26 }}
+          key={row.stamp}
+          className={
+            index === 0
+              ? 'flex items-center gap-2.5 rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2 shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
+              : 'flex items-center gap-2.5 px-2.5 py-2'
+          }
         >
-          <span
-            className='absolute size-[6px] rounded-full'
-            style={{
-              left: 44,
-              background: row.status === 'error' ? 'var(--text-error)' : 'var(--text-success)',
-            }}
-          />
-          <Bar className='absolute h-2' style={{ left: 60, width: row.name }} />
-          <span
-            className='absolute h-[10px] rounded-[3px] bg-[var(--surface-5)]'
-            style={{ left: SPAN_ORIGIN_X + row.spanStart, width: row.spanWidth }}
-          />
-          <Bar className='absolute h-2' style={{ left: 286, width: row.duration }} />
+          <span className='size-[22px] shrink-0 rounded-full bg-[var(--surface-6)]' />
+          <span className='flex min-w-0 flex-1 flex-col gap-[6px]'>
+            <span
+              className='block h-[6px] rounded-full'
+              style={{ width: row.title, background: INK.title }}
+            />
+            <span
+              className='block h-[4px] rounded-full'
+              style={{ width: row.detail, background: INK.detail }}
+            />
+          </span>
+          <span className='shrink-0 text-[10px] text-[var(--text-muted)] leading-none'>
+            {row.stamp}
+          </span>
         </div>
       ))}
-    </Vignette>
+    </div>
   )
 }
 
@@ -61,8 +83,19 @@ export function LogsEmptyState() {
   return (
     <EmptyState
       graphic={<LogsGraphic />}
-      title='No runs yet'
+      title='Logs'
       description='Every workflow execution lands here, traced block by block.'
+      action={
+        <ChipLink
+          href={LOGS_DOCS_URL}
+          target='_blank'
+          rel='noopener noreferrer'
+          variant='border'
+          leftIcon={BookOpen}
+        >
+          Docs
+        </ChipLink>
+      }
     />
   )
 }

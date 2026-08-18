@@ -1916,7 +1916,14 @@ export function Files() {
           filter={filterConfig}
         />
         <Resource.Table
-          emptyState={showEmptyState ? <FilesEmptyState /> : undefined}
+          emptyState={
+            showEmptyState ? (
+              <FilesEmptyState
+                onUpload={handleUploadClick}
+                uploadDisabled={uploading || !canEdit}
+              />
+            ) : undefined
+          }
           columns={COLUMNS}
           rows={rows}
           selectable={selectableConfig}

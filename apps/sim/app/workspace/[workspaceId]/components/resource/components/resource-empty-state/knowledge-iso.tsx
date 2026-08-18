@@ -42,22 +42,37 @@ function boxFaces(box: Box) {
   }
 }
 
+/**
+ * Thin along y rather than x, so the cover is the face at max y — the one the
+ * projection turns to the left. Stacking along y then walks the set left-and-down
+ * toward the viewer, so drawing in offset order paints back to front.
+ */
 const SLABS: Box[] = [0, 90, 180].map((offset) => ({
-  x: offset,
-  y: 0,
+  x: 0,
+  y: offset,
   z: 0,
-  w: 46,
-  d: 208,
+  w: 208,
+  d: 46,
   h: 236,
 }))
 
-const ISO_STROKE = 'color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted))'
+/**
+ * Lighter and thinner than the landing marks draw them.
+ *
+ * Those marks are the focal art of their section; here the mark sits beside a
+ * ruled grid and a skeleton feed whose lines are 1px of `--border-1`. Carrying
+ * the landing's full-weight contour made the volumes read as ink next to those,
+ * so the stroke is mixed toward `--border-1` and thinned to land near a hairline
+ * once the mark is scaled to empty-state size.
+ */
+const ISO_STROKE =
+  'color-mix(in srgb, color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted)) 55%, var(--border-1))'
 const ISO_FILL_LOW = 'var(--surface-6)'
 const ISO_FILL_MID = 'color-mix(in srgb, var(--surface-3) 58%, var(--surface-6))'
 const ISO_FILL_HIGH = 'var(--surface-3)'
 /** Darker than any outer face — the bore's wall turns away from the light. */
 const ISO_FILL_BORE = 'color-mix(in srgb, var(--surface-6) 72%, var(--surface-7))'
-const ISO_LINE_STROKE_WIDTH = 3.2
+const ISO_LINE_STROKE_WIDTH = 1.9
 
 /**
  * Maps flat artwork into the plane of the front volume's cover.
@@ -72,25 +87,25 @@ const ISO_LINE_STROKE_WIDTH = 3.2
 const COVER = SLABS[SLABS.length - 1]
 
 const COVER_PLANE = (() => {
-  const [originX, originY] = project(COVER.x + COVER.w, COVER.y, COVER.z)
-  return `matrix(${(-COS_30).toFixed(4)} 0.5 0 1 ${originX.toFixed(3)} ${(originY - COVER.h).toFixed(3)})`
+  const [originX, originY] = project(COVER.x, COVER.y + COVER.d, COVER.z)
+  return `matrix(${COS_30.toFixed(4)} 0.5 0 1 ${originX.toFixed(3)} ${(originY - COVER.h).toFixed(3)})`
 })()
 
 const BORE_RADIUS = 62
-const BORE_CX = COVER.d / 2
+const BORE_CX = COVER.w / 2
 const BORE_CY = COVER.h / 2
 
 /**
  * The far mouth of the bore, in the same cover-plane coordinates.
  *
- * Boring straight back through the volume is a world-space step of `-w` along x.
+ * Boring straight back through the volume is a world-space step of `-d` along y.
  * Solving the cover-plane matrix for the local offset that produces that step
- * gives `(+w, -w)` — so the far mouth sits up and left of the near one by exactly
+ * gives `(+d, -d)` — so the far mouth sits up and left of the near one by exactly
  * the volume's thickness, and the sliver of near-mouth it fails to cover is the
  * wall you see down the hole.
  */
-const FAR_CX = BORE_CX + COVER.w
-const FAR_CY = BORE_CY - COVER.w
+const FAR_CX = BORE_CX + COVER.d
+const FAR_CY = BORE_CY - COVER.d
 
 const BORE_MASK_ID = 'knowledge-iso-bore-mask'
 const BORE_CLIP_ID = 'knowledge-iso-bore-clip'
@@ -108,13 +123,13 @@ const VIEW_BOX = `${MIN_X.toFixed(2)} ${MIN_Y.toFixed(2)} ${(MAX_X - MIN_X).toFi
  * The tables grid's corner fade, run along the other diagonal.
  *
  * There it dissolves toward the bottom-right, because a grid keeps its meaning
- * cropped. Here the stack recedes up and to the left, and the front volume
- * carries the bore — so the fade is anchored at the bottom-right and eats into
- * the back of the set instead, reading as more volumes behind rather than
- * dissolving the one detail worth looking at.
+ * cropped. Here the set recedes up and to the right, and the front volume carries
+ * the bore — so the fade is anchored at the bottom-left and eats into the back of
+ * the set instead, reading as more volumes behind rather than dissolving the one
+ * detail worth looking at.
  */
 const STACK_FADE =
-  '[-webkit-mask-image:linear-gradient(to_right,transparent_0%,#000_44%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [mask-image:linear-gradient(to_right,transparent_0%,#000_44%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [-webkit-mask-composite:source-in] [mask-composite:intersect]'
+  '[-webkit-mask-image:linear-gradient(to_right,#000_56%,transparent_100%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [mask-image:linear-gradient(to_right,#000_56%,transparent_100%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [-webkit-mask-composite:source-in] [mask-composite:intersect]'
 
 const LINE_PROPS = {
   fill: 'none' as const,
@@ -154,9 +169,9 @@ export function KnowledgeIsoMark({ height = 148 }: KnowledgeIsoMarkProps) {
         {SLABS.map((box) => {
           const faces = boxFaces(box)
           return (
-            <g key={box.x}>
-              <path d={toPath(faces.left)} fill={ISO_FILL_LOW} stroke='none' />
-              <path d={toPath(faces.right)} fill={ISO_FILL_MID} stroke='none' />
+            <g key={`${box.x}-${box.y}`}>
+              <path d={toPath(faces.left)} fill={ISO_FILL_MID} stroke='none' />
+              <path d={toPath(faces.right)} fill={ISO_FILL_LOW} stroke='none' />
               <path d={toPath(faces.top)} fill={ISO_FILL_HIGH} stroke='none' />
               <path d={toPath(faces.left)} {...LINE_PROPS} />
               <path d={toPath(faces.right)} {...LINE_PROPS} />

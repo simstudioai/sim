@@ -112,7 +112,7 @@ export function TablesEmptyState({ onCreate, createDisabled = false }: TablesEmp
   return (
     <EmptyState
       graphic={<TablesGraphic />}
-      title='No tables yet'
+      title='Tables'
       description='Create a table to store structured data your agents can read and write.'
       action={
         <div className='flex items-center gap-2'>

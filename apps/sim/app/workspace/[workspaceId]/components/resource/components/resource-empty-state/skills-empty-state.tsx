@@ -52,7 +52,7 @@ export function SkillsEmptyState() {
   return (
     <EmptyState
       graphic={<SkillsGraphic />}
-      title='No skills yet'
+      title='Skills'
       description='Add a skill to give your agents a packaged set of tools to work with.'
     />
   )
