@@ -19,13 +19,13 @@ import type { LanguageRegistration } from 'shiki'
  *   directly to Client Components" takes down every API reference page. A grammar is plain data,
  *   so it survives that boundary.
  *
- * Where it applies: prose fences, via `langs` on the MDX pipeline, and the API reference's
- * request/response samples, via the `getHighlighter` call in the docs page. NOT the API
- * reference's cURL usage tabs — those highlight in the browser off fumadocs' own factory, and
- * `ClientCodeBlockProvider` sits in a `"use client"` module the package does not expose through
- * its `exports` map, so reaching it means importing `fumadocs-openapi/ui/base` from client code
- * and dragging `remark` and `@fumari/json-schema-ts` into the browser bundle. That broke the
- * deployment once; it is not worth a second attempt.
+ * Applies to prose fences only, via `langs` on the MDX pipeline. Not the API reference:
+ * fumadocs-openapi calls `renderCodeBlock` with a hard-coded `"json"` for request and response
+ * samples, so a shell injection can never fire there, and its cURL usage tabs highlight in the
+ * browser off fumadocs' own factory — `ClientCodeBlockProvider` sits in a `"use client"` module
+ * the package does not expose through its `exports` map, so reaching it means importing
+ * `fumadocs-openapi/ui/base` from client code and dragging `remark` and
+ * `@fumari/json-schema-ts` into the browser bundle. That broke the deployment once.
  *
  * The opening brace requires a `}`, a quoted key, or end-of-line after it. That is what keeps
  * `awk '{print $1}'` out, while still matching a body whose brace ends the line — Oniguruma

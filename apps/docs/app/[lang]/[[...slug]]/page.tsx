@@ -1,5 +1,5 @@
 import type React from 'react'
-import { getHighlighter, highlight } from 'fumadocs-core/highlight'
+import { highlight } from 'fumadocs-core/highlight'
 import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
@@ -18,7 +18,6 @@ import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
-import { curlJsonBodyGrammar } from '@/lib/shiki-curl-json'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
@@ -77,13 +76,8 @@ function stripLocalePrefix(url: string, lang: string): string {
  * rather than fumadocs-openapi's built-in one, so those blocks get the emcn copy control
  * instead of fumadocs' lucide clipboard. Mirrors the default renderer — same `highlight` call,
  * same `Pre` component, same `my-0` — differing only in which shell wraps the result.
- *
- * The `getHighlighter` call registers the JSON-body injection on the shared highlighter
- * `highlight` resolves. An injection is a property of the highlighter, not a per-call option, and
- * already-loaded grammars are skipped.
  */
 async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
-  await getHighlighter('js', { langs: [curlJsonBodyGrammar] })
   return (
     <CodeBlock className='my-0'>
       {await highlight(code, { lang, ...simShikiOptions, components: { pre: Pre } })}

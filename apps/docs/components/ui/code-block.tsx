@@ -33,23 +33,24 @@ function CopyButton({ getCode }: { getCode: () => string }) {
 }
 
 /**
- * Docs code block for prose fences, wired into the MDX `pre` mapping.
+ * Docs code block for prose fences and the API reference's request/response samples — the MDX
+ * `pre` mapping and fumadocs-openapi's `renderCodeBlock` both render it.
  *
- * The shell — radius, hairline, fill — is not set here. Request and response samples in the
- * API reference come from fumadocs-openapi's own renderer, so the two share chrome through a
- * `figure.shiki` rule in `global.css` instead; see the note there. What stays here is the
- * part only this path has: the copy control, and the `my-4` prose rhythm that API samples,
- * which sit flush in their panel, must not inherit.
+ * The shell — radius, hairline, fill — is not set here. A third renderer, fumadocs-openapi's
+ * `UsageTab`, emits these figures without going through any component, so all three share
+ * chrome through a `figure.shiki` rule in `global.css` instead; see the note there. What stays
+ * here is the copy control, and the `my-4` prose rhythm that API samples, which sit flush in
+ * their panel, override with `my-0`.
  */
 export function CodeBlock({ title, ...props }: React.ComponentProps<typeof FumadocsCodeBlock>) {
   const figureRef = useRef<HTMLElement>(null)
 
   /**
    * Reads the block's text the way fumadocs' own `CopyButton` does: from a clone, with
-   * `.nd-copy-ignore` nodes replaced by newlines. Shiki transformers emit those to mark content
-   * that is displayed but is not part of the code, so reading `pre.textContent` directly would
-   * copy it. (The line-number gutter here is a `::before`, and pseudo-element content never
-   * reaches `textContent` — it is not what this guards.)
+   * `.nd-copy-ignore` nodes replaced by newlines — kept in step with upstream so a fence that
+   * gains such a node copies the same text there and here. (The line-number gutter is a
+   * `::before`, and pseudo-element content never reaches `textContent`, so it is not what this
+   * guards.)
    */
   function getCode() {
     const pre = figureRef.current?.getElementsByTagName('pre').item(0)

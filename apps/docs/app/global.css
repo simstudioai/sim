@@ -1734,6 +1734,8 @@ figure.shiki code:has(.line ~ .line) .line::before {
    the code surface. The viewport is the one box all three renderers agree on. */
 figure.shiki > div[role="region"] {
   background-color: var(--code-surface);
+  /* fumadocs ships 14px of vertical padding, the platform's viewer 8px; 10px splits them and
+     keeps a single-line fence from looking hollow at the tighter 21px line box. */
   padding-block: 10px;
 }
 
@@ -1743,9 +1745,6 @@ figure.shiki pre {
   background-color: transparent;
 }
 
-/* Viewport padding — fumadocs ships 14px vertical; the platform's viewer uses 8px. Split the
-   difference at 10px, which keeps a single-line fence from looking hollow at the tighter
-   21px line box. */
 /* Untitled blocks float the copy control over the code, so the last column has to clear it:
    an 8px offset plus emcn's 20px icon button, with room to breathe. fumadocs reserves 32px,
    which the glyphs run into.
