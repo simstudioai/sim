@@ -335,6 +335,24 @@ describe('copyForkResourceContent', () => {
     ).toBe(true)
   })
 
+  it('keeps a copied KB alive when the skipped-document count fails', async () => {
+    // The count only feeds a log line. Letting it throw into the KB's catch would roll back a
+    // perfectly good copy and clear every reference to it over a failed COUNT(*).
+    dbChainMockFns.where.mockImplementationOnce(() => {
+      throw new Error('count failed')
+    })
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+  })
+
   it('uses the blob content digest so a retry cannot adopt an older failed snapshot', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([sourceDoc])

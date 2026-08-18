@@ -1031,6 +1031,39 @@ export async function copyForkResourceContent(params: {
     billingContext ??= await resolveStorageBillingContext(childWorkspaceId)
     return billingContext
   }
+  /**
+   * Report the connector-managed documents a copied KB leaves behind, since a fully
+   * connector-synced base lands in the child with no documents at all. Strictly observability,
+   * so it swallows its own failure: counting is not copying, and a transient error here must not
+   * take down the KB the way a failed document does.
+   */
+  const logSkippedConnectorDocuments = async (kb: ForkContentKbEntry): Promise<void> => {
+    try {
+      const [row] = await db
+        .select({ total: sql<number>`count(*)` })
+        .from(document)
+        .where(
+          and(
+            eq(document.knowledgeBaseId, kb.sourceId),
+            isNotNull(document.connectorId),
+            isNull(document.deletedAt),
+            isNull(document.archivedAt)
+          )
+        )
+      const skipped = Number(row?.total ?? 0)
+      if (skipped === 0) return
+      logger.info(`[${requestId}] Skipped connector-managed documents in a copied knowledge base`, {
+        sourceKnowledgeBaseId: kb.sourceId,
+        childKnowledgeBaseId: kb.childId,
+        skipped,
+      })
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to count the documents a copied knowledge base skipped`, {
+        sourceKnowledgeBaseId: kb.sourceId,
+        error: getErrorMessage(error),
+      })
+    }
+  }
 
   for (const table of contentPlan.tables) {
     try {
@@ -1139,48 +1172,22 @@ export async function copyForkResourceContent(params: {
 
   for (const kb of contentPlan.knowledgeBases) {
     try {
-      // Connector-managed documents are excluded from the copy (see the predicate below), and a
-      // KB can be entirely connector-sourced - so report what was left behind rather than letting
-      // the child silently land with fewer documents than the source.
-      const [{ skipped: connectorManaged = 0 } = {}] = await db
-        .select({ skipped: sql<number>`count(*)` })
-        .from(document)
-        .where(
-          and(
-            eq(document.knowledgeBaseId, kb.sourceId),
-            isNotNull(document.connectorId),
-            isNull(document.deletedAt),
-            isNull(document.archivedAt)
-          )
-        )
-      if (Number(connectorManaged) > 0) {
-        logger.info(
-          `[${requestId}] Skipped connector-managed documents in a copied knowledge base`,
-          {
-            sourceKnowledgeBaseId: kb.sourceId,
-            childKnowledgeBaseId: kb.childId,
-            skipped: Number(connectorManaged),
-          }
-        )
-      }
+      await logSkippedConnectorDocuments(kb)
       let afterDocId: string | null = null
       for (;;) {
         // Only copy LIVE documents - exclude soft-deleted and archived rows, matching
         // how the rest of the KB system treats them as gone (chunks/tags/search filter
         // both). A fork must not resurrect documents removed from the source base.
         //
-        // Connector-managed documents (`connector_id IS NOT NULL`) are excluded too. A copy can
-        // only be a DETACHED snapshot - the child gets no connector (see
-        // `copyForkResourceContainers`), and the sync engine keys every existing/tombstone/
-        // exclusion lookup off `connector_id`, so a detached copy is invisible to it: it can
-        // never be updated, reconciled, or purged, and `doc_connector_external_id_idx`
-        // (UNIQUE on `(connector_id, external_id)`) does not constrain it because its
-        // `connector_id` is NULL. Attaching a connector to the child then re-ingests every
-        // page as a NEW row on top of the snapshot, stacking one duplicate generation per fork
-        // hop and returning the same page several times from one retrieval. Skipping them
-        // instead leaves the child's connector as the single owner of that content. A source
-        // document whose connector was DELETED already has a null `connector_id` (the FK is
-        // ON DELETE SET NULL) and is static content in the source too, so it still copies.
+        // Connector-managed documents are excluded too, because a copy could only ever be a
+        // DETACHED snapshot: the child gets no connector (see `copyForkResourceContainers`), and
+        // the sync engine keys every existing/tombstone/exclusion lookup off `connector_id`, so
+        // the copy is invisible to it - never updated, reconciled, or purged. Attaching a
+        // connector in the child then re-ingests every page as a NEW row on top of the snapshot,
+        // stacking one dead generation per fork hop. Skipping them leaves the child's own
+        // connector as the single owner of that content. A source document whose connector was
+        // DELETED already has a null `connector_id` (the FK is ON DELETE SET NULL) and is static
+        // content in the source too, so it still copies.
         const liveDocs = and(
           eq(document.knowledgeBaseId, kb.sourceId),
           isNull(document.connectorId),
