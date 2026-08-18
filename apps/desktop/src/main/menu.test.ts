@@ -90,6 +90,7 @@ describe('buildMenuTemplate', () => {
       'separator',
       'Back',
       'Reload',
+      'Force Reload',
       'separator',
       'Actual Size',
       'Zoom In',

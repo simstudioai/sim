@@ -125,6 +125,21 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         win.webContents.reload()
       },
     },
+    /**
+     * Hard refresh of the Sim shell itself, cache ignored — the recovery
+     * lever for picking up freshly deployed client code. Unlike plain
+     * Reload it never routes to a focused Browser/Terminal panel: the point
+     * is always the shell.
+     */
+    {
+      label: 'Force Reload',
+      accelerator: 'CmdOrCtrl+Shift+R',
+      click: (_item, focusedWindow) => {
+        const win = focusedOrMain(focusedWindow)
+        if (!win || win.isDestroyed()) return
+        win.webContents.reloadIgnoringCache()
+      },
+    },
     { type: 'separator' },
     { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: setZoom('reset') },
     { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: setZoom('in') },
