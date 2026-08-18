@@ -1,5 +1,5 @@
 {
-  "id": "293d1931-d123-45c7-9cf7-cc135bbe0977",
+  "id": "152aead1-061e-40d6-98c0-588c5815c7f8",
   "prevId": "56c6fcb7-e404-407f-a24f-3963cae57f78",
   "version": "7",
   "dialect": "postgresql",
@@ -13433,8 +13433,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.usage_log_period_total": {
-      "name": "usage_log_period_total",
+    "public.usage_log_daily_total": {
+      "name": "usage_log_daily_total",
       "schema": "",
       "columns": {
         "billing_entity_type": {
@@ -13462,6 +13462,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day_index": {
+          "name": "day_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "total_cost": {
           "name": "total_cost",
           "type": "numeric",
@@ -13480,13 +13492,15 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "usage_log_period_total_billing_entity_type_billing_entity_id_billing_period_start_billing_period_end_pk": {
-          "name": "usage_log_period_total_billing_entity_type_billing_entity_id_billing_period_start_billing_period_end_pk",
+        "usage_log_daily_total_billing_entity_type_billing_entity_id_billing_period_start_billing_period_end_user_id_day_index_pk": {
+          "name": "usage_log_daily_total_billing_entity_type_billing_entity_id_billing_period_start_billing_period_end_user_id_day_index_pk",
           "columns": [
             "billing_entity_type",
             "billing_entity_id",
             "billing_period_start",
-            "billing_period_end"
+            "billing_period_end",
+            "user_id",
+            "day_index"
           ]
         }
       },

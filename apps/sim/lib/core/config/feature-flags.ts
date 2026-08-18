@@ -56,17 +56,19 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  'usage-period-total-reads': {
+  'usage-daily-total-reads': {
     description:
-      'Serve whole-period billing totals from the maintained usage_log_period_total rollup (a ' +
-      'primary-key lookup) instead of aggregating usage_log over the whole period, which is O(' +
-      'events in the period) and sits on the per-execution quota path. Written transactionally by ' +
-      'both usage_log mutation paths regardless of this flag; the flag gates only the READ, so ' +
-      'it can be turned on after reconcileUsagePeriodTotals confirms the rollup agrees with the ' +
-      'ledger, and turned back off without losing data. Falls back to a ledger aggregate ' +
-      'whenever no rollup row exists yet. Global on/off — evaluated without user context on the ' +
-      'billing path. Off-AppConfig falls back to USAGE_PERIOD_TOTAL_READS.',
-    fallback: 'USAGE_PERIOD_TOTAL_READS',
+      'Serve the billing-period aggregates from the maintained usage_log_daily_total rollup ' +
+      'instead of scanning usage_log: the whole-period total on the per-execution quota path, ' +
+      'and the daily-refresh per-day rollup. Both are O(events in the period) against the ' +
+      'ledger. The rollup is written transactionally by both usage_log mutation paths ' +
+      'regardless of this flag; the flag gates only the READS, so it can be turned on after ' +
+      'reconcileUsageDailyTotals confirms the rollup agrees with the ledger, and turned back ' +
+      'off without losing data. Each read falls back to the ledger when the rollup cannot ' +
+      'answer it exactly (no buckets yet, a source filter, per-user bounds, or a closed ' +
+      'period). Global on/off — evaluated without user context on the billing path. ' +
+      'Off-AppConfig falls back to USAGE_DAILY_TOTAL_READS.',
+    fallback: 'USAGE_DAILY_TOTAL_READS',
   },
   'table-snapshot-cache': {
     description:

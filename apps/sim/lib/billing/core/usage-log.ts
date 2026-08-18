@@ -8,13 +8,12 @@ import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
-  applyUsagePeriodTotalDelta,
+  applyUsageDailyTotalDelta,
   readUsagePeriodTotal,
-} from '@/lib/billing/core/usage-period-total'
+} from '@/lib/billing/core/usage-daily-total'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
@@ -178,11 +177,11 @@ async function resolveBillingContext(
  * Returns post-cutover usage for an attributed billing entity/period.
  * Legacy pre-cutover usage remains in userStats as a baseline until reset.
  *
- * An unfiltered whole-period total is served from `usage_log_period_total` when
- * `usage-period-total-reads` is on — a primary-key lookup rather than an
- * aggregate whose cost grows with the number of events in the period. A
- * `source` filter is not covered by the rollup and always aggregates the
- * ledger, as does an (entity, period) the rollup has no row for yet.
+ * An unfiltered whole-period total is served from `usage_log_daily_total` — a
+ * scan of at most one bucket per user per day rather than an aggregate over
+ * every event in the period. The rollup returns `null` whenever it cannot
+ * answer (reads disabled, or no buckets yet), and a `source` filter is not
+ * covered by it at all; both fall through to the ledger.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
@@ -190,7 +189,7 @@ export async function getBillingPeriodUsageCost(
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<number> {
-  if (!source && (await isFeatureEnabled('usage-period-total-reads'))) {
+  if (!source) {
     const total = await readUsagePeriodTotal(billingEntity, billingPeriod, executor)
     if (total !== null) {
       return total
@@ -319,14 +318,11 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
   const context = await resolveBillingContext(userId, billingEntity, billingPeriod)
 
   /**
-   * The ledger write and the period-total increment must commit together, or a
+   * The ledger write and the rollup increment must commit together, or a
    * failure between them leaves the rollup permanently short of the ledger.
    * Callers that already hold a transaction pass it in; the rest get one here.
    */
-  const runInTransaction = async <T>(work: (executor: DbOrTx) => Promise<T>): Promise<T> =>
-    tx ? work(tx) : db.transaction(async (ownTx) => work(ownTx))
-
-  const insertedCost = await runInTransaction(async (executor) => {
+  const writeLedger = async (executor: DbOrTx): Promise<number> => {
     const insertedRows = await executor
       .insert(usageLog)
       .values(
@@ -373,14 +369,24 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
         target: usageLog.eventKey,
         where: sql`${usageLog.eventKey} IS NOT NULL`,
       })
-      .returning({ cost: usageLog.cost })
+      .returning({ cost: usageLog.cost, createdAt: usageLog.createdAt })
 
     const cost = insertedRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
 
-    // Only the rows that actually landed count toward the period total; the
-    // eventKey conflict above silently drops replays, and adding their cost
-    // here would inflate the total with usage the ledger never recorded.
-    await applyUsagePeriodTotalDelta(executor, context.billingEntity, context.billingPeriod, cost)
+    // Only the rows that actually landed count toward the rollup: the eventKey
+    // conflict above silently drops replays, whose cost the ledger never
+    // recorded. `created_at` defaults to `now()` — the transaction timestamp,
+    // so identical across these rows — hence the single shared day bucket.
+    if (insertedRows.length > 0) {
+      await applyUsageDailyTotalDelta(
+        executor,
+        context.billingEntity,
+        context.billingPeriod,
+        userId,
+        insertedRows[0].createdAt,
+        cost
+      )
+    }
 
     if (insertedRows.length < validEntries.length) {
       logger.debug('Skipped duplicate usage events', {
@@ -391,7 +397,9 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     }
 
     return cost
-  })
+  }
+
+  const insertedCost = tx ? await writeLedger(tx) : await db.transaction(writeLedger)
 
   logger.debug('Recorded usage', {
     userId,
@@ -588,6 +596,7 @@ export async function recordCumulativeUsage(
         billingEntityId: usageLog.billingEntityId,
         billingPeriodStart: usageLog.billingPeriodStart,
         billingPeriodEnd: usageLog.billingPeriodEnd,
+        createdAt: usageLog.createdAt,
       })
       .from(usageLog)
       .where(eq(usageLog.eventKey, eventKey))
@@ -610,21 +619,23 @@ export async function recordCumulativeUsage(
     }
 
     if (existing) {
-      // Top up the single row to the new (higher) cumulative; the
-      // period total is SUM(usage_log.cost), so this lifts it by the delta.
+      // Top up the single row to the new (higher) cumulative.
       await tx
         .update(usageLog)
         .set({ cost: newTotal.toString(), metadata: metadata ?? null })
         .where(eq(usageLog.id, existing.id))
 
-      // Top-up only raises the existing row, so the period total moves by the
-      // delta. The insert branch below goes through `recordUsage`, which
-      // accounts for its own rows — adding the delta here as well would
-      // double-count that path.
-      await applyUsagePeriodTotalDelta(
+      // Top-up only raises the existing row, so the rollup moves by the delta —
+      // in the bucket that row already belongs to, which is keyed on its
+      // original `created_at`, not on when this flush happens. The insert
+      // branch below goes through `recordUsage`, which accounts for its own
+      // rows; adding the delta here as well would double-count that path.
+      await applyUsageDailyTotalDelta(
         tx,
         billingContext.billingEntity,
         billingContext.billingPeriod,
+        existing.userId,
+        existing.createdAt,
         delta
       )
     } else {

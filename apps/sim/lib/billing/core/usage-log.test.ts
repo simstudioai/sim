@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { usageLog, usageLogPeriodTotal } from '@sim/db/schema'
+import { usageLog, usageLogDailyTotal } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -80,11 +80,14 @@ describe('recordUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     installSharedDbMocks()
-    mockReturning.mockResolvedValue([{ cost: '0.10' }, { cost: '0.20' }])
+    mockReturning.mockResolvedValue([
+      { cost: '0.10', createdAt: new Date('2026-05-04T09:00:00.000Z') },
+      { cost: '0.20', createdAt: new Date('2026-05-04T09:00:00.000Z') },
+    ])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({
       onConflictDoNothing: mockOnConflictDoNothing,
-      // usage_log_period_total is maintained through the same insert chain
+      // usage_log_daily_total is maintained through the same insert chain
       onConflictDoUpdate: mockOnConflictDoUpdate,
     })
     mockInsert.mockReturnValue({ values: mockValues })
@@ -138,7 +141,7 @@ describe('recordUsage', () => {
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
-  it('commits the ledger rows and the period total in one transaction', async () => {
+  it('commits the ledger rows and the rollup bucket in one transaction', async () => {
     await recordUsage({
       userId: 'user-1',
       entries: [{ category: 'model', source: 'workflow', description: 'gpt', cost: 0.1 }],
@@ -146,12 +149,12 @@ describe('recordUsage', () => {
 
     // Without a caller-supplied tx, recordUsage must open its own: a failure
     // between the ledger insert and the rollup increment would otherwise leave
-    // usage_log_period_total permanently short of usage_log.
+    // usage_log_daily_total permanently short of usage_log.
     expect(mockTransaction).toHaveBeenCalledTimes(1)
 
     const insertedTables = mockInsert.mock.calls.map(([table]) => table)
     expect(insertedTables).toContain(usageLog)
-    expect(insertedTables).toContain(usageLogPeriodTotal)
+    expect(insertedTables).toContain(usageLogDailyTotal)
   })
 
   it('uses pre-resolved billing context without loading subscriptions', async () => {
@@ -233,6 +236,7 @@ describe('recordCumulativeUsage', () => {
     billingEntityId: string | null
     billingPeriodStart: Date | null
     billingPeriodEnd: Date | null
+    createdAt: Date
   } = {
     id: 'row-1',
     cost: '0.3474447',
@@ -242,12 +246,17 @@ describe('recordCumulativeUsage', () => {
     billingEntityId: 'org-1',
     billingPeriodStart: new Date('2026-05-01T00:00:00.000Z'),
     billingPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
+    // The rollup buckets a top-up by the row's original createdAt, not by
+    // when the flush happens, so the fixture has to carry it.
+    createdAt: new Date('2026-05-04T09:00:00.000Z'),
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
     installSharedDbMocks()
-    mockReturning.mockResolvedValue([{ cost: '0.3474447' }])
+    mockReturning.mockResolvedValue([
+      { cost: '0.3474447', createdAt: new Date('2026-05-04T09:00:00.000Z') },
+    ])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({
       onConflictDoNothing: mockOnConflictDoNothing,
@@ -282,10 +291,10 @@ describe('recordCumulativeUsage', () => {
   }
 
   /**
-   * Inserts that targeted `usage_log` itself. `applyUsagePeriodTotalDelta`
-   * shares this insert chain to maintain `usage_log_period_total`, so a bare
+   * Inserts that targeted `usage_log` itself. `applyUsageDailyTotalDelta`
+   * shares this insert chain to maintain `usage_log_daily_total`, so a bare
    * `mockInsert` call count no longer distinguishes "wrote a ledger row" from
-   * "moved the period total".
+   * "moved a rollup bucket".
    */
   const usageLogInsertCount = () =>
     mockInsert.mock.calls.filter(([table]) => table === usageLog).length

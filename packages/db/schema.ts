@@ -3688,9 +3688,9 @@ export const usageLog = pgTable(
      * In production this does NOT actually avoid the heap: the rows these
      * aggregates read are the newest in the period, and the visibility map has
      * not marked their pages all-visible yet, so the plan is an Index Only Scan
-     * with a 100% heap-fetch rate. Whole-period totals therefore go through
-     * `usageLogPeriodTotal` instead; this index is still worth its size for the
-     * narrower, more selective aggregates (notably the daily-refresh rollup).
+     * with a 100% heap-fetch rate. The billing-period aggregates therefore go
+     * through `usageLogDailyTotal` instead; this index is still worth its size
+     * for the narrower, more selective aggregates that remain on the ledger.
      *
      * `userId`/`createdAt` sit immediately after the shared equality prefix because
      * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
@@ -3732,42 +3732,49 @@ export const usageLog = pgTable(
 )
 
 /**
- * Running total of `usage_log.cost` per (billing entity, billing period).
+ * Per-day usage totals, the grain both billing-period aggregates reduce to.
  *
- * The period total is conceptually `SUM(usage_log.cost)` over the period, but
- * evaluating that sum is O(events in the period), and it sits on the
- * per-execution quota path. Busy entities accumulate enough ledger rows in one
- * period that the aggregate reads a large multiple of the working set on every
- * call, so the cost grows both as a period fills up and as an account scales.
+ * Two hot reads sum `usage_log.cost` over a billing period: the whole-period
+ * total on the per-execution quota path, and the daily-refresh rollup, which
+ * buckets the same rows by day to apply a per-day allowance cap. Both are
+ * O(events in the period), and both sit on paths that run per execution, so
+ * they degrade as a period fills up and as an account scales.
  *
- * A covering index does not fix this. The rows being summed are always the
- * newest ones in the period, which are exactly the pages the visibility map
- * has not marked all-visible yet, so an index-only scan degrades to a heap
- * fetch per row regardless of what the index carries.
+ * A covering index does not fix either one. The rows being summed are always
+ * the newest in the period, which are exactly the pages the visibility map has
+ * not marked all-visible yet, so an index-only scan degrades to a heap fetch
+ * per row regardless of what the index carries.
  *
- * This table replaces that scan with a single primary-key lookup. It is
- * maintained transactionally alongside every `usage_log` mutation, so it is
- * exact rather than eventually consistent, and `reconcileUsagePeriodTotals`
- * can always recompute it from the ledger, which remains the source of truth.
+ * Bucketing by `(user, day)` is the coarsest grain that still answers both:
+ * the period total sums every bucket in the period, and daily refresh sums the
+ * buckets per day for a chosen set of users. That collapses a per-event scan
+ * into a scan of at most one row per user per day.
  *
- * Only the PK is indexed, and the maintained columns are not part of it, so the
- * per-event increments are HOT updates that stay page-local and need no index
- * cleanup to be reclaimed.
+ * `dayIndex` is the whole number of 24h windows from `billingPeriodStart` to
+ * the event's `createdAt`, matching how daily refresh divides the period.
  *
- * `usage_log.user_id` cascades on user deletion, which removes ledger rows
- * without lowering this total — the one non-transactional drift source, and why
- * the reconciler exists.
+ * Maintained transactionally alongside every `usage_log` mutation, so it is
+ * exact rather than eventually consistent. The ledger remains the source of
+ * truth and `reconcileUsageDailyTotals` can always recompute from it.
+ *
+ * The maintained columns are not part of the primary key and there is no other
+ * index, so the per-event increments are HOT updates that stay page-local and
+ * need no index cleanup to be reclaimed.
  */
-export const usageLogPeriodTotal = pgTable(
-  'usage_log_period_total',
+export const usageLogDailyTotal = pgTable(
+  'usage_log_daily_total',
   {
     billingEntityType: billingEntityTypeEnum('billing_entity_type').notNull(),
     billingEntityId: text('billing_entity_id').notNull(),
     billingPeriodStart: timestamp('billing_period_start').notNull(),
     billingPeriodEnd: timestamp('billing_period_end').notNull(),
+    userId: text('user_id').notNull(),
+
+    /** Whole 24h windows from `billingPeriodStart` to the event's `createdAt`. */
+    dayIndex: integer('day_index').notNull(),
 
     /**
-     * Sum of `usage_log.cost` for the period. `decimal` (not a float) so the
+     * Sum of `usage_log.cost` for the bucket. `decimal` (not a float) so the
      * running total accumulates without representation drift.
      */
     totalCost: decimal('total_cost').notNull().default('0'),
@@ -3781,6 +3788,8 @@ export const usageLogPeriodTotal = pgTable(
         table.billingEntityId,
         table.billingPeriodStart,
         table.billingPeriodEnd,
+        table.userId,
+        table.dayIndex,
       ],
     }),
   })

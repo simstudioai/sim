@@ -1071,11 +1071,13 @@ export const schemaMock = {
     executionId: 'executionId',
     createdAt: 'createdAt',
   },
-  usageLogPeriodTotal: {
+  usageLogDailyTotal: {
     billingEntityType: 'billingEntityType',
     billingEntityId: 'billingEntityId',
     billingPeriodStart: 'billingPeriodStart',
     billingPeriodEnd: 'billingPeriodEnd',
+    userId: 'userId',
+    dayIndex: 'dayIndex',
     totalCost: 'totalCost',
     updatedAt: 'updatedAt',
   },
