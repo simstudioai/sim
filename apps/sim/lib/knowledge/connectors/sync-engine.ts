@@ -1837,11 +1837,9 @@ async function updateDocument(
           fileUrl,
           storageKey: fileInfo.key,
           fileSize: artifact.bytes.length,
-          /**
-           * Re-stated on every update: a document first stored as connector-extracted
-           * text and later re-synced as its source file has to stop declaring
-           * `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
-           */
+          // Re-stated on every update: a document first stored as connector-extracted
+          // text and later re-synced as its source file has to stop declaring
+          // `text/plain`, or the pipeline's OCR routing never sees it as a PDF.
           mimeType: artifact.mimeType,
           contentHash: extDoc.contentHash,
           sourceUrl: extDoc.sourceUrl ?? null,

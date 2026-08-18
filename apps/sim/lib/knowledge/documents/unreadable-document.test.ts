@@ -15,7 +15,10 @@ const { mockParseBuffer, mockDownload } = vi.hoisted(() => ({
   mockDownload: vi.fn(),
 }))
 
-vi.mock('@/lib/file-parsers', () => ({ parseBuffer: mockParseBuffer }))
+vi.mock('@/lib/file-parsers', () => ({
+  parseBuffer: mockParseBuffer,
+  isSupportedFileType: (extension: string) => ['pdf', 'docx', 'pptx', 'doc'].includes(extension),
+}))
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
 
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
