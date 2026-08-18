@@ -277,7 +277,8 @@ export const getExpenseReportTool: ToolConfig<GetExpenseReportParams, SapConcurP
         },
         customData: {
           type: 'array',
-          description: 'Array of custom data { id, value, isValid, listItemUrl }',
+          description:
+            'Array of custom data { id, value, isValid }. Responses may additionally carry a response-only listItemUrl, which can be null',
           optional: true,
         },
         employee: {

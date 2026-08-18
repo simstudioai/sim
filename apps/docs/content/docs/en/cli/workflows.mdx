@@ -117,6 +117,33 @@ Resume a paused run (output is included in JSON or YAML output)
 
 </CommandTable>
 
+## Wait for a run to reach a terminal state, then show it
+
+```bash
+sim workflows runs wait <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--wait-timeout <seconds>` | No | Give up after this many seconds, or 0 to wait indefinitely (default: 3600). Bounds the whole wait; SIM_TIMEOUT_SECONDS bounds one request. |
+
+</CommandTable>
+
 ## Create workflow
 
 ```bash
@@ -131,7 +158,7 @@ sim workflows create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Workflow name. |
 | `--description <value>` | No | Optional workflow description. |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -147,7 +174,7 @@ sim workflows folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -163,7 +190,7 @@ sim workflows folders delete <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -174,7 +201,7 @@ sim workflows folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -213,8 +240,8 @@ Also available as `sim workflows folders mv`.
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
-| `destination` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -240,7 +267,7 @@ sim workflows delete <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -300,6 +327,9 @@ sim workflows run <id> [options]
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64. Rejected when `async` is true. |
+| `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
+| `--include-thinking` | No | Show model reasoning while following (requires --follow). |
+| `--include-tool-calls` | No | Show tool calls while following (requires --follow). |
 
 </CommandTable>
 
@@ -335,10 +365,10 @@ sim workflows get <id>
 
 </CommandTable>
 
-## Get workflow deployment
+## Show a workflow’s current deployment
 
 ```bash
-sim workflows deployment list <id>
+sim workflows deployment status <id>
 ```
 
 **Arguments**
@@ -407,7 +437,7 @@ sim workflows import [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--workflow <json\|@file>` | Yes | Workflow export object, bare workflow state, or JSON string containing either form. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--name <value>` | No | Override for the imported workflow name. |
 | `--description <value>` | No | Override for the imported workflow description. |
 
@@ -425,7 +455,7 @@ sim workflows list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
@@ -501,7 +531,7 @@ sim workflows update <id> [options]
 | --- | --- | --- |
 | `--name <value>` | No | Replacement workflow name. |
 | `--description <value>` | No | Replacement workflow description; null clears it. |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -518,7 +548,7 @@ sim workflows mv <id> <folder>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | Unique workflow identifier. |
-| `folder` | Yes | Folder path; the leading / is optional |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 

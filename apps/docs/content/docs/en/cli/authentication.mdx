@@ -20,7 +20,7 @@ The terminal prints a pairing code and a URL:
 Pairing code: K7M2-P9XT
 Confirm this code matches what the browser shows before approving.
 
-https://sim.ai/cli/auth?request=…&scope=platform
+https://www.sim.ai/cli/auth?request=…&scope=platform
 Waiting for approval…
 
 ✓ Logged in. Key stored in /Users/you/.sim/credentials
@@ -56,11 +56,18 @@ re-logging into an existing profile preselects the one already configured.
 ## Checking who you are
 
 ```bash
-sim whoami
+sim whoami                # resolved settings, plus a live check that they work
+sim whoami --no-verify    # resolved settings only, no request
 ```
 
-Prints the resolved endpoint, workspace, output format, and account, and which
-source each value came from.
+Prints the resolved endpoint, workspace, and output format, and which source each
+value came from, then reads the configured workspace to prove the key is accepted
+and can reach it.
+
+It exits `0` when the check passes, `1` when the credentials are wrong, and `2`
+when the check could not be made at all — no workspace to check against, or an
+endpoint that did not answer. The split matters in CI: only `1` is fixed by
+logging in again.
 
 ## Signing out
 

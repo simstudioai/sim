@@ -9,7 +9,7 @@ import type {
 } from '../../generated/v2-api'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { SimApiError, type SimClient } from '../../http/client'
-import { coerce, type FieldSpec } from '../../runtime/request'
+import { coerce, encodeFolderPath, type FieldSpec } from '../../runtime/request'
 import { contentTypeFor, localFile } from '../../transfer/local-file'
 import { finishUploadSession } from '../../transfer/upload-session'
 import { printProtocolResult } from './result'
@@ -108,7 +108,7 @@ export function attachTableImport(tables: Command): void {
         'How to write into --table-id (default: append)'
       ).choices(['append', 'replace'])
     )
-    .option('--folder <path>', 'Folder path for the new table')
+    .option('--folder <path>', 'Folder path for the new table, as shown in the app')
     .option('--file-id <id>', 'Import a file already in the workspace instead of a local path')
     .option('--mapping <json|@file>', 'Column mapping (--table-id only)')
     .option('--create-columns <json|@file>', 'Columns to create (--table-id only)')
@@ -144,7 +144,7 @@ export function attachTableImport(tables: Command): void {
         target = {
           type: 'new',
           name,
-          ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
+          ...(options.folder !== undefined ? { folderPath: encodeFolderPath(options.folder) } : {}),
         }
       }
 

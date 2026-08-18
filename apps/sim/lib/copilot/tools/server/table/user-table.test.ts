@@ -14,6 +14,8 @@ const {
   mockDownloadWorkspaceFile,
   mockGetTableById,
   mockBatchInsertRows,
+  mockInsertRow,
+  mockUpdateRow,
   mockReplaceTableRows,
   mockAddWorkflowGroup,
   mockCreateTable,
@@ -42,6 +44,8 @@ const {
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
   mockBatchInsertRows: vi.fn(),
+  mockInsertRow: vi.fn(),
+  mockUpdateRow: vi.fn(),
   mockReplaceTableRows: vi.fn(),
   mockAddWorkflowGroup: vi.fn(),
   mockCreateTable: vi.fn(),
@@ -208,10 +212,10 @@ vi.mock('@/lib/table/rows/service', () => ({
   deleteRowsByFilter: mockDeleteRowsByFilter,
   deleteRowsByIds: vi.fn(),
   getRowById: vi.fn(),
-  insertRow: vi.fn(),
+  insertRow: mockInsertRow,
   queryRows: mockQueryRows,
   replaceTableRows: mockReplaceTableRows,
-  updateRow: vi.fn(),
+  updateRow: mockUpdateRow,
   updateRowsByFilter: mockUpdateRowsByFilter,
 }))
 
@@ -1667,5 +1671,75 @@ describe('userTableServerTool.delete bounds', () => {
       message: 'Cannot delete more than 100 tables at once',
     })
     expect(mockGetTableById).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Copilot is the one row-write surface whose column keys come from a model rather
+ * than from the schema, so `dataKeying: 'names'` is what stands between an
+ * LLM-authored key and the storage column it means.
+ *
+ * These pin the translated outcome rather than the literal: the shared `buildTable`
+ * fixture uses legacy columns with no `id`, where name-to-id mapping is the identity
+ * and flipping the keying is unobservable. Columns whose `id` differs from `name` are
+ * what make the wrong keying fail — under `'ids'` the lax write path stores the
+ * model's key verbatim and reports success, corrupting the row silently.
+ */
+describe('userTableServerTool row writes key model-supplied columns by name', () => {
+  const KEYED_TABLE = buildTable({
+    schema: {
+      columns: [
+        { id: 'col_name', name: 'name', type: 'string', required: true },
+        { id: 'col_age', name: 'age', type: 'number' },
+      ],
+    },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(KEYED_TABLE)
+  })
+
+  it('translates an inserted row to storage column ids', async () => {
+    mockInsertRow.mockResolvedValue({
+      id: 'row-1',
+      data: { col_name: 'Ada', col_age: 36 },
+      position: 0,
+      createdAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-01'),
+    })
+
+    await userTableServerTool.execute(
+      {
+        operation: 'insert_row',
+        args: { tableId: 'tbl_1', data: { name: 'Ada', age: 36 } },
+      },
+      buildToolContext()
+    )
+
+    expect(mockInsertRow).toHaveBeenCalledTimes(1)
+    expect(mockInsertRow.mock.calls[0][0].data).toEqual({ col_name: 'Ada', col_age: 36 })
+  })
+
+  it('translates an updated row to storage column ids', async () => {
+    mockUpdateRow.mockResolvedValue({
+      id: 'row-1',
+      data: { col_name: 'Grace' },
+      position: 0,
+      executions: {},
+      createdAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-01'),
+    })
+
+    await userTableServerTool.execute(
+      {
+        operation: 'update_row',
+        args: { tableId: 'tbl_1', rowId: 'row-1', data: { name: 'Grace' } },
+      },
+      buildToolContext()
+    )
+
+    expect(mockUpdateRow).toHaveBeenCalledTimes(1)
+    expect(mockUpdateRow.mock.calls[0][0].data).toEqual({ col_name: 'Grace' })
   })
 })

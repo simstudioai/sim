@@ -317,7 +317,7 @@ Run at minimum:
 ```bash
 bunx vitest run <focused test files>
 bunx biome check <changed source and test files>
-bunx turbo run type-check --filter=sim --filter=@sim/auth
+bunx turbo run type-check --filter=@sim/app --filter=@sim/auth
 bun run check:api-validation:strict
 git diff --check
 ```

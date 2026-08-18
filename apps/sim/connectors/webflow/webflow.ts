@@ -175,7 +175,7 @@ export const webflowConnector: ConnectorConfig = {
 
     const data = (await response.json()) as {
       items?: WebflowItem[]
-      pagination?: { total?: number }
+      pagination?: { total?: unknown }
     }
 
     const rawItems = data.items || []
@@ -199,10 +199,17 @@ export const webflowConnector: ConnectorConfig = {
      * math into `NaN` (which would silently end the collection mid-listing). The
      * offset advances by the rows actually returned rather than the echoed
      * `pagination.limit`, so a short page can never skip rows.
+     *
+     * The value is type-checked rather than coerced: `Number(null)`,
+     * `Number('')`, `Number([])`, and `Number(false)` all yield a finite `0`, so
+     * coercion would read a `null` total as "this collection holds zero rows"
+     * and hand every unread row to deletion reconciliation. A negative or
+     * fractional total is malformed for the same purpose, so only a
+     * non-negative integer counts as known.
      */
-    const reportedTotal = Number(data.pagination?.total)
-    const totalKnown = Number.isFinite(reportedTotal)
-    const total = totalKnown ? reportedTotal : rawItems.length
+    const reportedTotal = data.pagination?.total
+    const totalKnown = Number.isInteger(reportedTotal) && (reportedTotal as number) >= 0
+    const total = totalKnown ? (reportedTotal as number) : rawItems.length
     const advance = rawItems.length
 
     const hasMoreInCollection = advance > 0 && cursorState.offset + advance < total
@@ -217,12 +224,17 @@ export const webflowConnector: ConnectorConfig = {
     const stalledMidCollection = advance === 0 && cursorState.offset < total
 
     /**
-     * A full page with no usable `pagination.total` to page against. The fallback
-     * total collapses to the row count, which ends the collection right here, so
-     * whether rows remain is unknowable — and guessing "exhausted" would hand
-     * every unread row to deletion reconciliation.
+     * No usable `pagination.total` to page against, on a page of any size. The
+     * fallback total collapses to the rows in hand, which ends the collection
+     * right here and makes `stalledMidCollection` (`offset < 0`) unreachable, so
+     * a short or empty page looks exactly like exhaustion. The Data API v2
+     * schema marks `pagination` required but `total` optional, so its absence is
+     * not proof of anything either way — and between "the collection is drained"
+     * and "we stopped for a reason we cannot rule out", only the latter is
+     * fail-safe: guessing "exhausted" would hand every unread row to deletion
+     * reconciliation.
      */
-    const unknownTotalOnFullPage = !totalKnown && advance >= pageSize
+    const unknownTotal = !totalKnown
 
     /**
      * A truncated listing must skip deletion reconciliation, or still-existing
@@ -234,7 +246,7 @@ export const webflowConnector: ConnectorConfig = {
     if (
       syncContext &&
       (stalledMidCollection ||
-        unknownTotalOnFullPage ||
+        unknownTotal ||
         (hitMaxItems && (hasMoreInCollection || hasMoreCollections)))
     ) {
       syncContext.listingCapped = true

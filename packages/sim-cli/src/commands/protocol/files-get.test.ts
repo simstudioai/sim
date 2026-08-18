@@ -67,6 +67,16 @@ function failingBody(): ReadableStream<Uint8Array> {
   })
 }
 
+/** What `fetch` does to a body when the request's own timeout elapses. */
+function timedOutBody(): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('partial'))
+      controller.error(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))
+    },
+  })
+}
+
 function program(): Command {
   const root = new Command('sim').exitOverride()
   for (const group of buildGeneratedCommands()) root.addCommand(group)
@@ -79,6 +89,23 @@ describe('streamToFile', () => {
     const target = join(dir, 'out.txt')
     await streamToFile(bodyOf(['hello ', 'world']), createWriteStream(target, { flags: 'wx' }))
     expect(existsSync(target)).toBe(true)
+  })
+
+  it('reports an elapsed request bound as a timeout, not as a failed write', async () => {
+    // The stream is torn down by the request's own timeout, which is not a
+    // disk problem: calling it "could not write" sent the reader to check
+    // permissions and free space for a bound they can raise.
+    const target = join(dir, 'out.txt')
+    await expect(
+      streamToFile(timedOutBody(), createWriteStream(target, { flags: 'wx' }))
+    ).rejects.toThrow(/SIM_TIMEOUT_SECONDS/)
+  })
+
+  it('still reports a genuine write failure as one', async () => {
+    const target = join(dir, 'out.txt')
+    await expect(
+      streamToFile(failingBody(), createWriteStream(target, { flags: 'wx' }))
+    ).rejects.toThrow(/Could not write/)
   })
 
   it('refuses to clobber an existing file, naming --force', async () => {

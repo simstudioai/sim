@@ -66,7 +66,7 @@ export const getItemizationsTool: ToolConfig<GetItemizationsParams, SapConcurPro
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Access context: TRAVELER, MANAGER, or PROXY',
+      description: 'Access context: TRAVELER (the only value the endpoint supports)',
     },
     reportId: {
       type: 'string',
@@ -106,13 +106,7 @@ export const getItemizationsTool: ToolConfig<GetItemizationsParams, SapConcurPro
       items: {
         type: 'json',
         properties: {
-          id: { type: 'string', description: 'Itemization identifier', optional: true },
           expenseId: { type: 'string', description: 'Itemization expense id', optional: true },
-          allocations: {
-            type: 'array',
-            description: 'Allocations applied to the itemization',
-            optional: true,
-          },
           expenseType: {
             type: 'json',
             description: 'Expense type {id, name, code, isDeleted}',

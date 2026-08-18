@@ -11,6 +11,12 @@ import {
 } from '@/tools/sap_concur/utils'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Travel Profile v2 serves this endpoint as XML only (Accept: application/xml, schema
+ * TravelProfileSummaryV2.xsd) — there is no JSON representation. The shared proxy therefore
+ * surfaces the payload as a raw XML string in `data`, which downstream blocks are expected
+ * to parse.
+ */
 export const listTravelProfilesSummaryTool: ToolConfig<
   ListTravelProfilesSummaryParams,
   SapConcurProxyResponse
@@ -87,6 +93,12 @@ export const listTravelProfilesSummaryTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Comma-separated travel configuration ids',
     },
+    active: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by user state: "1" returns active users, "0" returns inactive users.',
+    },
   },
   request: {
     url: SAP_CONCUR_PROXY_URL,
@@ -99,11 +111,13 @@ export const listTravelProfilesSummaryTool: ToolConfig<
         Page: params.page,
         ItemsPerPage: params.itemsPerPage,
         travelConfigs: params.travelConfigs,
+        Active: params.active,
       })
       return {
         ...baseProxyBody(params),
         path: '/api/travelprofile/v2.0/summary',
         method: 'GET',
+        accept: 'application/xml',
         query,
       }
     },
@@ -112,89 +126,9 @@ export const listTravelProfilesSummaryTool: ToolConfig<
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
-      description: 'Travel profile summary list payload (Concur returns XML mapped to JSON)',
-      properties: {
-        Metadata: {
-          type: 'json',
-          description: 'Paging metadata',
-          optional: true,
-          properties: {
-            Paging: {
-              type: 'json',
-              description: 'Pagination details',
-              optional: true,
-              properties: {
-                TotalPages: {
-                  type: 'number',
-                  description: 'Total number of pages',
-                  optional: true,
-                },
-                TotalItems: {
-                  type: 'number',
-                  description: 'Total number of items',
-                  optional: true,
-                },
-                Page: {
-                  type: 'number',
-                  description: 'Current page',
-                  optional: true,
-                },
-                ItemsPerPage: {
-                  type: 'number',
-                  description: 'Items per page',
-                  optional: true,
-                },
-                PreviousPageURL: {
-                  type: 'string',
-                  description: 'URL to the previous page',
-                  optional: true,
-                },
-                NextPageURL: {
-                  type: 'string',
-                  description: 'URL to the next page',
-                  optional: true,
-                },
-              },
-            },
-          },
-        },
-        Data: {
-          type: 'array',
-          description: 'Array of travel profile summaries',
-          optional: true,
-          items: {
-            type: 'json',
-            properties: {
-              Status: { type: 'string', description: 'Status (Active/Inactive)', optional: true },
-              LoginID: { type: 'string', description: 'Login identifier', optional: true },
-              XmlProfileSyncID: {
-                type: 'string',
-                description: 'XML profile sync identifier',
-                optional: true,
-              },
-              ProfileLastModifiedUTC: {
-                type: 'string',
-                description: 'Last modified timestamp (UTC)',
-                optional: true,
-              },
-              RuleClass: {
-                type: 'string',
-                description: 'Travel rule class assigned to the profile',
-                optional: true,
-              },
-              TravelConfigID: {
-                type: 'string',
-                description: 'Travel configuration identifier',
-                optional: true,
-              },
-              UUID: { type: 'string', description: 'Profile UUID', optional: true },
-              EmployeeID: { type: 'string', description: 'Employee ID', optional: true },
-              CompanyID: { type: 'string', description: 'Company ID', optional: true },
-            },
-          },
-        },
-      },
+      type: 'string',
+      description:
+        'Raw XML travel profile summary list returned by Concur (Travel Profile v2 emits application/xml only, per the TravelProfileSummaryV2.xsd schema, so this is a string and not a parsed object). The document is rooted at <ConnectResponse> with ConnectResponse > Metadata > Paging (TotalPages, TotalItems, Page, ItemsPerPage, PreviousPageURL, NextPageURL) and ConnectResponse > Data > ProfileSummary, whose only child elements are Status, LoginID, XmlProfileSyncID, and ProfileLastModifiedUTC.',
     },
   },
 }

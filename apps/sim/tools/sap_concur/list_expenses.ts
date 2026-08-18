@@ -66,7 +66,7 @@ export const listExpensesTool: ToolConfig<ListExpensesParams, SapConcurProxyResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Access context: TRAVELER, MANAGER, or PROXY',
+      description: 'Access context: TRAVELER (the only value the endpoint supports)',
     },
     reportId: {
       type: 'string',
@@ -198,6 +198,16 @@ export const listExpensesTool: ToolConfig<ListExpensesParams, SapConcurProxyResp
             optional: true,
           },
           exchangeRate: { type: 'json', description: 'Exchange rate', optional: true },
+          fuelTypeListItem: {
+            type: 'json',
+            description: 'Fuel type list item {id, value, isValid}',
+            optional: true,
+          },
+          jptRouteId: {
+            type: 'string',
+            description: 'Japan Public Transport route id',
+            optional: true,
+          },
           travelAllowance: {
             type: 'json',
             description: 'Travel allowance',

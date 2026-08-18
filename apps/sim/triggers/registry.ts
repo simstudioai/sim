@@ -266,6 +266,7 @@ import {
   jiraWorklogDeletedTrigger,
   jiraWorklogUpdatedTrigger,
 } from '@/triggers/jira'
+import { jotformWebhookTrigger } from '@/triggers/jotform'
 import {
   jsmRequestCommentedTrigger,
   jsmRequestCreatedTrigger,
@@ -661,6 +662,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   jira_sprint_closed: jiraSprintClosedTrigger,
   jira_project_created: jiraProjectCreatedTrigger,
   jira_version_released: jiraVersionReleasedTrigger,
+  jotform_webhook: jotformWebhookTrigger,
   jsm_request_created: jsmRequestCreatedTrigger,
   jsm_request_updated: jsmRequestUpdatedTrigger,
   jsm_request_commented: jsmRequestCommentedTrigger,

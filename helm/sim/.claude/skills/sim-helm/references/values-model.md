@@ -46,7 +46,7 @@ The Sim chart splits configuration across **four** layers. Understanding which l
 
 **ESO compatibility.** When `externalSecrets.enabled=true`, the chart-managed Secret is **not rendered** — ESO renders one instead. Anything in Layer 1 must be mapped via `remoteRefs.app.<KEY>` or it's silently missing. Layers 2–4 are unaffected by ESO.
 
-**Override precedence.** Values set in `app.env` (Layer 1 overrides) win over `envDefaults` (Layer 2) — so users who already had operational tunables in `app.env` continue to work.
+**Override precedence.** *Non-empty* values set in `app.env` (Layer 1 overrides) win over `envDefaults` (Layer 2) — so users who already had operational tunables in `app.env` continue to work. An *empty* `app.env` value does not override: it reads as "not specified" and the Layer 2 default still applies. To remove a key, override it with `null` (see "I want to REMOVE a key the chart sets" below).
 
 ## Where keys live — the canonical list
 
@@ -102,6 +102,22 @@ app:
 ```
 
 Prefer Layer 2 for non-sensitive tunables — keeps the Secret lean and ESO mapping minimal.
+
+### "I want to REMOVE a key the chart sets"
+
+Override it with `null` — Helm's documented deletion mechanism. It drops the key from the merged values, so no template emits it.
+
+```yaml
+app:
+  envDefaults:
+    FREE_TABLES_LIMIT: null
+```
+
+**Do not use `""` — it is a silent no-op — and do not add a chart-level "unset list" to work around that.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates must read `""` as "not specified"; ten of those collide with a real `envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_BRAND_NAME`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) and would blank themselves out on every default install if `""` meant "delete". A list-shaped unset key is also the wrong interface — Helm merges dicts but not lists, so it cannot be modified or unset downstream.
+
+The `(ne (toString $value) "<nil>")` guards throughout the templates are what make `null` deletion work — preserve them in any new render path. Regression net: `tests/env-null-deletion_test.yaml`.
+
+Caveat worth passing to operators: `null` has no effect under `helm upgrade --reuse-values`.
 
 ### "I want to set my production app URL"
 

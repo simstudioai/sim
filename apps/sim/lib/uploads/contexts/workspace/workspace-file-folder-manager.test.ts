@@ -2,17 +2,86 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it } from 'vitest'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockAcquireFolderMutationLock, mockDeduplicateFolderName } = vi.hoisted(() => ({
+  mockAcquireFolderMutationLock: vi.fn(),
+  mockDeduplicateFolderName: vi.fn(),
+}))
+
+vi.mock('@/lib/folders/locks', () => ({
+  acquireFolderMutationLock: mockAcquireFolderMutationLock,
+}))
+
+vi.mock('@/lib/folders/naming', () => ({
+  deduplicateFolderName: mockDeduplicateFolderName,
+}))
+
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 import {
+  archiveWorkspaceFileFolderIfEmpty,
   buildWorkspaceFileFolderPathMap,
+  createWorkspaceFileFolder,
   ensureWorkspaceFileFolderPath,
   normalizeWorkspaceFileItemName,
   WorkspaceFileFolderConflictError,
   WorkspaceFileItemsNotFoundError,
   WorkspaceFileMoveConflictError,
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+
+describe('createWorkspaceFileFolder', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockAcquireFolderMutationLock.mockReset()
+    mockDeduplicateFolderName.mockReset()
+  })
+
+  it('uses the shared numeric suffix allocator when exact naming is disabled', async () => {
+    const now = new Date('2026-08-17T12:00:00.000Z')
+    const inserted = {
+      id: 'folder-archive-3',
+      resourceType: 'file',
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+      name: 'Archive (3)',
+      parentId: null,
+      sortOrder: 0,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const validateResolvedName = vi.fn()
+    mockDeduplicateFolderName.mockResolvedValueOnce('Archive (3)')
+    dbChainMockFns.returning.mockResolvedValueOnce([inserted])
+
+    await expect(
+      createWorkspaceFileFolder({
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+        name: 'Archive',
+        exactName: false,
+        validateResolvedName,
+      })
+    ).resolves.toMatchObject({ name: 'Archive (3)' })
+
+    expect(mockDeduplicateFolderName).toHaveBeenCalledWith(
+      expect.anything(),
+      'workspace-1',
+      null,
+      'Archive',
+      'file'
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Archive (3)' })
+    )
+    expect(validateResolvedName).toHaveBeenCalledWith('Archive (3)')
+    expect(validateResolvedName.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.values.mock.invocationCallOrder[0]
+    )
+  })
+})
 
 describe('workspace file folder paths', () => {
   it('builds nested paths from parent relationships', () => {
@@ -96,5 +165,64 @@ describe('workspace file folder failure classification', () => {
     })
 
     expect(asOrchestrationError(wrapped)?.code).toBe('conflict')
+  })
+})
+
+describe('archiveWorkspaceFileFolderIfEmpty', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockAcquireFolderMutationLock.mockReset()
+  })
+
+  it('archives an empty folder under the folder mutation lock', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'folder-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'folder-1' }])
+
+    await expect(
+      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
+    ).resolves.toBe(true)
+
+    expect(mockAcquireFolderMutationLock).toHaveBeenCalledWith(
+      expect.anything(),
+      'workspace-1',
+      'file'
+    )
+  })
+
+  it('returns false without archiving when the folder is missing or already archived', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    await expect(
+      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
+    ).resolves.toBe(false)
+
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+  })
+
+  it('refuses to archive a folder that still holds an active file', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'folder-1' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'file-1' }])
+
+    await expect(
+      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
+    ).rejects.toMatchObject({ code: 'conflict', message: 'Folder is not empty' })
+
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+  })
+
+  it('refuses to archive a folder with an active child folder', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([{ id: 'folder-1' }])
+      .mockResolvedValueOnce([{ id: 'child-1' }])
+      .mockResolvedValueOnce([])
+
+    await expect(
+      archiveWorkspaceFileFolderIfEmpty({ workspaceId: 'workspace-1', folderId: 'folder-1' })
+    ).rejects.toMatchObject({ code: 'conflict' })
   })
 })

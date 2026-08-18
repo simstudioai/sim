@@ -64,11 +64,21 @@ sim logout [options]
 
 ## sim whoami
 
-Show the resolved profile and where each setting came from
+Show the resolved profile, where each setting came from, and whether it works
 
 ```bash
-sim whoami
+sim whoami [options]
 ```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--no-verify` | No | Skip the API check and only print the resolved settings. |
+
+</CommandTable>
 
 ## sim profiles
 
@@ -232,7 +242,7 @@ sim credentials delete <credentialId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -402,7 +412,7 @@ sim custom-tools delete <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -494,7 +504,7 @@ sim files batch-delete [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -514,7 +524,7 @@ sim files create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
 | `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. |
 | `--encoding <value>` | No | Encoding of the content field. Accepted values: `utf-8`, `base64`. |
 
@@ -534,7 +544,7 @@ sim files folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -552,7 +562,7 @@ sim files folders delete <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -563,7 +573,7 @@ sim files folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -606,8 +616,8 @@ Also available as `sim files folders mv`.
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
-| `destination` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -635,7 +645,7 @@ sim files delete <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -730,7 +740,7 @@ sim files list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a `DELETE` soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
@@ -788,12 +798,12 @@ sim files rename <fileId> [options]
 
 </CommandTable>
 
-### sim files restore create
+### sim files restore
 
-Restore File
+Restore an archived file
 
 ```bash
-sim files restore create <fileId>
+sim files restore <fileId>
 ```
 
 **Arguments**
@@ -859,7 +869,7 @@ sim files upload <path> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <path>` | No | Destination folder path (defaults to /). |
+| `--folder <path>` | No | Folder path as shown in the app; defaults to the root folder. |
 | `--name <name>` | No | Store it under a different name. |
 
 </CommandTable>
@@ -1000,7 +1010,7 @@ sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1061,7 +1071,7 @@ sim knowledge documents list <knowledgeBaseId> [options]
 Update Document
 
 ```bash
-sim knowledge documents update <id> <documentId> [options]
+sim knowledge documents update <knowledgeBaseId> <documentId> [options]
 ```
 
 **Arguments**
@@ -1070,7 +1080,7 @@ sim knowledge documents update <id> <documentId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 | `documentId` | Yes | Unique knowledge document identifier. |
 
 </CommandTable>
@@ -1158,7 +1168,7 @@ sim knowledge create [options]
 | `--name <value>` | Yes | Human-readable knowledge base name. |
 | `--description <value>` | No | Optional knowledge base description. |
 | `--chunking-config <json\|@file>` | No | Chunking configuration; defaults are applied when omitted. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -1176,7 +1186,7 @@ sim knowledge folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -1194,7 +1204,7 @@ sim knowledge folders delete <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -1205,7 +1215,7 @@ sim knowledge folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1248,8 +1258,8 @@ Also available as `sim knowledge folders mv`.
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
-| `destination` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -1277,7 +1287,7 @@ sim knowledge delete <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1313,7 +1323,7 @@ sim knowledge list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -1326,7 +1336,7 @@ sim knowledge list [options]
 List Tags
 
 ```bash
-sim knowledge tags list <id>
+sim knowledge tags list <knowledgeBaseId>
 ```
 
 **Arguments**
@@ -1335,7 +1345,7 @@ sim knowledge tags list <id>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `id` | Yes | Unique knowledge base identifier. |
+| `knowledgeBaseId` | Yes | Unique knowledge base identifier. |
 
 </CommandTable>
 
@@ -1392,7 +1402,7 @@ sim knowledge update <id> [options]
 | `--name <value>` | No | New knowledge base name. |
 | `--description <value>` | No | New knowledge base description. |
 | `--chunking-config <json\|@file>` | No | New document chunking configuration. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -1411,7 +1421,7 @@ sim knowledge mv <id> <folder>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | Unique knowledge base identifier. |
-| `folder` | Yes | Folder path; the leading / is optional |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -1518,13 +1528,37 @@ sim logs list [options]
 | `--min-cost <value>` | No | Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
 | `--max-cost <value>` | No | Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
 | `--model <value>` | No | AI model used during execution. |
-| `--details <value>` | No | Response detail level. Accepted values: `basic`, `full`. |
+| `--details <value>` | No | Response detail level; full is requested by default to name each run’s workflow. Accepted values: `basic`, `full`. |
 | `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
 | `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--order <value>` | No | Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
 | `--run-id <value>` | No | Exact run identifier to match. |
-| `--folder <value...>` | No | Folder path; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
+
+</CommandTable>
+
+### sim logs follow
+
+Watch runs as they arrive, printing each new run once
+
+```bash
+sim logs follow [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <id>` | No | Only follow runs of this workflow (repeatable). Defaults to ``. |
+| `--folder <path>` | No | Only follow runs of workflows in this folder (repeatable). Defaults to ``. |
+| `--trigger <type>` | No | Only follow runs with this trigger type (repeatable). Defaults to ``. |
+| `--level <level>` | No | Only follow runs at this severity. Accepted values: `info`, `error`. |
+| `--details <level>` | No | Response detail level; full names each run’s workflow. Accepted values: `basic`, `full`. Defaults to `full`. |
+| `-n, --lines <count>` | No | Recent runs to print before watching. Defaults to `10`. |
+| `--interval <seconds>` | No | Seconds between polls. Defaults to `3`. |
 
 </CommandTable>
 
@@ -1585,7 +1619,7 @@ sim mcp-servers delete <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1725,7 +1759,7 @@ sim secrets delete <name> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--scope <value>` | Yes | Whether the secret belongs to the workspace or to the caller. A personal secret belongs to the caller across every workspace, not to one workspace. Accepted values: `workspace`, `personal`. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1777,6 +1811,7 @@ sim secrets set <name> [options]
 | --- | --- | --- |
 | `--scope <scope>` | Yes | Secret ownership scope. Accepted values: `workspace`, `personal`. |
 | `--value <value>` | No | Secret value; visible to shell history when supplied directly. |
+| `--description <description>` | No | What the secret is for, shown to teammates; workspace scope only. Omit to leave an existing description unchanged. |
 
 </CommandTable>
 
@@ -1828,7 +1863,7 @@ sim skills delete <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -1958,7 +1993,7 @@ sim tables columns delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--column-name <value>` | Yes | Name of the column to delete. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2080,7 +2115,7 @@ sim tables groups delete <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--group-id <value>` | Yes | Workflow group to delete. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2307,7 +2342,7 @@ sim tables create [options]
 | `--name <value>` | Yes | Identifier: letters, numbers, and underscores; cannot start with a number. |
 | `--description <value>` | No | Optional table description. |
 | `--schema <json\|@file>` | Yes | Table schema: &#123;"columns":[&#123;"name":"email","type":"string"&#125;]&#125; (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -2325,7 +2360,7 @@ sim tables folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -2343,7 +2378,7 @@ sim tables folders delete <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -2354,7 +2389,7 @@ sim tables folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2397,8 +2432,8 @@ Also available as `sim tables folders mv`.
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
-| `destination` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -2456,7 +2491,7 @@ sim tables rows delete <tableId> <rowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2487,7 +2522,7 @@ sim tables rows batch-delete <tableId> [options]
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--row <value...>` | No | Explicit row identifiers to delete. (space-separated, or @path / @- with one value per line). |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2515,7 +2550,7 @@ sim tables rows find <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--q <value>` | Yes | Value to find. |
+| `--query <value>` | Yes | Value to find. |
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 
@@ -2598,6 +2633,34 @@ sim tables rows query <tableId> [options]
 
 </CommandTable>
 
+### sim tables rows count
+
+Count rows matching a filter
+
+```bash
+sim tables rows count <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ### sim tables rows enrich
 
 Run one row’s enrichment group
@@ -2645,7 +2708,7 @@ sim tables rows batch-update <tableId> [options]
 | `--filter <json\|@file>` | Yes | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--data <json\|@file>` | Yes | Row-data patch applied to every matching row. (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2732,7 +2795,7 @@ sim tables views delete <tableId> <viewId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2830,7 +2893,7 @@ sim tables delete <tableId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -2866,39 +2929,11 @@ sim tables list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-
-</CommandTable>
-
-### sim tables count create
-
-Count Rows
-
-```bash
-sim tables count create <tableId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `tableId` | Yes | Unique table identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--predicate <json\|@file>` | No | Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `&#123; field, op, value &#125;` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids. (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -2928,7 +2963,7 @@ sim tables update <tableId> [options]
 | --- | --- | --- |
 | `--name <value>` | No | Identifier: letters, numbers, and underscores; cannot start with a number. |
 | `--description <value>` | No | Replacement table description, or null to clear it. |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -2947,7 +2982,7 @@ sim tables mv <tableId> <folder>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `tableId` | Yes | Unique table identifier. |
-| `folder` | Yes | Folder path; the leading / is optional |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -3007,7 +3042,7 @@ sim tables import [path] [options]
 | `--name <name>` | No | Identifier for the new table: letters, numbers, and underscores; defaults to the sanitized file name. |
 | `--table-id <id>` | No | Import into this existing table instead of creating one. |
 | `--mode <append\|replace>` | No | How to write into --table-id (default: append). Accepted values: `append`, `replace`. |
-| `--folder <path>` | No | Folder path for the new table. |
+| `--folder <path>` | No | Folder path for the new table, as shown in the app. |
 | `--file-id <id>` | No | Import a file already in the workspace instead of a local path. |
 | `--mapping <json\|@file>` | No | Column mapping (--table-id only). |
 | `--create-columns <json\|@file>` | No | Columns to create (--table-id only). |
@@ -3179,6 +3214,35 @@ sim workflows runs resume <runId> [options]
 
 </CommandTable>
 
+### sim workflows runs wait
+
+Wait for a run to reach a terminal state, then show it
+
+```bash
+sim workflows runs wait <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--wait-timeout <seconds>` | No | Give up after this many seconds, or 0 to wait indefinitely (default: 3600). Bounds the whole wait; SIM_TIMEOUT_SECONDS bounds one request. |
+
+</CommandTable>
+
 ### sim workflows create
 
 Create Workflow
@@ -3195,7 +3259,7 @@ sim workflows create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Workflow name. |
 | `--description <value>` | No | Optional workflow description. |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -3213,7 +3277,7 @@ sim workflows folders create <path>
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -3231,7 +3295,7 @@ sim workflows folders delete <path> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -3242,7 +3306,7 @@ sim workflows folders delete <path> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--recursive` | No | Delete the folder and its descendants. |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -3285,8 +3349,8 @@ Also available as `sim workflows folders mv`.
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `path` | Yes | Folder path; the leading / is optional |
-| `destination` | Yes | Folder path; the leading / is optional |
+| `path` | Yes | Folder path as shown in the app; the leading / is optional |
+| `destination` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 
@@ -3314,7 +3378,7 @@ sim workflows delete <id> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `-y, --yes` | No | Skip the confirmation. |
+| `-y, --yes` | Yes | Confirm this destructive operation. |
 
 </CommandTable>
 
@@ -3378,6 +3442,9 @@ sim workflows run <id> [options]
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64. Rejected when `async` is true. |
+| `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
+| `--include-thinking` | No | Show model reasoning while following (requires --follow). |
+| `--include-tool-calls` | No | Show tool calls while following (requires --follow). |
 
 </CommandTable>
 
@@ -3417,12 +3484,12 @@ sim workflows get <id>
 
 </CommandTable>
 
-### sim workflows deployment list
+### sim workflows deployment status
 
-Get Workflow Deployment
+Show a workflow’s current deployment
 
 ```bash
-sim workflows deployment list <id>
+sim workflows deployment status <id>
 ```
 
 **Arguments**
@@ -3497,7 +3564,7 @@ sim workflows import [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--workflow <json\|@file>` | Yes | Workflow export object, bare workflow state, or JSON string containing either form. (JSON, or @path / @- to read a file or stdin). |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--name <value>` | No | Override for the imported workflow name. |
 | `--description <value>` | No | Override for the imported workflow description. |
 
@@ -3517,7 +3584,7 @@ sim workflows list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
@@ -3599,7 +3666,7 @@ sim workflows update <id> [options]
 | --- | --- | --- |
 | `--name <value>` | No | Replacement workflow name. |
 | `--description <value>` | No | Replacement workflow description; null clears it. |
-| `--folder <value>` | No | Folder path; the leading / is optional. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
 
@@ -3618,7 +3685,7 @@ sim workflows mv <id> <folder>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `id` | Yes | Unique workflow identifier. |
-| `folder` | Yes | Folder path; the leading / is optional |
+| `folder` | Yes | Folder path as shown in the app; the leading / is optional |
 
 </CommandTable>
 

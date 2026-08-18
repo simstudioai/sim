@@ -351,6 +351,25 @@ export const tableDefinitionSchema = domainObjectSchema<TableDefinition>()
 export const tableRowSchema = domainObjectSchema<TableRow>()
 
 /**
+ * One row as the single-row routes actually emit it: the stored cells plus
+ * position, with timestamps already serialized.
+ *
+ * Deliberately not {@link tableRowSchema}. That one describes a `TableRow`,
+ * which carries the per-cell `executions` sidecar and `Date` objects — accurate
+ * for the list and query routes, which return exactly that, and wrong for the
+ * single-row routes, which have always projected a narrower object with ISO
+ * strings. Two shapes on the wire need two schemas; collapsing them would make
+ * one of the two lie to its clients.
+ */
+export const tableRowWireSchema = z.object({
+  id: z.string(),
+  data: rowDataSchema,
+  position: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+/**
  * Plain-object base for the single-row insert body. Kept un-refined so callers
  * (e.g. the v1 public contract) can `.omit()` fields before applying
  * {@link rowAnchorMutexRefine} — Zod forbids `.omit()` on a refined schema.
@@ -1425,11 +1444,27 @@ export const upsertTableRowContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(
       z.object({
-        row: tableRowSchema,
+        row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
       })
     ),
+  },
+})
+
+/**
+ * Reads one row. The sibling of {@link updateTableRowContract} and
+ * {@link deleteTableRowContract}, which take their workspace scope from a body;
+ * a GET has none, so it is asserted on the query string instead.
+ */
+export const getTableRowContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/rows/[rowId]',
+  params: tableRowParamsSchema,
+  query: getTableQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ row: tableRowWireSchema })),
   },
 })
 
@@ -1442,7 +1477,7 @@ export const updateTableRowContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(
       z.object({
-        row: tableRowSchema,
+        row: tableRowWireSchema,
         message: z.string(),
       })
     ),

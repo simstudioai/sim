@@ -78,11 +78,21 @@ sim logout [options]
 
 </CommandTable>
 
-## Show the resolved profile and where each setting came from
+## Show the resolved profile, where each setting came from, and whether it works
 
 ```bash
-sim whoami
+sim whoami [options]
 ```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--no-verify` | No | Skip the API check and only print the resolved settings. |
+
+</CommandTable>
 
 ## List the profiles defined in the config and credentials files
 

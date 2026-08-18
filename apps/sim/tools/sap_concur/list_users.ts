@@ -66,7 +66,7 @@ export const listUsersTool: ToolConfig<ListUsersParams, SapConcurProxyResponse> 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'SCIM v4.1 pagination cursor returned by a prior call',
+      description: 'SCIM v4.1 pagination cursor — the nextCursor value returned by a prior call',
     },
     attributes: {
       type: 'string',

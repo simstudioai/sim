@@ -50,6 +50,26 @@ export type StorageContext =
   | 'logs'
   | 'workspace-logos'
 
+/**
+ * The contexts stored under the `workspace/` key prefix. They share a bucket and
+ * a workspace tenancy scope and differ only in which module owns the object: the
+ * Files module, or a mothership chat that the file was attached to.
+ *
+ * The prefix cannot separate them, and it never will — `materialize_file`
+ * promotes an attachment to a workspace file by flipping the row, so ownership
+ * is mutable while the key is not. Anything that needs the owning module reads
+ * `workspace_files.context`; the prefix answers only bucket and tenancy.
+ */
+export const WORKSPACE_SCOPED_CONTEXTS = ['workspace', 'mothership'] as const
+
+export type WorkspaceScopedContext = (typeof WORKSPACE_SCOPED_CONTEXTS)[number]
+
+export function isWorkspaceScopedContext(
+  context: string | null | undefined
+): context is WorkspaceScopedContext {
+  return WORKSPACE_SCOPED_CONTEXTS.includes(context as WorkspaceScopedContext)
+}
+
 export type MultipartCompletionPolicy = 'create-only' | 'replace' | 'reuse-existing'
 
 export interface FileInfo {

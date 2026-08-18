@@ -419,12 +419,21 @@ export function SecretsManager() {
     return mapped.filter(({ envVar }) => envVar.key.toLowerCase().includes(term))
   }, [envVars, searchTerm])
 
+  /**
+   * The row has no description column, so a description-only match is legible
+   * only on the secret's detail page. Personal secrets carry no shared
+   * description and stay key-only.
+   */
   const filteredWorkspaceEntries = useMemo(() => {
     const entries = Object.entries(workspaceVars)
     if (!searchTerm.trim()) return entries
     const term = searchTerm.toLowerCase()
-    return entries.filter(([key]) => key.toLowerCase().includes(term))
-  }, [workspaceVars, searchTerm])
+    return entries.filter(
+      ([key]) =>
+        key.toLowerCase().includes(term) ||
+        Boolean(workspaceEnvKeyToCredential.get(key)?.description?.toLowerCase().includes(term))
+    )
+  }, [workspaceVars, searchTerm, workspaceEnvKeyToCredential])
 
   const filteredNewWorkspaceRows = useMemo(() => {
     const mapped = newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))

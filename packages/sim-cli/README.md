@@ -20,7 +20,7 @@ Non-secret settings live in `~/.sim/config`:
 
 ```ini
 [default]
-endpoint = https://sim.ai
+endpoint = https://www.sim.ai
 workspace = ws_abc123
 output = table
 
@@ -46,7 +46,7 @@ The section-naming asymmetry — `[profile dev]` in config, `[dev]` in credentia
 sim configure --set-endpoint http://localhost:3000 --profile dev
 sim configure --set-workspace ws_local --profile dev
 sim profiles          # list them; * marks the active one
-sim whoami            # resolved values, and where each came from
+sim whoami            # resolved values, where each came from, and whether they work
 ```
 
 ## Where settings come from
@@ -57,13 +57,27 @@ Each setting resolves independently, first match wins:
 | --- | --- |
 | 1 | Command-line flag (`--endpoint`, `--workspace`, `--output`) |
 | 2 | Environment (`SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT`) |
+
+`SIM_TIMEOUT_SECONDS` bounds each request (default `3600`, `0` waits
+indefinitely) and `SIM_DEBUG=1` traces requests to stderr. Node ignores
+`HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is also set, on Node 22.21+ or
+24.5+; the CLI warns when a proxy is configured but will not be used.
 | 3 | `~/.sim/config` / `~/.sim/credentials` for the selected profile |
-| 4 | Built-in default (`https://sim.ai`, `table`) |
+| 4 | Built-in default (`https://www.sim.ai`, `table`) |
 
 Formats are listed under [Output formats](#output-formats).
 
 `sim whoami` prints the winning source per setting, which is usually the fastest
-way to explain a surprising result.
+way to explain a surprising result. It then reads the configured workspace to
+prove the settings actually work; `--no-verify` skips that and stays offline.
+
+Its exit status is the answer, so CI can branch on it:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The key works and reached the configured workspace |
+| `1` | The credentials are wrong — no key stored, or the API refused it |
+| `2` | The check could not be made — nothing to check against, or the endpoint did not answer |
 
 For CI, skip `sim login` entirely and set `SIM_API_KEY` and `SIM_WORKSPACE` —
 nothing needs to touch the filesystem. `SIM_CONFIG_DIR` relocates both files if
