@@ -10,13 +10,17 @@ import {
   type SubBlockRecord,
 } from '@/lib/workflows/persistence/remap-internal-ids'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   getWorkflowSearchSubBlockResourceDefinition,
   parseWorkflowSearchSubBlockResources,
   type StructuredWorkflowSearchResourceKind,
 } from '@/lib/workflows/search-replace/resources/registry'
+import {
+  getDependsOnFields,
+  getSubBlocksDependingOnChange,
+  getTransitiveSubBlockDependents,
+} from '@/lib/workflows/subblocks/dependencies'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -36,7 +40,6 @@ import {
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields, getSubBlocksDependingOnChange } from '@/blocks/utils'
 import {
   collectForkFileUploadKeys,
   remapForkFileUploadValue,
@@ -393,7 +396,7 @@ interface ToolBlockRemapOptions {
  * fields (handled by the callers / the workflow id map), not block params, so they
  * pass through here untouched. Returns a new tool object only when something changed.
  * After remapping, dependent params (via `dependsOn`) of any changed resource are
- * cleared with the same {@link getWorkflowSearchDependentClears} walk search-replace
+ * cleared with the same {@link getTransitiveSubBlockDependents} walk search-replace
  * uses, so a child scoped to the old parent isn't left stale.
  */
 export function remapToolBlockResources(
@@ -592,7 +595,7 @@ export function remapToolBlockResources(
       const parentCfg = configBySubBlockId.get(subBlockId)
       const parentRemappedNonEmpty = isNonEmptyValue(readParam(parentCfg, subBlockId))
       const parentCopied = parentRemappedNonEmpty && copyRemappedSubBlockIds.has(subBlockId)
-      for (const clear of getWorkflowSearchDependentClears(toolBlockSubBlocks, subBlockId)) {
+      for (const clear of getTransitiveSubBlockDependents(toolBlockSubBlocks, [subBlockId])) {
         const dependentCfg = configBySubBlockId.get(clear.subBlockId)
         // A verbatim manual-parent dependent is never cleared, even when reachable from a
         // second (remapped) parent.
@@ -1136,7 +1139,7 @@ export function clearDependentsOnRemap(
     }
   }
 
-  // Same BFS as `getWorkflowSearchDependentClears`, with each preserved dependent's subtree
+  // Same BFS as `getTransitiveSubBlockDependents`, with each preserved dependent's subtree
   // pruned (skipping it keeps its own dependents - e.g. a tool's arguments - out of the clear
   // set). A dependent under an ACTIVE MANUAL parent is verbatim by policy (the manual value is
   // never remapped), so it is pruned the same way.

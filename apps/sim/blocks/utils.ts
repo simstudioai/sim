@@ -8,7 +8,6 @@ import {
 } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
   getBaseModelProviders,
@@ -110,39 +109,6 @@ export function getPiModelOptions() {
       return false
     }
   })
-}
-
-/**
- * Gets all dependency fields as a flat array.
- * Handles both simple array format and object format with all/any fields.
- */
-export function getDependsOnFields(dependsOn: SubBlockConfig['dependsOn']): string[] {
-  if (!dependsOn) return []
-  if (Array.isArray(dependsOn)) return dependsOn
-  return [...(dependsOn.all || []), ...(dependsOn.any || [])]
-}
-
-/**
- * Finds subblocks that depend on a changed field, accounting for canonical pairs.
- */
-export function getSubBlocksDependingOnChange(
-  allSubBlocks: SubBlockConfig[],
-  changedSubBlockId: string
-): SubBlockConfig[] {
-  const canonicalIndex = buildCanonicalIndex(allSubBlocks)
-  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[changedSubBlockId]
-  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
-  const changedFields = new Set<string>([changedSubBlockId])
-
-  if (canonicalId) changedFields.add(canonicalId)
-  if (group?.basicId) changedFields.add(group.basicId)
-  for (const advancedId of group?.advancedIds || []) {
-    changedFields.add(advancedId)
-  }
-
-  return allSubBlocks.filter((subBlock) =>
-    getDependsOnFields(subBlock.dependsOn).some((field) => changedFields.has(field))
-  )
 }
 
 function getProviderFromStore(model: string): string | null {
