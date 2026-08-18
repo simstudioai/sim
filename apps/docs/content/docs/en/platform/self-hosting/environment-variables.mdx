@@ -263,7 +263,7 @@ app:
 Setting the variable to an empty string does **not** remove it: the chart reads an empty value as "not specified", so the inherited value still applies. Confirm what the pod will actually receive before rolling out:
 
 ```bash
-helm template <release> sim/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
 ```
 
 `null` deletion has no effect under `helm upgrade --reuse-values` — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm 3.14+). If you deploy with Argo CD, put the `null` in `valueFiles` or the `values` string rather than `valuesObject`, which strips nulls. On Docker Compose, delete the line from your `.env` file.

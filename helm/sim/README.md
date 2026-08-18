@@ -378,7 +378,7 @@ Or on the CLI: `--set app.envDefaults.FREE_TABLES_LIMIT=null`. This works for `a
 
 **Setting the key to `""` instead does not remove it.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates have to treat an empty string as "the operator said nothing" — if they did not, the ten placeholders that collide with a real `app.envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_BRAND_NAME`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) would blank themselves out on every default install. An empty entry is a silent no-op; `null` is the deletion.
 
-Nulling a key the application cannot start without (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, or `CRON_SECRET` with `cronjobs.enabled=true`) fails at template time with the existing required-secret error, not at runtime.
+With the chart-managed Secret (the default), nulling a key the application cannot start without (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `INTERNAL_API_SECRET`, or `CRON_SECRET` with `cronjobs.enabled=true`) fails at template time with the existing required-secret error rather than at runtime. In `existingSecret` mode the chart skips that validation entirely — those values come from your pre-created Secret, which the chart cannot read — so a null there renders successfully and the key is simply absent from `app.env`. Under ESO the key must still be mapped in `externalSecrets.remoteRefs.app`, which is validated at template time.
 
 > **Caveats.** `null` deletion does not take effect under `helm upgrade --reuse-values` ([helm#30765](https://github.com/helm/helm/issues/30765)) — pass your full values with `-f`, or use `--reset-then-reuse-values` (Helm ≥ 3.14).
 >
@@ -387,7 +387,7 @@ Nulling a key the application cannot start without (`BETTER_AUTH_SECRET`, `ENCRY
 The common case is a free-tier cap inherited from a chart release older than the one that stopped presetting them, which shipped `FREE_TABLES_LIMIT: "3"` and `FREE_TABLE_ROWS_LIMIT: "1000"` under `app.envDefaults`. With billing disabled, Sim reads an unset limit as unlimited, so nulling these lifts the cap. Verify before rolling out:
 
 ```bash
-helm template <release> sim/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
+helm template sim ./helm/sim -f values.yaml | grep -A1 FREE_TABLE   # expect no output
 ```
 
 ---
