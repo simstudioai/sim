@@ -63,7 +63,11 @@ envVarGroups:
 databases:
   - name: sim-db
     databaseName: simstudio
-    plan: standard
+    # Legacy 'standard' plan is no longer offered for new databases — Render
+    # replaced Starter/Standard/Pro with Basic/Pro/Accelerated tiers named by
+    # RAM. basic-4gb is the closest new-tier match to the old 'standard' size;
+    # resize up (pro-*) or down (basic-1gb/basic-256mb) as load requires.
+    plan: basic-4gb
     postgresMajorVersion: '17'
     region: oregon
 
