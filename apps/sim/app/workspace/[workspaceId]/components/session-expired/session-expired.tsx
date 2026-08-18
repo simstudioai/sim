@@ -65,7 +65,7 @@ export function SessionExpired() {
   return (
     <main
       className='fixed inset-0 z-[var(--z-takeover)] flex flex-col items-center justify-center gap-3 bg-[var(--bg)] p-6 text-center'
-      style={{ opacity: nativeSurfaceReady ? 1 : 0 }}
+      style={{ visibility: nativeSurfaceReady ? undefined : 'hidden' }}
       data-native-surface-occlusion='takeover'
     >
       <p

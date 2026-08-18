@@ -97,8 +97,8 @@ export function DesktopUpdateGate() {
 
   return (
     <div
-      className='fixed inset-0 z-[var(--z-takeover)] flex flex-col items-center justify-center gap-4 bg-[var(--bg)] px-8 text-center'
-      style={{ opacity: nativeSurfaceReady ? 1 : 0 }}
+      className='fixed inset-0 z-[var(--z-shell-gate)] flex flex-col items-center justify-center gap-4 bg-[var(--bg)] px-8 text-center'
+      style={{ visibility: nativeSurfaceReady ? undefined : 'hidden' }}
       data-native-surface-occlusion='takeover'
     >
       <div className='flex max-w-sm flex-col gap-2'>
