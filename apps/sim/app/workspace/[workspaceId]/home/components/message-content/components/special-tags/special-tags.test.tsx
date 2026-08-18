@@ -14,9 +14,11 @@ const {
   mockSendBrowserPanelAction,
   mockUpsertWorkspaceEnvironment,
   mockUseUserPermissionsContext,
+  mockUpdateWorkspaceCredential,
   mockUseWorkspaceCredential,
   mockUseWorkspaceCredentials,
 } = vi.hoisted(() => ({
+  mockUpdateWorkspaceCredential: vi.fn(async () => undefined),
   mockRefetchPersonalEnvironment: vi.fn(async () => ({ data: {} })),
   mockRefetchWorkspaceCredentials: vi.fn(async () => ({ data: [] })),
   mockIsBrowserAgentAvailable: vi.fn(() => false),
@@ -37,6 +39,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/hooks/queries/credentials', () => ({
+  useUpdateWorkspaceCredential: () => ({ mutateAsync: mockUpdateWorkspaceCredential }),
   useWorkspaceCredential: mockUseWorkspaceCredential,
   useWorkspaceCredentials: mockUseWorkspaceCredentials,
 }))
@@ -1141,6 +1144,86 @@ describe('CredentialDisplay link tag', () => {
     expect(onOptionSelect).toHaveBeenCalledWith(
       'Credential setup submitted — {"integrations":[],"secrets":[{"name":"WORKSPACE_KEY","status":"skipped"},{"name":"PERSONAL_KEY","status":"saved"}]}'
     )
+    act(() => root.unmount())
+  })
+
+  it('attaches an agent-authored description after the secret value is saved', async () => {
+    mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
+    mockRefetchWorkspaceCredentials.mockResolvedValueOnce({
+      data: [{ id: 'cred-1', envKey: 'WORKSPACE_KEY' }],
+    })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const data: CredentialItemData[] = [
+      {
+        type: 'secret_input',
+        name: 'WORKSPACE_KEY',
+        scope: 'workspace',
+        description: '  Stripe live key for billing  ',
+      },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} onOptionSelect={vi.fn()} />)
+    })
+
+    const input = container.querySelector('input')
+    act(() => {
+      if (!input) return
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      valueSetter?.call(input, 'sk-live-123')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const submitButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Submit'
+    )
+    await act(async () => submitButton?.click())
+
+    expect(mockUpsertWorkspaceEnvironment).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      variables: { WORKSPACE_KEY: 'sk-live-123' },
+    })
+    // The description rides the credential row the value save just created, so
+    // the trimmed note lands without the user ever seeing the field.
+    expect(mockUpdateWorkspaceCredential).toHaveBeenCalledWith({
+      credentialId: 'cred-1',
+      description: 'Stripe live key for billing',
+    })
+    act(() => root.unmount())
+  })
+
+  it('leaves a personal secret undescribed', async () => {
+    mockUseUserPermissionsContext.mockReturnValue({ canEdit: true })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const data: CredentialItemData[] = [
+      { type: 'secret_input', name: 'PERSONAL_KEY', scope: 'personal', description: 'my key' },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} onOptionSelect={vi.fn()} />)
+    })
+
+    const input = container.querySelector('input')
+    act(() => {
+      if (!input) return
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value'
+      )?.set
+      valueSetter?.call(input, 'personal-secret')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const submitButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Submit'
+    )
+    await act(async () => submitButton?.click())
+
+    expect(mockSavePersonalEnvironment).toHaveBeenCalled()
+    expect(mockUpdateWorkspaceCredential).not.toHaveBeenCalled()
     act(() => root.unmount())
   })
 
