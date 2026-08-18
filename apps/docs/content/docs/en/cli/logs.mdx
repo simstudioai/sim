@@ -57,12 +57,12 @@ sim logs list [options]
 | `--min-cost <value>` | No | Minimum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
 | `--max-cost <value>` | No | Maximum execution cost in USD, from 0 to 1000000. A run is never charged a negative amount, so a negative bound is rejected rather than treated as a filter that matches every run. |
 | `--model <value>` | No | AI model used during execution. |
-| `--details <value>` | No | Response detail level. Accepted values: `basic`, `full`. |
+| `--details <value>` | No | Response detail level; full is requested by default to name each run’s workflow. Accepted values: `basic`, `full`. |
 | `--include-trace-spans` | No | Include trace spans in JSON or YAML output (implies full detail). |
 | `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--order <value>` | No | Sort direction by execution start time. This list is sortable only by execution start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
 | `--run-id <value>` | No | Exact run identifier to match. |
-| `--folder <value...>` | No | Folder path; the leading / is optional (space-separated, or @path / @- with one value per line). |
+| `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line). |
 
 </CommandTable>

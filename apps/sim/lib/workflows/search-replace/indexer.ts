@@ -3,7 +3,6 @@ import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import { COMPARISON_OPERATORS, LOGICAL_OPERATORS } from '@/lib/table/query-builder/constants'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import {
   getSearchableJsonStringLeaves,
   isSearchableJsonValueSubBlock,
@@ -27,6 +26,7 @@ import type {
 } from '@/lib/workflows/search-replace/types'
 import { pathToKey, walkStringValues } from '@/lib/workflows/search-replace/value-walker'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { resolveStoredToolName } from '@/lib/workflows/subblocks/display'
 import {
   buildCanonicalIndex,
@@ -791,7 +791,7 @@ export function getToolInputParamConfigs({
   )
   const allToolSubBlocks = blockConfig?.subBlocks ?? subBlocksResult.subBlocks
   const getDependentValuePaths = (changedSubBlockId: string): WorkflowSearchValuePath[] =>
-    getWorkflowSearchDependentClears(allToolSubBlocks, changedSubBlockId).map((clear) => [
+    getTransitiveSubBlockDependents(allToolSubBlocks, [changedSubBlockId]).map((clear) => [
       'params',
       clear.subBlockId,
     ])

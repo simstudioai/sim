@@ -14,7 +14,7 @@ export const updateExpenseReportTool: ToolConfig<
   id: 'sap_concur_update_expense_report',
   name: 'SAP Concur Update Expense Report',
   description:
-    'Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc.',
+    'Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId} — supported contexts: TRAVELER, PROXY). The body must always include `reportSource` (EA, MOB, OTHER, SE, TR, or UI).',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -82,7 +82,8 @@ export const updateExpenseReportTool: ToolConfig<
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Fields to update on the report',
+      description:
+        'Fields to update on the report. `reportSource` is REQUIRED by Concur on every update — one of "EA", "MOB", "OTHER", "SE", "TR", "UI" (use "OTHER" if unknown). Other updatable fields: businessPurpose, comment, country, countryCode, countrySubDivisionCode, customData, endDate, isCopyDownInherited, isPaperReceiptsReceived, name, policy, policyId, redirectFund, reportDate, startDate.',
     },
   },
   request: {

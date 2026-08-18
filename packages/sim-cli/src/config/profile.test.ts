@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { configPath, credentialsPath } from './paths'
 import {
+  DEFAULT_ENDPOINT,
   deleteProfile,
   listProfiles,
   OUTPUT_FORMATS,
@@ -31,7 +32,7 @@ describe('profile resolution', () => {
   it('falls back to built-in defaults with nothing configured', () => {
     const profile = resolveProfile()
     expect(profile.name).toBe('default')
-    expect(profile.endpoint).toBe('https://sim.ai')
+    expect(profile.endpoint).toBe('https://www.sim.ai')
     expect(profile.apiKey).toBeNull()
     expect(profile.output).toBe('table')
     expect(profile.sources.apiKey).toBe('unset')
@@ -92,8 +93,48 @@ describe('profile resolution', () => {
     expect(resolveProfile({ profile: 'default' }).name).toBe('default')
   })
 
+  it('defaults to the host that serves the API, not the apex that redirects to it', () => {
+    // `sim.ai` answers /api/** with a 301 to `www.sim.ai`, and the client
+    // refuses redirects because following one rewrites a POST into a bodyless
+    // GET. Defaulting to the apex therefore broke every command for anyone who
+    // never set an endpoint, so the host itself is the assertion.
+    expect(DEFAULT_ENDPOINT).toBe('https://www.sim.ai')
+    expect(new URL(DEFAULT_ENDPOINT).hostname).toBe('www.sim.ai')
+    expect(resolveProfile().endpoint).toBe(DEFAULT_ENDPOINT)
+  })
+
   it('strips a trailing slash so paths do not double up', () => {
     expect(resolveProfile({ endpoint: 'https://sim.ai///' }).endpoint).toBe('https://sim.ai')
+  })
+
+  it('fails fast on an endpoint Node cannot parse, naming the source', () => {
+    expect(() => resolveProfile({ endpoint: 'not-a-url' })).toThrow(
+      'Invalid endpoint "not-a-url" from flag. Use an absolute URL, e.g. https://www.sim.ai or http://localhost:3000'
+    )
+
+    process.env.SIM_ENDPOINT = 'not-a-url'
+    expect(() => resolveProfile()).toThrow('Invalid endpoint "not-a-url" from env.')
+
+    Reflect.deleteProperty(process.env, 'SIM_ENDPOINT')
+    writeConfigProfile('default', { endpoint: 'not-a-url' })
+    expect(() => resolveProfile()).toThrow('Invalid endpoint "not-a-url" from config.')
+  })
+
+  it('rejects a parseable endpoint the HTTP client could never call', () => {
+    expect(() => resolveProfile({ endpoint: 'ftp://x.com' })).toThrow(
+      'Unsupported endpoint scheme "ftp" from flag. Use http or https, e.g. https://www.sim.ai'
+    )
+  })
+
+  it('accepts every endpoint shape a self-hosted install needs', () => {
+    for (const endpoint of [
+      'http://localhost:3000',
+      'https://10.0.0.7:8443',
+      'https://sim.internal:8080/sim',
+      'http://127.0.0.1:3000/',
+    ]) {
+      expect(resolveProfile({ endpoint }).endpoint).toBe(endpoint.replace(/\/+$/, ''))
+    }
   })
 
   it('fails fast on an unrecognized active output format', () => {

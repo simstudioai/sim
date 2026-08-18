@@ -66,7 +66,8 @@ export const updateUserTool: ToolConfig<UpdateUserParams, SapConcurProxyResponse
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'SCIM PATCH operations payload ({ schemas, Operations: [...] })',
+      description:
+        'SCIM PATCH payload. Required: schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"] and Operations, an array of { op, path, value } where op is add, replace, or remove. If the target location is a multi-valued attribute and no filter is specified, the attribute and all values are replaced. Example: deactivate a user with { op: "replace", path: "active", value: false }.',
     },
   },
   request: {

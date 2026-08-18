@@ -71,6 +71,7 @@ export const POST = defineV2JsonRoute({
           assertedWorkspaceId: body.workspaceId,
           rows: body.rows,
           strictWrite: true,
+          dataKeying: 'names' as const,
         }
       : {
           kind: 'single' as const,
@@ -80,6 +81,7 @@ export const POST = defineV2JsonRoute({
           afterRowId: body.afterRowId,
           beforeRowId: body.beforeRowId,
           strictWrite: true,
+          dataKeying: 'names' as const,
         },
   useCase: createTableRows,
   present: (result) => {
@@ -108,6 +110,7 @@ export const PATCH = defineV2JsonRoute({
     data: body.data,
     limit: body.limit,
     strictWrite: true,
+    dataKeying: 'names' as const,
   }),
   useCase: updateTableRows,
   present: ({ affectedCount, affectedRowIds }) => ({

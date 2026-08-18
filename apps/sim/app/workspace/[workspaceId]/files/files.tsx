@@ -33,12 +33,14 @@ import {
   formatFileSize,
   getFileExtension,
   getMimeTypeFromExtension,
+  isArchiveFileName,
   isAudioFileType,
   isVideoFileType,
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file-utils'
 import {
   isSupportedExtension,
+  SUPPORTED_ARCHIVE_EXTENSIONS,
   SUPPORTED_AUDIO_EXTENSIONS,
   SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
@@ -121,6 +123,7 @@ import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/
 import {
   useBulkArchiveWorkspaceFileItems,
   useCreateWorkspaceFileFolder,
+  useExtractWorkspaceFile,
   useMoveWorkspaceFileItems,
   useUpdateWorkspaceFileFolder,
   useWorkspaceFileFolders,
@@ -176,6 +179,7 @@ const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
   ...SUPPORTED_IMAGE_EXTENSIONS,
+  ...SUPPORTED_ARCHIVE_EXTENSIONS,
 ] as const
 
 const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((ext) => `.${ext}`).join(',')
@@ -191,6 +195,7 @@ const COLUMNS: ResourceColumn[] = [
 
 const MIME_TYPE_LABELS: Record<string, string> = {
   'application/pdf': 'PDF',
+  'application/zip': 'ZIP',
   'application/msword': 'Word',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
   'application/vnd.ms-excel': 'Excel',
@@ -280,6 +285,7 @@ export function Files() {
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
   const createFolder = useCreateWorkspaceFileFolder()
+  const extractFile = useExtractWorkspaceFile()
   const updateFolder = useUpdateWorkspaceFileFolder()
   const moveItems = useMoveWorkspaceFileItems()
   const bulkArchiveItems = useBulkArchiveWorkspaceFileItems()
@@ -389,6 +395,8 @@ export function Files() {
   })
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [extractTargetId, setExtractTargetId] = useState<string | null>(null)
+  const extractTarget = extractTargetId ? (fileById.get(extractTargetId) ?? null) : null
   const contextMenuItemRef = useRef<FileResourceItem | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{
     fileIds: string[]
@@ -1571,6 +1579,11 @@ export function Files() {
           void setFilesParams({ folderId: parsed.id, new: null })
           return
         }
+        const file = fileByIdRef.current.get(parsed.id)
+        if (file && isArchiveFileName(file.name)) {
+          setExtractTargetId(file.id)
+          return
+        }
         router.push(
           currentFolderId
             ? `/workspace/${workspaceId}/files/${parsed.id}?folderId=${currentFolderId}`
@@ -1580,6 +1593,21 @@ export function Files() {
     },
     [router, workspaceId, currentFolderId, setFilesParams]
   )
+
+  const handleExtract = async () => {
+    if (!extractTarget || !canEdit) return
+    try {
+      await extractFile.mutateAsync({
+        workspaceId,
+        fileId: extractTarget.id,
+        fileName: extractTarget.name,
+      })
+    } catch (error) {
+      logger.error('Failed to unzip archive:', error)
+    } finally {
+      setExtractTargetId(null)
+    }
+  }
 
   const handleUploadClick = useCallback(() => {
     if (!canEdit || uploading) return
@@ -2052,9 +2080,14 @@ export function Files() {
                 }
               />
               {isDraggingOver ? (
-                <div className='pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--bg)]/80 transition-colors'>
+                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--white)] transition-colors dark:bg-[var(--surface-4)]'>
                   <Upload className='size-5 text-[var(--brand-secondary)]' />
-                  <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
+                  <div className='flex flex-col gap-0.5 text-center'>
+                    <p className='text-[var(--brand-secondary)] text-sm'>Drop to upload</p>
+                    <p className='text-[var(--text-tertiary)] text-xs'>
+                      Release files here to add them to this workspace
+                    </p>
+                  </div>
                 </div>
               ) : null}
             </>
@@ -2099,6 +2132,25 @@ export function Files() {
         folderCount={deleteTarget?.folderIds.length ?? 0}
         onDelete={handleDelete}
         isPending={deleteFile.isPending || bulkArchiveItems.isPending}
+      />
+
+      <ChipConfirmModal
+        open={Boolean(extractTarget)}
+        onOpenChange={(open) => !open && setExtractTargetId(null)}
+        title='Unzip archive?'
+        text={[
+          'This will unzip ',
+          { text: extractTarget?.name ?? 'this archive', bold: true },
+          ' into a new folder beside it.',
+        ]}
+        confirm={{
+          label: 'Unzip',
+          onClick: () => void handleExtract(),
+          variant: 'primary',
+          pending: extractFile.isPending,
+          pendingLabel: 'Unzipping...',
+          disabled: !canEdit,
+        }}
       />
 
       {shareModal}

@@ -736,6 +736,15 @@ export function isInternalFileUrl(fileUrl: string): boolean {
  * prefixes: `kb/` (server-side uploads) or `knowledge-base/` (direct/presigned
  * uploads, whose default key is `${context}/...`). Both map to the same
  * `knowledge-base` context.
+ *
+ * What this answers is *where the bytes live* — which bucket and which tenant —
+ * and for that the prefix is authoritative. It does NOT answer which product
+ * module owns the object: `workspace/` covers both a Files-module workspace file
+ * and a mothership chat attachment, which share a bucket and a workspace scope
+ * and differ only by `workspace_files.context`. Module ownership is also mutable
+ * (`materialize_file` promotes an attachment to a workspace file), so it cannot
+ * live in an immutable key. A caller that needs the owning module must read the
+ * row — see `resolveStoredFileContext` — never this prefix.
  */
 export function inferContextFromKey(key: string): StorageContext {
   if (!key) {
@@ -778,6 +787,11 @@ const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
  * authoritative and the caller-supplied `context` is ignored — this prevents a
  * private `workspace/…` key from being relabeled with a world-readable context
  * to bypass authorization and read the shared bucket.
+ *
+ * "Authoritative" is scoped to bucket and tenancy, which is all this defends.
+ * It is not a claim about which module owns the object; that is the row's job
+ * (`resolveStoredFileContext`), and reading it costs nothing here because the
+ * row is server-authored too — the value being refused above is the *caller's*.
  *
  * Legacy keys predating context-prefixed keys cannot be inferred; for those the
  * persisted `context` is honored so existing files stay resolvable — except a

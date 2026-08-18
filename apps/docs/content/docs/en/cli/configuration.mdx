@@ -52,7 +52,7 @@ Each setting resolves independently, and the first match wins:
 | 1 | Command-line flag — `--endpoint`, `--workspace`, `--output` |
 | 2 | Environment — `SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT` |
 | 3 | `~/.sim/config` and `~/.sim/credentials`, for the selected profile |
-| 4 | Built-in default — `https://sim.ai` and `table` |
+| 4 | Built-in default — `https://www.sim.ai` and `table` |
 
 `sim whoami` prints the winning source for each setting:
 
@@ -67,7 +67,7 @@ repo:
 
 ```ini title="~/.sim/config"
 [default]
-endpoint = https://sim.ai
+endpoint = https://www.sim.ai
 workspace = ws_abc123
 output = table
 
@@ -101,6 +101,12 @@ credentials. The `default` profile is `[default]` in both.
 | `SIM_CONFIG_DIR` | Relocate both files away from `~/.sim` |
 | `SIM_CONFIG_FILE` | Relocate only the config file |
 | `SIM_CREDENTIALS_FILE` | Relocate only the credentials file |
+| `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely. Defaults to `3600`, above every timeout the server itself applies |
+| `SIM_DEBUG` | Trace each request's method, URL, status and duration to stderr |
+
+Node ignores `HTTPS_PROXY` unless you also set `NODE_USE_ENV_PROXY=1`, and only
+from Node 22.21 and 24.5. The CLI warns when a proxy is configured but will not
+be used.
 
 For CI, set `SIM_API_KEY` and `SIM_WORKSPACE` and nothing needs to touch the
 filesystem at all.

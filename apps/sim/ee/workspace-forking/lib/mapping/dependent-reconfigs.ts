@@ -1,12 +1,15 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   buildSelectorContextFromBlock,
   SELECTOR_CONTEXT_FIELDS,
 } from '@/lib/workflows/subblocks/context'
+import {
+  getDependsOnFields,
+  getTransitiveSubBlockDependents,
+} from '@/lib/workflows/subblocks/dependencies'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -18,7 +21,6 @@ import {
 import { resolveToolParamRequired } from '@/lib/workflows/tool-input/param-visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
 import {
@@ -163,7 +165,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         if (typeof value === 'string' && value) context[key] = value
       }
 
-      for (const clear of getWorkflowSearchDependentClears(config.subBlocks, anchorCfg.id)) {
+      for (const clear of getTransitiveSubBlockDependents(config.subBlocks, [anchorCfg.id])) {
         const dependent = configById.get(clear.subBlockId)
         if (!dependent?.id || !dependent.selectorKey) continue
         // Skip fields gated off by their `condition` - a selector under a now-inactive

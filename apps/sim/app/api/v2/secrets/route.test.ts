@@ -113,6 +113,7 @@ describe('GET /api/v2/secrets', () => {
         {
           name: 'STRIPE_API_KEY',
           scope: 'workspace',
+          description: null,
           role: 'admin',
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-02T00:00:00.000Z',
@@ -142,6 +143,38 @@ describe('GET /api/v2/secrets', () => {
    * `mapInput` — because the contract-level sweep only checks a hand-maintained
    * map of param names and stays green when a route drops the stamp entirely.
    */
+  it('reports a workspace secret description and never a personal one', async () => {
+    mocks.list.mockResolvedValue({
+      secrets: [
+        { ...secret, description: 'Prod billing key' },
+        {
+          ...secret,
+          id: 'secret-2',
+          type: 'env_personal' as const,
+          displayName: 'MY_TEST_KEY',
+          envKey: 'MY_TEST_KEY',
+          envOwnerUserId: 'user-1',
+          description: 'leaked from a workspace mirror',
+        },
+      ],
+      userId: 'user-1',
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}`, {
+        headers: { 'x-api-key': 'key' },
+      })
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data[0].description).toBe('Prod billing key')
+    expect(body.data[1].description).toBeNull()
+  })
+
   it('refuses a cursor minted under a different filter', async () => {
     mocks.list.mockResolvedValue({
       secrets: [secret],

@@ -1117,6 +1117,56 @@ describe('applyDependentOverrides', () => {
     expect(tools[0].params.folder).toBe('Label_99')
   })
 
+  it('applies an invalidated nested child as empty so it cannot survive under a new provider', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'jira') {
+        return blockWith([
+          { id: 'credential', title: 'Credential', type: 'oauth-input' },
+          {
+            id: 'projectId',
+            title: 'Project',
+            type: 'project-selector',
+            dependsOn: ['credential'],
+            selectorKey: 'jira.projects',
+          },
+          {
+            id: 'issueKey',
+            title: 'Issue',
+            type: 'issue-selector',
+            dependsOn: ['projectId'],
+            selectorKey: 'jira.issues',
+          },
+        ])
+      }
+      return undefined as unknown as BlockConfig
+    })
+    const subBlocks: SubBlockRecord = {
+      tools: entry('tools', 'tool-input', [
+        {
+          type: 'jira',
+          title: 'Jira',
+          params: { credential: 'c-new', projectId: 'project-old', issueKey: 'OLD-1' },
+        },
+      ]),
+    }
+
+    const result = applyDependentOverrides(
+      subBlocks,
+      'agent',
+      new Map([
+        ['tools[0].projectId', 'project-new'],
+        ['tools[0].issueKey', ''],
+      ])
+    )
+    const tools = (
+      result.tools as {
+        value: Array<{ params: { projectId: string; issueKey: string } }>
+      }
+    ).value
+    expect(tools[0].params).toMatchObject({ projectId: 'project-new', issueKey: '' })
+  })
+
   it('rejects a nested override for a non-allowlisted tool param', () => {
     vi.mocked(getBlock).mockImplementation((type) => {
       if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])

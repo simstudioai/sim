@@ -13,6 +13,7 @@ export function toV2Secret(row: VisibleWorkspaceCredential, userId: string): V2S
   return {
     name: row.envKey,
     scope: row.type === 'env_workspace' ? 'workspace' : 'personal',
+    description: row.type === 'env_workspace' ? row.description : null,
     role: row.role,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

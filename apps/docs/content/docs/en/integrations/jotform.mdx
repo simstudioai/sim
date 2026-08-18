@@ -1174,3 +1174,34 @@ Update account settings such as name, email, website, company, industry, or time
 |   ↳ `usage` | string | URL of the monthly usage endpoint |
 
 
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### Jotform Webhook
+
+Trigger workflow when a Jotform form receives a new submission
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | The form to watch. It is the numeric segment of the form URL, and the List Forms operation returns it. |
+| `apiKey` | string | Yes | Used to register the webhook on the form automatically. Create one under Account Settings &gt; API. |
+| `apiRegion` | string | No | Data residency region the API key belongs to. A key only works on the host that issued it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `formId` | string | ID of the form that was submitted |
+| `submissionId` | string | ID of the new submission |
+| `formTitle` | string | Title of the form at the time of submission |
+| `username` | string | Jotform account username that owns the form |
+| `ip` | string | IP address the submission came from |
+| `submissionType` | string | How the submission was made, e.g. WEB |
+| `pretty` | string | Human-readable summary of the answers, as comma-separated "Question Label:Answer" pairs. Unanswered questions are left out. |
+| `rawRequest` | json | The submitted form body. Answers are keyed q\{questionId\}_\{slugifiedLabel\} and hold a string, or an object for a multi-part question such as name or address. A file answer instead appears under the plain slugified label as an array of upload URLs, with the chosen filenames under temp_upload. The body also carries form-internal fields such as slug, buildDate, submitSource, and jsExecutionTracker. |
+| `raw` | json | Complete original webhook payload from Jotform |
+

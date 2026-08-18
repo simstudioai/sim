@@ -34,6 +34,7 @@ import {
   type DecompressResult,
   decompressArchiveBufferToWorkspaceFiles,
   MAX_ARCHIVE_BYTES,
+  statusForArchiveError,
 } from '@/lib/uploads/archive'
 import type { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
@@ -1183,7 +1184,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           if (archiveError instanceof ArchiveError) {
             // The error message is single-sourced in ArchiveError (caps included);
             // only the HTTP status is mapped here.
-            const status = archiveError.reason === 'invalid' ? 400 : 413
+            const status = statusForArchiveError(archiveError)
             return NextResponse.json(
               { success: false, error: `"${archive.name}": ${archiveError.message}` },
               { status }

@@ -14,7 +14,7 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
-import type { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ADMISSION_ERROR_CODE,
@@ -136,6 +136,7 @@ import {
   dispatchResolvedWebhookTarget,
   findAllWebhooksForPath,
   handleWebhookEventFilter,
+  parseWebhookBody,
   processPolledWebhookEvent,
 } from '@/lib/webhooks/processor'
 
@@ -676,5 +677,61 @@ describe('polled webhook reservation ownership', () => {
       expect.objectContaining({ executionId: 'generated-execution-id' }),
       controller.signal
     )
+  })
+})
+
+describe('parseWebhookBody', () => {
+  const parse = async (request: NextRequest) => {
+    const result = await parseWebhookBody(request, 'req-1')
+    if (result instanceof Response) throw new Error(`unexpected ${result.status} response`)
+    return result
+  }
+
+  it('flattens a multipart body, as Jotform posts submissions', async () => {
+    const form = new FormData()
+    form.set('formID', '231504059977966')
+    form.set('submissionID', '5678')
+    form.set('rawRequest', '{"q4_email":"bart@example.com"}')
+
+    const result = await parse(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: form,
+      })
+    )
+
+    expect(result.body).toEqual({
+      formID: '231504059977966',
+      submissionID: '5678',
+      rawRequest: '{"q4_email":"bart@example.com"}',
+    })
+  })
+
+  it('reduces an uploaded multipart part to its filename', async () => {
+    const form = new FormData()
+    form.set('attachment', new File(['file bytes'], 'receipt.pdf', { type: 'application/pdf' }))
+
+    const result = await parse(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: form,
+      })
+    )
+
+    expect(result.body).toEqual({ attachment: 'receipt.pdf' })
+  })
+
+  it('still rejects a body that matches no supported content type', async () => {
+    const response = await parseWebhookBody(
+      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
+        method: 'POST',
+        body: 'not json',
+        headers: { 'content-type': 'application/json' },
+      }),
+      'req-1'
+    )
+
+    expect(response).toBeInstanceOf(Response)
+    expect((response as Response).status).toBe(400)
   })
 })

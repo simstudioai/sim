@@ -170,6 +170,7 @@ export const env = createEnv({
     SMTP_USER:                             z.string().min(1).optional(),           // SMTP username
     SMTP_PASS:                             z.string().min(1).optional(),           // SMTP password
     SMTP_SECURE:                           z.boolean().optional(),                 // Force TLS on connect (defaults to true on port 465); read via envBoolean to handle string values from process.env
+    SMTP_EHLO_NAME:                        z.string().min(1).optional(),           // Hostname sent in the SMTP EHLO greeting (defaults to the app's own domain); set when the relay expects a different identity
     GMAIL_CREDENTIALS_JSON:                z.string().optional(),                  // Inline Google service-account JSON with domain-wide delegation for the Gmail API mail provider
     GMAIL_SENDER:                          z.string().min(1).optional(),           // Google Workspace user the Gmail service account impersonates when sending (e.g., noreply@yourdomain.com)
 

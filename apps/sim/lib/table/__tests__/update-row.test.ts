@@ -8,13 +8,15 @@ import { deleteColumn, renameColumn } from '@/lib/table/columns/service'
 import {
   batchInsertRows,
   batchUpdateRows,
+  getRowById,
+  getRowSummaryById,
   insertRow,
   replaceTableRows,
   updateRow,
   upsertRow,
 } from '@/lib/table/rows/service'
 import type { TableDefinition } from '@/lib/table/types'
-import { getUniqueColumns } from '@/lib/table/validation'
+import { checkUniqueConstraintsDb, getUniqueColumns } from '@/lib/table/validation'
 
 // Capacity is exercised in billing.test.ts; here it's a no-op so the timeout-scaling
 // suites can use large synthetic row counts without tripping the plan limit.
@@ -546,5 +548,149 @@ describe('batchUpdateRows — per-row partial merge', () => {
     expect(values).toContain(JSON.stringify({ name: 'Dave' }))
     // Never the whole row.
     expect(values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
+  })
+})
+
+/**
+ * The uniqueness probe opens its own transaction and queries once per unique
+ * column, so on a table that has any unique column it used to cost several
+ * round trips on every edit — including edits nowhere near one. It is now
+ * scoped to the columns the patch actually writes.
+ *
+ * The safety argument is that a merge cannot newly violate uniqueness on a
+ * column it leaves alone: that value is the one already stored, and it
+ * satisfied the constraint when it was written.
+ *
+ * The one case that does not cover is a unique constraint added to a column
+ * that already held duplicates — such a row is no longer blocked from edits
+ * elsewhere in it, which is the intended outcome.
+ */
+describe('updateRow — uniqueness probe scoping', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    // The common case: one unique column. The two tests that need a different
+    // shape override this.
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+    dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
+    dbChainMockFns.returning.mockResolvedValue([
+      { id: EXISTING_ROW.id, updatedAt: PERSISTED_UPDATED_AT },
+    ])
+  })
+
+  it('does not probe when the patch touches no unique column', async () => {
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(checkUniqueConstraintsDb).not.toHaveBeenCalled()
+  })
+
+  it('still probes when the patch touches a unique column', async () => {
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(checkUniqueConstraintsDb).toHaveBeenCalledTimes(1)
+  })
+
+  it('probes against the merged row, so the excluded row is still the one being edited', async () => {
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    // The merged row is what gets probed, the excluded row is the one being
+    // edited, and the schema is narrowed to the unique columns this patch
+    // touched — the probe issues one query per column it is handed.
+    expect(checkUniqueConstraintsDb).toHaveBeenCalledWith(
+      'tbl-1',
+      { name: 'Grace', age: 30 },
+      { ...TABLE.schema, columns: [{ name: 'name', type: 'string', unique: true }] },
+      'row-1'
+    )
+  })
+
+  it('hands the probe only the unique columns the patch touched', async () => {
+    vi.mocked(getUniqueColumns).mockReturnValue([
+      { name: 'name', type: 'string', unique: true },
+      { name: 'email', type: 'string', unique: true },
+    ])
+
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    const schemaArg = vi.mocked(checkUniqueConstraintsDb).mock.calls[0][2]
+    expect(schemaArg.columns).toEqual([{ name: 'name', type: 'string', unique: true }])
+  })
+
+  it('surfaces a duplicate on a column the patch does write', async () => {
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+    vi.mocked(checkUniqueConstraintsDb).mockResolvedValueOnce({
+      valid: false,
+      errors: ['Duplicate value for name'],
+    })
+
+    await expect(
+      updateRow(
+        { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+        TABLE,
+        'req-1'
+      )
+    ).rejects.toThrow(/Duplicate value for name/)
+  })
+
+  it('does not probe on a table with no unique columns at all', async () => {
+    vi.mocked(getUniqueColumns).mockReturnValue([])
+
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(checkUniqueConstraintsDb).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The read surfaces never put the executions sidecar on the wire, so loading it
+ * for them is a query whose result is discarded. Two readers rather than a flag:
+ * a caller that forgets a flag reads an empty sidecar and cannot tell that from
+ * a row that has none, whereas here the field is not on the type.
+ */
+describe('row readers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
+  })
+
+  it('getRowSummaryById issues one select and returns no sidecar', async () => {
+    const row = await getRowSummaryById('tbl-1', 'row-1', 'ws-1')
+
+    expect(row).not.toHaveProperty('executions')
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+  })
+
+  it('getRowById issues the extra select the sidecar needs', async () => {
+    const row = await getRowById('tbl-1', 'row-1', 'ws-1')
+
+    expect(row).toHaveProperty('executions')
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+  })
+
+  it('getRowSummaryById returns null for a missing row', async () => {
+    dbChainMockFns.limit.mockResolvedValue([])
+
+    await expect(getRowSummaryById('tbl-1', 'nope', 'ws-1')).resolves.toBeNull()
   })
 })
