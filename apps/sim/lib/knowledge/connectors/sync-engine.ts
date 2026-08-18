@@ -66,6 +66,28 @@ function sanitizeStorageTitle(title: string): string {
 }
 
 /**
+ * Sanitizes a source file's name for a storage key, keeping its extension.
+ *
+ * `sanitizeStorageTitle` truncates a long title outright, which for a source file
+ * would cut the extension off the end — and the extension is what
+ * `resolveStoredArtifactExtension` reads to pick a parser. Such a document would
+ * still parse correctly by falling back to its display name, but only by luck;
+ * preserving the suffix keeps the storage key authoritative for every file rather
+ * than for most of them.
+ */
+function sanitizeStorageFileName(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex <= 0) return sanitizeStorageTitle(fileName)
+
+  const extension = sanitizeStorageTitle(fileName.slice(dotIndex))
+  const base = sanitizeStorageTitle(fileName.slice(0, dotIndex)).slice(
+    0,
+    Math.max(1, MAX_SAFE_TITLE_LENGTH - extension.length)
+  )
+  return base + extension
+}
+
+/**
  * The bytes to store for a connector document, together with the name and type
  * that describe them.
  *
@@ -85,7 +107,7 @@ function connectorStoredArtifact(extDoc: ExternalDocument): {
   if (extDoc.sourceFile) {
     return {
       bytes: extDoc.sourceFile.bytes,
-      fileName: sanitizeStorageTitle(extDoc.sourceFile.fileName),
+      fileName: sanitizeStorageFileName(extDoc.sourceFile.fileName),
       mimeType: extDoc.sourceFile.mimeType,
     }
   }

@@ -206,6 +206,16 @@ export async function processDocument(
     const { content, processingMethod } = parseResult
     const cloudUrl = 'cloudUrl' in parseResult ? parseResult.cloudUrl : undefined
 
+    /**
+     * Guards every parser, not just the file parsers: OCR reads a scanned page
+     * that has no recoverable text as empty, and chunking empty content yields a
+     * document that reports success while holding nothing. Failing here keeps it
+     * visible with a reason instead.
+     */
+    if (parseResult.metadata?.degraded || !content.trim()) {
+      throw new Error(unreadableDocumentMessage(filename))
+    }
+
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
@@ -829,10 +839,6 @@ async function parseWithFileParser(
       throw new Error(
         'Unsupported fileUrl scheme: only data: URIs, http(s):// URLs, and internal /api/files/serve/ paths are allowed'
       )
-    }
-
-    if (metadata.degraded || !content.trim()) {
-      throw new Error(unreadableDocumentMessage(filename))
     }
 
     return { content, processingMethod: 'file-parser' as const, cloudUrl: undefined, metadata }

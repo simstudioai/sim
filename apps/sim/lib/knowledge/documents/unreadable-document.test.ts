@@ -52,6 +52,19 @@ describe('unreadable document handling', () => {
     await expect(parse('Scan.pdf')).rejects.toThrow(/scanned, image-only, or password-protected/)
   })
 
+  /**
+   * OCR reads a scanned page with no recoverable text as empty. Chunking that
+   * yields a document reporting success while holding nothing — the same silent
+   * failure the file-parser guard exists to prevent, so it has to cover OCR too.
+   */
+  it('fails an OCR result that came back empty', async () => {
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+
+    await expect(parse('Scanned.pdf', 'application/pdf')).rejects.toThrow(
+      /No text could be extracted/
+    )
+  })
+
   it('accepts a real extraction', async () => {
     mockParseBuffer.mockResolvedValue({
       content: 'Approved vendor list',
