@@ -30,6 +30,7 @@ import {
   createBrowserPanelGeometryOcclusionLease,
   hasNativeSurfaceOcclusion,
   NATIVE_SURFACE_OCCLUSION_SELECTOR,
+  snapshotMatchesHost,
   useBrowserPanelOcclusion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 
@@ -580,5 +581,46 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     expect(hook.result().snapshot).toBeNull()
     expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(false, 'chat-1')
     hook.unmount()
+  })
+})
+
+describe('snapshotMatchesHost', () => {
+  const rect = (x: number, y: number, width: number, height: number) =>
+    ({ x, y, width, height }) as DOMRect
+
+  it('accepts a capture that still describes the host rect', () => {
+    expect(
+      snapshotMatchesHost(
+        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
+        rect(10, 20, 800, 600)
+      )
+    ).toBe(true)
+  })
+
+  it('tolerates sub-pixel drift from rounding', () => {
+    expect(
+      snapshotMatchesHost(
+        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
+        rect(10.4, 19.6, 800.5, 599.5)
+      )
+    ).toBe(true)
+  })
+
+  it('rejects a capture taken before a scroll lock reflowed the panel', () => {
+    // Modal scroll lock removes the scrollbar: the host widens by 15px, so the
+    // pre-lock capture would paint misaligned — the flash this guards.
+    expect(
+      snapshotMatchesHost(
+        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
+        rect(10, 20, 815, 600)
+      )
+    ).toBe(false)
+  })
+
+  it('accepts captures with no viewport bounds (host-tracking fallback style)', () => {
+    expect(snapshotMatchesHost({ viewportBounds: undefined }, rect(0, 0, 100, 100))).toBe(true)
+    expect(
+      snapshotMatchesHost({ viewportBounds: { x: 0, y: 0, width: 10, height: 10 } }, null)
+    ).toBe(true)
   })
 })

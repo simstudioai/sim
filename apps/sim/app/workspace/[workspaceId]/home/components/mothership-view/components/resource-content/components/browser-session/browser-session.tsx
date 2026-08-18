@@ -372,6 +372,9 @@ export function BrowserSession({
   const suspended = useBrowserSessionStore((state) => state.sessions[scopeId]?.suspended ?? false)
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
+  // Lets the occlusion handshake reject a capture taken before a modal's
+  // scroll lock reflowed the panel — painting that stale rect is the flash.
+  const getHostRect = useCallback(() => hostRef.current?.getBoundingClientRect() ?? null, [])
   const urlInputRef = useRef<HTMLInputElement>(null)
   const findInputRef = useRef<HTMLInputElement>(null)
   const fillButtonRef = useRef<HTMLButtonElement>(null)
@@ -450,7 +453,7 @@ export function BrowserSession({
     requestOverlay,
     closeOverlay,
     onSnapshotError,
-  } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible)
+  } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
 
   // The resource picker lives above this component in the panel tab bar. Give
   // that one external browser overlay access to the same capture/hide handshake
