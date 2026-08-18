@@ -3745,10 +3745,15 @@ export const usageLog = pgTable(
  * not marked all-visible yet, so an index-only scan degrades to a heap fetch
  * per row regardless of what the index carries.
  *
- * Bucketing by `(user, day)` is the coarsest grain that still answers both:
- * the period total sums every bucket in the period, and daily refresh sums the
- * buckets per day for a chosen set of users. That collapses a per-event scan
- * into a scan of at most one row per user per day.
+ * Bucketing by `(user, day, source)` is the coarsest grain that answers all of
+ * them: the period total sums every bucket in the period, daily refresh sums
+ * the buckets per day for a chosen set of users, and the Chat-family breakdown
+ * sums the subset of buckets whose source is in that family. That collapses a
+ * per-event scan into a scan of at most one row per user per day per source.
+ *
+ * `source` earns its place in the key rather than being dropped: without it the
+ * cost breakdown has to go back to the ledger, and carrying it costs about a
+ * fifth more rows because most buckets only ever see a single source.
  *
  * `dayIndex` is the whole number of 24h windows from `billingPeriodStart` to
  * the event's `createdAt`, matching how daily refresh divides the period.
@@ -3773,6 +3778,8 @@ export const usageLogDailyTotal = pgTable(
     /** Whole 24h windows from `billingPeriodStart` to the event's `createdAt`. */
     dayIndex: integer('day_index').notNull(),
 
+    source: usageLogSourceEnum('source').notNull(),
+
     /**
      * Sum of `usage_log.cost` for the bucket. `decimal` (not a float) so the
      * running total accumulates without representation drift.
@@ -3790,6 +3797,7 @@ export const usageLogDailyTotal = pgTable(
         table.billingPeriodEnd,
         table.userId,
         table.dayIndex,
+        table.source,
       ],
     }),
   })

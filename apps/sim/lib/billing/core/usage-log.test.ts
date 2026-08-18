@@ -81,8 +81,8 @@ describe('recordUsage', () => {
     vi.clearAllMocks()
     installSharedDbMocks()
     mockReturning.mockResolvedValue([
-      { cost: '0.10', createdAt: new Date('2026-05-04T09:00:00.000Z') },
-      { cost: '0.20', createdAt: new Date('2026-05-04T09:00:00.000Z') },
+      { cost: '0.10', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+      { cost: '0.20', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
     ])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({
@@ -139,6 +139,33 @@ describe('recordUsage', () => {
       target: usageLog.eventKey,
     })
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  it('splits the rollup delta per source when one call spans several', async () => {
+    mockReturning.mockResolvedValue([
+      { cost: '0.10', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+      { cost: '0.20', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'copilot' },
+      { cost: '0.05', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+    ])
+
+    await recordUsage({
+      userId: 'user-1',
+      entries: [
+        { category: 'model', source: 'workflow', description: 'a', cost: 0.1 },
+        { category: 'model', source: 'copilot', description: 'b', cost: 0.2 },
+        { category: 'model', source: 'workflow', description: 'c', cost: 0.05 },
+      ],
+    })
+
+    // source is part of the bucket key, so a lump delta would land in whichever
+    // source happened to come back first and silently misattribute the rest.
+    const bucketWrites = mockValues.mock.calls
+      .map(([value]) => value)
+      .filter((value) => !Array.isArray(value) && value?.source !== undefined)
+
+    expect(bucketWrites.map((value) => value.source)).toEqual(['workflow', 'copilot'])
+    expect(Number.parseFloat(bucketWrites[0].totalCost)).toBeCloseTo(0.15, 9)
+    expect(Number.parseFloat(bucketWrites[1].totalCost)).toBeCloseTo(0.2, 9)
   })
 
   it('commits the ledger rows and the rollup bucket in one transaction', async () => {
@@ -237,6 +264,7 @@ describe('recordCumulativeUsage', () => {
     billingPeriodStart: Date | null
     billingPeriodEnd: Date | null
     createdAt: Date
+    source: 'workflow'
   } = {
     id: 'row-1',
     cost: '0.3474447',
@@ -249,13 +277,14 @@ describe('recordCumulativeUsage', () => {
     // The rollup buckets a top-up by the row's original createdAt, not by
     // when the flush happens, so the fixture has to carry it.
     createdAt: new Date('2026-05-04T09:00:00.000Z'),
+    source: 'workflow' as const,
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
     installSharedDbMocks()
     mockReturning.mockResolvedValue([
-      { cost: '0.3474447', createdAt: new Date('2026-05-04T09:00:00.000Z') },
+      { cost: '0.3474447', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
     ])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({

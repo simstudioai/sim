@@ -20,8 +20,9 @@ import {
   applyUsageDailyTotalDelta,
   dayIndexFor,
   readUsageDailyTotals,
-  readUsagePeriodTotal,
+  readUsagePeriodTotalsBySource,
   reconcileUsageDailyTotals,
+  sumSourceTotals,
 } from '@/lib/billing/core/usage-daily-total'
 
 const ENTITY = { type: 'organization' as const, id: 'org-1' }
@@ -30,6 +31,7 @@ const PERIOD = {
   end: new Date('2026-08-15T17:21:34.000Z'),
 }
 const USER = 'user-1'
+const SOURCE = 'workflow' as const
 /** Two full days after the period start, plus a few hours into the third. */
 const OCCURRED_AT = new Date('2026-07-18T04:00:00.000Z')
 
@@ -48,7 +50,7 @@ describe('applyUsageDailyTotalDelta', () => {
   const executor = () => ({ insert: mockInsert }) as never
 
   it('upserts the delta against the period key', async () => {
-    await applyUsageDailyTotalDelta(executor(), ENTITY, PERIOD, USER, OCCURRED_AT, 0.25)
+    await applyUsageDailyTotalDelta(executor(), ENTITY, PERIOD, USER, SOURCE, OCCURRED_AT, 0.25)
 
     expect(mockInsert).toHaveBeenCalledWith(usageLogDailyTotal)
     expect(mockValues).toHaveBeenCalledWith({
@@ -58,25 +60,34 @@ describe('applyUsageDailyTotalDelta', () => {
       billingPeriodEnd: PERIOD.end,
       userId: USER,
       dayIndex: 2,
+      source: SOURCE,
       totalCost: '0.25',
     })
     expect(mockOnConflictDoUpdate).toHaveBeenCalledTimes(1)
   })
 
   it('skips a zero delta so a no-op flush creates no row version', async () => {
-    await applyUsageDailyTotalDelta(executor(), ENTITY, PERIOD, USER, OCCURRED_AT, 0)
+    await applyUsageDailyTotalDelta(executor(), ENTITY, PERIOD, USER, SOURCE, OCCURRED_AT, 0)
 
     expect(mockInsert).not.toHaveBeenCalled()
   })
 
   it('skips a non-finite delta rather than poisoning the running total', async () => {
-    await applyUsageDailyTotalDelta(executor(), ENTITY, PERIOD, USER, OCCURRED_AT, Number.NaN)
+    await applyUsageDailyTotalDelta(
+      executor(),
+      ENTITY,
+      PERIOD,
+      USER,
+      SOURCE,
+      OCCURRED_AT,
+      Number.NaN
+    )
 
     expect(mockInsert).not.toHaveBeenCalled()
   })
 
   it('carries a negative delta through so a reversal lowers the total', async () => {
-    await applyUsageDailyTotalDelta(executor(), ENTITY, PERIOD, USER, OCCURRED_AT, -0.5)
+    await applyUsageDailyTotalDelta(executor(), ENTITY, PERIOD, USER, SOURCE, OCCURRED_AT, -0.5)
 
     expect(mockValues).toHaveBeenCalledWith(expect.objectContaining({ totalCost: '-0.5' }))
   })
@@ -95,7 +106,7 @@ describe('dayIndexFor', () => {
   })
 })
 
-describe('readUsagePeriodTotal', () => {
+describe('readUsagePeriodTotalsBySource', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -105,28 +116,51 @@ describe('readUsagePeriodTotal', () => {
   it('returns null without querying when rollup reads are disabled', async () => {
     mockIsFeatureEnabled.mockResolvedValue(false)
 
-    await expect(readUsagePeriodTotal(ENTITY, PERIOD)).resolves.toBeNull()
-    expect(dbChainMockFns.where).not.toHaveBeenCalled()
+    await expect(readUsagePeriodTotalsBySource(ENTITY, PERIOD)).resolves.toBeNull()
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
   })
 
-  it('sums every bucket in the period', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([{ totalCost: '1234.5678' }])
+  it('returns a source-keyed breakdown', async () => {
+    dbChainMockFns.groupBy.mockResolvedValueOnce([
+      { source: 'workflow', totalCost: '10.5' },
+      { source: 'copilot', totalCost: '4.25' },
+    ])
 
-    await expect(readUsagePeriodTotal(ENTITY, PERIOD)).resolves.toBe(1234.5678)
+    await expect(readUsagePeriodTotalsBySource(ENTITY, PERIOD)).resolves.toEqual(
+      new Map([
+        ['workflow', 10.5],
+        ['copilot', 4.25],
+      ])
+    )
   })
 
-  it('returns null (not 0) when the period has no buckets so the caller falls back', async () => {
-    // SUM over no rows is NULL, and total_cost is NOT NULL, so the sum itself
-    // distinguishes "no buckets" from a genuine zero.
-    dbChainMockFns.where.mockResolvedValueOnce([{ totalCost: null }])
+  it('returns null when the period has no buckets so the caller falls back', async () => {
+    dbChainMockFns.groupBy.mockResolvedValueOnce([])
 
-    await expect(readUsagePeriodTotal(ENTITY, PERIOD)).resolves.toBeNull()
+    await expect(readUsagePeriodTotalsBySource(ENTITY, PERIOD)).resolves.toBeNull()
+  })
+})
+
+describe('sumSourceTotals', () => {
+  const totals = new Map([
+    ['workflow', 10.5],
+    ['copilot', 4.25],
+    ['workspace-chat', 1.25],
+  ] as const)
+
+  it('sums every source when none are named', () => {
+    expect(sumSourceTotals(totals as never)).toBeCloseTo(16, 9)
   })
 
-  it('distinguishes a genuine zero total from an unmaintained period', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([{ totalCost: '0' }])
+  it('sums only the named sources', () => {
+    expect(sumSourceTotals(totals as never, ['copilot', 'workspace-chat'] as never)).toBeCloseTo(
+      5.5,
+      9
+    )
+  })
 
-    await expect(readUsagePeriodTotal(ENTITY, PERIOD)).resolves.toBe(0)
+  it('treats a source with no bucket as zero rather than NaN', () => {
+    expect(sumSourceTotals(totals as never, ['wand'] as never)).toBe(0)
   })
 })
 

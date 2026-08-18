@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { usageLog, usageLogDailyTotal } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, type SQL, sql } from 'drizzle-orm'
-import type { BillingEntity } from '@/lib/billing/core/usage-log'
+import type { BillingEntity, UsageLogSource } from '@/lib/billing/core/usage-log'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
@@ -56,6 +56,7 @@ export async function applyUsageDailyTotalDelta(
   billingPeriod: BillingPeriodRange,
   /** The `usage_log.user_id` the ledger rows were written under. */
   userId: string,
+  source: UsageLogSource,
   occurredAt: Date,
   delta: number
 ): Promise<void> {
@@ -72,6 +73,7 @@ export async function applyUsageDailyTotalDelta(
       billingPeriodEnd: billingPeriod.end,
       userId,
       dayIndex: dayIndexFor(billingPeriod.start, occurredAt),
+      source,
       totalCost: delta.toString(),
     })
     .onConflictDoUpdate({
@@ -82,6 +84,7 @@ export async function applyUsageDailyTotalDelta(
         usageLogDailyTotal.billingPeriodEnd,
         usageLogDailyTotal.userId,
         usageLogDailyTotal.dayIndex,
+        usageLogDailyTotal.source,
       ],
       set: {
         totalCost: sql`${usageLogDailyTotal.totalCost} + ${delta.toString()}::numeric`,
@@ -103,26 +106,37 @@ async function rollupReadsEnabled(): Promise<boolean> {
 }
 
 /**
- * Reads the whole-period total by summing every bucket in the period.
+ * Reads the period's cost broken down by source.
+ *
+ * One read answers every whole-period aggregate: the unfiltered total is the
+ * sum of the map, a source-filtered total is the sum of the matching entries,
+ * and the Chat-family breakdown is both at once — so those callers no longer
+ * need a query shape each, and the source-filtered ones stop falling back to
+ * the ledger entirely.
+ *
+ * At most one entry per source, so the map stays small no matter how many
+ * events the period holds.
  *
  * Returns `null` when the rollup cannot answer: reads are disabled, or the
  * period has no buckets. "No buckets" is distinct from a total of zero — it
  * means this (entity, period) has not been written since the rollup began
  * being maintained, so the caller must aggregate the ledger rather than report
- * no usage. `SUM` over no rows is `NULL` while `total_cost` is `NOT NULL`, so
- * the sum itself carries that signal and needs no companion count.
+ * no usage.
  */
-export async function readUsagePeriodTotal(
+export async function readUsagePeriodTotalsBySource(
   billingEntity: BillingEntity,
   billingPeriod: BillingPeriodRange,
   executor: DbClient = db
-): Promise<number | null> {
+): Promise<Map<UsageLogSource, number> | null> {
   if (!(await rollupReadsEnabled())) {
     return null
   }
 
-  const [row] = await executor
-    .select({ totalCost: sql<string | null>`SUM(${usageLogDailyTotal.totalCost})` })
+  const rows = await executor
+    .select({
+      source: usageLogDailyTotal.source,
+      totalCost: sql<string | null>`SUM(${usageLogDailyTotal.totalCost})`,
+    })
     .from(usageLogDailyTotal)
     .where(
       and(
@@ -132,17 +146,40 @@ export async function readUsagePeriodTotal(
         eq(usageLogDailyTotal.billingPeriodEnd, billingPeriod.end)
       )
     )
+    .groupBy(usageLogDailyTotal.source)
 
-  if (!row || row.totalCost === null) {
+  if (rows.length === 0) {
     return null
   }
-  return Number.parseFloat(row.totalCost)
+  return new Map(rows.map((row) => [row.source, Number.parseFloat(row.totalCost ?? '0')]))
+}
+
+/**
+ * Totals a source breakdown, optionally restricted to a set of sources.
+ *
+ * Keeps "which sources count" a caller's concern and "how a breakdown becomes
+ * a number" a single one.
+ */
+export function sumSourceTotals(
+  totals: Map<UsageLogSource, number>,
+  sources?: UsageLogSource[]
+): number {
+  let total = 0
+  if (!sources) {
+    for (const cost of totals.values()) total += cost
+    return total
+  }
+  for (const source of sources) total += totals.get(source) ?? 0
+  return total
 }
 
 /**
  * Reads per-day totals for a set of users, summed across those users.
  *
- * Returns `null` for the same reasons {@link readUsagePeriodTotal} does.
+ * Sums across sources, which the day-grain aggregate does not distinguish.
+ *
+ * Returns `null` for the same reasons {@link readUsagePeriodTotalsBySource}
+ * does.
  *
  * Deliberately does NOT filter `billingPeriodEnd`, even though it is part of
  * the key: the ledger aggregate this stands in for scopes on
@@ -228,24 +265,25 @@ export async function reconcileUsageDailyTotals(options?: {
       ${usageLog.billingPeriodEnd} as billing_period_end,
       ${usageLog.userId} as user_id,
       ${dayIndexSql(usageLog.createdAt, usageLog.billingPeriodStart)} as day_index,
+      ${usageLog.source} as source,
       coalesce(sum(${usageLog.cost}), 0) as total_cost
     from ${usageLog}
     where ${usageLog.billingEntityType} is not null ${periodScope}
-    group by 1, 2, 3, 4, 5, 6
+    group by 1, 2, 3, 4, 5, 6, 7
   `
 
   const written = await executor.execute(sql`
     insert into ${usageLogDailyTotal} (
       billing_entity_type, billing_entity_id, billing_period_start,
-      billing_period_end, user_id, day_index, total_cost, updated_at
+      billing_period_end, user_id, day_index, source, total_cost, updated_at
     )
     select
       billing_entity_type, billing_entity_id, billing_period_start,
-      billing_period_end, user_id, day_index, total_cost, now()
+      billing_period_end, user_id, day_index, source, total_cost, now()
     from (${ledgerBuckets}) as ledger
     on conflict (
       billing_entity_type, billing_entity_id, billing_period_start,
-      billing_period_end, user_id, day_index
+      billing_period_end, user_id, day_index, source
     ) do update set
       total_cost = excluded.total_cost,
       updated_at = now()
@@ -264,6 +302,7 @@ export async function reconcileUsageDailyTotals(options?: {
           and ledger.billing_period_end = rollup.billing_period_end
           and ledger.user_id = rollup.user_id
           and ledger.day_index = rollup.day_index
+          and ledger.source = rollup.source
       )
     returning 1
   `)

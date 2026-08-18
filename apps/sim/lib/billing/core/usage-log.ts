@@ -9,7 +9,8 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   applyUsageDailyTotalDelta,
-  readUsagePeriodTotal,
+  readUsagePeriodTotalsBySource,
+  sumSourceTotals,
 } from '@/lib/billing/core/usage-daily-total'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
@@ -177,11 +178,12 @@ async function resolveBillingContext(
  * Returns post-cutover usage for an attributed billing entity/period.
  * Legacy pre-cutover usage remains in userStats as a baseline until reset.
  *
- * An unfiltered whole-period total is served from `usage_log_daily_total` — a
- * scan of at most one bucket per user per day rather than an aggregate over
- * every event in the period. The rollup returns `null` whenever it cannot
- * answer (reads disabled, or no buckets yet), and a `source` filter is not
- * covered by it at all; both fall through to the ledger.
+ * Served from `usage_log_daily_total` — a scan of at most one bucket per user
+ * per day per source, rather than an aggregate over every event in the period.
+ * `source` is part of the bucket key, so a filtered total is answered from the
+ * same read as an unfiltered one. The rollup returns `null` whenever it cannot
+ * answer (reads disabled, or no buckets yet), which falls through to the
+ * ledger.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
@@ -189,11 +191,10 @@ export async function getBillingPeriodUsageCost(
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<number> {
-  if (!source) {
-    const total = await readUsagePeriodTotal(billingEntity, billingPeriod, executor)
-    if (total !== null) {
-      return total
-    }
+  const totalsBySource = await readUsagePeriodTotalsBySource(billingEntity, billingPeriod, executor)
+  if (totalsBySource) {
+    const sources = source ? (Array.isArray(source) ? source : [source]) : undefined
+    return sumSourceTotals(totalsBySource, sources)
   }
 
   const conditions = [
@@ -224,6 +225,9 @@ export async function getBillingPeriodUsageCost(
  * Two separate aggregates over the identical row set double the work and, because
  * they are separate statements, can observe different snapshots — which makes the
  * subset exceeding the total representable. One statement rules that out.
+ *
+ * The rollup keeps that property for free: both numbers are folded from one
+ * source breakdown read, so they cannot disagree.
  */
 export async function getBillingPeriodUsageCostWithSourceSubset(
   billingEntity: BillingEntity,
@@ -231,6 +235,14 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
   source: UsageLogSource[],
   executor: DbClient = db
 ): Promise<{ total: number; subset: number }> {
+  const totalsBySource = await readUsagePeriodTotalsBySource(billingEntity, billingPeriod, executor)
+  if (totalsBySource) {
+    return {
+      total: sumSourceTotals(totalsBySource),
+      subset: sumSourceTotals(totalsBySource, source),
+    }
+  }
+
   const [row] = await executor
     .select({
       total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
@@ -369,7 +381,11 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
         target: usageLog.eventKey,
         where: sql`${usageLog.eventKey} IS NOT NULL`,
       })
-      .returning({ cost: usageLog.cost, createdAt: usageLog.createdAt })
+      .returning({
+        cost: usageLog.cost,
+        createdAt: usageLog.createdAt,
+        source: usageLog.source,
+      })
 
     const cost = insertedRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
 
@@ -377,14 +393,24 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     // conflict above silently drops replays, whose cost the ledger never
     // recorded. `created_at` defaults to `now()` — the transaction timestamp,
     // so identical across these rows — hence the single shared day bucket.
-    if (insertedRows.length > 0) {
+    // A single call can still span sources, and source is part of the bucket
+    // key, so the delta is grouped rather than applied as one lump.
+    const costBySource = new Map<UsageLogSource, number>()
+    for (const row of insertedRows) {
+      costBySource.set(
+        row.source,
+        (costBySource.get(row.source) ?? 0) + Number.parseFloat(row.cost)
+      )
+    }
+    for (const [rowSource, sourceCost] of costBySource) {
       await applyUsageDailyTotalDelta(
         executor,
         context.billingEntity,
         context.billingPeriod,
         userId,
+        rowSource,
         insertedRows[0].createdAt,
-        cost
+        sourceCost
       )
     }
 
@@ -597,6 +623,7 @@ export async function recordCumulativeUsage(
         billingPeriodStart: usageLog.billingPeriodStart,
         billingPeriodEnd: usageLog.billingPeriodEnd,
         createdAt: usageLog.createdAt,
+        source: usageLog.source,
       })
       .from(usageLog)
       .where(eq(usageLog.eventKey, eventKey))
@@ -635,6 +662,7 @@ export async function recordCumulativeUsage(
         billingContext.billingEntity,
         billingContext.billingPeriod,
         existing.userId,
+        existing.source,
         existing.createdAt,
         delta
       )

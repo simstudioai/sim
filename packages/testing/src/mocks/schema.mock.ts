@@ -1078,6 +1078,7 @@ export const schemaMock = {
     billingPeriodEnd: 'billingPeriodEnd',
     userId: 'userId',
     dayIndex: 'dayIndex',
+    source: 'source',
     totalCost: 'totalCost',
     updatedAt: 'updatedAt',
   },
