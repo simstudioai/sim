@@ -252,7 +252,15 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
   // reads, so deployments, reads, and block work all say WHICH workflow.
   if (WORKFLOW_SCOPED_TOOL_IDS.has(name) && !stringParam(args?.workflowName)) {
     const workflowName = resolveTargetWorkflowName(args)
-    if (workflowName) return getToolDisplayTitle(name, { ...args, workflowName })
+    // Block-scoped tools carry a blockId for the same reason; resolve it too,
+    // so a row says which block ran rather than an opaque id (or nothing).
+    const blockName = stringParam(args?.blockName) ?? resolveBlockNameForDisplay(args?.blockId)
+    const enriched = {
+      ...args,
+      ...(workflowName ? { workflowName } : {}),
+      ...(blockName ? { blockName } : {}),
+    }
+    if (workflowName || blockName) return getToolDisplayTitle(name, enriched)
   }
 
   return getToolDisplayTitle(name, args)

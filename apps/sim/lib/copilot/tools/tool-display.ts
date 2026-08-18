@@ -1105,25 +1105,25 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return workflow ? `Running ${workflow}` : 'Running workflow'
     }
     case 'run_from_block': {
-      const block = firstStringArg(args, 'blockName', 'block_name', 'startBlockName', 'blockId')
+      const block = firstStringArg(args, 'blockName', 'block_name', 'startBlockName')
       const workflow = firstStringArg(args, 'workflowName', 'name')
       if (!block) return 'Running workflow'
       return workflow ? `Running from ${block} in ${workflow}` : `Running from ${block}`
     }
     case 'run_workflow_until_block': {
-      const block = firstStringArg(args, 'blockName', 'block_name', 'untilBlockName', 'blockId')
+      const block = firstStringArg(args, 'blockName', 'block_name', 'untilBlockName')
       const workflow = firstStringArg(args, 'workflowName', 'name')
       if (!block) return workflow ? `Running ${workflow}` : 'Running workflow'
       return `Running ${workflow || 'workflow'} until ${block}`
     }
     case 'run_block': {
-      const block = firstStringArg(args, 'blockName', 'block_name', 'blockId')
+      const block = firstStringArg(args, 'blockName', 'block_name')
       const workflow = firstStringArg(args, 'workflowName', 'name')
       if (!block) return 'Running block'
       return workflow ? `Running ${block} in ${workflow}` : `Running ${block}`
     }
     case 'set_block_enabled': {
-      const block = firstStringArg(args, 'blockName', 'block_name', 'blockId')
+      const block = firstStringArg(args, 'blockName', 'block_name')
       const workflow = firstStringArg(args, 'workflowName', 'name')
       const verb =
         args?.enabled === false ? 'Disabling' : args?.enabled === true ? 'Enabling' : 'Toggling'
