@@ -1255,6 +1255,33 @@ describe('row data keying', () => {
     expect(mockUpdateRow).not.toHaveBeenCalled()
   })
 
+  it('accepts a legacy column that has no id and is stored under its name', async () => {
+    // Two production tables still carry pre-backfill columns with no `id`.
+    // Their storage key is the name, so a strict id-keyed write naming one must
+    // be accepted, not refused as unknown.
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: { ...TABLE, schema: { columns: [{ name: 'legacy', type: 'string' }] } },
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { legacy: 'x' },
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).resolves.toBeDefined()
+  })
+
   it('names every unknown id at once, as the name wire does', async () => {
     await expect(
       createTableRows.execute({

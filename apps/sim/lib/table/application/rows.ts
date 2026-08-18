@@ -43,7 +43,7 @@ import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
+import { buildIdByName, getColumnId, unknownColumnNames } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
@@ -179,7 +179,10 @@ export type TableRowDataKeying = 'names' | 'ids'
  * `strictWrite` condition, so strictness means the same thing on either wire.
  */
 function assertKnownColumnIds(data: RowData, table: TableDefinition, rowLabel?: string): void {
-  const ids = new Set(table.schema.columns.map((column) => column.id))
+  // `getColumnId`, not `column.id`: a legacy pre-backfill column has no id and is
+  // stored under its name, so reading the raw field would reject a write that
+  // every other consumer of the schema accepts.
+  const ids = new Set(table.schema.columns.map((column) => getColumnId(column)))
   const unknown = Object.keys(data).filter((key) => !ids.has(key))
   if (unknown.length === 0) return
   const where = rowLabel ? `${rowLabel}: ` : ''
