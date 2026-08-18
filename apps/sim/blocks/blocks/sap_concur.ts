@@ -1008,6 +1008,18 @@ Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
       required: { field: 'operation', value: 'sap_concur_create_report_comment' },
     },
     {
+      id: 'sendbackComment',
+      title: 'Sendback Comment',
+      type: 'long-input',
+      placeholder: 'Visible wherever Request comments are shown',
+      condition: {
+        field: 'operation',
+        value: 'sap_concur_move_travel_request',
+        and: { field: 'action', value: 'sendback' },
+      },
+      mode: 'advanced',
+    },
+    {
       id: 'includeAllComments',
       title: 'Include All Comments',
       type: 'switch',
@@ -1893,7 +1905,7 @@ Return ONLY the comma-separated travel config IDs - no explanations, no extra te
         enabled: true,
         prompt: `Generate the JSON request body for the selected SAP Concur operation from the user's request.
 
-Match the payload to the resource being written. Every family below is camelCase.
+Match the payload to the resource being written. Every family below is camelCase EXCEPT exchange rates, which is snake_case.
 
 Expense reports (v4): name, businessPurpose, comment, policyId, countryCode, countrySubDivisionCode, reportDate, startDate, endDate, and reportSource — reportSource is REQUIRED when updating a report and must be one of EA, MOB, OTHER, SE, TR, UI.
 
@@ -1904,6 +1916,8 @@ Travel requests and expected expenses (Request v4): name, businessPurpose, start
 SCIM users (Identity v4.1): create and update payloads use schemas, userName, name.givenName, name.familyName, emails, active, and companyId inside urn:ietf:params:scim:schemas:extension:enterprise:2.0:User. Update uses urn:ietf:params:scim:api:messages:2.0:PatchOp with Operations. Search payloads use schemas with urn:ietf:params:scim:api:messages:concur:2.0:SearchRequest plus filter, count, attributes and cursor — startIndex is NOT supported as a request parameter.
 
 List items: listId, level, value, shortCode. Cash advances: amountRequested as { currency, amount }, name and userId (all required), plus optional accountCode, comment and purpose.
+
+Exchange rates are the one snake_case family: currency_sets as an array of up to 100 entries, each { from_crn_code, to_crn_code, start_date as YYYY-MM-DD, rate }.
 
 Omit fields the user did not describe rather than inventing identifiers.
 
@@ -2262,6 +2276,8 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               body: params.body || undefined,
               userId: params.travelRequestUserId || undefined,
               companyID: params.companyID || undefined,
+              comment:
+                params.action === 'sendback' ? params.sendbackComment || undefined : undefined,
             }
           case 'sap_concur_list_travel_request_comments':
             return { ...auth, requestUuid: params.requestUuid }
@@ -2531,6 +2547,11 @@ Return ONLY the JSON object - no explanations, no extra text.`,
       type: 'string',
       description:
         'Optional company identifier for a travel request workflow action (documented as companyID, distinct from companyUuid)',
+    },
+    sendbackComment: {
+      type: 'string',
+      description:
+        'Optional comment on a travel request workflow action — Concur applies it only to the sendback action, and it is visible wherever Request comments are shown',
     },
     travelRequestApprovedBefore: { type: 'string', description: 'Travel requests approved before' },
     travelRequestApprovedAfter: { type: 'string', description: 'Travel requests approved after' },
