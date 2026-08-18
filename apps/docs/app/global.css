@@ -1687,6 +1687,21 @@ figure.shiki > div:first-child:has(figcaption) svg {
    fumadocs numbers a fence itself when the author writes the `lines` meta, via `.line::after`.
    That is additive with this, so it is switched off below — otherwise such a fence would paint
    two gutters. */
+/* The gutter's column is opened by fumadocs' own `--padding-left`, not by overriding its
+   `.line` rule: that rule is `.shiki:not(.not-fumadocs-codeblock *) .line`, and `:not()` carries
+   its argument's specificity, so it lands at (0,3,0) — above anything reasonable to write here.
+
+   Declared at all three levels because the variable is inherited and the nearest declaration
+   wins: fumadocs sets it on `.shiki`, which is on the `figure` for prose fences but on the
+   `figure` AND the inner `pre` for API samples, and it writes `--padding-right` as an inline
+   style on the viewport. `!important` beats both that inline style and `.shiki:not(…)`, which
+   is more specific than a plain `figure.shiki`. */
+figure.shiki,
+figure.shiki > div[role="region"],
+figure.shiki .shiki {
+  --padding-left: 2.75rem !important;
+}
+
 figure.shiki code {
   counter-reset: line;
 }
@@ -1694,7 +1709,6 @@ figure.shiki code {
 figure.shiki code .line {
   position: relative;
   counter-increment: line;
-  padding-left: 2.75rem;
 }
 
 figure.shiki code .line::before {
@@ -1727,7 +1741,9 @@ figure.shiki > div[role="region"] {
 
    `!important` is load-bearing: fumadocs writes this same custom property as an inline style
    on the viewport, and an inline declaration outranks any stylesheet rule without it. */
-figure.shiki:not(:has(figcaption)) > div[role="region"] {
+figure.shiki:not(:has(figcaption)),
+figure.shiki:not(:has(figcaption)) > div[role="region"],
+figure.shiki:not(:has(figcaption)) .shiki {
   --padding-right: 2.75rem !important;
 }
 
@@ -1786,6 +1802,45 @@ figure.shiki button[aria-label="Copied Text"] svg {
 
 figure.shiki button[aria-label="Copied Text"] {
   color: var(--brand-accent);
+}
+
+/* One block per API reference page — the request "usage tabs" (cURL / JavaScript / Go / …) —
+   is rendered by fumadocs-openapi's `UsageTab`, which hardcodes its own `ClientCodeBlock`.
+   `renderCodeBlock` covers every other sample, and `OperationClientOptions` exposes only
+   `APIExampleSelector`, so there is no supported prop that reaches this one. Its lucide
+   clipboard is masked over with emcn's `Duplicate` / `Check` artwork so the copy glyph is the
+   same everywhere.
+
+   Scoped to `svg.lucide-*`: any block that already renders the real emcn icon is untouched,
+   and if fumadocs ever adds an override for these tabs, these rules simply stop matching.
+   The paths are copied from `packages/emcn/src/icons/{duplicate,check}.tsx` — a mask cannot
+   reference a component — so they must be updated together if that artwork changes. */
+figure.shiki button[aria-label$="Text"] > svg[class*="lucide"] {
+  display: none;
+}
+
+figure.shiki button[aria-label$="Text"]:has(> svg[class*="lucide"])::before {
+  content: "";
+  display: block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask-image: var(--copy-glyph);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-image: var(--copy-glyph);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+figure.shiki button[aria-label="Copy Text"] {
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.55' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25'/%3E%3Crect x='5.25' y='5.25' width='14' height='14' rx='2'/%3E%3C/svg%3E");
+}
+
+figure.shiki button[aria-label="Copied Text"] {
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.55' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.25 2.75L7.25 15.75L1.75 10.25'/%3E%3C/svg%3E");
 }
 
 /* Tabbed fences (`<Tabs>` around code) — collapse the strip and the figure into one box so

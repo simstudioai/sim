@@ -1,4 +1,5 @@
 import type React from 'react'
+import { highlight } from 'fumadocs-core/highlight'
 import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
@@ -70,7 +71,22 @@ function stripLocalePrefix(url: string, lang: string): string {
   return url
 }
 
+/**
+ * Renders the API reference's request and response samples through the docs' own `CodeBlock`
+ * rather than fumadocs-openapi's built-in one, so those blocks get the emcn copy control
+ * instead of fumadocs' lucide clipboard. Mirrors the default renderer — same `highlight` call,
+ * same `Pre` component, same `my-0` — differing only in which shell wraps the result.
+ */
+async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
+  return (
+    <CodeBlock className='my-0'>
+      {await highlight(code, { lang, ...simShikiOptions, components: { pre: Pre } })}
+    </CodeBlock>
+  )
+}
+
 const APIPage = createAPIPage(openapi, {
+  renderCodeBlock: (props) => <ApiCodeBlock {...props} />,
   playground: { enabled: false },
   generateCodeSamples: getAuthenticatedCodeSamples,
   /**
