@@ -259,7 +259,7 @@ export const CLI_CONTRACT: CliContract = {
     },
     itemsPath: 'results',
     columns: [
-      { header: 'score', path: 'similarity' },
+      { header: 'score', path: 'similarity', format: 'score' },
       { header: 'document', path: 'documentName' },
       { header: 'chunk', path: 'chunkIndex' },
       { header: 'content' },

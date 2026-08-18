@@ -80,6 +80,8 @@ function renderCell(
       return bool(value as boolean | null)
     case 'cost':
       return typeof value === 'number' ? `$${value.toFixed(4)}` : text(null)
+    case 'score':
+      return typeof value === 'number' ? value.toFixed(4) : text(null)
     case 'count':
       return Array.isArray(value) ? String(value.length) : text(null)
     case 'folder-path':

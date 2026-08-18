@@ -172,6 +172,29 @@ describe('a declared field that the API stops returning', () => {
   })
 })
 
+describe('a similarity score, at a width a person can read', () => {
+  const results = {
+    results: [
+      { similarity: 0.2818957269585687, documentName: 'a.md', chunkIndex: 0, content: 'x' },
+    ],
+  }
+  const spec = CLI_CONTRACT.searchKnowledge as CommandSpec
+
+  it('fixes the score to four decimals in the table', () => {
+    // The raw double is nineteen characters wide and its last dozen digits
+    // separate nothing: every row shares them to within a rounding error.
+    renderResult('searchKnowledge', 'table', results, spec)
+    const [, row] = tableLines()
+    expect(row).toContain('0.2819')
+    expect(row).not.toContain('0.2818957269585687')
+  })
+
+  it('leaves the full double in json, which is what a script compares', () => {
+    renderResult('searchKnowledge', 'json', results, spec)
+    expect(JSON.parse(logged[0]).results[0].similarity).toBe(0.2818957269585687)
+  })
+})
+
 describe('folder paths are shown by name, but piped in wire form', () => {
   const folders = [
     {

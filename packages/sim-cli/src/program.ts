@@ -13,7 +13,8 @@ export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
 
 export const HELP_EPILOGUE = `
 Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
-~/.sim/credentials (0600). Select one with -P, --profile, or SIM_PROFILE.
+~/.sim/credentials (0600), or under SIM_CONFIG_DIR when it is set. Select one
+with -P, --profile, or SIM_PROFILE.
 
 Examples:
   $ sim login                                    Authorize the default profile
