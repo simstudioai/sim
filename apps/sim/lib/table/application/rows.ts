@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
@@ -59,6 +60,7 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import { loadEnrichmentDetail } from '@/lib/table/rows/executions'
 import {
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
@@ -489,6 +491,36 @@ export const readTableRow = defineAuthorizedTableUseCase({
         [row],
         input.includePersistedSecretProvenance
       ),
+    }
+  },
+})
+
+export interface ReadTableRowEnrichmentInput extends TableScopedInput {
+  rowId: string
+  groupId: string
+}
+
+export interface ReadTableRowEnrichmentResult extends TableResult {
+  detail: Awaited<ReturnType<typeof loadEnrichmentDetail>>
+}
+
+/**
+ * The enrichment cascade breakdown — provider outcomes, cost, timing — for one
+ * cell. Deliberately kept off the hot grid read and fetched on demand by the
+ * details panel; `null` for a cell with no recorded run, or a run predating the
+ * feature.
+ *
+ * Shares {@link tableOperations.readRow}: this is a projection of the same row,
+ * under the same role, so it is not a second semantic operation.
+ */
+export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRow,
+  resolveContext: ({ input }: { input: ReadTableRowEnrichmentInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<ReadTableRowEnrichmentResult> {
+    return {
+      table: context.table,
+      detail: await loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
     }
   },
 })
