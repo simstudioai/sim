@@ -162,6 +162,10 @@ describe('sumSourceTotals', () => {
   it('treats a source with no bucket as zero rather than NaN', () => {
     expect(sumSourceTotals(totals as never, ['wand'] as never)).toBe(0)
   })
+
+  it('counts a repeated source once', () => {
+    expect(sumSourceTotals(totals as never, ['copilot', 'copilot'] as never)).toBeCloseTo(4.25, 9)
+  })
 })
 
 describe('readUsageDailyTotals', () => {

@@ -169,7 +169,10 @@ export async function computeDailyRefreshConsumed(
 
   const rows = await executor
     .select({
-      dayIndex: dayIndexSql(usageLog.createdAt, periodStart).as('day_index'),
+      dayIndex: dayIndexSql(
+        usageLog.createdAt,
+        sql.param(periodStart, usageLog.billingPeriodStart)
+      ).as('day_index'),
       dayTotal: sum(usageLog.cost).as('day_total'),
     })
     .from(usageLog)

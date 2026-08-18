@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { usageLog, usageLogDailyTotal } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gte, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
 import type { BillingEntity, UsageLogSource } from '@/lib/billing/core/usage-log'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
@@ -31,13 +31,22 @@ export function dayIndexFor(periodStart: Date, occurredAt: Date): number {
 /**
  * {@link dayIndexFor} as a SQL expression.
  *
- * Takes the period start as a column or timestamp rather than as pre-truncated
- * whole seconds, so the epoch subtraction keeps full precision and buckets
+ * Keeps full precision rather than taking a pre-truncated epoch, so it buckets
  * events identically to `dayIndexFor` even when a period start carries a
  * sub-second component.
+ *
+ * Both operands must already be column references or bound parameters. A bare
+ * `Date` cannot be passed: drizzle replaces postgres-js's temporal serializer
+ * with an identity function and encodes timestamps itself, so a Date outside
+ * column context never gets serialized. Callers holding a Date bind it with
+ * `sql.param(date, table.column)`.
  */
-export function dayIndexSql(createdAt: unknown, periodStart: unknown): SQL {
-  return sql`floor((extract(epoch from ${createdAt}) - extract(epoch from ${periodStart})) / 86400)::int`
+export function dayIndexSql(createdAt: SQLWrapper, periodStart: SQLWrapper): SQL {
+  // Both operands are cast explicitly: `extract(epoch from $1)` on a bare bind
+  // parameter is ambiguous to Postgres ("function pg_catalog.extract(unknown,
+  // unknown) is not unique") and fails at runtime — which neither type-checking
+  // nor mocked unit tests catch.
+  return sql`floor((extract(epoch from ${createdAt}::timestamp) - extract(epoch from ${periodStart}::timestamp)) / 86400)::int`
 }
 
 /**
@@ -121,8 +130,17 @@ function periodScope(billingEntity: BillingEntity, periodStart: Date) {
   )
 }
 
-/** The bucket cost aggregate. `SUM` over no rows is `NULL`, never `'0'`. */
-const bucketCostSum = sql<string | null>`SUM(${usageLogDailyTotal.totalCost})`
+/**
+ * The bucket cost aggregate. `SUM` over no rows is `NULL`, never `'0'`.
+ *
+ * Built per call rather than held as a module constant: a constant evaluates
+ * the `sql` tag at import time, which makes merely importing this module fail
+ * anywhere `drizzle-orm` is partially mocked without `sql` — including tests
+ * that only reach billing transitively and never touch the rollup.
+ */
+function bucketCostSum() {
+  return sql<string | null>`SUM(${usageLogDailyTotal.totalCost})`
+}
 
 /**
  * Folds grouped bucket rows into a keyed cost map.
@@ -168,7 +186,7 @@ export async function readUsagePeriodTotalsBySource(
   }
 
   const rows = await executor
-    .select({ source: usageLogDailyTotal.source, totalCost: bucketCostSum })
+    .select({ source: usageLogDailyTotal.source, totalCost: bucketCostSum() })
     .from(usageLogDailyTotal)
     .where(
       and(
@@ -196,7 +214,13 @@ export function sumSourceTotals(
     for (const cost of totals.values()) total += cost
     return total
   }
-  for (const source of sources) total += totals.get(source) ?? 0
+  // Walk the breakdown and test membership, rather than walking `sources` and
+  // looking each up: a caller that passes the same source twice would
+  // otherwise count that bucket twice.
+  const wanted = new Set(sources)
+  for (const [source, cost] of totals) {
+    if (wanted.has(source)) total += cost
+  }
   return total
 }
 
@@ -228,7 +252,7 @@ export async function readUsageDailyTotals(
   }
 
   const rows = await executor
-    .select({ dayIndex: usageLogDailyTotal.dayIndex, totalCost: bucketCostSum })
+    .select({ dayIndex: usageLogDailyTotal.dayIndex, totalCost: bucketCostSum() })
     .from(usageLogDailyTotal)
     .where(
       and(

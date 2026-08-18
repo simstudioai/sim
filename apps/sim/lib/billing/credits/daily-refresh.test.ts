@@ -11,7 +11,7 @@ vi.mock('drizzle-orm', () => {
   }
   return {
     ...drizzleOrmMock,
-    sql: Object.assign(sqlTag, { raw: sqlTag }),
+    sql: Object.assign(sqlTag, { raw: sqlTag, param: sqlTag }),
     sum: () => ({ as: () => 'sum' }),
   }
 })
