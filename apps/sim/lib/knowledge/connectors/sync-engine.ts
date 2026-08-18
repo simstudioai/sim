@@ -172,6 +172,37 @@ export function classifyExternalDoc(
   return { type: 'unchanged' }
 }
 
+/**
+ * Merges a hydrated document over the listing stub it was fetched for.
+ *
+ * Every field the connector restates on hydration has to be carried, not just the
+ * content. A stub is built before the file is fetched and declares `text/plain`,
+ * so any field left behind keeps a value that is wrong for the bytes now attached
+ * — which is how a hydrated PDF ends up still claiming plain text. Storage reads
+ * `sourceFile.mimeType`, so that particular staleness is invisible until
+ * something reaches for the obvious field instead.
+ *
+ * Extracted from the hydration loop so the merge is a stated contract with a test
+ * rather than an inline spread that is easy to under-specify.
+ */
+export function mergeHydratedDocument(
+  stub: ExternalDocument,
+  hydrated: ExternalDocument,
+  contentHash: string
+): ExternalDocument {
+  return {
+    ...stub,
+    title: hydrated.title || stub.title,
+    content: hydrated.content,
+    sourceFile: hydrated.sourceFile,
+    mimeType: hydrated.mimeType,
+    contentHash,
+    contentDeferred: false,
+    sourceUrl: hydrated.sourceUrl ?? stub.sourceUrl,
+    metadata: { ...stub.metadata, ...hydrated.metadata },
+  }
+}
+
 /** Whether a document carries anything to index — extracted text or the source file. */
 function hasPayload(extDoc: Pick<ExternalDocument, 'content' | 'sourceFile'>): boolean {
   return extDoc.sourceFile !== undefined || extDoc.content.trim().length > 0
@@ -1087,19 +1118,7 @@ export async function executeSync(
               result.docsUnchanged++
               return null
             }
-            return {
-              ...op,
-              extDoc: {
-                ...op.extDoc,
-                title: fullDoc.title || op.extDoc.title,
-                content: fullDoc.content,
-                sourceFile: fullDoc.sourceFile,
-                contentHash: hydratedHash,
-                contentDeferred: false,
-                sourceUrl: fullDoc.sourceUrl ?? op.extDoc.sourceUrl,
-                metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
-              },
-            }
+            return { ...op, extDoc: mergeHydratedDocument(op.extDoc, fullDoc, hydratedHash) }
           })
         )
 
