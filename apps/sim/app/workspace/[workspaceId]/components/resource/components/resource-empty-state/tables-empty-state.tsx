@@ -1,3 +1,5 @@
+import { Chip, ChipLink, Plus } from '@sim/emcn'
+import { BookOpen } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
 
 /**
@@ -96,13 +98,38 @@ function TablesGraphic() {
   )
 }
 
+const TABLES_DOCS_URL = 'https://docs.sim.ai/tables'
+
+interface TablesEmptyStateProps {
+  /** Creates a table — the same action the header's primary chip runs. */
+  onCreate: () => void
+  /** Mirrors the header chip's disabled state: no edit rights, or a create already in flight. */
+  createDisabled?: boolean
+}
+
 /** Empty state for the tables list when the workspace has none. */
-export function TablesEmptyState() {
+export function TablesEmptyState({ onCreate, createDisabled = false }: TablesEmptyStateProps) {
   return (
     <EmptyState
       graphic={<TablesGraphic />}
       title='No tables yet'
       description='Create a table to store structured data your agents can read and write.'
+      action={
+        <div className='flex items-center gap-2'>
+          <ChipLink
+            href={TABLES_DOCS_URL}
+            target='_blank'
+            rel='noopener noreferrer'
+            variant='border'
+            leftIcon={BookOpen}
+          >
+            Docs
+          </ChipLink>
+          <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
+            New table
+          </Chip>
+        </div>
+      }
     />
   )
 }

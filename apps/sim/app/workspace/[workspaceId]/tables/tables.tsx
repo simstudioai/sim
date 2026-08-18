@@ -1279,7 +1279,14 @@ export function Tables() {
           filter={filterConfig}
         />
         <Resource.Table
-          emptyState={showEmptyState ? <TablesEmptyState /> : undefined}
+          emptyState={
+            showEmptyState ? (
+              <TablesEmptyState
+                onCreate={handleCreateTable}
+                createDisabled={uploading || !canEdit || createTable.isPending}
+              />
+            ) : undefined
+          }
           columns={COLUMNS}
           rows={rows}
           selectable={canEdit ? selectableConfig : undefined}

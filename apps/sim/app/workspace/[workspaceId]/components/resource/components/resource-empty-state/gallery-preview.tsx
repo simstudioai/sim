@@ -9,8 +9,8 @@ import {
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 
 const ENTRIES = [
-  { label: 'Knowledge', node: <KnowledgeEmptyState /> },
-  { label: 'Tables', node: <TablesEmptyState /> },
+  { label: 'Knowledge', node: <KnowledgeEmptyState onCreate={() => {}} /> },
+  { label: 'Tables', node: <TablesEmptyState onCreate={() => {}} /> },
   { label: 'Logs', node: <LogsEmptyState /> },
   { label: 'Files', node: <FilesEmptyState /> },
   { label: 'Skills', node: <SkillsEmptyState /> },

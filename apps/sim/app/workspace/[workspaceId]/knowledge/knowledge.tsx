@@ -1367,7 +1367,11 @@ export function Knowledge() {
           filter={filterConfig}
         />
         <Resource.Table
-          emptyState={showEmptyState ? <KnowledgeEmptyState /> : undefined}
+          emptyState={
+            showEmptyState ? (
+              <KnowledgeEmptyState onCreate={handleOpenCreateModal} createDisabled={!canEdit} />
+            ) : undefined
+          }
           columns={COLUMNS}
           rows={rows}
           selectable={canEdit ? selectableConfig : undefined}

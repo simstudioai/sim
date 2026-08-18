@@ -1,42 +1,73 @@
+import { Chip, ChipLink, Plus } from '@sim/emcn'
+import { BookOpen } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
-import {
-  Bar,
-  Vignette,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/vignette'
 
 /**
- * A document fanning into the chunks it is embedded as — the moment that makes a
- * knowledge base a knowledge base, drawn in the editor vignette's connector
- * language (6px-radius smooth steps in `--workflow-edge`).
+ * Neutral ink at graded strengths.
+ *
+ * `--surface-4`/`--surface-5` are near-white in light mode (#f5f5f5/#f3f3f3), so
+ * skeleton geometry built on them dissolves against the page. Mixing
+ * `--text-secondary` into transparent gives a real mid-grey that inverts with the
+ * theme — the idiom the workflow editor's vignette uses for the one bar it needs
+ * you to actually see.
+ */
+const INK = {
+  heading: 'color-mix(in srgb, var(--text-secondary) 30%, transparent)',
+  line: 'color-mix(in srgb, var(--text-secondary) 15%, transparent)',
+  chunk: 'color-mix(in srgb, var(--text-secondary) 11%, transparent)',
+} as const
+
+/**
+ * Crisp at the top-left, dissolving through the bottom-right — the same
+ * two-gradient intersect the landing page's workflow vignette uses, so the
+ * geometry blends into the page rather than sitting on it as a card.
+ *
+ * Held back further than the tables grid on both axes: the document has to stay
+ * whole for the graphic to mean anything, and only the chunks it fans into may
+ * trail off.
+ */
+const CORNER_FADE =
+  '[-webkit-mask-image:linear-gradient(to_right,#000_66%,transparent_100%),linear-gradient(to_bottom,#000_70%,transparent_100%)] [mask-image:linear-gradient(to_right,#000_66%,transparent_100%),linear-gradient(to_bottom,#000_70%,transparent_100%)] [-webkit-mask-composite:source-in] [mask-composite:intersect]'
+
+/** Text-line widths inside the document; the first reads as its heading. */
+const DOCUMENT_LINES = [64, 78, 58, 72, 46] as const
+
+/**
+ * Smooth steps at the editor vignette's 6px corner radius, fanning from the
+ * document's right edge to the first column of chunks.
  */
 const CHUNK_EDGE_PATHS = [
-  'M190,80 H207 Q213,80 213,74 V52 Q213,46 219,46 H236',
-  'M190,80 H236',
-  'M190,80 H207 Q213,80 213,86 V108 Q213,114 219,114 H236',
+  'M130,71 H141 Q147,71 147,65 V51 Q147,45 153,45 H164',
+  'M130,71 H164',
+  'M130,71 H141 Q147,71 147,77 V91 Q147,97 153,97 H164',
 ] as const
 
+const CHUNK_COLUMNS = [164, 190, 216, 242, 268, 294] as const
+const CHUNK_ROWS = [35, 61, 87, 113] as const
+
+/** Rows the edges actually land on — only those chunks read as filled. */
+const CONNECTED_ROWS = new Set([35, 61, 87])
+
+/** A document, and the chunks it is embedded as running off the far corner. */
 function KnowledgeGraphic() {
   return (
-    <Vignette>
+    <div aria-hidden='true' className={`relative h-[148px] w-[320px] ${CORNER_FADE}`}>
+      <div className='absolute top-[34px] left-[26px] h-[74px] w-[104px] rounded-[6px] border border-[var(--border-1)] px-3 pt-[13px]'>
+        {DOCUMENT_LINES.map((width, index) => (
+          <span
+            key={width}
+            className='mb-[9px] block h-[5px] rounded-full'
+            style={{ width, background: index === 0 ? INK.heading : INK.line }}
+          />
+        ))}
+      </div>
+
       <svg className='absolute inset-0' fill='none' viewBox='0 0 320 148' width='320' height='148'>
-        <defs>
-          <linearGradient
-            id='knowledge-empty-edge'
-            x1='190'
-            y1='0'
-            x2='236'
-            y2='0'
-            gradientUnits='userSpaceOnUse'
-          >
-            <stop stopColor='var(--workflow-edge)' />
-            <stop offset='1' stopColor='var(--workflow-edge)' />
-          </linearGradient>
-        </defs>
         {CHUNK_EDGE_PATHS.map((d) => (
           <path
             key={d}
             d={d}
-            stroke='url(#knowledge-empty-edge)'
+            stroke='var(--workflow-edge)'
             strokeWidth='1.5'
             strokeLinecap='round'
             strokeLinejoin='round'
@@ -44,50 +75,59 @@ function KnowledgeGraphic() {
         ))}
       </svg>
 
-      <span className='absolute top-[22px] left-[78px] h-[92px] w-[124px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-1)] opacity-40' />
-      <span className='absolute top-[28px] left-[72px] h-[92px] w-[124px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] opacity-70' />
-
-      <div className='absolute top-[34px] left-[66px] h-[92px] w-[124px] rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)]'>
-        <div className='flex items-center gap-2 px-3 pt-3 pb-2.5'>
-          <span className='size-[14px] shrink-0 rounded-[4px] bg-[var(--surface-5)]' />
-          <Bar className='h-2 w-[62px]' />
-        </div>
-        <div className='space-y-[7px] px-3'>
-          <Bar className='h-2 w-[98px]' />
-          <Bar className='h-2 w-[84px]' />
-          <span className='block h-2 w-[92px] rounded-[3px] bg-[color-mix(in_srgb,var(--brand-knowledge)_26%,transparent)]' />
-          <Bar className='h-2 w-[70px]' />
-        </div>
-      </div>
-
-      {[35, 69, 103].map((top, index) => (
-        <span
-          key={top}
-          className='absolute left-[236px] size-[22px] rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-3)]'
-          style={{ top }}
-        >
+      {CHUNK_ROWS.map((top) =>
+        CHUNK_COLUMNS.map((left) => (
           <span
-            className='absolute inset-[5px] rounded-[3px]'
+            key={`${left}-${top}`}
+            className='absolute size-[20px] rounded-[5px] border border-[var(--border-1)]'
             style={{
+              left,
+              top,
               background:
-                index === 1
-                  ? 'color-mix(in srgb, var(--brand-knowledge) 34%, transparent)'
-                  : 'var(--surface-5)',
+                left === CHUNK_COLUMNS[0] && CONNECTED_ROWS.has(top) ? INK.chunk : undefined,
             }}
           />
-        </span>
-      ))}
-    </Vignette>
+        ))
+      )}
+    </div>
   )
 }
 
+const KNOWLEDGE_DOCS_URL = 'https://docs.sim.ai/knowledgebase'
+
+interface KnowledgeEmptyStateProps {
+  /** Opens the create-base modal — the same action the header's primary chip runs. */
+  onCreate: () => void
+  /** Mirrors the header chip's disabled state: no edit rights on the workspace. */
+  createDisabled?: boolean
+}
+
 /** Empty state for the knowledge bases list when the workspace has none. */
-export function KnowledgeEmptyState() {
+export function KnowledgeEmptyState({
+  onCreate,
+  createDisabled = false,
+}: KnowledgeEmptyStateProps) {
   return (
     <EmptyState
       graphic={<KnowledgeGraphic />}
       title='No knowledge bases yet'
       description='Upload documents to give your agents a memory they can search.'
+      action={
+        <div className='flex items-center gap-2'>
+          <ChipLink
+            href={KNOWLEDGE_DOCS_URL}
+            target='_blank'
+            rel='noopener noreferrer'
+            variant='border'
+            leftIcon={BookOpen}
+          >
+            Docs
+          </ChipLink>
+          <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
+            New base
+          </Chip>
+        </div>
+      }
     />
   )
 }
