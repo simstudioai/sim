@@ -3765,6 +3765,14 @@ export const usageLog = pgTable(
  * The maintained columns are not part of the primary key and there is no other
  * index, so the per-event increments are HOT updates that stay page-local and
  * need no index cleanup to be reclaimed.
+ *
+ * One caveat on sizing: a real subscription's period rolls over monthly, which
+ * bounds an entity's buckets to roughly its active days in that period. An
+ * account with no subscription bills against an open-ended sentinel period that
+ * never rolls over, so its buckets accumulate for the lifetime of the account.
+ * That is not a correctness difference — the rollup and the ledger admit the
+ * same rows either way — but those entities' reads grow slowly with age rather
+ * than staying flat.
  */
 export const usageLogDailyTotal = pgTable(
   'usage_log_daily_total',

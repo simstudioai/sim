@@ -314,6 +314,16 @@ export async function reconcileUsageDailyTotals(options?: {
     ? sql`and ${usageLog.billingPeriodEnd} >= ${periodEndsAfter}`
     : sql``
 
+  /**
+   * Every key column is required explicitly rather than relying on
+   * `billing_entity_type` alone. `usage_log_billing_scope_all_or_none` does
+   * enforce all-or-none, but it is `NOT VALID` — so it binds new writes while
+   * saying nothing about rows that predate it. A single row with a null key
+   * column would make its `day_index` null too, and both are `NOT NULL` here,
+   * which would abort the whole all-or-nothing reconcile rather than skip one
+   * row. Such a row could not be read back through the rollup anyway: every
+   * read matches on all four.
+   */
   const ledgerBuckets = sql`
     select
       ${usageLog.billingEntityType} as billing_entity_type,
@@ -325,7 +335,11 @@ export async function reconcileUsageDailyTotals(options?: {
       ${usageLog.source} as source,
       coalesce(sum(${usageLog.cost}), 0) as total_cost
     from ${usageLog}
-    where ${usageLog.billingEntityType} is not null ${ledgerPeriodScope}
+    where ${usageLog.billingEntityType} is not null
+      and ${usageLog.billingEntityId} is not null
+      and ${usageLog.billingPeriodStart} is not null
+      and ${usageLog.billingPeriodEnd} is not null
+      ${ledgerPeriodScope}
     group by 1, 2, 3, 4, 5, 6, 7
   `
 
