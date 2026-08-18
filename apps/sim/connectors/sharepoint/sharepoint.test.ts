@@ -3,16 +3,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry, mockParseBuffer } = vi.hoisted(() => ({
-  mockFetchWithRetry: vi.fn(),
-  mockParseBuffer: vi.fn(),
-}))
+const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: mockFetchWithRetry,
   VALIDATE_RETRY_OPTIONS: {},
 }))
-vi.mock('@/lib/file-parsers', () => ({ parseBuffer: mockParseBuffer }))
 vi.mock('@/components/icons', () => ({ MicrosoftSharepointIcon: () => null }))
 
 import {
@@ -496,45 +492,45 @@ describe('getDocument content extraction', () => {
     )
   }
 
-  it('indexes the parsed text of an Office document', async () => {
-    mockGraph({ ...itemRoute('f1', 'SOP.docx'), ...contentRoute('f1', 'ignored') })
-    mockParseBuffer.mockResolvedValue({
-      content: 'Approved vendor list',
-      metadata: { extractionMethod: 'mammoth' },
-    })
+  /**
+   * The connector hands an Office document over untouched so the shared pipeline
+   * parses it — the same path an upload of the same file takes, which is what
+   * routes PDFs through OCR.
+   */
+  it('delivers an Office document as its source file rather than extracting it', async () => {
+    mockGraph({ ...itemRoute('f1', 'SOP.docx'), ...contentRoute('f1', 'PK-docx-bytes') })
 
     const doc = await get('f1')
 
-    expect(doc?.content).toBe('Approved vendor list')
-    expect(doc?.skippedReason).toBeUndefined()
+    expect(doc?.content).toBe('')
+    expect(doc?.sourceFile?.fileName).toBe('SOP.docx')
+    expect(doc?.sourceFile?.mimeType).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    expect(doc?.sourceFile?.bytes.toString()).toBe('PK-docx-bytes')
+    expect(doc?.mimeType).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
     expect(doc?.contentDeferred).toBe(false)
   })
 
-  /**
-   * A degraded extraction must become a visible `failed` row, not a silent drop
-   * and not indexed placeholder text — the same treatment oversized files get.
-   */
-  it('surfaces a degraded extraction as a skipped document with an actionable reason', async () => {
-    mockGraph({ ...itemRoute('f2', 'Deck.ppt'), ...contentRoute('f2', 'ole2') })
-    mockParseBuffer.mockResolvedValue({
-      content: 'Unable to extract text from PowerPoint file.',
-      metadata: { extractionMethod: 'fallback', degraded: true },
-    })
+  it('declares a PDF as application/pdf so the pipeline can route it to OCR', async () => {
+    mockGraph({ ...itemRoute('f4', 'Contract.pdf'), ...contentRoute('f4', '%PDF-1.7 bytes') })
 
-    const doc = await get('f2')
+    const doc = await get('f4')
 
-    expect(doc?.content).toBe('')
-    expect(doc?.skippedReason).toContain('PPTX')
-    expect(doc?.externalId).toBe('f2')
+    expect(doc?.mimeType).toBe('application/pdf')
+    expect(doc?.sourceFile?.mimeType).toBe('application/pdf')
   })
 
-  it('reads a text file without invoking a parser', async () => {
+  it('still extracts a text file itself, since there is nothing for a parser to do', async () => {
     mockGraph({ ...itemRoute('f3', 'notes.txt'), ...contentRoute('f3', 'plain notes') })
 
     const doc = await get('f3')
 
     expect(doc?.content).toBe('plain notes')
-    expect(mockParseBuffer).not.toHaveBeenCalled()
+    expect(doc?.sourceFile).toBeUndefined()
+    expect(doc?.mimeType).toBe('text/plain')
   })
 })
 

@@ -6,7 +6,22 @@ import { Button, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
 import { isShellOutdated } from '@/lib/desktop/min-version'
 
+/**
+ * Resolves this deployment's channel to the newest release's installer, so a
+ * manual download lands on the same build the updater would have installed.
+ */
+const DOWNLOAD_REDIRECT_PATH = '/api/desktop/update/download'
+
 const DOWNLOAD_FALLBACK_URL = 'https://github.com/simstudioai/sim/releases/latest'
+
+function manualDownloadUrl(): string {
+  const origin = window.location.origin
+  // openExternal only accepts https, so an http self-hosted origin cannot
+  // serve the redirect to the system browser.
+  return origin.startsWith('https://')
+    ? `${origin}${DOWNLOAD_REDIRECT_PATH}`
+    : DOWNLOAD_FALLBACK_URL
+}
 
 interface GateAction {
   label: string
@@ -21,7 +36,7 @@ function gateActionFor(state: DesktopUpdateState): GateAction {
     // background; the button covers the manual path.
     return {
       label: 'Get the latest version',
-      onClick: () => void getDesktopBridge()?.openExternal(DOWNLOAD_FALLBACK_URL),
+      onClick: () => void getDesktopBridge()?.openExternal(manualDownloadUrl()),
     }
   }
   switch (state.status) {

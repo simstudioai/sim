@@ -104,8 +104,10 @@ export interface ForkSyncController {
   otherWorkspaceName: string
   /**
    * The workspace this sync WRITES, named for user-facing copy: the other workspace on push,
-   * "this workspace" on pull. Derived once here so every surface that names the target - the
-   * overwrite confirm, the Trigger URLs heading - says the same thing.
+   * this one on pull. Always a NAME rather than "the target" - the page header shows the OTHER
+   * workspace's name, so an unnamed target reads as that one even on pull. Falls back to
+   * "this workspace" only until the name loads. Derived once here so every surface that names
+   * it - the overwrite confirm, the Trigger URLs heading - says the same thing.
    */
   targetWorkspaceName: string
   isLoading: boolean
@@ -272,12 +274,15 @@ function takenTargetOwners(
  */
 export function useForkSync(params: {
   workspaceId: string
+  /** This workspace's name, for copy that must say which side a pull overwrites. */
+  workspaceName?: string
   otherWorkspaceId?: string
   otherWorkspaceName: string
   direction: ForkDirection
   enabled: boolean
 }): ForkSyncController {
-  const { workspaceId, otherWorkspaceId, otherWorkspaceName, direction, enabled } = params
+  const { workspaceId, workspaceName, otherWorkspaceId, otherWorkspaceName, direction, enabled } =
+    params
 
   // User's IN-SESSION mapping overrides only - NOT the source of truth. The displayed/persisted
   // target falls back to each entry's stored `targetId` (see `targetFor`), so a reopened edge
@@ -982,7 +987,8 @@ export function useForkSync(params: {
   return {
     direction,
     otherWorkspaceName,
-    targetWorkspaceName: direction === 'push' ? otherWorkspaceName : 'this workspace',
+    targetWorkspaceName:
+      direction === 'push' ? otherWorkspaceName : workspaceName || 'this workspace',
     isLoading: enabled && mapping.isLoading,
     isError: mapping.isError,
     errorMessage: mapping.isError ? getErrorMessage(mapping.error, 'Failed to load mapping') : null,

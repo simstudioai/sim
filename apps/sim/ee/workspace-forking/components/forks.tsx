@@ -85,6 +85,8 @@ function ForkListRow({ name, actions }: ForkListRowProps) {
 interface ForkSyncDetailViewProps {
   title: string
   workspaceId: string
+  /** This workspace's name — a pull overwrites it, and the copy has to say which side that is. */
+  workspaceName?: string
   /** The other side of the edge being synced (this workspace's parent). */
   otherWorkspaceId: string
   otherWorkspaceName: string
@@ -105,6 +107,7 @@ interface ForkSyncDetailViewProps {
 function ForkSyncDetailView({
   title,
   workspaceId,
+  workspaceName,
   otherWorkspaceId,
   otherWorkspaceName,
   onBack,
@@ -118,6 +121,7 @@ function ForkSyncDetailView({
 
   const controller = useForkSync({
     workspaceId,
+    workspaceName,
     otherWorkspaceId,
     otherWorkspaceName,
     direction,
@@ -186,11 +190,11 @@ function ForkSyncDetailView({
         open={confirmSyncOpen}
         onOpenChange={setConfirmSyncOpen}
         srTitle='Sync workspace'
-        title='Overwrite target workspace'
+        title={`Overwrite ${targetWorkspaceName}`}
         text={[
-          'The target may have been modified since the last sync. Syncing will ',
+          'Syncing will ',
           { text: 'overwrite any changes', bold: true },
-          ' there. Continue?',
+          ` made in ${targetWorkspaceName} since the last sync. Continue?`,
         ]}
         confirm={{
           label: 'Sync',
@@ -431,6 +435,7 @@ export function Forks() {
           key={parent.id}
           title={parent.name}
           workspaceId={workspaceId}
+          workspaceName={workspaceName}
           otherWorkspaceId={parent.id}
           otherWorkspaceName={parent.name}
           onBack={() => void setSelectedForkId(null, { history: 'replace' })}

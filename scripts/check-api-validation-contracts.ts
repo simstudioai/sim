@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 1121,
-  zodRoutes: 1121,
+  totalRoutes: 1122,
+  zodRoutes: 1122,
   nonZodRoutes: 0,
 } as const
 
@@ -42,6 +42,9 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // Public updater feed: input-less GET, session-less, returns YAML (not JSON),
   // so it can't be JSON-contract-bound. Wrapped in withRouteHandler.
   'apps/sim/app/api/desktop/update/latest-mac.yml/route.ts',
+  // Public updater download redirect: input-less GET, session-less, whose only
+  // response is a 302 to a GitHub release asset. Wrapped in withRouteHandler.
+  'apps/sim/app/api/desktop/update/download/route.ts',
   'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
   'apps/sim/app/api/tools/docusign/route.ts',
