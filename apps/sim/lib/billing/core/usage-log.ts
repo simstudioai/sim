@@ -7,9 +7,14 @@ import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  applyUsagePeriodTotalDelta,
+  readUsagePeriodTotal,
+} from '@/lib/billing/core/usage-period-total'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
@@ -172,6 +177,12 @@ async function resolveBillingContext(
 /**
  * Returns post-cutover usage for an attributed billing entity/period.
  * Legacy pre-cutover usage remains in userStats as a baseline until reset.
+ *
+ * An unfiltered whole-period total is served from `usage_log_period_total` when
+ * `usage-period-total-reads` is on — a primary-key lookup rather than an
+ * aggregate whose cost grows with the number of events in the period. A
+ * `source` filter is not covered by the rollup and always aggregates the
+ * ledger, as does an (entity, period) the rollup has no row for yet.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
@@ -179,6 +190,13 @@ export async function getBillingPeriodUsageCost(
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<number> {
+  if (!source && (await isFeatureEnabled('usage-period-total-reads'))) {
+    const total = await readUsagePeriodTotal(billingEntity, billingPeriod, executor)
+    if (total !== null) {
+      return total
+    }
+  }
+
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
     eq(usageLog.billingEntityId, billingEntity.id),
@@ -300,63 +318,80 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
 
   const context = await resolveBillingContext(userId, billingEntity, billingPeriod)
 
-  const insertedRows = await (tx ?? db)
-    .insert(usageLog)
-    .values(
-      validEntries.map((entry, index) => {
-        const sourceReference =
-          entry.sourceReference ??
-          [executionId, workflowId, workspaceId, entry.source, entry.description, index]
-            .filter((part) => part !== undefined && part !== null && part !== '')
-            .join(':')
-        const eventKey =
-          entry.eventKey ??
-          stableEventKey({
+  /**
+   * The ledger write and the period-total increment must commit together, or a
+   * failure between them leaves the rollup permanently short of the ledger.
+   * Callers that already hold a transaction pass it in; the rest get one here.
+   */
+  const runInTransaction = async <T>(work: (executor: DbOrTx) => Promise<T>): Promise<T> =>
+    tx ? work(tx) : db.transaction(async (ownTx) => work(ownTx))
+
+  const insertedCost = await runInTransaction(async (executor) => {
+    const insertedRows = await executor
+      .insert(usageLog)
+      .values(
+        validEntries.map((entry, index) => {
+          const sourceReference =
+            entry.sourceReference ??
+            [executionId, workflowId, workspaceId, entry.source, entry.description, index]
+              .filter((part) => part !== undefined && part !== null && part !== '')
+              .join(':')
+          const eventKey =
+            entry.eventKey ??
+            stableEventKey({
+              userId,
+              source: entry.source,
+              category: entry.category,
+              description: entry.description,
+              sourceReference,
+              executionId,
+              workflowId,
+              workspaceId,
+              index,
+            })
+
+          return {
+            id: generateId(),
             userId,
-            source: entry.source,
             category: entry.category,
+            source: entry.source,
             description: entry.description,
-            sourceReference,
-            executionId,
-            workflowId,
-            workspaceId,
-            index,
-          })
-
-        return {
-          id: generateId(),
-          userId,
-          category: entry.category,
-          source: entry.source,
-          description: entry.description,
-          metadata: entry.metadata ?? null,
-          cost: entry.cost.toString(),
-          eventKey,
-          billingEntityType: context.billingEntity.type,
-          billingEntityId: context.billingEntity.id,
-          billingPeriodStart: context.billingPeriod.start,
-          billingPeriodEnd: context.billingPeriod.end,
-          workspaceId: workspaceId ?? null,
-          workflowId: workflowId ?? null,
-          executionId: executionId ?? null,
-        }
+            metadata: entry.metadata ?? null,
+            cost: entry.cost.toString(),
+            eventKey,
+            billingEntityType: context.billingEntity.type,
+            billingEntityId: context.billingEntity.id,
+            billingPeriodStart: context.billingPeriod.start,
+            billingPeriodEnd: context.billingPeriod.end,
+            workspaceId: workspaceId ?? null,
+            workflowId: workflowId ?? null,
+            executionId: executionId ?? null,
+          }
+        })
+      )
+      .onConflictDoNothing({
+        target: usageLog.eventKey,
+        where: sql`${usageLog.eventKey} IS NOT NULL`,
       })
-    )
-    .onConflictDoNothing({
-      target: usageLog.eventKey,
-      where: sql`${usageLog.eventKey} IS NOT NULL`,
-    })
-    .returning({ cost: usageLog.cost })
+      .returning({ cost: usageLog.cost })
 
-  const insertedCost = insertedRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
+    const cost = insertedRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
 
-  if (insertedRows.length < validEntries.length) {
-    logger.debug('Skipped duplicate usage events', {
-      userId,
-      attemptedEntries: validEntries.length,
-      insertedEntries: insertedRows.length,
-    })
-  }
+    // Only the rows that actually landed count toward the period total; the
+    // eventKey conflict above silently drops replays, and adding their cost
+    // here would inflate the total with usage the ledger never recorded.
+    await applyUsagePeriodTotalDelta(executor, context.billingEntity, context.billingPeriod, cost)
+
+    if (insertedRows.length < validEntries.length) {
+      logger.debug('Skipped duplicate usage events', {
+        userId,
+        attemptedEntries: validEntries.length,
+        insertedEntries: insertedRows.length,
+      })
+    }
+
+    return cost
+  })
 
   logger.debug('Recorded usage', {
     userId,
@@ -581,6 +616,17 @@ export async function recordCumulativeUsage(
         .update(usageLog)
         .set({ cost: newTotal.toString(), metadata: metadata ?? null })
         .where(eq(usageLog.id, existing.id))
+
+      // Top-up only raises the existing row, so the period total moves by the
+      // delta. The insert branch below goes through `recordUsage`, which
+      // accounts for its own rows — adding the delta here as well would
+      // double-count that path.
+      await applyUsagePeriodTotalDelta(
+        tx,
+        billingContext.billingEntity,
+        billingContext.billingPeriod,
+        delta
+      )
     } else {
       // First flush for this request: insert the canonical row with the
       // pre-resolved billing context. Runs in the same tx + advisory lock.

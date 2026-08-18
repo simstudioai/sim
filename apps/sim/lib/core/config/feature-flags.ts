@@ -56,6 +56,18 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'usage-period-total-reads': {
+    description:
+      'Serve whole-period billing totals from the maintained usage_log_period_total rollup (a ' +
+      'primary-key lookup) instead of aggregating usage_log over the whole period, which is O(' +
+      'events in the period) and sits on the per-execution quota path. Written transactionally by ' +
+      'both usage_log mutation paths regardless of this flag; the flag gates only the READ, so ' +
+      'it can be turned on after reconcileUsagePeriodTotals confirms the rollup agrees with the ' +
+      'ledger, and turned back off without losing data. Falls back to a ledger aggregate ' +
+      'whenever no rollup row exists yet. Global on/off — evaluated without user context on the ' +
+      'billing path. Off-AppConfig falls back to USAGE_PERIOD_TOTAL_READS.',
+    fallback: 'USAGE_PERIOD_TOTAL_READS',
+  },
   'table-snapshot-cache': {
     description:
       'Mount Sim tables into code sandboxes by reference via a version-keyed CSV snapshot in ' +
