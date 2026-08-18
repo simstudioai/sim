@@ -7,17 +7,8 @@ import {
   SkillsEmptyState,
   TablesEmptyState,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import {
-  KnowledgeDocumentStack,
-  KnowledgeGraphMesh,
-  KnowledgeRetrieval,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-alternates'
 
 const ENTRIES = [
-  { label: 'KB — current (doc → chunks)', node: <KnowledgeEmptyState onCreate={() => {}} /> },
-  { label: 'KB — A. embedding mesh', node: <KnowledgeGraphMesh /> },
-  { label: 'KB — B. document stack', node: <KnowledgeDocumentStack /> },
-  { label: 'KB — C. query + passages', node: <KnowledgeRetrieval /> },
   { label: 'Knowledge', node: <KnowledgeEmptyState onCreate={() => {}} /> },
   { label: 'Tables', node: <TablesEmptyState onCreate={() => {}} /> },
   { label: 'Logs', node: <LogsEmptyState /> },
