@@ -377,7 +377,8 @@ function SearchModalContent({
       list.push({
         id: 'new-chat',
         name: 'New chat',
-        keywords: 'chat message ask sim assistant home',
+        keywords: 'chat chats message ask sim assistant home',
+        exactQueries: ['chats'],
         icon: Home,
         context: 'global',
         run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),

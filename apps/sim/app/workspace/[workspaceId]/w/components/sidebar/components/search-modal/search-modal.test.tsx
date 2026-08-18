@@ -278,6 +278,24 @@ describe('SearchModal', () => {
     expect(rows[2]).toContain('Beta')
   })
 
+  it('puts New chat first for the module-name query, then the chats', async () => {
+    const chats = [
+      { id: 'chat-a', name: 'Alpha', href: '/workspace/workspace-1/home?chatId=chat-a' },
+      { id: 'chat-b', name: 'Beta', href: '/workspace/workspace-1/home?chatId=chat-b' },
+    ]
+    await act(async () => {
+      root.render(<SearchModal open onOpenChange={vi.fn()} chats={chats} />)
+    })
+
+    await enterSearchQuery('chats')
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+      (el) => el.textContent ?? ''
+    )
+    expect(rows[0]).toContain('New chat')
+    expect(rows[1]).toContain('Alpha')
+    expect(rows[2]).toContain('Beta')
+  })
+
   it('shows an empty state when search has no results', async () => {
     await act(async () => {
       root.render(<SearchModal open onOpenChange={vi.fn()} />)
