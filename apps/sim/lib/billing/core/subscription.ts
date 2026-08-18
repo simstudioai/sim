@@ -430,7 +430,8 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
   }
 }
 
-async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
+/** Resolves current organization Enterprise eligibility without request memoization. */
+export async function resolveOrganizationEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
     if (!isBillingEnabled) {
       return true

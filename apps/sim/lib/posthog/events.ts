@@ -512,6 +512,16 @@ export interface PostHogEventMap {
     provider_id: string
   }
 
+  organization_byok_key_added: {
+    organization_id: string
+    provider_id: string
+  }
+
+  organization_byok_key_removed: {
+    organization_id: string
+    provider_id: string
+  }
+
   notification_channel_created: {
     workspace_id: string
     notification_type: 'webhook' | 'email' | 'slack'
