@@ -78,15 +78,11 @@ function stripLocalePrefix(url: string, lang: string): string {
  * instead of fumadocs' lucide clipboard. Mirrors the default renderer — same `highlight` call,
  * same `Pre` component, same `my-0` — differing only in which shell wraps the result.
  *
- * One asymmetry: `highlight` resolves fumadocs' shared `defaultShikiFactory`, while the renderer
- * this replaces uses whatever `shiki` factory the page was configured with. They are the same
- * object because that factory is also the default; passing a custom one would be honored on API
- * markdown and ignored here.
+ * The `getHighlighter` call registers the JSON-body injection on the shared highlighter
+ * `highlight` resolves. An injection is a property of the highlighter, not a per-call option, and
+ * already-loaded grammars are skipped.
  */
 async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
-  // Registers the injection on the shared highlighter `highlight` resolves; an injection is a
-  // property of the highlighter, not a per-call option. Idempotent — already-loaded grammars are
-  // skipped.
   await getHighlighter('js', { langs: [curlJsonBodyGrammar] })
   return (
     <CodeBlock className='my-0'>
