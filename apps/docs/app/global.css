@@ -1683,15 +1683,21 @@ figure.shiki > div:first-child:has(figcaption) svg {
    rule: that rule is `.shiki:not(.not-fumadocs-codeblock *) .line`, and `:not()` carries its
    argument's specificity, so it lands at (0,3,0) — above anything reasonable to write here.
 
-   Declared at all three levels because the variable is inherited and the nearest declaration
-   wins: fumadocs sets it on `.shiki`, which is on the `figure` for prose fences but on the
-   `figure` AND the inner `pre` for API samples, and it writes these padding custom properties
-   as inline styles on the viewport. `!important` beats both that inline style and
-   `.shiki:not(…)`, which is more specific than a plain `figure.shiki`.
+   Declared at every level the variable could be shadowed at, because it is inherited and the
+   nearest declaration wins: fumadocs sets it on `.shiki`, which is on the `figure` for prose
+   fences but on the `figure` AND the inner `pre` for API samples.
+
+   The `!important` and the viewport selector are belt-and-braces, not strictly required —
+   fumadocs' declaration is (0,2,0) and these selectors are (0,3,1) and (0,4,1), so they
+   already win, and nothing declares this property on the viewport. They are kept because
+   getting this wrong puts the line numbers on top of the code, which shipped once already, and
+   because the specificity of `:has()` and `:not()` is easy to miscount in exactly the
+   direction that reintroduces it. Remove them only alongside a visual check.
  */
 figure.shiki:has(.line ~ .line),
+figure.shiki:has(.line ~ .line) > div[role="region"],
 figure.shiki:has(.line ~ .line) .shiki {
-  --padding-left: 2.75rem;
+  --padding-left: 2.75rem !important;
 }
 
 figure.shiki code {
