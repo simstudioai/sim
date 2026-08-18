@@ -798,6 +798,17 @@ export function BrowserSession({
         // then report bounds: the WebContentsView is attached hidden from its
         // very first compositor frame. This also reasserts the lease after a
         // minimized/throttled window temporarily loses its bounds.
+        //
+        // The reassert must be REAL, not deduped. Main's bounds lease expires
+        // after 2.5s of missed reports (renderer jank, a skipped commit) and
+        // resets panelOccluded — while this side still remembers `applied:
+        // true`. Without dropping that belief, setDesired(true) is a no-op,
+        // the next bounds commit lays out an unoccluded native view, and the
+        // browser punches above the still-open modal with nothing left to
+        // ever re-hide it. Forgetting `applied` costs one idempotent hide IPC
+        // per heartbeat while a modal is up, and makes any main-side lease
+        // loss self-heal within a second.
+        if (nativeSurfaceOcclusionPresent) geometryOcclusionLease.assumeRevealed()
         void geometryOcclusionLease.setDesired(nativeSurfaceOcclusionPresent).then((settled) => {
           if (disposed) return
           const latestOcclusionPresent = atomicPanelOcclusion && hasNativeSurfaceOcclusion()
