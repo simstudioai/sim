@@ -10,6 +10,11 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, expect, it, vi } from 'vitest'
 
+// Structurally slow — it imports the entire Better Auth module graph — so under a fully-parallel local run this file
+// blows the default timeout while passing in isolation and on CI. Give it a
+// real budget instead of letting machine load decide the verdict.
+vi.setConfig({ testTimeout: 30_000 })
+
 const { ssoOptions } = vi.hoisted(() => ({
   ssoOptions: { current: undefined as Record<string, unknown> | undefined },
 }))
