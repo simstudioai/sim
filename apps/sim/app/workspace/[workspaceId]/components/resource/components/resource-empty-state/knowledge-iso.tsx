@@ -42,7 +42,6 @@ function boxFaces(box: Box) {
   }
 }
 
-/** Three upright volumes, and one page drawn out of the set lying in front. */
 const SLABS: Box[] = [0, 90, 180].map((offset) => ({
   x: offset,
   y: 0,
@@ -56,7 +55,45 @@ const ISO_STROKE = 'color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted)
 const ISO_FILL_LOW = 'var(--surface-6)'
 const ISO_FILL_MID = 'color-mix(in srgb, var(--surface-3) 58%, var(--surface-6))'
 const ISO_FILL_HIGH = 'var(--surface-3)'
+/** Darker than any outer face — the bore's wall turns away from the light. */
+const ISO_FILL_BORE = 'color-mix(in srgb, var(--surface-6) 72%, var(--surface-7))'
 const ISO_LINE_STROKE_WIDTH = 3.2
+
+/**
+ * Maps flat artwork into the plane of the front volume's cover.
+ *
+ * The cover is the face at max x, spanned by the volume's depth going across and
+ * its height going up. Those two edges are its basis vectors in projected space,
+ * and a matrix built from them lets a plain `<circle>` be authored in face
+ * coordinates — the projection skews it into the right ellipse. Local units are
+ * world units measured on the face, so a circle stays circular *on the cover*
+ * instead of being stretched by the face's aspect.
+ */
+const COVER = SLABS[SLABS.length - 1]
+
+const COVER_PLANE = (() => {
+  const [originX, originY] = project(COVER.x + COVER.w, COVER.y, COVER.z)
+  return `matrix(${(-COS_30).toFixed(4)} 0.5 0 1 ${originX.toFixed(3)} ${(originY - COVER.h).toFixed(3)})`
+})()
+
+const BORE_RADIUS = 62
+const BORE_CX = COVER.d / 2
+const BORE_CY = COVER.h / 2
+
+/**
+ * The far mouth of the bore, in the same cover-plane coordinates.
+ *
+ * Boring straight back through the volume is a world-space step of `-w` along x.
+ * Solving the cover-plane matrix for the local offset that produces that step
+ * gives `(+w, -w)` — so the far mouth sits up and left of the near one by exactly
+ * the volume's thickness, and the sliver of near-mouth it fails to cover is the
+ * wall you see down the hole.
+ */
+const FAR_CX = BORE_CX + COVER.w
+const FAR_CY = BORE_CY - COVER.w
+
+const BORE_MASK_ID = 'knowledge-iso-bore-mask'
+const BORE_CLIP_ID = 'knowledge-iso-bore-clip'
 
 const ALL_POINTS: Point[] = SLABS.flatMap((box) => Object.values(boxFaces(box)).flat())
 
@@ -68,47 +105,16 @@ const MAX_Y = Math.max(...ALL_POINTS.map(([, y]) => y)) + PADDING
 const VIEW_BOX = `${MIN_X.toFixed(2)} ${MIN_Y.toFixed(2)} ${(MAX_X - MIN_X).toFixed(2)} ${(MAX_Y - MIN_Y).toFixed(2)}`
 
 /**
- * Places the knowledge-base mark in the plane of the front volume's cover.
+ * The tables grid's corner fade, run along the other diagonal.
  *
- * The cover is the face at max x, spanned by the volume's depth (across) and its
- * height (up). Walking those two edges gives the face's basis vectors in
- * projected space, and an affine matrix built from them lays flat artwork into
- * the face — so the icon skews with the isometric instead of floating on top of
- * it. Everything derives from the geometry, so retuning the volumes carries the
- * icon with them.
+ * There it dissolves toward the bottom-right, because a grid keeps its meaning
+ * cropped. Here the stack recedes up and to the left, and the front volume
+ * carries the bore — so the fade is anchored at the bottom-right and eats into
+ * the back of the set instead, reading as more volumes behind rather than
+ * dissolving the one detail worth looking at.
  */
-const ICON_VIEW_BOX = { x: -1, y: -2, size: 24 } as const
-/** Size of the mark on the cover, in world units. */
-const ICON_WORLD_SIZE = 122
-
-const COVER = SLABS[SLABS.length - 1]
-
-const COVER_TRANSFORM = (() => {
-  const faceX = COVER.x + COVER.w
-  const origin = project(faceX, COVER.y, COVER.z)
-  const across: Point = [-COVER.d * COS_30, COVER.d * 0.5]
-  const up: Point = [0, -COVER.h]
-
-  const spanAcross = ICON_WORLD_SIZE / COVER.d
-  const spanUp = ICON_WORLD_SIZE / COVER.h
-  const insetAcross = (1 - spanAcross) / 2
-  const insetUp = (1 - spanUp) / 2 + spanUp
-
-  const anchorX = origin[0] + insetAcross * across[0] + insetUp * up[0]
-  const anchorY = origin[1] + insetAcross * across[1] + insetUp * up[1]
-
-  const a = (spanAcross * across[0]) / ICON_VIEW_BOX.size
-  const b = (spanAcross * across[1]) / ICON_VIEW_BOX.size
-  const c = 0
-  const d = ICON_WORLD_SIZE / ICON_VIEW_BOX.size
-  const e = anchorX - ICON_VIEW_BOX.x * a - ICON_VIEW_BOX.y * c
-  const f = anchorY - ICON_VIEW_BOX.x * b - ICON_VIEW_BOX.y * d
-
-  return `matrix(${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${e.toFixed(3)} ${f.toFixed(3)})`
-})()
-
-/** Pre-divided so the mark's contours land at the same weight as the volumes'. */
-const ICON_STROKE_WIDTH = (ISO_LINE_STROKE_WIDTH * ICON_VIEW_BOX.size) / ICON_WORLD_SIZE
+const STACK_FADE =
+  '[-webkit-mask-image:linear-gradient(to_right,transparent_0%,#000_44%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [mask-image:linear-gradient(to_right,transparent_0%,#000_44%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [-webkit-mask-composite:source-in] [mask-composite:intersect]'
 
 const LINE_PROPS = {
   fill: 'none' as const,
@@ -132,34 +138,62 @@ export function KnowledgeIsoMark({ height = 148 }: KnowledgeIsoMarkProps) {
       fill='none'
       aria-hidden='true'
       focusable='false'
-      className='block max-w-none shrink-0'
+      className={`block max-w-none shrink-0 ${STACK_FADE}`}
     >
-      {SLABS.map((box) => {
-        const faces = boxFaces(box)
-        return (
-          <g key={box.x}>
-            <path d={toPath(faces.left)} fill={ISO_FILL_LOW} stroke='none' />
-            <path d={toPath(faces.right)} fill={ISO_FILL_MID} stroke='none' />
-            <path d={toPath(faces.top)} fill={ISO_FILL_HIGH} stroke='none' />
-            <path d={toPath(faces.left)} {...LINE_PROPS} />
-            <path d={toPath(faces.right)} {...LINE_PROPS} />
-            <path d={toPath(faces.top)} {...LINE_PROPS} />
-          </g>
-        )
-      })}
+      <defs>
+        <mask id={BORE_MASK_ID}>
+          <rect x={MIN_X} y={MIN_Y} width={MAX_X - MIN_X} height={MAX_Y - MIN_Y} fill='white' />
+          <circle cx={BORE_CX} cy={BORE_CY} r={BORE_RADIUS} transform={COVER_PLANE} fill='black' />
+        </mask>
+        <clipPath id={BORE_CLIP_ID}>
+          <circle cx={BORE_CX} cy={BORE_CY} r={BORE_RADIUS} transform={COVER_PLANE} />
+        </clipPath>
+      </defs>
 
-      <g
-        transform={COVER_TRANSFORM}
-        fill='none'
-        stroke={ISO_STROKE}
-        strokeWidth={ICON_STROKE_WIDTH}
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      >
-        <ellipse cx='10.25' cy='3.75' rx='8.5' ry='3' />
-        <path d='M1.75 3.75V9.75C1.75 11.41 5.55 12.75 10.25 12.75C14.95 12.75 18.75 11.41 18.75 9.75V3.75' />
-        <path d='M1.75 9.75V15.75C1.75 17.41 5.55 18.75 10.25 18.75C14.95 18.75 18.75 17.41 18.75 15.75V9.75' />
+      <g mask={`url(#${BORE_MASK_ID})`}>
+        {SLABS.map((box) => {
+          const faces = boxFaces(box)
+          return (
+            <g key={box.x}>
+              <path d={toPath(faces.left)} fill={ISO_FILL_LOW} stroke='none' />
+              <path d={toPath(faces.right)} fill={ISO_FILL_MID} stroke='none' />
+              <path d={toPath(faces.top)} fill={ISO_FILL_HIGH} stroke='none' />
+              <path d={toPath(faces.left)} {...LINE_PROPS} />
+              <path d={toPath(faces.right)} {...LINE_PROPS} />
+              <path d={toPath(faces.top)} {...LINE_PROPS} />
+            </g>
+          )
+        })}
       </g>
+
+      {/*
+       * Down the hole: the near mouth is floored with the wall tone, then the far
+       * mouth is painted over it in the cover tone of the volume standing behind —
+       * looking through a bore in the front volume lands on that volume's face,
+       * not on the page. Both are clipped to the near mouth so the bore never
+       * paints outside its own opening.
+       */}
+      <g clipPath={`url(#${BORE_CLIP_ID})`}>
+        <circle
+          cx={BORE_CX}
+          cy={BORE_CY}
+          r={BORE_RADIUS}
+          transform={COVER_PLANE}
+          fill={ISO_FILL_BORE}
+          stroke='none'
+        />
+        <circle
+          cx={FAR_CX}
+          cy={FAR_CY}
+          r={BORE_RADIUS}
+          transform={COVER_PLANE}
+          fill={ISO_FILL_MID}
+          stroke='none'
+        />
+        <circle cx={FAR_CX} cy={FAR_CY} r={BORE_RADIUS} transform={COVER_PLANE} {...LINE_PROPS} />
+      </g>
+
+      <circle cx={BORE_CX} cy={BORE_CY} r={BORE_RADIUS} transform={COVER_PLANE} {...LINE_PROPS} />
     </svg>
   )
 }
