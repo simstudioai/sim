@@ -247,6 +247,51 @@ describe('sim logs follow', () => {
     expect(stdout.join('')).not.toContain('retrying in')
   })
 
+  it('says so when a burst is larger than one poll may read', async () => {
+    // The page budget bounds one poll so an enormous burst cannot stall the
+    // follow, but the remainder is older than everything collected and the next
+    // poll restarts at the newest page — so those runs are never coming, and a
+    // hole the reader cannot see is worse than a slow poll.
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    const seed = row('seed', '2026-08-17T10:00:00.000Z')
+    const budgeted = Array.from({ length: 10 }, (_, index) =>
+      page([row(`burst_${index}`, `2026-08-17T10:01:0${index}.000Z`)], `cursor_${index}`)
+    )
+    respondWith([page([seed]), ...budgeted])
+
+    await follow('-n', '1')
+
+    expect(stderr.join('')).toContain('older ones were skipped')
+    expect(stdout.join('')).not.toContain('older ones were skipped')
+  })
+
+  it('clears a retry notice on the first healthy poll, even an empty one', async () => {
+    // The clear used to sit after the empty check, so a poll that recovered but
+    // found nothing left "retrying in Ns…" up while the follow was already
+    // healthy. Asserted between two failures because the teardown clears the
+    // line either way: what separates the two is whether a bare erase lands
+    // BEFORE the second notice, or only at the end.
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    const first = row('run_1', '2026-08-17T10:00:01.000Z')
+    respondWith([
+      page([first]),
+      new SimApiError('Service Unavailable', 503),
+      page([first]),
+      new SimApiError('Service Unavailable', 503),
+      page([first]),
+    ])
+
+    await follow('-n', '1')
+
+    const bareErase = stderr.indexOf(`\r${String.fromCharCode(27)}[K`)
+    const notices = stderr
+      .map((line, index) => (line.includes('retrying in') ? index : -1))
+      .filter((index) => index >= 0)
+    expect(notices).toHaveLength(2)
+    expect(bareErase).toBeGreaterThan(notices[0])
+    expect(bareErase).toBeLessThan(notices[1])
+  })
+
   it('stays silent on stderr when it is not a terminal', async () => {
     Object.defineProperty(process.stderr, 'isTTY', { value: false, configurable: true })
     const first = row('run_1', '2026-08-17T10:00:01.000Z')

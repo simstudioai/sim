@@ -247,6 +247,15 @@ function createWriter(format: OutputFormat): RowWriter {
 export interface FollowStatus {
   /** Replaces the status line, if there is a terminal to draw it on. */
   note: (message: string) => void
+  /**
+   * Reports something the reader has to know, on its own line.
+   *
+   * Unlike {@link note} this is not progress and is never erased: it records
+   * that rows are missing, which stays true after the follow moves on. It is
+   * written even when stderr is not a terminal, because a piped log is exactly
+   * where an unexplained hole is hardest to spot.
+   */
+  warn: (message: string) => void
   /** Erases the line, if anything was ever written to it. */
   clear: () => void
 }
@@ -264,6 +273,13 @@ export function followStatus(): FollowStatus {
       if (!process.stderr.isTTY) return
       reported = true
       process.stderr.write(`\r${chalk.dim(message)}${ERASE_LINE}`)
+    },
+    warn: (message) => {
+      if (reported) {
+        reported = false
+        process.stderr.write(`\r${ERASE_LINE}`)
+      }
+      process.stderr.write(`warning: ${message}\n`)
     },
     clear: () => {
       if (!reported) return
@@ -370,6 +386,19 @@ function remember(state: FollowState, rows: LogRow[]): void {
  * holding one known row proves the rest of the list is older still, so walking
  * further would only re-read history the floor rejects anyway.
  */
+/**
+ * One poll's worth of new rows, and whether the page budget cut it short.
+ *
+ * A follow reads a bounded number of pages per poll so one enormous burst
+ * cannot stall it indefinitely or buffer without limit. Reaching that bound
+ * means older runs from the same burst will never be printed, which is worth
+ * saying out loud rather than leaving the reader to notice a hole later.
+ */
+interface PollBatch {
+  rows: LogRow[]
+  truncated: boolean
+}
+
 async function collectUnprinted(
   client: Pick<SimClient, 'request'>,
   path: string,
@@ -377,23 +406,28 @@ async function collectUnprinted(
   state: FollowState,
   pageSize: number,
   maxPages: number
-): Promise<LogRow[]> {
-  const fresh: LogRow[] = []
+): Promise<PollBatch> {
+  const rows: LogRow[] = []
   let cursor: string | null = null
+  let truncated = false
 
   for (let page = 0; page < maxPages; page += 1) {
     const response: ListLogsResponse = await client.request<ListLogsResponse>(path, {
       query: { ...query, limit: pageSize, cursor },
     })
-    const rows = response?.data ?? []
-    const unprinted = rows.filter((row) => isUnprinted(state, row))
-    fresh.push(...unprinted)
+    const page_rows = response?.data ?? []
+    const unprinted = page_rows.filter((row) => isUnprinted(state, row))
+    rows.push(...unprinted)
 
     cursor = response?.nextCursor ?? null
-    if (!cursor || rows.length === 0 || unprinted.length < rows.length) break
+    if (!cursor || page_rows.length === 0 || unprinted.length < page_rows.length) break
+    // Every page so far was new and another is waiting, so the burst is larger
+    // than one poll may read. The remainder is older than everything collected
+    // here and the next poll restarts at the newest page, so it is not coming.
+    if (page === maxPages - 1) truncated = true
   }
 
-  return fresh
+  return { rows, truncated }
 }
 
 /**
@@ -511,10 +545,10 @@ Examples:
         // The backlog page doubles as the seed: every run on it is recorded and
         // its oldest start time becomes the floor, so even `-n 0` anchors the
         // follow to now instead of replaying the workspace's whole history.
-        const backlog = await collectUnprinted(client, path, query, state, Math.max(lines, 1), 1)
-        remember(state, backlog)
-        state.floor = backlog.at(-1)?.startedAt ?? null
-        write(lines > 0 ? backlog.slice(0, lines).reverse() : [])
+        const seed = await collectUnprinted(client, path, query, state, Math.max(lines, 1), 1)
+        remember(state, seed.rows)
+        state.floor = seed.rows.at(-1)?.startedAt ?? null
+        write(lines > 0 ? seed.rows.slice(0, lines).reverse() : [])
 
         let failures = 0
         while (!interrupt.interrupted()) {
@@ -524,7 +558,7 @@ Examples:
           )
           if (interrupt.interrupted()) break
 
-          let fresh: LogRow[]
+          let fresh: PollBatch
           try {
             fresh = await collectUnprinted(
               client,
@@ -544,13 +578,22 @@ Examples:
             continue
           }
 
+          // Cleared on success rather than after the empty check: a poll that
+          // recovers but finds nothing still ends the retry, and leaving the
+          // notice up until rows happen to arrive reports a healthy follow as
+          // still failing.
           failures = 0
-          if (fresh.length === 0) continue
           status.clear()
-          remember(state, fresh)
+          if (fresh.truncated) {
+            status.warn(
+              `more than ${MAX_PAGES_PER_POLL * POLL_PAGE_SIZE} runs arrived at once; older ones were skipped — see sim logs list`
+            )
+          }
+          if (fresh.rows.length === 0) continue
+          remember(state, fresh.rows)
           // Reversed because the API answers newest-first while a terminal reads
           // downwards: the newest run has to end up on the last line.
-          write(fresh.reverse())
+          write(fresh.rows.reverse())
         }
       } finally {
         status.clear()
