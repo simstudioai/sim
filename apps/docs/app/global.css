@@ -1603,15 +1603,17 @@ main article tbody tr:last-child td {
 
 /* Code blocks — platform field chrome.
 
-   The shell itself (radius, border, fill) is owned by components/ui/code-block.tsx, the way
-   an emcn component owns its chrome. What remains here is the styling of fumadocs internals
-   that component cannot reach: the title row it renders from a `title` prop, the scroll
-   viewport, and the tab strip that `<Tabs>` puts above a fence. */
+   Three renderers emit these figures and only two go through components/ui/code-block.tsx, so
+   the shell and the fumadocs internals that component cannot reach — the title row, the scroll
+   viewport, the tab strip `<Tabs>` puts above a fence — are all defined here. The component
+   keeps only the copy control and the prose margin. */
 
-/* Local aliases, not new design values: each is an existing platform token whose light and
-   dark halves differ. Naming the pair once lets the rules below be written without a `.dark`
-   twin, which would otherwise have to restate their `:has()` selectors — the double-`:has()`
-   the tabbed group is matched by, and the sibling-combinator one the gutter is matched by. */
+/* Local aliases, not new design values: each names an existing platform token pair whose light
+   and dark halves differ (`--surface-5`/`--code-bg`, `--text-muted`/`--code-line-number`).
+
+   `--code-surface` has three consumers. `--code-gutter` has one, and is an alias anyway because
+   a `.dark` twin would have to restate the sibling-combinator `:has()` its consumer is matched
+   by — the expensive form, which re-checks on every line insertion. */
 :root {
   --code-surface: var(--surface-5);
   --code-gutter: var(--text-muted);
@@ -1689,10 +1691,9 @@ figure.shiki > div:first-child:has(figcaption) svg {
 
    The `!important` and the viewport selector are belt-and-braces, not strictly required —
    fumadocs' declaration is (0,2,0) and these selectors are (0,3,1) and (0,4,1), so they
-   already win, and nothing declares this property on the viewport. They are kept because
-   getting this wrong puts the line numbers on top of the code, which shipped once already, and
-   because the specificity of `:has()` and `:not()` is easy to miscount in exactly the
-   direction that reintroduces it. Remove them only alongside a visual check.
+   already win, and nothing declares this property on the viewport. They are kept because the
+   specificity of `:has()` and `:not()` is easy to miscount in the direction that puts the line
+   numbers on top of the code. Remove them only alongside a visual check.
  */
 figure.shiki:has(.line ~ .line),
 figure.shiki:has(.line ~ .line) > div[role="region"],
@@ -1733,19 +1734,15 @@ figure.shiki code:has(.line ~ .line) .line::before {
    the code surface. The viewport is the one box all three renderers agree on. */
 figure.shiki > div[role="region"] {
   background-color: var(--code-surface);
+  /* fumadocs ships 14px of vertical padding, the platform's viewer 8px; 10px splits them and
+     keeps a single-line fence from looking hollow at the tighter 21px line box. */
+  padding-block: 10px;
 }
 
 /* Shiki emits `--shiki-*-bg` custom properties under `defaultColor: false`; keep the `pre` clear
    so nothing paints over the viewport fill. */
 figure.shiki pre {
   background-color: transparent;
-}
-
-/* Viewport padding — fumadocs ships 14px vertical; the platform's viewer uses 8px. Split the
-   difference at 10px, which keeps a single-line fence from looking hollow at the tighter
-   21px line box. */
-figure.shiki > div[role="region"] {
-  padding-block: 10px;
 }
 
 /* Untitled blocks float the copy control over the code, so the last column has to clear it:
@@ -1802,12 +1799,6 @@ figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
     color 150ms;
 }
 
-figure.shiki button[aria-label="Copy Text"] > svg[class*="lucide"],
-figure.shiki button[aria-label="Copied Text"] > svg[class*="lucide"] {
-  width: 14px;
-  height: 14px;
-}
-
 figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]) {
   @variant hover-hover {
     background-color: var(--surface-active);
@@ -1849,11 +1840,11 @@ figure.shiki button[aria-label$="Text"]:has(> svg[class*="lucide"])::before {
   -webkit-mask-size: contain;
 }
 
-figure.shiki button[aria-label="Copy Text"] {
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]) {
   --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25'/%3E%3Crect x='5.25' y='5.25' width='14' height='14' rx='2'/%3E%3C/svg%3E");
 }
 
-figure.shiki button[aria-label="Copied Text"] {
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
   --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.25 2.75L7.25 15.75L1.75 10.25'/%3E%3C/svg%3E");
 }
 
@@ -1901,6 +1892,9 @@ div:has(> div > figure.shiki) > [role="tablist"] button {
     color 150ms;
 }
 
+/* Kept as its own rule rather than nested into the block above: biome's
+   `noDuplicateProperties` reads a nested `@variant` setting the same property as a duplicate
+   declaration and fails the build. */
 div:has(> div > figure.shiki) > [role="tablist"] button {
   @variant hover-hover {
     color: var(--text-body);

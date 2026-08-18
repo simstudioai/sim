@@ -2,8 +2,14 @@
 
 import type { ComponentProps } from 'react'
 import { useId } from 'react'
-import { chipFieldSurfaceClass, chipFieldTextClass, chipHoverSurfaceClass, cn } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import {
+  ChipChevronDown,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipGeometryClass,
+  chipHoverSurfaceClass,
+  cn,
+} from '@sim/emcn'
 import type { APIPageClientOptions } from 'fumadocs-openapi/ui/client'
 
 type FumadocsAPIExampleSelector = NonNullable<
@@ -35,10 +41,11 @@ export function APIExampleSelector({ items, value, onValueChange }: APIExampleSe
            * screen-reader behavior a custom listbox would have to rebuild.
            */
           className={cn(
+            chipGeometryClass,
             chipFieldSurfaceClass,
             chipFieldTextClass,
             chipHoverSurfaceClass,
-            'h-[30px] w-full appearance-none ps-2 pe-8 text-left'
+            'w-full appearance-none pe-8'
           )}
         >
           {items.map((item) => (
@@ -47,7 +54,7 @@ export function APIExampleSelector({ items, value, onValueChange }: APIExampleSe
             </option>
           ))}
         </select>
-        <ChevronDown className='-translate-y-1/2 pointer-events-none absolute end-2 top-1/2 size-[14px] text-[var(--text-icon)]' />
+        <ChipChevronDown className='-translate-y-1/2 pointer-events-none absolute end-2 top-1/2' />
       </div>
       {selectedItem?.description && (
         <p className='text-[var(--text-muted)] text-caption'>{selectedItem.description}</p>
