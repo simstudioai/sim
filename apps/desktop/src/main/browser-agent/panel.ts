@@ -20,6 +20,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { BrowserWindow, WebContentsView } from 'electron'
 import { zoomPercentOf } from '@/main/browser-agent/context-menu'
 import type { AgentTab } from '@/main/browser-agent/session'
+import { reassertTabThrottling } from '@/main/browser-agent/session'
 
 const logger = createLogger('BrowserAgentPanel')
 
@@ -420,7 +421,19 @@ export function layout(): void {
     lastAppliedVisibility = visible
     active.view.setVisible(visible)
     if (visible && !active.view.webContents.isDestroyed()) {
-      active.view.webContents.invalidate()
+      // invalidate() recomposites the LAST frame — which is blank when the
+      // page finished loading while this view was hidden and background
+      // throttling suspended the rAF its SPA paints from. The page then sits
+      // "loaded" but white until the user re-navigates by hand. Pulse
+      // throttling off so the renderer actually produces a first frame, then
+      // hand the policy back to the session (which keeps the automation-tab
+      // exemption intact).
+      const contents = active.view.webContents
+      contents.setBackgroundThrottling(false)
+      contents.invalidate()
+      setTimeout(() => {
+        if (!contents.isDestroyed()) reassertTabThrottling()
+      }, 1_000)
     }
   }
 }
