@@ -2545,24 +2545,31 @@ export class WorkspaceVFS {
           'organization/custom-blocks.json',
           serializeOrganizationCustomBlocks(orgBlocks)
         )
-        for (const orgBlock of orgBlocks) {
-          this.registerLazy(`organization/custom-blocks/${orgBlock.type}.json`, async () => {
-            try {
-              const deployed = await loadDeployedWorkflowState(
-                orgBlock.workflowId,
-                orgBlock.workspaceId ?? undefined
-              )
-              return serializeOrgCustomBlockDetail(orgBlock, deployed)
-            } catch (err) {
-              logger.warn('Failed to load deployed state for org custom block', {
-                workspaceId,
-                blockType: orgBlock.type,
-                error: toError(err).message,
-              })
-              return null
-            }
-          })
-        }
+        // The names index matches editor visibility: anyone who can open the
+        // workspace sees the block in the toolbar. The deployed GRAPH is org
+        // implementation internals, so an external collaborator — workspace
+        // access without org membership — gets the interface (components/
+        // schema) but not the graph; for them the detail files simply do not
+        // exist.
+        if (hostContext.viewer.isHostOrganizationMember)
+          for (const orgBlock of orgBlocks) {
+            this.registerLazy(`organization/custom-blocks/${orgBlock.type}.json`, async () => {
+              try {
+                const deployed = await loadDeployedWorkflowState(
+                  orgBlock.workflowId,
+                  orgBlock.workspaceId ?? undefined
+                )
+                return serializeOrgCustomBlockDetail(orgBlock, deployed)
+              } catch (err) {
+                logger.warn('Failed to load deployed state for org custom block', {
+                  workspaceId,
+                  blockType: orgBlock.type,
+                  error: toError(err).message,
+                })
+                return null
+              }
+            })
+          }
       }
 
       const forksAvailable =
