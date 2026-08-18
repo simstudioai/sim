@@ -11,6 +11,7 @@ import {
   getEffectiveEnvironmentSnapshot,
 } from '@/lib/environment/utils'
 import type { McpServerConfig } from '@/lib/mcp/types'
+import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import {
   createIncompleteResolvedSecretTraceRegistry,
@@ -75,6 +76,7 @@ export async function resolveMcpConfigEnvVars(
       personalDecrypted: env.personalDecrypted,
       workspaceDecrypted: env.workspaceDecrypted,
       decryptionFailures: env.decryptionFailures,
+      personalOwners: env.personalOwners,
       scope,
     })
   } catch (error) {
@@ -124,6 +126,19 @@ export async function resolveMcpConfigEnvVars(
     }
     uniqueMissing.forEach((envKey) => {
       logger.warn(`Environment variable "${envKey}" not found in MCP config`)
+    })
+  }
+
+  /**
+   * MCP server config resolves outside any workflow run, so no execution completion will
+   * record it. Without this a secret used only to reach an MCP server reads as never used.
+   */
+  if (workspaceId) {
+    recordSecretUsage(resolvedSecretTraceRegistry.getResolvedSecretUsage(), {
+      workspaceId,
+      source: 'mcp',
+      actorUserId: userId,
+      trigger: 'mcp',
     })
   }
 

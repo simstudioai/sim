@@ -598,6 +598,7 @@ async function executeWebhookJobInternal(
               personalDecrypted: secretEnvironment.personalDecrypted,
               workspaceDecrypted: secretEnvironment.workspaceDecrypted,
               decryptionFailures: secretEnvironment.decryptionFailures,
+              personalOwners: secretEnvironment.personalOwners,
               scope: secretScope,
             })
           } catch (error) {

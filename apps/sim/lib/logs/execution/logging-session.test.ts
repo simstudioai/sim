@@ -47,6 +47,9 @@ const { decryptSecretMock } = vi.hoisted(() => ({
   decryptSecretMock: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
 }))
 
+const { recordSecretUsageMock } = vi.hoisted(() => ({ recordSecretUsageMock: vi.fn() }))
+vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: recordSecretUsageMock }))
+
 vi.mock('drizzle-orm', () => ({
   eq: dbMocks.eq,
   and: dbMocks.and,
@@ -137,6 +140,7 @@ function createSecretRegistry(
   return {
     isComplete: () => complete,
     getActiveMatches: () => matches,
+    getResolvedSecretUsage: () => [{ name: 'API_KEY', scope: 'workspace' as const }],
     exportProvenance: () => ({ version: 1, complete, entries: [] }),
     exportCheckpointProvenance: () => ({ version: 1, complete, entries: [] }),
   } as unknown as ResolvedSecretTraceRegistry
@@ -1802,5 +1806,65 @@ describe('LoggingSession progress-marker write path', () => {
 
     expect(setLastStartedBlockMock).toHaveBeenCalled()
     expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('secret usage trail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([])
+    completeWorkflowExecutionMock.mockResolvedValue({})
+    releaseExecutionSlotMock.mockResolvedValue(undefined)
+  })
+
+  async function startSession(executionId: string) {
+    const session = new LoggingSession('workflow-1', executionId, 'schedule', 'req-usage')
+    session.setResolvedSecretTraceRegistry(createSecretRegistry([]))
+    await session.start({
+      userId: 'user-1',
+      actorUserId: 'actor-1',
+      workspaceId: 'workspace-1',
+      skipLogCreation: true,
+    })
+    return session
+  }
+
+  it('records what a completed run resolved, against the run actor', async () => {
+    const session = await startSession('execution-usage-complete')
+
+    await session.complete({})
+
+    expect(recordSecretUsageMock).toHaveBeenCalledWith(
+      [{ name: 'API_KEY', scope: 'workspace' }],
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        source: 'workflow',
+        actorUserId: 'actor-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-usage-complete',
+        trigger: 'schedule',
+      })
+    )
+  })
+
+  it('records a failed run, which resolved the secret just the same', async () => {
+    const session = await startSession('execution-usage-error')
+
+    await session.completeWithError({ error: new Error('boom') })
+
+    expect(recordSecretUsageMock).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A paused run resumes and completes later. Recording at the pause as well would count every
+   * human-in-the-loop run twice.
+   */
+  it('does not record a pause, which the resume will record', async () => {
+    const session = await startSession('execution-usage-pause')
+
+    await session.completeWithPause({})
+
+    expect(recordSecretUsageMock).not.toHaveBeenCalled()
   })
 })

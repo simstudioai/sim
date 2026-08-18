@@ -8,10 +8,12 @@ import {
   createCredentialDraftContract,
   createWorkspaceCredentialContract,
   deleteWorkspaceCredentialContract,
+  getSecretUsageContract,
   getWorkspaceCredentialContract,
   listWorkspaceCredentialMembersContract,
   listWorkspaceCredentialsContract,
   removeWorkspaceCredentialMemberContract,
+  type SecretUsageScope,
   updateWorkspaceCredentialContract,
   upsertWorkspaceCredentialMemberContract,
   type WorkspaceCredential,
@@ -283,5 +285,35 @@ export function useRemoveWorkspaceCredentialMember() {
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
     },
+  })
+}
+
+/**
+ * The trail is written by every run that resolves the secret, so it goes stale quickly. A
+ * short window keeps "last used" meaningful without refetching on every panel interaction.
+ */
+export const SECRET_USAGE_STALE_TIME = 30 * 1000
+
+interface SecretUsageParams {
+  workspaceId?: string
+  name?: string
+  scope?: SecretUsageScope
+}
+
+/** Reads one secret's usage trail. Only credential admins are authorized server-side. */
+export function useSecretUsage({ workspaceId, name, scope }: SecretUsageParams, enabled = true) {
+  return useQuery({
+    queryKey: workspaceCredentialKeys.usage(workspaceId, name, scope),
+    queryFn: ({ signal }) =>
+      requestJson(getSecretUsageContract, {
+        query: {
+          workspaceId: workspaceId as string,
+          name: name as string,
+          scope: scope as SecretUsageScope,
+        },
+        signal,
+      }),
+    enabled: Boolean(workspaceId && name && scope) && enabled,
+    staleTime: SECRET_USAGE_STALE_TIME,
   })
 }

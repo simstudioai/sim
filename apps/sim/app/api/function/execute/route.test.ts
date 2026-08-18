@@ -2469,7 +2469,12 @@ describe('Function Execute API Route', () => {
       expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     })
 
-    it('reports exact secret values returned through placeholders without inferring direct environment reads', async () => {
+    /**
+     * A direct read is a factual reference to the environment binding, not the value-coincidence
+     * inference #6374 removed — that one claimed a secret because its plaintext happened to equal
+     * an unrelated output. Reporting it is what activates execution-log masking for the value.
+     */
+    it('reports secrets reached through placeholders and through direct environment reads', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({
         result: 'secret-valueother-secret',
         stdout: '',
@@ -2507,14 +2512,14 @@ describe('Function Execute API Route', () => {
 
       expect(envData.__resolvedSecretNames).toEqual(['ENV_ONLY', 'SHARED'])
       expect(directData.output.result).toBe('secret-value')
-      expect(directData.__resolvedSecretNames).toEqual([])
+      expect(directData.__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
     it.each([
       { name: 'numeric', secret: '123', result: 123 },
       { name: 'boolean', secret: 'true', result: true },
     ])(
-      'preserves a typed $name value returned through legacy direct environment access without inferred provenance',
+      'preserves a typed $name value returned through a direct environment read while reporting it',
       async ({ secret, result }) => {
         mockExecuteInIsolatedVM.mockResolvedValueOnce({ result, stdout: '' })
 
@@ -2532,12 +2537,13 @@ describe('Function Execute API Route', () => {
         )
         const data = await response.json()
 
+        /** The typed value survives: a secret this short is never substitutable. */
         expect(data.output.result).toBe(result)
-        expect(data.__resolvedSecretNames).toEqual([])
+        expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
       }
     )
 
-    it('reports placeholder output without inferring provenance from legacy shell environment access', async () => {
+    it('reports placeholder output and a shell environment expansion alike', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteShellInSandbox.mockResolvedValueOnce({
         result: null,
@@ -2582,7 +2588,7 @@ describe('Function Execute API Route', () => {
 
       expect(referencedData.__resolvedSecretNames).toEqual(['API_KEY'])
       expect(directData.output.stdout).toBe('secret-value')
-      expect(directData.__resolvedSecretNames).toEqual([])
+      expect(directData.__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
     it('returns nonzero shell stderr as a visible 422 error and diagnostic output', async () => {

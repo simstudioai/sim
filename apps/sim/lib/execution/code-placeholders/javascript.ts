@@ -23,6 +23,37 @@ const SENTINEL_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ
 interface DecodedJavaScriptSyntax {
   identifierNames: string[]
   values: string[]
+  environmentReads: DirectEnvironmentRead[]
+}
+
+export interface DirectEnvironmentRead {
+  name: string
+  offset: number
+}
+
+/** The runtime identifier the sandbox prologue binds the environment to. */
+const ENVIRONMENT_VARIABLES_IDENTIFIER = 'environmentVariables'
+
+/**
+ * Names a statically visible read off the runtime environment object, covering
+ * `environmentVariables.NAME`, `environmentVariables['NAME']`, and their optional-chained
+ * forms. A computed subscript is deliberately not resolved — see
+ * {@link CodePlaceholderCompilationContext.recordDirectEnvironmentRead}.
+ */
+function directEnvironmentRead(node: ts.Node): DirectEnvironmentRead | undefined {
+  if (ts.isPropertyAccessExpression(node)) {
+    if (!ts.isIdentifier(node.expression)) return undefined
+    if (node.expression.text !== ENVIRONMENT_VARIABLES_IDENTIFIER) return undefined
+    return node.name.text ? { name: node.name.text, offset: node.getStart() } : undefined
+  }
+  if (ts.isElementAccessExpression(node)) {
+    if (!ts.isIdentifier(node.expression)) return undefined
+    if (node.expression.text !== ENVIRONMENT_VARIABLES_IDENTIFIER) return undefined
+    const argument = node.argumentExpression
+    if (!ts.isStringLiteralLike(argument) || !argument.text) return undefined
+    return { name: argument.text, offset: node.getStart() }
+  }
+  return undefined
 }
 
 interface AnnexBHtmlCommentRange {
@@ -41,6 +72,7 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
   )
   const identifierNames: string[] = []
   const values: string[] = []
+  const environmentReads: DirectEnvironmentRead[] = []
   const visit = (node: ts.Node): void => {
     const isTemplateToken =
       node.kind === ts.SyntaxKind.TemplateHead ||
@@ -53,10 +85,19 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
       const rawText: unknown = Reflect.get(node, 'rawText')
       if (typeof rawText === 'string' && rawText) values.push(rawText)
     }
+    /** Kind-checked inline: this visitor runs for every node in the file, and a call per
+     *  node to re-test the same two kinds is measurable on a large source. */
+    if (
+      node.kind === ts.SyntaxKind.PropertyAccessExpression ||
+      node.kind === ts.SyntaxKind.ElementAccessExpression
+    ) {
+      const environmentRead = directEnvironmentRead(node)
+      if (environmentRead) environmentReads.push(environmentRead)
+    }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return { identifierNames, values }
+  return { identifierNames, values, environmentReads }
 }
 
 function collectForbiddenSentinels(
@@ -503,6 +544,14 @@ export async function compileJavaScriptPlaceholders(
     ...input,
     reservedNames: [...(input.reservedNames ?? []), ...decodedSyntax.identifierNames],
   })
+  /**
+   * Recorded before the no-placeholder early return below: code that only reads the
+   * environment directly has no `{{NAME}}` occurrence at all, and that is exactly the case
+   * this exists to cover.
+   */
+  for (const read of decodedSyntax.environmentReads) {
+    context.recordDirectEnvironmentRead(read.name, read.offset)
+  }
   if (context.occurrences.length === 0) {
     const sourceFile = ts.createSourceFile(
       'user-code.js',
