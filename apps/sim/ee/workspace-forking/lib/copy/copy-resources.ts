@@ -368,6 +368,11 @@ type SkillSkeletonInsert = Omit<typeof skill.$inferInsert, 'content'> & { conten
  * {@link copyForkResourceContent} to copy best-effort after commit. Secrets are
  * never copied: MCP OAuth tokens are omitted (re-auth required) and KB connectors
  * are not copied (the child is a content snapshot without live sync).
+ *
+ * Because the child gets no connector, connector-MANAGED documents are not copied
+ * either - only hand-uploaded ones. A detached copy is unreachable by the sync engine
+ * (which keys off `connector_id`), so re-attaching a connector in the child would layer
+ * a fresh generation on top of it instead of updating it. See {@link copyForkResourceContent}.
  */
 export async function copyForkResourceContainers(
   params: CopyResourcesParams
@@ -784,6 +789,12 @@ export async function copyForkResourceContainers(
  * Each deterministic placeholder is archived with no storage key and zero bytes, so it is
  * non-billable until {@link copyForkResourceContent} activates it atomically with accounting.
  * Documents whose parent KB is not copied are skipped, leaving their references to be cleared.
+ *
+ * Connector-managed documents are skipped for the same reason {@link copyForkResourceContent}
+ * excludes them from the bulk copy - a detached snapshot the child's connector would duplicate.
+ * Skipping them HERE too is what keeps the two sides consistent: a placeholder with no content
+ * phase behind it would stay archived forever while its persisted `knowledge_document` mapping
+ * pointed at it. Their references clear like any other uncopied document's.
  */
 async function createForkDocumentPlaceholders(params: {
   tx: DbOrTx
@@ -803,6 +814,7 @@ async function createForkDocumentPlaceholders(params: {
       and(
         inArray(document.id, referencedDocumentIds),
         inArray(document.knowledgeBaseId, Array.from(kbIdMap.keys())),
+        isNull(document.connectorId),
         isNull(document.deletedAt),
         isNull(document.archivedAt)
       )
@@ -845,7 +857,9 @@ async function createForkDocumentPlaceholders(params: {
  * Documents whose parent KB is being copied THIS sync are handled by
  * {@link createForkDocumentPlaceholders} under that copied KB and are excluded here via
  * `alreadyCopiedSourceDocIds`. A referenced document whose parent KB is not mapped at all is left
- * untouched, so its reference is cleared as before.
+ * untouched, so its reference is cleared as before. Connector-managed documents are excluded for
+ * the reason given on {@link copyForkResourceContent} - and the exclusion matters MORE here, since
+ * the target KB is an existing one that may already run its own connector over the same source.
  */
 export async function planForkMappedKbDocumentCopies(params: {
   tx: DbOrTx
@@ -877,6 +891,7 @@ export async function planForkMappedKbDocumentCopies(params: {
     .where(
       and(
         inArray(document.id, candidateIds),
+        isNull(document.connectorId),
         isNull(document.deletedAt),
         isNull(document.archivedAt)
       )
@@ -1124,13 +1139,51 @@ export async function copyForkResourceContent(params: {
 
   for (const kb of contentPlan.knowledgeBases) {
     try {
+      // Connector-managed documents are excluded from the copy (see the predicate below), and a
+      // KB can be entirely connector-sourced - so report what was left behind rather than letting
+      // the child silently land with fewer documents than the source.
+      const [{ skipped: connectorManaged = 0 } = {}] = await db
+        .select({ skipped: sql<number>`count(*)` })
+        .from(document)
+        .where(
+          and(
+            eq(document.knowledgeBaseId, kb.sourceId),
+            isNotNull(document.connectorId),
+            isNull(document.deletedAt),
+            isNull(document.archivedAt)
+          )
+        )
+      if (Number(connectorManaged) > 0) {
+        logger.info(
+          `[${requestId}] Skipped connector-managed documents in a copied knowledge base`,
+          {
+            sourceKnowledgeBaseId: kb.sourceId,
+            childKnowledgeBaseId: kb.childId,
+            skipped: Number(connectorManaged),
+          }
+        )
+      }
       let afterDocId: string | null = null
       for (;;) {
         // Only copy LIVE documents - exclude soft-deleted and archived rows, matching
         // how the rest of the KB system treats them as gone (chunks/tags/search filter
         // both). A fork must not resurrect documents removed from the source base.
+        //
+        // Connector-managed documents (`connector_id IS NOT NULL`) are excluded too. A copy can
+        // only be a DETACHED snapshot - the child gets no connector (see
+        // `copyForkResourceContainers`), and the sync engine keys every existing/tombstone/
+        // exclusion lookup off `connector_id`, so a detached copy is invisible to it: it can
+        // never be updated, reconciled, or purged, and `doc_connector_external_id_idx`
+        // (UNIQUE on `(connector_id, external_id)`) does not constrain it because its
+        // `connector_id` is NULL. Attaching a connector to the child then re-ingests every
+        // page as a NEW row on top of the snapshot, stacking one duplicate generation per fork
+        // hop and returning the same page several times from one retrieval. Skipping them
+        // instead leaves the child's connector as the single owner of that content. A source
+        // document whose connector was DELETED already has a null `connector_id` (the FK is
+        // ON DELETE SET NULL) and is static content in the source too, so it still copies.
         const liveDocs = and(
           eq(document.knowledgeBaseId, kb.sourceId),
+          isNull(document.connectorId),
           isNull(document.deletedAt),
           isNull(document.archivedAt)
         )
@@ -1272,6 +1325,15 @@ export async function copyForkResourceContent(params: {
         .limit(1)
       if (!source) {
         throw new Error(`Source document ${docEntry.sourceDocId} is missing`)
+      }
+      if (source.connectorId) {
+        // Only reachable from a payload planned before connector-managed documents were excluded
+        // (a rolling deploy). Fail the entry instead of filling it: the per-document cleanup
+        // below drops the archived placeholder and clears its references, which is the outcome
+        // the planner would now produce anyway.
+        throw new Error(
+          `Source document ${docEntry.sourceDocId} is connector-managed and is not copied across a fork edge`
+        )
       }
       const resolvedBillingContext = await getBillingContext()
       await copyKbDocument({

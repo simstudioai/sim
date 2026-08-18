@@ -6,7 +6,9 @@ import { folder as folderTable } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import {
   dbChainMockFns,
+  flattenMockConditions,
   resetDbChainMock,
+  schemaMock,
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
@@ -309,6 +311,28 @@ describe('copyForkResourceContent', () => {
     )
     // Compatibility with a content-copy job queued before document mapping context existed.
     expect(mockPersistCopiedResourceMappings).not.toHaveBeenCalled()
+  })
+
+  it('never copies a connector-managed document out of the source knowledge base', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [{ sourceId: 'src-kb', childId: 'child-kb', documentIdMap: {} }],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+    // The row queue returns whatever is enqueued regardless of the predicate, so the exclusion
+    // is only observable in the condition tree. Pinned to the column so the assertion keeps its
+    // meaning if another nullable filter joins the same clause.
+    const pageWhere = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    expect(
+      flattenMockConditions(pageWhere).some(
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.connectorId
+      )
+    ).toBe(true)
   })
 
   it('uses the blob content digest so a retry cannot adopt an older failed snapshot', async () => {
@@ -1051,6 +1075,25 @@ describe('copyForkResourceContent', () => {
     })
   })
 
+  it('U-docs: refuses a connector-managed source planned before the exclusion existed', async () => {
+    // A payload queued by a pre-change worker during a rolling deploy: the planner would no
+    // longer emit this entry, so the fill must drop the placeholder rather than detach a copy
+    // of a connector-managed document into the existing target KB.
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...sourceDoc, connectorId: 'connector-1' }])
+
+    const result = await copyForkResourceContent({
+      contentPlan: mappedDocumentPlan(),
+      requestId: 'test',
+    })
+
+    expect(result.copied).toBe(0)
+    expect(result.failures).toEqual([{ kind: 'knowledge-document', childId: 'child-doc-1' }])
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageInTx).not.toHaveBeenCalled()
+  })
+
   it('U-docs: refuses to charge when the target knowledge base moved workspaces', async () => {
     queueMappedDocumentCopy()
     dbChainMockFns.for.mockResolvedValueOnce([{ workspaceId: 'other-workspace' }])
@@ -1359,10 +1402,12 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
     // would make every source folder look already-present and suppress the mirroring.
     let folderCall = 0
     const inserts: Array<Array<Record<string, unknown>>> = []
+    const wheres: Array<{ table: unknown; condition: unknown }> = []
     const tx = {
       select: () => ({
         from: (table: unknown) => ({
-          where: () => {
+          where: (condition: unknown) => {
+            wheres.push({ table, condition })
             if (table === folderTable) {
               return Promise.resolve(folderCall++ === 0 ? sourceFolders : [])
             }
@@ -1377,7 +1422,7 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
         },
       }),
     }
-    return { tx: tx as unknown as DbOrTx, inserts }
+    return { tx: tx as unknown as DbOrTx, inserts, wheres }
   }
 
   const kbSelection = {
@@ -1458,6 +1503,35 @@ describe('copyForkResourceContainers knowledge-base tag definitions', () => {
     expect(inserts).toHaveLength(1)
   })
 
+  it('does not pre-create a placeholder for a referenced connector-managed document', async () => {
+    const { tx, wheres } = makeKbTx([[sourceBase], [], []])
+
+    const result = await copyForkResourceContainers({
+      tx,
+      sourceWorkspaceId: 'src-ws',
+      childWorkspaceId: 'child-ws',
+      userId: 'user-1',
+      now: new Date(),
+      selection: kbSelection,
+      workflowIdMap: new Map(),
+      referencedDocumentIds: ['doc-1'],
+      documentMappingContext: { edgeChildWorkspaceId: 'child-ws', sourceIsParent: true },
+    })
+
+    // Must agree with the content phase's exclusion: a placeholder with no content copy behind
+    // it would stay archived forever while its persisted mapping pointed at it.
+    const placeholderWhere = wheres.find(({ table }) => table === schemaMock.document)?.condition
+    expect(
+      flattenMockConditions(placeholderWhere).some(
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.connectorId
+      )
+    ).toBe(true)
+    expect(result.mappingEntries.some((entry) => entry.resourceType === 'knowledge_document')).toBe(
+      false
+    )
+    expect(result.contentPlan.knowledgeBases[0].documentIdMap).toEqual({})
+  })
+
   it('mirrors the source knowledge-base folder and copies the KB into it, not the target root', async () => {
     const foldered = { ...sourceBase, folderId: 'kb-folder' }
     const { tx, inserts } = makeKbTx(
@@ -1510,7 +1584,9 @@ describe('planForkMappedKbDocumentCopies', () => {
     fileSize: 123,
     filename: `${id}.pdf`,
     mimeType: 'application/pdf',
-    connectorId: 'connector-1',
+    // Hand-uploaded: connector-managed documents are filtered out by the candidate query and
+    // can never reach the placeholder insert.
+    connectorId: null,
     deletedAt: null,
     archivedAt: null,
   })
@@ -1526,11 +1602,19 @@ describe('planForkMappedKbDocumentCopies', () => {
     }> = []
   ) {
     const inserted: Array<Record<string, unknown>> = []
+    const wheres: unknown[] = []
     let selectCalls = 0
     const tx = {
       select: () => {
         const rows = selectCalls++ === 0 ? docs : existingTargets
-        return { from: () => ({ where: () => Promise.resolve(rows) }) }
+        return {
+          from: () => ({
+            where: (condition: unknown) => {
+              wheres.push(condition)
+              return Promise.resolve(rows)
+            },
+          }),
+        }
       },
       insert: () => ({
         values: (rows: Array<Record<string, unknown>>) => {
@@ -1539,7 +1623,7 @@ describe('planForkMappedKbDocumentCopies', () => {
         },
       }),
     }
-    return { tx: tx as unknown as DbOrTx, inserted, selectCalls: () => selectCalls }
+    return { tx: tx as unknown as DbOrTx, inserted, wheres, selectCalls: () => selectCalls }
   }
 
   const mappedKbResolver: ForkReferenceResolver = (kind, id) =>
@@ -1582,6 +1666,25 @@ describe('planForkMappedKbDocumentCopies', () => {
         mimeType: 'application/pdf',
       },
     ])
+  })
+
+  it('never considers a connector-managed doc as a candidate for the mapped target KB', async () => {
+    const { tx, wheres } = makeTx([])
+    await planForkMappedKbDocumentCopies({
+      tx,
+      resolver: mappedKbResolver,
+      referencedDocumentIds: ['doc-1'],
+      alreadyCopiedSourceDocIds: new Set(),
+      now,
+    })
+
+    // The tx mock returns its rows regardless of the predicate, so the exclusion is only
+    // observable in the condition tree.
+    expect(
+      flattenMockConditions(wheres[0]).some(
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.connectorId
+      )
+    ).toBe(true)
   })
 
   it('skips a referenced doc whose parent KB is not mapped (reference is left to be cleared)', async () => {
