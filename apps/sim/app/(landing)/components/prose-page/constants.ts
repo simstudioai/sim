@@ -37,6 +37,16 @@ export const PROSE_SPACING = {
 } as const
 
 /**
+ * Column widths for the cookie-inventory tables. Sibling tables sharing a header
+ * must be given a fixed layout or each sizes itself to its own content and the
+ * group reads as unaligned grids — so the widths are chrome, and live here
+ * rather than as class strings in a content config.
+ */
+export const PROSE_TABLE_WIDTHS = {
+  cookieInventory: ['w-[24%]', 'w-[16%]', 'w-[45%]', 'w-[15%]'],
+} as const
+
+/**
  * Prose type tokens - the single source of truth for every heading size, body
  * color, list, callout, and inline-link treatment. Centralized alongside the
  * spacing fortress so chrome is described once and never re-derived per page.

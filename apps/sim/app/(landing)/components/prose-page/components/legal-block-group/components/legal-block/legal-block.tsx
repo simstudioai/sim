@@ -46,7 +46,7 @@ export function LegalBlockView({ block }: LegalBlockViewProps) {
             {block.columnWidths ? (
               <colgroup>
                 {block.columnWidths.map((width, index) => (
-                  <col key={block.columns[index] ?? `col-${index}`} className={width} />
+                  <col key={`col-${index}`} className={width} />
                 ))}
               </colgroup>
             ) : null}
@@ -65,10 +65,7 @@ export function LegalBlockView({ block }: LegalBlockViewProps) {
                 return (
                   <tr key={rowKey}>
                     {row.map((cell, cellIndex) => (
-                      <td
-                        key={`${rowKey}-${block.columns[cellIndex]}`}
-                        className={PROSE_TYPE.tableCell}
-                      >
+                      <td key={`${rowKey}-${cellIndex}`} className={PROSE_TYPE.tableCell}>
                         {block.codeColumns?.includes(cellIndex) ? <code>{cell}</code> : cell}
                       </td>
                     ))}

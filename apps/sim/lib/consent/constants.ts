@@ -2,6 +2,12 @@
  * Cookie-consent runtime configuration. Lives in `lib` so the CSP builder
  * (`lib/core/security/csp`) can allow the same origin without a second copy of
  * the URL to drift.
+ *
+ * That makes this module part of the config boundary `next.config.ts` loads
+ * before the `@/` alias resolves, and it is also pulled into the client bundle
+ * by the banner. Keep it dependency-free — reaching for `env-flags` to derive a
+ * value here would break the build and drag the whole env schema into the
+ * browser chunk, which is why the dev override reads `process.env` directly.
  */
 
 /**

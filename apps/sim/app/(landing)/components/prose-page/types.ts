@@ -41,8 +41,10 @@ export type LegalBlock =
       /**
        * Indices of columns rendered as inline code — cookie names, config keys.
        * A marker rather than a `<code>` in the row data, because a row carries
-       * content and the renderer owns chrome, and because JSX inside an array
-       * literal needs a key that means nothing here.
+       * content and the renderer owns chrome. It is also what keeps the rows
+       * plain strings: biome's `useJsxKeyInIterable` fires on JSX inside an
+       * array literal, and the key it wants means nothing to a cell the
+       * renderer already keys by column.
        */
       codeColumns?: number[]
       rows: ReactNode[][]

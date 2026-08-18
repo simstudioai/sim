@@ -14,10 +14,14 @@ interface ConsentCategoryCopy {
 
 /**
  * Sim's own wording per category. The runtime ships generic descriptions; these
- * say what the cookies actually do here. A category without an entry falls back
- * to the runtime's description rather than disappearing.
+ * say what the cookies actually do here.
+ *
+ * Typed by name rather than by {@link ConsentCategory} because the runtime's
+ * union is wider than the three categories we configure — a policy that adds
+ * one server-side falls back to the runtime's description instead of
+ * disappearing. The `satisfies` still requires an entry for each of ours.
  */
-const CONSENT_CATEGORY_COPY: Partial<Record<ConsentCategory, ConsentCategoryCopy>> = {
+const CONSENT_CATEGORY_COPY: Record<string, ConsentCategoryCopy | undefined> = {
   necessary: {
     title: 'Necessary',
     description: 'Sign-in and security. Always on.',
@@ -30,25 +34,23 @@ const CONSENT_CATEGORY_COPY: Partial<Record<ConsentCategory, ConsentCategoryCopy
     title: 'Marketing',
     description: 'Measures which campaigns bring builders to Sim.',
   },
-}
+} satisfies Record<ConsentCategory, ConsentCategoryCopy>
 
-/** Sized against the toast stack so both floating surfaces read as one system. */
-const CARD_STYLE = { width: 'min(100vw - 2rem, 380px)' } as const
-
-/** Shared expo-out easing, matching the toast stack's motion. */
+/** Shared expo-out easing and timings, matching the toast stack's motion. */
 const EASE = [0.22, 1, 0.36, 1] as const
 const ENTER_TRANSITION = { duration: 0.28, ease: EASE } as const
 const EXPAND_TRANSITION = { duration: 0.22, ease: EASE } as const
 
-const CARD_HIDDEN = { opacity: 0, y: 8 } as const
-const CARD_SHOWN = { opacity: 1, y: 0 } as const
-const CARD_HIDDEN_REDUCED = { opacity: 0 } as const
-const CARD_SHOWN_REDUCED = { opacity: 1 } as const
+const NO_CATEGORIES: ReturnType<ReturnType<typeof useConsentManager>['getDisplayedConsents']> = []
 
 const CATEGORIES_COLLAPSED = { height: 0, opacity: 0 } as const
 const CATEGORIES_OPEN = { height: 'auto', opacity: 1 } as const
 
-/** Inline link chrome, matching `PROSE_TYPE.link` on the legal pages. */
+/**
+ * A copy of `PROSE_TYPE.link` rather than an import: the banner lives in the
+ * app shell and the token lives in the landing route group, and a shell module
+ * reaching into a route group is the wrong direction for one class string.
+ */
 const LINK_CLASS =
   'text-[var(--text-primary)] underline underline-offset-2 transition-colors hover:text-[var(--text-body)]'
 
@@ -66,8 +68,9 @@ const LINK_CLASS =
  * The card pins the `light` token layer rather than following the visitor's
  * theme, as every other public surface does (`LandingShell`, `AuthShell`, the
  * chat interfaces, the public file view). Consent is asked for on a first
- * visit, which always lands on one of those; reaching the themed app without a
- * consent record takes an expiry against a live session.
+ * visit, which lands on one of those. A record expiring against a live session
+ * is the one path that renders this card over the themed app, where it will
+ * read light-on-dark; accepted as the rarer case.
  */
 export function ConsentBanner() {
   const { consents, selectedConsents, setSelectedConsent, getDisplayedConsents } =
@@ -82,26 +85,27 @@ export function ConsentBanner() {
   }, [openDialog])
 
   const isExpanded = dialog.isVisible
-  const surface = isExpanded ? dialog : banner
-  const { allowedActions } = surface
+  const surfaceName = isExpanded ? 'dialog' : 'banner'
+  const { allowedActions } = isExpanded ? dialog : banner
   /**
    * The store's own selector, not a hand-rolled filter over `consentTypes`: the
    * shipped defaults mark every category except `necessary` as `display: false`,
-   * so filtering on that flag silently renders a one-row list.
+   * so filtering on that flag silently renders a one-row list. It re-filters and
+   * re-allocates on every call, so only the expanded card pays for it.
    */
-  const categories = getDisplayedConsents()
+  const categories = isExpanded ? getDisplayedConsents() : NO_CATEGORIES
+  const enterOffset = prefersReducedMotion ? 0 : 8
 
   return (
     <AnimatePresence>
       {(banner.isVisible || dialog.isVisible) && (
         <motion.section
           aria-label='Cookie preferences'
-          initial={prefersReducedMotion ? CARD_HIDDEN_REDUCED : CARD_HIDDEN}
-          animate={prefersReducedMotion ? CARD_SHOWN_REDUCED : CARD_SHOWN}
-          exit={prefersReducedMotion ? CARD_HIDDEN_REDUCED : CARD_HIDDEN}
+          initial={{ opacity: 0, y: enterOffset }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: enterOffset }}
           transition={ENTER_TRANSITION}
-          style={CARD_STYLE}
-          className='light fixed bottom-4 left-4 z-[var(--z-toast)] flex flex-col gap-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-overlay'
+          className='light fixed bottom-4 left-4 z-[var(--z-toast)] flex w-[min(100vw-2rem,380px)] flex-col gap-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] p-4 shadow-overlay'
         >
           <div className='flex flex-col gap-1'>
             <p className='text-[var(--text-body)] text-sm leading-5'>Cookies</p>
@@ -126,7 +130,7 @@ export function ConsentBanner() {
               >
                 <ul className='flex flex-col gap-3'>
                   {categories.map((type) => {
-                    const copy = CONSENT_CATEGORY_COPY[type.name as ConsentCategory]
+                    const copy = CONSENT_CATEGORY_COPY[type.name]
                     const inputId = `consent-${type.name}`
                     return (
                       <li key={type.name} className='flex items-start justify-between gap-3'>
@@ -150,6 +154,7 @@ export function ConsentBanner() {
             )}
           </AnimatePresence>
 
+          {/* Two clusters, not `mr-auto` on the chip: chips carry no outer margin. */}
           <div className='flex items-center justify-between gap-1'>
             <div className='flex items-center gap-1'>
               {!isExpanded && allowedActions.includes('customize') && (
@@ -160,9 +165,7 @@ export function ConsentBanner() {
               {allowedActions.includes('reject') && (
                 <Chip
                   variant='border'
-                  onClick={() =>
-                    void performAction('reject', { surface: isExpanded ? 'dialog' : 'banner' })
-                  }
+                  onClick={() => void performAction('reject', { surface: surfaceName })}
                 >
                   Reject all
                 </Chip>
@@ -170,9 +173,7 @@ export function ConsentBanner() {
               {allowedActions.includes('accept') && (
                 <Chip
                   variant='border'
-                  onClick={() =>
-                    void performAction('accept', { surface: isExpanded ? 'dialog' : 'banner' })
-                  }
+                  onClick={() => void performAction('accept', { surface: surfaceName })}
                 >
                   Accept all
                 </Chip>
