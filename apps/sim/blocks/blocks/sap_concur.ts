@@ -1011,8 +1011,12 @@ Return ONLY the YYYY-MM-DD date - no explanations, no extra text.`,
       id: 'sendbackComment',
       title: 'Sendback Comment',
       type: 'long-input',
-      placeholder: 'Visible wherever Request comments are shown (sendback only)',
-      condition: { field: 'operation', value: 'sap_concur_move_travel_request' },
+      placeholder: 'Visible wherever Request comments are shown',
+      condition: {
+        field: 'operation',
+        value: 'sap_concur_move_travel_request',
+        and: { field: 'action', value: 'sendback' },
+      },
       mode: 'advanced',
     },
     {
@@ -2272,7 +2276,8 @@ Return ONLY the JSON object - no explanations, no extra text.`,
               body: params.body || undefined,
               userId: params.travelRequestUserId || undefined,
               companyID: params.companyID || undefined,
-              comment: params.sendbackComment || undefined,
+              comment:
+                params.action === 'sendback' ? params.sendbackComment || undefined : undefined,
             }
           case 'sap_concur_list_travel_request_comments':
             return { ...auth, requestUuid: params.requestUuid }

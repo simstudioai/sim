@@ -227,18 +227,14 @@ function readCachedToken(key: string): SapConcurToken | undefined {
  *
  * The whole tuple is JSON-encoded before hashing rather than concatenated with a
  * separator, so a free-form field (clientId, companyUuid) cannot span a field boundary
- * and collide with a different tuple. The full sha256 digest is kept — truncating it
- * would lower the collision/forgery bar for no measurable gain.
- */
-/**
- * Key the token cache by every credential that changes which token Concur mints.
+ * and collide with a different tuple.
  *
  * Keyed with a server-side secret rather than a bare digest. The inputs include a
- * user-chosen password, which is low-entropy enough to brute-force from a plain
- * SHA-256 if a key ever reached a heap dump or a debug log; an HMAC makes the key
- * useless without the secret. A password-hashing KDF would be the wrong tool — this
- * runs on every token fetch and the goal is collision-free partitioning, not
- * verification of a stored credential.
+ * user-chosen password, which is low-entropy enough to brute-force from a plain SHA-256
+ * if a key ever reached a heap dump or a debug log; an HMAC makes the key useless without
+ * the secret. A password-hashing KDF would be the wrong tool — this runs on every token
+ * fetch and the goal is collision-free partitioning, not verification of a stored
+ * credential.
  */
 function tokenCacheKey(req: SapConcurAuth): string {
   return createHmac('sha256', env.INTERNAL_API_SECRET)
