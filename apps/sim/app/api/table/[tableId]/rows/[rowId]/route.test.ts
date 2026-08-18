@@ -9,10 +9,15 @@
  * silently changing what clients observe. They intentionally assert the
  * existing contract rather than an idealized one.
  */
-import { hybridAuthMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createTableDefinition,
+  hybridAuthMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table'
 
 const {
   mockCheckAccess,
@@ -66,29 +71,6 @@ const WORKSPACE_ID = 'workspace-1'
 const CREATED_AT = new Date('2024-01-01T00:00:00.000Z')
 const UPDATED_AT = new Date('2024-02-02T00:00:00.000Z')
 
-function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
-  return {
-    id: TABLE_ID,
-    name: 'People',
-    description: null,
-    schema: {
-      columns: [
-        { id: 'col_aaa', name: 'Name', type: 'string' },
-        { id: 'col_bbb', name: 'Age', type: 'number' },
-      ],
-    },
-    metadata: null,
-    rowCount: 0,
-    maxRows: 100,
-    workspaceId: WORKSPACE_ID,
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: CREATED_AT,
-    updatedAt: UPDATED_AT,
-    ...overrides,
-  } as TableDefinition
-}
-
 function buildStoredRow() {
   return {
     id: ROW_ID,
@@ -133,7 +115,20 @@ beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
   authAs()
-  mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+  mockCheckAccess.mockResolvedValue({
+    ok: true,
+    table: createTableDefinition({
+      id: TABLE_ID,
+      columns: [
+        { id: 'col_aaa', name: 'Name', type: 'string' },
+        { id: 'col_bbb', name: 'Age', type: 'number' },
+      ],
+      maxRows: 100,
+      workspaceId: WORKSPACE_ID,
+      createdAt: CREATED_AT,
+      updatedAt: UPDATED_AT,
+    }),
+  })
 })
 
 describe('GET /api/table/[tableId]/rows/[rowId]', () => {

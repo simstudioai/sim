@@ -1,10 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table'
 
 const { mockCheckAccess, mockFindRowMatches, mockTableFilterError } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
@@ -31,24 +30,6 @@ vi.mock('@/lib/table/rows/service', () => ({
 
 import { GET } from '@/app/api/table/[tableId]/rows/find/route'
 
-function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: { columns: [{ name: 'name', type: 'string' }] },
-    metadata: null,
-    rowCount: 0,
-    maxRows: 100,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-    ...overrides,
-  }
-}
-
 function callGet(
   query: Record<string, string>,
   { tableId }: { tableId: string } = { tableId: 'tbl_1' }
@@ -68,7 +49,15 @@ describe('GET /api/table/[tableId]/rows/find', () => {
       userId: 'user-1',
       authType: 'session',
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: createTableDefinition({
+        columns: [{ name: 'name', type: 'string' }],
+        maxRows: 100,
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      }),
+    })
     mockTableFilterError.mockReturnValue(null)
     mockFindRowMatches.mockResolvedValue({
       matches: [{ ordinal: 4, rowId: 'row_4', column: 'name' }],

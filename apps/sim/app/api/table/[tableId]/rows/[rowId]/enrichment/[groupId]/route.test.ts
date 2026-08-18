@@ -1,10 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EnrichmentRunDetail, TableDefinition } from '@/lib/table'
+import type { EnrichmentRunDetail } from '@/lib/table'
 
 const { mockCheckAccess, mockLoadEnrichmentDetail } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
@@ -24,23 +24,6 @@ vi.mock('@/app/api/table/utils', async () => {
 })
 
 import { GET } from '@/app/api/table/[tableId]/rows/[rowId]/enrichment/[groupId]/route'
-
-function buildTable(): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: { columns: [] },
-    metadata: null,
-    rowCount: 1,
-    maxRows: 1_000_000,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }
-}
 
 function makeRequest(tableId = 'tbl_1', rowId = 'row_1', groupId = 'grp_1') {
   const req = new NextRequest(
@@ -77,7 +60,7 @@ describe('GET /api/table/[tableId]/rows/[rowId]/enrichment/[groupId]', () => {
       userId: 'user-1',
       authType: 'session',
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockCheckAccess.mockResolvedValue({ ok: true, table: createTableDefinition({ rowCount: 1 }) })
   })
 
   it('returns the enrichment detail', async () => {
