@@ -282,9 +282,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               <QueryProvider>
                 <SessionProvider>
                   <TooltipProvider>
-                    <ConsentProvider enabled={isHosted}>
-                      <BrandedLayout>{children}</BrandedLayout>
-                    </ConsentProvider>
+                    <BrandedLayout>{children}</BrandedLayout>
+                    {/* Cookie consent — hosted only */}
+                    {isHosted && <ConsentProvider />}
                   </TooltipProvider>
                 </SessionProvider>
               </QueryProvider>

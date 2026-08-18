@@ -1,42 +1,28 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { type ConsentManagerOptions, ConsentManagerProvider } from '@c15t/nextjs/headless'
-import { ConsentBanner } from '@/app/_shell/consent/consent-banner'
-import { CONSENT_BACKEND_URL, CONSENT_CATEGORIES } from '@/app/_shell/consent/constants'
+import dynamic from 'next/dynamic'
 
 /**
- * Imported from `@c15t/nextjs/headless`, not the package root: the headless
- * entry ships the store and hooks without the runtime's own components or
- * stylesheet, so {@link ConsentBanner} is the only consent UI that exists and
- * nothing can leak styles into the app.
+ * Lazy boundary for the cookie-consent runtime.
+ *
+ * The runtime is loaded on the client only, and only once this component is
+ * rendered — the root layout renders it behind `isHosted`, so a self-hosted
+ * deployment never fetches the chunk, never reaches Sim's consent backend, and
+ * never sees the banner. Deferring it also keeps the third-party store out of
+ * the server render and off the landing page's hydration path; the banner
+ * cannot paint before its geo lookup resolves anyway.
  */
-const CONSENT_OPTIONS = {
-  mode: 'hosted',
-  backendURL: CONSENT_BACKEND_URL,
-  consentCategories: [...CONSENT_CATEGORIES],
-} satisfies ConsentManagerOptions
+const ConsentRuntime = dynamic(
+  () => import('@/app/_shell/consent/consent-runtime').then((m) => m.ConsentRuntime),
+  { ssr: false }
+)
 
-interface ConsentProviderProps {
-  /**
-   * Mounts the consent runtime. Pass `isHosted` — a self-hosted deployment sets
-   * no cookies on Sim's behalf and must never see the banner or reach Sim's
-   * consent backend, so the whole runtime stays unmounted rather than being
-   * mounted and hidden.
-   */
-  enabled: boolean
-  children: ReactNode
-}
-
-export function ConsentProvider({ enabled, children }: ConsentProviderProps) {
-  if (!enabled) {
-    return <>{children}</>
-  }
-
-  return (
-    <ConsentManagerProvider options={CONSENT_OPTIONS}>
-      {children}
-      <ConsentBanner />
-    </ConsentManagerProvider>
-  )
+/**
+ * Mounts the consent runtime alongside the app rather than wrapping it, so
+ * consent state changes can never re-render the page tree. Nothing outside
+ * {@link ConsentRuntime} reads consent today; a surface that needs to (a footer
+ * "Cookie preferences" link, say) would move the provider above it.
+ */
+export function ConsentProvider() {
+  return <ConsentRuntime />
 }
