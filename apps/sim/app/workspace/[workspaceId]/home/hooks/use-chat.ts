@@ -1215,22 +1215,18 @@ export interface ResourceEventOptions {
 export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void
 
 /**
- * Whether a streamed resource event should activate its tab. Resources switch
- * into view as the agent creates or edits them; only an already-open browser
- * session declines to replace an existing selection (it gets an attention
- * marker instead), unless the event explicitly requests activation — which
- * `openBrowserResource` does when it newly opens the browser tab, so agent
- * browser work surfaces on first open and stays put once the user has
- * deliberately switched away.
+ * Whether a streamed resource event should activate its tab. The panel always
+ * follows the agent: whatever it is creating, editing, or driving becomes the
+ * visible resource, browser sessions included. The parameters are retained so
+ * callers stay explicit about the resource in play, and so a future opt-out
+ * (an event that deliberately declines focus) has a place to live.
  */
 export function shouldActivateResourceEvent(
-  activeResourceId: string | null,
-  resourceId: string,
+  _activeResourceId: string | null,
+  _resourceId: string,
   options?: ResourceEventOptions
 ): boolean {
-  if (options?.activate === true) return true
-  if (resourceId !== BROWSER_SESSION_RESOURCE_ID) return true
-  return !activeResourceId || activeResourceId === resourceId
+  return options?.activate !== false
 }
 
 /**
@@ -2022,24 +2018,16 @@ export function useChat(
     [workspaceId]
   )
 
-  const openBrowserResource = useCallback(
-    (activate = false) => {
-      // A newly opened browser tab surfaces like any other agent-created
-      // resource. Only an ALREADY-open browser tab stays in the background
-      // behind another selection — the user saw it and switched away, so
-      // ongoing agent activity earns an attention marker, not a tab switch.
-      const newlyOpened = addResource({
-        type: 'browser',
-        id: BROWSER_SESSION_RESOURCE_ID,
-        title: 'Browser',
-      })
-      onResourceEventRef.current?.(
-        BROWSER_SESSION_RESOURCE_ID,
-        activate || newlyOpened ? { activate: true } : undefined
-      )
-    },
-    [addResource]
-  )
+  const openBrowserResource = useCallback(() => {
+    // Browser work surfaces like any other agent activity: the panel follows
+    // the agent to the browser whether or not the session was already open.
+    addResource({
+      type: 'browser',
+      id: BROWSER_SESSION_RESOURCE_ID,
+      title: 'Browser',
+    })
+    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID, { activate: true })
+  }, [addResource])
 
   const getResourceActivityTracker = useCallback(
     (generation: number, targetChatId?: string) => {
@@ -2155,7 +2143,7 @@ export function useChat(
   // (message components dispatch the request; this hook owns the resource).
   useEffect(() => {
     return onOpenInBrowserPanel((url) => {
-      openBrowserResource(true)
+      openBrowserResource()
       void openUrlInNewBrowserTab(url, desktopScopeIdRef.current).catch((error) => {
         logger.warn('Failed to open chat link in a new browser tab', {
           error: getErrorMessage(error),

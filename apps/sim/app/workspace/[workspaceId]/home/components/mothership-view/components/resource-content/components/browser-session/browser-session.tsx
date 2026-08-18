@@ -608,6 +608,24 @@ export function BrowserSession({
 
   useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
 
+  // Follow the agent's tab. The panel already marks the automated tab in the
+  // strip; this makes it the VISIBLE one, so watching the agent never means
+  // hunting for which tab it moved to. Keyed on the automation target
+  // CHANGING, not on it merely being set — the user can still browse a
+  // different tab mid-run and is only pulled along when the agent itself
+  // moves to another tab.
+  const followedAutomationTabRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!automationActive || !automationTabId) {
+      if (!automationActive) followedAutomationTabRef.current = null
+      return
+    }
+    if (followedAutomationTabRef.current === automationTabId) return
+    followedAutomationTabRef.current = automationTabId
+    if (automationTabId === activeTabId) return
+    sendBrowserPanelAction('switch-tab', { tabId: automationTabId }, scopeId)
+  }, [activeTabId, automationActive, automationTabId, scopeId])
+
   // Sim owns keyboard events while its renderer has focus. Claim Cmd+L here
   // before the workspace's global "Go to Logs" command can navigate away.
   useEffect(() => {

@@ -61,26 +61,24 @@ describe('selectDeletedWorkflowResources', () => {
 })
 
 describe('shouldActivateResourceEvent', () => {
-  it('keeps background browser activity from replacing another selected resource', () => {
-    expect(shouldActivateResourceEvent('file-1', 'browser-session')).toBe(false)
+  it('surfaces browser work even when another resource is selected', () => {
+    expect(shouldActivateResourceEvent('file-1', 'browser-session')).toBe(true)
   })
 
-  it('allows an explicit user action to surface the browser over another selection', () => {
-    expect(
-      shouldActivateResourceEvent('file-1', 'browser-session', {
-        activate: true,
-      })
-    ).toBe(true)
-  })
-
-  it('activates the browser when nothing else is selected', () => {
-    expect(shouldActivateResourceEvent(null, 'browser-session')).toBe(true)
-    expect(shouldActivateResourceEvent('browser-session', 'browser-session')).toBe(true)
-  })
-
-  it('activates a non-browser resource even when another resource is selected', () => {
+  it('surfaces every other resource the agent touches', () => {
     expect(shouldActivateResourceEvent('file-1', 'workflow-1')).toBe(true)
     expect(shouldActivateResourceEvent('browser-session', 'terminal-session')).toBe(true)
+    expect(shouldActivateResourceEvent(null, 'browser-session')).toBe(true)
+  })
+
+  it('honors an explicit request to activate', () => {
+    expect(shouldActivateResourceEvent('file-1', 'browser-session', { activate: true })).toBe(true)
+  })
+
+  it('lets an event opt out of stealing focus', () => {
+    expect(shouldActivateResourceEvent('file-1', 'browser-session', { activate: false })).toBe(
+      false
+    )
   })
 })
 
