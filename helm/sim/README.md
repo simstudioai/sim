@@ -374,7 +374,9 @@ app:
     FREE_TABLE_ROWS_LIMIT: null
 ```
 
-Or on the CLI: `--set app.envDefaults.FREE_TABLES_LIMIT=null`. This works for `app.env` and `realtime.env` too, and in all three secret modes.
+Or on the CLI: `--set app.envDefaults.FREE_TABLES_LIMIT=null`.
+
+**Null the key in every layer that sets it.** `null` deletes the key from the map you null, not from the pod — so if a key is set in both `app.env` and `app.envDefaults`, nulling only the `app.env` entry makes the inline `envDefaults` value apply again and the variable stays on the pod. The same holds for `realtime.env` / `realtime.envDefaults`. Under ESO there is a third source: a key mapped in `externalSecrets.remoteRefs.app` keeps being synced into the Secret regardless of `app.env`, so remove that mapping too. Rendering the manifest (below) is the reliable way to confirm the key is actually gone.
 
 **Setting the key to `""` instead does not remove it.** Every key under `app.env` in `values.yaml` ships as a `""` placeholder, so the templates have to treat an empty string as "the operator said nothing" — if they did not, the ten placeholders that collide with a real `app.envDefaults` value (`NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, `NEXT_PUBLIC_BRAND_NAME`, `VERTEX_LOCATION`, `EMAIL_VERIFICATION_ENABLED`, …) would blank themselves out on every default install. An empty entry is a silent no-op; `null` is the deletion.
 

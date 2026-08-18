@@ -101,6 +101,35 @@ tests:
             name: BILLING_CONCURRENCY_LIMIT_FREE
             value: "10"
 
+  - it: nulling only app.env lets a matching envDefaults value apply again
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+    set:
+      <<: *defaults
+      app.env.FREE_TABLES_LIMIT: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"
+
+  - it: nulling both layers is what actually removes the key
+    template: deployment-app.yaml
+    values:
+      - values/preset-free-limits.yaml
+      - values/unset-free-limits.yaml
+    set:
+      <<: *defaults
+      app.env.FREE_TABLES_LIMIT: null
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: FREE_TABLES_LIMIT
+            value: "3"
+
   - it: nulling a boot-critical key is still refused by the existing validator
     values:
       - values/preset-free-limits.yaml
