@@ -29,7 +29,7 @@ import {
 } from '@/lib/knowledge/model-input-provenance'
 import { StorageService } from '@/lib/uploads'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { mistralParserTool } from '@/tools/mistral/parser'
@@ -54,6 +54,13 @@ type OCRResult = {
 
 type OCRPage = {
   markdown?: string
+}
+
+/** Legacy binary formats and the modern container that replaces them. */
+const LEGACY_FORMAT_REPLACEMENTS: Record<string, string> = {
+  doc: 'DOCX',
+  ppt: 'PPTX',
+  xls: 'XLSX',
 }
 
 const MISTRAL_MAX_PAGES = 1000
@@ -782,6 +789,23 @@ async function processMistralOCRInBatches(
   }
 }
 
+/**
+ * Why a document could not be read, phrased for whoever has to act on it.
+ *
+ * The `doc` and `ppt` parsers never throw: on a legacy OLE binary or a deck with
+ * no text they return a placeholder sentence or scraped archive bytes, which an
+ * interactive upload can show a user but an automated sync must never embed. They
+ * report that as `degraded`, and it is treated here exactly like empty output.
+ * Legacy formats get the concrete remedy, since re-saving genuinely fixes them —
+ * the modern container is one the bundled parsers read.
+ */
+function unreadableDocumentMessage(filename: string): string {
+  const modernFormat = LEGACY_FORMAT_REPLACEMENTS[getFileExtension(filename)]
+  return modernFormat
+    ? `No text could be extracted from this file. Re-save it as ${modernFormat} to index it.`
+    : 'No text could be extracted from this file — it may be scanned, image-only, or password-protected.'
+}
+
 async function parseWithFileParser(
   fileUrl: string,
   filename: string,
@@ -807,8 +831,8 @@ async function parseWithFileParser(
       )
     }
 
-    if (!content.trim()) {
-      throw new Error('File parser returned empty content')
+    if (metadata.degraded || !content.trim()) {
+      throw new Error(unreadableDocumentMessage(filename))
     }
 
     return { content, processingMethod: 'file-parser' as const, cloudUrl: undefined, metadata }
