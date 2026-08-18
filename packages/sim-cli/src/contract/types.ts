@@ -123,6 +123,10 @@ export interface ColumnSpec {
    * wire encoding for the human formats, so a folder no longer prints as
    * `/cli-test-a/nested%20one` in the same row as the `nested one` the server
    * put in the adjacent name column.
+   *
+   * `score` fixes a similarity to four decimals. The raw double arrives as
+   * `0.2818957269585687`, a nineteen-character column whose last dozen digits
+   * cannot separate one result from another.
    */
   format?:
     | 'auto'
@@ -134,6 +138,7 @@ export interface ColumnSpec {
     | 'count'
     | 'trace-count'
     | 'folder-path'
+    | 'score'
 }
 
 export interface BodyVariantSpec {

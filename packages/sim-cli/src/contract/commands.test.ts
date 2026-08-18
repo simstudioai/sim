@@ -4,6 +4,7 @@
 import type { Command } from 'commander'
 import { describe, expect, it } from 'vitest'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+import { HELP_EPILOGUE } from '../program'
 import { buildGeneratedCommands } from '../runtime/build'
 import { flagNameFor, flagSpecFor } from '../runtime/request'
 import type { OperationSpec } from '../runtime/types'
@@ -192,5 +193,13 @@ describe('folder-path fields', () => {
     // `providerId`, and the catalogue is where you look either up.
     expect(paths).toContain('serviceId')
     expect(paths).toContain('providerId')
+  })
+
+  it('mentions the variable that moves the profile files, since help names a path', () => {
+    // The epilogue states where the files live, and SIM_CONFIG_DIR moves both.
+    // Naming only ~/.sim made help wrong for anyone who had set it — including
+    // every CI job that points the CLI at a scratch directory.
+    expect(HELP_EPILOGUE).toContain('~/.sim/config')
+    expect(HELP_EPILOGUE).toContain('SIM_CONFIG_DIR')
   })
 })

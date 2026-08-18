@@ -881,7 +881,9 @@ describe('contract-selected list rendering', () => {
       totalResults: 1,
     })
 
-    expect(printed).toEqual(['0.91\tpolicy.md\t2\tRefunds are available for 30 days.'])
+    // Four decimals, fixed, like the `cost` column: a similarity is compared
+    // against its neighbours, so the width has to stay put down the column.
+    expect(printed).toEqual(['0.9100\tpolicy.md\t2\tRefunds are available for 30 days.'])
   })
 
   it('renders row matches as rows', async () => {
