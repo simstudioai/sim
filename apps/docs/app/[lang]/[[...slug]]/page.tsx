@@ -1,14 +1,13 @@
 import type React from 'react'
-import { highlight } from 'fumadocs-core/highlight'
+import { getHighlighter, highlight } from 'fumadocs-core/highlight'
 import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
-import { createAPIPage } from 'fumadocs-openapi/ui/base'
+import { createAPIPage } from 'fumadocs-openapi/ui'
 import { Pre } from 'fumadocs-ui/components/codeblock'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { DocsBody, DocsPage, DocsTitle } from 'fumadocs-ui/page'
 import { notFound } from 'next/navigation'
-import { ApiShikiProvider } from '@/components/api-shiki-provider'
 import { PageFooter } from '@/components/docs-layout/page-footer'
 import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
 import { LLMCopyButton } from '@/components/page-actions'
@@ -19,7 +18,7 @@ import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
-import { simShikiFactory } from '@/lib/shiki-factory'
+import { curlJsonBodyGrammar } from '@/lib/shiki-curl-json'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
@@ -85,6 +84,10 @@ function stripLocalePrefix(url: string, lang: string): string {
  * markdown and ignored here.
  */
 async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
+  // Registers the injection on the shared highlighter `highlight` resolves; an injection is a
+  // property of the highlighter, not a per-call option. Idempotent — already-loaded grammars are
+  // skipped.
+  await getHighlighter('js', { langs: [curlJsonBodyGrammar] })
   return (
     <CodeBlock className='my-0'>
       {await highlight(code, { lang, ...simShikiOptions, components: { pre: Pre } })}
@@ -102,7 +105,6 @@ const APIPage = createAPIPage(openapi, {
    * every API reference page renders `github-light` / `github-dark` while the rest of the docs
    * render the platform palette.
    */
-  shiki: simShikiFactory,
   shikiOptions: simShikiOptions,
   client: {
     operation: { APIExampleSelector },
@@ -257,9 +259,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
             <DocsTitle className='mb-2'>{data.title}</DocsTitle>
           </div>
           <DocsBody>
-            <ApiShikiProvider>
-              <APIPage {...apiProps} />
-            </ApiShikiProvider>
+            <APIPage {...apiProps} />
           </DocsBody>
         </DocsPage>
       </>
