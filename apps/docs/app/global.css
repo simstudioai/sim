@@ -654,7 +654,6 @@ aside[data-sidebar],
   writing-mode: horizontal-tb !important;
 }
 
-/* Apply the platform mono stack to code elements */
 code,
 pre,
 pre code {
@@ -1610,9 +1609,9 @@ main article tbody tr:last-child td {
    viewport, and the tab strip that `<Tabs>` puts above a fence. */
 
 /* Local aliases, not new design values: each is an existing platform token whose light and
-   dark halves differ. Naming the pair once lets every rule below be written without a `.dark`
-   twin — which matters here because those twins would otherwise duplicate the expensive
-   double-`:has()` selectors the code-block group is matched by. */
+   dark halves differ. Naming the pair once lets the rules below be written without a `.dark`
+   twin, which would otherwise have to restate their `:has()` selectors — the double-`:has()`
+   the tabbed group is matched by, and the sibling-combinator one the gutter is matched by. */
 :root {
   --code-surface: var(--surface-5);
   --code-gutter: var(--text-muted);
@@ -1624,23 +1623,21 @@ main article tbody tr:last-child td {
 }
 
 /* Code block shell — `chipFieldSurfaceClass`'s `rounded-lg` and `--border-1` hairline, over
-   the `--surface-5` / `--code-bg` fill emcn's own `Code` container paints. (The chip field
-   uses `--surface-4` on dark; a code surface uses `--code-bg`, and this is a code surface.)
+   the `--surface-5` / `--code-bg` fill. (`--surface-5` is `chipFilledFillTokens`' light fill;
+   the dark half is the code surface emcn's `Code` container paints. The chip field uses
+   `--surface-4` on dark, which is not a code surface.)
 
-   This lives here rather than on the component because two different renderers produce these
-   figures. Prose fences come from `components/ui/code-block.tsx` via the MDX `pre` mapping,
-   but every request and response sample in the API reference is emitted by
-   fumadocs-openapi's own `CodeBlock`, which the MDX pipeline never touches. Styling the
-   figure is the only join point the two share, and without it the API reference keeps
-   fumadocs' `bg-fd-card` card and 12px corner while the rest of the docs wear the
-   platform's.
+   Three renderers emit these figures: the MDX `pre` mapping and fumadocs-openapi's
+   `renderCodeBlock` both go through `components/ui/code-block.tsx`, but its `UsageTab` renders
+   `ClientCodeBlock` directly and takes no override. The shell could be a class on the
+   component for the first two, at the cost of defining it twice — once there and once here for
+   the third. One definition covering all three is the simpler seam.
 
    Vertical margin is deliberately not set here: prose fences want `my-4` (the component
    supplies it) and API samples sit flush inside their panel with `my-0`.
 
-   @see packages/emcn/src/components/chip/chip-chrome.ts — `chipFieldSurfaceClass`, the
-   constant this mirrors. It cannot be imported: fumadocs renders the `figure`, so there is no
-   element here to hang a class on. Keep the two in step by hand. */
+   @see packages/emcn/src/components/chip/chip-chrome.ts — `chipFieldSurfaceClass`, the constant
+   this mirrors. Keep the two in step by hand. */
 figure.shiki,
 div:has(> [role="tablist"]):has(> div > figure.shiki) {
   border-radius: 0.5rem;
@@ -1674,52 +1671,41 @@ figure.shiki > div:first-child:has(figcaption) svg {
 
 /* Line-number gutter, mirroring the one `Code.Viewer` draws in the app.
 
-   Every block is numbered, including one-liners. A gutter on some fences and not others left
-   adjacent blocks starting their code at different x positions, which read as misalignment on
-   any page that mixes a one-line command with its multi-line output.
+   Only multi-line fences get one, column and digit together. A line number on a one-line shell
+   command references nothing, and these docs are mostly one-line commands. Reserving the column
+   but leaving it blank was tried and is worse: the code picks up a 44px indent with nothing in
+   it, which reads as a rendering fault rather than as alignment. Single-line fences therefore
+   keep fumadocs' default padding, so adjacent blocks can start their text 28px apart —
+   acceptable, because each fence is its own bordered card, and differing padding between cards
+   is far less noticeable than an unexplained indent inside one.
 
-   Padding is set on `.line` itself rather than through fumadocs' `--padding-left` custom
-   property, and needs the `code` in the selector to outrank fumadocs' own `.shiki … .line`.
-   The property is not reliable here: fumadocs puts `.shiki` on the `figure` for prose fences
-   but on BOTH the `figure` and the inner `pre` for API reference samples, so a value set on
-   the figure is re-declared 16px lower down and the digits land on top of the code.
-
-   fumadocs numbers a fence itself when the author writes the `lines` meta, via `.line::after`.
-   That is additive with this, so it is switched off below — otherwise such a fence would paint
-   two gutters. */
-/* The gutter's column is opened by fumadocs' own `--padding-left`, not by overriding its
-   `.line` rule: that rule is `.shiki:not(.not-fumadocs-codeblock *) .line`, and `:not()` carries
-   its argument's specificity, so it lands at (0,3,0) — above anything reasonable to write here.
+   The column is opened through fumadocs' own `--padding-left`, not by overriding its `.line`
+   rule: that rule is `.shiki:not(.not-fumadocs-codeblock *) .line`, and `:not()` carries its
+   argument's specificity, so it lands at (0,3,0) — above anything reasonable to write here.
 
    Declared at all three levels because the variable is inherited and the nearest declaration
    wins: fumadocs sets it on `.shiki`, which is on the `figure` for prose fences but on the
-   `figure` AND the inner `pre` for API samples, and it writes `--padding-right` as an inline
-   style on the viewport. `!important` beats both that inline style and `.shiki:not(…)`, which
-   is more specific than a plain `figure.shiki`. */
+   `figure` AND the inner `pre` for API samples, and it writes these padding custom properties
+   as inline styles on the viewport. `!important` beats both that inline style and
+   `.shiki:not(…)`, which is more specific than a plain `figure.shiki`.
+ */
 figure.shiki:has(.line ~ .line),
-figure.shiki:has(.line ~ .line) > div[role="region"],
 figure.shiki:has(.line ~ .line) .shiki {
-  --padding-left: 2.75rem !important;
+  --padding-left: 2.75rem;
 }
 
 figure.shiki code {
   counter-reset: line;
 }
 
-figure.shiki code .line {
+/* Gated on the same condition as the digit these anchor: without it, every line of every
+   single-line fence becomes a positioned containing block for a pseudo-element that never
+   renders. */
+figure.shiki code:has(.line ~ .line) .line {
   position: relative;
   counter-increment: line;
 }
 
-/* Only multi-line fences get a gutter — both the column and the digit, together.
-
-   A line number on a one-line shell command references nothing, and these docs are mostly
-   one-line commands. Reserving the column but leaving it blank was tried and is worse: the
-   code picks up a 44px indent with nothing in it, which reads as a rendering fault rather than
-   as alignment. Single-line fences therefore keep fumadocs' default padding, so adjacent
-   blocks can start their text 28px apart — acceptable, because each fence is its own bordered
-   card and differing padding between cards is far less noticeable than an unexplained indent
-   inside one. */
 figure.shiki code:has(.line ~ .line) .line::before {
   content: counter(line);
   position: absolute;
@@ -1731,10 +1717,6 @@ figure.shiki code:has(.line ~ .line) .line::before {
   font-variant-numeric: tabular-nums;
   user-select: none;
   pointer-events: none;
-}
-
-figure.shiki code .line::after {
-  content: none;
 }
 
 /* Viewport padding — fumadocs ships 14px vertical; the platform's viewer uses 8px. Split the
@@ -1756,20 +1738,22 @@ figure.shiki:not(:has(figcaption)) .shiki {
   --padding-right: 2.75rem !important;
 }
 
-/* Copy control on the blocks this app does not render.
+/* Copy control on the one block this app does not render.
 
-   `components/ui/code-block.tsx` swaps in an emcn `Button` for prose fences, but it is wired
-   into the MDX `pre` mapping only — every code block in the API reference comes from
-   fumadocs-openapi and keeps fumadocs' own button. These rules bring that one to the same
-   geometry and color as emcn's `variant='quiet' size='icon'`, so the two read as one control.
-   The glyph itself still differs (lucide's clipboard rather than emcn's `Duplicate`); that is
-   the one part CSS cannot reach, and it is why the prose path keeps its own component.
+   Prose fences and the API reference's request/response samples both render
+   `components/ui/code-block.tsx`, which uses an emcn `Button`. Only fumadocs-openapi's
+   `UsageTab` is left — it renders `ClientCodeBlock` directly and takes no override — so these
+   rules bring its button to the same geometry and color as emcn's `variant='quiet' size='icon'`.
+
+   Every rule here is qualified with `:has(> svg[class*="lucide"])`. Without it they also match
+   the emcn `Button`, whose `aria-label` is identical, and re-declare chrome that component
+   owns — silently pinning docs to today's `buttonVariants` values.
 
    The container carries an opaque `--code-surface` pad rather than fumadocs' `backdrop-blur-lg`.
    The blur went milky over a filled block, but something has to sit behind the button: these
    fences scroll horizontally and a long line runs straight under a transparent one. Matching
    the block's own fill hides the code cleanly instead of frosting it. */
-figure.shiki > div:has(> button[aria-label$="Text"]) {
+figure.shiki > div:has(> button[aria-label$="Text"] > svg[class*="lucide"]) {
   top: 0.5rem;
   right: 0.5rem;
   padding-left: 0.25rem;
@@ -1778,8 +1762,8 @@ figure.shiki > div:has(> button[aria-label$="Text"]) {
   backdrop-filter: none;
 }
 
-figure.shiki button[aria-label="Copy Text"],
-figure.shiki button[aria-label="Copied Text"] {
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]),
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1796,20 +1780,19 @@ figure.shiki button[aria-label="Copied Text"] {
     color 150ms;
 }
 
-figure.shiki button[aria-label="Copy Text"] svg,
-figure.shiki button[aria-label="Copied Text"] svg {
+figure.shiki button[aria-label="Copy Text"] > svg[class*="lucide"],
+figure.shiki button[aria-label="Copied Text"] > svg[class*="lucide"] {
   width: 14px;
   height: 14px;
-  stroke-width: 1.25;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  figure.shiki button[aria-label="Copy Text"]:hover {
+figure.shiki button[aria-label="Copy Text"]:has(> svg[class*="lucide"]) {
+  @variant hover-hover {
     background-color: var(--surface-active);
   }
 }
 
-figure.shiki button[aria-label="Copied Text"] {
+figure.shiki button[aria-label="Copied Text"]:has(> svg[class*="lucide"]) {
   color: var(--brand-accent);
 }
 
@@ -1845,11 +1828,11 @@ figure.shiki button[aria-label$="Text"]:has(> svg[class*="lucide"])::before {
 }
 
 figure.shiki button[aria-label="Copy Text"] {
-  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.55' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25'/%3E%3Crect x='5.25' y='5.25' width='14' height='14' rx='2'/%3E%3C/svg%3E");
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25'/%3E%3Crect x='5.25' y='5.25' width='14' height='14' rx='2'/%3E%3C/svg%3E");
 }
 
 figure.shiki button[aria-label="Copied Text"] {
-  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.55' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.25 2.75L7.25 15.75L1.75 10.25'/%3E%3C/svg%3E");
+  --copy-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 24 24' fill='none' stroke='%23000' stroke-width='1.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.25 2.75L7.25 15.75L1.75 10.25'/%3E%3C/svg%3E");
 }
 
 /* Tabbed fences (`<Tabs>` around code) — collapse the strip and the figure into one box so
@@ -1883,8 +1866,8 @@ div:has(> div > figure.shiki) > [role="tablist"] button {
     color 150ms;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  div:has(> div > figure.shiki) > [role="tablist"] button:hover {
+div:has(> div > figure.shiki) > [role="tablist"] button {
+  @variant hover-hover {
     color: var(--text-body);
   }
 }

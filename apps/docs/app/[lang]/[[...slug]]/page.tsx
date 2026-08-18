@@ -76,6 +76,11 @@ function stripLocalePrefix(url: string, lang: string): string {
  * rather than fumadocs-openapi's built-in one, so those blocks get the emcn copy control
  * instead of fumadocs' lucide clipboard. Mirrors the default renderer — same `highlight` call,
  * same `Pre` component, same `my-0` — differing only in which shell wraps the result.
+ *
+ * One asymmetry: `highlight` resolves fumadocs' shared `defaultShikiFactory`, while the renderer
+ * this replaces uses whatever `shiki` factory the page was configured with. They are the same
+ * object because that factory is also the default; passing a custom one would be honored on API
+ * markdown and ignored here.
  */
 async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
   return (

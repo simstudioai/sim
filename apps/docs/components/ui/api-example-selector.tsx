@@ -2,10 +2,9 @@
 
 import type { ComponentProps } from 'react'
 import { useId } from 'react'
-import { chipFieldSurfaceClass, chipFieldTextClass, chipHoverSurfaceClass } from '@sim/emcn'
+import { chipFieldSurfaceClass, chipFieldTextClass, chipHoverSurfaceClass, cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import type { APIPageClientOptions } from 'fumadocs-openapi/ui/client'
-import { cn } from '@/lib/utils'
 
 type FumadocsAPIExampleSelector = NonNullable<
   NonNullable<APIPageClientOptions['operation']>['APIExampleSelector']

@@ -1,15 +1,11 @@
 'use client'
 
 import { useRef } from 'react'
-import { Button, useCopyToClipboard } from '@sim/emcn'
+import { Button, cn, useCopyToClipboard } from '@sim/emcn'
 import { Check, Duplicate } from '@sim/emcn/icons'
 import { CodeBlock as FumadocsCodeBlock } from 'fumadocs-ui/components/codeblock'
-import { cn } from '@/lib/utils'
 
-/**
- * Copy control for a code block — emcn's canonical 20px icon button, the same
- * `variant='quiet'` / `size='icon'` pairing the app uses for a lone glyph affordance.
- */
+/** Copy control for a code block — emcn's canonical icon button for a lone glyph affordance. */
 function CopyButton({ getCode }: { getCode: () => string }) {
   const { copied, copy } = useCopyToClipboard()
 
@@ -20,6 +16,11 @@ function CopyButton({ getCode }: { getCode: () => string }) {
       size='icon'
       aria-label={copied ? 'Copied Text' : 'Copy Text'}
       onClick={() => copy(getCode())}
+      /**
+       * Tailwind v4's preflight sets `button { cursor: default }`. `apps/sim` is on v3, where
+       * buttons keep the UA pointer, so `buttonVariants` never had to declare one — without
+       * this the same control feels inert here and live there.
+       */
       className='cursor-pointer'
     >
       {copied ? (
