@@ -265,6 +265,26 @@ describe('sim logs follow', () => {
     expect(stdout.join('')).not.toContain('older ones were skipped')
   })
 
+  it('does not warn when the last budgeted page proves the follow caught up', async () => {
+    // A page holding a run already printed is the watermark: everything below it
+    // is older, so stopping there is the correct terminus, not a truncation.
+    // Warning here would report a hole on the ordinary steady-state path, and
+    // the run sharing that page is still collected because the filter takes
+    // every unprinted row on it, not only those above the known one.
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    const seen = row('seed', '2026-08-17T10:00:00.000Z')
+    const budgeted = Array.from({ length: 9 }, (_, index) =>
+      page([row(`burst_${index}`, `2026-08-17T10:01:0${index}.000Z`)], `cursor_${index}`)
+    )
+    const mixed = page([row('straggler', '2026-08-17T10:00:30.000Z'), seen], null)
+    respondWith([page([seen]), ...budgeted, mixed])
+
+    await follow('-n', '1')
+
+    expect(stderr.join('')).not.toContain('older ones were skipped')
+    expect(printedRunIds()).toContain('straggler')
+  })
+
   it('clears a retry notice on the first healthy poll, even an empty one', async () => {
     // The clear used to sit after the empty check, so a poll that recovered but
     // found nothing left "retrying in Ns…" up while the follow was already
