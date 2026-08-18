@@ -5,7 +5,11 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { type StorageContext, toLegacyWorkspaceFileSize } from '../shared/types'
+import {
+  isWorkspaceScopedContext,
+  type StorageContext,
+  toLegacyWorkspaceFileSize,
+} from '../shared/types'
 
 const logger = createLogger('FileMetadata')
 
@@ -339,24 +343,30 @@ export async function getFileMetadataByKey(
 
 /**
  * Resolve the storage context a stored object must be read and authorized under.
+ * This is the sanctioned way to ask that question — `inferContextFromKey` alone
+ * answers only bucket and tenancy (see its contract).
  *
- * A `workspace/…` key prefix is not by itself proof of a workspace file. A
- * mothership chat attachment is minted with the same prefix — same bucket, same
- * workspace scope — but is recorded as `context = 'mothership'` and never enters
- * the Files module, so every workspace-file lookup (which matches on
- * `context = 'workspace'`) resolves it to nothing. The row bound to the key is
- * the only thing that separates the two, and it is server-authored at upload
- * time, so it is as trustworthy as the prefix itself.
+ * The two layers divide as follows. The key prefix is authoritative for *where
+ * the bytes live*: it is written server-side at upload and cannot be forged to
+ * change tenant. `workspace_files.context` is authoritative for *which module
+ * owns the object*: it too is server-authored, but unlike the key it is mutable,
+ * which it has to be — `materialize_file` promotes a chat attachment to a
+ * workspace file by flipping that column, and rewriting the storage key on every
+ * such transition would mean copying the bytes to say the same thing twice.
+ *
+ * So only the `workspace/` prefix is ambiguous — it carries the two
+ * `WORKSPACE_SCOPED_CONTEXTS` — and only it costs a lookup. Every other prefix
+ * maps to exactly one module and returns immediately.
  *
  * An unbound key keeps its inferred context: absent metadata is not evidence of
- * an attachment, and the caller's own not-found handling is the right answer.
+ * anything, and the caller's own not-found handling is the right answer.
  */
 export async function resolveStoredFileContext(key: string): Promise<StorageContext> {
   const inferred = inferContextFromKey(key)
   if (inferred !== 'workspace') return inferred
 
   const metadata = await getFileMetadataByKey(key)
-  return metadata?.context === 'mothership' ? 'mothership' : inferred
+  return isWorkspaceScopedContext(metadata?.context) ? metadata.context : inferred
 }
 
 /**
