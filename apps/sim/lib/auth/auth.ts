@@ -262,40 +262,18 @@ export const auth = betterAuth({
     },
   },
   user: {
+    /**
+     * Account deletion runs through `POST /api/users/me/deletion`, which owns the
+     * whole procedure — the blocker preflight, the storage purge, and the
+     * constraint-ordered teardown that a bare `DELETE FROM "user"` cannot
+     * express. Better Auth's endpoint stays off, and `beforeDelete` refuses
+     * unconditionally so that flipping `enabled` can never route a deletion
+     * around any of it.
+     */
     deleteUser: {
       enabled: false,
-      beforeDelete: async (deletingUser) => {
-        const { isSoleOwnerOfPaidOrganization } = await import(
-          '@/lib/billing/organizations/membership'
-        )
-        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
-        if (check.isBlocker) {
-          throw new Error(
-            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
-          )
-        }
-
-        const { reassignBilledAccountForUser, reassignOwnedWorkspacesForUser } = await import(
-          '@/lib/workspaces/utils'
-        )
-        const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
-        if (unresolved.length > 0) {
-          throw new Error(
-            `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
-          )
-        }
-
-        // Reassign workspace ownership BEFORE deletion so the `workspace.owner_id`
-        // ON DELETE CASCADE can never silently nuke workspaces this user owns
-        // (e.g. org workspaces they created but are billed to the org owner).
-        const { unresolved: ownedUnresolved } = await reassignOwnedWorkspacesForUser(
-          deletingUser.id
-        )
-        if (ownedUnresolved.length > 0) {
-          throw new Error(
-            `Your account owns ${ownedUnresolved.length} workspace${ownedUnresolved.length === 1 ? '' : 's'} with no other admin to take over ownership. Add another admin to ${ownedUnresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${ownedUnresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
-          )
-        }
+      beforeDelete: async () => {
+        throw new Error('Account deletion runs through POST /api/users/me/deletion')
       },
     },
   },
