@@ -961,7 +961,8 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                   <span className='min-w-0'>
                     <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> would lose{' '}
                     <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
-                    {ref.workflowName} — {forkBlockerResolution(ref)}
+                    {ref.workflowName} —{' '}
+                    {forkBlockerResolution(ref, controller.targetWorkspaceName)}
                   </span>
                   {/* Only a source-deleted reference can be dropped: an unmapped copyable can still
                       be copied and a missing workflow can still be deployed, so neither is a dead
