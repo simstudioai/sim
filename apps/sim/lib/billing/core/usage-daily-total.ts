@@ -263,7 +263,21 @@ export async function readUsageDailyTotals(
  * from and would keep its stale total forever, so orphaned buckets are deleted
  * outright rather than just refreshed.
  *
- * Writes absolute totals, so it is idempotent and safe to re-run.
+ * Writes absolute totals, which is what makes it a repair rather than another
+ * increment — but an absolute write computed from a snapshot can clobber a
+ * concurrent live increment. Two things keep that in check:
+ *
+ * - Both passes run in one transaction, so the delete cannot act on a view of
+ *   the ledger the upsert never saw.
+ * - Every bucket a live writer has touched since this transaction began is
+ *   left alone. Live maintenance is exact, so skipping such a bucket is always
+ *   safe; overwriting it with an older snapshot's total would not be.
+ *
+ * The residual window is a ledger write that began before this transaction and
+ * commits after its snapshot: its row is invisible here while its bucket still
+ * looks untouched, so the recomputed total omits it. That window is one usage
+ * write long. Re-running repairs it, which is why this is idempotent and why
+ * the script reports what it touched rather than claiming completeness.
  */
 export async function reconcileUsageDailyTotals(options?: {
   /** Only reconcile periods that end at or after this instant. */
@@ -272,7 +286,7 @@ export async function reconcileUsageDailyTotals(options?: {
 }): Promise<{ bucketsWritten: number; bucketsDeleted: number }> {
   const executor = options?.executor ?? db
   const periodEndsAfter = options?.periodEndsAfter
-  const periodScope = periodEndsAfter
+  const ledgerPeriodScope = periodEndsAfter
     ? sql`and ${usageLog.billingPeriodEnd} >= ${periodEndsAfter}`
     : sql``
 
@@ -287,11 +301,12 @@ export async function reconcileUsageDailyTotals(options?: {
       ${usageLog.source} as source,
       coalesce(sum(${usageLog.cost}), 0) as total_cost
     from ${usageLog}
-    where ${usageLog.billingEntityType} is not null ${periodScope}
+    where ${usageLog.billingEntityType} is not null ${ledgerPeriodScope}
     group by 1, 2, 3, 4, 5, 6, 7
   `
 
-  const written = await executor.execute(sql`
+  const { written, deleted } = await executor.transaction(async (tx) => {
+    const writtenRows = await tx.execute(sql`
     insert into ${usageLogDailyTotal} (
       billing_entity_type, billing_entity_id, billing_period_start,
       billing_period_end, user_id, day_index, source, total_cost, updated_at
@@ -306,10 +321,11 @@ export async function reconcileUsageDailyTotals(options?: {
     ) do update set
       total_cost = excluded.total_cost,
       updated_at = now()
+    where ${usageLogDailyTotal}.updated_at < now()
     returning 1
   `)
 
-  const deleted = await executor.execute(sql`
+    const deletedRows = await tx.execute(sql`
     delete from ${usageLogDailyTotal} as rollup
     where ${periodEndsAfter ? sql`rollup.billing_period_end >= ${periodEndsAfter} and` : sql``}
       not exists (
@@ -323,8 +339,12 @@ export async function reconcileUsageDailyTotals(options?: {
           and ledger.day_index = rollup.day_index
           and ledger.source = rollup.source
       )
+      and rollup.updated_at < now()
     returning 1
   `)
+
+    return { written: writtenRows, deleted: deletedRows }
+  })
 
   const bucketsWritten = Array.isArray(written) ? written.length : 0
   const bucketsDeleted = Array.isArray(deleted) ? deleted.length : 0

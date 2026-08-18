@@ -232,4 +232,29 @@ describe('reconcileUsageDailyTotals', () => {
     expect(statements[1]).toContain('delete')
     expect(statements[1]).toContain('not exists')
   })
+
+  it('runs both passes in one transaction', async () => {
+    dbChainMockFns.execute.mockResolvedValueOnce([1]).mockResolvedValueOnce([])
+
+    await reconcileUsageDailyTotals()
+
+    // Separate transactions would let the delete act on a view of the ledger
+    // the upsert never saw, dropping a bucket that is actually live.
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips buckets a live writer touched since the snapshot', async () => {
+    dbChainMockFns.execute.mockResolvedValueOnce([1]).mockResolvedValueOnce([])
+
+    await reconcileUsageDailyTotals()
+
+    // The recomputed total comes from a snapshot. Without this guard an
+    // absolute write would clobber a concurrent increment, and the orphan
+    // delete would remove a bucket that was just legitimately created.
+    const statements = dbChainMockFns.execute.mock.calls.map(([arg]) =>
+      JSON.stringify(arg).toLowerCase()
+    )
+    expect(statements[0]).toContain('updated_at < now()')
+    expect(statements[1]).toContain('updated_at < now()')
+  })
 })
