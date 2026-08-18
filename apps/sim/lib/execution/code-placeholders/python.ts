@@ -577,9 +577,27 @@ const PYTHON_ENVIRONMENT_IDENTIFIER = /environmentVariables/g
 
 /**
  * A subscript that is being assigned to rather than read: `environmentVariables['K'] = v`.
- * The trailing `=` must not be `==`, `!=`, `<=`, `>=`, or `:=`, none of which write.
+ * The trailing `=` must not be `==`, `!=`, `<=`, `>=`, or `:=`, none of which write. An
+ * augmented assignment (`+=`) is absent on purpose: it loads the current value first, so it
+ * is a read.
  */
 const PYTHON_SUBSCRIPT_WRITE = /^\s*=(?!=)/
+
+/** A `del` statement, once the enclosing logical line has been isolated. */
+const PYTHON_DEL_STATEMENT = /^del[\s(]/
+
+/**
+ * Whether the mention sits inside a `del` statement, which removes the key without reading it.
+ *
+ * Tested against the whole statement rather than the few characters before the match, so the
+ * parenthesized and multi-target forms — `del (environmentVariables['K'])` and
+ * `del other, environmentVariables['K']` — are recognized alongside the plain one.
+ */
+function isDeleteTarget(code: string, offset: number): boolean {
+  const before = code.slice(0, offset)
+  const statementStart = Math.max(before.lastIndexOf('\n'), before.lastIndexOf(';')) + 1
+  return PYTHON_DEL_STATEMENT.test(before.slice(statementStart).trimStart())
+}
 
 /**
  * The only two shapes this detector can attribute: a literal subscript or `.get()`.
@@ -650,7 +668,7 @@ function recordPythonDirectEnvironmentReads(
      * without reading the mounted value, so neither is a use of the secret.
      */
     if (PYTHON_SUBSCRIPT_WRITE.test(code.slice(candidate.index + candidate[0].length))) continue
-    if (/(^|[\s;:])del\s+$/.test(code.slice(0, candidate.index))) continue
+    if (isDeleteTarget(code, candidate.index)) continue
     const name = candidate[2] ?? candidate[4]
     if (name) context.recordDirectEnvironmentRead(name, candidate.index)
   }

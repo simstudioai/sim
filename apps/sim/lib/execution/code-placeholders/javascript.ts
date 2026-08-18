@@ -41,19 +41,34 @@ const ENVIRONMENT_VARIABLES_IDENTIFIER = 'environmentVariables'
  * {@link CodePlaceholderCompilationContext.recordDirectEnvironmentRead}.
  */
 /**
- * Whether this member access is being written or deleted rather than read.
+ * Whether this member access is written *without* being read.
  *
- * `environmentVariables.API_KEY = 'x'` and `delete environmentVariables.API_KEY` both touch the
- * name without ever reading the mounted value, so recording either would put a use in the trail
- * that never happened. `isWriteIdentifier` already answers the write half for the placeholder
- * rewriter; `delete` is asked here because only a read detector cares about it.
+ * Only a plain `=` and `delete` qualify. A compound assignment (`+=`), a logical assignment
+ * (`||=`, `&&=`, `??=`), and `++`/`--` all load the current value before storing, so they are
+ * genuine reads of the mounted secret and have to keep their masking.
+ *
+ * This deliberately does not reuse `isWriteIdentifier`. That predicate answers the rewriter's
+ * question — is this a target the substitution must refuse — and so treats every assignment
+ * operator alike, which is correct there and wrong here. Two different questions; conflating
+ * them silently dropped `+=` from masking.
+ *
+ * A member reached through a destructuring assignment (`({ k: environmentVariables.K } = o)`)
+ * is not recognized and is reported as a read. That is the mild direction: an extra usage row
+ * rather than an unmasked value.
  */
-function writesEnvironmentMember(node: ts.Node): boolean {
-  return ts.isDeleteExpression(node.parent) || isWriteIdentifier(node)
+function writesWithoutReading(node: ts.Node): boolean {
+  const parent = node.parent
+  if (!parent) return false
+  if (ts.isDeleteExpression(parent)) return true
+  return (
+    ts.isBinaryExpression(parent) &&
+    parent.left === node &&
+    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken
+  )
 }
 
 function directEnvironmentRead(node: ts.Node): DirectEnvironmentRead | undefined {
-  if (writesEnvironmentMember(node)) return undefined
+  if (writesWithoutReading(node)) return undefined
   if (ts.isPropertyAccessExpression(node)) {
     if (!ts.isIdentifier(node.expression)) return undefined
     if (node.expression.text !== ENVIRONMENT_VARIABLES_IDENTIFIER) return undefined
@@ -450,7 +465,7 @@ function isDeclarationIdentifier(node: ts.Identifier): boolean {
   )
 }
 
-function isWriteIdentifier(node: ts.Node): boolean {
+function isWriteIdentifier(node: ts.Identifier): boolean {
   let current: ts.Node = node
   let targetPosition = true
   for (let parent = current.parent; parent; current = parent, parent = parent.parent) {

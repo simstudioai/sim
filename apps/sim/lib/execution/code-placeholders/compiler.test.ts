@@ -1322,7 +1322,6 @@ describe('writing a configured name is not reading it', () => {
   it.each([
     ['javascript property assignment', "environmentVariables.API_KEY = 'x'"],
     ['javascript subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
-    ['javascript compound assignment', "environmentVariables.API_KEY += 'x'"],
     ['javascript delete', 'delete environmentVariables.API_KEY'],
     ['javascript delete subscript', "delete environmentVariables['API_KEY']"],
   ])('%s', async (_label, code) => {
@@ -1334,6 +1333,50 @@ describe('writing a configured name is not reading it', () => {
     ['python del', "del environmentVariables['API_KEY']"],
   ])('%s', async (_label, code) => {
     expect(await directReadNames(code, CodeLanguage.Python)).toEqual([])
+  })
+
+  /**
+   * A compound, logical, or increment update loads the current value before storing, so it is
+   * a read of the mounted secret and has to keep its masking. Only a plain `=` stores without
+   * reading.
+   */
+  it.each([
+    ['compound assignment', "environmentVariables.API_KEY += 'x'"],
+    ['logical assignment', "environmentVariables.API_KEY ||= 'x'"],
+    ['nullish assignment', "environmentVariables.API_KEY ??= 'x'"],
+    ['subscript compound assignment', "environmentVariables['API_KEY'] += 'x'"],
+    ['postfix increment', 'environmentVariables.API_KEY++'],
+    ['prefix increment', '++environmentVariables.API_KEY'],
+  ])('javascript reads through an update: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  /** Python's augmented assignment reads first too. */
+  it('python reads through an augmented assignment', async () => {
+    expect(
+      await directReadNames("environmentVariables['API_KEY'] += 'x'", CodeLanguage.Python)
+    ).toEqual(['API_KEY'])
+  })
+
+  /** Greptile's case: `del` targets may be parenthesized or listed. */
+  it.each([
+    ['parenthesized', "del (environmentVariables['API_KEY'])"],
+    ['double parenthesized', "del ((environmentVariables['API_KEY']))"],
+    ['no space before paren', "del(environmentVariables['API_KEY'])"],
+    ['multi-target', "del other, environmentVariables['API_KEY']"],
+    ['after a semicolon', "x = 1; del environmentVariables['API_KEY']"],
+  ])('python del target: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual([])
+  })
+
+  /** `delete` on a line of its own must not disable a real read elsewhere. */
+  it('python still reports a read on another line', async () => {
+    expect(
+      await directReadNames(
+        "del environmentVariables['API_KEY']\nk = environmentVariables['API_KEY']",
+        CodeLanguage.Python
+      )
+    ).toEqual(['API_KEY'])
   })
 
   /** Reading the same key elsewhere is still a use, even if another line writes it. */
