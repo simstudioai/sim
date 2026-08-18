@@ -1252,6 +1252,7 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
   Querying: 'Queried',
   Reading: 'Read',
   Redeploying: 'Redeployed',
+  Removing: 'Removed',
   Renaming: 'Renamed',
   Requesting: 'Requested',
   Resizing: 'Resized',
