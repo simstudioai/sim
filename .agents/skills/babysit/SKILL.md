@@ -134,9 +134,21 @@ round. Always check both conditions freshly after every push.
 When the loop ends, summarize: how many rounds it took, what was actually fixed (one line each),
 what was pushed back on as a false positive and why, and the final Greptile score / thread count.
 
+## Public-repo hygiene
+
+Every reply, comment and commit you post here is public and permanent, and review bots quote
+your replies back so a leak propagates. Before each post, strip anything that ties the change to
+a tenant: customer/company names, workspace/user/org/KB/connector IDs, emails, tenant hostnames,
+verbatim document/sheet/folder names, log lines, and per-tenant DB output. Cite the mechanism and
+aggregate numbers instead — see `/ship`'s "What to Omit" for the full list and the pre-publish
+grep. Triaging a finding often means pasting evidence you gathered from prod; that is exactly the
+moment this gets violated. Check before posting, not after: editing a comment does not unsend its
+notification email.
+
 ## Hard rules
 
 - Never post the two re-review mentions as a single combined comment.
+- Never paste prod evidence into a reply without scrubbing it first (see above).
 - Never resolve a thread without replying to it first.
 - Never fix a finding with a hacky workaround — if the clean fix isn't obvious, find the sibling
   pattern elsewhere in the codebase solving the same class of problem and match it.
