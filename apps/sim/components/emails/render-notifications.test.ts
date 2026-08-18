@@ -120,7 +120,7 @@ describe('renderSubprocessorChangeEmail', () => {
     expect(html).toContain('Account identifiers, usage events')
     expect(html).toContain('October 1, 2026')
     expect(html).toContain('September 24, 2026')
-    expect(html).toContain('privacy@example.com')
+    expect(html).toContain('mailto:privacy@example.com')
     expect(html).toContain('https://example.com/subprocessors')
   })
 
@@ -150,7 +150,7 @@ describe('renderSubprocessorChangeEmail', () => {
     })
     const withoutSetting = await renderSubprocessorChangeEmail(notice)
 
-    expect(withSetting).toContain('https://example.com/preferences')
+    expect(withSetting).toContain('href="https://example.com/preferences"')
     expect(withoutSetting).not.toContain('Manage whether you receive them')
   })
 })

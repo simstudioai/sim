@@ -1,4 +1,4 @@
-import { Section, Text } from '@react-email/components'
+import { Link, Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -102,9 +102,12 @@ export function SubprocessorChangeEmail({
       ))}
 
       <Text style={baseStyles.paragraph}>
-        If you object to this change, reply to this email or write to {objectionEmail} by{' '}
-        <EmailStrong>{formatNoticeDate(objectionDeadline)}</EmailStrong>. We will work with you on a
-        resolution, and you may terminate the affected service if we cannot reach one.
+        If you object to this change, reply to this email or write to{' '}
+        <Link href={`mailto:${objectionEmail}`} style={baseStyles.link}>
+          {objectionEmail}
+        </Link>{' '}
+        by <EmailStrong>{formatNoticeDate(objectionDeadline)}</EmailStrong>. We will work with you
+        on a resolution, and you may terminate the affected service if we cannot reach one.
       </Text>
 
       <Text style={baseStyles.paragraph}>
@@ -117,9 +120,16 @@ export function SubprocessorChangeEmail({
       <div style={baseStyles.divider} />
 
       <Text style={baseStyles.footnote}>
-        {subscriptionUrl
-          ? `Sent to customers subscribed to sub-processor change notices. Manage whether you receive them at ${subscriptionUrl}.`
-          : 'Sent to customers subscribed to sub-processor change notices.'}
+        Sent to customers subscribed to sub-processor change notices.
+        {subscriptionUrl ? (
+          <>
+            {' '}
+            <Link href={subscriptionUrl} style={baseStyles.footerLink}>
+              Manage whether you receive them
+            </Link>
+            .
+          </>
+        ) : null}
       </Text>
     </EmailLayout>
   )
