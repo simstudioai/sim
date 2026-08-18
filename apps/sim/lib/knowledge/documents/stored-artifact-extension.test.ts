@@ -67,6 +67,21 @@ describe('resolveStoredArtifactExtension', () => {
     ).toBeUndefined()
   })
 
+  /**
+   * The question is whether a parser can read the object, which the parser
+   * registry answers — not whether we would accept it as an upload. The two lists
+   * differ: macro-enabled, template and OpenDocument formats all parse but are not
+   * in the upload allowlist, and gating on that list rejected every one of them.
+   */
+  it.each(['docm', 'dotx', 'xlsm', 'xlsb', 'xltx', 'pptm', 'potx', 'odt', 'ods', 'odp'])(
+    'resolves %s, which parses but is not an accepted upload type',
+    (extension) => {
+      expect(resolveStoredArtifactExtension(`/api/files/serve/s3/kb%2F1-a-Book.${extension}`)).toBe(
+        extension
+      )
+    }
+  )
+
   it('is case-insensitive', () => {
     expect(resolveStoredArtifactExtension('/api/files/serve/s3/kb%2F1-a-Report.PDF')).toBe('pdf')
   })

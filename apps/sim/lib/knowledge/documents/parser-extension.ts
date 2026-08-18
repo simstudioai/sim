@@ -1,3 +1,4 @@
+import { isSupportedFileType } from '@/lib/file-parsers'
 import {
   extractStorageKey,
   getExtensionFromMimeType,
@@ -58,6 +59,12 @@ export function resolveParserExtension(
  * keys on its original name (`kb/<id>-Report.pdf`) and a connector document keys
  * on what it stored (`kb/<id>-Report.pdf.txt`).
  *
+ * Validated against the parser registry rather than the upload allowlist, because
+ * the question here is whether a parser can read the stored object — not whether
+ * we would accept it as an upload. The two sets differ: macro-enabled, template
+ * and OpenDocument formats all parse, but are deliberately not offered as upload
+ * types, and a connector delivers exactly those.
+ *
  * Falls back to `undefined` — leaving the caller on the filename/MIME path —
  * rather than guessing, so this can only ever redirect to a parser that exists.
  */
@@ -67,5 +74,5 @@ export function resolveStoredArtifactExtension(fileUrl: string): string | undefi
   const extension = getFileExtension(extractStorageKey(fileUrl))
   if (!isAlphanumericExtension(extension)) return undefined
 
-  return isSupportedExtension(extension) ? extension : undefined
+  return isSupportedFileType(extension) ? extension : undefined
 }

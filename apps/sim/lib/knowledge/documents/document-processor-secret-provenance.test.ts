@@ -26,6 +26,7 @@ vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
 
 vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mockParseBuffer,
+  isSupportedFileType: (extension: string) => ['pdf', 'docx', 'txt', 'csv'].includes(extension),
 }))
 
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
