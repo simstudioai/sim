@@ -5,7 +5,6 @@ import { Button, cn, Input, toast } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
 import {
@@ -20,6 +19,7 @@ import {
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'
+import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -474,10 +474,9 @@ export function WorkflowSearchReplace() {
         const blockConfig = block ? getBlock(block.type) : null
         if (!blockConfig?.subBlocks) continue
 
-        const dependentClears = getWorkflowSearchDependentClears(
-          blockConfig.subBlocks,
-          update.subBlockId
-        )
+        const dependentClears = getTransitiveSubBlockDependents(blockConfig.subBlocks, [
+          update.subBlockId,
+        ])
         for (const clear of dependentClears) {
           const alreadyUpdated = batchUpdates.some(
             (candidate) =>
