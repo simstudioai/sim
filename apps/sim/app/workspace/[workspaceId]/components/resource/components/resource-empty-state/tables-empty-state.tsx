@@ -12,7 +12,12 @@ import { EmptyState } from '@/components/empty-state/empty-state'
 const INK = {
   header: 'color-mix(in srgb, var(--text-secondary) 30%, transparent)',
   cell: 'color-mix(in srgb, var(--text-secondary) 15%, transparent)',
-  selection: 'color-mix(in srgb, var(--text-secondary) 32%, transparent)',
+  /**
+   * Mixed into `--bg` rather than `transparent`: a translucent ring lets the
+   * grid rules underneath show through its own stroke. Opaque, and darker than
+   * the ink it surrounds so it reads as chrome rather than more content.
+   */
+  selection: 'color-mix(in srgb, var(--text-secondary) 46%, var(--bg))',
 } as const
 
 /**
@@ -78,7 +83,7 @@ function TablesGraphic() {
                 />
                 {rowIndex === SELECTED_CELL.row && column === SELECTED_CELL.column ? (
                   <span
-                    className='absolute inset-[-1px] rounded-[3px] border-[1.5px]'
+                    className='absolute inset-[-1px] z-10 rounded-[3px] border-[1.5px]'
                     style={{ borderColor: INK.selection }}
                   />
                 ) : null}
