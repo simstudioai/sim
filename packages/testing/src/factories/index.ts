@@ -118,7 +118,6 @@ export {
   type SerializedConnection,
   type SerializedWorkflow,
 } from './serialized-block.factory'
-// Table factories
 export {
   createTableColumn,
   createTableDefinition,

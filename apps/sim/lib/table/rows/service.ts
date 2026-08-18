@@ -1610,8 +1610,6 @@ export async function updateRow(
     )
   }
 
-  // Check unique constraints using optimized database query.
-  //
   // Scoped to the columns this patch actually writes. A merge cannot newly
   // violate uniqueness on a column it leaves alone: that value is the one
   // already stored, and it satisfied the constraint when it was written. The
