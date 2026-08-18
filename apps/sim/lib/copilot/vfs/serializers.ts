@@ -715,7 +715,7 @@ export function serializeCredentials(
     id?: string
     providerId: string
     displayName?: string | null
-    /** Teammate-facing note on a workspace secret, when one has been recorded. */
+    /** What a workspace secret is for, when one has been recorded. */
     description?: string | null
     role?: string | null
     scope: string | null

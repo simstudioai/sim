@@ -217,7 +217,7 @@ interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
   envKey: string
   envOwnerUserId: string | null
-  /** Teammate-facing note. Always null on `env_personal`, which has no shared audience. */
+  /** Always null on `env_personal`: a mirror row cannot own a user-global secret's note. */
   description: string | null
   updatedAt: Date
 }

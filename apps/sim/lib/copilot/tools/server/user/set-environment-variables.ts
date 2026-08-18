@@ -130,10 +130,10 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
 
     const normalized = normalizeVariables(variables || {})
     const descriptions = normalizeDescriptions(variables || {})
-    // Rejected rather than dropped, matching the secrets domain: an `env_personal`
-    // row is a per-workspace mirror of one user-global secret, so a description
-    // written there would exist in this workspace alone — and a personal secret
-    // has no teammates to inform.
+    // Rejected rather than dropped, matching `PUT /api/v2/secrets` and the domain
+    // layer: a personal secret's value is user-global, but its credential rows are
+    // per-workspace mirrors, so there is no single row to hold its description —
+    // one written here would exist in this workspace alone.
     if (scope === 'personal' && Object.keys(descriptions).length > 0) {
       throw new Error('description is only supported for a workspace secret')
     }
