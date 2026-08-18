@@ -264,6 +264,14 @@ function dropUnionBranchNoise(issues: DetailIssue[]): DetailIssue[] {
  */
 const DEFAULT_TIMEOUT_SECONDS = 3600
 
+/**
+ * The longest delay Node's timers accept.
+ *
+ * Past it a timeout does not fail — it silently becomes 1ms, so the request the
+ * caller asked to wait longest for would be the first one aborted.
+ */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1
+
 function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.SIM_TIMEOUT_SECONDS
   if (raw === undefined || raw.trim() === '') return DEFAULT_TIMEOUT_SECONDS * 1000
@@ -275,7 +283,44 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
       0
     )
   }
-  return seconds * 1000
+
+  // Rounded because a fractional millisecond is rejected outright by
+  // `AbortSignal.timeout`, and a sub-millisecond timeout is not a distinction
+  // anyone is drawing.
+  const ms = Math.round(seconds * 1000)
+  if (ms > MAX_TIMEOUT_MS) {
+    throw new SimApiError(
+      `SIM_TIMEOUT_SECONDS "${raw}" is longer than Node can wait (${Math.floor(MAX_TIMEOUT_MS / 1000)}s). Use 0 to wait indefinitely.`,
+      0
+    )
+  }
+  return ms
+}
+
+/**
+ * Aborts when either signal does.
+ *
+ * `AbortSignal.any` arrived in Node 20.3 and this package supports Node 20, so
+ * on the earliest 20.x releases calling it would throw a bare `TypeError`
+ * before the request was ever made — turning a supported runtime into a crash.
+ */
+function combineSignals(
+  caller: AbortSignal | undefined,
+  timeout: AbortSignal | undefined
+): AbortSignal | undefined {
+  if (!caller) return timeout
+  if (!timeout) return caller
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([caller, timeout])
+
+  const controller = new AbortController()
+  for (const signal of [caller, timeout]) {
+    if (signal.aborted) {
+      controller.abort(signal.reason)
+      break
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+  }
+  return controller.signal
 }
 
 /** Whether to trace requests to stderr. */
@@ -424,10 +469,7 @@ export class SimClient {
     // to abort, so neither can mask the other.
     const timeoutMs = resolveTimeoutMs()
     const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
-    const signal =
-      options.signal && timeout
-        ? AbortSignal.any([options.signal, timeout])
-        : (options.signal ?? timeout)
+    const signal = combineSignals(options.signal, timeout)
 
     const trace = debugEnabled()
     const startedAt = performance.now()

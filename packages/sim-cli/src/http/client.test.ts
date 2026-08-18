@@ -14,6 +14,9 @@ import {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // `stubEnv` is not undone by `unstubAllGlobals`, so a SIM_TIMEOUT_SECONDS or
+  // SIM_DEBUG set for one test would otherwise configure every test after it.
+  vi.unstubAllEnvs()
 })
 
 function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
@@ -358,6 +361,56 @@ describe('a request that never answers', () => {
     await expect(client().request('/api/v2/workflows')).rejects.toThrow(
       /Invalid SIM_TIMEOUT_SECONDS "soon"/
     )
+  })
+
+  it('rounds a fractional millisecond rather than letting the timer reject it', async () => {
+    // `AbortSignal.timeout` rejects a non-integer delay outright, so an
+    // unrounded 0.0005s threw ERR_OUT_OF_RANGE before the request was made.
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', '0.0005')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(client().request('/api/v2/workflows')).resolves.toBeDefined()
+  })
+
+  it('refuses a delay longer than Node can wait, which would silently become 1ms', async () => {
+    // Past 2^31-1 ms Node does not fail — it clamps to 1ms, so the request the
+    // caller asked to wait longest for would be the first one aborted.
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', String(2 ** 31))
+    vi.stubGlobal('fetch', vi.fn())
+
+    await expect(client().request('/api/v2/workflows')).rejects.toThrow(/longer than Node can wait/)
+  })
+
+  it('composes the caller signal with the timeout without AbortSignal.any', async () => {
+    // `AbortSignal.any` arrived in Node 20.3 and this package supports Node 20,
+    // so the earliest 20.x releases would have thrown a bare TypeError here.
+    const original = AbortSignal.any
+    // biome-ignore lint/performance/noDelete: restoring the property is the point
+    delete (AbortSignal as { any?: unknown }).any
+    const controller = new AbortController()
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      await client().request('/api/v2/workflows', { signal: controller.signal })
+      const sent = fetchMock.mock.calls[0][1].signal as AbortSignal
+      expect(sent.aborted).toBe(false)
+      controller.abort()
+      expect(sent.aborted).toBe(true)
+    } finally {
+      ;(AbortSignal as { any?: unknown }).any = original
+    }
   })
 
   it('explains a timeout as a timeout, not as an unreachable endpoint', async () => {
