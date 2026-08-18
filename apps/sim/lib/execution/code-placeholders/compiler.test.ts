@@ -1318,6 +1318,35 @@ describe('direct environment read edge cases', () => {
   })
 })
 
+describe('writing a configured name is not reading it', () => {
+  it.each([
+    ['javascript property assignment', "environmentVariables.API_KEY = 'x'"],
+    ['javascript subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
+    ['javascript compound assignment', "environmentVariables.API_KEY += 'x'"],
+    ['javascript delete', 'delete environmentVariables.API_KEY'],
+    ['javascript delete subscript', "delete environmentVariables['API_KEY']"],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
+  })
+
+  it.each([
+    ['python subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
+    ['python del', "del environmentVariables['API_KEY']"],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual([])
+  })
+
+  /** Reading the same key elsewhere is still a use, even if another line writes it. */
+  it('javascript still reports a read alongside a write', async () => {
+    expect(
+      await directReadNames(
+        "environmentVariables.API_KEY = 'x'\nreturn environmentVariables.API_KEY",
+        CodeLanguage.JavaScript
+      )
+    ).toEqual(['API_KEY'])
+  })
+})
+
 describe('a shadowed environment binding disables direct-read detection', () => {
   /**
    * A local object that merely shares the runtime binding's name is not the mounted
@@ -1448,6 +1477,20 @@ describe('a rebound shell variable is not the mounted secret', () => {
       environmentVariables: { API_KEY: 'a-value', OTHER_KEY: 'b-value' },
     })
     expect(compiled.resolvedSecretNames).toEqual(['OTHER_KEY'])
+  })
+
+  /**
+   * Cursor's case: these mention the name without binding it, so the expansion beside them is
+   * still a real read of the mounted secret and must keep its masking.
+   */
+  it.each([
+    ['literal argument', 'echo API_KEY=$API_KEY'],
+    ['quoted literal', 'echo "API_KEY=$API_KEY"'],
+    ['comment naming the key', '# rotate API_KEY monthly\necho "$API_KEY"'],
+    ['comment with an assignment shape', '# API_KEY=old\necho "$API_KEY"'],
+    ['name inside another word', 'echo MY_API_KEY_BACKUP\necho "$API_KEY"'],
+  ])('keeps the read despite a bare mention: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Shell)).toEqual(['API_KEY'])
   })
 
   it('still reports a name the script only expands', async () => {

@@ -597,44 +597,55 @@ function collectShellOccurrenceContexts(
 /** `$NAME` and `${NAME}` — including `${NAME:-default}`, whose name still ends at `:`. */
 const SHELL_PARAMETER_EXPANSION = /\$(?:\{\s*([A-Za-z_][A-Za-z0-9_]*)|([A-Za-z_][A-Za-z0-9_]*))/g
 
-/**
- * Whether every mention of `name` in the script is a parameter expansion of it.
- *
- * Shell has no injected environment object to shadow — each secret is its own variable — so a
- * script that writes the name (`API_KEY=local`, `export`/`local`/`readonly`, `read API_KEY`,
- * `for API_KEY in …`, `unset`) is expanding its own value from that point on, not the mounted
- * secret. There is no shell parser here to resolve that with, so this takes the same allowlist
- * shape as the Python detector: a mention that is not preceded by `$` or `${` is something
- * this scanner cannot attribute, and the name is dropped.
- *
- * Per name rather than per file, unlike JavaScript and Python: those shadow one object holding
- * every secret, so losing it loses them all, whereas rebinding one shell variable says nothing
- * about the rest.
- */
-function isOnlyExpanded(code: string, name: string): boolean {
-  const mention = new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`, 'g')
-  let found: RegExpExecArray | null
-  while ((found = mention.exec(code)) !== null) {
-    const before = code[found.index - 1]
-    const expanded = before === '$' || (before === '{' && code[found.index - 2] === '$')
-    if (!expanded) return false
-  }
-  return true
-}
+/** Command-word boundaries: an assignment only binds when it starts a word. */
+const SHELL_WORD_BOUNDARY = new Set(['\n', ';', '&', '|', '(', ')', '{', '}', '`'])
+
+/** Builtins that bind their argument, so the name stops being the mounted secret. */
+const SHELL_BINDING_BUILTINS = 'export|local|readonly|declare|typeset|unset|read|getopts'
 
 /**
- * Reports secrets a shell script expands straight out of the process environment.
+ * Whether the script binds `name` itself, so `$name` expands its own value rather than the
+ * mounted secret.
  *
- * Shell has no injected environment object to read from, so quoting decides whether an
- * expansion is real: single quotes suppress it entirely. Rather than re-deriving that, the
- * candidates are pushed through {@link collectShellOccurrenceContexts} — the same scanner
- * that decides where a `{{NAME}}` may be substituted — and single-quoted hits are dropped.
+ * Deliberately looks for writes rather than requiring every mention to be an expansion. The
+ * stricter form also fired on text that binds nothing — a comment naming the key, or
+ * `echo "API_KEY=$API_KEY"`, where the literal is an argument to `echo` and not an assignment
+ * — and dropping those cost masking on a genuine read.
  *
- * Recall stops where shell stops being static: `eval`, `${!indirect}`, `printenv`, and a
- * sourced file are all invisible here, and no scanner can fix that. What is reported is
- * exact, which is what the usage trail needs; what is missed keeps the pre-existing
- * behavior rather than degrading it.
+ * The two error directions are not symmetric here. Missing a write records a use of a secret
+ * the script only had in its environment: a misleading audit row, and nothing more, since
+ * masking still searches for the real value and simply will not find it. Over-detecting a
+ * write suppresses masking on a value that does reach the log. So this errs toward detecting
+ * the read.
+ *
+ * Exotic bindings — `((name=…))`, `let`, `mapfile`, and anything through `eval` — are not
+ * recognized, which is the harmless direction above.
  */
+function isReboundByScript(code: string, name: string): boolean {
+  /** `name=` / `name+=` at the start of a command word, including a `VAR=x cmd` prefix. */
+  const assignment = new RegExp(`(?<![A-Za-z0-9_])${name}\\+?=`, 'g')
+  let match: RegExpExecArray | null
+  while ((match = assignment.exec(code)) !== null) {
+    let previous = match.index - 1
+    while (previous >= 0 && (code[previous] === ' ' || code[previous] === '\t')) previous -= 1
+    if (previous < 0 || SHELL_WORD_BOUNDARY.has(code[previous])) return true
+  }
+
+  /** `export NAME=…`, `read -r NAME`, `unset NAME`, and friends, flags included. */
+  const builtin = new RegExp(
+    `(?<![A-Za-z0-9_])(?:${SHELL_BINDING_BUILTINS})(?:\\s+-[^\\s]+)*\\s+${name}(?![A-Za-z0-9_])`
+  )
+  if (builtin.test(code)) return true
+
+  /** `printf -v NAME …` writes into the variable instead of standard output. */
+  if (new RegExp(`(?<![A-Za-z0-9_])printf\\s+-v\\s+${name}(?![A-Za-z0-9_])`).test(code)) {
+    return true
+  }
+
+  /** `for NAME in …` rebinds on every iteration. */
+  return new RegExp(`(?<![A-Za-z0-9_])for\\s+${name}(?![A-Za-z0-9_])`).test(code)
+}
+
 function recordShellDirectEnvironmentReads(
   code: string,
   context: CodePlaceholderCompilationContext
@@ -690,12 +701,12 @@ function recordShellDirectEnvironmentReads(
      * expansion outright.
      */
     if (!shellContext || shellContext.quote === 'single') continue
-    let onlyExpanded = attributable.get(candidate.name)
-    if (onlyExpanded === undefined) {
-      onlyExpanded = isOnlyExpanded(code, candidate.name)
-      attributable.set(candidate.name, onlyExpanded)
+    let mounted = attributable.get(candidate.name)
+    if (mounted === undefined) {
+      mounted = !isReboundByScript(code, candidate.name)
+      attributable.set(candidate.name, mounted)
     }
-    if (!onlyExpanded) continue
+    if (!mounted) continue
     context.recordDirectEnvironmentRead(candidate.name, candidate.start)
   }
 }

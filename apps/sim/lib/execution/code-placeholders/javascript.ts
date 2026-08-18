@@ -40,7 +40,20 @@ const ENVIRONMENT_VARIABLES_IDENTIFIER = 'environmentVariables'
  * forms. A computed subscript is deliberately not resolved — see
  * {@link CodePlaceholderCompilationContext.recordDirectEnvironmentRead}.
  */
+/**
+ * Whether this member access is being written or deleted rather than read.
+ *
+ * `environmentVariables.API_KEY = 'x'` and `delete environmentVariables.API_KEY` both touch the
+ * name without ever reading the mounted value, so recording either would put a use in the trail
+ * that never happened. `isWriteIdentifier` already answers the write half for the placeholder
+ * rewriter; `delete` is asked here because only a read detector cares about it.
+ */
+function writesEnvironmentMember(node: ts.Node): boolean {
+  return ts.isDeleteExpression(node.parent) || isWriteIdentifier(node)
+}
+
 function directEnvironmentRead(node: ts.Node): DirectEnvironmentRead | undefined {
+  if (writesEnvironmentMember(node)) return undefined
   if (ts.isPropertyAccessExpression(node)) {
     if (!ts.isIdentifier(node.expression)) return undefined
     if (node.expression.text !== ENVIRONMENT_VARIABLES_IDENTIFIER) return undefined
@@ -437,7 +450,7 @@ function isDeclarationIdentifier(node: ts.Identifier): boolean {
   )
 }
 
-function isWriteIdentifier(node: ts.Identifier): boolean {
+function isWriteIdentifier(node: ts.Node): boolean {
   let current: ts.Node = node
   let targetPosition = true
   for (let parent = current.parent; parent; current = parent, parent = parent.parent) {

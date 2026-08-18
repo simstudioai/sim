@@ -576,6 +576,12 @@ const PYTHON_DIRECT_ENVIRONMENT_READ =
 const PYTHON_ENVIRONMENT_IDENTIFIER = /environmentVariables/g
 
 /**
+ * A subscript that is being assigned to rather than read: `environmentVariables['K'] = v`.
+ * The trailing `=` must not be `==`, `!=`, `<=`, `>=`, or `:=`, none of which write.
+ */
+const PYTHON_SUBSCRIPT_WRITE = /^\s*=(?!=)/
+
+/**
  * The only two shapes this detector can attribute: a literal subscript or `.get()`.
  *
  * Anything else — `environmentVariables = {...}`, a `def` parameter, `for … in`, `as`, or
@@ -639,6 +645,12 @@ function recordPythonDirectEnvironmentReads(
 
   for (const candidate of matches) {
     if (isOffsetInRanges(candidate.index, ignoredRanges)) continue
+    /**
+     * `environmentVariables['K'] = v` and `del environmentVariables['K']` touch the name
+     * without reading the mounted value, so neither is a use of the secret.
+     */
+    if (PYTHON_SUBSCRIPT_WRITE.test(code.slice(candidate.index + candidate[0].length))) continue
+    if (/(^|[\s;:])del\s+$/.test(code.slice(0, candidate.index))) continue
     const name = candidate[2] ?? candidate[4]
     if (name) context.recordDirectEnvironmentRead(name, candidate.index)
   }
