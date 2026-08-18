@@ -7,6 +7,11 @@ import { generateId } from '@sim/utils/id'
 import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  applyUsageDailyTotalDelta,
+  readUsagePeriodTotalsBySource,
+  sumSourceTotals,
+} from '@/lib/billing/core/usage-daily-total'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
@@ -172,6 +177,13 @@ async function resolveBillingContext(
 /**
  * Returns post-cutover usage for an attributed billing entity/period.
  * Legacy pre-cutover usage remains in userStats as a baseline until reset.
+ *
+ * Served from `usage_log_daily_total` — a scan of at most one bucket per user
+ * per day per source, rather than an aggregate over every event in the period.
+ * `source` is part of the bucket key, so a filtered total is answered from the
+ * same read as an unfiltered one. The rollup returns `null` whenever it cannot
+ * answer (reads disabled, or no buckets yet), which falls through to the
+ * ledger.
  */
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
@@ -179,6 +191,12 @@ export async function getBillingPeriodUsageCost(
   source?: UsageLogSource | UsageLogSource[],
   executor: DbClient = db
 ): Promise<number> {
+  const totalsBySource = await readUsagePeriodTotalsBySource(billingEntity, billingPeriod, executor)
+  if (totalsBySource) {
+    const sources = source ? (Array.isArray(source) ? source : [source]) : undefined
+    return sumSourceTotals(totalsBySource, sources)
+  }
+
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
     eq(usageLog.billingEntityId, billingEntity.id),
@@ -207,6 +225,9 @@ export async function getBillingPeriodUsageCost(
  * Two separate aggregates over the identical row set double the work and, because
  * they are separate statements, can observe different snapshots — which makes the
  * subset exceeding the total representable. One statement rules that out.
+ *
+ * The rollup keeps that property for free: both numbers are folded from one
+ * source breakdown read, so they cannot disagree.
  */
 export async function getBillingPeriodUsageCostWithSourceSubset(
   billingEntity: BillingEntity,
@@ -214,6 +235,14 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
   source: UsageLogSource[],
   executor: DbClient = db
 ): Promise<{ total: number; subset: number }> {
+  const totalsBySource = await readUsagePeriodTotalsBySource(billingEntity, billingPeriod, executor)
+  if (totalsBySource) {
+    return {
+      total: sumSourceTotals(totalsBySource),
+      subset: sumSourceTotals(totalsBySource, source),
+    }
+  }
+
   const [row] = await executor
     .select({
       total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
@@ -300,63 +329,103 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
 
   const context = await resolveBillingContext(userId, billingEntity, billingPeriod)
 
-  const insertedRows = await (tx ?? db)
-    .insert(usageLog)
-    .values(
-      validEntries.map((entry, index) => {
-        const sourceReference =
-          entry.sourceReference ??
-          [executionId, workflowId, workspaceId, entry.source, entry.description, index]
-            .filter((part) => part !== undefined && part !== null && part !== '')
-            .join(':')
-        const eventKey =
-          entry.eventKey ??
-          stableEventKey({
+  /**
+   * The ledger write and the rollup increment must commit together, or a
+   * failure between them leaves the rollup permanently short of the ledger.
+   * Callers that already hold a transaction pass it in; the rest get one here.
+   */
+  const writeLedger = async (executor: DbOrTx): Promise<number> => {
+    const insertedRows = await executor
+      .insert(usageLog)
+      .values(
+        validEntries.map((entry, index) => {
+          const sourceReference =
+            entry.sourceReference ??
+            [executionId, workflowId, workspaceId, entry.source, entry.description, index]
+              .filter((part) => part !== undefined && part !== null && part !== '')
+              .join(':')
+          const eventKey =
+            entry.eventKey ??
+            stableEventKey({
+              userId,
+              source: entry.source,
+              category: entry.category,
+              description: entry.description,
+              sourceReference,
+              executionId,
+              workflowId,
+              workspaceId,
+              index,
+            })
+
+          return {
+            id: generateId(),
             userId,
-            source: entry.source,
             category: entry.category,
+            source: entry.source,
             description: entry.description,
-            sourceReference,
-            executionId,
-            workflowId,
-            workspaceId,
-            index,
-          })
-
-        return {
-          id: generateId(),
-          userId,
-          category: entry.category,
-          source: entry.source,
-          description: entry.description,
-          metadata: entry.metadata ?? null,
-          cost: entry.cost.toString(),
-          eventKey,
-          billingEntityType: context.billingEntity.type,
-          billingEntityId: context.billingEntity.id,
-          billingPeriodStart: context.billingPeriod.start,
-          billingPeriodEnd: context.billingPeriod.end,
-          workspaceId: workspaceId ?? null,
-          workflowId: workflowId ?? null,
-          executionId: executionId ?? null,
-        }
+            metadata: entry.metadata ?? null,
+            cost: entry.cost.toString(),
+            eventKey,
+            billingEntityType: context.billingEntity.type,
+            billingEntityId: context.billingEntity.id,
+            billingPeriodStart: context.billingPeriod.start,
+            billingPeriodEnd: context.billingPeriod.end,
+            workspaceId: workspaceId ?? null,
+            workflowId: workflowId ?? null,
+            executionId: executionId ?? null,
+          }
+        })
+      )
+      .onConflictDoNothing({
+        target: usageLog.eventKey,
+        where: sql`${usageLog.eventKey} IS NOT NULL`,
       })
-    )
-    .onConflictDoNothing({
-      target: usageLog.eventKey,
-      where: sql`${usageLog.eventKey} IS NOT NULL`,
-    })
-    .returning({ cost: usageLog.cost })
+      .returning({
+        cost: usageLog.cost,
+        createdAt: usageLog.createdAt,
+        source: usageLog.source,
+      })
 
-  const insertedCost = insertedRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
+    const cost = insertedRows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
 
-  if (insertedRows.length < validEntries.length) {
-    logger.debug('Skipped duplicate usage events', {
-      userId,
-      attemptedEntries: validEntries.length,
-      insertedEntries: insertedRows.length,
-    })
+    // Only the rows that actually landed count toward the rollup: the eventKey
+    // conflict above silently drops replays, whose cost the ledger never
+    // recorded. `created_at` defaults to `now()` — the transaction timestamp,
+    // so identical across these rows — hence the single shared day bucket.
+    // A single call can still span sources, and source is part of the bucket
+    // key, so the delta is grouped rather than applied as one lump.
+    const costBySource = new Map<UsageLogSource, number>()
+    for (const row of insertedRows) {
+      costBySource.set(
+        row.source,
+        (costBySource.get(row.source) ?? 0) + Number.parseFloat(row.cost)
+      )
+    }
+    for (const [rowSource, sourceCost] of costBySource) {
+      await applyUsageDailyTotalDelta(
+        executor,
+        context.billingEntity,
+        context.billingPeriod,
+        userId,
+        rowSource,
+        insertedRows[0].createdAt,
+        sourceCost
+      )
+    }
+
+    if (insertedRows.length < validEntries.length) {
+      logger.debug('Skipped duplicate usage events', {
+        userId,
+        attemptedEntries: validEntries.length,
+        insertedEntries: insertedRows.length,
+      })
+    }
+
+    return cost
   }
+
+  const insertedCost = tx ? await writeLedger(tx) : await db.transaction(writeLedger)
 
   logger.debug('Recorded usage', {
     userId,
@@ -553,6 +622,8 @@ export async function recordCumulativeUsage(
         billingEntityId: usageLog.billingEntityId,
         billingPeriodStart: usageLog.billingPeriodStart,
         billingPeriodEnd: usageLog.billingPeriodEnd,
+        createdAt: usageLog.createdAt,
+        source: usageLog.source,
       })
       .from(usageLog)
       .where(eq(usageLog.eventKey, eventKey))
@@ -575,12 +646,26 @@ export async function recordCumulativeUsage(
     }
 
     if (existing) {
-      // Top up the single row to the new (higher) cumulative; the
-      // period total is SUM(usage_log.cost), so this lifts it by the delta.
+      // Top up the single row to the new (higher) cumulative.
       await tx
         .update(usageLog)
         .set({ cost: newTotal.toString(), metadata: metadata ?? null })
         .where(eq(usageLog.id, existing.id))
+
+      // Top-up only raises the existing row, so the rollup moves by the delta —
+      // in the bucket that row already belongs to, which is keyed on its
+      // original `created_at`, not on when this flush happens. The insert
+      // branch below goes through `recordUsage`, which accounts for its own
+      // rows; adding the delta here as well would double-count that path.
+      await applyUsageDailyTotalDelta(
+        tx,
+        billingContext.billingEntity,
+        billingContext.billingPeriod,
+        existing.userId,
+        existing.source,
+        existing.createdAt,
+        delta
+      )
     } else {
       // First flush for this request: insert the canonical row with the
       // pre-resolved billing context. Runs in the same tx + advisory lock.

@@ -56,6 +56,20 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'usage-daily-total-reads': {
+    description:
+      'Serve the billing-period aggregates from the maintained usage_log_daily_total rollup ' +
+      'instead of scanning usage_log: the whole-period total on the per-execution quota path, ' +
+      'and the daily-refresh per-day rollup. Both are O(events in the period) against the ' +
+      'ledger. The rollup is written transactionally by both usage_log mutation paths ' +
+      'regardless of this flag; the flag gates only the READS, so it can be turned on after ' +
+      'reconcileUsageDailyTotals confirms the rollup agrees with the ledger, and turned back ' +
+      'off without losing data. Each read falls back to the ledger when the rollup cannot ' +
+      'answer it exactly (no buckets yet, a source filter, per-user bounds, or a closed ' +
+      'period). Global on/off — evaluated without user context on the billing path. ' +
+      'Off-AppConfig falls back to USAGE_DAILY_TOTAL_READS.',
+    fallback: 'USAGE_DAILY_TOTAL_READS',
+  },
   'table-snapshot-cache': {
     description:
       'Mount Sim tables into code sandboxes by reference via a version-keyed CSV snapshot in ' +

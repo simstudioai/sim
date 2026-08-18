@@ -122,6 +122,7 @@ export const env = createEnv({
     BILLING_CONCURRENCY_LIMIT_TEAM:         z.string().optional(),                  // In-flight executions per Max-tier billing account (Max and Max for Teams)
     BILLING_CONCURRENCY_LIMIT_ENTERPRISE:   z.string().optional(),                  // In-flight executions per Enterprise billing account (metadata-overridable)
     BILLING_ENABLED:                       z.boolean().optional(),                 // Enable billing enforcement and usage tracking
+    USAGE_DAILY_TOTAL_READS:               z.boolean().optional(),                 // Serve the billing-period aggregates (whole-period total and daily refresh) from the usage_log_daily_total rollup instead of scanning usage_log
     TABLE_SNAPSHOT_CACHE:                  z.boolean().optional(),                 // Mount tables into sandboxes by reference via a version-keyed CSV snapshot in object storage instead of draining the whole table into web-process heap
     PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
     PII_GRANULAR_REDACTION:                z.boolean().optional(),                 // Expose the execution-altering PII redaction stages (redact workflow input + block outputs in-flight) in the Data Retention config; layered on top of PII_REDACTION

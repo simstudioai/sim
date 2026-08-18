@@ -1071,6 +1071,17 @@ export const schemaMock = {
     executionId: 'executionId',
     createdAt: 'createdAt',
   },
+  usageLogDailyTotal: {
+    billingEntityType: 'billingEntityType',
+    billingEntityId: 'billingEntityId',
+    billingPeriodStart: 'billingPeriodStart',
+    billingPeriodEnd: 'billingPeriodEnd',
+    userId: 'userId',
+    dayIndex: 'dayIndex',
+    source: 'source',
+    totalCost: 'totalCost',
+    updatedAt: 'updatedAt',
+  },
   credentialTypeEnum: {
     enumValues: [
       'oauth',

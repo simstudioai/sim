@@ -3682,8 +3682,15 @@ export const usageLog = pgTable(
       .where(sql`${table.billingEntityType} IS NOT NULL`),
     /**
      * Covering companion to `billingEntityPeriodIdx` — not a replacement. Carries
-     * `cost` so the billing-period aggregates resolve index-only rather than taking
-     * a heap fetch per matched row.
+     * `cost` so the billing-period aggregates can be evaluated without consulting
+     * the row itself.
+     *
+     * In production this does NOT actually avoid the heap: the rows these
+     * aggregates read are the newest in the period, and the visibility map has
+     * not marked their pages all-visible yet, so the plan is an Index Only Scan
+     * with a 100% heap-fetch rate. The billing-period aggregates therefore go
+     * through `usageLogDailyTotal` instead; this index is still worth its size
+     * for the narrower, more selective aggregates that remain on the ledger.
      *
      * `userId`/`createdAt` sit immediately after the shared equality prefix because
      * the daily-refresh rollup filters on them and NOT on `billingPeriodEnd`;
@@ -3721,6 +3728,86 @@ export const usageLog = pgTable(
       table.createdAt
     ),
     executionIdIdx: index('usage_log_execution_id_idx').on(table.executionId),
+  })
+)
+
+/**
+ * Per-day usage totals, the grain both billing-period aggregates reduce to.
+ *
+ * Two hot reads sum `usage_log.cost` over a billing period: the whole-period
+ * total on the per-execution quota path, and the daily-refresh rollup, which
+ * buckets the same rows by day to apply a per-day allowance cap. Both are
+ * O(events in the period), and both sit on paths that run per execution, so
+ * they degrade as a period fills up and as an account scales.
+ *
+ * A covering index does not fix either one. The rows being summed are always
+ * the newest in the period, which are exactly the pages the visibility map has
+ * not marked all-visible yet, so an index-only scan degrades to a heap fetch
+ * per row regardless of what the index carries.
+ *
+ * Bucketing by `(user, day, source)` is the coarsest grain that answers all of
+ * them: the period total sums every bucket in the period, daily refresh sums
+ * the buckets per day for a chosen set of users, and the Chat-family breakdown
+ * sums the subset of buckets whose source is in that family. That collapses a
+ * per-event scan into a scan of at most one row per user per day per source.
+ *
+ * `source` earns its place in the key rather than being dropped: without it the
+ * cost breakdown has to go back to the ledger, and carrying it costs about a
+ * fifth more rows because most buckets only ever see a single source.
+ *
+ * `dayIndex` is the whole number of 24h windows from `billingPeriodStart` to
+ * the event's `createdAt`, matching how daily refresh divides the period.
+ *
+ * Maintained transactionally alongside every `usage_log` mutation, so it is
+ * exact rather than eventually consistent. The ledger remains the source of
+ * truth and `reconcileUsageDailyTotals` can always recompute from it.
+ *
+ * The maintained columns are not part of the primary key and there is no other
+ * index, so the per-event increments are HOT updates that stay page-local and
+ * need no index cleanup to be reclaimed.
+ *
+ * One caveat on sizing: a real subscription's period rolls over monthly, which
+ * bounds an entity's buckets to roughly its active days in that period. An
+ * account with no subscription bills against an open-ended sentinel period that
+ * never rolls over, so its buckets accumulate for the lifetime of the account.
+ * That is not a correctness difference — the rollup and the ledger admit the
+ * same rows either way — but those entities' reads grow slowly with age rather
+ * than staying flat.
+ */
+export const usageLogDailyTotal = pgTable(
+  'usage_log_daily_total',
+  {
+    billingEntityType: billingEntityTypeEnum('billing_entity_type').notNull(),
+    billingEntityId: text('billing_entity_id').notNull(),
+    billingPeriodStart: timestamp('billing_period_start').notNull(),
+    billingPeriodEnd: timestamp('billing_period_end').notNull(),
+    userId: text('user_id').notNull(),
+
+    /** Whole 24h windows from `billingPeriodStart` to the event's `createdAt`. */
+    dayIndex: integer('day_index').notNull(),
+
+    source: usageLogSourceEnum('source').notNull(),
+
+    /**
+     * Sum of `usage_log.cost` for the bucket. `decimal` (not a float) so the
+     * running total accumulates without representation drift.
+     */
+    totalCost: decimal('total_cost').notNull().default('0'),
+
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({
+      columns: [
+        table.billingEntityType,
+        table.billingEntityId,
+        table.billingPeriodStart,
+        table.billingPeriodEnd,
+        table.userId,
+        table.dayIndex,
+        table.source,
+      ],
+    }),
   })
 )
 

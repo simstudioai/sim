@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { usageLog } from '@sim/db/schema'
+import { usageLog, usageLogDailyTotal } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +10,7 @@ const {
   mockInsert,
   mockIsOrgScopedSubscription,
   mockOnConflictDoNothing,
+  mockOnConflictDoUpdate,
   mockReturning,
   mockValues,
   mockTransaction,
@@ -19,6 +20,7 @@ const {
   mockInsert: vi.fn(),
   mockIsOrgScopedSubscription: vi.fn(),
   mockOnConflictDoNothing: vi.fn(),
+  mockOnConflictDoUpdate: vi.fn(),
   mockReturning: vi.fn(),
   mockValues: vi.fn(),
   mockTransaction: vi.fn(),
@@ -55,6 +57,13 @@ function installSharedDbMocks(): void {
   resetDbChainMock()
   dbChainMockFns.insert.mockImplementation((...args: unknown[]) => mockInsert(...args))
   dbChainMockFns.transaction.mockImplementation((...args: unknown[]) => mockTransaction(...args))
+  // `recordUsage` opens its own transaction when the caller supplies none, so
+  // the ledger insert and the period-total increment commit together. Default
+  // to running the callback against this file's chain; `setupTx` overrides this
+  // for the cumulative-flush tests, which assert on the tx itself.
+  mockTransaction.mockImplementation(async (fn: (t: unknown) => unknown) =>
+    fn({ insert: mockInsert, update: mockUpdate })
+  )
 }
 
 afterAll(() => {
@@ -71,10 +80,15 @@ describe('recordUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     installSharedDbMocks()
-    mockReturning.mockResolvedValue([{ cost: '0.10' }, { cost: '0.20' }])
+    mockReturning.mockResolvedValue([
+      { cost: '0.10', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+      { cost: '0.20', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+    ])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
     mockValues.mockReturnValue({
       onConflictDoNothing: mockOnConflictDoNothing,
+      // usage_log_daily_total is maintained through the same insert chain
+      onConflictDoUpdate: mockOnConflictDoUpdate,
     })
     mockInsert.mockReturnValue({ values: mockValues })
     mockGetHighestPrioritySubscription.mockResolvedValue({
@@ -125,6 +139,49 @@ describe('recordUsage', () => {
       target: usageLog.eventKey,
     })
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  it('splits the rollup delta per source when one call spans several', async () => {
+    mockReturning.mockResolvedValue([
+      { cost: '0.10', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+      { cost: '0.20', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'copilot' },
+      { cost: '0.05', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+    ])
+
+    await recordUsage({
+      userId: 'user-1',
+      entries: [
+        { category: 'model', source: 'workflow', description: 'a', cost: 0.1 },
+        { category: 'model', source: 'copilot', description: 'b', cost: 0.2 },
+        { category: 'model', source: 'workflow', description: 'c', cost: 0.05 },
+      ],
+    })
+
+    // source is part of the bucket key, so a lump delta would land in whichever
+    // source happened to come back first and silently misattribute the rest.
+    const bucketWrites = mockValues.mock.calls
+      .map(([value]) => value)
+      .filter((value) => !Array.isArray(value) && value?.source !== undefined)
+
+    expect(bucketWrites.map((value) => value.source)).toEqual(['workflow', 'copilot'])
+    expect(Number.parseFloat(bucketWrites[0].totalCost)).toBeCloseTo(0.15, 9)
+    expect(Number.parseFloat(bucketWrites[1].totalCost)).toBeCloseTo(0.2, 9)
+  })
+
+  it('commits the ledger rows and the rollup bucket in one transaction', async () => {
+    await recordUsage({
+      userId: 'user-1',
+      entries: [{ category: 'model', source: 'workflow', description: 'gpt', cost: 0.1 }],
+    })
+
+    // Without a caller-supplied tx, recordUsage must open its own: a failure
+    // between the ledger insert and the rollup increment would otherwise leave
+    // usage_log_daily_total permanently short of usage_log.
+    expect(mockTransaction).toHaveBeenCalledTimes(1)
+
+    const insertedTables = mockInsert.mock.calls.map(([table]) => table)
+    expect(insertedTables).toContain(usageLog)
+    expect(insertedTables).toContain(usageLogDailyTotal)
   })
 
   it('uses pre-resolved billing context without loading subscriptions', async () => {
@@ -206,6 +263,8 @@ describe('recordCumulativeUsage', () => {
     billingEntityId: string | null
     billingPeriodStart: Date | null
     billingPeriodEnd: Date | null
+    createdAt: Date
+    source: 'workflow'
   } = {
     id: 'row-1',
     cost: '0.3474447',
@@ -215,14 +274,23 @@ describe('recordCumulativeUsage', () => {
     billingEntityId: 'org-1',
     billingPeriodStart: new Date('2026-05-01T00:00:00.000Z'),
     billingPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
+    // The rollup buckets a top-up by the row's original createdAt, not by
+    // when the flush happens, so the fixture has to carry it.
+    createdAt: new Date('2026-05-04T09:00:00.000Z'),
+    source: 'workflow' as const,
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
     installSharedDbMocks()
-    mockReturning.mockResolvedValue([{ cost: '0.3474447' }])
+    mockReturning.mockResolvedValue([
+      { cost: '0.3474447', createdAt: new Date('2026-05-04T09:00:00.000Z'), source: 'workflow' },
+    ])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
-    mockValues.mockReturnValue({ onConflictDoNothing: mockOnConflictDoNothing })
+    mockValues.mockReturnValue({
+      onConflictDoNothing: mockOnConflictDoNothing,
+      onConflictDoUpdate: mockOnConflictDoUpdate,
+    })
     mockInsert.mockReturnValue({ values: mockValues })
     mockGetHighestPrioritySubscription.mockResolvedValue({
       periodEnd: new Date('2026-06-01T00:00:00.000Z'),
@@ -251,6 +319,15 @@ describe('recordCumulativeUsage', () => {
     return { tx, select, updateSet }
   }
 
+  /**
+   * Inserts that targeted `usage_log` itself. `applyUsageDailyTotalDelta`
+   * shares this insert chain to maintain `usage_log_daily_total`, so a bare
+   * `mockInsert` call count no longer distinguishes "wrote a ledger row" from
+   * "moved a rollup bucket".
+   */
+  const usageLogInsertCount = () =>
+    mockInsert.mock.calls.filter(([table]) => table === usageLog).length
+
   /** True when any tx.execute call ran a sql`` template containing the substring. */
   const executedSqlContaining = (tx: { execute: ReturnType<typeof vi.fn> }, substring: string) =>
     tx.execute.mock.calls.some(([arg]) => {
@@ -275,7 +352,7 @@ describe('recordCumulativeUsage', () => {
       metadata: { inputTokens: 100, outputTokens: 5 },
     })
     expect(result).toEqual({ billed: true, delta: 0.3474447, total: 0.3474447 })
-    expect(mockInsert).toHaveBeenCalledTimes(1)
+    expect(usageLogInsertCount()).toBe(1)
     expect(mockUpdate).not.toHaveBeenCalled()
     expect(mockValues.mock.calls[0][0][0]).toMatchObject({
       userId: 'external-actor',
@@ -297,7 +374,7 @@ describe('recordCumulativeUsage', () => {
     expect(result.total).toBe(0.4662453)
     expect(result.delta).toBeCloseTo(0.1188006, 9)
     expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ cost: '0.4662453' }))
-    expect(mockInsert).not.toHaveBeenCalled()
+    expect(usageLogInsertCount()).toBe(0)
   })
 
   it('does not bill when the cumulative is not higher than recorded', async () => {

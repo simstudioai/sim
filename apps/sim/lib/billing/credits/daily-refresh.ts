@@ -16,11 +16,26 @@ import { member, usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
+import { dayIndexSql, MS_PER_DAY, readUsageDailyTotals } from '@/lib/billing/core/usage-daily-total'
 import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('DailyRefresh')
 
-const MS_PER_DAY = 86_400_000
+/**
+ * Applies the per-day allowance cap and totals the result.
+ *
+ * The "MIN(day usage, allowance) per day" rule is the whole point of bucketing
+ * by day, and both the rollup and the ledger paths reduce to the same thing —
+ * an iterable of per-day totals — so the rule lives here once rather than
+ * being spelled out on each path.
+ */
+function sumCappedDays(dayTotals: Iterable<number>, dailyRefreshDollars: number): number {
+  let total = 0
+  for (const dayUsage of dayTotals) {
+    total += Math.min(dayUsage, dailyRefreshDollars)
+  }
+  return total
+}
 
 /**
  * Optional per-user date window. `usageLog` rows outside
@@ -69,12 +84,46 @@ export async function computeDailyRefreshConsumed(
   const dailyRefreshDollars = planDollars * DAILY_REFRESH_RATE * seats
 
   const now = new Date()
-  const cap = periodEnd && periodEnd < now ? periodEnd : now
+  const periodIsOpen = !periodEnd || periodEnd >= now
+  const cap = periodIsOpen ? now : periodEnd
 
   if (cap <= periodStart) return 0
 
   const dayCount = Math.ceil((cap.getTime() - periodStart.getTime()) / MS_PER_DAY)
   if (dayCount <= 0) return 0
+
+  const hasPerUserBounds = Boolean(userBounds && Object.keys(userBounds).length > 0)
+
+  /**
+   * The rollup can answer this exactly only when every row the ledger query
+   * would match falls wholly inside a day bucket it maintains:
+   *
+   * - `billingEntity` must be set, since the rollup is keyed by it. Without it
+   *   the ledger query spans every entity a user has billed against.
+   * - No per-user bounds, whose `userStart`/`userEnd` are arbitrary instants
+   *   that can cut a bucket in half.
+   * - The period must still be open. A closed period caps at `periodEnd`, and
+   *   a ledger row can be stamped to a period yet created after it ends (a
+   *   late flush), which the ledger query excludes and the bucket would not.
+   *
+   * Anything else falls through to aggregating the ledger, unchanged — as does
+   * a rollup that has no buckets for this period yet, or that has reads off.
+   */
+  if (billingEntity && periodIsOpen && !hasPerUserBounds) {
+    const daily = await readUsageDailyTotals(billingEntity, periodStart, userIds, executor)
+    if (daily) {
+      const totalConsumed = sumCappedDays(daily.values(), dailyRefreshDollars)
+      logger.debug('Daily refresh computed', {
+        userCount: userIds.length,
+        periodStart: periodStart.toISOString(),
+        days: dayCount,
+        dailyRefreshDollars,
+        totalConsumed,
+        source: 'rollup',
+      })
+      return totalConsumed
+    }
+  }
 
   const unboundedUsers = userBounds ? userIds.filter((id) => !(id in userBounds)) : userIds
   const billingEntityFilter = billingEntity
@@ -120,21 +169,20 @@ export async function computeDailyRefreshConsumed(
 
   const rows = await executor
     .select({
-      dayIndex:
-        sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(
-          'day_index'
-        ),
+      dayIndex: dayIndexSql(
+        usageLog.createdAt,
+        sql.param(periodStart, usageLog.billingPeriodStart)
+      ).as('day_index'),
       dayTotal: sum(usageLog.cost).as('day_total'),
     })
     .from(usageLog)
     .where(rowFilters.length === 1 ? rowFilters[0] : or(...rowFilters))
     .groupBy(sql`day_index`)
 
-  let totalConsumed = 0
-  for (const row of rows) {
-    const dayUsage = Number.parseFloat(row.dayTotal ?? '0')
-    totalConsumed += Math.min(dayUsage, dailyRefreshDollars)
-  }
+  const totalConsumed = sumCappedDays(
+    rows.map((row) => Number.parseFloat(row.dayTotal ?? '0')),
+    dailyRefreshDollars
+  )
 
   logger.debug('Daily refresh computed', {
     userCount: userIds.length,
@@ -142,7 +190,8 @@ export async function computeDailyRefreshConsumed(
     days: dayCount,
     dailyRefreshDollars,
     totalConsumed,
-    hasUserBounds: Boolean(userBounds),
+    hasUserBounds: hasPerUserBounds,
+    source: 'ledger',
   })
 
   return totalConsumed

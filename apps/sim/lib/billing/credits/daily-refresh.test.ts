@@ -11,13 +11,22 @@ vi.mock('drizzle-orm', () => {
   }
   return {
     ...drizzleOrmMock,
-    sql: Object.assign(sqlTag, { raw: sqlTag }),
+    sql: Object.assign(sqlTag, { raw: sqlTag, param: sqlTag }),
     sum: () => ({ as: () => 'sum' }),
   }
 })
 
 vi.mock('@/lib/billing/constants', () => ({
   DAILY_REFRESH_RATE: 0.01,
+}))
+
+const { mockReadUsageDailyTotals } = vi.hoisted(() => ({
+  mockReadUsageDailyTotals: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/usage-daily-total', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/core/usage-daily-total')>()),
+  readUsageDailyTotals: mockReadUsageDailyTotals,
 }))
 
 import {
@@ -28,6 +37,7 @@ import {
 describe('computeDailyRefreshConsumed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReadUsageDailyTotals.mockResolvedValue(null)
   })
 
   it('returns 0 when planDollars is 0', async () => {
@@ -152,5 +162,78 @@ describe('getDailyRefreshDollars', () => {
 
   it('returns 0 for $0 plan', () => {
     expect(getDailyRefreshDollars(0)).toBe(0)
+  })
+})
+
+describe('computeDailyRefreshConsumed rollup fast path', () => {
+  const ENTITY = { type: 'organization' as const, id: 'org-1' }
+  const periodStart = new Date(Date.now() - 3 * 86_400_000)
+  const periodEnd = new Date(Date.now() + 7 * 86_400_000)
+
+  const base = {
+    userIds: ['user-1'],
+    periodStart,
+    periodEnd,
+    planDollars: 100,
+    billingEntity: ENTITY,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockReadUsageDailyTotals.mockResolvedValue(null)
+  })
+
+  it('caps each day at the refresh allowance and sums across days', async () => {
+    // Allowance is planDollars * DAILY_REFRESH_RATE * seats = 100 * 0.01 = 1.
+    mockReadUsageDailyTotals.mockResolvedValue(
+      new Map([
+        [0, 0.4],
+        [1, 5],
+        [2, 0.25],
+      ])
+    )
+
+    const result = await computeDailyRefreshConsumed(base)
+
+    expect(result).toBeCloseTo(0.4 + 1 + 0.25, 9)
+    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the ledger when the rollup cannot answer', async () => {
+    // `null` is the single channel the rollup uses for every "cannot answer"
+    // case: reads disabled, or no buckets for this period yet.
+    mockReadUsageDailyTotals.mockResolvedValue(null)
+
+    await computeDailyRefreshConsumed(base)
+
+    expect(dbChainMockFns.groupBy).toHaveBeenCalled()
+  })
+
+  it('falls back to the ledger without a billing entity, which the rollup is keyed by', async () => {
+    await computeDailyRefreshConsumed({ ...base, billingEntity: undefined })
+
+    expect(mockReadUsageDailyTotals).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).toHaveBeenCalled()
+  })
+
+  it('falls back to the ledger for per-user bounds, which can split a day bucket', async () => {
+    await computeDailyRefreshConsumed({
+      ...base,
+      userBounds: { 'user-1': { userStart: new Date(Date.now() - 2 * 86_400_000 - 3600_000) } },
+    })
+
+    expect(mockReadUsageDailyTotals).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).toHaveBeenCalled()
+  })
+
+  it('falls back to the ledger for a closed period, where a late flush can sit past the cap', async () => {
+    await computeDailyRefreshConsumed({
+      ...base,
+      periodStart: new Date(Date.now() - 40 * 86_400_000),
+      periodEnd: new Date(Date.now() - 86_400_000),
+    })
+
+    expect(mockReadUsageDailyTotals).not.toHaveBeenCalled()
+    expect(dbChainMockFns.groupBy).toHaveBeenCalled()
   })
 })
