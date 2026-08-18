@@ -483,15 +483,7 @@ export const githubConnector: ConnectorConfig = {
       }
 
       if (!response.ok) {
-        return {
-          valid: false,
-          error:
-            response.status === 401
-              ? 'Cannot access repository: 401 — the token was rejected (invalid, expired, or not a real token). Pass a valid PAT or a {{ENV_VAR}} reference to one.'
-              : response.status === 403
-                ? 'Cannot access repository: 403 — the token lacks access to this repository (missing repo scope, or fine-grained token not granted to it).'
-                : `Cannot access repository: ${response.status}`,
-        }
+        return { valid: false, error: `Cannot access repository: ${response.status}` }
       }
 
       return { valid: true }

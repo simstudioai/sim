@@ -333,10 +333,7 @@ export const airtableConnector: ConnectorConfig = {
         if (response.status === 403) {
           return { valid: false, error: 'Access denied. Check your Airtable permissions.' }
         }
-        return {
-          valid: false,
-          error: `Airtable API error: ${response.status} — 401 means an invalid PAT (or an unresolved {{ENV_VAR}} placeholder); 403 means the PAT has no access to base "${baseId}". Detail: ${errorText}`,
-        }
+        return { valid: false, error: `Airtable API error: ${response.status} - ${errorText}` }
       }
 
       const viewId = readConfigString(sourceConfig, 'viewId')
@@ -353,10 +350,7 @@ export const airtableConnector: ConnectorConfig = {
           VALIDATE_RETRY_OPTIONS
         )
         if (!viewResponse.ok) {
-          return {
-            valid: false,
-            error: `View "${viewId}" not found in table "${tableIdOrName}" — or the PAT lacks access to it.`,
-          }
+          return { valid: false, error: `View "${viewId}" not found in table "${tableIdOrName}"` }
         }
       }
 

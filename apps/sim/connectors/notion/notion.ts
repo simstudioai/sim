@@ -465,7 +465,7 @@ export const notionConnector: ConnectorConfig = {
           if (!response.ok) {
             return {
               valid: false,
-              error: `Cannot access database ${databaseId}: ${response.status} — 401 means a rejected token; 404 usually means the database is not shared with this Notion integration (share it from the page's "Connections" menu).`,
+              error: `Cannot access database ${databaseId}: ${response.status}`,
             }
           }
         }
@@ -483,10 +483,7 @@ export const notionConnector: ConnectorConfig = {
           VALIDATE_RETRY_OPTIONS
         )
         if (!response.ok) {
-          return {
-            valid: false,
-            error: `Cannot access page ${rootPageId}: ${response.status} — the page is likely not shared with this Notion integration; add it under the page's "Connections" menu.`,
-          }
+          return { valid: false, error: `Cannot access page: ${response.status}` }
         }
       } else {
         // Workspace scope — just verify token works

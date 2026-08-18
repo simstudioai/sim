@@ -474,10 +474,7 @@ export const microsoftTeamsConnector: ConnectorConfig = {
           VALIDATE_RETRY_OPTIONS
         )
         if (!channel) {
-          return {
-            valid: false,
-            error: `Channel not found: ${channelInput}. The connected account cannot see it — it may be in a different team/tenant, or a private channel the user is not a member of.`,
-          }
+          return { valid: false, error: `Channel not found: ${channelInput}` }
         }
 
         // Verify we can read messages by fetching a single message

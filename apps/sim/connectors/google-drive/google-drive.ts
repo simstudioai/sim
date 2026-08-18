@@ -391,7 +391,7 @@ export const googleDriveConnector: ConnectorConfig = {
             }
             return {
               valid: false,
-              error: `Failed to access folder "${folderId}": ${response.status} — 403 means the folder exists but is not shared with the connected Google account.`,
+              error: `Failed to access folder "${folderId}": ${response.status}`,
             }
           }
 
@@ -417,10 +417,7 @@ export const googleDriveConnector: ConnectorConfig = {
         )
 
         if (!response.ok) {
-          return {
-            valid: false,
-            error: `Failed to access Google Drive: ${response.status} — 401 means the token expired (reconnect the Google credential); 403 usually means a missing Drive scope.`,
-          }
+          return { valid: false, error: `Failed to access Google Drive: ${response.status}` }
         }
       }
 

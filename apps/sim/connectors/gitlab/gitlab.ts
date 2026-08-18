@@ -1083,18 +1083,8 @@ export const gitlabConnector: ConnectorConfig = {
       if (response.status === 404) {
         return { valid: false, error: `Project "${project}" not found on ${host}` }
       }
-      if (response.status === 401) {
-        return {
-          valid: false,
-          error:
-            'GitLab rejected the token (401) — it is invalid, expired, or an unresolved {{ENV_VAR}} placeholder. Pass a valid token or a {{ENV_VAR}} reference to one.',
-        }
-      }
-      if (response.status === 403) {
-        return {
-          valid: false,
-          error: `GitLab token lacks access (403) — it needs read_api/read_repository on "${project}".`,
-        }
+      if (response.status === 401 || response.status === 403) {
+        return { valid: false, error: 'Invalid token or insufficient permissions' }
       }
       if (!response.ok) {
         return { valid: false, error: `Cannot access project: ${response.status}` }
