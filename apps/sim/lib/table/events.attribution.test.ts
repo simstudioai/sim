@@ -26,11 +26,28 @@ const ATTRIBUTED_CALL_SITES = [
 ] as const
 
 /** Surfaces that name the acting tab. See the note above — this is the real allowlist. */
-const ACTOR_SUPPLYING_SURFACES = ['app/api/table/[tableId]/rows/[rowId]/route.ts'] as const
+const ACTOR_SUPPLYING_SURFACES = [
+  'app/api/table/[tableId]/rows/route.ts',
+  'app/api/table/[tableId]/rows/[rowId]/route.ts',
+] as const
 
 const APP_ROOT = join(import.meta.dirname, '../..')
 /** Declares the function; matching its own definition would say nothing about call sites. */
 const DECLARING_MODULE = 'lib/table/events.ts'
+/** Declares the input and forwards it to the signal; it names no tab of its own. */
+const FORWARDING_MODULE = 'lib/table/application/rows.ts'
+
+/**
+ * A file names a tab either by setting the input field or by passing a second
+ * argument to the signal directly.
+ *
+ * Deliberately keyed on the attribution rather than on `readClientId`: that reader
+ * is a general-purpose helper any surface may call for unrelated reasons, so
+ * matching it classified innocent callers as suppliers and could be sidestepped by
+ * aliasing or wrapping it. These two forms are what actually attribute a write, and
+ * they hold however the id was obtained.
+ */
+const SUPPLIER_PATTERNS = [/actorClientId:/, /signalTableRowsChangedByActor\([^)]*,/] as const
 
 async function* walk(dir: string): AsyncGenerator<string> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -41,11 +58,14 @@ async function* walk(dir: string): AsyncGenerator<string> {
   }
 }
 
-async function filesContaining(needle: string, skip: (relative: string) => boolean = () => false) {
+async function filesMatching(
+  matches: (source: string) => boolean,
+  skip: (relative: string) => boolean = () => false
+) {
   const found: string[] = []
   for await (const file of walk(APP_ROOT)) {
     const source = await readFile(file, 'utf8')
-    if (!source.includes(needle)) continue
+    if (!matches(source)) continue
     const relative = file.slice(APP_ROOT.length + 1)
     if (skip(relative)) continue
     found.push(relative)
@@ -55,8 +75,8 @@ async function filesContaining(needle: string, skip: (relative: string) => boole
 
 describe('signalTableRowsChangedByActor call sites', () => {
   it('is called only where the acting tab reconciles the write locally', async () => {
-    const callers = await filesContaining(
-      'signalTableRowsChangedByActor(',
+    const callers = await filesMatching(
+      (source) => source.includes('signalTableRowsChangedByActor('),
       (relative) => relative === DECLARING_MODULE
     )
 
@@ -64,12 +84,9 @@ describe('signalTableRowsChangedByActor call sites', () => {
   })
 
   it('is given an actor only by surfaces whose client hook reconciles locally', async () => {
-    const suppliers = await filesContaining(
-      'actorClientId:',
-      // These declare or forward the field rather than naming a tab.
-      (relative) =>
-        relative === 'lib/table/application/rows.ts' ||
-        relative === 'lib/table/application/row-secret-provenance.ts'
+    const suppliers = await filesMatching(
+      (source) => SUPPLIER_PATTERNS.some((pattern) => pattern.test(source)),
+      (relative) => relative === DECLARING_MODULE || relative === FORWARDING_MODULE
     )
 
     expect(suppliers).toEqual([...ACTOR_SUPPLYING_SURFACES].sort())
