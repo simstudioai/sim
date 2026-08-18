@@ -46,7 +46,7 @@ import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -155,22 +155,75 @@ function assertKnownColumnNames(
   )
 }
 
-function namedDataToStorage(data: RowData, table: TableDefinition, strict = false): RowData {
+/**
+ * Which column keying a write's row data arrives in.
+ *
+ * `'names'` — the caller publishes column **names** on its wire: `/api/v2`,
+ * `/api/v1`, and the Copilot table tools, where a name is what the caller (or
+ * the model) can read off a row. Names are remapped to storage ids here.
+ *
+ * `'ids'` — the caller already speaks stable storage column **ids**: the
+ * first-party grid and the internal `/api/table` routes, which hold the schema
+ * they rendered and address cells by id.
+ *
+ * Required so a new write surface must state which contract it publishes. The
+ * name remap drops keys it does not recognise, and a storage id names no column
+ * *name*, so feeding id-keyed data through the name path silently drops every
+ * cell and reports the write as successful.
+ */
+export type TableRowDataKeying = 'names' | 'ids'
+
+/**
+ * Refuses a wire row naming a column id the table does not have. The id-keyed
+ * counterpart of {@link assertKnownColumnNames}, and applied on the same
+ * `strictWrite` condition, so strictness means the same thing on either wire.
+ */
+function assertKnownColumnIds(data: RowData, table: TableDefinition, rowLabel?: string): void {
+  const ids = new Set(table.schema.columns.map((column) => column.id))
+  const unknown = Object.keys(data).filter((key) => !ids.has(key))
+  if (unknown.length === 0) return
+  const where = rowLabel ? `${rowLabel}: ` : ''
+  throw new TableRowsValidationError(
+    `${where}Unknown column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}`
+  )
+}
+
+/**
+ * Normalizes one wire row to storage keying. See {@link TableRowDataKeying}.
+ */
+function rowDataToStorage(
+  data: RowData,
+  table: TableDefinition,
+  keying: TableRowDataKeying,
+  strict = false,
+  rowLabel?: string
+): RowData {
+  if (keying === 'ids') {
+    if (strict) assertKnownColumnIds(data, table, rowLabel)
+    return data
+  }
   const idByName = buildIdByName(table.schema)
-  if (strict) assertKnownColumnNames(data, idByName)
+  if (strict) assertKnownColumnNames(data, idByName, rowLabel)
   return rowDataNameToId(data, idByName)
 }
 
 /**
- * {@link namedDataToStorage} over a batch. The name index is built once for the
+ * {@link rowDataToStorage} over a batch. The name index is built once for the
  * whole batch rather than per row — these paths run over up to
  * `MAX_BATCH_INSERT_SIZE` rows.
  */
-function namedRowsToStorage(
+function rowsToStorage(
   rows: readonly RowData[],
   table: TableDefinition,
+  keying: TableRowDataKeying,
   strict = false
 ): RowData[] {
+  if (keying === 'ids') {
+    return rows.map((row, index) => {
+      if (strict) assertKnownColumnIds(row, table, `Row ${index + 1}`)
+      return row
+    })
+  }
   const idByName = buildIdByName(table.schema)
   return rows.map((row, index) => {
     if (strict) assertKnownColumnNames(row, idByName, `Row ${index + 1}`)
@@ -420,7 +473,17 @@ export const readTableRow = defineAuthorizedTableUseCase({
 interface CreateSingleTableRowInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   kind: 'single'
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that
+   * tab skip its own refetch — see {@link signalTableRowsChangedByActor}, whose
+   * soundness condition (the caller's hook reconciles the write locally across
+   * every cached rows query) is why only the single-row paths accept this.
+   * Omitted by every surface that cannot name a tab, which broadcasts to all.
+   */
+  actorClientId?: string
   data: RowData
   position?: number
   afterRowId?: string
@@ -431,6 +494,8 @@ interface CreateSingleTableRowInput extends TableScopedInput {
 interface CreateBatchTableRowsInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   kind: 'batch'
   rows: RowData[]
   orderKeys?: string[]
@@ -458,7 +523,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
       ) {
         throw new TableRowsValidationError('Position must be 0 or greater')
       }
-      const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+      const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
       const writeOptions = rowWriteOptions(input)
       await throwValidationResponse(
         await validateRowData({
@@ -496,7 +561,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
     if (input.orderKeys && input.orderKeys.length !== input.rows.length) {
       throw new TableRowsValidationError('orderKeys must align one-to-one with rows')
     }
-    const rows = namedRowsToStorage(input.rows, context.table, input.strictWrite)
+    const rows = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
     const batchWriteOptions = rowWriteOptions(input)
     await throwValidationResponse(
       await validateBatchRows({
@@ -521,9 +586,16 @@ export const createTableRows = defineAuthorizedTableUseCase({
     )
     return { kind: 'batch', table: context.table, rows: created }
   },
-  afterSuccess: ({ context, result }) => {
+  afterSuccess: ({ context, input, result }) => {
     const affected = result.kind === 'single' ? 1 : result.rows.length
-    if (affected > 0) signalTableRowsChanged(context.tableId)
+    if (affected === 0) return
+    // Only the single-row path carries an actor; a batch insert genuinely needs
+    // the originating tab to refetch, so it broadcasts to everyone.
+    if (input.kind === 'single') {
+      signalTableRowsChangedByActor(context.tableId, input.actorClientId)
+      return
+    }
+    signalTableRowsChanged(context.tableId)
   },
 })
 
@@ -532,6 +604,8 @@ const MAX_REPLACE_TABLE_ROWS = 10_000
 export interface ReplaceTableRowsInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   rows: RowData[]
   secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
 }
@@ -551,7 +625,7 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       throw new TableRowsValidationError('Secret provenance must align one-to-one with rows')
     }
 
-    const rows = namedRowsToStorage(input.rows, context.table, input.strictWrite)
+    const rows = rowsToStorage(input.rows, context.table, input.dataKeying, input.strictWrite)
     const result = await replaceTableRowsPrimitive(
       {
         tableId: context.tableId,
@@ -742,10 +816,20 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
 export interface UpdateTableRowInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   rowId: string
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
   includePersistedSecretProvenance?: boolean
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that
+   * tab skip its own refetch — see {@link signalTableRowsChangedByActor}, whose
+   * soundness condition (the caller's hook reconciles the write locally across
+   * every cached rows query) is why only the single-row paths accept this.
+   * Omitted by every surface that cannot name a tab, which broadcasts to all.
+   */
+  actorClientId?: string
 }
 
 export interface UpdateTableRowResult extends TableResult {
@@ -758,7 +842,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.updateRow,
   resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
-    const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+    const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
     const row = await updateRow(
       {
         tableId: context.tableId,
@@ -785,14 +869,16 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       ),
     }
   },
-  afterSuccess: ({ context, result }) => {
-    if (result.changed) signalTableRowsChanged(context.tableId)
+  afterSuccess: ({ context, input, result }) => {
+    if (result.changed) signalTableRowsChangedByActor(context.tableId, input.actorClientId)
   },
 })
 
 export interface UpdateTableRowsInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   filter: TablePredicate
   data: RowData
   limit?: number
@@ -809,7 +895,7 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       if (input.limit !== undefined) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
       }
-      const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+      const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
       const result = await updateRowsByFilter(
         context.table,
         {
@@ -834,6 +920,14 @@ export const updateTableRows = defineAuthorizedTableUseCase({
 
 export interface DeleteTableRowInput extends TableScopedInput {
   rowId: string
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that
+   * tab skip its own refetch — see {@link signalTableRowsChangedByActor}, whose
+   * soundness condition (the caller's hook reconciles the write locally across
+   * every cached rows query) is why only the single-row paths accept this.
+   * Omitted by every surface that cannot name a tab, which broadcasts to all.
+   */
+  actorClientId?: string
 }
 
 export interface DeleteTableRowResult extends TableResult {
@@ -847,7 +941,8 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     await deleteRow(context.table, input.rowId, requestId(input))
     return { table: context.table, deletedRowId: input.rowId }
   },
-  afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
+  afterSuccess: ({ context, input }) =>
+    signalTableRowsChangedByActor(context.tableId, input.actorClientId),
 })
 
 export type DeleteTableRowsInput = TableScopedInput &
@@ -918,6 +1013,8 @@ export const deleteTableRows = defineAuthorizedTableUseCase({
 export interface UpsertTableRowInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
   data: RowData
   conflictTarget?: string
   secretProvenance?: TableRowSecretProvenanceWrite
@@ -932,10 +1029,13 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.upsertRow,
   resolveContext: ({ input }: { input: UpsertTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpsertTableRowResult> {
-    const conflictTarget = input.conflictTarget
-      ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
-      : undefined
-    const data = namedDataToStorage(input.data, context.table, input.strictWrite)
+    // An id-keyed caller already names the storage column; only a name-keyed
+    // one needs the lookup, and its miss falls through as before.
+    const conflictTarget =
+      input.conflictTarget && input.dataKeying !== 'ids'
+        ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
+        : input.conflictTarget
+    const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
     const result = await upsertRow(
       {
         tableId: context.tableId,

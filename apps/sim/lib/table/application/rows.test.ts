@@ -19,6 +19,7 @@ const {
   mockResolveContext,
   mockResolvePermission,
   mockSignalRowsChanged,
+  mockSignalRowsChangedByActor,
   mockUpsertRow,
   mockWithLockedTable,
   mockInsertRow,
@@ -41,6 +42,7 @@ const {
   mockResolveContext: vi.fn(),
   mockResolvePermission: vi.fn(),
   mockSignalRowsChanged: vi.fn(),
+  mockSignalRowsChangedByActor: vi.fn(),
   mockUpsertRow: vi.fn(),
   mockWithLockedTable: vi.fn(),
   mockInsertRow: vi.fn(),
@@ -137,10 +139,12 @@ vi.mock('@/lib/table/application/context', () => ({
 
 vi.mock('@/lib/table/events', () => ({
   signalTableRowsChanged: mockSignalRowsChanged,
+  signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
 }))
 
 import {
   createTableRows,
+  deleteTableRow,
   deleteTableRows,
   listTableRows,
   ProjectedWireRowsValidationError,
@@ -504,7 +508,12 @@ describe('replaceTableRows application use case', () => {
     await expect(
       replaceTableRows.execute({
         principal: PRINCIPAL,
-        input: { tableId: TABLE.id, rows: [{ name: 'Ada', unknown: 'x' }], strictWrite: true },
+        input: {
+          tableId: TABLE.id,
+          rows: [{ name: 'Ada', unknown: 'x' }],
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Row 1: Unknown column: unknown/)
     expect(mockReplaceRowsPrimitive).not.toHaveBeenCalled()
@@ -792,6 +801,7 @@ describe('row query and upsert application semantics', () => {
         requestId: 'request-1',
         data: { name: 'Ada' },
         conflictTarget: 'name',
+        dataKeying: 'names',
       },
     })
 
@@ -1010,7 +1020,13 @@ describe('unknown column names under strictWrite', () => {
     await expect(
       createTableRows.execute({
         principal: PRINCIPAL,
-        input: { kind: 'single', tableId: TABLE.id, data: { nosuchcol: 'x' }, strictWrite: true },
+        input: {
+          kind: 'single',
+          tableId: TABLE.id,
+          data: { nosuchcol: 'x' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Unknown column: nosuchcol/)
     expect(mockInsertRow).not.toHaveBeenCalled()
@@ -1040,6 +1056,7 @@ describe('unknown column names under strictWrite', () => {
           tableId: TABLE.id,
           data: { zzz: 'x', qqq: 'y' },
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Unknown columns: zzz, qqq/)
@@ -1054,6 +1071,7 @@ describe('unknown column names under strictWrite', () => {
           tableId: TABLE.id,
           rows: [{ name: 'Ada' }, { zzz: 'x' }],
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Row 2: Unknown column: zzz/)
@@ -1069,6 +1087,7 @@ describe('unknown column names under strictWrite', () => {
           filter: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
           data: { zzz: 'x' },
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Unknown column: zzz/)
@@ -1079,7 +1098,13 @@ describe('unknown column names under strictWrite', () => {
     await expect(
       updateTableRow.execute({
         principal: PRINCIPAL,
-        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' }, strictWrite: true },
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { zzz: 'x' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Unknown column: zzz/)
     expect(mockUpdateRow).not.toHaveBeenCalled()
@@ -1107,7 +1132,13 @@ describe('unknown column names under strictWrite', () => {
   it('carries the strict value policy to the primitive, and nothing without it', async () => {
     await createTableRows.execute({
       principal: PRINCIPAL,
-      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' }, strictWrite: true },
+      input: {
+        kind: 'single',
+        tableId: TABLE.id,
+        data: { name: 'Ada' },
+        strictWrite: true,
+        dataKeying: 'names',
+      },
     })
     expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {
       uncoercibleValues: 'reject',
@@ -1118,5 +1149,206 @@ describe('unknown column names under strictWrite', () => {
       input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
     })
     expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {})
+  })
+})
+
+/**
+ * The two wires a table write can arrive on. `/api/v2`, `/api/v1` and the
+ * Copilot tools publish column names; the first-party grid and the internal
+ * `/api/table` routes publish stable storage ids.
+ *
+ * The failure this guards is silent: the name remap drops what it does not
+ * recognise, and a storage id names no column *name*, so an id-keyed write sent
+ * down the name path stores nothing while reporting success.
+ */
+describe('row data keying', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockAssertRowCapacity.mockResolvedValue(10_000)
+    mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
+    mockIsScopeCompatible.mockReturnValue(true)
+  })
+
+  it('stores an id-keyed write exactly as given', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada' },
+        strictWrite: false,
+        dataKeying: 'ids',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('does not silently drop an id-keyed write, which the name path would', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    // Pins the hazard itself: the same payload on the name wire stores nothing.
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: {} }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('translates a name-keyed write to storage ids', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { name: 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('refuses an unknown column id when the caller writes strictly', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { 'column-nope': 'x' },
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).rejects.toThrow(/Unknown column: column-nope/)
+    expect(mockUpdateRow).not.toHaveBeenCalled()
+  })
+
+  it('names every unknown id at once, as the name wire does', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'batch',
+          tableId: TABLE.id,
+          rows: [{ 'column-name': 'Ada' }, { zzz: 'x', qqq: 'y' }],
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).rejects.toThrow(/Row 2: Unknown columns: zzz, qqq/)
+  })
+})
+
+/**
+ * Naming the acting tab lets that tab skip refetching its own write. Only the
+ * single-row paths accept an actor — see `events.attribution.test.ts` for why,
+ * and for the pinned list of surfaces allowed to supply one.
+ */
+describe('row change attribution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockAssertRowCapacity.mockResolvedValue(10_000)
+    mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
+    mockIsScopeCompatible.mockReturnValue(true)
+  })
+
+  it('names the acting tab on a single-row update', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { name: 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+        actorClientId: 'tab-42',
+      },
+    })
+
+    expect(mockSignalRowsChangedByActor).toHaveBeenCalledWith(TABLE.id, 'tab-42')
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('broadcasts to everyone when the surface cannot name a tab', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { name: 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    expect(mockSignalRowsChangedByActor).toHaveBeenCalledWith(TABLE.id, undefined)
+  })
+
+  it('names the acting tab on a single-row delete', async () => {
+    await deleteTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1', actorClientId: 'tab-42' },
+    })
+
+    expect(mockSignalRowsChangedByActor).toHaveBeenCalledWith(TABLE.id, 'tab-42')
+  })
+
+  it('broadcasts a batch insert to everyone even though a tab is named', async () => {
+    await createTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        kind: 'batch',
+        tableId: TABLE.id,
+        rows: [{ name: 'Ada' }, { name: 'Grace' }],
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    // A batch write is not reconciled locally by the acting tab, so it must
+    // refetch like everyone else.
+    expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
+    expect(mockSignalRowsChangedByActor).not.toHaveBeenCalled()
   })
 })
