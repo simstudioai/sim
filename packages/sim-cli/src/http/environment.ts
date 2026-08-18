@@ -22,8 +22,16 @@ export function resetEnvironmentNotices(): void {
 
 const PROXY_VARIABLES = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'] as const
 
-/** The first Node releases whose built-in proxy support honours the env vars. */
-const PROXY_SUPPORT = { major22: 22, minor22: 21, major24: 24, minor24: 5 } as const
+/**
+ * The first release of each Node line whose built-in proxy support reads the
+ * environment variables. Lines absent here never got it: 23 reached end of life
+ * before the backport, so it is not "between two supported versions" — treating
+ * it as capable would silence the warning on the one line that most needs it.
+ */
+const PROXY_SUPPORT: Record<number, number> = { 22: 21, 24: 5 }
+
+/** The first Node line to ship the support, so every later line has it. */
+const FIRST_SUPPORTED_MAJOR = 24
 
 /**
  * Whether this runtime can act on `HTTP(S)_PROXY` at all.
@@ -34,10 +42,10 @@ const PROXY_SUPPORT = { major22: 22, minor22: 21, major24: 24, minor24: 5 } as c
 function runtimeCanProxy(version: string): boolean {
   const [major, minor] = version.replace(/^v/, '').split('.').map(Number)
   if (!Number.isFinite(major) || !Number.isFinite(minor)) return false
-  if (major > PROXY_SUPPORT.major24) return true
-  if (major === PROXY_SUPPORT.major24) return minor >= PROXY_SUPPORT.minor24
-  if (major === PROXY_SUPPORT.major22) return minor >= PROXY_SUPPORT.minor22
-  return major > PROXY_SUPPORT.major22 && major < PROXY_SUPPORT.major24
+
+  const firstSupportedMinor = PROXY_SUPPORT[major]
+  if (firstSupportedMinor !== undefined) return minor >= firstSupportedMinor
+  return major > FIRST_SUPPORTED_MAJOR
 }
 
 /**
