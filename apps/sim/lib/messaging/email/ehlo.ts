@@ -13,6 +13,9 @@ const logger = createLogger('SmtpEhloName')
 const FQDN_PATTERN =
   /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
 
+/** RFC 5321 §4.1.3 tags the IPv6 form, case-insensitively per RFC 5234 §2.3. */
+const IPV6_TAG_PATTERN = /^IPv6:/i
+
 /**
  * An RFC 5321 §4.1.3 address literal — `[192.0.2.1]` or `[IPv6:2001:db8::1]`.
  * The address itself is parsed rather than pattern-matched, so a bracketed
@@ -22,7 +25,7 @@ const FQDN_PATTERN =
 function isAddressLiteral(value: string): boolean {
   if (!value.startsWith('[') || !value.endsWith(']')) return false
   const inner = value.slice(1, -1)
-  return inner.startsWith('IPv6:') ? isIPv6(inner.slice(5)) : isIPv4(inner)
+  return IPV6_TAG_PATTERN.test(inner) ? isIPv6(inner.slice(5)) : isIPv4(inner)
 }
 
 function isValidEhloName(value: string): boolean {

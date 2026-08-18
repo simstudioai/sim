@@ -940,7 +940,7 @@ export const EMAIL_CAPABILITY = defineCapability({
           },
         })
       ),
-      optionalFields: [envField('SMTP_USER'), envField('SMTP_PASS'), envField('SMTP_EHLO_NAME')],
+      optionalFields: [envField('SMTP_USER'), envField('SMTP_PASS')],
     },
     {
       id: 'azure',

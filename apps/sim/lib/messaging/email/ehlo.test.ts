@@ -36,10 +36,13 @@ describe('getSmtpEhloName', () => {
     expect(getSmtpEhloName()).toBe('[203.0.113.5]')
   })
 
-  it('accepts an RFC 5321 IPv6 address literal', () => {
-    setEnv({ SMTP_EHLO_NAME: '[IPv6:2001:db8::1]' })
-    expect(getSmtpEhloName()).toBe('[IPv6:2001:db8::1]')
-  })
+  it.each(['[IPv6:2001:db8::1]', '[ipv6:2001:db8::1]', '[IPV6:2001:db8::1]'])(
+    'accepts the RFC 5321 IPv6 address literal %s, whose tag is case-insensitive',
+    (literal) => {
+      setEnv({ SMTP_EHLO_NAME: literal })
+      expect(getSmtpEhloName()).toBe(literal)
+    }
+  )
 
   it.each(['[::::]', '[13]', '[999.1.1.1]', '[2001:db8::1]', '[IPv6:203.0.113.5]'])(
     'ignores the malformed address literal %s rather than letting the relay refuse it',
