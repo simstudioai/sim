@@ -2,8 +2,10 @@
 
 import type { ComponentProps } from 'react'
 import { useId } from 'react'
+import { chipFieldSurfaceClass, chipFieldTextClass, chipHoverSurfaceClass } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import type { APIPageClientOptions } from 'fumadocs-openapi/ui/client'
+import { cn } from '@/lib/utils'
 
 type FumadocsAPIExampleSelector = NonNullable<
   NonNullable<APIPageClientOptions['operation']>['APIExampleSelector']
@@ -29,7 +31,16 @@ export function APIExampleSelector({ items, value, onValueChange }: APIExampleSe
           id={id}
           value={selectedValue}
           onChange={(event) => onValueChange(event.target.value)}
-          className='w-full appearance-none rounded-md border bg-fd-secondary py-2 ps-3 pe-9 text-start font-medium text-fd-secondary-foreground text-sm outline-none transition-colors hover:bg-fd-accent focus-visible:ring-2 focus-visible:ring-fd-ring'
+          /**
+           * Dressed as an emcn chip trigger, but kept a native `select` for the keyboard and
+           * screen-reader behavior a custom listbox would have to rebuild.
+           */
+          className={cn(
+            chipFieldSurfaceClass,
+            chipFieldTextClass,
+            chipHoverSurfaceClass,
+            'h-[30px] w-full appearance-none ps-2 pe-8 text-left'
+          )}
         >
           {items.map((item) => (
             <option key={item.id} value={item.id}>
@@ -37,10 +48,10 @@ export function APIExampleSelector({ items, value, onValueChange }: APIExampleSe
             </option>
           ))}
         </select>
-        <ChevronDown className='-translate-y-1/2 pointer-events-none absolute end-3 top-1/2 size-[14px] text-fd-muted-foreground' />
+        <ChevronDown className='-translate-y-1/2 pointer-events-none absolute end-2 top-1/2 size-[14px] text-[var(--text-icon)]' />
       </div>
       {selectedItem?.description && (
-        <p className='text-fd-muted-foreground text-xs'>{selectedItem.description}</p>
+        <p className='text-[var(--text-muted)] text-caption'>{selectedItem.description}</p>
       )}
     </div>
   )

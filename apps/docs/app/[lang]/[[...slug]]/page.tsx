@@ -17,6 +17,7 @@ import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
+import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
@@ -72,6 +73,13 @@ function stripLocalePrefix(url: string, lang: string): string {
 const APIPage = createAPIPage(openapi, {
   playground: { enabled: false },
   generateCodeSamples: getAuthenticatedCodeSamples,
+  /**
+   * fumadocs-openapi highlights its request and response samples through its own Shiki
+   * instance, not the MDX pipeline, so it does not inherit `source.config.ts`. Left alone,
+   * every API reference page renders `github-light` / `github-dark` while the rest of the docs
+   * render the platform palette.
+   */
+  shikiOptions: simShikiOptions,
   client: {
     operation: { APIExampleSelector },
   },
