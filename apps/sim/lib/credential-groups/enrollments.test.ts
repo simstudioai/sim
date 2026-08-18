@@ -3,7 +3,7 @@
  */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { inArray } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { adapter } = vi.hoisted(() => ({
   adapter: {
@@ -40,6 +40,23 @@ import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
 const MAX_CONNECTION_SUMMARIES = CREDENTIAL_GROUP_PROVIDER_IDS.length * 3
+
+/**
+ * The invitation fixtures below are dated relative to a fixed point in the enrollment
+ * window, and the code under test compares them against the wall clock. Pinning the
+ * clock keeps those literals meaningful and keeps the suite deterministic — dating the
+ * expiry to a real future instant only moves the failure, it does not remove it.
+ */
+const NOW = new Date('2026-08-11T12:10:00.000Z')
+
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.setSystemTime(NOW)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 const ENROLLMENT = {
   id: 'enrollment-1',
