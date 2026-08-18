@@ -781,7 +781,7 @@ describe('collectSnapshot', () => {
       document.body.append(replacement)
     }
 
-    expect(focusElementForTyping(ref)).toEqual({ error: 'stale' })
+    expect(focusElementForTyping(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('keeps a connected ref usable after a same-document URL change', () => {
@@ -824,7 +824,7 @@ describe('collectSnapshot', () => {
     const second = visible(original.cloneNode(true) as HTMLButtonElement)
     original.replaceWith(first, second)
 
-    expect(clickElement(ref)).toEqual({ error: 'stale' })
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('invalidates a connected virtual row when its identity is recycled in place', () => {
@@ -835,7 +835,7 @@ describe('collectSnapshot', () => {
     row.textContent = 'random'
     row.dataset.key = 'channel-2'
 
-    expect(clickElement(ref)).toEqual({ error: 'stale' })
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('invalidates a generic connected row action when its surrounding item is recycled', () => {
@@ -849,7 +849,7 @@ describe('collectSnapshot', () => {
     ;(document.querySelector('span') as HTMLSpanElement).textContent = 'random'
 
     expect(button.isConnected).toBe(true)
-    expect(clickElement(ref)).toEqual({ error: 'stale' })
+    expect(clickElement(ref)).toMatchObject({ error: 'stale' })
   })
 
   it('never recycles numeric refs across snapshots', () => {
@@ -859,7 +859,7 @@ describe('collectSnapshot', () => {
     const secondRef = refFor(outlineOf(collectSnapshot()), 'Pins')
 
     expect(secondRef).toBeGreaterThan(firstRef)
-    expect(clickElement(firstRef)).toEqual({ error: 'stale' })
+    expect(clickElement(firstRef)).toMatchObject({ error: 'stale' })
     expect(clickElement(secondRef)).toMatchObject({ dispatched: true })
   })
 

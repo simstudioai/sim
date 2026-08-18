@@ -38,6 +38,10 @@ declare global {
       observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
+    /** Why the last __simAgentResolveElement call returned null — read by the
+     * shared stale-error producers so a refusal names its cause instead of
+     * the blanket "the page changed". Cleared on every successful resolve. */
+    __simAgentStaleReason?: string
   }
 }
 
@@ -602,7 +606,10 @@ export function collectSnapshot(startingElementId = 0): unknown {
    */
   window.__simAgentResolveElement = (id: number) => {
     const locator = locators[id]
-    if (!locator) return null
+    if (!locator) {
+      window.__simAgentStaleReason = `id ${id} is not in the current snapshot's registry`
+      return null
+    }
 
     // Origin, not full URL: a live SPA rewrites its path with pushState
     // between snapshot and act (Slack does so continuously), while the
@@ -720,8 +727,14 @@ export function collectSnapshot(startingElementId = 0): unknown {
 
     const current = registry[id]
     if (current?.isConnected) {
-      if (!identityMatches(current, true)) return null
-      if (isCurrentlyVisible(current)) return { element: current, recovered: false }
+      if (!identityMatches(current, true)) {
+        window.__simAgentStaleReason = `the node is still mounted but its identity drifted (now <${String(current.tagName || '').toLowerCase()}> role=${roleFor(current) || 'none'} name="${nameFor(current).slice(0, 60)}")`
+        return null
+      }
+      if (isCurrentlyVisible(current)) {
+        window.__simAgentStaleReason = undefined
+        return { element: current, recovered: false }
+      }
     }
 
     // Past this point the original node is gone or hidden, so anything returned
@@ -745,7 +758,10 @@ export function collectSnapshot(startingElementId = 0): unknown {
         return url
       }
     }
-    if (pathOf(window.location.href) !== pathOf(locator.url)) return null
+    if (pathOf(window.location.href) !== pathOf(locator.url)) {
+      window.__simAgentStaleReason = `the view changed since the snapshot (${pathOf(locator.url)} -> ${pathOf(window.location.href)}), so a lookalike must not be adopted`
+      return null
+    }
 
     const reachable: Element[] = []
     let candidateCount = 0
@@ -825,12 +841,20 @@ export function collectSnapshot(startingElementId = 0): unknown {
       .filter((entry) => entry.score >= 45)
       .sort((a, b) => b.score - a.score)
 
-    if (scored.length === 0) return null
+    if (scored.length === 0) {
+      window.__simAgentStaleReason =
+        'the original node left the DOM and no confident replacement matched'
+      return null
+    }
     const bestScore = scored[0].score
     const best = scored.filter((entry) => entry.score === bestScore)
     const chosen = best.length === 1 ? best[0] : undefined
-    if (!chosen) return null
+    if (!chosen) {
+      window.__simAgentStaleReason = `the original node left the DOM and ${best.length} equally-plausible replacements tied`
+      return null
+    }
     registry[id] = chosen.candidate
+    window.__simAgentStaleReason = undefined
     return { element: chosen.candidate, recovered: true }
   }
 
@@ -867,7 +891,7 @@ export function clickElement(
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   const isDisabled = (node: Element | null): boolean =>
     Boolean(
       node &&
@@ -901,7 +925,7 @@ export function clickElement(
   el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
 
   const view = el.ownerDocument.defaultView
-  if (!view) return { error: 'stale' }
+  if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
   for (let current: Element | null = el; current; ) {
     const currentView: Window | null = current.ownerDocument.defaultView
     const style = currentView?.getComputedStyle(current)
@@ -1267,7 +1291,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
 
   const isWritableTextField = (
     field: HTMLInputElement | HTMLTextAreaElement
@@ -1354,7 +1378,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
   const rawRects = Array.from(editable.getClientRects())
   if (rawRects.length === 0) rawRects.push(editable.getBoundingClientRect())
   const view = editable.ownerDocument.defaultView
-  if (!view) return { error: 'stale' }
+  if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
   const rects = rawRects
     .map((rect) => ({
       left: Math.max(0, rect.left),
@@ -1817,7 +1841,7 @@ export function typeIntoElement(id: number, text: string, submit: boolean): unkn
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
 
   const isWritableTextField = (
     field: HTMLInputElement | HTMLTextAreaElement
@@ -2410,7 +2434,8 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
     const resolver = window.__simAgentResolveElement
     const resolved = resolver?.(elementId)
     const element = resolver ? resolved?.element : (window.__simAgentElements || [])[elementId]
-    if (!element || !element.isConnected) return { error: 'stale' }
+    if (!element || !element.isConnected)
+      return { error: 'stale', reason: window.__simAgentStaleReason }
     const candidates = ancestors(element)
     target = candidates.find(canMove) ?? candidates[0]
     source = target && canMove(target) ? 'element' : 'element-boundary'
@@ -2517,7 +2542,7 @@ export function selectOptionInElement(id: number, value: string): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
   if (select.disabled || select.getAttribute('aria-disabled') === 'true') {
@@ -2557,7 +2582,7 @@ export function readSelectElementState(id: number): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   if (String(el.tagName || '').toUpperCase() !== 'SELECT') return { error: 'not-select' }
   const select = el as HTMLSelectElement
   return {
@@ -2570,7 +2595,7 @@ export function hoverElement(id: number): unknown {
   const resolver = window.__simAgentResolveElement
   const resolved = resolver?.(id)
   const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-  if (!el || !el.isConnected) return { error: 'stale' }
+  if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   el.scrollIntoView({ block: 'center', behavior: 'instant' })
   const rect = el.getBoundingClientRect()
   const opts = {
@@ -2791,7 +2816,7 @@ export function readPageText(id?: number): unknown {
     const resolver = window.__simAgentResolveElement
     const resolved = resolver?.(id)
     const el = resolver ? resolved?.element : (window.__simAgentElements || [])[id]
-    if (!el || !el.isConnected) return { error: 'stale' }
+    if (!el || !el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
     text = (el as HTMLElement).innerText ?? el.textContent ?? ''
   } else {
     text = document.body?.innerText ?? ''

@@ -859,9 +859,12 @@ function unwrapPageResult(result: unknown): unknown {
   if (isRecordLike(result) && 'error' in result) {
     const code = (result as { error: string }).error
     if (code === 'stale') {
+      const reason =
+        isRecordLike(result) && typeof result.reason === 'string' && result.reason
+          ? result.reason
+          : 'the page changed since the last snapshot'
       throw new ToolError(
-        'That element id is stale (the page changed since the last snapshot). ' +
-          'Call browser_snapshot again and use a fresh id.'
+        `That element id is stale (${reason}). Call browser_snapshot again and use a fresh id.`
       )
     }
     if (code === 'password') {
