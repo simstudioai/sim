@@ -457,8 +457,8 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
         {entry.sourceDeleted ? (
           <p className='text-[var(--text-muted)] text-small'>
             Deleted in the source — its name can't be shown. Map it to an existing{' '}
-            {FORK_RESOURCE_KIND_LABEL[entry.kind] ?? 'resource'} in the target, or fix the reference
-            in the source and redeploy.
+            {FORK_RESOURCE_KIND_LABEL[entry.kind] ?? 'resource'} in {controller.targetWorkspaceName}
+            , or fix the reference in the source and redeploy.
           </p>
         ) : null}
         {entry.candidatesTruncated ? (
