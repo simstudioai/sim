@@ -8,6 +8,8 @@ import { deleteColumn, renameColumn } from '@/lib/table/columns/service'
 import {
   batchInsertRows,
   batchUpdateRows,
+  getRowById,
+  getRowSummaryById,
   insertRow,
   replaceTableRows,
   updateRow,
@@ -656,5 +658,39 @@ describe('updateRow — uniqueness probe scoping', () => {
     )
 
     expect(checkUniqueConstraintsDb).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The read surfaces never put the executions sidecar on the wire, so loading it
+ * for them is a query whose result is discarded. Two readers rather than a flag:
+ * a caller that forgets a flag reads an empty sidecar and cannot tell that from
+ * a row that has none, whereas here the field is not on the type.
+ */
+describe('row readers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
+  })
+
+  it('getRowSummaryById issues one select and returns no sidecar', async () => {
+    const row = await getRowSummaryById('tbl-1', 'row-1', 'ws-1')
+
+    expect(row).not.toHaveProperty('executions')
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+  })
+
+  it('getRowById issues the extra select the sidecar needs', async () => {
+    const row = await getRowById('tbl-1', 'row-1', 'ws-1')
+
+    expect(row).toHaveProperty('executions')
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+  })
+
+  it('getRowSummaryById returns null for a missing row', async () => {
+    dbChainMockFns.limit.mockResolvedValue([])
+
+    await expect(getRowSummaryById('tbl-1', 'nope', 'ws-1')).resolves.toBeNull()
   })
 })

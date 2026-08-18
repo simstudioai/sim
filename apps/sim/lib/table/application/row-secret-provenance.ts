@@ -35,15 +35,15 @@ export class TableRowProvenanceError extends Error {
  * `null`; the id path stores what it is given, so every key it sends is a
  * storage key and none of them is `null`.
  */
-function storageKeyByWireKey(
-  row: RowData,
+function storageKeyResolver(
   table: TableDefinition,
   keying: 'names' | 'ids'
-): Map<string, string | null> {
-  const wireKeys = Object.keys(row)
-  if (keying === 'ids') return new Map(wireKeys.map((key) => [key, key]))
+): (wireKey: string) => string | null {
+  // Built once for the whole batch rather than once per row, matching how
+  // `rowsToStorage` hoists the same index.
+  if (keying === 'ids') return (wireKey) => wireKey
   const idByName = buildIdByName(table.schema)
-  return new Map(wireKeys.map((key) => [key, idByName.get(key) ?? null]))
+  return (wireKey) => idByName.get(wireKey) ?? null
 }
 
 /**
@@ -91,13 +91,13 @@ export function resolveRowWriteProvenance(options: {
   }
   const bundle = envelope.value
 
+  const storageKeyFor = storageKeyResolver(table, keying)
   const columnIdBySelectionKey = new Map<string, string | null>()
   const rowKeyBySelectionKey = new Map<string, number>()
   wireRows.forEach((row, rowIndex) => {
-    const storageKeys = storageKeyByWireKey(row, table, keying)
     for (const wireKey of Object.keys(row)) {
       const selectionKey = tableRowSecretProvenanceSelectionKey(rowIndex, wireKey)
-      columnIdBySelectionKey.set(selectionKey, storageKeys.get(wireKey) ?? null)
+      columnIdBySelectionKey.set(selectionKey, storageKeyFor(wireKey))
       rowKeyBySelectionKey.set(selectionKey, rowIndex)
     }
   })

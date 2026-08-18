@@ -1417,6 +1417,53 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
  * @param workspaceId - Workspace ID for access control
  * @returns Row or null if not found
  */
+/** The stored row without its executions sidecar. */
+export type TableRowSummary = Omit<TableRow, 'executions'>
+
+function selectRowRecord(tableId: string, rowId: string, workspaceId: string) {
+  return db
+    .select()
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.id, rowId),
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
+}
+
+function toRowSummary(row: Awaited<ReturnType<typeof selectRowRecord>>[number]): TableRowSummary {
+  return {
+    id: row.id,
+    data: row.data as RowData,
+    position: row.position,
+    orderKey: row.orderKey ?? undefined,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+/**
+ * One row without its executions sidecar, for the surfaces that never put
+ * executions on the wire — the single-row read routes and the Copilot row tool.
+ * Loading the sidecar for them is a query whose result is discarded.
+ *
+ * Deliberately a separate function rather than a flag on {@link getRowById}: a
+ * caller that forgets to pass the flag reads an empty sidecar and cannot tell
+ * that from a row with no executions, whereas here the field simply is not on
+ * the type.
+ */
+export async function getRowSummaryById(
+  tableId: string,
+  rowId: string,
+  workspaceId: string
+): Promise<TableRowSummary | null> {
+  const [row] = await selectRowRecord(tableId, rowId, workspaceId)
+  return row ? toRowSummary(row) : null
+}
+
 export async function getRowById(
   tableId: string,
   rowId: string,
@@ -1427,32 +1474,13 @@ export async function getRowById(
   // round trip instead of two. A miss pays one redundant sidecar read, which is
   // the rare path and costs no extra wall time.
   const [results, executions] = await Promise.all([
-    db
-      .select()
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, workspaceId)
-        )
-      )
-      .limit(1),
+    selectRowRecord(tableId, rowId, workspaceId),
     loadExecutionsForRow(db, rowId),
   ])
 
   if (results.length === 0) return null
 
-  const row = results[0]
-  return {
-    id: row.id,
-    data: row.data as RowData,
-    executions,
-    position: row.position,
-    orderKey: row.orderKey ?? undefined,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }
+  return { ...toRowSummary(results[0]), executions }
 }
 
 /**
@@ -1617,10 +1645,13 @@ export async function updateRow(
   // table that has any unique column this was several round trips on every
   // edit, including edits nowhere near one.
   //
-  // The one case this does not cover is a unique constraint added to a column
-  // that already held duplicates: such a row is no longer blocked from edits
-  // elsewhere in it. That is the intended outcome — an unrelated cell edit
-  // should not fail on data it did not write.
+  // What this does not cover is a duplicate that already exists — either from a
+  // constraint added to a column that already held one, or from two concurrent
+  // inserts both passing this probe, since uniqueness here is advisory (a
+  // SELECT, not a DB constraint). Such a row is no longer blocked from edits
+  // elsewhere in it. That is the intended outcome: an unrelated cell edit
+  // should not fail on data it did not write, and blocking it was never a
+  // repair mechanism.
   const patchedColumnIds = new Set(Object.keys(data.data))
   const patchedUniqueColumns = getUniqueColumns(table.schema).filter((column) =>
     patchedColumnIds.has(getColumnId(column))

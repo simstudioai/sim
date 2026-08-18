@@ -221,13 +221,13 @@ type InternalJsonPresenter<C extends JsonApiRouteContract, I, R, P extends Princ
   ? {
       present?(
         result: NoInfer<R>,
-        context: InternalJsonPresenterContext<NoInfer<I>, P>
+        context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
       ): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
     }
   : {
       present(
         result: NoInfer<R>,
-        context: InternalJsonPresenterContext<NoInfer<I>, P>
+        context: InternalJsonPresenterContext<NoInfer<I>, NoInfer<P>>
       ): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
     }
 

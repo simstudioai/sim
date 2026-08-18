@@ -26,13 +26,14 @@ import {
   deleteRowsByFilter,
   deleteRowsByIds,
   findRowMatches,
-  getRowById,
+  getRowSummaryById,
   insertRow,
   queryRows,
   replaceTableRows as replaceTableRowsPrimitive,
   rowDataNameToId,
   sortSpecNamesToIds,
   TABLE_LIMITS,
+  type TableRowSummary,
   updateRow,
   updateRowsByFilter,
   upsertRow,
@@ -115,7 +116,9 @@ type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenanc
 async function loadAuthorizedRowsProvenance(
   principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
-  rows: TableRow[],
+  // The loader reads only id, updatedAt and data, so a row without its
+  // executions sidecar is enough — see `TABLE_ROW_SIDECAR_SELECTION`.
+  rows: TableRowSummary[],
   include: boolean | undefined
 ): Promise<TableRowsProvenance | undefined> {
   if (!include) return undefined
@@ -472,7 +475,8 @@ export interface ReadTableRowInput extends TableScopedInput {
 }
 
 export interface ReadTableRowResult extends TableResult {
-  row: TableRow
+  /** Without the executions sidecar — no read surface puts it on the wire. */
+  row: TableRowSummary
   secretProvenance?: TableRowsProvenance
 }
 
@@ -480,7 +484,7 @@ export const readTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.readRow,
   resolveContext: ({ input }: { input: ReadTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<ReadTableRowResult> {
-    const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
+    const row = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
     if (!row) throw new OrchestrationError('not_found', 'Row not found')
     return {
       table: context.table,
