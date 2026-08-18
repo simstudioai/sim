@@ -1,5 +1,17 @@
 import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
+/** Scope shown by the BYOK settings page. */
+export const byokScopeParam = {
+  key: 'scope',
+  parser: parseAsStringLiteral(['workspace', 'organization'] as const).withDefault('workspace'),
+} as const
+
+/** Scope view-state: clean URLs, no back-stack churn. */
+export const byokScopeUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
 /**
  * Co-located, typed URL query-param definitions for the settings section pages.
  * The client hook consumes this typed param definition as the single source of
