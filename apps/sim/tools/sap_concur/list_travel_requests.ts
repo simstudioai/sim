@@ -60,13 +60,14 @@ export const listTravelRequestsTool: ToolConfig<ListTravelRequestsParams, SapCon
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'View filter (e.g., ALL, ACTIVE, PENDING, TOAPPROVE)',
+        description:
+          'View filter: ALL, ACTIVE, ACTIVEAPPROVED, UNSUBMITTED, PENDING, VALIDATED, APPROVED, CANCELED, CLOSED, SUBMITTED, TOAPPROVE, PENDINGEBOOKING, PENDINGPROPOSAL, PROPOSALAPPROVED, or PROPOSALCANCELED. Defaults to ALL when omitted. The three TMC-agent views (PENDINGPROPOSAL, PROPOSALAPPROVED, PROPOSALCANCELED) require userId.',
       },
       limit: {
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Max number of results per page',
+        description: 'Records per page (default 10, maximum 100 — higher values return 400)',
       },
       start: {
         type: 'number',
@@ -78,7 +79,8 @@ export const listTravelRequestsTool: ToolConfig<ListTravelRequestsParams, SapCon
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Filter by Concur user UUID',
+        description:
+          'For a traveler view, the unique identifier of the Request owner to search for. For an approver view, the unique identifier of the approver. For a TMC-agent view (PENDINGPROPOSAL, PROPOSALAPPROVED, PROPOSALCANCELED) this is required and is the unique identifier of the TMC agent.',
       },
       approvedBefore: {
         type: 'string',
@@ -122,23 +124,28 @@ export const listTravelRequestsTool: ToolConfig<ListTravelRequestsParams, SapCon
       url: SAP_CONCUR_PROXY_URL,
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
-      body: (params) => ({
-        ...baseProxyBody(params),
-        path: `/travelrequest/v4/requests`,
-        method: 'GET',
-        query: buildListQuery({
-          view: params.view,
-          limit: params.limit,
-          start: params.start,
-          userId: params.userId,
-          approvedBefore: params.approvedBefore,
-          approvedAfter: params.approvedAfter,
-          modifiedBefore: params.modifiedBefore,
-          modifiedAfter: params.modifiedAfter,
-          sortField: params.sortField,
-          sortOrder: params.sortOrder ? params.sortOrder.toUpperCase() : undefined,
-        }),
-      }),
+      body: (params) => {
+        const parsedLimit = Number(params.limit)
+        const limit =
+          Number.isFinite(parsedLimit) && parsedLimit >= 1 ? Math.min(parsedLimit, 100) : undefined
+        return {
+          ...baseProxyBody(params),
+          path: `/travelrequest/v4/requests`,
+          method: 'GET',
+          query: buildListQuery({
+            view: params.view,
+            limit,
+            start: params.start,
+            userId: params.userId?.trim(),
+            approvedBefore: params.approvedBefore,
+            approvedAfter: params.approvedAfter,
+            modifiedBefore: params.modifiedBefore,
+            modifiedAfter: params.modifiedAfter,
+            sortField: params.sortField,
+            sortOrder: params.sortOrder ? params.sortOrder.toUpperCase() : undefined,
+          }),
+        }
+      },
     },
     transformResponse: transformSapConcurProxyResponse,
     outputs: {
@@ -338,8 +345,6 @@ export const listTravelRequestsTool: ToolConfig<ListTravelRequestsParams, SapCon
               properties: {
                 rel: { type: 'string', description: 'Link relation', optional: true },
                 href: { type: 'string', description: 'Link target', optional: true },
-                method: { type: 'string', description: 'HTTP method', optional: true },
-                name: { type: 'string', description: 'Link name', optional: true },
               },
             },
           },

@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from './build'
+import { resetRenameWarnings } from './renamed'
 
 /**
  * Drives commands through commander's own parsing rather than calling
@@ -743,16 +744,20 @@ describe('single-resource rendering', () => {
     expect(printed.join('\n')).toMatch(/email/)
   })
 
-  it('truncates a nested value rather than flooding the terminal', async () => {
-    const printed = await lines(
-      ['workflows', 'get', 'wf_1'],
-      { id: 'wf_1', state: { blocks: 'x'.repeat(5000) } },
-      'text'
-    )
+  it('truncates a nested value in the table, and only there', async () => {
+    const payload = { id: 'wf_1', state: { blocks: 'x'.repeat(5000) } }
 
-    const stateLine = printed.find((line) => line.startsWith('state')) ?? ''
-    expect(stateLine.length).toBeLessThan(300)
-    expect(stateLine).toMatch(/…$/)
+    const table = await lines(['workflows', 'get', 'wf_1'], payload, 'table')
+    const clamped = table.find((line) => line.startsWith('state')) ?? ''
+    expect(clamped.length).toBeLessThan(300)
+    expect(clamped).toMatch(/…$/)
+
+    // `text` is the format built for pipes, so it carries the whole value: the
+    // clamp is a legibility cap on the human table, and clamping before the
+    // format branch silently truncated commands whose output is one long value.
+    const piped = await lines(['workflows', 'get', 'wf_1'], payload, 'text')
+    const whole = piped.find((line) => line.startsWith('state')) ?? ''
+    expect(whole).toContain('x'.repeat(5000))
   })
 
   it('emits a document command as JSON whatever the display format is', async () => {
@@ -876,11 +881,13 @@ describe('contract-selected list rendering', () => {
       totalResults: 1,
     })
 
-    expect(printed).toEqual(['0.91\tpolicy.md\t2\tRefunds are available for 30 days.'])
+    // Four decimals, fixed, like the `cost` column: a similarity is compared
+    // against its neighbours, so the width has to stay put down the column.
+    expect(printed).toEqual(['0.9100\tpolicy.md\t2\tRefunds are available for 30 days.'])
   })
 
   it('renders row matches as rows', async () => {
-    const printed = await lines(['tables', 'rows', 'find', 'tbl_1', '--q', 'alice'], {
+    const printed = await lines(['tables', 'rows', 'find', 'tbl_1', '--query', 'alice'], {
       matches: [{ ordinal: 3, rowId: 'row_1', column: 'email' }],
       truncated: false,
     })
@@ -1004,6 +1011,30 @@ describe('pagination slot', () => {
     await program().parseAsync(['node', 'sim', 'logs', 'list'])
 
     expect(mockRequest.mock.calls[1][1].query).toMatchObject({ cursor: 'c1' })
+  })
+
+  it('says it is still fetching, on stderr, so a long cursor does not read as a hang', async () => {
+    // The progress writer only ever lived in `requestAllPages`, which just the
+    // `ls` commands use; every generated list pages through its own loop, so
+    // `--limit 0` sat silent through twenty sequential requests. stdout stays
+    // clean because that is what gets piped to `jq`.
+    mockRequest.mockReset()
+    mockRequest
+      .mockResolvedValueOnce({ data: [{ id: 'a' }], nextCursor: 'c1' })
+      .mockResolvedValueOnce({ data: [{ id: 'b' }], nextCursor: null })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const terminal = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
+    Object.defineProperty(process.stderr, 'isTTY', { configurable: true, value: true })
+    const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+
+    try {
+      await program().parseAsync(['node', 'sim', 'logs', 'list', '--limit', '0'])
+    } finally {
+      if (terminal) Object.defineProperty(process.stderr, 'isTTY', terminal)
+      else Reflect.deleteProperty(process.stderr, 'isTTY')
+    }
+
+    expect(stderr.mock.calls.map(([chunk]) => String(chunk)).join('')).toContain('fetched 1')
   })
 
   it('uses a valid per-page size for unlimited and large totals', async () => {
@@ -1162,5 +1193,115 @@ describe('bodies and fields the generator cannot flatten', () => {
   it('still gives paginated lists their numeric --limit', async () => {
     const [, options] = await run(['files', 'list', '--limit', '7'])
     expect(options.query).toMatchObject({ limit: 7 })
+  })
+})
+
+describe('spellings the CLI has retired', () => {
+  beforeEach(() => {
+    resetRenameWarnings()
+  })
+
+  function warnings(): string[] {
+    const written: string[] = []
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk: string | Uint8Array) => {
+      written.push(String(chunk))
+      return true
+    })
+    return written
+  }
+
+  it('still answers to a command path that moved between groups', async () => {
+    // `tables count create` counted rows and created nothing, so it became
+    // `tables rows count`. A script written against the old path predates the
+    // rename and has no way to know.
+    const written = warnings()
+    const [path, options] = await run(
+      ['tables', 'count', 'create', 'tbl_1', '--filter', '{"all":[]}'],
+      { data: { totalCount: 0 } }
+    )
+    expect(path).toBe('/api/v2/tables/tbl_1/query/count')
+    expect(options.body).toMatchObject({ predicate: { all: [] } })
+    expect(written.join('')).toContain('"sim tables count create" has been renamed')
+  })
+
+  it('still answers to a path whose group became the command itself', async () => {
+    // The hardest shape: `files restore create` retired in favour of `files
+    // restore`, so the old path needs a `create` *under* a command that now
+    // takes `<fileId>` there. Commander matches the subcommand before the
+    // positional, which is what makes both spellings reachable.
+    const written = warnings()
+    const [path] = await run(['files', 'restore', 'create', 'wf_1'], { data: { id: 'wf_1' } })
+    expect(path).toBe('/api/v2/files/wf_1/restore')
+    expect(written.join('')).toContain('"sim files restore create" has been renamed')
+
+    const [current] = await run(['files', 'restore', 'wf_1'], { data: { id: 'wf_1' } })
+    expect(current).toBe('/api/v2/files/wf_1/restore')
+  })
+
+  it('keeps retired spellings out of help', () => {
+    // A retired name exists for scripts, not for readers: surfacing it in help
+    // would teach the spelling being retired. Commander still lists a hidden
+    // command in `.commands`, so this asks what help itself would print.
+    const visible = (command: Command) =>
+      command.commands
+        .filter((child) => (child as Command & { _hidden?: boolean })._hidden !== true)
+        .map((child) => child.name())
+
+    expect(visible(commandAt('tables'))).not.toContain('count')
+    expect(visible(commandAt('workflows', 'deployment'))).not.toContain('list')
+    expect(visible(commandAt('files', 'restore'))).toEqual([])
+    expect(
+      commandAt('tables', 'rows', 'count')
+        .options.filter((option) => !option.hidden)
+        .map((option) => option.flags)
+    ).not.toContain('--predicate <json|@file>')
+  })
+
+  it('folds a retired flag onto its current name', async () => {
+    const written = warnings()
+    const [, options] = await run(['tables', 'rows', 'find', 'tbl_1', '--q', 'needle'], {
+      data: { matches: [] },
+    })
+    expect(options.body).toMatchObject({ q: 'needle' })
+    expect(written.join('')).toContain('"--q" has been renamed to "--query"')
+  })
+
+  it('refuses both spellings of one flag rather than picking a winner', async () => {
+    await expect(
+      run([
+        'tables',
+        'rows',
+        'count',
+        'tbl_1',
+        '--predicate',
+        '{"all":[]}',
+        '--filter',
+        '{"any":[]}',
+      ])
+    ).rejects.toThrow('--predicate is the former name of --filter; pass one, not both')
+  })
+
+  it('still requires a renamed-but-required field, naming its current spelling', async () => {
+    // The current flag cannot be commander-mandatory or the retired spelling
+    // would be rejected before it could be folded, so the requirement is raised
+    // downstream instead. It must still be raised.
+    await expect(run(['tables', 'rows', 'find', 'tbl_1'])).rejects.toThrow('--query is required')
+  })
+
+  it('never lets a retired path shadow a live command', () => {
+    const seen = new Map<string, boolean>()
+    const walk = (command: Command, prefix: string[]) => {
+      for (const child of command.commands) {
+        const path = [...prefix, child.name()].join(' ')
+        const hidden = (child as Command & { _hidden?: boolean })._hidden === true
+        // Commander resolves a duplicate name to whichever was registered
+        // first, so a retired path sharing a live command's name would make the
+        // live one unreachable.
+        expect(seen.has(path) && !hidden).toBe(false)
+        seen.set(path, hidden)
+        walk(child, [...prefix, child.name()])
+      }
+    }
+    walk(program(), [])
   })
 })

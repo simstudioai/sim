@@ -17946,7 +17946,7 @@
       "slug": "sap-concur",
       "name": "SAP Concur",
       "description": "Manage expense reports, travel requests, cash advances, and more in SAP Concur",
-      "longDescription": "Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.",
+      "longDescription": "Connect SAP Concur with an OAuth client ID and secret (client-credentials or password grant) — no account linking required. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.",
       "bgColor": "#FFFFFF",
       "iconName": "SapConcurIcon",
       "docsUrl": "https://docs.sim.ai/integrations/sap_concur",
@@ -17965,7 +17965,7 @@
         },
         {
           "name": "Update Expense Report",
-          "description": "Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId} — supported contexts: TRAVELER, PROXY). Body fields: businessPurpose, comment, customData, name, etc."
+          "description": "Update an unsubmitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId} — supported contexts: TRAVELER, PROXY). The body must always include `reportSource` (EA, MOB, OTHER, SE, TR, or UI)."
         },
         {
           "name": "Delete Expense Report",
@@ -17973,15 +17973,15 @@
         },
         {
           "name": "Submit Expense Report",
-          "description": "Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit)."
+          "description": "Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit). Takes no request body."
         },
         {
           "name": "Recall Expense Report",
-          "description": "Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/recall — supported contexts: TRAVELER, PROXY). No request body is required."
+          "description": "Recall a submitted expense report (PATCH /expensereports/v4/users/{userId}/context/{contextType}/reports/{reportId}/recall — supported contexts: TRAVELER, PROXY). Takes no request body. This operation supports user-level access tokens: set grantType to \"password\" with username and password, since the default client_credentials grant yields a company-level token."
         },
         {
           "name": "Approve Expense Report",
-          "description": "Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Required body field: comment."
+          "description": "Approve an expense report as a manager (PATCH /expensereports/v4/reports/{reportId}/approve). Optional body fields: comment, expenseRejectedComment (required if the report has rejected expenses), expectedStepCode, expectedStepSequence, statusId (default A_APPR)."
         },
         {
           "name": "Send Back Expense Report",
@@ -18001,7 +18001,7 @@
         },
         {
           "name": "Update Expense",
-          "description": "Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expenseId})."
+          "description": "Update an expense (PATCH /expensereports/v4/reports/{reportId}/expenses/{expenseId}). Only Company JWT authentication is allowed on this endpoint — the password grant is rejected. A submitted report cannot be updated once it has reached a Paid workflow status. Although the primary intent of this operation is for submitted report updates, it also works on unsubmitted reports, but with the same limited set of fields."
         },
         {
           "name": "Delete Expense",
@@ -18049,7 +18049,7 @@
         },
         {
           "name": "Create Quick Expense",
-          "description": "Create a quick expense (POST /quickexpense/v4/users/{userId}/context/TRAVELER/quickexpenses)."
+          "description": "Create a quick expense (POST /quickexpense/v4/users/{userId}/context/{contextType}/quickexpenses). TRAVELER is the only supported context type."
         },
         {
           "name": "Create Quick Expense (With Image)",
@@ -18057,7 +18057,7 @@
         },
         {
           "name": "List Receipts",
-          "description": "List receipts for a user (GET /receipts/v4/users/{userId})."
+          "description": "List receipts for a user (GET /receipts/v4/users/{userId}). Concur documents no query parameters for this endpoint, so page size and offset cannot be controlled; follow the \"next\" URL in the response to page forward."
         },
         {
           "name": "Get Receipt",
@@ -18101,7 +18101,7 @@
         },
         {
           "name": "Get Request Cash Advance",
-          "description": "Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/{cashAdvanceUuid})."
+          "description": "Get a single cash advance assigned to a travel request (GET /travelrequest/v4/cashadvances/{cashAdvanceUuid}). This endpoint exists for feature parity only and will be deprecated in the future — SAP recommends relying on the list of cash advances link available in the Request payload response instead."
         },
         {
           "name": "Create Expected Expense",
@@ -18161,7 +18161,7 @@
         },
         {
           "name": "Delete User",
-          "description": "Delete a user identity (DELETE /profile/identity/v4.1/Users/{id})."
+          "description": "Hard delete a user identity (DELETE /profile/identity/v4.1/Users/{id}). Not recommended: SAP restricts hard delete to users with no transaction history and governs it by the Concur Data Retention policy. To deactivate a user instead, use SAP Concur Update User with a PATCH replacing active with false."
         },
         {
           "name": "Search Users",
@@ -18193,7 +18193,7 @@
         },
         {
           "name": "Delete List Item",
-          "description": "Delete a list item (DELETE /list/v4/items/{itemId})."
+          "description": "Delete a list item from all lists that contain it (DELETE /list/v4/items/{itemId}). This is not scoped to a single list, and all children of that list item are also deleted."
         },
         {
           "name": "List Budgets",
@@ -18238,7 +18238,7 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["automation"]
+      "tags": ["automation", "payments"]
     },
     {
       "type": "sap_s4hana",

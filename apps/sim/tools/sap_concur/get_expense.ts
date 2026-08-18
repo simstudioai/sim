@@ -125,11 +125,6 @@ export const getExpenseTool: ToolConfig<GetExpenseParams, SapConcurProxyResponse
           description: 'Payment type {id, name, code}',
           optional: true,
         },
-        expenseSource: {
-          type: 'string',
-          description: 'Source of the expense (CASH, CCARD, EBOOKING, etc.)',
-          optional: true,
-        },
         transactionDate: {
           type: 'string',
           description: 'Transaction date (YYYY-MM-DD)',
@@ -183,11 +178,6 @@ export const getExpenseTool: ToolConfig<GetExpenseParams, SapConcurProxyResponse
         businessPurpose: {
           type: 'string',
           description: 'Business purpose',
-          optional: true,
-        },
-        comment: {
-          type: 'string',
-          description: 'Free-form comment associated with the expense',
           optional: true,
         },
         isExpenseBillable: {
@@ -347,9 +337,10 @@ export const getExpenseTool: ToolConfig<GetExpenseParams, SapConcurProxyResponse
           optional: true,
         },
         links: {
-          type: 'json',
+          type: 'array',
           description: 'HATEOAS links for the expense',
           optional: true,
+          items: { type: 'json' },
         },
       },
     },

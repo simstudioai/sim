@@ -93,13 +93,25 @@ function addFieldOption(
         : ''
   }${descriptor.required ? ' (required)' : ''}`
 
+  const renamedFrom = flag.renamedFrom ?? []
   const option = new Option(`${short}--${name} ${placeholder}`, describe)
   if (choices && !takesList) option.choices([...choices])
   if (descriptor.default !== undefined && field !== 'limit') {
     option.default(undefined, String(descriptor.default))
   }
-  if (descriptor.required) option.makeOptionMandatory()
+  // Commander's mandatory check runs before `executeOperation` can fold a
+  // renamed spelling onto the current one, so a required field that has been
+  // renamed would reject the very argv this exists to keep working. The
+  // requirement is not lost: `buildRequest` raises it against the current
+  // spelling once both have had their chance to supply the value.
+  if (descriptor.required && renamedFrom.length === 0) option.makeOptionMandatory()
   command.addOption(option)
+
+  for (const previous of renamedFrom) {
+    const retired = new Option(`--${previous} ${placeholder}`).hideHelp()
+    if (choices && !takesList) retired.choices([...choices])
+    command.addOption(retired)
+  }
 }
 
 /** Adds request-field and safety options for one generated operation. */
@@ -162,6 +174,10 @@ export function addOperationOptions(
   }
 
   if (commandSpec.confirm) {
-    command.option('-y, --yes', 'Skip the confirmation')
+    // There is no prompt to skip: a `confirm` command refuses outright when the
+    // flag is absent, in a TTY or not. Calling it "Skip the confirmation" sent
+    // readers looking for a question the CLI never asks, and hid that the flag
+    // is the only way the command ever runs.
+    command.option('-y, --yes', 'Confirm this destructive operation (required)')
   }
 }

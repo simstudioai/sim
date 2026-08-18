@@ -152,23 +152,81 @@ async function zendeskApiGet(
 }
 
 /**
+ * One step of a paginated walk.
+ *
+ * `url === null` alone does not mean the listing ended: `truncated` separates a
+ * source that reported no further records from one that still advertised records
+ * but whose continuation link could not be followed. Collapsing the two into a
+ * bare `null` reports a partial listing as a complete one, and the sync engine
+ * then hard-deletes every stored document past the last page it managed to read.
+ */
+interface PageStep {
+  /** The next page to request, or null when the walk cannot continue. */
+  url: string | null
+  /**
+   * True when the walk stopped without the source ever saying it was done: the
+   * response still advertised more records, but its continuation link was
+   * missing, malformed, or rejected by the same-origin guard.
+   */
+  truncated: boolean
+}
+
+/** A walk that ended because the source said there was nothing left. */
+const PAGE_WALK_EXHAUSTED: PageStep = { url: null, truncated: false }
+
+/**
  * Reads the cursor-pagination continuation from a Zendesk response. Offset
  * pagination is limited to the first 100 pages / 10,000 records and answers 400
  * past that depth, so every unbounded listing uses cursor pagination instead.
+ *
+ * `meta.has_more === true` is the only signal that continues the walk. Zendesk
+ * emits `links.next` even on the last page, so `meta` — not the link — is what
+ * decides whether to keep paginating; following a link on a response with no
+ * `meta` would never terminate, and this walk has no page-depth valve.
+ *
+ * How the stop is *reported* is what distinguishes the two ways it can happen:
+ * `has_more === false` is exhaustion, while a missing or malformed `meta` (an
+ * interstitial, a truncated body, a proxy error page) is truncation. Reading the
+ * latter as a drained cursor hands every unlisted document to deletion
+ * reconciliation.
+ *
+ * A `links.next` the same-origin guard refuses — a host-mapped Help Center or
+ * brand host emits one that is not on `https://{subdomain}.zendesk.com` — also
+ * stops the walk as truncated, never as exhausted. The guard itself is correct
+ * and stays; only the reason the walk stopped is reported honestly.
  * @see https://developer.zendesk.com/api-reference/introduction/pagination/
  */
-function readCursorNext(data: Record<string, unknown>, baseUrl: string): string | null {
-  const meta = data.meta as { has_more?: boolean } | undefined
-  if (meta?.has_more !== true) return null
+function readCursorNext(data: Record<string, unknown>, baseUrl: string): PageStep {
+  const meta = data.meta as { has_more?: unknown } | undefined
+  if (meta?.has_more !== true) return { url: null, truncated: meta?.has_more !== false }
   const links = data.links as { next?: string } | undefined
-  return sameOriginNextUrl(links?.next, baseUrl)
+  const url = sameOriginNextUrl(links?.next, baseUrl)
+  return { url, truncated: url === null }
+}
+
+/**
+ * Reads the offset-pagination continuation used by the Search API, which carries
+ * `next_page` (null on the last page) instead of a `meta`/`links` envelope.
+ *
+ * An absent `next_page` is exhaustion. Search responses carry both keys, and the
+ * caller's `count`-vs-returned check already caps every case where a missing
+ * `next_page` could hide records, so treating its absence as truncation would
+ * only add a cap nothing needs. A present link the same-origin guard refuses is
+ * truncation.
+ */
+function readOffsetNext(data: Record<string, unknown>, baseUrl: string): PageStep {
+  const nextPage = data.next_page
+  if (nextPage == null) return PAGE_WALK_EXHAUSTED
+  const url = sameOriginNextUrl(nextPage, baseUrl)
+  return { url, truncated: url === null }
 }
 
 /**
  * Fetches Help Center articles via cursor pagination.
  *
- * `capped` is true only if the page safety valve trips while more articles
- * remain — a fully drained cursor is a complete listing.
+ * `capped` is true only when the walk stopped with articles still remaining —
+ * the page safety valve tripping, or a continuation link that could not be
+ * followed. A cursor drained to `has_more: false` is a complete listing.
  */
 async function fetchArticles(
   baseUrl: string,
@@ -187,7 +245,16 @@ async function fetchArticles(
     items.push(...((data.articles as ZendeskArticle[]) || []))
     pages += 1
 
-    url = readCursorNext(data, baseUrl)
+    const step = readCursorNext(data, baseUrl)
+    if (step.truncated) {
+      logger.warn(
+        'Zendesk article listing stopped at an unusable continuation link with more articles remaining; listing is incomplete.',
+        { pages, articles: items.length }
+      )
+      return { items, capped: true }
+    }
+
+    url = step.url
     if (url && pages >= MAX_ARTICLE_PAGES) {
       logger.warn(
         `Zendesk article listing stopped at the ${MAX_ARTICLE_PAGES}-page safety valve with more articles remaining; listing is incomplete.`
@@ -246,17 +313,33 @@ async function fetchTicketsViaCursor(
   const params = new URLSearchParams({ 'page[size]': String(PAGE_SIZE), sort: '-updated_at' })
   let url: string | null = `${baseUrl}/api/v2/tickets.json?${params}`
   let sourceHasMore = false
+  let truncated = false
 
   while (url) {
     const data = await zendeskApiGet(url, accessToken, sourceConfig)
     items.push(...((data.tickets as ZendeskTicket[]) || []))
 
-    url = readCursorNext(data, baseUrl)
+    const step = readCursorNext(data, baseUrl)
+    if (step.truncated) {
+      logger.warn(
+        'Zendesk ticket listing stopped at an unusable continuation link with more tickets remaining; listing is incomplete.',
+        { tickets: items.length }
+      )
+      truncated = true
+      break
+    }
+
+    url = step.url
     sourceHasMore = url !== null
     if (items.length >= limit) break
   }
 
-  const capped = items.length > limit || (items.length >= limit && sourceHasMore)
+  /**
+   * `truncated` caps regardless of how few tickets came back: the walk stopped
+   * short of a source that still had records, so the unread remainder must not
+   * be read as deleted.
+   */
+  const capped = truncated || items.length > limit || (items.length >= limit && sourceHasMore)
   return { items: items.slice(0, limit), capped }
 }
 
@@ -283,6 +366,7 @@ async function fetchTicketsViaSearch(
   })
   let url: string | null = `${baseUrl}/api/v2/search.json?${params}`
   let sourceHasMore = false
+  let truncated = false
   let totalMatches: number | null = null
 
   while (url) {
@@ -290,13 +374,24 @@ async function fetchTicketsViaSearch(
     items.push(...((data.results as ZendeskTicket[]) || []))
     if (typeof data.count === 'number') totalMatches = data.count
 
-    url = sameOriginNextUrl(data.next_page, baseUrl)
+    const step = readOffsetNext(data, baseUrl)
+    if (step.truncated) {
+      logger.warn(
+        'Zendesk ticket search stopped at an unusable continuation link with more results remaining; listing is incomplete.',
+        { tickets: items.length }
+      )
+      truncated = true
+      break
+    }
+
+    url = step.url
     sourceHasMore = url !== null
     if (items.length >= effectiveLimit) break
   }
 
   const returned = Math.min(items.length, effectiveLimit)
   const capped =
+    truncated ||
     sourceHasMore ||
     items.length > effectiveLimit ||
     (totalMatches !== null && totalMatches > returned)
@@ -324,7 +419,16 @@ async function fetchTicketComments(
     allComments.push(...((data.comments as ZendeskComment[]) || []))
     pages += 1
 
-    url = readCursorNext(data, baseUrl)
+    const step = readCursorNext(data, baseUrl)
+    if (step.truncated) {
+      logger.warn('Zendesk ticket comment listing stopped at an unusable continuation link', {
+        ticketId,
+        comments: allComments.length,
+      })
+      break
+    }
+
+    url = step.url
     if (url && pages >= MAX_COMMENT_PAGES) {
       logger.warn('Zendesk ticket comment listing truncated at the page safety valve', {
         ticketId,

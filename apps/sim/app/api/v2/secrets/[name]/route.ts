@@ -19,7 +19,16 @@ export const PUT = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  mapInput: ({ params, body }) => ({ ...body, name: params.name }),
+  /**
+   * Normalizes a blank description to an explicit clear here rather than in the
+   * contract: a Zod `.transform()` on any property drops the whole request
+   * schema's OpenAPI examples, silently removing them from the published docs.
+   */
+  mapInput: ({ params, body }) => ({
+    ...body,
+    name: params.name,
+    ...(body.description === '' ? { description: null } : {}),
+  }),
   useCase: setSecretUseCase,
   statusForResult: ({ created }) => (created ? 201 : 200),
   present: ({ secret, userId }) => ({ data: toV2Secret(secret, userId) }),

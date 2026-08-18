@@ -12,7 +12,18 @@ import {
 import { configPath, credentialsPath } from './paths'
 
 export const DEFAULT_PROFILE = 'default'
-export const DEFAULT_ENDPOINT = 'https://sim.ai'
+
+/**
+ * The API host, which is the `www` one and not the apex.
+ *
+ * `sim.ai` answers `/api/**` with a 301 to `www.sim.ai`, and the CLI refuses to
+ * follow a redirect — a 301 rewrites a POST into a bodyless GET, so following
+ * one turns a write into a silent no-op and hands the API key to whatever host
+ * `Location` names. Defaulting to the apex therefore made every command fail
+ * for anyone who never set an endpoint, and before the refusal existed it was
+ * worse: reads succeeded while writes quietly did nothing.
+ */
+export const DEFAULT_ENDPOINT = 'https://www.sim.ai'
 
 /**
  * Output formats, in the order `--help` lists them.
@@ -130,10 +141,38 @@ export function deleteProfile(profile: string): { config: boolean; credentials: 
   return { config, credentials }
 }
 
-function normalizeEndpoint(endpoint: string): string {
+/**
+ * Validates an endpoint and strips its trailing slashes.
+ *
+ * The check has to live here rather than at the call sites because an endpoint
+ * reaches the HTTP client from four directions — `--endpoint`, `SIM_ENDPOINT`,
+ * `configure --set-endpoint`, and a hand-edited `~/.sim/config` — and an
+ * unparseable one escapes as a raw `TypeError: Invalid URL` stack trace from
+ * inside Node's URL parser instead of a CLI error.
+ *
+ * `source` names where the value came from, so the message points at the thing
+ * the user has to edit.
+ */
+export function normalizeEndpoint(endpoint: string, source: string): string {
   // A trailing slash here produces `https://sim.ai//api/v2/...`, which some
   // proxies 404 rather than normalize.
-  return endpoint.replace(/\/+$/, '')
+  const trimmed = endpoint.replace(/\/+$/, '')
+
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    throw new ProfileConfigError(
+      `Invalid endpoint "${endpoint}" from ${source}. Use an absolute URL, e.g. ${DEFAULT_ENDPOINT} or http://localhost:3000`
+    )
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new ProfileConfigError(
+      `Unsupported endpoint scheme "${parsed.protocol.replace(/:$/, '')}" from ${source}. Use http or https, e.g. ${DEFAULT_ENDPOINT}`
+    )
+  }
+
+  return trimmed
 }
 
 /**
@@ -205,7 +244,7 @@ export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfil
 
   return {
     name,
-    endpoint: normalizeEndpoint(endpoint.value as string),
+    endpoint: normalizeEndpoint(endpoint.value as string, endpoint.source),
     apiKey: apiKey.value,
     workspaceId: workspaceId.value,
     output: output.value as OutputFormat,

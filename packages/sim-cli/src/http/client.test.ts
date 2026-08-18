@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+import { USER_AGENT } from '../version'
 import {
   formatApiErrorDetails,
+  redirectEndpoint,
   requestAllPages,
   resolvePath,
   SimApiError,
@@ -12,6 +14,41 @@ import {
 afterEach(() => {
   vi.unstubAllGlobals()
 })
+
+function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
+  return new SimClient({
+    name: 'default',
+    endpoint: 'https://sim.example',
+    apiKey: options.apiKey ?? null,
+    workspaceId: 'ws_1',
+    output: 'json',
+    sources: {
+      endpoint: 'default',
+      apiKey: 'env',
+      workspaceId: 'env',
+      output: 'default',
+    },
+  })
+}
+
+function stubStderr(isTTY: boolean): { writes: string[]; restore: () => void } {
+  const writes: string[] = []
+  const originalTTY = Object.getOwnPropertyDescriptor(process.stderr, 'isTTY')
+  const originalWrite = process.stderr.write
+  Object.defineProperty(process.stderr, 'isTTY', { configurable: true, value: isTTY })
+  process.stderr.write = ((chunk: string) => {
+    writes.push(String(chunk))
+    return true
+  }) as typeof process.stderr.write
+  return {
+    writes,
+    restore: () => {
+      process.stderr.write = originalWrite
+      if (originalTTY) Object.defineProperty(process.stderr, 'isTTY', originalTTY)
+      else Reflect.deleteProperty(process.stderr, 'isTTY')
+    },
+  }
+}
 
 describe('cursor pagination', () => {
   it('follows v2 cursors through the requested item limit', async () => {
@@ -35,6 +72,342 @@ describe('cursor pagination', () => {
     expect(request).toHaveBeenNthCalledWith(2, '/api/v2/items', {
       query: { workspaceId: 'workspace-1', limit: 1, cursor: 'next' },
       auth: 'optional',
+    })
+  })
+
+  it('reports progress on stderr once a second page is coming, then clears the line', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ data: ['a', 'b'], nextCursor: 'next' })
+      .mockResolvedValueOnce({ data: ['c'], nextCursor: null })
+    const stderr = stubStderr(true)
+
+    try {
+      await requestAllPages<string>({ request } as Pick<SimClient, 'request'>, '/api/v2/items', {
+        pageSize: 2,
+      })
+    } finally {
+      stderr.restore()
+    }
+
+    expect(stderr.writes).toHaveLength(2)
+    expect(stderr.writes[0]).toContain('fetched 2')
+    expect(stderr.writes[1]).toBe('\r\u001b[K')
+  })
+
+  describe('the endpoint a redirect implies', () => {
+    // Naming `target.origin` dropped a self-hosted endpoint's path prefix, so
+    // the suggested value was not an API root and following the advice broke a
+    // deployment that was one hostname away from working.
+    it('keeps a path prefix the endpoint carries', () => {
+      expect(
+        redirectEndpoint(
+          'https://host/sim',
+          '/api/v2/workflows',
+          new URL('https://www.host/sim/api/v2/workflows')
+        )
+      ).toBe('https://www.host/sim')
+    })
+
+    it('is just the origin when the endpoint has no prefix', () => {
+      expect(
+        redirectEndpoint(
+          'https://sim.example',
+          '/api/v2/workflows',
+          new URL('https://www.sim.example/api/v2/workflows')
+        )
+      ).toBe('https://www.sim.example')
+    })
+
+    it('implies no change when the target resolves to the endpoint already set', () => {
+      // A trailing-slash or path-normalization redirect keeps the origin;
+      // advising the value the caller already has explains nothing.
+      expect(
+        redirectEndpoint(
+          'https://sim.example',
+          '/api/v2/workflows',
+          new URL('https://sim.example/api/v2/workflows/')
+        )
+      ).toBeNull()
+      expect(
+        redirectEndpoint(
+          'https://sim.example/',
+          '/api/v2/x',
+          new URL('https://sim.example/api/v2/x')
+        )
+      ).toBeNull()
+    })
+
+    it('falls back to the origin when the target does not carry the request path', () => {
+      expect(
+        redirectEndpoint(
+          'https://sim.example',
+          '/api/v2/workflows',
+          new URL('https://auth.example/login')
+        )
+      ).toBe('https://auth.example')
+    })
+  })
+
+  it('clears the progress line when a later page fails', async () => {
+    // Progress is written without a trailing newline so it can be overwritten in
+    // place. Cleaning up only on success left `fetched 2…` on the line the error
+    // was then printed onto, so the two ran together.
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ data: ['a', 'b'], nextCursor: 'next' })
+      .mockRejectedValueOnce(new Error('page two failed'))
+    const stderr = stubStderr(true)
+
+    try {
+      await expect(
+        requestAllPages<string>({ request } as Pick<SimClient, 'request'>, '/api/v2/items', {
+          pageSize: 2,
+        })
+      ).rejects.toThrow('page two failed')
+    } finally {
+      stderr.restore()
+    }
+
+    expect(stderr.writes[0]).toContain('fetched 2')
+    expect(stderr.writes.at(-1)).toBe('\r\u001b[K')
+  })
+
+  it('stays silent for a single page, and when stderr is not a terminal', async () => {
+    const single = vi.fn().mockResolvedValue({ data: ['a'], nextCursor: null })
+    const paged = vi
+      .fn()
+      .mockResolvedValueOnce({ data: ['a'], nextCursor: 'next' })
+      .mockResolvedValueOnce({ data: ['b'], nextCursor: null })
+
+    const tty = stubStderr(true)
+    try {
+      await requestAllPages<string>({ request: single } as Pick<SimClient, 'request'>, '/items', {
+        pageSize: 2,
+      })
+    } finally {
+      tty.restore()
+    }
+    expect(tty.writes).toEqual([])
+
+    const piped = stubStderr(false)
+    try {
+      await requestAllPages<string>({ request: paged } as Pick<SimClient, 'request'>, '/items', {
+        pageSize: 1,
+      })
+    } finally {
+      piped.restore()
+    }
+    expect(piped.writes).toEqual([])
+  })
+})
+
+describe('redirects', () => {
+  function redirect(location: string | null, status = 301): Response {
+    return new Response(null, {
+      status,
+      headers: location === null ? {} : { location },
+    })
+  }
+
+  it('does not let fetch follow a redirect, which would drop the write body', async () => {
+    const fetch = vi.fn().mockResolvedValue(redirect('https://www.sim.example/api/v2/tables'))
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      client().request('/api/v2/tables/folders', { method: 'POST', body: { path: '/a' } })
+    ).rejects.toThrow(/redirected to https:\/\/www\.sim\.example/)
+    expect(fetch.mock.calls[0][1].redirect).toBe('manual')
+  })
+
+  it('names the endpoint to switch to, derived from the Location origin', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(redirect('https://www.sim.example:8443/api/v2/tables?x=1', 308))
+    )
+
+    await expect(client().request('/api/v2/tables')).rejects.toMatchObject({
+      message:
+        'Endpoint redirected to https://www.sim.example:8443. Run: sim configure --profile default --set-endpoint https://www.sim.example:8443',
+      status: 308,
+    })
+  })
+
+  it('resolves a relative Location rather than string-hacking the endpoint', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(redirect('/api/v2/tables/')))
+
+    await expect(client().request('/api/v2/tables')).rejects.toThrow(
+      /redirected to https:\/\/sim\.example\/api\/v2\/tables\//
+    )
+  })
+
+  it('still explains itself when Location is missing or unparseable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(redirect(null, 302)))
+    await expect(client().request('/api/v2/tables')).rejects.toThrow(/no usable redirect target/)
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(redirect('http://')))
+    await expect(client().request('/api/v2/tables')).rejects.toThrow(/no usable redirect target/)
+  })
+})
+
+describe('non-JSON responses', () => {
+  it('names the URL and the shape instead of dumping a page of HTML', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('<!doctype html><html lang="en"><head><title>Example Domain</title>', {
+          status: 404,
+          headers: { 'content-type': 'text/html; charset=UTF-8' },
+        })
+      )
+    )
+
+    const failure = client().request('/api/v2/workflows')
+
+    await expect(failure).rejects.toMatchObject({
+      message:
+        'https://sim.example/api/v2/workflows returned HTML, not JSON (HTTP 404) — check your endpoint.',
+    })
+    await expect(failure).rejects.not.toThrow(/<!doctype/)
+  })
+
+  it('turns a 200 that is not JSON into an explained error, not a SyntaxError', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('<html><body>hello</body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      )
+    )
+
+    await expect(client().request('/api/v2/workflows')).rejects.toMatchObject({
+      name: 'SimApiError',
+      message:
+        'https://sim.example/api/v2/workflows returned HTML, not JSON (HTTP 200) — check your endpoint.',
+    })
+  })
+
+  it("keeps a short plain-text body, which is the proxy's own diagnosis", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('upstream connect error', {
+          status: 502,
+          headers: { 'content-type': 'text/plain' },
+        })
+      )
+    )
+
+    await expect(client().request('/api/v2/workflows')).rejects.toThrow(
+      /returned text\/plain, not JSON \(HTTP 502\) — check your endpoint\. Response: upstream connect error/
+    )
+  })
+
+  it('leaves an empty error body reported by status alone', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 503 })))
+
+    await expect(client().request('/api/v2/workflows')).rejects.toMatchObject({
+      message: 'Request failed with status 503',
+    })
+  })
+})
+
+describe('request identity', () => {
+  it('identifies the CLI, its version and its runtime to the API', async () => {
+    // Without a User-Agent a CLI request is indistinguishable from any other
+    // API traffic, so a bug that only reproduces on one version cannot be found
+    // in the server's own logs.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await client().request('/api/v2/workflows')
+
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>
+    expect(headers['user-agent']).toBe(USER_AGENT)
+    expect(USER_AGENT).toMatch(/^sim-cli\/\d+\.\d+\.\d+/)
+    expect(USER_AGENT).toContain(`node/${process.versions.node}`)
+    expect(USER_AGENT).toContain(process.platform)
+  })
+})
+
+describe('personal-key-only operations', () => {
+  it('appends the remedy, keyed off the code the API actually nests', async () => {
+    // The envelope this asserts is the one staging returns: `error.code` is the
+    // status class, and the actionable code rides in `error.details.code`.
+    // Fabricating it at the top level made a green test out of a dead branch.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Workspace API key cannot perform this operation',
+              details: { code: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' },
+            },
+          }),
+          { status: 403, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(client().request('/api/v2/secrets')).rejects.toMatchObject({
+      message:
+        'Workspace API key cannot perform this operation — this operation needs a personal API key: sim login --profile default',
+      code: 'FORBIDDEN',
+    })
+  })
+
+  it('also recognises the principal-kind refusal, whose message is written for a log', async () => {
+    // The same refusal is raised at two layers under two codes. The
+    // principal-kind one answers "Principal kind workspace_api_key cannot
+    // perform operation audit_logs.list" — accurate, and useless to a reader
+    // who has no way to act on it. Recognising only the other code left every
+    // audit-log command stating the problem in server vocabulary with no remedy.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Principal kind workspace_api_key cannot perform operation audit_logs.list',
+              details: { code: 'PRINCIPAL_KIND_NOT_PERMITTED' },
+            },
+          }),
+          { status: 403, headers: { 'content-type': 'application/json' } }
+        )
+      )
+    )
+
+    await expect(client().request('/api/v2/audit-logs')).rejects.toMatchObject({
+      message:
+        'Principal kind workspace_api_key cannot perform operation audit_logs.list — this operation needs a personal API key: sim login --profile default',
+    })
+  })
+
+  it('invents no remedy for other forbidden codes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }),
+            { status: 403, headers: { 'content-type': 'application/json' } }
+          )
+        )
+    )
+
+    await expect(client().request('/api/v2/secrets')).rejects.toMatchObject({
+      message: 'Insufficient permissions',
     })
   })
 })
@@ -109,28 +482,103 @@ describe('API errors', () => {
     expect(lines).toEqual(['  details:', '    predicate.all.0.op: Expected one of eq, ne'])
   })
 
+  it('drops the union branches the input did not take', () => {
+    // `keys` is part of the issue Zod emits and the route serializes verbatim,
+    // and it is the tell: a key rejected as unrecognized that another issue was
+    // found *inside* is a branch the input did not take, not a real complaint.
+    const lines = formatApiErrorDetails([
+      { code: 'invalid_type', path: ['predicate', 'all', 0, 'all'], message: 'expected array' },
+      {
+        code: 'unrecognized_keys',
+        keys: ['field', 'op', 'value'],
+        path: ['predicate', 'all', 0],
+        message: 'Unrecognized keys: "field", "op", "value"',
+      },
+      {
+        code: 'invalid_value',
+        path: ['predicate', 'all', 0, 'op'],
+        message: 'Invalid option: expected one of "eq"|"ne"',
+      },
+      {
+        code: 'unrecognized_keys',
+        keys: ['all'],
+        path: ['predicate'],
+        message: 'Unrecognized key: "all"',
+      },
+    ])
+
+    expect(lines).toContain('    predicate.all.0.op: Invalid option: expected one of "eq"|"ne"')
+    expect(lines.join('\n')).not.toContain('Unrecognized key: "all"')
+    expect(lines.join('\n')).not.toContain('Unrecognized keys:')
+  })
+
+  it('keeps an unrecognized key nothing else was reported inside', () => {
+    // The suppression above once dropped every ancestor path, which swallowed
+    // this: `tll` is genuinely unknown, and the caller cannot see it anywhere
+    // else in the response.
+    const lines = formatApiErrorDetails([
+      {
+        code: 'invalid_value',
+        path: ['config', 'model'],
+        message: 'Invalid option: expected one of "a"|"b"',
+      },
+      {
+        code: 'unrecognized_keys',
+        keys: ['tll'],
+        path: ['config'],
+        message: 'Unrecognized key: "tll"',
+      },
+    ])
+
+    expect(lines).toContain('    config: Unrecognized key: "tll"')
+  })
+
+  it('keeps a container-level cap reported alongside a bad element', () => {
+    // Both have to be fixed; showing only the element sends the caller back for
+    // a second identical 400.
+    const lines = formatApiErrorDetails([
+      { path: ['rows'], message: 'Cannot insert more than 100 rows per batch' },
+      { path: ['rows', 3, 'email'], message: 'Expected string, received number' },
+    ])
+
+    expect(lines).toContain('    rows: Cannot insert more than 100 rows per batch')
+    expect(lines).toContain('    rows.3.email: Expected string, received number')
+  })
+
+  it('keeps a cross-field refusal, whose path is empty', () => {
+    // An empty path is an ancestor of every other path, so the blanket
+    // suppression erased exactly the message that names what to do.
+    const lines = formatApiErrorDetails([
+      { path: [], message: 'Provide either filter or rowIds' },
+      { path: ['workspaceId'], message: 'Required' },
+    ])
+
+    expect(lines).toContain('    request: Provide either filter or rowIds')
+    expect(lines).toContain('    workspaceId: Required')
+  })
+
+  it('still shows every field of a genuine multi-field failure', () => {
+    const lines = formatApiErrorDetails([
+      { path: ['name'], message: 'Required' },
+      { path: ['workspaceId'], message: 'Required' },
+    ])
+
+    expect(lines).toEqual(['  details:', '    name: Required', '    workspaceId: Required'])
+  })
+
+  it('never suppresses the only issue there is', () => {
+    expect(formatApiErrorDetails([{ path: ['name'], message: 'Required' }])).toEqual([
+      '  details:',
+      '    name: Required',
+    ])
+  })
+
   it('keeps non-validation details as JSON', () => {
     expect(formatApiErrorDetails({ id: 'missing' })).toEqual(['  details: {"id":"missing"}'])
   })
 })
 
 describe('raw requests', () => {
-  function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
-    return new SimClient({
-      name: 'default',
-      endpoint: 'https://sim.example',
-      apiKey: options.apiKey ?? null,
-      workspaceId: 'ws_1',
-      output: 'json',
-      sources: {
-        endpoint: 'default',
-        apiKey: 'env',
-        workspaceId: 'env',
-        output: 'default',
-      },
-    })
-  }
-
   it('returns an unconsumed response and forwards an abort signal', async () => {
     const fetch = vi.fn().mockResolvedValue(new Response('stream body'))
     vi.stubGlobal('fetch', fetch)

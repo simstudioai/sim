@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { type StorageContext, toLegacyWorkspaceFileSize } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
@@ -334,6 +335,28 @@ export async function getFileMetadataByKey(
     .limit(1)
 
   return record ?? null
+}
+
+/**
+ * Resolve the storage context a stored object must be read and authorized under.
+ *
+ * A `workspace/…` key prefix is not by itself proof of a workspace file. A
+ * mothership chat attachment is minted with the same prefix — same bucket, same
+ * workspace scope — but is recorded as `context = 'mothership'` and never enters
+ * the Files module, so every workspace-file lookup (which matches on
+ * `context = 'workspace'`) resolves it to nothing. The row bound to the key is
+ * the only thing that separates the two, and it is server-authored at upload
+ * time, so it is as trustworthy as the prefix itself.
+ *
+ * An unbound key keeps its inferred context: absent metadata is not evidence of
+ * an attachment, and the caller's own not-found handling is the right answer.
+ */
+export async function resolveStoredFileContext(key: string): Promise<StorageContext> {
+  const inferred = inferContextFromKey(key)
+  if (inferred !== 'workspace') return inferred
+
+  const metadata = await getFileMetadataByKey(key)
+  return metadata?.context === 'mothership' ? 'mothership' : inferred
 }
 
 /**

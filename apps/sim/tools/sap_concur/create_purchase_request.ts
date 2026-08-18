@@ -61,7 +61,8 @@ export const createPurchaseRequestTool: ToolConfig<
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Purchase request payload',
+      description:
+        'Purchase request payload. Required: exactly one of userId, userEmail, or userLoginId; currencyCode (ISO 4217); and lineItems[]. Each line item requires purchaseType (GOODS or SERVICES), vendorCode, vendorAddressCode, description, quantity, and unitPrice.',
     },
   },
   request: {

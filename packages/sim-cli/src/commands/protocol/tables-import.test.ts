@@ -127,4 +127,25 @@ describe('tables import output', () => {
     })
     expect(logged[0]).not.toContain('uploadToken')
   })
+
+  it('encodes the destination folder the same way every other --folder is', async () => {
+    mockRequest.mockResolvedValue({
+      data: { session: { id: 'import_1', status: 'queued' }, uploadToken: null, transfer: null },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await runImport([
+      '--file-id',
+      'f_1',
+      '--name',
+      'Customers',
+      '--folder',
+      '/Q1 (draft)',
+      '--no-wait',
+    ])
+
+    expect(mockRequest.mock.calls[0][1].body.target).toMatchObject({
+      folderPath: '/Q1%20%28draft%29',
+    })
+  })
 })

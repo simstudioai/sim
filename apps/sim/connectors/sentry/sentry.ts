@@ -417,11 +417,19 @@ export const sentryConnector: ConnectorConfig = {
      * and latest-event fetches already use organization-scoped paths, so the whole
      * connector now speaks one path style.
      *
-     * Consequence of the migration: this endpoint always resolves a date range, and
-     * with no `statsPeriod`/`start`/`end` it defaults to the widest range it accepts
-     * (90 days). Issues last seen before that window are absent from the listing and
-     * are reconciled away, which is the same "aged out of the query window" semantic
-     * the default query already documents.
+     * Listing coverage across the migration is unchanged. Both endpoints bottom out in
+     * the same issue-search executor, which floors the query start at
+     * `max(retention_window_start, now - timedelta(days=90))` regardless of what date
+     * range the request carries, so the project endpoint's `date_from=None` produced the
+     * same 90-day floor this one inherits from its own default. Both list exactly the
+     * issues Sentry's issue search can reach, and neither can reach an issue last seen
+     * longer ago than that.
+     *
+     * So an issue absent from this listing is absent from Sentry's own issue search
+     * under the same query/environment — a genuine scope exit, exactly like an issue
+     * that stopped matching `is:unresolved`. The listing is authoritative and deletion
+     * reconciliation is allowed to run; `listingCapped` below is reserved for the one
+     * condition that genuinely truncates it, `maxIssues`.
      */
     const url = new URL(`${apiBase}/organizations/${encodeURIComponent(organization)}/issues/`)
     url.searchParams.set('project', project)

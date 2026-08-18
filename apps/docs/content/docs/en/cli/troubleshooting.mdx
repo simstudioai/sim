@@ -3,11 +3,14 @@ title: Troubleshooting
 description: The failures whose cause is not obvious from the error message
 ---
 
-Errors print one line to stderr, prefixed `Error:`, and exit `1`. Most say what
-to do next; the cases below are the ones that do not.
+Errors print one line to stderr, prefixed `Error:`, and exit `1` — except
+`sim whoami`, which exits `2` when it could not reach the API to check at all.
+Most say what to do next; the cases below are the ones that do not.
 
 Start with `sim whoami`. It prints the resolved endpoint, workspace, and output
-format, **and where each came from** — which explains most surprises on its own.
+format, **and where each came from** — which explains most surprises on its own —
+then checks the resolved key against the API. Add `--no-verify` to skip the check
+and stay offline.
 
 ## A command targets the wrong workspace or deployment
 
@@ -34,7 +37,7 @@ re-authenticating:
 sim whoami --profile <name>
 ```
 
-## `Could not reach https://sim.ai: <reason>`
+## `Could not reach https://www.sim.ai: <reason>`
 
 The request never got a response: DNS, TLS, a proxy, or a self-hosted stack that
 is not running. Confirm the endpoint the CLI actually used with `sim whoami`, and

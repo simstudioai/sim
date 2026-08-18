@@ -82,7 +82,11 @@ export const getCashAdvanceTool: ToolConfig<GetCashAdvanceParams, SapConcurProxy
       type: 'json',
       description: 'Cash advance detail payload',
       properties: {
-        cashAdvanceId: { type: 'string', description: 'Unique identifier of the cash advance' },
+        cashAdvanceId: {
+          type: 'string',
+          description: 'Unique identifier of the cash advance',
+          optional: true,
+        },
         name: { type: 'string', description: 'Cash advance name', optional: true },
         purpose: {
           type: 'string',

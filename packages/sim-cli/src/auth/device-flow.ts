@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { sleep } from '../helpers'
-import { SimApiError } from '../http/client'
+import { buildUrl, REDIRECT_STATUSES, redirectEndpoint, SimApiError } from '../http/client'
+import { USER_AGENT } from '../version'
 
 /**
  * The terminal half of the CLI key handoff.
@@ -18,6 +19,12 @@ const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 15 * 60 * 1000
+
+/** The page the browser is sent to for approval. */
+const APPROVAL_PATH = '/cli/auth'
+
+/** The route the login poll targets; also the suffix a redirect target is measured against. */
+const POLL_PATH = '/api/cli/auth/poll'
 
 /**
  * Poll statuses that leave the approval still redeemable, so the login should
@@ -88,13 +95,13 @@ export function buildApprovalUrl(
   scope: CliAuthScope,
   workspaceId?: string
 ): string {
-  const url = new URL('/cli/auth', endpoint)
-  url.searchParams.set('request', auth.request)
-  url.searchParams.set('challenge', auth.challenge)
-  url.searchParams.set('pairing', auth.pairing)
-  url.searchParams.set('scope', scope)
-  if (workspaceId) url.searchParams.set('workspace', workspaceId)
-  return url.toString()
+  return buildUrl(endpoint, APPROVAL_PATH, {
+    request: auth.request,
+    challenge: auth.challenge,
+    pairing: auth.pairing,
+    scope,
+    workspace: workspaceId,
+  })
 }
 
 interface PollResponse {
@@ -103,6 +110,42 @@ interface PollResponse {
   scope?: CliAuthScope
   workspaceId?: string | null
   workspaceBound?: boolean
+}
+
+/**
+ * Explains a redirected poll rather than following it.
+ *
+ * The same policy `SimClient` applies, for the same two reasons and one more:
+ * a 301/302/303 rewrites this POST into a bodyless GET, which the route answers
+ * `405` — the login then fails naming a method nobody chose — and a redirect
+ * that IS followed hands `pollSecret`, the one redeemable value in the handoff,
+ * to whatever origin `Location` names.
+ */
+function toRedirectError(endpoint: string, response: Response): SimApiError {
+  const location = response.headers.get('location')?.trim()
+  let target: URL | null = null
+  if (location) {
+    try {
+      target = new URL(location, endpoint)
+    } catch {
+      target = null
+    }
+  }
+
+  if (!target) {
+    return new SimApiError(
+      `${endpoint} answered the login poll with HTTP ${response.status} and no usable redirect target. Check the endpoint.`,
+      response.status
+    )
+  }
+  const refusal = `${endpoint} redirected the login poll to ${target.href}. The CLI does not follow redirects, because a redirect drops the request body and would carry the login secret to another origin.`
+  const suggested = redirectEndpoint(endpoint, POLL_PATH, target)
+  return new SimApiError(
+    suggested
+      ? `${refusal} Re-run with --endpoint ${suggested}, or run: sim configure --set-endpoint ${suggested}`
+      : refusal,
+    response.status
+  )
 }
 
 /**
@@ -126,17 +169,24 @@ export async function pollForKey(
 
     let response: Response | null = null
     try {
-      response = await fetch(new URL('/api/cli/auth/poll', endpoint), {
+      response = await fetch(buildUrl(endpoint, POLL_PATH), {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          'user-agent': USER_AGENT,
+        },
         body: JSON.stringify({ request: auth.request, verifier: auth.pollSecret }),
         signal,
+        redirect: 'manual',
       })
     } catch {
       response = null
     }
 
     if (response) {
+      if (REDIRECT_STATUSES.has(response.status)) throw toRedirectError(endpoint, response)
+
       const raw = await response.text()
 
       if (!response.ok) {

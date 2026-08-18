@@ -196,6 +196,279 @@ describe('zendeskConnector.listDocuments ticket capping', () => {
   })
 })
 
+/**
+ * `has_more: true` with a `links.next` the same-origin guard refuses — the shape
+ * a host-mapped Help Center or brand host produces. The guard is correct and
+ * must keep rejecting the link; what must not happen is the walk reporting the
+ * partial listing it managed to read as a complete one, because the sync engine
+ * then hard-deletes every stored document past the last page read.
+ */
+describe('zendeskConnector.listDocuments unfollowable continuation links', () => {
+  beforeEach(() => {
+    mockSecureFetch.mockReset()
+  })
+
+  const rejectedLinks: Array<[string, unknown]> = [
+    ['a brand host', 'https://support.acme.com/api/v2/tickets.json?page%5Bafter%5D=x'],
+    ['a host-prefix lookalike', 'https://acme.zendesk.com.evil.com/api/v2/tickets.json'],
+    ['a foreign host', 'https://evil.com/api/v2/tickets.json'],
+    ['a missing link', undefined],
+    ['a non-string link', 42],
+  ]
+
+  it.each(rejectedLinks)(
+    'caps the ticket listing when has_more is true but next is %s',
+    async (_label, next) => {
+      mockApi(() => ({
+        tickets: [ticket(1), ticket(2), ticket(3)],
+        meta: { has_more: true },
+        links: { next },
+      }))
+
+      const syncContext: Record<string, unknown> = {}
+      const result = await zendeskConnector.listDocuments(
+        'tok',
+        { ...CONFIG, maxTickets: '800' },
+        undefined,
+        syncContext
+      )
+
+      expect(result.documents).toHaveLength(3)
+      expect(syncContext.listingCapped).toBe(true)
+    }
+  )
+
+  it('caps the article listing when has_more is true but next is cross-origin', async () => {
+    mockApi(() => ({
+      articles: [
+        {
+          id: 1,
+          title: 'A',
+          body: '<p>hello</p>',
+          html_url: `${BASE}/hc/articles/1`,
+          section_id: null,
+          label_names: [],
+          author_id: 1,
+          locale: 'en-us',
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-02-01T00:00:00Z',
+          edited_at: '2024-02-01T00:00:00Z',
+          draft: false,
+        },
+      ],
+      meta: { has_more: true },
+      links: { next: 'https://support.acme.com/api/v2/help_center/articles.json?page=2' },
+    }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, contentType: 'articles' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('caps the ticket search when next_page is cross-origin', async () => {
+    mockApi(() => ({
+      results: [ticket(1)],
+      next_page: 'https://evil.com/api/v2/search.json?page=2',
+    }))
+
+    const syncContext: Record<string, unknown> = {}
+    await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
+      undefined,
+      syncContext
+    )
+
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('leaves listingCapped unset when the search drains its pages honestly', async () => {
+    mockApi(() => ({ results: [ticket(1)], count: 1, next_page: null }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+})
+
+/**
+ * Every cursor-paginated Zendesk response carries the `meta` envelope, so a
+ * missing or malformed one is a malformed 200 rather than a drained cursor.
+ * Reading it as exhaustion is the same asymmetry the Webflow listing already
+ * eliminated: the walk stops, the listing reports itself complete, and the sync
+ * engine hard-deletes every document past the last page read. The walk still
+ * stops — `meta.has_more === true` is the only signal that continues it, since
+ * Zendesk emits `links.next` even on the last page and following it on a
+ * meta-less response would never terminate — but it stops as truncated.
+ */
+describe('zendeskConnector.listDocuments malformed pagination envelopes', () => {
+  beforeEach(() => {
+    mockSecureFetch.mockReset()
+  })
+
+  it.each([
+    ['no meta envelope', undefined],
+    ['an empty meta envelope', {}],
+    ['a stringified has_more', { has_more: 'true' }],
+  ])(
+    'stops the walk and caps when the response carries %s despite a next link',
+    async (_label, meta) => {
+      let page = 0
+      const urls = mockApi(() => {
+        page += 1
+        return {
+          tickets: [ticket(page)],
+          ...(meta === undefined ? {} : { meta }),
+          links: { next: `${BASE}/api/v2/tickets.json?page%5Bafter%5D=${page}` },
+        }
+      })
+
+      const syncContext: Record<string, unknown> = {}
+      const result = await zendeskConnector.listDocuments(
+        'tok',
+        { ...CONFIG, maxTickets: '2' },
+        undefined,
+        syncContext
+      )
+
+      expect(urls).toHaveLength(1)
+      expect(result.documents.map((d) => d.externalId)).toEqual(['ticket-1'])
+      expect(syncContext.listingCapped).toBe(true)
+    }
+  )
+
+  it('caps the ticket listing on a bare 200 interstitial', async () => {
+    mockApi(() => ({}))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, maxTickets: '800' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toEqual([])
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('caps the article listing on a bare 200 interstitial', async () => {
+    mockApi(() => ({}))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, contentType: 'articles' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toEqual([])
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  /**
+   * An absent `next_page` ends the search walk. The `count`-vs-returned check
+   * is what catches a search that still had matches, so a missing key can only
+   * lose records the count does not already account for.
+   */
+  it('does not cap the ticket search when next_page is absent and count agrees', async () => {
+    mockApi(() => ({ results: [ticket(1)], count: 1 }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('caps the ticket search when count reports more matches than were returned', async () => {
+    mockApi(() => ({ results: [ticket(1)], count: 9 }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
+  it('leaves listingCapped unset when the ticket cursor drains to has_more false', async () => {
+    mockApi(() => ({
+      tickets: [ticket(1)],
+      meta: { has_more: false },
+      links: { next: `${BASE}/api/v2/tickets.json?page%5Bafter%5D=x` },
+    }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, maxTickets: '800' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('leaves listingCapped unset when the article cursor drains to has_more false', async () => {
+    mockApi(() => ({
+      articles: [
+        {
+          id: 1,
+          title: 'A',
+          body: '<p>hello</p>',
+          html_url: `${BASE}/hc/articles/1`,
+          section_id: null,
+          label_names: [],
+          author_id: 1,
+          locale: 'en-us',
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-02-01T00:00:00Z',
+          edited_at: '2024-02-01T00:00:00Z',
+          draft: false,
+        },
+      ],
+      meta: { has_more: false },
+    }))
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await zendeskConnector.listDocuments(
+      'tok',
+      { ...CONFIG, contentType: 'articles' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(1)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+})
+
 describe('zendeskConnector ticket contentHash invariant', () => {
   beforeEach(() => {
     mockSecureFetch.mockReset()
