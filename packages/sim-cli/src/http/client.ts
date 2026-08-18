@@ -272,6 +272,20 @@ const DEFAULT_TIMEOUT_SECONDS = 3600
  */
 const MAX_TIMEOUT_MS = 2 ** 31 - 1
 
+/** The one instruction that resolves an elapsed request bound, wherever it surfaces. */
+export const RAISE_TIMEOUT_HINT = 'Raise SIM_TIMEOUT_SECONDS, or set it to 0 to wait indefinitely.'
+
+/**
+ * Whether this is the CLI's own request bound elapsing.
+ *
+ * `AbortSignal.timeout` raises `TimeoutError`, while a caller's cancel raises
+ * `AbortError` — so this distinguishes a bound the user can raise from a stop
+ * the user asked for, which must keep reading as a cancellation.
+ */
+export function isRequestTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'TimeoutError'
+}
+
 function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.SIM_TIMEOUT_SECONDS
   if (raw === undefined || raw.trim() === '') return DEFAULT_TIMEOUT_SECONDS * 1000
@@ -496,7 +510,7 @@ export class SimClient {
       }
       if (timeout?.aborted) {
         throw new SimApiError(
-          `${url} did not answer within ${timeoutMs / 1000}s. Raise SIM_TIMEOUT_SECONDS, or set it to 0 to wait indefinitely.`,
+          `${url} did not answer within ${timeoutMs / 1000}s. ${RAISE_TIMEOUT_HINT}`,
           0
         )
       }

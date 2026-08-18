@@ -2,7 +2,12 @@
 
 import chalk from 'chalk'
 import { ProfileConfigError } from './config/index'
-import { formatApiErrorDetails, SimApiError } from './http/client'
+import {
+  formatApiErrorDetails,
+  isRequestTimeout,
+  RAISE_TIMEOUT_HINT,
+  SimApiError,
+} from './http/client'
 import { sanitize } from './output/render'
 import { buildProgram } from './program'
 
@@ -23,12 +28,8 @@ async function main() {
     // elapses while the body is still being read — a large `files get`, say —
     // surfaces here rather than inside the client. A user's own Ctrl-C raises
     // `AbortError` instead, which is deliberately left alone.
-    if (error instanceof DOMException && error.name === 'TimeoutError') {
-      console.error(
-        chalk.red(
-          'Error: the request timed out. Raise SIM_TIMEOUT_SECONDS, or set it to 0 to wait indefinitely.'
-        )
-      )
+    if (isRequestTimeout(error)) {
+      console.error(chalk.red(`Error: the request timed out. ${RAISE_TIMEOUT_HINT}`))
       process.exit(1)
     }
     if (error instanceof SimApiError) {
