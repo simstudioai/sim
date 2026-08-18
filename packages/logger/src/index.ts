@@ -406,6 +406,7 @@ export class Logger {
           requestId: reqCtx.requestId,
           method: reqCtx.method,
           path: reqCtx.path,
+          traceId: reqCtx.traceId,
           ...this.metadata,
         }
       : this.metadata
@@ -526,7 +527,7 @@ export function createLogger(module: string, config?: LoggerConfig): Logger {
 }
 
 export type { RequestContext } from './request-context'
-export { getRequestContext, runWithRequestContext } from './request-context'
+export { getRequestContext, runWithRequestContext, setRequestTraceId } from './request-context'
 
 const OTEL_LOG_SEVERITY: Record<LogLevel, { number: SeverityNumber; text: string }> = {
   [LogLevel.DEBUG]: { number: SeverityNumber.DEBUG, text: 'DEBUG' },
