@@ -69,8 +69,9 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
   const isDirty = draft !== currentValue
   const isSaving = savePersonal.isPending || upsertWorkspace.isPending
 
-  const save = async () => {
-    if (!credential || !canEdit || isConflicted || !isDirty || isSaving) return
+  /** Resolves false when the write failed, so a combined save can stop before its next step. */
+  const save = async (): Promise<boolean> => {
+    if (!credential || !canEdit || isConflicted || !isDirty || isSaving) return true
     try {
       if (isPersonal) {
         const { data: latest } = await refetchPersonal()
@@ -79,7 +80,7 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
             description: 'Could not load your latest secrets. Please try again in a moment.',
           })
           logger.warn('Aborted personal secret save: latest environment unavailable')
-          return
+          return false
         }
         const merged: Record<string, string> = Object.fromEntries(
           Object.entries(latest).map(([key, entry]) => [key, entry.value])
@@ -89,11 +90,13 @@ export function useSecretValue({ workspaceId, credential }: UseSecretValueParams
       } else {
         await upsertWorkspace.mutateAsync({ workspaceId, variables: { [envKey]: draft } })
       }
+      return true
     } catch (error) {
       toast.error("Couldn't save value", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
       logger.error('Failed to save secret value', error)
+      return false
     }
   }
 

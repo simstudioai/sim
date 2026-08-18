@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCopyInput, ChipLink, Send } from '@sim/emcn'
-import { ArrowLeft, Key } from '@sim/emcn/icons'
+import { Chip, ChipCopyInput, ChipLink, ChipTextarea } from '@sim/emcn'
+import { ArrowLeft, Key, Send } from '@sim/emcn/icons'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -12,7 +12,7 @@ import {
   CredentialMembersSection,
   DetailSection,
   UnsavedChangesModal,
-  useUnsavedChangesGuard,
+  useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
@@ -34,32 +34,44 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false)
 
   const valueField = useSecretValue({ workspaceId, credential })
-  const guard = useUnsavedChangesGuard({ isDirty: valueField.isDirty, backHref: secretsHref })
+
+  const form = useCredentialDetailForm({
+    credential,
+    isAdmin,
+    backHref: secretsHref,
+    section: valueField,
+  })
 
   const back = (
-    <ChipLink href={secretsHref} onClick={guard.handleBackClick} leftIcon={ArrowLeft}>
+    <ChipLink href={secretsHref} onClick={form.handleBackClick} leftIcon={ArrowLeft}>
       Secrets
     </ChipLink>
   )
 
   const canEditValue = valueField.canEdit && !valueField.isConflicted
+  /**
+   * Gates workspace-secret administration — Share and Description alike.
+   * Description is workspace-only because `env_personal` credentials are
+   * per-workspace mirrors of one user-global secret, so one saved here would
+   * exist in this workspace alone — and a personal secret has no teammates to
+   * inform.
+   */
+  const isWorkspaceSecretAdmin = isAdmin && !isPersonal
 
   const actions =
-    credential && ((isAdmin && !isPersonal) || canEditValue) ? (
+    credential && (isWorkspaceSecretAdmin || canEditValue) ? (
       <>
-        {isAdmin && !isPersonal && (
+        {isWorkspaceSecretAdmin && (
           <Chip leftIcon={Send} onClick={() => setIsShareModalOpen(true)}>
             Share
           </Chip>
         )}
-        {canEditValue && (
-          <SaveDiscardChips
-            dirty={valueField.isDirty}
-            saving={valueField.isSaving}
-            onSave={valueField.save}
-            onDiscard={valueField.discard}
-          />
-        )}
+        <SaveDiscardChips
+          dirty={form.isDirty}
+          saving={form.isSaving}
+          onSave={form.save}
+          onDiscard={form.discard}
+        />
       </>
     ) : null
 
@@ -109,6 +121,22 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
           />
         </DetailSection>
 
+        {!isPersonal && (
+          <DetailSection title='Description'>
+            <ChipTextarea
+              id='secret-description'
+              rows={4}
+              value={form.descriptionDraft}
+              onChange={(event) => form.setDescriptionDraft(event.target.value)}
+              placeholder='Add a description...'
+              maxLength={500}
+              autoComplete='off'
+              data-lpignore='true'
+              viewOnly={!isWorkspaceSecretAdmin}
+            />
+          </DetailSection>
+        )}
+
         {!isPersonal && <CredentialMembersSection credentialId={credential.id} isAdmin={isAdmin} />}
       </CredentialDetailLayout>
 
@@ -121,9 +149,9 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
       )}
 
       <UnsavedChangesModal
-        open={guard.showUnsavedAlert}
-        onOpenChange={guard.setShowUnsavedAlert}
-        onDiscard={guard.confirmDiscard}
+        open={form.showUnsavedAlert}
+        onOpenChange={form.setShowUnsavedAlert}
+        onDiscard={form.confirmDiscard}
       />
     </>
   )

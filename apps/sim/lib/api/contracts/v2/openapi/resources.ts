@@ -232,6 +232,7 @@ const CREDENTIAL_CONNECTION_EXAMPLE = {
 const SECRET_EXAMPLE = {
   name: 'STRIPE_API_KEY',
   scope: 'workspace',
+  description: 'Production billing key — rotate quarterly.',
   role: 'admin',
   createdAt: '2026-06-01T09:14:00.000Z',
   updatedAt: '2026-06-20T14:02:11.000Z',

@@ -33,6 +33,12 @@ export const v2SecretSchema = z
   .object({
     name: v2SecretNameSchema,
     scope: v2SecretScopeSchema,
+    description: z
+      .string()
+      .nullable()
+      .describe(
+        'What the secret is for, as set on the workspace secret. Always null for a personal secret, which has no shared audience.'
+      ),
     role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
     createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was created.'),
     updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was last updated.'),
@@ -88,8 +94,25 @@ export const v2SetSecretBodySchema = z
       .max(65_536, 'value is too long')
       .describe('Write-only secret value. It is never returned.')
       .meta({ writeOnly: true }),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'description must be at most 500 characters')
+      .nullish()
+      .describe(
+        'What the secret is for, shown to teammates. Omit to leave an existing description untouched; pass null to clear it. Workspace scope only.'
+      ),
   })
   .strict()
+  .superRefine((data, ctx) => {
+    if (data.scope === 'personal' && data.description !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['description'],
+        message: 'description is only supported for a workspace secret',
+      })
+    }
+  })
 export type V2SetSecretBody = z.input<typeof v2SetSecretBodySchema>
 
 export const v2DeleteSecretQuerySchema = z

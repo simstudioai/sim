@@ -460,6 +460,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'name' },
       { header: 'scope' },
       { header: 'role' },
+      { header: 'description' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
     ],
   },

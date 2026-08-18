@@ -3794,6 +3794,7 @@ export type ListSecretsQuery = {
 type ListSecretsResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
+  description: string | null
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
@@ -4790,11 +4791,13 @@ export type SetSecretBody = {
   workspaceId: string
   scope: 'workspace' | 'personal'
   value: string
+  description?: string | null
 }
 
 type SetSecretResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
+  description: string | null
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
@@ -8534,6 +8537,11 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Write-only secret value. It is never returned.',
+      },
+      description: {
+        kind: 'string',
+        describe:
+          'What the secret is for, shown to teammates. Omit to leave an existing description untouched; pass null to clear it. Workspace scope only.',
       },
     },
   },

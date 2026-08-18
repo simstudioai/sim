@@ -267,7 +267,7 @@ export function ConnectedCredentialDetail({
             maxLength={500}
             autoComplete='off'
             data-lpignore='true'
-            disabled={!isAdmin}
+            viewOnly={!isAdmin}
           />
         </DetailSection>
 

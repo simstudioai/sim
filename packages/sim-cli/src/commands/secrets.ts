@@ -14,13 +14,17 @@ const SECRET_RESULT: CommandSpec = {
     { header: 'name' },
     { header: 'scope' },
     { header: 'role' },
+    { header: 'description' },
     { header: 'updated', path: 'updatedAt', format: 'timestamp' },
   ],
 }
 
+const MAX_DESCRIPTION_LENGTH = 500
+
 interface SetSecretOptions {
   scope: (typeof SECRET_SCOPES)[number]
   value?: string
+  description?: string
 }
 
 function validateSecretValue(value: string): string {
@@ -31,7 +35,27 @@ function validateSecretValue(value: string): string {
   return value
 }
 
+/**
+ * A description belongs to the workspace secret teammates share; a personal
+ * secret has none, and the API rejects one. Failing here names the flag rather
+ * than surfacing a validation error against the request body.
+ */
+function validateDescription(options: SetSecretOptions): string | undefined {
+  if (options.description === undefined) return undefined
+  if (options.scope === 'personal') {
+    throw new SimApiError('--description is only supported for a workspace secret.', 0)
+  }
+  if (options.description.length > MAX_DESCRIPTION_LENGTH) {
+    throw new SimApiError(
+      `Secret description cannot exceed ${MAX_DESCRIPTION_LENGTH} characters.`,
+      0
+    )
+  }
+  return options.description
+}
+
 async function setSecret(name: string, options: SetSecretOptions, command: Command): Promise<void> {
+  const description = validateDescription(options)
   const value = validateSecretValue(options.value ?? (await promptSecret()))
   const { client, profile } = clientFrom(command)
   const operation = V2_OPERATIONS.setSecret
@@ -41,6 +65,7 @@ async function setSecret(name: string, options: SetSecretOptions, command: Comma
       workspaceId: client.requireWorkspace(),
       scope: options.scope,
       value,
+      ...(description !== undefined ? { description } : {}),
     },
   })
 
@@ -62,6 +87,10 @@ export function attachSecretCommands(program: Command): void {
         .makeOptionMandatory()
     )
     .option('--value <value>', 'Secret value; visible to shell history when supplied directly')
+    .option(
+      '--description <description>',
+      'What the secret is for, shown to teammates; workspace scope only. Omit to leave an existing description unchanged'
+    )
     .action((name: string, options: SetSecretOptions, command: Command) =>
       setSecret(name, options, command)
     )
