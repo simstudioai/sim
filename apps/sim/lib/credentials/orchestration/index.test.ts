@@ -471,9 +471,8 @@ describe('performUpdateCredential — description scope', () => {
       description: 'invisible dead data',
     })
 
-    // Dropping the only field leaves nothing to update, so the existing
-    // empty-update guard turns this into an explicit rejection.
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
+    expect(result.success ? '' : result.error).toMatch(/cannot have a description/)
   })
 })
 

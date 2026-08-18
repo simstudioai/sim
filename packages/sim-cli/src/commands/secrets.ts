@@ -14,8 +14,8 @@ const SECRET_RESULT: CommandSpec = {
     { header: 'name' },
     { header: 'scope' },
     { header: 'role' },
-    { header: 'description' },
     { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    { header: 'description' },
   ],
 }
 

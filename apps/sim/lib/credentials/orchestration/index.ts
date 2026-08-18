@@ -193,12 +193,22 @@ export async function updateCredentialRecord(
   params: UpdateCredentialRecordParams
 ): Promise<PerformCredentialResult> {
   try {
-    const updates: Record<string, unknown> = {}
     // A description is teammate-facing, so it is meaningless on `env_personal`:
     // those rows are per-workspace mirrors of one user-global secret, and every
-    // reader already hides or nulls the field for them. Enforced here rather than
-    // at one adapter so no surface can write dead data behind the invariant.
-    if (params.description !== undefined && params.credential.type !== 'env_personal') {
+    // reader already hides or nulls the field for them. Rejected here rather than
+    // at one adapter, so no surface can write data every reader hides — and said
+    // plainly, since dropping the field would fall through to the generic
+    // "no updatable fields" error and explain nothing.
+    if (params.description !== undefined && params.credential.type === 'env_personal') {
+      return {
+        success: false,
+        error: 'A personal secret cannot have a description; it is not shared with teammates.',
+        errorCode: 'validation',
+      }
+    }
+
+    const updates: Record<string, unknown> = {}
+    if (params.description !== undefined) {
       updates.description = params.description ?? null
     }
     if (

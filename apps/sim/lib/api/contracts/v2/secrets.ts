@@ -99,9 +99,8 @@ export const v2SetSecretBodySchema = z
       .trim()
       .max(500, 'description must be at most 500 characters')
       .nullish()
-      .transform((value) => (value === '' ? null : value))
       .describe(
-        'What the secret is for, shown to teammates. Omit to leave an existing description untouched; pass null or an empty string to clear it. Workspace scope only.'
+        'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.'
       ),
   })
   .strict()

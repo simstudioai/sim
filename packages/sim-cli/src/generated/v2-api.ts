@@ -8541,7 +8541,7 @@ export const V2_OPERATIONS = {
       description: {
         kind: 'string',
         describe:
-          'What the secret is for, shown to teammates. Omit to leave an existing description untouched; pass null or an empty string to clear it. Workspace scope only.',
+          'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.',
       },
     },
   },
