@@ -43,6 +43,7 @@ vi.mock('@/lib/table/api', async (importOriginal) => {
 import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { TableLockedError } from '@/lib/table/mutation-locks'
 import { DELETE, GET, PATCH } from '@/app/api/table/[tableId]/rows/[rowId]/route'
 
 const TABLE_ID = 'tbl_1'
@@ -334,6 +335,33 @@ describe('deliberate wire changes', () => {
     const response = await GET(getRequest(), routeContext())
 
     expect(response.status).toBe(403)
+  })
+
+  it('keeps the lock on a 423 so the client knows which one to clear', async () => {
+    mocks.updateRow.mockRejectedValue(new TableLockedError('update'))
+
+    const response = await PATCH(
+      bodyRequest('PATCH', { workspaceId: WORKSPACE_ID, data: { col_aaa: 'x' } }),
+      routeContext()
+    )
+
+    expect(response.status).toBe(423)
+    await expect(response.json()).resolves.toMatchObject({ lock: 'update' })
+  })
+
+  it('answers a generic 500 message where the handler named the operation', async () => {
+    // The builder has one internal error envelope, shared with ~80 other
+    // migrated routes. The old per-route text ("Failed to update row") was more
+    // specific; consistency won, and the client only ever toasts the message.
+    mocks.updateRow.mockRejectedValue(new Error('boom'))
+
+    const response = await PATCH(
+      bodyRequest('PATCH', { workspaceId: WORKSPACE_ID, data: { col_aaa: 'x' } }),
+      routeContext()
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({ error: 'Internal server error' })
   })
 
   it('conceals a mismatched workspace assertion as 404, where it used to answer 400', async () => {

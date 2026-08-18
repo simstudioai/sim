@@ -106,9 +106,13 @@ export const internalTableErrorPolicies = {
  * envelope that does not authenticate are both the caller's to fix and answer
  * 400; everything else conceals a cross-tenant table behind the same not-found
  * wording the rest of the table surface uses.
+ *
+ * Built on the lock-aware base so a 423 keeps carrying `lock` — the only field
+ * that tells a client which lock to clear. A row write is exactly as lockable
+ * as a group mutation.
  */
 export const internalTableRowsErrorPolicy = extendInternalErrorPolicy(
-  internalTableErrorPolicies.concealTableAuthorization,
+  internalTableErrorPolicies.concealTableGroupAuthorization,
   (error) => {
     if (error instanceof TableRowsValidationError) {
       return internalErrorResponse(400, { error: error.message })
