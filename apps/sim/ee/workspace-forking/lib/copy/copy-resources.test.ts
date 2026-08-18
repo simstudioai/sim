@@ -371,6 +371,30 @@ describe('copyForkResourceContent', () => {
     })
   })
 
+  it('keeps a copied KB alive when the stale-plan probe fails', async () => {
+    // The probe runs on every KB with referenced documents, but the state it repairs only exists
+    // inside a rollout window. Letting it reach the KB catch would delete a complete copy and
+    // clear every reference to it over a transient SELECT.
+    dbChainMockFns.where.mockImplementationOnce(() => ({
+      then: (resolve: (rows: unknown[]) => unknown) => resolve([{ total: 0 }]),
+    }))
+    dbChainMockFns.where.mockImplementationOnce(() => {
+      throw new Error('stale-plan probe failed')
+    })
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          { sourceId: 'src-kb', childId: 'child-kb', documentIdMap: { 'doc-1': 'child-doc-1' } },
+        ],
+      }),
+      requestId: 'test',
+    })
+
+    expect(result).toEqual({ copied: 1, failed: 0, failures: [] })
+  })
+
   it('keeps a copied KB alive when the skipped-document count fails', async () => {
     // The count only feeds a log line. Letting it throw into the KB's catch would roll back a
     // perfectly good copy and clear every reference to it over a failed COUNT(*).

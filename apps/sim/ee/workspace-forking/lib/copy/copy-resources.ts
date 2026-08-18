@@ -1055,6 +1055,58 @@ export async function copyForkResourceContent(params: {
     }
   }
   /**
+   * Find the placeholders a worker from before this exclusion (a rolling deploy) planned for
+   * connector-managed documents, drop their persisted identities, and return the child ids to
+   * report as failed documents - the page query no longer returns their sources, so nothing
+   * would ever fill them, leaving archived empty rows that a mapping and a remapped
+   * `document-selector` still resolve to.
+   *
+   * Keyed on the SOURCE being connector-managed, which is deterministic: such a document can
+   * never become copyable, so this cannot race a concurrent attempt sitting between
+   * {@link ensureKbDocumentPlaceholder} and {@link finalizeKbDocument} (a "planned but unfilled"
+   * sweep would).
+   *
+   * Best-effort, like the count above: this probe runs on EVERY copied KB that has referenced
+   * documents, while the state it repairs exists only inside a rollout window. Letting a
+   * transient failure reach the KB's catch would delete an otherwise-complete copy and clear
+   * every reference to it - far worse, and far more likely, than the dangling placeholder it
+   * guards against. A failure is logged loudly and leaves that pre-existing state in place.
+   */
+  const reconcileStalePlannedDocuments = async (kb: ForkContentKbEntry): Promise<string[]> => {
+    const plannedSourceIds = Object.keys(kb.documentIdMap)
+    if (plannedSourceIds.length === 0) return []
+    try {
+      const stalePlanned = await db
+        .select({ id: document.id })
+        .from(document)
+        .where(and(inArray(document.id, plannedSourceIds), isNotNull(document.connectorId)))
+      const staleChildIds: string[] = []
+      for (const { id } of stalePlanned) {
+        const childDocumentId = kb.documentIdMap[id]
+        if (!childDocumentId) continue
+        // Left in `documentIdMap` deliberately: if the KB itself later fails, its failure lists
+        // the same child id again, and the cleanup keys failed ids by kind in a Set.
+        await dropCopiedDocumentMapping(childDocumentId)
+        staleChildIds.push(childDocumentId)
+        logger.warn(
+          `[${requestId}] Dropping a fork placeholder planned for a connector-managed document`,
+          { sourceDocumentId: id, childDocumentId, childKnowledgeBaseId: kb.childId }
+        )
+      }
+      return staleChildIds
+    } catch (error) {
+      logger.error(
+        `[${requestId}] Failed to reconcile fork placeholders planned for connector-managed documents`,
+        {
+          sourceKnowledgeBaseId: kb.sourceId,
+          childKnowledgeBaseId: kb.childId,
+          error: getErrorMessage(error),
+        }
+      )
+      return []
+    }
+  }
+  /**
    * Report the connector-managed documents a copied KB leaves behind, since a fully
    * connector-synced base lands in the child with no documents at all. Strictly observability,
    * so it swallows its own failure: counting is not copying, and a transient error here must not
@@ -1196,34 +1248,9 @@ export async function copyForkResourceContent(params: {
   for (const kb of contentPlan.knowledgeBases) {
     try {
       await logSkippedConnectorDocuments(kb)
-      // A worker from before this exclusion (a rolling deploy) could have planned a placeholder
-      // for a connector-managed document. The page query below no longer returns its source, so
-      // nothing would ever fill it - leaving an archived empty row that a persisted mapping and
-      // a remapped `document-selector` still resolve to. Report those child ids as failed
-      // documents instead, so the shared cleanup clears the references and drops the rows.
-      //
-      // Keyed on the SOURCE being connector-managed, which is deterministic: such a document can
-      // never become copyable, so this can never race a concurrent attempt mid-fill (unlike a
-      // "source is gone" check, which could).
-      const plannedSourceIds = Object.keys(kb.documentIdMap)
-      if (plannedSourceIds.length > 0) {
-        const stalePlanned = await db
-          .select({ id: document.id })
-          .from(document)
-          .where(and(inArray(document.id, plannedSourceIds), isNotNull(document.connectorId)))
-        for (const { id } of stalePlanned) {
-          const childDocumentId = kb.documentIdMap[id]
-          if (!childDocumentId) continue
-          // Left in `documentIdMap` deliberately: if the KB itself later fails, its failure
-          // lists the same child id again, and the cleanup keys failed ids by kind in a Set.
-          await dropCopiedDocumentMapping(childDocumentId)
-          failedResources += 1
-          failures.push({ kind: 'knowledge-document', childId: childDocumentId })
-          logger.warn(
-            `[${requestId}] Dropping a fork placeholder planned for a connector-managed document`,
-            { sourceDocumentId: id, childDocumentId, childKnowledgeBaseId: kb.childId }
-          )
-        }
+      for (const childDocumentId of await reconcileStalePlannedDocuments(kb)) {
+        failedResources += 1
+        failures.push({ kind: 'knowledge-document', childId: childDocumentId })
       }
       let afterDocId: string | null = null
       for (;;) {
