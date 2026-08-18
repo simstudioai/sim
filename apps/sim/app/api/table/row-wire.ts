@@ -1,5 +1,15 @@
+import type { Principal } from '@sim/auth/principal'
 import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
-import type { Filter, RowData, Sort, SortSpec, TablePredicate, TableSchema } from '@/lib/table'
+import type {
+  Filter,
+  RowData,
+  Sort,
+  SortSpec,
+  TablePredicate,
+  TableRow,
+  TableSchema,
+} from '@/lib/table'
+import type { TableRowDataKeying } from '@/lib/table/application/rows'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
@@ -59,5 +69,41 @@ export function rowWireTranslators(
     sortIn: (sort) => sortNamesToIds(sort, idByName),
     predicateIn: (predicate) => predicateToStorage(predicate, schema),
     sortSpecIn: (sort) => sortSpecNamesToIds(sort, idByName),
+  }
+}
+
+/**
+ * The internal table routes serve two caller kinds on the same paths, and they
+ * speak different column keyings: the first-party grid holds the schema it
+ * rendered and addresses cells by stable id, while a workflow tool execution
+ * speaks column names, because names are what tool enrichment surfaces to the
+ * model. Keying is therefore a property of the caller, not of the endpoint.
+ */
+export function authTypeForPrincipal(principal: Principal): AuthTypeValue {
+  return principal.kind === 'session' ? AuthType.SESSION : AuthType.INTERNAL_JWT
+}
+
+/** See {@link authTypeForPrincipal}. Feeds the use case's `dataKeying`. */
+export function rowKeyingForPrincipal(principal: Principal): TableRowDataKeying {
+  return principal.kind === 'session' ? 'ids' : 'names'
+}
+
+/**
+ * One row in the narrower projection the single-row and upsert routes return:
+ * the stored cells in the caller's keying, plus position, with timestamps
+ * already serialized. See `tableRowWireSchema`, which is its contract.
+ */
+export function presentRowForPrincipal(
+  row: Pick<TableRow, 'id' | 'data' | 'position' | 'createdAt' | 'updatedAt'>,
+  schema: TableSchema,
+  principal: Principal
+) {
+  const wire = rowWireTranslators(authTypeForPrincipal(principal), schema)
+  return {
+    id: row.id,
+    data: wire.dataOut(row.data),
+    position: row.position,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
   }
 }

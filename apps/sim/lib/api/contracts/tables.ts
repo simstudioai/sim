@@ -1444,7 +1444,7 @@ export const upsertTableRowContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(
       z.object({
-        row: tableRowSchema,
+        row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
       })

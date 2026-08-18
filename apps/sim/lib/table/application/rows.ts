@@ -1071,11 +1071,15 @@ export interface UpsertTableRowInput extends TableScopedInput {
   data: RowData
   conflictTarget?: string
   secretProvenance?: TableRowSecretProvenanceWrite
+  /** See {@link UpdateTableRowInput.secretProvenanceEnvelope}. */
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface UpsertTableRowResult extends TableResult {
   row: TableRow
   operation: 'insert' | 'update'
+  secretProvenance?: TableRowsProvenance
 }
 
 export const upsertTableRow = defineAuthorizedTableUseCase({
@@ -1089,6 +1093,17 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
         : input.conflictTarget
     const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const secretProvenance = input.secretProvenanceEnvelope
+      ? resolveRowWriteProvenance({
+          envelope: input.secretProvenanceEnvelope,
+          principal,
+          workspaceId: context.workspaceId,
+          table: context.table,
+          keying: input.dataKeying,
+          wireRows: [input.data],
+          storageRows: [data],
+        }).stamps[0]
+      : defaultedRowSecretProvenance(data, input.secretProvenance)
     const result = await upsertRow(
       {
         tableId: context.tableId,
@@ -1096,13 +1111,23 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         data,
         conflictTarget,
         userId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+        secretProvenance,
       },
       context.table,
       requestId(input),
       rowWriteOptions(input)
     )
-    return { table: context.table, row: result.row, operation: result.operation }
+    return {
+      table: context.table,
+      row: result.row,
+      operation: result.operation,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        principal,
+        context.workspaceId,
+        [result.row],
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
   afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
 })
