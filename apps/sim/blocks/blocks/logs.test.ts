@@ -1,0 +1,62 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/workflows/subblocks/options', () => ({
+  fetchTriggerTypeOptions: vi.fn(),
+  fetchWorkspaceWorkflowOptions: vi.fn(),
+}))
+
+import { LogsV2Block } from '@/blocks/blocks/logs'
+
+function buildQueryParams(params: Record<string, any>) {
+  return LogsV2Block.tools.config!.params!({ operation: 'query', ...params })
+}
+
+describe('LogsV2Block trigger filter', () => {
+  it('omits triggers when the filter is untouched, leaving pre-existing queries unfiltered', () => {
+    expect(buildQueryParams({}).triggers).toBeUndefined()
+    expect(buildQueryParams({ triggers: [] }).triggers).toBeUndefined()
+    expect(buildQueryParams({ triggers: '' }).triggers).toBeUndefined()
+  })
+
+  it('joins a multi-select selection into the comma-separated list the API expects', () => {
+    expect(buildQueryParams({ triggers: ['api', 'schedule'] }).triggers).toBe('api,schedule')
+  })
+
+  it('flattens a merged option id so one label can select several trigger values', () => {
+    expect(buildQueryParams({ triggers: ['api', 'copilot,mothership'] }).triggers).toBe(
+      'api,copilot,mothership'
+    )
+  })
+
+  it('accepts an advanced-mode string of provider ids', () => {
+    expect(buildQueryParams({ triggers: ' slack,gmail ' }).triggers).toBe('slack,gmail')
+  })
+
+  it('never sends triggers on the run-details operation', () => {
+    expect(
+      LogsV2Block.tools.config!.params!({
+        operation: 'get_run_details',
+        runId: 'run-1',
+        triggers: ['api'],
+      })
+    ).toEqual({ runId: 'run-1' })
+  })
+})
+
+describe('LogsV2Block trigger subblocks', () => {
+  const subBlockIds = LogsV2Block.subBlocks.map((subBlock) => subBlock.id)
+
+  it('exposes basic and advanced modes behind one canonical param', () => {
+    expect(subBlockIds).toContain('triggerSelector')
+    expect(subBlockIds).toContain('manualTriggers')
+
+    for (const id of ['triggerSelector', 'manualTriggers']) {
+      const subBlock = LogsV2Block.subBlocks.find((candidate) => candidate.id === id)
+      expect(subBlock?.canonicalParamId).toBe('triggers')
+      expect(subBlock?.condition).toEqual({ field: 'operation', value: 'query' })
+    }
+  })
+})
