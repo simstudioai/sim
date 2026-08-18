@@ -19,6 +19,7 @@ const {
   mockResolveContext,
   mockResolvePermission,
   mockSignalRowsChanged,
+  mockSignalRowsChangedByActor,
   mockUpsertRow,
   mockWithLockedTable,
   mockInsertRow,
@@ -41,6 +42,7 @@ const {
   mockResolveContext: vi.fn(),
   mockResolvePermission: vi.fn(),
   mockSignalRowsChanged: vi.fn(),
+  mockSignalRowsChangedByActor: vi.fn(),
   mockUpsertRow: vi.fn(),
   mockWithLockedTable: vi.fn(),
   mockInsertRow: vi.fn(),
@@ -137,6 +139,7 @@ vi.mock('@/lib/table/application/context', () => ({
 
 vi.mock('@/lib/table/events', () => ({
   signalTableRowsChanged: mockSignalRowsChanged,
+  signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
 }))
 
 import {
@@ -171,6 +174,22 @@ const TABLE: TableDefinition = {
 }
 
 const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+/**
+ * The active-table context every row command resolves before it does any work.
+ * Pass a variant table when a test needs a different schema — the surrounding
+ * workspace scope is the same for every command under test.
+ */
+function contextFor(table: TableDefinition = TABLE) {
+  return {
+    tableId: table.id,
+    table,
+    workspaceId: table.workspaceId,
+    workspaceOrganizationId: 'organization-1',
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing-owner-1',
+  }
+}
 
 describe('table predicate translation', () => {
   it('maps invalid run filters to the shared row validation error', () => {
@@ -210,14 +229,7 @@ describe('replaceProjectedWireRows application command', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockAssertRowCapacity.mockResolvedValue(10_000)
     mockWithLockedTable.mockImplementation(
       async (_tableId: string, run: (table: TableDefinition, trx: unknown) => unknown) =>
@@ -457,14 +469,7 @@ describe('replaceTableRows application use case', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockReplaceRowsPrimitive.mockResolvedValue({ deletedCount: 2, insertedCount: 1 })
   })
 
@@ -504,7 +509,12 @@ describe('replaceTableRows application use case', () => {
     await expect(
       replaceTableRows.execute({
         principal: PRINCIPAL,
-        input: { tableId: TABLE.id, rows: [{ name: 'Ada', unknown: 'x' }], strictWrite: true },
+        input: {
+          tableId: TABLE.id,
+          rows: [{ name: 'Ada', unknown: 'x' }],
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Row 1: Unknown column: unknown/)
     expect(mockReplaceRowsPrimitive).not.toHaveBeenCalled()
@@ -565,14 +575,7 @@ describe('row query and upsert application semantics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
   })
 
   it('rejects a malformed POST query cursor before querying storage', async () => {
@@ -724,10 +727,13 @@ describe('row query and upsert application semantics', () => {
       },
     })
 
-    expect(mockLoadSecretProvenance).toHaveBeenCalledWith([row], {
-      userId: 'user-1',
-      workspaceId: TABLE.workspaceId,
-    })
+    // Narrowed to the columns the row still holds: without `selectedValues` a
+    // stale sidecar entry for a dropped column rides along in the envelope, and
+    // the unmigrated `rows`/`query` routes have always narrowed here.
+    expect(mockLoadSecretProvenance).toHaveBeenCalledWith(
+      [{ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data }],
+      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    )
     expect(result.secretProvenance).toBe(provenance)
   })
 
@@ -792,6 +798,7 @@ describe('row query and upsert application semantics', () => {
         requestId: 'request-1',
         data: { name: 'Ada' },
         conflictTarget: 'name',
+        dataKeying: 'names',
       },
     })
 
@@ -825,14 +832,7 @@ describe('table row write secret provenance defaulting', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockValidateRowData.mockResolvedValue({ valid: true })
     mockValidateBatchRows.mockResolvedValue({ valid: true })
     mockInsertRow.mockResolvedValue(ROW)
@@ -892,14 +892,7 @@ describe('table row write secret provenance defaulting', () => {
       ...TABLE,
       schema: { columns: [{ id: 'column_name', name: 'name', type: 'string' }] },
     }
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: filterableTable,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor(filterableTable))
 
     await updateTableRows.execute({
       principal: PRINCIPAL,
@@ -989,14 +982,7 @@ describe('unknown column names under strictWrite', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
+    mockResolveContext.mockResolvedValue(contextFor())
     mockValidateRowData.mockResolvedValue({ valid: true })
     mockValidateBatchRows.mockResolvedValue({ valid: true })
     mockInsertRow.mockResolvedValue({ id: 'row-1', data: {} })
@@ -1010,7 +996,13 @@ describe('unknown column names under strictWrite', () => {
     await expect(
       createTableRows.execute({
         principal: PRINCIPAL,
-        input: { kind: 'single', tableId: TABLE.id, data: { nosuchcol: 'x' }, strictWrite: true },
+        input: {
+          kind: 'single',
+          tableId: TABLE.id,
+          data: { nosuchcol: 'x' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Unknown column: nosuchcol/)
     expect(mockInsertRow).not.toHaveBeenCalled()
@@ -1040,6 +1032,7 @@ describe('unknown column names under strictWrite', () => {
           tableId: TABLE.id,
           data: { zzz: 'x', qqq: 'y' },
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Unknown columns: zzz, qqq/)
@@ -1054,6 +1047,7 @@ describe('unknown column names under strictWrite', () => {
           tableId: TABLE.id,
           rows: [{ name: 'Ada' }, { zzz: 'x' }],
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Row 2: Unknown column: zzz/)
@@ -1069,6 +1063,7 @@ describe('unknown column names under strictWrite', () => {
           filter: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
           data: { zzz: 'x' },
           strictWrite: true,
+          dataKeying: 'names',
         },
       })
     ).rejects.toThrow(/Unknown column: zzz/)
@@ -1079,7 +1074,13 @@ describe('unknown column names under strictWrite', () => {
     await expect(
       updateTableRow.execute({
         principal: PRINCIPAL,
-        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' }, strictWrite: true },
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { zzz: 'x' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
       })
     ).rejects.toThrow(/Unknown column: zzz/)
     expect(mockUpdateRow).not.toHaveBeenCalled()
@@ -1107,7 +1108,13 @@ describe('unknown column names under strictWrite', () => {
   it('carries the strict value policy to the primitive, and nothing without it', async () => {
     await createTableRows.execute({
       principal: PRINCIPAL,
-      input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' }, strictWrite: true },
+      input: {
+        kind: 'single',
+        tableId: TABLE.id,
+        data: { name: 'Ada' },
+        strictWrite: true,
+        dataKeying: 'names',
+      },
     })
     expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {
       uncoercibleValues: 'reject',
@@ -1118,5 +1125,164 @@ describe('unknown column names under strictWrite', () => {
       input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
     })
     expect(mockInsertRow).toHaveBeenLastCalledWith(expect.anything(), TABLE, expect.any(String), {})
+  })
+})
+
+/**
+ * The two wires a table write can arrive on. `/api/v2`, `/api/v1` and the
+ * Copilot tools publish column names; the first-party grid and the internal
+ * `/api/table` routes publish stable storage ids.
+ *
+ * The failure this guards is silent: the name remap drops what it does not
+ * recognise, and a storage id names no column *name*, so an id-keyed write sent
+ * down the name path stores nothing while reporting success.
+ */
+describe('row data keying', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(contextFor())
+    mockAssertRowCapacity.mockResolvedValue(10_000)
+    mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
+    mockIsScopeCompatible.mockReturnValue(true)
+  })
+
+  it('stores an id-keyed write exactly as given', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada' },
+        strictWrite: false,
+        dataKeying: 'ids',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('does not silently drop an id-keyed write, which the name path would', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    // Pins the hazard itself: the same payload on the name wire stores nothing.
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: {} }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('persists an unrecognised key on the lax id wire, unlike the name wire', async () => {
+    // The asymmetry a non-strict id-keyed caller sees, pinned deliberately: the
+    // name path drops what it cannot resolve, the id path stores what it is
+    // given. This is what the grid does today via the identity `dataIn` in
+    // `row-wire.ts`, so the discriminator preserved it rather than changing it.
+    // Closing it is a behaviour change and belongs with the route migration.
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { 'column-name': 'Ada', 'no-such-column': 'x' },
+        strictWrite: false,
+        dataKeying: 'ids',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada', 'no-such-column': 'x' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('translates a name-keyed write to storage ids', async () => {
+    await updateTableRow.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        rowId: 'row-1',
+        data: { name: 'Ada' },
+        strictWrite: false,
+        dataKeying: 'names',
+      },
+    })
+
+    expect(mockUpdateRow).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { 'column-name': 'Ada' } }),
+      TABLE,
+      expect.any(String),
+      expect.anything()
+    )
+  })
+
+  it('refuses an unknown column id when the caller writes strictly', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { 'column-nope': 'x' },
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).rejects.toThrow(/Unknown column: column-nope/)
+    expect(mockUpdateRow).not.toHaveBeenCalled()
+  })
+
+  it('accepts a legacy column that has no id and is stored under its name', async () => {
+    // Two production tables still carry pre-backfill columns with no `id`.
+    // Their storage key is the name, so a strict id-keyed write naming one must
+    // be accepted, not refused as unknown.
+    mockResolveContext.mockResolvedValue(
+      contextFor({ ...TABLE, schema: { columns: [{ name: 'legacy', type: 'string' }] } })
+    )
+
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          rowId: 'row-1',
+          data: { legacy: 'x' },
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).resolves.toBeDefined()
+  })
+
+  it('names every unknown id at once, as the name wire does', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'batch',
+          tableId: TABLE.id,
+          rows: [{ 'column-name': 'Ada' }, { zzz: 'x', qqq: 'y' }],
+          strictWrite: true,
+          dataKeying: 'ids',
+        },
+      })
+    ).rejects.toThrow(/Row 2: Unknown columns: zzz, qqq/)
   })
 })

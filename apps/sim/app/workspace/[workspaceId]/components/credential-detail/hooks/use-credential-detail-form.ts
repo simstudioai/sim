@@ -9,22 +9,48 @@ import { useUnsavedChangesGuard } from './use-unsaved-changes-guard'
 
 const logger = createLogger('CredentialDetailForm')
 
+/**
+ * A second editable section rendered on the same detail page (e.g. a secret's
+ * value), whose lifecycle is folded into the form's.
+ */
+export interface CredentialDetailFormSection {
+  isDirty: boolean
+  isSaving: boolean
+  /**
+   * Resolves true when the caller may proceed — including when there was nothing
+   * to write. False only when a write was attempted and failed, which stops the
+   * metadata save from committing alone.
+   */
+  save: () => Promise<boolean>
+  discard: () => void
+}
+
 interface UseCredentialDetailFormParams {
   credential: WorkspaceCredential | null
   isAdmin: boolean
   /** Where the back link / discard navigates to. */
   backHref: string
+  /**
+   * An additional editable section on the page, folded into one dirty state, one
+   * save, and one unsaved-changes guard. Two independent guards on a page cannot
+   * coexist: each seeds its own same-URL history entry while dirty, so Back would
+   * pop only one of them and leave the other stranded.
+   */
+  section?: CredentialDetailFormSection
 }
 
 /**
  * Shared editable-metadata controller for a credential detail page: Display Name
  * and Description drafts seeded from the credential, dirty tracking, an
- * admin-only save, and the shared unsaved-changes guard.
+ * admin-only save, and the shared unsaved-changes guard. An optional
+ * {@link CredentialDetailFormSection} folds a second editor on the same page
+ * into that one save and one guard.
  */
 export function useCredentialDetailForm({
   credential,
   isAdmin,
   backHref,
+  section,
 }: UseCredentialDetailFormParams) {
   const updateCredential = useUpdateWorkspaceCredential()
 
@@ -50,12 +76,18 @@ export function useCredentialDetailForm({
   const isDescriptionDirty = credential
     ? descriptionDraft !== (credential.description || '')
     : false
-  const isDirty = isDisplayNameDirty || isDescriptionDirty
+  const isMetadataDirty = isDisplayNameDirty || isDescriptionDirty
+  const isSectionDirty = section?.isDirty ?? false
+  const isDirty = isMetadataDirty || isSectionDirty
+  const isSaving = updateCredential.isPending || (section?.isSaving ?? false)
 
   const guard = useUnsavedChangesGuard({ isDirty, backHref })
 
   const save = useCallback(async () => {
-    if (!credential || !isAdmin || !isDirty || updateCredential.isPending) return
+    if (!credential || isSaving) return
+    if (isSectionDirty && !(await section?.save())) return
+    if (!isAdmin || !isMetadataDirty) return
+
     try {
       await updateCredential.mutateAsync({
         credentialId: credential.id,
@@ -73,18 +105,21 @@ export function useCredentialDetailForm({
   }, [
     credential,
     isAdmin,
-    isDirty,
+    isMetadataDirty,
+    isSectionDirty,
+    isSaving,
+    section,
     isDisplayNameDirty,
     isDescriptionDirty,
     displayNameDraft,
     descriptionDraft,
     updateCredential.mutateAsync,
-    updateCredential.isPending,
   ])
 
   const discard = useCallback(() => {
     if (credential) seedDrafts(credential)
-  }, [credential, seedDrafts])
+    section?.discard()
+  }, [credential, section, seedDrafts])
 
   return {
     displayNameDraft,
@@ -94,7 +129,7 @@ export function useCredentialDetailForm({
     isDirty,
     save,
     discard,
-    isSaving: updateCredential.isPending,
+    isSaving,
     handleBackClick: guard.handleBackClick,
     showUnsavedAlert: guard.showUnsavedAlert,
     setShowUnsavedAlert: guard.setShowUnsavedAlert,

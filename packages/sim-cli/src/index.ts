@@ -2,7 +2,12 @@
 
 import chalk from 'chalk'
 import { ProfileConfigError } from './config/index'
-import { formatApiErrorDetails, SimApiError } from './http/client'
+import {
+  formatApiErrorDetails,
+  isRequestTimeout,
+  RAISE_TIMEOUT_HINT,
+  SimApiError,
+} from './http/client'
 import { sanitize } from './output/render'
 import { buildProgram } from './program'
 
@@ -17,6 +22,14 @@ async function main() {
   } catch (error) {
     if (error instanceof ProfileConfigError) {
       console.error(chalk.red(`Error: ${sanitize(error.message)}`))
+      process.exit(1)
+    }
+    // `AbortSignal.timeout` keeps firing after `fetch` resolves, so a bound that
+    // elapses while the body is still being read — a large `files get`, say —
+    // surfaces here rather than inside the client. A user's own Ctrl-C raises
+    // `AbortError` instead, which is deliberately left alone.
+    if (isRequestTimeout(error)) {
+      console.error(chalk.red(`Error: the request timed out. ${RAISE_TIMEOUT_HINT}`))
       process.exit(1)
     }
     if (error instanceof SimApiError) {

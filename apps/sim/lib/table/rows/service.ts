@@ -791,12 +791,13 @@ export async function upsertRow(
       })
       if (!updatedRow) throw new Error('Matched table row no longer exists')
 
-      const executions = await loadExecutionsForRow(trx, updatedRow.id)
+      // No executions sidecar: no upsert surface puts one on the wire, and
+      // loading it here would hold the write transaction open for a result that
+      // is discarded. See `getRowSummaryById` for the same reasoning on reads.
       return {
         row: {
           id: updatedRow.id,
           data: updatedRow.data as RowData,
-          executions,
           position: updatedRow.position,
           orderKey: updatedRow.orderKey ?? undefined,
           createdAt: updatedRow.createdAt,
@@ -842,7 +843,6 @@ export async function upsertRow(
       row: {
         id: insertedRow.id,
         data: insertedRow.data as RowData,
-        executions: {},
         position: insertedRow.position,
         orderKey: insertedRow.orderKey ?? undefined,
         createdAt: insertedRow.createdAt,
@@ -1409,20 +1409,11 @@ async function fetchRowsBounded(params: BoundedFetchParams): Promise<BoundedFetc
   }
 }
 
-/**
- * Gets a single row by ID.
- *
- * @param tableId - Table ID
- * @param rowId - Row ID to fetch
- * @param workspaceId - Workspace ID for access control
- * @returns Row or null if not found
- */
-export async function getRowById(
-  tableId: string,
-  rowId: string,
-  workspaceId: string
-): Promise<TableRow | null> {
-  const results = await db
+/** The stored row without its executions sidecar. */
+export type TableRowSummary = Omit<TableRow, 'executions'>
+
+function selectRowRecord(tableId: string, rowId: string, workspaceId: string) {
+  return db
     .select()
     .from(userTableRows)
     .where(
@@ -1433,20 +1424,62 @@ export async function getRowById(
       )
     )
     .limit(1)
+}
 
-  if (results.length === 0) return null
-
-  const row = results[0]
-  const executions = await loadExecutionsForRow(db, row.id)
+function toRowSummary(row: Awaited<ReturnType<typeof selectRowRecord>>[number]): TableRowSummary {
   return {
     id: row.id,
     data: row.data as RowData,
-    executions,
     position: row.position,
     orderKey: row.orderKey ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+/**
+ * One row without its executions sidecar, for the single-row read routes, which
+ * project `id`/`data`/`position`/`createdAt`/`updatedAt` and never put executions
+ * on the wire. Loading the sidecar for them is a query whose result is discarded.
+ *
+ * Not every `readTableRow` caller is such a surface: the Copilot `get_row` tool
+ * spreads the row straight onto its result, so it used to hand the model an
+ * executions map and no longer does. That narrowing is deliberate — the generated
+ * tool contract never described the field, and the bulk `query_rows` path has
+ * always returned an empty one — but it is a wire change, not a pure saving.
+ *
+ * Deliberately a separate function rather than a flag on {@link getRowById}: a
+ * caller that forgets to pass the flag reads an empty sidecar and cannot tell
+ * that from a row with no executions, whereas here the field simply is not on
+ * the type.
+ */
+export async function getRowSummaryById(
+  tableId: string,
+  rowId: string,
+  workspaceId: string
+): Promise<TableRowSummary | null> {
+  const [row] = await selectRowRecord(tableId, rowId, workspaceId)
+  return row ? toRowSummary(row) : null
+}
+
+/** One row with its executions sidecar, for the write and background paths. */
+export async function getRowById(
+  tableId: string,
+  rowId: string,
+  workspaceId: string
+): Promise<TableRow | null> {
+  // The executions sidecar is keyed on the row id the caller already gave us, so
+  // it does not depend on the row lookup — issuing both together makes this one
+  // round trip instead of two. A miss pays one redundant sidecar read, which is
+  // the rare path and costs no extra wall time.
+  const [results, executions] = await Promise.all([
+    selectRowRecord(tableId, rowId, workspaceId),
+    loadExecutionsForRow(db, rowId),
+  ])
+
+  if (results.length === 0) return null
+
+  return { ...toRowSummary(results[0]), executions }
 }
 
 /**
@@ -1604,13 +1637,33 @@ export async function updateRow(
     )
   }
 
-  // Check unique constraints using optimized database query
-  const uniqueColumns = getUniqueColumns(table.schema)
-  if (uniqueColumns.length > 0) {
+  // Scoped to the columns this patch actually writes. A merge cannot newly
+  // violate uniqueness on a column it leaves alone: that value is the one
+  // already stored, and it satisfied the constraint when it was written. The
+  // probe opens its own transaction and queries once per unique column, so on a
+  // table that has any unique column this was several round trips on every
+  // edit, including edits nowhere near one.
+  //
+  // What this does not cover is a duplicate that already exists — either from a
+  // constraint added to a column that already held one, or from two concurrent
+  // inserts both passing this probe, since uniqueness here is advisory (a
+  // SELECT, not a DB constraint). Such a row is no longer blocked from edits
+  // elsewhere in it. That is the intended outcome: an unrelated cell edit
+  // should not fail on data it did not write, and blocking it was never a
+  // repair mechanism.
+  const patchedColumnIds = new Set(Object.keys(data.data))
+  const patchedUniqueColumns = getUniqueColumns(table.schema).filter((column) =>
+    patchedColumnIds.has(getColumnId(column))
+  )
+  if (patchedUniqueColumns.length > 0) {
     const uniqueValidation = await checkUniqueConstraintsDb(
       data.tableId,
       mergedData,
-      table.schema,
+      // Narrowed to the patched unique columns, not just used as a gate: the
+      // probe issues one SELECT per unique column it is given, so a table with
+      // several would otherwise re-check all of them to validate a patch that
+      // touched one. `schema` is read only for its unique columns here.
+      { ...table.schema, columns: patchedUniqueColumns },
       data.rowId // Exclude current row
     )
     if (!uniqueValidation.valid) {

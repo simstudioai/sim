@@ -11,6 +11,7 @@ import {
   getActionableDependentFields,
   getDisplayedDependentFields,
   isDependentConfigurationActionable,
+  isDependentInvalidated,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 
 const field = (overrides: Partial<ForkDependentReconfig> = {}): ForkDependentReconfig => ({
@@ -29,6 +30,11 @@ const field = (overrides: Partial<ForkDependentReconfig> = {}): ForkDependentRec
   context: {},
   sourceValue: '',
   ...overrides,
+})
+
+const mappedRepickContext = (previousValue: string) => ({
+  previousValue,
+  baselineValueFor: (dependent: ForkDependentReconfig) => dependent.currentValue,
 })
 
 describe('dependentKey', () => {
@@ -138,18 +144,43 @@ describe('applyDependentRepick', () => {
       previous,
       site,
       [site, drive, spreadsheet, sheet, unrelated],
-      'site-new'
+      'site-new',
+      mappedRepickContext('site-old')
     )
 
     expect(next).toEqual({
       [dependentKey(site)]: 'site-new',
-      [dependentKey(drive)]: '',
-      [dependentKey(spreadsheet)]: '',
-      [dependentKey(sheet)]: '',
+      [dependentKey(drive)]: null,
+      [dependentKey(spreadsheet)]: null,
+      [dependentKey(sheet)]: null,
       [dependentKey(unrelated)]: 'still-keep-me',
     })
     expect(effectiveDependentValue(drive, next, false)).toBe('')
     expect(effectiveCopyDependentValue(sheet, next)).toBe('')
+  })
+
+  it('re-picking the value the field already had leaves its descendants alone', () => {
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      currentValue: 'sheet-doc',
+      providesContextKey: 'spreadsheetId',
+    })
+    const range = field({
+      subBlockKey: 'range',
+      currentValue: 'Sheet1!A1:D',
+      consumesContextKeys: ['spreadsheetId'],
+    })
+
+    const next = applyDependentRepick(
+      {},
+      spreadsheet,
+      [spreadsheet, range],
+      'sheet-doc',
+      mappedRepickContext(effectiveDependentValue(spreadsheet, {}, false))
+    )
+
+    expect(next).toEqual({})
+    expect(effectiveDependentValue(range, next, false)).toBe('Sheet1!A1:D')
   })
 
   it('only changes the selected field when it provides no selector context', () => {
@@ -161,7 +192,8 @@ describe('applyDependentRepick', () => {
         { [dependentKey(unrelated)]: 'still-keep-me' },
         leaf,
         [leaf, unrelated],
-        'ISSUE-2'
+        'ISSUE-2',
+        mappedRepickContext('ISSUE-1')
       )
     ).toEqual({
       [dependentKey(leaf)]: 'ISSUE-2',
@@ -200,12 +232,104 @@ describe('applyDependentRepick', () => {
         previous,
         projectOne,
         [projectOne, issueOne, projectTwo, issueTwo],
-        'P1-NEW'
+        'P1-NEW',
+        mappedRepickContext('INBOX')
       )
     ).toEqual({
       [dependentKey(projectOne)]: 'P1-NEW',
-      [dependentKey(issueOne)]: '',
+      [dependentKey(issueOne)]: null,
       [dependentKey(issueTwo)]: 'P2-1',
+    })
+  })
+
+  it('restores the stored chain when a provider is changed and then returned to baseline', () => {
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      currentValue: 'doc-old',
+      providesContextKey: 'spreadsheetId',
+    })
+    const range = field({
+      subBlockKey: 'range',
+      currentValue: 'A1:D50',
+      consumesContextKeys: ['spreadsheetId'],
+    })
+
+    const changed = applyDependentRepick(
+      {},
+      spreadsheet,
+      [spreadsheet, range],
+      'doc-new',
+      mappedRepickContext('doc-old')
+    )
+    const restored = applyDependentRepick(
+      changed,
+      spreadsheet,
+      [spreadsheet, range],
+      'doc-old',
+      mappedRepickContext('doc-new')
+    )
+
+    expect(changed).toEqual({
+      [dependentKey(spreadsheet)]: 'doc-new',
+      [dependentKey(range)]: null,
+    })
+    expect(restored).toEqual({})
+    expect(effectiveDependentValue(range, restored, false)).toBe('A1:D50')
+  })
+
+  it('keeps an intentional empty pick distinct from automatic invalidation', () => {
+    const label = field({ subBlockKey: 'label', currentValue: 'INBOX' })
+
+    const next = applyDependentRepick({}, label, [label], '', mappedRepickContext('INBOX'))
+
+    expect(isDependentInvalidated(label, next)).toBe(false)
+    expect(next[dependentKey(label)]).toBe('')
+    expect(effectiveDependentValue(label, next, false)).toBe('')
+  })
+
+  it('does not restore an Excel sheet while its drive still differs from baseline', () => {
+    const drive = field({
+      subBlockKey: 'driveId',
+      currentValue: 'drive-old',
+      providesContextKey: 'driveId',
+    })
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      currentValue: 'workbook-old',
+      consumesContextKeys: ['driveId'],
+      providesContextKey: 'spreadsheetId',
+    })
+    const sheet = field({
+      subBlockKey: 'sheetName',
+      currentValue: 'Sheet1',
+      consumesContextKeys: ['driveId', 'spreadsheetId'],
+    })
+
+    const driveChanged = applyDependentRepick(
+      {},
+      drive,
+      [drive, spreadsheet, sheet],
+      'drive-new',
+      mappedRepickContext('drive-old')
+    )
+    const spreadsheetRepicked = applyDependentRepick(
+      driveChanged,
+      spreadsheet,
+      [drive, spreadsheet, sheet],
+      'workbook-new',
+      mappedRepickContext('')
+    )
+    const spreadsheetRestored = applyDependentRepick(
+      spreadsheetRepicked,
+      spreadsheet,
+      [drive, spreadsheet, sheet],
+      'workbook-old',
+      mappedRepickContext('workbook-new')
+    )
+
+    expect(spreadsheetRestored).toEqual({
+      [dependentKey(drive)]: 'drive-new',
+      [dependentKey(sheet)]: null,
     })
   })
 })
@@ -278,6 +402,51 @@ describe('isDependentConfigurationActionable', () => {
           copying: true,
         }
       )
+    ).toBe(true)
+  })
+
+  it('shows a required field that a parent re-pick blanked (it blocks Sync)', () => {
+    const spreadsheet = field({
+      subBlockKey: 'spreadsheetId',
+      currentValue: 'doc-old',
+      providesContextKey: 'spreadsheetId',
+    })
+    const sheet = field({
+      subBlockKey: 'sheetName',
+      required: true,
+      currentValue: 'Sheet1',
+      consumesContextKeys: ['spreadsheetId'],
+    })
+    const next = applyDependentRepick(
+      {},
+      spreadsheet,
+      [spreadsheet, sheet],
+      'doc-new',
+      mappedRepickContext(effectiveDependentValue(spreadsheet, {}, false))
+    )
+
+    // The sync gate reads the same blank the selector shows, so the field gates and is visible.
+    expect(effectiveDependentValue(sheet, next, false)).toBe('')
+    expect(
+      isDependentConfigurationActionable(sheet, next, {
+        parentResolved: true,
+        parentChanged: false,
+        copying: false,
+      })
+    ).toBe(true)
+  })
+
+  it('shows a required field the user emptied themselves (it blocks Sync)', () => {
+    const sheet = field({ subBlockKey: 'sheetName', required: true, currentValue: 'Sheet1' })
+    const next = applyDependentRepick({}, sheet, [sheet], '', mappedRepickContext('Sheet1'))
+
+    expect(effectiveDependentValue(sheet, next, false)).toBe('')
+    expect(
+      isDependentConfigurationActionable(sheet, next, {
+        parentResolved: true,
+        parentChanged: false,
+        copying: false,
+      })
     ).toBe(true)
   })
 

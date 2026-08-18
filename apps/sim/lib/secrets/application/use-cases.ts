@@ -251,6 +251,12 @@ export interface SetSecretInput {
   name: string
   scope: SecretScope
   value: string
+  /**
+   * Workspace scope only, and rejected at the contract for personal scope: an
+   * `env_personal` row is a per-workspace mirror of one user-global secret, so a
+   * description written here would exist in this workspace alone.
+   */
+  description?: string | null
 }
 
 export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
@@ -260,6 +266,12 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const userId = principalUserId(principal)
+    if (input.scope === 'personal' && input.description !== undefined) {
+      throw new OrchestrationError(
+        'validation',
+        'description is only supported for a workspace secret'
+      )
+    }
     if (input.scope === 'workspace') {
       await requireWorkspaceSecretMutationAccess({
         workspaceId: context.workspaceId,
@@ -274,6 +286,7 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
         name: input.name,
         value: input.value,
         userId,
+        description: input.description,
       })
       const secret = await getWorkspaceSecretMetadata({
         workspaceId: context.workspaceId,
@@ -298,7 +311,11 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     resourceId: `${input.scope}:${input.name}`,
     resourceName: input.name,
     description: `Set ${input.scope} secret "${input.name}"`,
-    metadata: { scope: input.scope, name: input.name },
+    metadata: {
+      scope: input.scope,
+      name: input.name,
+      ...(input.description !== undefined ? { descriptionUpdated: true } : {}),
+    },
   }),
 })
 

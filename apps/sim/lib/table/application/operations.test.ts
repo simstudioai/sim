@@ -65,17 +65,26 @@ describe('table operation registry', () => {
       tableOperations.cancelExport.id,
       tableOperations.downloadExport.id,
     ])
-    const sharedGroupOperations = new Set([
+    // Reachable from the executor's Table block as well as from Copilot. The
+    // single-row operations joined this set when their routes moved onto the
+    // delegation auth policy: the Table block's get/update/delete/upsert row
+    // tools run under them, and a policy without `executor` fails every one of
+    // those calls with a 403 while every route test still passes.
+    const sharedToolOperations = new Set([
       tableOperations.createGroup.id,
       tableOperations.updateGroup.id,
       tableOperations.deleteGroup.id,
+      tableOperations.readRow.id,
+      tableOperations.updateRow.id,
+      tableOperations.deleteRow.id,
+      tableOperations.upsertRow.id,
     ])
 
     for (const operation of Object.values(tableOperations)) {
       expect(operation.delegatedServices).toEqual(
         executorOnlyOperations.has(operation.id)
           ? ['executor']
-          : sharedGroupOperations.has(operation.id)
+          : sharedToolOperations.has(operation.id)
             ? ['copilot', 'executor']
             : ['copilot']
       )

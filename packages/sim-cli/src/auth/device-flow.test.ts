@@ -96,6 +96,28 @@ describe('pollForKey', () => {
   it('gives up on a 403', async () => {
     await expect(poll([() => reply(403, { error: 'Forbidden' })])).rejects.toThrow('Forbidden')
   })
+
+  it('asks fetch not to follow a redirect', async () => {
+    // Following one rewrites this POST into a bodyless GET — which the route
+    // answers 405, a status nothing in the login chose — and hands `pollSecret`
+    // to whatever origin `Location` names.
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(reply(200, COMPLETE))
+    await pollForKey(ENDPOINT, createAuthRequest())
+
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'manual' })
+  })
+
+  it('explains a redirected endpoint instead of failing on the method it became', async () => {
+    await expect(
+      poll([
+        () =>
+          new Response(null, {
+            status: 301,
+            headers: { location: 'https://www.sim.test/api/cli/auth/poll' },
+          }),
+      ])
+    ).rejects.toThrow(/redirected the login poll to https:\/\/www\.sim\.test/)
+  })
 })
 
 describe('createAuthRequest', () => {
@@ -113,6 +135,40 @@ describe('createAuthRequest', () => {
         /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/
       )
     }
+  })
+
+  it('keeps a path prefix the endpoint carries, in both login URLs', async () => {
+    // Both URLs were built with `new URL('/path', endpoint)`. A leading-slash
+    // path is absolute, so it resolved against the ORIGIN and dropped the
+    // prefix: a deployment served at https://host/sim sent the browser to
+    // https://host/cli/auth and polled https://host/api/cli/auth/poll, neither
+    // of which exists there. Every other command concatenated and worked, so
+    // the endpoint looked correct and only login failed.
+    const prefixed = 'https://host.test/sim'
+    const auth = createAuthRequest()
+
+    expect(buildApprovalUrl(prefixed, auth, 'platform')).toMatch(
+      /^https:\/\/host\.test\/sim\/cli\/auth\?/
+    )
+
+    // `spyOn`, like the rest of this file: `restoreAllMocks` in teardown undoes
+    // it, whereas a `stubGlobal` would outlive the test and leak this
+    // completed-auth response into whatever ran next.
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ status: 'complete', key: { id: 'k', apiKey: 'sk' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+
+    await pollForKey(prefixed, auth)
+    expect(fetchSpy.mock.calls[0][0]).toBe('https://host.test/sim/api/cli/auth/poll')
+  })
+
+  it('omits an absent workspace rather than sending it blank', () => {
+    const auth = createAuthRequest()
+    expect(buildApprovalUrl(ENDPOINT, auth, 'platform')).not.toContain('workspace=')
+    expect(buildApprovalUrl(ENDPOINT, auth, 'platform', 'ws_1')).toContain('workspace=ws_1')
   })
 
   it('never puts the poll secret in the browser URL', () => {

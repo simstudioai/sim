@@ -23,6 +23,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
 import {
   extractCleanFilename,
   extractStorageKey,
@@ -640,9 +641,13 @@ async function handleCloudFile(
     }
 
     let originalFilename: string | undefined
-    if (context === 'workspace') {
+    // Not filtered to `context = 'workspace'`: a chat attachment carries the same key
+    // prefix and has an `originalName` worth recovering too, and without it the parse
+    // result is labelled with the raw storage segment. Access was authorized above;
+    // this only recovers a display name.
+    if (isWorkspaceScopedContext(context)) {
       try {
-        const fileRecord = await getFileMetadataByKey(cloudKey, 'workspace')
+        const fileRecord = await getFileMetadataByKey(cloudKey)
 
         if (fileRecord) {
           originalFilename = fileRecord.originalName

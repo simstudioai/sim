@@ -135,6 +135,69 @@ describe('/api/v2/secrets/[name]', () => {
     })
   })
 
+  it('forwards a workspace description to the set operation', async () => {
+    const response = await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: '  Prod billing key  ',
+      }),
+      context
+    )
+
+    expect(response.status).toBe(201)
+    expect(mocks.set).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        workspaceId: WORKSPACE_ID,
+        name: SECRET_NAME,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: 'Prod billing key',
+      },
+      request: expect.anything(),
+    })
+  })
+
+  it('omits description entirely when unset so a rotation cannot erase it', async () => {
+    await PUT(
+      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', value: 'rotated' }),
+      context
+    )
+
+    expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('description')
+  })
+
+  it('normalizes an empty description to null so it matches the UI clear path', async () => {
+    await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: '   ',
+      }),
+      context
+    )
+
+    expect(mocks.set.mock.calls[0][0].input.description).toBeNull()
+  })
+
+  it('rejects a description on a personal secret rather than dropping it', async () => {
+    const response = await PUT(
+      request('PUT', {
+        workspaceId: WORKSPACE_ID,
+        scope: 'personal',
+        value: 'secret-value',
+        description: 'has no shared audience',
+      }),
+      context
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
   it('returns 200 when replacing an existing secret', async () => {
     mocks.set.mockResolvedValueOnce({ secret, userId: 'user-1', created: false })
 

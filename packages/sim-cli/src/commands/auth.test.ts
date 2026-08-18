@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createAuthRequest: vi.fn(() => ({ pairing: 'ABCD', verifier: 'verifier' })),
   createInterface: vi.fn(),
   listProfiles: vi.fn<() => string[]>(() => []),
+  request: vi.fn(),
   readCredentialsProfile: vi.fn<() => Record<string, string>>(() => ({})),
   pollForKey: vi.fn(async () => ({
     apiKey: 'sim-key',
@@ -44,8 +45,12 @@ vi.mock('../config/index', () => ({
   writeConfigProfile: mocks.writeConfigProfile,
   writeCredentialsProfile: mocks.writeCredentialsProfile,
 }))
-vi.mock('../context', () => ({ profileFrom: mocks.profileFrom }))
+vi.mock('../context', () => ({
+  profileFrom: mocks.profileFrom,
+  clientFrom: () => ({ client: { request: mocks.request }, profile: mocks.profileFrom() }),
+}))
 
+import { SimApiError } from '../http/client'
 import { loginCommand, profilesCommand, whoamiCommand } from './auth'
 
 const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
@@ -204,17 +209,14 @@ describe('profiles command', () => {
 })
 
 describe('whoami command', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.spyOn(console, 'log').mockImplementation(() => {})
-  })
+  const originalExitCode = process.exitCode
 
-  it('reports authentication without exposing any part of the API key', async () => {
-    mocks.profileFrom.mockReturnValue({
+  function configured(overrides: Partial<ReturnType<typeof mocks.profileFrom>> = {}) {
+    return {
       name: 'default',
       endpoint: 'https://sim.ai',
-      apiKey: 'sim_super_secret_value',
-      workspaceId: 'ws_1',
+      apiKey: 'sim_super_secret_value' as string | null,
+      workspaceId: 'ws_1' as string | null,
       output: 'text',
       sources: {
         endpoint: 'default',
@@ -222,8 +224,25 @@ describe('whoami command', () => {
         workspaceId: 'config',
         output: 'flag',
       },
-    })
+      ...overrides,
+    }
+  }
 
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.exitCode = undefined
+    mocks.profileFrom.mockReturnValue(configured())
+    mocks.request.mockResolvedValue({
+      data: { id: 'ws_1', name: "Waleed Latif's Workspace", memberCount: 3 },
+    })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    process.exitCode = originalExitCode
+  })
+
+  it('reports authentication without exposing any part of the API key', async () => {
     await whoami()
 
     const output = vi.mocked(console.log).mock.calls.flat().join('\n')
@@ -233,19 +252,7 @@ describe('whoami command', () => {
   })
 
   it('uses non-secret-shaped authentication metadata in machine output', async () => {
-    mocks.profileFrom.mockReturnValue({
-      name: 'default',
-      endpoint: 'https://sim.ai',
-      apiKey: 'sim_super_secret_value',
-      workspaceId: 'ws_1',
-      output: 'json',
-      sources: {
-        endpoint: 'default',
-        apiKey: 'credentials',
-        workspaceId: 'config',
-        output: 'flag',
-      },
-    })
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
 
     await whoami()
 
@@ -253,8 +260,117 @@ describe('whoami command', () => {
     expect(JSON.parse(output)).toMatchObject({
       authenticated: true,
       sources: { authentication: 'credentials' },
+      verification: {
+        status: 'verified',
+        workspace: { id: 'ws_1', name: "Waleed Latif's Workspace", memberCount: 3 },
+      },
     })
     expect(output).not.toContain('apiKey')
     expect(output).not.toContain('sim_super_secret_value')
+  })
+
+  it('checks the key against the API and names the workspace it reached', async () => {
+    await whoami()
+
+    expect(mocks.request).toHaveBeenCalledWith('/api/v2/workspaces/ws_1', { method: 'GET' })
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain("Waleed Latif's Workspace")
+    expect(output).toContain('3 members')
+    expect(process.exitCode).toBeUndefined()
+  })
+
+  it('exits 1 when the API rejects the key, without hiding the resolved settings', async () => {
+    mocks.request.mockRejectedValue(
+      new SimApiError('Invalid API key — run: sim login --profile default', 401)
+    )
+
+    await whoami()
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('Endpoint\thttps://sim.ai')
+    expect(output).toContain('Invalid API key')
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('exits 2 rather than blaming the key when the endpoint cannot be reached', async () => {
+    mocks.request.mockRejectedValue(
+      new SimApiError('Could not reach https://sim.ai: fetch failed', 0)
+    )
+
+    await whoami()
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('could not check — Could not reach https://sim.ai')
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('exits 2 rather than blaming the key when the API itself is down', async () => {
+    // A 502 from a proxy mid-deploy said `✗ Bad Gateway` and exited 1, which
+    // tells a script to run `sim login` for something logging in cannot fix.
+    mocks.request.mockRejectedValue(new SimApiError('Bad Gateway', 502))
+
+    await whoami()
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('could not check — Bad Gateway')
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('exits 2 when the endpoint answers something other than the API', async () => {
+    // A wrong endpoint that serves a landing page comes back as a 200 the JSON
+    // client could not parse; the key was never judged.
+    mocks.request.mockRejectedValue(
+      new SimApiError('https://sim.ai/api/v2/workspaces/ws_1 returned HTML, not JSON', 200)
+    )
+
+    await whoami()
+
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('exits 1 when the key cannot reach the configured workspace', async () => {
+    mocks.request.mockRejectedValue(new SimApiError('Workspace not found', 404))
+
+    await whoami()
+
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('Workspace not found')
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('exits 2 when no workspace is configured, because the check reads one', async () => {
+    mocks.profileFrom.mockReturnValue(
+      configured({ workspaceId: null, sources: { ...configured().sources, workspaceId: 'unset' } })
+    )
+
+    await whoami()
+
+    expect(mocks.request).not.toHaveBeenCalled()
+    const output = vi.mocked(console.log).mock.calls.flat().join('\n')
+    expect(output).toContain('no workspace to check against')
+    expect(process.exitCode).toBe(2)
+  })
+
+  it('exits 1 when no key is configured', async () => {
+    mocks.profileFrom.mockReturnValue(
+      configured({ apiKey: null, sources: { ...configured().sources, apiKey: 'unset' } })
+    )
+
+    await whoami()
+
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(process.exitCode).toBe(1)
+  })
+
+  it('makes no request and stays offline under --no-verify', async () => {
+    mocks.profileFrom.mockReturnValue(configured({ output: 'json' }))
+
+    await whoami('--no-verify')
+
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(process.exitCode).toBeUndefined()
+    expect(JSON.parse(String(vi.mocked(console.log).mock.calls[0][0]))).toMatchObject({
+      verification: { status: 'disabled', workspace: null },
+    })
   })
 })

@@ -46,6 +46,15 @@ function toolWriteOperation<const Id extends string>(id: Id) {
   })
 }
 
+function toolReadOperation<const Id extends string>(id: Id) {
+  return defineWorkspaceOperation({
+    id,
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
+  })
+}
+
 function internalExecutorReadOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
@@ -104,14 +113,14 @@ export const tableOperations = {
   listRows: readOperation('tables.rows.list'),
   queryRows: readOperation('tables.rows.query'),
   findRows: readOperation('tables.rows.find'),
-  readRow: readOperation('tables.rows.read'),
+  readRow: toolReadOperation('tables.rows.read'),
   createRows: writeOperation('tables.rows.create'),
   replaceRows: writeOperation('tables.rows.replace'),
-  updateRow: writeOperation('tables.rows.update'),
+  updateRow: toolWriteOperation('tables.rows.update'),
   updateRows: writeOperation('tables.rows.update_many'),
-  deleteRow: writeOperation('tables.rows.delete'),
+  deleteRow: toolWriteOperation('tables.rows.delete'),
   deleteRows: writeOperation('tables.rows.delete_many'),
-  upsertRow: writeOperation('tables.rows.upsert'),
+  upsertRow: toolWriteOperation('tables.rows.upsert'),
   listViews: readOperation('tables.views.list'),
   readView: readOperation('tables.views.read'),
   createView: writeOperation('tables.views.create'),

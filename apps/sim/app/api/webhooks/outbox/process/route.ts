@@ -10,6 +10,7 @@ import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
+import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
 import { invitationMigrationOutboxHandlers } from '@/lib/workspaces/admin-move'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
@@ -25,6 +26,7 @@ const handlers = {
   ...enterpriseIssuanceOutboxHandlers,
   ...invitationMigrationOutboxHandlers,
   ...knowledgeDocumentProcessingOutboxHandlers,
+  ...workspaceFileStorageCleanupOutboxHandlers,
   ...workflowDeploymentOutboxHandlers,
 } as const
 

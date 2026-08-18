@@ -718,7 +718,11 @@ export interface UpsertRowData {
 }
 
 export interface UpsertResult {
-  row: TableRow
+  /**
+   * Without the executions sidecar: no upsert surface puts one on the wire, and
+   * loading it would hold the write transaction open for a discarded result.
+   */
+  row: Omit<TableRow, 'executions'>
   operation: 'insert' | 'update'
   previousData?: RowData
 }

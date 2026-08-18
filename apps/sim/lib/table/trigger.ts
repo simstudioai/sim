@@ -51,7 +51,9 @@ export async function fireTableTrigger(
   tableId: string,
   tableName: string,
   eventType: EventType,
-  rows: TableRow[],
+  // Accepts a row without its executions sidecar: the payload projects id and
+  // data only, and the upsert path deliberately does not load one.
+  rows: Array<Omit<TableRow, 'executions'>>,
   oldRows: Map<string, RowData> | null,
   schema: TableSchema,
   requestId: string

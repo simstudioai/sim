@@ -1,13 +1,16 @@
 /**
  * @vitest-environment node
  */
+import { workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { describeError } from '@sim/utils/errors'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockDecrementStorageUsageForBillingContextInTx,
   mockDeleteFile,
+  mockEnqueueWorkspaceFileStorageCleanup,
   mockGetWorkspaceWithOwner,
   mockHasCloudStorage,
   mockHeadObject,
@@ -19,6 +22,7 @@ const {
   mockMaybeNotifyStorageLimitForBillingContext,
   mockMergeEditIntoLiveFileDoc,
   mockNotifyWorkspaceFilesChanged,
+  mockProcessWorkspaceFileStorageCleanupNow,
   mockResolveStorageBillingContext,
   mockResolveFolderPathFromIndex,
   mockResolveWorkspaceFileFolderTarget,
@@ -27,6 +31,7 @@ const {
 } = vi.hoisted(() => ({
   mockDecrementStorageUsageForBillingContextInTx: vi.fn(),
   mockDeleteFile: vi.fn(),
+  mockEnqueueWorkspaceFileStorageCleanup: vi.fn(),
   mockGetWorkspaceWithOwner: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
@@ -38,6 +43,7 @@ const {
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
   mockMergeEditIntoLiveFileDoc: vi.fn(),
   mockNotifyWorkspaceFilesChanged: vi.fn(),
+  mockProcessWorkspaceFileStorageCleanupNow: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
   mockResolveFolderPathFromIndex: vi.fn(),
   mockResolveWorkspaceFileFolderTarget: vi.fn(),
@@ -76,6 +82,11 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   uploadFile: mockUploadFile,
 }))
 
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+  enqueueWorkspaceFileStorageCleanup: mockEnqueueWorkspaceFileStorageCleanup,
+  processWorkspaceFileStorageCleanupNow: mockProcessWorkspaceFileStorageCleanupNow,
+}))
+
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   assertWorkspaceFileFolderTarget: mockAssertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap: vi.fn(() => new Map()),
@@ -103,6 +114,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 import {
   ContentVersionConflictError,
   deleteWorkspaceFile,
+  purgeCreatedWorkspaceFile,
   registerUploadedWorkspaceFile,
   restoreWorkspaceFile,
   updateWorkspaceFileContent,
@@ -152,8 +164,10 @@ describe('workspace file metadata and storage accounting', () => {
     mockDecrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
+    mockEnqueueWorkspaceFileStorageCleanup.mockResolvedValue('cleanup-event-1')
     mockMergeEditIntoLiveFileDoc.mockResolvedValue(undefined)
     mockNotifyWorkspaceFilesChanged.mockResolvedValue(undefined)
+    mockProcessWorkspaceFileStorageCleanupNow.mockResolvedValue('completed')
     mockReplaceWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
   })
 
@@ -262,6 +276,111 @@ describe('workspace file metadata and storage accounting', () => {
     )
   })
 
+  it('atomically purges exact archive-created metadata and accounting before storage cleanup', async () => {
+    const extractedRow = { ...FILE_ROW, folderId: 'folder-archive' }
+    dbChainMockFns.limit.mockResolvedValueOnce([extractedRow])
+    dbChainMockFns.returning.mockResolvedValueOnce([extractedRow])
+
+    await expect(
+      purgeCreatedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        fileId: FILE_ROW.id,
+        key: FILE_ROW.key,
+        expectedName: FILE_ROW.originalName,
+        expectedFolderId: extractedRow.folderId,
+        expectedUpdatedAt: FILE_ROW.updatedAt,
+      })
+    ).resolves.toBe(true)
+
+    expect(eq).toHaveBeenCalledWith(workspaceFiles.originalName, FILE_ROW.originalName)
+    expect(eq).toHaveBeenCalledWith(workspaceFiles.folderId, extractedRow.folderId)
+    expect(eq).toHaveBeenCalledWith(workspaceFiles.updatedAt, FILE_ROW.updatedAt)
+    expect(mockDecrementStorageUsageForBillingContextInTx).toHaveBeenCalledWith(
+      expect.any(Object),
+      STORAGE_CONTEXT,
+      FILE_ROW.size
+    )
+    expect(mockEnqueueWorkspaceFileStorageCleanup).toHaveBeenCalledWith(expect.any(Object), {
+      key: FILE_ROW.key,
+    })
+    expect(dbChainMockFns.delete.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDecrementStorageUsageForBillingContextInTx.mock.invocationCallOrder[0]
+    )
+    expect(mockDecrementStorageUsageForBillingContextInTx.mock.invocationCallOrder[0]).toBeLessThan(
+      mockEnqueueWorkspaceFileStorageCleanup.mock.invocationCallOrder[0]
+    )
+    expect(mockProcessWorkspaceFileStorageCleanupNow).toHaveBeenCalledWith('cleanup-event-1')
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('leaves an extracted file untouched when its creation identity no longer matches', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    await expect(
+      purgeCreatedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        fileId: FILE_ROW.id,
+        key: FILE_ROW.key,
+        expectedName: FILE_ROW.originalName,
+        expectedFolderId: 'folder-archive',
+        expectedUpdatedAt: FILE_ROW.updatedAt,
+      })
+    ).resolves.toBe(false)
+
+    expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockEnqueueWorkspaceFileStorageCleanup).not.toHaveBeenCalled()
+    expect(mockProcessWorkspaceFileStorageCleanupNow).not.toHaveBeenCalled()
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('does not touch storage when the metadata and accounting transaction fails', async () => {
+    const extractedRow = { ...FILE_ROW, folderId: 'folder-archive' }
+    dbChainMockFns.limit.mockResolvedValueOnce([extractedRow])
+    dbChainMockFns.returning.mockResolvedValueOnce([extractedRow])
+    mockDecrementStorageUsageForBillingContextInTx.mockRejectedValueOnce(
+      new Error('accounting unavailable')
+    )
+
+    await expect(
+      purgeCreatedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        fileId: FILE_ROW.id,
+        key: FILE_ROW.key,
+        expectedName: FILE_ROW.originalName,
+        expectedFolderId: extractedRow.folderId,
+        expectedUpdatedAt: FILE_ROW.updatedAt,
+      })
+    ).rejects.toThrow('accounting unavailable')
+
+    expect(mockEnqueueWorkspaceFileStorageCleanup).not.toHaveBeenCalled()
+    expect(mockProcessWorkspaceFileStorageCleanupNow).not.toHaveBeenCalled()
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('keeps deferred cleanup durable when immediate processing fails', async () => {
+    const extractedRow = { ...FILE_ROW, folderId: 'folder-archive' }
+    dbChainMockFns.limit.mockResolvedValueOnce([extractedRow])
+    dbChainMockFns.returning.mockResolvedValueOnce([extractedRow])
+    mockProcessWorkspaceFileStorageCleanupNow.mockRejectedValueOnce(
+      new Error('outbox processor unavailable')
+    )
+
+    await expect(
+      purgeCreatedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        fileId: FILE_ROW.id,
+        key: FILE_ROW.key,
+        expectedName: FILE_ROW.originalName,
+        expectedFolderId: extractedRow.folderId,
+        expectedUpdatedAt: FILE_ROW.updatedAt,
+      })
+    ).resolves.toBe(true)
+
+    expect(mockEnqueueWorkspaceFileStorageCleanup).toHaveBeenCalledOnce()
+    expect(mockProcessWorkspaceFileStorageCleanupNow).toHaveBeenCalledWith('cleanup-event-1')
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
   it('preserves the driver cause so the SQLSTATE survives the upload wrapper', async () => {
     const driver = Object.assign(
       new Error('cannot execute SELECT FOR UPDATE in a read-only transaction'),
@@ -300,6 +419,21 @@ describe('workspace file metadata and storage accounting', () => {
     )
 
     expect(mockReplaceWorkspaceFileSecretProvenanceInTx).not.toHaveBeenCalled()
+  })
+
+  it('allows extraction to batch the workspace notification', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
+
+    await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType,
+      { notifyWorkspaceChange: false }
+    )
+
+    expect(mockNotifyWorkspaceFilesChanged).not.toHaveBeenCalled()
   })
 
   it('persists explicitly supplied workspace upload provenance', async () => {

@@ -176,6 +176,38 @@ describe('secret application use cases', () => {
     expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain('secret-value')
   })
 
+  it('forwards a workspace description to the manager', async () => {
+    await setSecretUseCase.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workspaceId: workspace.workspaceId,
+        name: secret.envKey,
+        scope: 'workspace',
+        value: 'secret-value',
+        description: 'Prod billing key',
+      },
+    })
+
+    expect(mocks.setWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'Prod billing key' })
+    )
+  })
+
+  it('refuses a description on a personal secret in the use case, not just the contract', async () => {
+    await expect(
+      setSecretUseCase.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          workspaceId: workspace.workspaceId,
+          name: secret.envKey,
+          scope: 'personal',
+          value: 'secret-value',
+          description: 'has no shared audience',
+        },
+      })
+    ).rejects.toThrow(/only supported for a workspace secret/)
+  })
+
   it('still fails a workspace write whose metadata never materialized', async () => {
     mocks.listCredentials.mockResolvedValue({ data: [], nextCursorKeys: null })
 
