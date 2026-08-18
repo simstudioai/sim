@@ -252,6 +252,45 @@ describe('SearchModal', () => {
     expect(rows[2]).toContain('Onboarding')
   })
 
+  it('puts an exact-name block before its page and contents on the workflow editor', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      blocks: [{ id: 'logs', name: 'Logs', icon: Icon, bgColor: '#111', type: 'logs' }],
+    }
+    const logs = [
+      {
+        id: 'log-1',
+        name: 'Billing sync',
+        href: '/workspace/workspace-1/logs?executionId=e1',
+        date: 'Aug 8, 1:00 PM',
+      },
+      {
+        id: 'log-2',
+        name: 'Onboarding',
+        href: '/workspace/workspace-1/logs?executionId=e2',
+        date: 'Aug 8, 2:00 PM',
+      },
+    ]
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' logs={logs} />)
+      })
+
+      await enterSearchQuery('Logs')
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]'))
+      expect(rows.slice(0, 4).map((row) => row.textContent ?? '')).toEqual([
+        'Logs',
+        'Logs⇧⌘L',
+        'Billing syncAug 8, 1:00 PM',
+        'OnboardingAug 8, 2:00 PM',
+      ])
+    } finally {
+      mockSearchState.data = original
+    }
+  })
+
   it('puts Create workflow first for the module-name query, then the workflows', async () => {
     const workflows = [
       { id: 'workflow-a', name: 'Alpha', href: '/workspace/workspace-1/w/workflow-a' },

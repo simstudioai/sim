@@ -1066,7 +1066,11 @@ function SearchModalContent({
         availableBlocks,
         (item) => item.name,
         (item) => item.searchValue
-      ).map(({ item, score }) => ({ section: 'blocks', item, score })),
+      ).map(({ item, score }) => ({
+        section: 'blocks',
+        item,
+        score: item.name.toLowerCase() === query.toLowerCase() ? PAGE_MATCH_TIER : score,
+      })),
       triggers: rank(
         'triggers',
         displayTriggers,
