@@ -727,10 +727,13 @@ describe('row query and upsert application semantics', () => {
       },
     })
 
-    expect(mockLoadSecretProvenance).toHaveBeenCalledWith([row], {
-      userId: 'user-1',
-      workspaceId: TABLE.workspaceId,
-    })
+    // Narrowed to the columns the row still holds: without `selectedValues` a
+    // stale sidecar entry for a dropped column rides along in the envelope, and
+    // the unmigrated `rows`/`query` routes have always narrowed here.
+    expect(mockLoadSecretProvenance).toHaveBeenCalledWith(
+      [{ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data }],
+      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    )
     expect(result.secretProvenance).toBe(provenance)
   })
 

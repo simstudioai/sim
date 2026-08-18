@@ -8,17 +8,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const { mocks } = vi.hoisted(() => ({
-  mocks: { scopeCompatible: vi.fn(() => true), isBundle: vi.fn(() => true) },
+  mocks: { scopeCompatible: vi.fn(() => true) },
 }))
 
 vi.mock('@/lib/execution/durable-secret-provenance', () => ({
   isPrivateSecretProvenanceScopeCompatible: mocks.scopeCompatible,
 }))
-
-vi.mock('@/lib/execution/model-input-provenance', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/execution/model-input-provenance')>()
-  return { ...actual, isPrivateSecretProvenanceBundleV1: mocks.isBundle }
-})
 
 import {
   resolveRowWriteProvenance,
@@ -47,6 +42,31 @@ const EXECUTOR = {
   audience: 'table',
   issuedAt: new Date('2026-01-01'),
   expiresAt: new Date('2026-01-02'),
+}
+
+/**
+ * A provenance shape the real `isResolvedSecretTraceProvenanceV1` accepts.
+ *
+ * These fixtures run against the genuine envelope guard rather than a stub, so a
+ * bundle that could never survive the wire cannot pass here either.
+ */
+function traceProvenance(scope?: { userId: string; workspaceId: string }) {
+  return { version: 1 as const, complete: true, entries: [], ...(scope ? { scope } : {}) }
+}
+
+/** A bundle shape the real `isPrivateSecretProvenanceBundleV1` accepts. */
+function bundle(
+  selections: Array<{ key: string; scope?: { userId: string; workspaceId: string } }>,
+  complete = true
+) {
+  return {
+    version: 1 as const,
+    complete,
+    selections: selections.map((selection) => ({
+      key: selection.key,
+      provenance: traceProvenance(selection.scope),
+    })),
+  }
 }
 
 function resolve(overrides: Partial<Parameters<typeof resolveRowWriteProvenance>[0]>) {
@@ -80,16 +100,32 @@ describe('row write provenance', () => {
   })
 
   it('refuses a bundle from a session caller', () => {
-    expect(() =>
-      resolve({ envelope: { kind: 'bundle', value: { complete: true, selections: [] } } })
-    ).toThrow(TableRowProvenanceError)
+    expect(() => resolve({ envelope: { kind: 'bundle', value: bundle([]) } })).toThrow(
+      TableRowProvenanceError
+    )
   })
 
   it('refuses a bundle that is not a recognised envelope', () => {
-    mocks.isBundle.mockReturnValueOnce(false)
-
     expect(() =>
       resolve({ principal: EXECUTOR, envelope: { kind: 'bundle', value: { nope: true } } })
+    ).toThrow(TableRowProvenanceError)
+  })
+
+  it('refuses a bundle whose selections carry an unrecognised provenance shape', () => {
+    expect(() =>
+      resolve({
+        principal: EXECUTOR,
+        envelope: {
+          kind: 'bundle',
+          value: {
+            version: 1,
+            complete: true,
+            selections: [
+              { key: JSON.stringify([0, 'col_aaa']), provenance: { scope: { kind: 'workspace' } } },
+            ],
+          },
+        },
+      })
     ).toThrow(TableRowProvenanceError)
   })
 
@@ -97,7 +133,7 @@ describe('row write provenance', () => {
     expect(() =>
       resolve({
         principal: EXECUTOR,
-        envelope: { kind: 'bundle', value: { complete: true, selections: [] } },
+        envelope: { kind: 'bundle', value: bundle([]) },
         wireRows: [{ col_aaa: 'Ada', col_bbb: 36 }],
         storageRows: [{ col_aaa: 'Ada', col_bbb: 36 }],
       })
@@ -112,12 +148,7 @@ describe('row write provenance', () => {
         principal: EXECUTOR,
         envelope: {
           kind: 'bundle',
-          value: {
-            complete: true,
-            selections: [
-              { key: JSON.stringify([0, 'col_aaa']), provenance: { scope: { kind: 'workspace' } } },
-            ],
-          },
+          value: bundle([{ key: JSON.stringify([0, 'col_aaa']) }]),
         },
       })
     ).toThrow(TableRowProvenanceError)
@@ -126,7 +157,7 @@ describe('row write provenance', () => {
   it('marks an incomplete bundle unknown rather than certifying it', () => {
     const { stamps } = resolve({
       principal: EXECUTOR,
-      envelope: { kind: 'bundle', value: { complete: false, selections: [] } },
+      envelope: { kind: 'bundle', value: bundle([], false) },
     })
 
     expect(stamps).toEqual([{ complete: false, columns: {} }])
@@ -138,21 +169,10 @@ describe('row write provenance', () => {
       keying: 'names',
       wireRows: [{ Name: 'Ada' }],
       storageRows: [{ col_aaa: 'Ada' }],
-      envelope: {
-        kind: 'bundle',
-        value: {
-          complete: true,
-          selections: [
-            { key: JSON.stringify([0, 'Name']), provenance: { scope: { kind: 'workspace' } } },
-          ],
-        },
-      },
+      envelope: { kind: 'bundle', value: bundle([{ key: JSON.stringify([0, 'Name']) }]) },
     })
 
-    expect(stamps[0]).toEqual({
-      complete: true,
-      columns: { col_aaa: { scope: { kind: 'workspace' } } },
-    })
+    expect(stamps[0]).toEqual({ complete: true, columns: { col_aaa: traceProvenance() } })
   })
 
   it('checks the scope against the acting principal, not a billing owner', () => {
@@ -160,15 +180,17 @@ describe('row write provenance', () => {
       principal: EXECUTOR,
       envelope: {
         kind: 'bundle',
-        value: {
-          complete: true,
-          selections: [{ key: JSON.stringify([0, 'col_aaa']), provenance: { scope: {} } }],
-        },
+        value: bundle([
+          {
+            key: JSON.stringify([0, 'col_aaa']),
+            scope: { userId: 'billing-owner', workspaceId: 'workspace-1' },
+          },
+        ]),
       },
     })
 
     expect(mocks.scopeCompatible).toHaveBeenCalledWith(
-      {},
+      { userId: 'billing-owner', workspaceId: 'workspace-1' },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
   })
@@ -182,16 +204,10 @@ describe('row write provenance', () => {
       keying: 'ids',
       wireRows: [{ 'col-unknown': 'x' }],
       storageRows: [{ 'col-unknown': 'x' }],
-      envelope: {
-        kind: 'bundle',
-        value: {
-          complete: true,
-          selections: [{ key: JSON.stringify([0, 'col-unknown']), provenance: { scope: {} } }],
-        },
-      },
+      envelope: { kind: 'bundle', value: bundle([{ key: JSON.stringify([0, 'col-unknown']) }]) },
     })
 
-    expect(stamps[0]).toEqual({ complete: true, columns: { 'col-unknown': { scope: {} } } })
+    expect(stamps[0]).toEqual({ complete: true, columns: { 'col-unknown': traceProvenance() } })
   })
 
   it('records nothing for a key that names no column, since it is never stored', () => {
@@ -200,15 +216,7 @@ describe('row write provenance', () => {
       keying: 'names',
       wireRows: [{ Nope: 'x' }],
       storageRows: [{}],
-      envelope: {
-        kind: 'bundle',
-        value: {
-          complete: true,
-          selections: [
-            { key: JSON.stringify([0, 'Nope']), provenance: { scope: { kind: 'workspace' } } },
-          ],
-        },
-      },
+      envelope: { kind: 'bundle', value: bundle([{ key: JSON.stringify([0, 'Nope']) }]) },
     })
 
     expect(stamps[0]).toEqual({ complete: true, columns: {} })

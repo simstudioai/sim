@@ -1438,9 +1438,15 @@ function toRowSummary(row: Awaited<ReturnType<typeof selectRowRecord>>[number]):
 }
 
 /**
- * One row without its executions sidecar, for the surfaces that never put
- * executions on the wire — the single-row read routes and the Copilot row tool.
- * Loading the sidecar for them is a query whose result is discarded.
+ * One row without its executions sidecar, for the single-row read routes, which
+ * project `id`/`data`/`position`/`createdAt`/`updatedAt` and never put executions
+ * on the wire. Loading the sidecar for them is a query whose result is discarded.
+ *
+ * Not every `readTableRow` caller is such a surface: the Copilot `get_row` tool
+ * spreads the row straight onto its result, so it used to hand the model an
+ * executions map and no longer does. That narrowing is deliberate — the generated
+ * tool contract never described the field, and the bulk `query_rows` path has
+ * always returned an empty one — but it is a wire change, not a pure saving.
  *
  * Deliberately a separate function rather than a flag on {@link getRowById}: a
  * caller that forgets to pass the flag reads an empty sidecar and cannot tell

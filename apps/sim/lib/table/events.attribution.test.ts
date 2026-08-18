@@ -26,11 +26,16 @@ const ATTRIBUTED_CALL_SITES = [
 ] as const
 
 /** Surfaces that name the acting tab. See the note above — this is the real allowlist. */
-const ACTOR_SUPPLYING_SURFACES = ['app/api/table/[tableId]/rows/[rowId]/route.ts'] as const
+const ACTOR_SUPPLYING_SURFACES = [
+  'app/api/table/[tableId]/rows/route.ts',
+  'app/api/table/[tableId]/rows/[rowId]/route.ts',
+] as const
 
 const APP_ROOT = join(import.meta.dirname, '../..')
 /** Declares the function; matching its own definition would say nothing about call sites. */
 const DECLARING_MODULE = 'lib/table/events.ts'
+/** Declares the reader; every other file that calls it is naming a tab. */
+const CLIENT_ID_MODULE = 'lib/api/client-id.ts'
 
 async function* walk(dir: string): AsyncGenerator<string> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -64,12 +69,12 @@ describe('signalTableRowsChangedByActor call sites', () => {
   })
 
   it('is given an actor only by surfaces whose client hook reconciles locally', async () => {
+    // Keyed on the reader rather than the `actorClientId:` field name: a surface can
+    // name a tab positionally — `signalTableRowsChangedByActor(id, readClientId(req))`
+    // — and matching the field name alone silently missed one of the two real suppliers.
     const suppliers = await filesContaining(
-      'actorClientId:',
-      // These declare or forward the field rather than naming a tab.
-      (relative) =>
-        relative === 'lib/table/application/rows.ts' ||
-        relative === 'lib/table/application/row-secret-provenance.ts'
+      'readClientId(',
+      (relative) => relative === CLIENT_ID_MODULE
     )
 
     expect(suppliers).toEqual([...ACTOR_SUPPLYING_SURFACES].sort())
