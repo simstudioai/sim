@@ -37,7 +37,8 @@ vi.mock('@/lib/table/billing', () => ({
 }))
 vi.mock('@/lib/table/jobs/service', () => ({
   EMPTY_JOB_FIELDS: {},
-  latestJobForTable: vi.fn(async () => null),
+  latestNonExportJobJson: vi.fn(() => null),
+  mapJobRow: vi.fn(() => ({})),
   latestJobsForTables: vi.fn(async () => new Map()),
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))

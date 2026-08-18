@@ -13,8 +13,8 @@
 
 import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
+import type { Column, SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
 import { pendingDeleteMask } from '@/lib/table/rows/pending-delete-mask'
 import type {
   RowData,
@@ -25,7 +25,7 @@ import type {
 } from '@/lib/table/types'
 
 /** Job fields projected onto a {@link TableDefinition}, derived from its latest `table_jobs` row. */
-interface DerivedJobFields {
+export interface DerivedJobFields {
   jobStatus: TableDefinition['jobStatus']
   jobId: string | null
   jobType: TableDefinition['jobType']
@@ -49,18 +49,22 @@ export const EMPTY_JOB_FIELDS: DerivedJobFields = {
   pendingDeleteRemaining: 0,
 }
 
-function mapJobRow(
-  row:
-    | {
-        id: string
-        type: string
-        status: string
-        rowsProcessed: number
-        error: string | null
-        payload: unknown
-      }
-    | undefined
-): DerivedJobFields {
+/**
+ * The shape every latest-job read produces, whether it comes back as query columns
+ * (the batch `DISTINCT ON`) or as one jsonb object (the correlated lateral folded
+ * into the table SELECT). The single source of truth for the doomed-count rule is
+ * {@link mapJobRow} — never re-derive `pendingDeleteRemaining` at a call site.
+ */
+export interface LatestJobRow {
+  id: string
+  type: string
+  status: string
+  rowsProcessed: number
+  error: string | null
+  payload: unknown
+}
+
+export function mapJobRow(row: LatestJobRow | null | undefined): DerivedJobFields {
   if (!row) return EMPTY_JOB_FIELDS
   const doomedCount =
     row.type === 'delete' && row.status === 'running'
@@ -86,22 +90,36 @@ const JOB_PROJECTION = {
 } as const
 
 /**
- * The latest job for one table (the running one if present, else the most recent terminal).
- * Exports are excluded: they're read-only, run concurrently with other jobs, and have their own
- * client surface — surfacing one here would clobber the import/delete/backfill status the tray
- * and SSE consumer derive from these fields.
+ * The latest non-export job for one table, as a single jsonb value correlated to
+ * `outerTableId` — i.e. a `LEFT JOIN LATERAL (... LIMIT 1) ON true` expressed in the
+ * select list, which is the form drizzle can type without `leftJoinLateral`.
+ *
+ * It exists so {@link getTableById} stays ONE database round trip. With prepared
+ * statements disabled (PgBouncer transaction mode) every extra `await` is a full
+ * round trip, and `getTableById` is on essentially every table request. The job row
+ * cannot simply be skipped: a table's reported `rowCount` is the stored count minus
+ * this job's `pendingDeleteRemaining`, so the count and the job row are one read.
+ *
+ * Semantics match the batch {@link latestJobsForTables} exactly — exports excluded
+ * (they run concurrently and have their own client surface), newest `started_at`
+ * first, one row. `NULL` when the table has no such job; feed the result straight to
+ * {@link mapJobRow}.
  */
-export async function latestJobForTable(
-  tableId: string,
-  executor: DbOrTx = db
-): Promise<DerivedJobFields> {
-  const [row] = await executor
-    .select(JOB_PROJECTION)
-    .from(tableJobs)
-    .where(and(eq(tableJobs.tableId, tableId), ne(tableJobs.type, 'export')))
-    .orderBy(desc(tableJobs.startedAt))
-    .limit(1)
-  return mapJobRow(row)
+export function latestNonExportJobJson(outerTableId: Column | SQL): SQL<LatestJobRow | null> {
+  return sql<LatestJobRow | null>`(
+    select jsonb_build_object(
+      'id', ${tableJobs.id},
+      'type', ${tableJobs.type},
+      'status', ${tableJobs.status},
+      'rowsProcessed', ${tableJobs.rowsProcessed},
+      'error', ${tableJobs.error},
+      'payload', ${tableJobs.payload}
+    )
+    from ${tableJobs}
+    where ${tableJobs.tableId} = ${outerTableId} and ${tableJobs.type} <> 'export'
+    order by ${tableJobs.startedAt} desc
+    limit 1
+  )`
 }
 
 /** Latest non-export job per table for a batch of ids, via `DISTINCT ON (table_id)`. */
