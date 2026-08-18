@@ -335,6 +335,42 @@ describe('copyForkResourceContent', () => {
     ).toBe(true)
   })
 
+  it('drops a full-KB placeholder a pre-change worker planned for a connector-managed doc', async () => {
+    // Rolling deploy: the fork tx ran on the old code and planned a placeholder for a
+    // connector-managed document, which this worker's page query no longer returns. Nothing
+    // would ever fill it, so it must be reported for cleanup rather than left archived behind a
+    // live mapping that a remapped document-selector still resolves to.
+    dbChainMockFns.where.mockImplementationOnce(() => ({
+      // The skipped-document count.
+      then: (resolve: (rows: unknown[]) => unknown) => resolve([{ total: 1 }]),
+    }))
+    dbChainMockFns.where.mockImplementationOnce(() => ({
+      // The stale-plan probe: the planned source is connector-managed.
+      then: (resolve: (rows: unknown[]) => unknown) => resolve([{ id: 'doc-1' }]),
+    }))
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const result = await copyForkResourceContent({
+      contentPlan: basePlan({
+        knowledgeBases: [
+          { sourceId: 'src-kb', childId: 'child-kb', documentIdMap: { 'doc-1': 'child-doc-1' } },
+        ],
+        documentMappingContext: { edgeChildWorkspaceId: 'edge-child-ws', sourceIsParent: false },
+      }),
+      requestId: 'test',
+    })
+
+    expect(result.failed).toBe(1)
+    expect(result.failures).toEqual([{ kind: 'knowledge-document', childId: 'child-doc-1' }])
+    // The persisted identity goes too, or a later sync resolves to the row cleanup deletes.
+    expect(mockDeleteCopiedResourceMappingsByTargets).toHaveBeenCalledWith({
+      executor: expect.anything(),
+      edgeChildWorkspaceId: 'edge-child-ws',
+      sourceIsParent: false,
+      targets: [{ resourceType: 'knowledge_document', resourceId: 'child-doc-1' }],
+    })
+  })
+
   it('keeps a copied KB alive when the skipped-document count fails', async () => {
     // The count only feeds a log line. Letting it throw into the KB's catch would roll back a
     // perfectly good copy and clear every reference to it over a failed COUNT(*).

@@ -1032,6 +1032,29 @@ export async function copyForkResourceContent(params: {
     return billingContext
   }
   /**
+   * Drop the persisted `knowledge_document` identity for a copied document that will not exist,
+   * so a later sync resolves the reference afresh instead of to a row the cleanup removes.
+   * Isolated like the rest of the post-commit phase: a mapping-cleanup failure is logged, never
+   * rethrown, since the caller is already reporting the document as failed.
+   */
+  const dropCopiedDocumentMapping = async (childDocumentId: string): Promise<void> => {
+    const mappingContext = contentPlan.documentMappingContext
+    if (!mappingContext) return
+    try {
+      await deleteCopiedResourceMappingsByTargets({
+        executor: db,
+        edgeChildWorkspaceId: mappingContext.edgeChildWorkspaceId,
+        sourceIsParent: mappingContext.sourceIsParent,
+        targets: [{ resourceType: 'knowledge_document', resourceId: childDocumentId }],
+      })
+    } catch (mappingCleanupError) {
+      logger.error(`[${requestId}] Failed to clean mapping for a failed copied document`, {
+        childDocumentId,
+        error: getErrorMessage(mappingCleanupError),
+      })
+    }
+  }
+  /**
    * Report the connector-managed documents a copied KB leaves behind, since a fully
    * connector-synced base lands in the child with no documents at all. Strictly observability,
    * so it swallows its own failure: counting is not copying, and a transient error here must not
@@ -1173,6 +1196,35 @@ export async function copyForkResourceContent(params: {
   for (const kb of contentPlan.knowledgeBases) {
     try {
       await logSkippedConnectorDocuments(kb)
+      // A worker from before this exclusion (a rolling deploy) could have planned a placeholder
+      // for a connector-managed document. The page query below no longer returns its source, so
+      // nothing would ever fill it - leaving an archived empty row that a persisted mapping and
+      // a remapped `document-selector` still resolve to. Report those child ids as failed
+      // documents instead, so the shared cleanup clears the references and drops the rows.
+      //
+      // Keyed on the SOURCE being connector-managed, which is deterministic: such a document can
+      // never become copyable, so this can never race a concurrent attempt mid-fill (unlike a
+      // "source is gone" check, which could).
+      const plannedSourceIds = Object.keys(kb.documentIdMap)
+      if (plannedSourceIds.length > 0) {
+        const stalePlanned = await db
+          .select({ id: document.id })
+          .from(document)
+          .where(and(inArray(document.id, plannedSourceIds), isNotNull(document.connectorId)))
+        for (const { id } of stalePlanned) {
+          const childDocumentId = kb.documentIdMap[id]
+          if (!childDocumentId) continue
+          // Left in `documentIdMap` deliberately: if the KB itself later fails, its failure
+          // lists the same child id again, and the cleanup keys failed ids by kind in a Set.
+          await dropCopiedDocumentMapping(childDocumentId)
+          failedResources += 1
+          failures.push({ kind: 'knowledge-document', childId: childDocumentId })
+          logger.warn(
+            `[${requestId}] Dropping a fork placeholder planned for a connector-managed document`,
+            { sourceDocumentId: id, childDocumentId, childKnowledgeBaseId: kb.childId }
+          )
+        }
+      }
       let afterDocId: string | null = null
       for (;;) {
         // Only copy LIVE documents - exclude soft-deleted and archived rows, matching
@@ -1353,21 +1405,7 @@ export async function copyForkResourceContent(params: {
       })
       copiedResources += 1
     } catch (error) {
-      if (contentPlan.documentMappingContext) {
-        try {
-          await deleteCopiedResourceMappingsByTargets({
-            executor: db,
-            edgeChildWorkspaceId: contentPlan.documentMappingContext.edgeChildWorkspaceId,
-            sourceIsParent: contentPlan.documentMappingContext.sourceIsParent,
-            targets: [{ resourceType: 'knowledge_document', resourceId: docEntry.childDocId }],
-          })
-        } catch (mappingCleanupError) {
-          logger.error(`[${requestId}] Failed to clean mapping for a failed copied document`, {
-            childDocumentId: docEntry.childDocId,
-            error: getErrorMessage(mappingCleanupError),
-          })
-        }
-      }
+      await dropCopiedDocumentMapping(docEntry.childDocId)
       failedResources += 1
       failures.push({ kind: 'knowledge-document', childId: docEntry.childDocId })
       logger.warn(`[${requestId}] Failed to copy document into mapped KB during sync`, {
