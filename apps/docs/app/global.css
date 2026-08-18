@@ -1696,9 +1696,9 @@ figure.shiki > div:first-child:has(figcaption) svg {
    `figure` AND the inner `pre` for API samples, and it writes `--padding-right` as an inline
    style on the viewport. `!important` beats both that inline style and `.shiki:not(…)`, which
    is more specific than a plain `figure.shiki`. */
-figure.shiki,
-figure.shiki > div[role="region"],
-figure.shiki .shiki {
+figure.shiki:has(.line ~ .line),
+figure.shiki:has(.line ~ .line) > div[role="region"],
+figure.shiki:has(.line ~ .line) .shiki {
   --padding-left: 2.75rem !important;
 }
 
@@ -1711,11 +1711,15 @@ figure.shiki code .line {
   counter-increment: line;
 }
 
-/* The column is reserved on every block so all code starts at the same x, but the digit is
-   only painted when there is more than one line. A lone "1" beside a one-line install command
-   is noise — there is nothing to reference — while dropping the column entirely on those
-   blocks made adjacent fences start their code 28px apart, which read as misalignment on any
-   page mixing a command with its output. Reserving without painting gets both. */
+/* Only multi-line fences get a gutter — both the column and the digit, together.
+
+   A line number on a one-line shell command references nothing, and these docs are mostly
+   one-line commands. Reserving the column but leaving it blank was tried and is worse: the
+   code picks up a 44px indent with nothing in it, which reads as a rendering fault rather than
+   as alignment. Single-line fences therefore keep fumadocs' default padding, so adjacent
+   blocks can start their text 28px apart — acceptable, because each fence is its own bordered
+   card and differing padding between cards is far less noticeable than an unexplained indent
+   inside one. */
 figure.shiki code:has(.line ~ .line) .line::before {
   content: counter(line);
   position: absolute;
