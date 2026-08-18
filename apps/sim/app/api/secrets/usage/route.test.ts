@@ -49,6 +49,7 @@ describe('GET /api/secrets/usage', () => {
           actorName: 'Ada',
           actorEmail: 'ada@example.com',
           lastExecutionId: 'execution-1',
+          lastExecutionAvailable: true,
           lastTrigger: 'schedule',
         },
       ],

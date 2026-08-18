@@ -598,6 +598,31 @@ function collectShellOccurrenceContexts(
 const SHELL_PARAMETER_EXPANSION = /\$(?:\{\s*([A-Za-z_][A-Za-z0-9_]*)|([A-Za-z_][A-Za-z0-9_]*))/g
 
 /**
+ * Whether every mention of `name` in the script is a parameter expansion of it.
+ *
+ * Shell has no injected environment object to shadow — each secret is its own variable — so a
+ * script that writes the name (`API_KEY=local`, `export`/`local`/`readonly`, `read API_KEY`,
+ * `for API_KEY in …`, `unset`) is expanding its own value from that point on, not the mounted
+ * secret. There is no shell parser here to resolve that with, so this takes the same allowlist
+ * shape as the Python detector: a mention that is not preceded by `$` or `${` is something
+ * this scanner cannot attribute, and the name is dropped.
+ *
+ * Per name rather than per file, unlike JavaScript and Python: those shadow one object holding
+ * every secret, so losing it loses them all, whereas rebinding one shell variable says nothing
+ * about the rest.
+ */
+function isOnlyExpanded(code: string, name: string): boolean {
+  const mention = new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`, 'g')
+  let found: RegExpExecArray | null
+  while ((found = mention.exec(code)) !== null) {
+    const before = code[found.index - 1]
+    const expanded = before === '$' || (before === '{' && code[found.index - 2] === '$')
+    if (!expanded) return false
+  }
+  return true
+}
+
+/**
  * Reports secrets a shell script expands straight out of the process environment.
  *
  * Shell has no injected environment object to read from, so quoting decides whether an
@@ -652,6 +677,9 @@ function recordShellDirectEnvironmentReads(
   }
   if (candidates.length === 0) return
 
+  /** Computed once per name — a script may expand the same secret many times. */
+  const attributable = new Map<string, boolean>()
+
   const contexts = collectShellOccurrenceContexts(code, candidates, 0, code.length, false)
   for (const candidate of candidates) {
     const shellContext = contexts.get(candidate)
@@ -662,6 +690,12 @@ function recordShellDirectEnvironmentReads(
      * expansion outright.
      */
     if (!shellContext || shellContext.quote === 'single') continue
+    let onlyExpanded = attributable.get(candidate.name)
+    if (onlyExpanded === undefined) {
+      onlyExpanded = isOnlyExpanded(code, candidate.name)
+      attributable.set(candidate.name, onlyExpanded)
+    }
+    if (!onlyExpanded) continue
     context.recordDirectEnvironmentRead(candidate.name, candidate.start)
   }
 }

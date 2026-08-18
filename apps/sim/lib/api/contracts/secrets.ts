@@ -32,6 +32,8 @@ export const secretUsageEntrySchema = z.object({
   actorName: z.string().nullable(),
   actorEmail: z.string().nullable(),
   lastExecutionId: z.string().nullable(),
+  /** False once that run's log has aged out of the workspace's retention window. */
+  lastExecutionAvailable: z.boolean(),
   lastTrigger: z.string().nullable(),
 })
 

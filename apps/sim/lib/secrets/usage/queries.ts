@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { secretUsage, user, workflow } from '@sim/db/schema'
+import { secretUsage, user, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, desc, eq } from 'drizzle-orm'
 import type { ResolvedSecretScope } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -16,6 +16,12 @@ export interface SecretUsageEntry {
   actorName: string | null
   actorEmail: string | null
   lastExecutionId: string | null
+  /**
+   * Whether that run's log still exists. Usage outlives logs by design — the trail is not
+   * bound by `logRetentionHours` — so a row routinely names a run whose log has since been
+   * pruned, and the UI has to say so rather than link into an empty view.
+   */
+  lastExecutionAvailable: boolean
   lastTrigger: string | null
 }
 
@@ -55,11 +61,17 @@ export async function getSecretUsage(query: SecretUsageQuery): Promise<SecretUsa
       actorName: user.name,
       actorEmail: user.email,
       lastExecutionId: secretUsage.lastExecutionId,
+      /** At most one row: `execution_id` carries a unique index, so this cannot fan out. */
+      lastExecutionLogId: workflowExecutionLogs.id,
       lastTrigger: secretUsage.lastTrigger,
     })
     .from(secretUsage)
     .leftJoin(workflow, eq(workflow.id, secretUsage.workflowId))
     .leftJoin(user, eq(user.id, secretUsage.actorUserId))
+    .leftJoin(
+      workflowExecutionLogs,
+      eq(workflowExecutionLogs.executionId, secretUsage.lastExecutionId)
+    )
     .where(
       and(
         eq(secretUsage.workspaceId, query.workspaceId),
@@ -73,10 +85,11 @@ export async function getSecretUsage(query: SecretUsageQuery): Promise<SecretUsa
 
   return {
     /** The storage sentinel is an implementation detail of the unique key, not a value. */
-    entries: rows.map((row) => ({
+    entries: rows.map(({ lastExecutionLogId, ...row }) => ({
       ...row,
       workflowId: row.workflowId || null,
       actorUserId: row.actorUserId || null,
+      lastExecutionAvailable: lastExecutionLogId !== null,
     })),
   }
 }

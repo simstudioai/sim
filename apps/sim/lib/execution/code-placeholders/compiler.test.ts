@@ -1421,6 +1421,40 @@ describe('a shadowed environment binding disables direct-read detection', () => 
   })
 })
 
+describe('a rebound shell variable is not the mounted secret', () => {
+  /**
+   * Each shell secret is its own variable, so a script that writes the name is expanding its
+   * own value from that point on. Recording it would claim a use of the injected secret that
+   * never happened.
+   */
+  it.each([
+    ['plain assignment', 'API_KEY=local\necho "$API_KEY"'],
+    ['export assignment', 'export API_KEY=local\necho "$API_KEY"'],
+    ['local assignment', 'f() { local API_KEY=x; echo "$API_KEY"; }\nf'],
+    ['readonly assignment', 'readonly API_KEY=x\necho "$API_KEY"'],
+    ['append assignment', 'API_KEY+=suffix\necho "$API_KEY"'],
+    ['read into the name', 'read API_KEY\necho "$API_KEY"'],
+    ['for loop target', 'for API_KEY in a b; do echo "$API_KEY"; done'],
+    ['unset', 'unset API_KEY\necho "$API_KEY"'],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Shell)).toEqual([])
+  })
+
+  /** Rebinding one variable says nothing about the others, unlike the single object JS and Python share. */
+  it('drops only the rebound name', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: 'API_KEY=local\necho "$API_KEY $OTHER_KEY"',
+      language: CodeLanguage.Shell,
+      environmentVariables: { API_KEY: 'a-value', OTHER_KEY: 'b-value' },
+    })
+    expect(compiled.resolvedSecretNames).toEqual(['OTHER_KEY'])
+  })
+
+  it('still reports a name the script only expands', async () => {
+    expect(await directReadNames('echo "$API_KEY"', CodeLanguage.Shell)).toEqual(['API_KEY'])
+  })
+})
+
 describe('shell true positives survive the fail-closed rule', () => {
   it.each([
     ['bare unquoted', 'echo $API_KEY'],

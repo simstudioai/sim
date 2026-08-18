@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { ChipLink } from '@sim/emcn'
 import { formatDateTime } from '@sim/utils/formatting'
+import { SettingsActionChip } from '@/components/settings/settings-header'
 import type { SecretUsageEntryPayload, SecretUsageScope } from '@/lib/api/contracts'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
 import { DELETED_WORKFLOW_LABEL, TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -12,6 +13,19 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/activity-log'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { useSecretUsage } from '@/hooks/queries/credentials'
+
+/**
+ * The disabled twin of the View log chip, for a run whose log has been pruned. Routed through
+ * the shared settings chip so it carries the platform's disabled tooltip treatment — including
+ * the pointer-events handling a disabled button needs for the tooltip to fire at all.
+ */
+const EXPIRED_LOG_ACTION = {
+  id: 'view-log',
+  text: 'View log',
+  disabled: true,
+  tooltip: 'This run\u2019s log is past your workspace\u2019s retention window',
+  onSelect: () => {},
+} as const
 
 interface SecretUsagePanelProps {
   workspaceId: string
@@ -56,7 +70,10 @@ export function SecretUsagePanel({ workspaceId, secretName, scope }: SecretUsage
         ),
         actor: entry.actorName ?? 'Unknown',
         /**
-         * A run only exists for an execution; MCP config resolution has none.
+         * Three states, not two. A row with no execution id never had a run to link (Sim agent
+         * and MCP resolutions have none). A row whose run has since been pruned — usage
+         * outlives logs on purpose — keeps the chip but disables it, so the reader learns the
+         * log expired instead of clicking into an empty Logs view.
          *
          * `border` is the outline-only variant: a bare chip renders as unadorned
          * `--text-body` text at `text-sm`, which next to the Actor cell's `--text-secondary`
@@ -66,13 +83,19 @@ export function SecretUsagePanel({ workspaceId, secretName, scope }: SecretUsage
          * growing it, so a row with a link is the same height as one without.
          */
         trailing: entry.lastExecutionId ? (
-          <ChipLink
-            href={`/workspace/${workspaceId}/logs?executionId=${entry.lastExecutionId}`}
-            variant='border'
-            className='-my-1'
-          >
-            View log
-          </ChipLink>
+          entry.lastExecutionAvailable ? (
+            <ChipLink
+              href={`/workspace/${workspaceId}/logs?executionId=${entry.lastExecutionId}`}
+              variant='border'
+              className='-my-1'
+            >
+              View log
+            </ChipLink>
+          ) : (
+            <span className='-my-1 inline-flex'>
+              <SettingsActionChip action={EXPIRED_LOG_ACTION} />
+            </span>
+          )
         ) : undefined,
       })),
     [data?.entries, workspaceId]
