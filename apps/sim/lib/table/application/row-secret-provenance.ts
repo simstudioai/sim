@@ -1,7 +1,7 @@
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import { isPrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
-import { buildColumnNameById, buildIdByName } from '@/lib/table/column-keys'
+import { buildIdByName } from '@/lib/table/column-keys'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { tableRowSecretProvenanceSelectionKey } from '@/lib/table/secret-provenance-selection'
 import type { RowData, TableDefinition, TableRowSecretProvenanceWrite } from '@/lib/table/types'
@@ -27,8 +27,13 @@ export class TableRowProvenanceError extends Error {
 
 /**
  * Storage column id for each key the caller wrote, or `null` where the key names
- * no column and is therefore never persisted. Mirrors how the row data itself is
- * normalized, so a key dropped from the write is dropped from its provenance.
+ * no column and is therefore never persisted.
+ *
+ * This must mirror {@link rowDataToStorage} exactly, or a cell could be written
+ * with no provenance recorded under a `complete` stamp. The two wires differ in
+ * what they do with an unrecognised key: the name path drops it, so it gets
+ * `null`; the id path stores what it is given, so every key it sends is a
+ * storage key and none of them is `null`.
  */
 function storageKeyByWireKey(
   row: RowData,
@@ -36,12 +41,7 @@ function storageKeyByWireKey(
   keying: 'names' | 'ids'
 ): Map<string, string | null> {
   const wireKeys = Object.keys(row)
-  if (keying === 'ids') {
-    // Keyed by `getColumnId`, so a legacy pre-backfill column — stored under its
-    // name because it has no id — is recognised rather than dropped.
-    const known = buildColumnNameById(table.schema.columns)
-    return new Map(wireKeys.map((key) => [key, known.has(key) ? key : null]))
-  }
+  if (keying === 'ids') return new Map(wireKeys.map((key) => [key, key]))
   const idByName = buildIdByName(table.schema)
   return new Map(wireKeys.map((key) => [key, idByName.get(key) ?? null]))
 }

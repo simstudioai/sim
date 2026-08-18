@@ -39,10 +39,14 @@ const TABLE = {
 
 const SESSION = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 const EXECUTOR = {
-  kind: 'workflow_execution_delegated' as const,
-  userId: 'user-1',
+  kind: 'delegated' as const,
+  serviceId: 'executor' as const,
+  subjectUserId: 'user-1',
   workspaceId: 'workspace-1',
-  executionId: 'exec-1',
+  delegationId: 'delegation-1',
+  audience: 'table',
+  issuedAt: new Date('2026-01-01'),
+  expiresAt: new Date('2026-01-02'),
 }
 
 function resolve(overrides: Partial<Parameters<typeof resolveRowWriteProvenance>[0]>) {
@@ -149,6 +153,45 @@ describe('row write provenance', () => {
       complete: true,
       columns: { col_aaa: { scope: { kind: 'workspace' } } },
     })
+  })
+
+  it('checks the scope against the acting principal, not a billing owner', () => {
+    resolve({
+      principal: EXECUTOR,
+      envelope: {
+        kind: 'bundle',
+        value: {
+          complete: true,
+          selections: [{ key: JSON.stringify([0, 'col_aaa']), provenance: { scope: {} } }],
+        },
+      },
+    })
+
+    expect(mocks.scopeCompatible).toHaveBeenCalledWith(
+      {},
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+  })
+
+  it('records provenance for an id-keyed key the write persists, recognised or not', () => {
+    // The id wire stores what it is given, so every key it sends is a storage
+    // key. Mapping an unrecognised one to null would leave a written cell
+    // uncertified under a complete stamp.
+    const { stamps } = resolve({
+      principal: EXECUTOR,
+      keying: 'ids',
+      wireRows: [{ 'col-unknown': 'x' }],
+      storageRows: [{ 'col-unknown': 'x' }],
+      envelope: {
+        kind: 'bundle',
+        value: {
+          complete: true,
+          selections: [{ key: JSON.stringify([0, 'col-unknown']), provenance: { scope: {} } }],
+        },
+      },
+    })
+
+    expect(stamps[0]).toEqual({ complete: true, columns: { 'col-unknown': { scope: {} } } })
   })
 
   it('records nothing for a key that names no column, since it is never stored', () => {
