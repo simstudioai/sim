@@ -11,6 +11,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ToolConfig } from '@/tools/types'
 import {
+  buildOrganizationReadme,
   serializeAccessControl,
   serializeAccountBilling,
   serializeAccountMembers,
@@ -26,6 +27,7 @@ import {
   serializeKBMeta,
   serializeOrganization,
   serializeOrganizationCustomBlocks,
+  serializeOrgCustomBlockDetail,
   serializeSandbox,
   serializeSandboxCatalog,
   serializeTableMeta,
@@ -709,7 +711,7 @@ describe('account and organization namespace serializers', () => {
     expect(accessControl.note).toContain('THIS user')
   })
 
-  it('points custom-block provenance at the schema rather than copying fields', () => {
+  it('keeps the index to names and defers depth to per-block detail files', () => {
     const blocks = JSON.parse(
       serializeOrganizationCustomBlocks([
         {
@@ -722,22 +724,68 @@ describe('account and organization namespace serializers', () => {
           workspaceId: 'ws-9',
           workspaceName: 'Platform',
         },
-        {
-          type: 'acme_retired',
-          name: 'Retired',
-          enabled: false,
-          workflowId: 'wf-2',
-          workspaceId: null,
-        },
       ])
     )
 
-    expect(blocks.customBlocks[0].schema).toBe('components/blocks/acme_scorer.json')
-    expect(blocks.customBlocks[0].publishedFrom.workspaceName).toBe('Platform')
-    expect(blocks.customBlocks[0].inputFields).toBeUndefined()
-    // A disabled block cannot be added, so it gets no schema pointer.
-    expect(blocks.customBlocks[1].schema).toBeUndefined()
-    expect(blocks.customBlocks[1].publishedFrom.workspaceId).toBeUndefined()
+    expect(blocks.customBlocks[0]).toEqual({
+      type: 'acme_scorer',
+      name: 'Acme Scorer',
+      enabled: true,
+      detail: 'organization/custom-blocks/acme_scorer.json',
+    })
+    // Depth belongs to the detail file — an index row carrying provenance
+    // would drift from it.
+    expect(blocks.customBlocks[0].publishedFrom).toBeUndefined()
+  })
+
+  it('gives the detail file provenance, the schema pointer, and the read-only deployed graph', () => {
+    const detail = JSON.parse(
+      serializeOrgCustomBlockDetail(
+        {
+          type: 'acme_scorer',
+          name: 'Acme Scorer',
+          enabled: true,
+          workflowId: 'wf-1',
+          workflowName: 'Scorer',
+          workspaceId: 'ws-9',
+          workspaceName: 'Platform',
+        },
+        { blocks: { b1: { type: 'agent' } }, edges: [{ source: 'b1', target: 'b2' }] }
+      )
+    )
+
+    expect(detail.publishedFrom.workflowId).toBe('wf-1')
+    expect(detail.schema).toBe('components/blocks/acme_scorer.json')
+    expect(detail.deployedWorkflowState.edges).toHaveLength(1)
+    // The graph is the deployed one and is not editable from here; the note
+    // is what tells the model both facts.
+    expect(detail.note).toContain('DEPLOYED')
+    expect(detail.note).toContain('publishing workspace')
+  })
+
+  it('writes the namespace guide with the inventory the index defers', () => {
+    const readme = buildOrganizationReadme({
+      organizationId: 'org-1',
+      isEnterprise: true,
+      customBlocks: [
+        {
+          type: 'acme_scorer',
+          name: 'Acme Scorer',
+          enabled: true,
+          workflowName: 'Scorer',
+          workspaceName: 'Platform',
+        },
+        { type: 'acme_retired', name: 'Retired', enabled: false },
+      ],
+      forksMounted: false,
+    })
+
+    expect(readme).toContain('# Organization')
+    expect(readme).toContain('custom-blocks/{type}.json')
+    expect(readme).toContain('**Acme Scorer** (`acme_scorer`) — published from Scorer in Platform')
+    expect(readme).toContain('**Retired** (`acme_retired`) — disabled')
+    // Forks are admin-gated; an unmounted file must not be advertised.
+    expect(readme).not.toContain('forks.json')
   })
 
   it('summarizes fork mappings by resource type and omits them at the root', () => {

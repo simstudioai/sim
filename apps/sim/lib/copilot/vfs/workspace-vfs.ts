@@ -68,6 +68,7 @@ import {
 import { readPlaceholder } from '@/lib/copilot/vfs/read-placeholders'
 import type { DeploymentData, VfsServiceAccountAuth } from '@/lib/copilot/vfs/serializers'
 import {
+  buildOrganizationReadme,
   describeServiceAccountForOAuthProvider,
   serializeAccessControl,
   serializeAccountBilling,
@@ -92,6 +93,7 @@ import {
   serializeMcpServer,
   serializeOrganization,
   serializeOrganizationCustomBlocks,
+  serializeOrgCustomBlockDetail,
   serializeRecentExecutions,
   serializeSandbox,
   serializeSandboxCatalog,
@@ -155,7 +157,10 @@ import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/f
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowFromNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -2523,22 +2528,58 @@ export class WorkspaceVFS {
         }
       })
 
-      this.registerLazy('organization/custom-blocks.json', async () => {
-        try {
-          const blocks = await listCustomBlocksWithInputsForWorkspace(workspaceId)
-          if (blocks.length === 0) return null
-          return serializeOrganizationCustomBlocks(blocks)
-        } catch (err) {
-          logger.warn('Failed to load org custom blocks', {
-            workspaceId,
-            error: toError(err).message,
-          })
-          return null
-        }
+      // The block list is fetched at materialize time (one indexed query, the
+      // same one the components pass already ran) because the README and the
+      // names-only index need it, and each block's detail path must exist in
+      // the key view for glob to list. Only the deployed graph stays lazy —
+      // it is the expensive part and most turns never read it.
+      const orgBlocks = await listCustomBlocksWithInputsForWorkspace(workspaceId).catch((err) => {
+        logger.warn('Failed to list org custom blocks', {
+          workspaceId,
+          error: toError(err).message,
+        })
+        return []
       })
+      if (orgBlocks.length > 0) {
+        this.files.set(
+          'organization/custom-blocks.json',
+          serializeOrganizationCustomBlocks(orgBlocks)
+        )
+        for (const orgBlock of orgBlocks) {
+          this.registerLazy(`organization/custom-blocks/${orgBlock.type}.json`, async () => {
+            try {
+              const deployed = await loadDeployedWorkflowState(
+                orgBlock.workflowId,
+                orgBlock.workspaceId ?? undefined
+              )
+              return serializeOrgCustomBlockDetail(orgBlock, deployed)
+            } catch (err) {
+              logger.warn('Failed to load deployed state for org custom block', {
+                workspaceId,
+                blockType: orgBlock.type,
+                error: toError(err).message,
+              })
+              return null
+            }
+          })
+        }
+      }
 
-      if (hostContext.viewer.permission !== 'admin') return
-      if (!(await isForkingAvailableForWorkspace(organizationId, userId).catch(() => false))) return
+      const forksAvailable =
+        hostContext.viewer.permission === 'admin' &&
+        (await isForkingAvailableForWorkspace(organizationId, userId).catch(() => false))
+
+      this.files.set(
+        'organization/README.md',
+        buildOrganizationReadme({
+          organizationId,
+          isEnterprise: hostContext.ownerBilling.isEnterprise,
+          customBlocks: orgBlocks,
+          forksMounted: forksAvailable,
+        })
+      )
+
+      if (!forksAvailable) return
 
       this.registerLazy('organization/forks.json', async () => {
         try {
