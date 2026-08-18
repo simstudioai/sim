@@ -322,6 +322,11 @@ app:
   # app container — NOT written into the chart-managed Secret and NOT required to be mapped
   # when externalSecrets.enabled=true. Override any key by setting `app.envDefaults.KEY` in
   # your values file. Move a key into `app.env` above only if it must be treated as secret.
+  #
+  # To REMOVE a key rather than change it, override it with `null` — Helm deletes a default
+  # key when it is overridden with null (e.g. `FREE_TABLES_LIMIT: null`). Setting it to ""
+  # does NOT remove it: every key under `app.env` ships as a "" placeholder, so the templates
+  # must read "" as "unspecified". See "Removing an inherited env key" in README.md.
   envDefaults:
     # Application URLs (override in app.env or app.envDefaults for production)
     NEXT_PUBLIC_APP_URL: "http://localhost:3000"
