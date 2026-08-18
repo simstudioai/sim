@@ -1725,6 +1725,22 @@ figure.shiki code:has(.line ~ .line) .line::before {
   pointer-events: none;
 }
 
+/* The code fill is painted here, on the scroll viewport, rather than left to show through from
+   the figure or the tab group. Those diverge per renderer: fumadocs gives a standalone figure
+   `bg-fd-card` but an in-tab figure `bg-fd-secondary`, and this app forces
+   `--color-fd-card: transparent` on API reference pages. The result was measurable — a request
+   panel showing the page background (#fff light, `--bg` dark) beside a response panel showing
+   the code surface. The viewport is the one box all three renderers agree on. */
+figure.shiki > div[role="region"] {
+  background-color: var(--code-surface);
+}
+
+/* Shiki emits `--shiki-*-bg` custom properties under `defaultColor: false`; keep the `pre` clear
+   so nothing paints over the viewport fill. */
+figure.shiki pre {
+  background-color: transparent;
+}
+
 /* Viewport padding — fumadocs ships 14px vertical; the platform's viewer uses 8px. Split the
    difference at 10px, which keeps a single-line fence from looking hollow at the tighter
    21px line box. */
@@ -1907,7 +1923,6 @@ div:has(> [role="tablist"]):has(> div > figure.shiki) > [role="tabpanel"] > figu
   margin: 0;
   border: none;
   border-radius: 0;
-  background-color: transparent;
 }
 
 /* Cards container — vertical list with line dividers instead of grid boxes */
