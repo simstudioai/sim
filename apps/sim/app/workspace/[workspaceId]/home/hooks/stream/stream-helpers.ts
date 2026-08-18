@@ -186,6 +186,28 @@ export function resolveIntegrationToolDisplayTitle(tool: {
   return tool.integrationDescription
 }
 
+/**
+ * Tools whose subject is one workflow. They accept a `workflowId` (or imply
+ * the current workflow), so their titles can only name the workflow once the
+ * client resolves the id against the workflow registry.
+ */
+const WORKFLOW_SCOPED_TOOL_IDS = new Set<string>([
+  'deploy_as_api',
+  'deploy_as_chat',
+  'deploy_as_mcp',
+  'get_block_outputs',
+  'get_block_upstream_references',
+  'get_deployed_workflow_state',
+  'get_deployment_status',
+  'get_workflow_data',
+  'get_workflow_run_options',
+  'promote_to_live',
+  'redeploy',
+  'run_block',
+  'set_block_enabled',
+  'set_global_workflow_variables',
+])
+
 export function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
   // Cases that enrich the title with live workspace/block names from the client
   // stores. Everything else is resolved by the shared name+args resolver, which
@@ -222,6 +244,15 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
     const workflowName =
       resolveWorkflowNameForDisplay(args?.workflowId) ?? stringParam(args?.workflowName)
     if (workflowName) return `Querying logs for ${workflowName}`
+  }
+
+  // Workflow-scoped tools carry an id, not a name — and often not even that,
+  // defaulting to the current workflow. Resolve the name here and hand it to
+  // the shared resolver as `workflowName`, which every workflow title already
+  // reads, so deployments, reads, and block work all say WHICH workflow.
+  if (WORKFLOW_SCOPED_TOOL_IDS.has(name) && !stringParam(args?.workflowName)) {
+    const workflowName = resolveTargetWorkflowName(args)
+    if (workflowName) return getToolDisplayTitle(name, { ...args, workflowName })
   }
 
   return getToolDisplayTitle(name, args)

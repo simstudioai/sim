@@ -425,8 +425,14 @@ function openResourceTitle(args: ToolArgs): string {
 }
 
 function setGlobalWorkflowVariablesTitle(args: ToolArgs): string {
+  // Enrichment resolves the workflow id to a name; "in {workflow}" is dropped
+  // when the call targets the workflow already in view and none resolves.
+  const workflow = firstStringArg(args, 'workflowName', 'name')
+  const scope = workflow ? ` in ${workflow}` : ''
   const operations = args?.operations
-  if (!Array.isArray(operations) || operations.length === 0) return 'Setting workflow variables'
+  if (!Array.isArray(operations) || operations.length === 0) {
+    return `Setting workflow variables${scope}`
+  }
 
   const parsed = operations.filter((operation): operation is Record<string, unknown> =>
     isRecordLike(operation)
@@ -444,9 +450,9 @@ function setGlobalWorkflowVariablesTitle(args: ToolArgs): string {
 
   if (parsed.length === 1) {
     const variableName = stringArg(parsed[0], 'name')
-    return `${verb} workflow variable${variableName ? ` ${variableName}` : ''}`
+    return `${verb} workflow variable${variableName ? ` ${variableName}` : ''}${scope}`
   }
-  return `${verb} ${parsed.length} workflow variables`
+  return `${verb} ${parsed.length} workflow variables${scope}`
 }
 
 /**
@@ -847,10 +853,6 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         ? 'Loading live deployment'
         : `Loading deployment version ${version}`
     }
-    case 'promote_to_live': {
-      const version = stringOrNumberArg(args, 'version')
-      return version ? `Promoting version ${version} to live` : 'Promoting to live'
-    }
     case 'update_deployment_version': {
       const version = stringOrNumberArg(args, 'version')
       return version ? `Updating deployment version ${version}` : 'Updating deployment'
@@ -1066,6 +1068,37 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       return namedOperationTitle(args, target, 'Managing credential', {
         delete: { verb: 'Deleting', resource: 'credential' },
       })
+    }
+    case 'get_deployment_status': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Checking ${workflow} deployment status` : 'Checking deployment status'
+    }
+    case 'get_deployed_workflow_state': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Reading deployed ${workflow}` : 'Reading the deployed version'
+    }
+    case 'get_workflow_run_options': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Checking ${workflow} run settings` : 'Checking run settings'
+    }
+    case 'get_block_outputs': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Reading ${workflow} block outputs` : 'Reading block outputs'
+    }
+    case 'get_block_upstream_references': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Tracing ${workflow} block inputs` : 'Tracing block inputs'
+    }
+    case 'redeploy': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      return workflow ? `Redeploying ${workflow}` : 'Redeploying API'
+    }
+    case 'promote_to_live': {
+      const workflow = firstStringArg(args, 'workflowName', 'name')
+      const version = stringOrNumberArg(args, 'version')
+      if (workflow && version) return `Promoting ${workflow} version ${version} to live`
+      if (workflow) return `Promoting ${workflow} to live`
+      return version ? `Promoting version ${version} to live` : 'Promoting to live'
     }
     case 'run_workflow': {
       const workflow = firstStringArg(args, 'workflowName', 'name')
