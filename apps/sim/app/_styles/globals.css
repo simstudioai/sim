@@ -58,6 +58,9 @@
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
+  /* Full-screen takeovers (session expired, minimum-shell-version gate) replace
+     the app entirely, so they sit above every other layer including poppers. */
+  --z-takeover: 500;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
