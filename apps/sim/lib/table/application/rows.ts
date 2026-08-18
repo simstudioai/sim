@@ -120,16 +120,22 @@ type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenanc
 async function loadAuthorizedRowsProvenance(
   principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
-  // The loader reads only id, updatedAt and data, so a row without its
-  // executions sidecar is enough — see `TABLE_ROW_SIDECAR_SELECTION`.
+  // The loader reads only id, updatedAt and the selected values, so a row
+  // without its executions sidecar is enough — see `TABLE_ROW_SIDECAR_SELECTION`.
   rows: TableRowSummary[],
   include: boolean | undefined
 ): Promise<TableRowsProvenance | undefined> {
   if (!include) return undefined
-  return loadTableRowSecretProvenance(rows, {
-    userId: requirePrincipalSubjectUserId(principal),
-    workspaceId,
-  })
+  return loadTableRowSecretProvenance(
+    // `selectedValues` narrows the sidecar to the columns the row still holds.
+    // Without it a stale entry for a dropped column rides along in the envelope,
+    // which is how the unmigrated `rows`/`query` routes have always behaved.
+    rows.map((row) => ({ id: row.id, updatedAt: row.updatedAt, selectedValues: row.data })),
+    {
+      userId: requirePrincipalSubjectUserId(principal),
+      workspaceId,
+    }
+  )
 }
 
 function requestId(input: TableScopedInput): string {

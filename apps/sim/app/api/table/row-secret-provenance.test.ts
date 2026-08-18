@@ -8,12 +8,19 @@ import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
   PRIVATE_SECRET_PROVENANCE_FIELD,
   PRIVATE_SECRET_PROVENANCE_HEADER,
+  PRIVATE_TOOL_METADATA_REQUEST_HEADER,
+  PRIVATE_TOOL_METADATA_RESPONSE_HEADER,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
+import { TableRowProvenanceError } from '@/lib/table/application/row-secret-provenance'
 import { rowDataNameToId } from '@/lib/table/column-keys'
 import { tableRowSecretProvenanceSelectionKey } from '@/lib/table/secret-provenance-selection'
 import type { RowData } from '@/lib/table/types'
 import {
   createTableWriteProvenanceTargets,
+  finalizeTableRowsProvenance,
+  negotiateTableRowsProvenance,
+  readTableRowProvenanceEnvelope,
   resolveTableWriteSecretProvenance,
 } from '@/app/api/table/row-secret-provenance'
 
@@ -256,5 +263,79 @@ describe('resolveTableWriteSecretProvenance', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+})
+
+/**
+ * The transport half of the envelope, used by the migrated single-row routes.
+ *
+ * These are the only cover these helpers have: the route tests assert `mapInput`
+ * and `present`, so each helper could be replaced by a constant without a route
+ * test noticing — and a constant `readTableRowProvenanceEnvelope` would silently
+ * downgrade every executor write from a stamped bundle to untracked.
+ */
+describe('readTableRowProvenanceEnvelope', () => {
+  it('reports no envelope when the caller sent none', () => {
+    const request = createMockRequest('PATCH', { data: {} })
+
+    expect(readTableRowProvenanceEnvelope(request, { data: {} })).toEqual({ kind: 'none' })
+  })
+
+  it('hands the verified bundle over unresolved', () => {
+    const { request, payload } = bundleRequest([tableRowSecretProvenanceSelectionKey(0, 'email')])
+
+    const envelope = readTableRowProvenanceEnvelope(request, payload)
+
+    expect(envelope.kind).toBe('bundle')
+    expect(envelope).toEqual({ kind: 'bundle', value: payload[PRIVATE_SECRET_PROVENANCE_FIELD] })
+  })
+
+  it('rejects a declared bundle whose payload field is missing', () => {
+    const request = createMockRequest(
+      'PATCH',
+      { data: {} },
+      { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 }
+    )
+
+    expect(() => readTableRowProvenanceEnvelope(request, { data: {} })).toThrow(
+      TableRowProvenanceError
+    )
+  })
+})
+
+describe('negotiateTableRowsProvenance', () => {
+  it('is not requested without the capability header', () => {
+    expect(negotiateTableRowsProvenance(createMockRequest('GET', undefined), true)).toBe(false)
+  })
+
+  it('is accepted for an internal caller that asked for it', () => {
+    const request = createMockRequest('GET', undefined, {
+      [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    })
+
+    expect(negotiateTableRowsProvenance(request, true)).toBe(true)
+  })
+
+  it('rejects a session caller that asks for the internal capability', () => {
+    const request = createMockRequest('GET', undefined, {
+      [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    })
+
+    expect(() => negotiateTableRowsProvenance(request, false)).toThrow(TableRowProvenanceError)
+  })
+})
+
+describe('finalizeTableRowsProvenance', () => {
+  it('adds nothing when the use case loaded no provenance', () => {
+    expect(finalizeTableRowsProvenance(undefined)).toEqual({})
+  })
+
+  it('adds the sibling body field and the capability header when it did', () => {
+    const finalized = finalizeTableRowsProvenance({ rows: [] })
+
+    expect(finalized.bodyFields).toBeDefined()
+    expect(new Headers(finalized.headers).get(PRIVATE_TOOL_METADATA_RESPONSE_HEADER)).toBe(
+      RESOLVED_SECRET_PROVENANCE_METADATA_V1
+    )
   })
 })
