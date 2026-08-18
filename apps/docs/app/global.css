@@ -1711,7 +1711,12 @@ figure.shiki code .line {
   counter-increment: line;
 }
 
-figure.shiki code .line::before {
+/* The column is reserved on every block so all code starts at the same x, but the digit is
+   only painted when there is more than one line. A lone "1" beside a one-line install command
+   is noise — there is nothing to reference — while dropping the column entirely on those
+   blocks made adjacent fences start their code 28px apart, which read as misalignment on any
+   page mixing a command with its output. Reserving without painting gets both. */
+figure.shiki code:has(.line ~ .line) .line::before {
   content: counter(line);
   position: absolute;
   left: 0;
