@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
+import { sleep } from '../helpers'
 import { USER_AGENT } from '../version'
 import {
   formatApiErrorDetails,
@@ -13,6 +14,9 @@ import {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  // `stubEnv` is not undone by `unstubAllGlobals`, so a SIM_TIMEOUT_SECONDS or
+  // SIM_DEBUG set for one test would otherwise configure every test after it.
+  vi.unstubAllEnvs()
 })
 
 function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
@@ -314,6 +318,168 @@ describe('non-JSON responses', () => {
   })
 })
 
+describe('a request that never answers', () => {
+  it('bounds a request by default, above every timeout the server itself applies', async () => {
+    // A synchronous workflow run is allowed 3000s on a paid plan, so a tighter
+    // default would abort real work and report it as a transport failure. What
+    // this catches is a connection that is accepted and then never answers.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await client().request('/api/v2/workflows')
+
+    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
+    expect(signal).toBeInstanceOf(AbortSignal)
+    expect(signal.aborted).toBe(false)
+  })
+
+  it('sends no signal at all when the bound is switched off', async () => {
+    // A self-hosted deployment can run executions without a timeout of its own,
+    // and there the client must not invent one.
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', '0')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await client().request('/api/v2/workflows')
+    expect(fetchMock.mock.calls[0][1].signal).toBeUndefined()
+  })
+
+  it('refuses a timeout that is not a number, naming the variable', async () => {
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', 'soon')
+    vi.stubGlobal('fetch', vi.fn())
+
+    await expect(client().request('/api/v2/workflows')).rejects.toThrow(
+      /Invalid SIM_TIMEOUT_SECONDS "soon"/
+    )
+  })
+
+  it('rounds a fractional millisecond rather than letting the timer reject it', async () => {
+    // `AbortSignal.timeout` rejects a non-integer delay outright, so an
+    // unrounded 0.0005s threw ERR_OUT_OF_RANGE before the request was made.
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', '0.0005')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(client().request('/api/v2/workflows')).resolves.toBeDefined()
+  })
+
+  it('keeps a bound below half a millisecond bounded, rather than disabling it', async () => {
+    // Zero means "no bound", so rounding a positive value down to zero inverted
+    // the request: the shortest timeout anyone could ask for became none.
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', '0.0004')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await client().request('/api/v2/workflows')
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('refuses a delay longer than Node can wait, which would silently become 1ms', async () => {
+    // Past 2^31-1 ms Node does not fail — it clamps to 1ms, so the request the
+    // caller asked to wait longest for would be the first one aborted.
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', String(2 ** 31))
+    vi.stubGlobal('fetch', vi.fn())
+
+    await expect(client().request('/api/v2/workflows')).rejects.toThrow(/longer than Node can wait/)
+  })
+
+  it('composes the caller signal with the timeout without AbortSignal.any', async () => {
+    // `AbortSignal.any` arrived in Node 20.3 and this package supports Node 20,
+    // so the earliest 20.x releases would have thrown a bare TypeError here.
+    const original = AbortSignal.any
+    // biome-ignore lint/performance/noDelete: restoring the property is the point
+    delete (AbortSignal as { any?: unknown }).any
+    const controller = new AbortController()
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      await client().request('/api/v2/workflows', { signal: controller.signal })
+      const sent = fetchMock.mock.calls[0][1].signal as AbortSignal
+      expect(sent.aborted).toBe(false)
+      controller.abort()
+      expect(sent.aborted).toBe(true)
+    } finally {
+      ;(AbortSignal as { any?: unknown }).any = original
+    }
+  })
+
+  it('explains a timeout as a timeout, not as an unreachable endpoint', async () => {
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', '0.001')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        await sleep(20)
+        init.signal?.throwIfAborted()
+        return new Response('{}')
+      })
+    )
+
+    await expect(client().request('/api/v2/workflows')).rejects.toThrow(/did not answer within/)
+  })
+})
+
+describe('tracing a request', () => {
+  it('traces method, url, status and duration when asked, and nothing otherwise', async () => {
+    const response = () =>
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+
+    const quiet = stubStderr(false)
+    try {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response()))
+      await client().request('/api/v2/workflows')
+    } finally {
+      quiet.restore()
+    }
+    expect(quiet.writes).toEqual([])
+
+    vi.stubEnv('SIM_DEBUG', '1')
+    const traced = stubStderr(false)
+    try {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response()))
+      await client().request('/api/v2/workflows')
+    } finally {
+      traced.restore()
+    }
+
+    const line = traced.writes.join('')
+    expect(line).toContain('GET https://sim.example/api/v2/workflows')
+    expect(line).toContain('200')
+    expect(line).toMatch(/\d+ms/)
+    // The request carries the API key, and `secrets set` carries the secret
+    // itself, so a trace must never include headers or bodies.
+    expect(line).not.toContain('key')
+  })
+})
+
 describe('request identity', () => {
   it('identifies the CLI, its version and its runtime to the API', async () => {
     // Without a User-Agent a CLI request is indistinguishable from any other
@@ -597,7 +763,6 @@ describe('raw requests', () => {
       'https://sim.example/api/v2/chat',
       expect.objectContaining({
         method: 'POST',
-        signal: controller.signal,
         headers: expect.objectContaining({
           accept: 'text/event-stream',
           'content-type': 'application/json',
@@ -605,6 +770,14 @@ describe('raw requests', () => {
         }),
       })
     )
+
+    // The signal is composed with the request timeout, so it is no longer the
+    // caller's object. What has to hold is the behaviour: aborting the
+    // caller's controller still aborts the request.
+    const sent = fetch.mock.calls[0][1].signal as AbortSignal
+    expect(sent.aborted).toBe(false)
+    controller.abort()
+    expect(sent.aborted).toBe(true)
   })
 
   it('turns an aborted fetch into a clean CLI error', async () => {
