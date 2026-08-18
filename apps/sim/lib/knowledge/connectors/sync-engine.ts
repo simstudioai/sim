@@ -64,6 +64,20 @@ const MAX_CONSECUTIVE_FAILURES = 10
 function sanitizeStorageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
 }
+
+/**
+ * Name a connector document's stored object carries.
+ *
+ * Connectors store already-extracted text while `document.filename` keeps the
+ * source file's name for display, so the stored object has to declare the format
+ * it actually holds: `resolveStoredArtifactExtension` picks the parser off this
+ * key, and a key ending in the source extension would re-parse extracted text as
+ * the original binary. Owning the `.txt` suffix here makes that structural rather
+ * than a convention each call site has to remember.
+ */
+function connectorArtifactFileName(title: string): string {
+  return `${sanitizeStorageTitle(title)}.txt`
+}
 type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
 
 type DocOp =
@@ -1657,17 +1671,17 @@ async function addDocument(
 ): Promise<DocumentData> {
   const documentId = generateId()
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
-  const safeTitle = sanitizeStorageTitle(extDoc.title)
-  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, `${safeTitle}.txt`)}`
+  const storedFileName = connectorArtifactFileName(extDoc.title)
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, storedFileName)}`
 
   const fileInfo = await StorageService.uploadFile({
     file: contentBuffer,
-    fileName: `${safeTitle}.txt`,
+    fileName: storedFileName,
     contentType: 'text/plain',
     context: 'knowledge-base',
     customKey,
     preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, `${safeTitle}.txt`),
+    metadata: kbOwnershipMetadata(kbOwner, storedFileName),
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -1675,8 +1689,6 @@ async function addDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  const processingFilename = `${safeTitle}.txt`
 
   try {
     await db.transaction(async (tx) => {
@@ -1718,7 +1730,7 @@ async function addDocument(
 
   return {
     documentId,
-    filename: processingFilename,
+    filename: storedFileName,
     fileUrl,
     fileSize: contentBuffer.length,
     mimeType: 'text/plain',
@@ -1746,17 +1758,17 @@ async function updateDocument(
   const oldFileUrl = existingRows[0]?.fileUrl
 
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
-  const safeTitle = sanitizeStorageTitle(extDoc.title)
-  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, `${safeTitle}.txt`)}`
+  const storedFileName = connectorArtifactFileName(extDoc.title)
+  const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${existingDocId}-`, storedFileName)}`
 
   const fileInfo = await StorageService.uploadFile({
     file: contentBuffer,
-    fileName: `${safeTitle}.txt`,
+    fileName: storedFileName,
     contentType: 'text/plain',
     context: 'knowledge-base',
     customKey,
     preserveKey: true,
-    metadata: kbOwnershipMetadata(kbOwner, `${safeTitle}.txt`),
+    metadata: kbOwnershipMetadata(kbOwner, storedFileName),
   })
 
   const fileUrl = `${getInternalApiBaseUrl()}${fileInfo.path}?context=knowledge-base`
@@ -1764,8 +1776,6 @@ async function updateDocument(
   const tagValues = extDoc.metadata
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
-
-  const processingFilename = `${safeTitle}.txt`
 
   try {
     await db.transaction(async (tx) => {
@@ -1839,7 +1849,7 @@ async function updateDocument(
 
   return {
     documentId: existingDocId,
-    filename: processingFilename,
+    filename: storedFileName,
     fileUrl,
     fileSize: contentBuffer.length,
     mimeType: 'text/plain',

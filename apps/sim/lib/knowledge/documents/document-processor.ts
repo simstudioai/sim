@@ -18,7 +18,10 @@ import { env, envNumber } from '@/lib/core/config/env'
 import { OCR_CAPABILITY, requireCapability } from '@/lib/core/config/env-capabilities'
 import { parseBuffer } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
-import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
+import {
+  resolveParserExtension,
+  resolveStoredArtifactExtension,
+} from '@/lib/knowledge/documents/parser-extension'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   assertKnowledgeOpaqueModelInputSafe,
@@ -841,7 +844,9 @@ async function parseHttpFile(
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl, userId)
 
-  const extension = resolveParserExtension(filename, mimeType)
+  /** Prefer what we actually downloaded over what the document is *called*. */
+  const extension =
+    resolveStoredArtifactExtension(fileUrl) ?? resolveParserExtension(filename, mimeType)
   const result = await parseBuffer(buffer, extension)
   return result
 }
