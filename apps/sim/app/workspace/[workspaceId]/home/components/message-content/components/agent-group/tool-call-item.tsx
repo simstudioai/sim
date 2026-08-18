@@ -236,19 +236,28 @@ export function ToolCallItem({
   }
 
   return (
-    <div className='flex min-w-0 items-center gap-[6px] pl-6'>
-      {BlockIcon && (
-        <BlockIcon
-          className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-          style={getBareIconStyle(BlockIcon)}
-        />
-      )}
+    /* Same left geometry as the agent-group header (16px slot + gap-2): every
+       row's text lands on the 24px-per-level grid. The slot renders even when
+       the tool has no icon — internal tools (grep, read, edit_workflow) were
+       starting 20px left of integration rows, giving a mixed lane three
+       different text edges. */
+    <div className='flex min-w-0 items-center gap-2 pl-6'>
+      <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+        {BlockIcon && (
+          <BlockIcon
+            className='size-[14px] text-[var(--text-icon)]'
+            style={getBareIconStyle(BlockIcon)}
+          />
+        )}
+      </div>
       {isExecuting ? (
-        <ShimmerText className='min-w-0 truncate text-[13px] [--shimmer-rest:var(--text-secondary)]'>
+        <ShimmerText className='min-w-0 truncate text-[13px] leading-[18px] [--shimmer-rest:var(--text-secondary)]'>
           {title}
         </ShimmerText>
       ) : (
-        <span className='min-w-0 truncate text-[13px] text-[var(--text-secondary)]'>{title}</span>
+        <span className='min-w-0 truncate text-[13px] text-[var(--text-secondary)] leading-[18px]'>
+          {title}
+        </span>
       )}
     </div>
   )
