@@ -548,3 +548,98 @@ describe('batchUpdateRows — per-row partial merge', () => {
     expect(values).not.toContain(JSON.stringify({ name: 'Alice', age: 31 }))
   })
 })
+
+/**
+ * The uniqueness probe opens its own transaction and queries once per unique
+ * column, so on a table that has any unique column it used to cost several
+ * round trips on every edit — including edits nowhere near one. It is now
+ * scoped to the columns the patch actually writes.
+ *
+ * The safety argument is that a merge cannot newly violate uniqueness on a
+ * column it leaves alone: that value is the one already stored, and it
+ * satisfied the constraint when it was written.
+ */
+describe('updateRow — uniqueness probe scoping', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
+    dbChainMockFns.returning.mockResolvedValue([
+      { id: EXISTING_ROW.id, updatedAt: PERSISTED_UPDATED_AT },
+    ])
+  })
+
+  it('does not probe when the patch touches no unique column', async () => {
+    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(checkUniqueConstraintsDb).not.toHaveBeenCalled()
+  })
+
+  it('still probes when the patch touches a unique column', async () => {
+    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(checkUniqueConstraintsDb).toHaveBeenCalledTimes(1)
+  })
+
+  it('probes against the merged row, so the excluded row is still the one being edited', async () => {
+    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(checkUniqueConstraintsDb).toHaveBeenCalledWith(
+      'tbl-1',
+      { name: 'Grace', age: 30 },
+      TABLE.schema,
+      'row-1'
+    )
+  })
+
+  it('surfaces a duplicate on a column the patch does write', async () => {
+    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+    vi.mocked(checkUniqueConstraintsDb).mockResolvedValueOnce({
+      valid: false,
+      errors: ['Duplicate value for name'],
+    })
+
+    await expect(
+      updateRow(
+        { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+        TABLE,
+        'req-1'
+      )
+    ).rejects.toThrow(/Duplicate value for name/)
+  })
+
+  it('does not probe on a table with no unique columns at all', async () => {
+    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
+    vi.mocked(getUniqueColumns).mockReturnValue([])
+
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    expect(checkUniqueConstraintsDb).not.toHaveBeenCalled()
+  })
+})

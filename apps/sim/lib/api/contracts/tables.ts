@@ -1433,6 +1433,22 @@ export const upsertTableRowContract = defineRouteContract({
   },
 })
 
+/**
+ * Reads one row. The sibling of {@link updateTableRowContract} and
+ * {@link deleteTableRowContract}, which take their workspace scope from a body;
+ * a GET has none, so it is asserted on the query string instead.
+ */
+export const getTableRowContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/rows/[rowId]',
+  params: tableRowParamsSchema,
+  query: getTableQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ row: tableRowSchema })),
+  },
+})
+
 export const updateTableRowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/table/[tableId]/rows/[rowId]',

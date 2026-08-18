@@ -1422,22 +1422,28 @@ export async function getRowById(
   rowId: string,
   workspaceId: string
 ): Promise<TableRow | null> {
-  const results = await db
-    .select()
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.id, rowId),
-        eq(userTableRows.tableId, tableId),
-        eq(userTableRows.workspaceId, workspaceId)
+  // The executions sidecar is keyed on the row id the caller already gave us, so
+  // it does not depend on the row lookup — issuing both together makes this one
+  // round trip instead of two. A miss pays one redundant sidecar read, which is
+  // the rare path and costs no extra wall time.
+  const [results, executions] = await Promise.all([
+    db
+      .select()
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.id, rowId),
+          eq(userTableRows.tableId, tableId),
+          eq(userTableRows.workspaceId, workspaceId)
+        )
       )
-    )
-    .limit(1)
+      .limit(1),
+    loadExecutionsForRow(db, rowId),
+  ])
 
   if (results.length === 0) return null
 
   const row = results[0]
-  const executions = await loadExecutionsForRow(db, row.id)
   return {
     id: row.id,
     data: row.data as RowData,
@@ -1604,9 +1610,19 @@ export async function updateRow(
     )
   }
 
-  // Check unique constraints using optimized database query
-  const uniqueColumns = getUniqueColumns(table.schema)
-  if (uniqueColumns.length > 0) {
+  // Check unique constraints using optimized database query.
+  //
+  // Scoped to the columns this patch actually writes. A merge cannot newly
+  // violate uniqueness on a column it leaves alone: that value is the one
+  // already stored, and it satisfied the constraint when it was written. The
+  // probe opens its own transaction and queries once per unique column, so on a
+  // table that has any unique column this was several round trips on every
+  // edit, including edits nowhere near one.
+  const patchedColumnIds = new Set(Object.keys(data.data))
+  const patchedUniqueColumns = getUniqueColumns(table.schema).filter((column) =>
+    patchedColumnIds.has(getColumnId(column))
+  )
+  if (patchedUniqueColumns.length > 0) {
     const uniqueValidation = await checkUniqueConstraintsDb(
       data.tableId,
       mergedData,
