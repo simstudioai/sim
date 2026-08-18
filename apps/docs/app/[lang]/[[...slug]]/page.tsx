@@ -3,11 +3,12 @@ import { highlight } from 'fumadocs-core/highlight'
 import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
-import { createAPIPage } from 'fumadocs-openapi/ui'
+import { createAPIPage } from 'fumadocs-openapi/ui/base'
 import { Pre } from 'fumadocs-ui/components/codeblock'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import { DocsBody, DocsPage, DocsTitle } from 'fumadocs-ui/page'
 import { notFound } from 'next/navigation'
+import { ApiShikiProvider } from '@/components/api-shiki-provider'
 import { PageFooter } from '@/components/docs-layout/page-footer'
 import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
 import { LLMCopyButton } from '@/components/page-actions'
@@ -18,6 +19,7 @@ import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
+import { simShikiFactory } from '@/lib/shiki-factory'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
@@ -100,6 +102,7 @@ const APIPage = createAPIPage(openapi, {
    * every API reference page renders `github-light` / `github-dark` while the rest of the docs
    * render the platform palette.
    */
+  shiki: simShikiFactory,
   shikiOptions: simShikiOptions,
   client: {
     operation: { APIExampleSelector },
@@ -254,7 +257,9 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
             <DocsTitle className='mb-2'>{data.title}</DocsTitle>
           </div>
           <DocsBody>
-            <APIPage {...apiProps} />
+            <ApiShikiProvider>
+              <APIPage {...apiProps} />
+            </ApiShikiProvider>
           </DocsBody>
         </DocsPage>
       </>
