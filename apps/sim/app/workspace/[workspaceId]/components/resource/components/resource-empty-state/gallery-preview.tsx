@@ -4,7 +4,6 @@ import {
   FilesEmptyState,
   KnowledgeEmptyState,
   LogsEmptyState,
-  SkillsEmptyState,
   TablesEmptyState,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 
@@ -13,7 +12,6 @@ const ENTRIES = [
   { label: 'Tables', node: <TablesEmptyState onCreate={() => {}} /> },
   { label: 'Logs', node: <LogsEmptyState /> },
   { label: 'Files', node: <FilesEmptyState onUpload={() => {}} /> },
-  { label: 'Skills', node: <SkillsEmptyState /> },
 ]
 
 /**

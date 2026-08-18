@@ -7,7 +7,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { IntegrationTabsHeader, SkillTile } from '@/app/workspace/[workspaceId]/components'
-import { SkillsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
@@ -126,9 +125,7 @@ export function Skills() {
               <SettingsEmptyState variant='inline'>
                 No skills found matching “{searchTerm}”
               </SettingsEmptyState>
-            ) : isLoading ? null : (
-              <SkillsEmptyState />
-            )}
+            ) : null}
           </div>
         </div>
       </div>
