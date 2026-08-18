@@ -576,30 +576,6 @@ const PYTHON_DIRECT_ENVIRONMENT_READ =
 const PYTHON_ENVIRONMENT_IDENTIFIER = /environmentVariables/g
 
 /**
- * A subscript that is being assigned to rather than read: `environmentVariables['K'] = v`.
- * The trailing `=` must not be `==`, `!=`, `<=`, `>=`, or `:=`, none of which write. An
- * augmented assignment (`+=`) is absent on purpose: it loads the current value first, so it
- * is a read.
- */
-const PYTHON_SUBSCRIPT_WRITE = /^\s*=(?!=)/
-
-/** A `del` statement, once the enclosing logical line has been isolated. */
-const PYTHON_DEL_STATEMENT = /^del[\s(]/
-
-/**
- * Whether the mention sits inside a `del` statement, which removes the key without reading it.
- *
- * Tested against the whole statement rather than the few characters before the match, so the
- * parenthesized and multi-target forms — `del (environmentVariables['K'])` and
- * `del other, environmentVariables['K']` — are recognized alongside the plain one.
- */
-function isDeleteTarget(code: string, offset: number): boolean {
-  const before = code.slice(0, offset)
-  const statementStart = Math.max(before.lastIndexOf('\n'), before.lastIndexOf(';')) + 1
-  return PYTHON_DEL_STATEMENT.test(before.slice(statementStart).trimStart())
-}
-
-/**
  * The only two shapes this detector can attribute: a literal subscript or `.get()`.
  *
  * Anything else — `environmentVariables = {...}`, a `def` parameter, `for … in`, `as`, or
@@ -661,14 +637,21 @@ function recordPythonDirectEnvironmentReads(
     if (!PYTHON_ATTRIBUTABLE_ENVIRONMENT_USE.test(code.slice(mention.index))) return
   }
 
+  /**
+   * A write or `del` target is reported like any other access, deliberately.
+   *
+   * `resolvedSecretNames` feeds an exact-value matcher over the output. Naming a secret the
+   * code never read costs nothing there — the matcher scans for a value that does not appear
+   * — while failing to name one that was read leaves it unmasked. Telling the two apart in
+   * Python means textual heuristics, and every one of them has so far leaked in the second,
+   * dangerous direction: a nested read inside a `del`, a parenthesized target. So this stops
+   * trying, and errs toward reporting.
+   *
+   * JavaScript keeps its own write/delete exclusion because a real AST answers the question
+   * per node, with no text to misread.
+   */
   for (const candidate of matches) {
     if (isOffsetInRanges(candidate.index, ignoredRanges)) continue
-    /**
-     * `environmentVariables['K'] = v` and `del environmentVariables['K']` touch the name
-     * without reading the mounted value, so neither is a use of the secret.
-     */
-    if (PYTHON_SUBSCRIPT_WRITE.test(code.slice(candidate.index + candidate[0].length))) continue
-    if (isDeleteTarget(code, candidate.index)) continue
     const name = candidate[2] ?? candidate[4]
     if (name) context.recordDirectEnvironmentRead(name, candidate.index)
   }

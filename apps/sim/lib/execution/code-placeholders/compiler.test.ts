@@ -1328,11 +1328,20 @@ describe('writing a configured name is not reading it', () => {
     expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
   })
 
+  /**
+   * Python reports a write or `del` target like any other access. `resolvedSecretNames` feeds
+   * an exact-value matcher, so naming a secret the code never read is a no-op there, while
+   * missing one that was read leaves it unmasked — and the heuristics needed to tell them
+   * apart kept leaking in that second direction.
+   */
   it.each([
-    ['python subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
-    ['python del', "del environmentVariables['API_KEY']"],
-  ])('%s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.Python)).toEqual([])
+    ['subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
+    ['del', "del environmentVariables['API_KEY']"],
+    /** Greptile's case: the inner access computes a key, so it is a genuine read. */
+    ['nested read inside a del', "del environmentVariables[environmentVariables['API_KEY']]"],
+    ['parenthesized del', "del (environmentVariables['API_KEY'])"],
+  ])('python reports the access either way: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
   })
 
   /**
@@ -1355,27 +1364,6 @@ describe('writing a configured name is not reading it', () => {
   it('python reads through an augmented assignment', async () => {
     expect(
       await directReadNames("environmentVariables['API_KEY'] += 'x'", CodeLanguage.Python)
-    ).toEqual(['API_KEY'])
-  })
-
-  /** Greptile's case: `del` targets may be parenthesized or listed. */
-  it.each([
-    ['parenthesized', "del (environmentVariables['API_KEY'])"],
-    ['double parenthesized', "del ((environmentVariables['API_KEY']))"],
-    ['no space before paren', "del(environmentVariables['API_KEY'])"],
-    ['multi-target', "del other, environmentVariables['API_KEY']"],
-    ['after a semicolon', "x = 1; del environmentVariables['API_KEY']"],
-  ])('python del target: %s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.Python)).toEqual([])
-  })
-
-  /** `delete` on a line of its own must not disable a real read elsewhere. */
-  it('python still reports a read on another line', async () => {
-    expect(
-      await directReadNames(
-        "del environmentVariables['API_KEY']\nk = environmentVariables['API_KEY']",
-        CodeLanguage.Python
-      )
     ).toEqual(['API_KEY'])
   })
 
