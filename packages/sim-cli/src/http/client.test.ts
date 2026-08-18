@@ -378,6 +378,22 @@ describe('a request that never answers', () => {
     await expect(client().request('/api/v2/workflows')).resolves.toBeDefined()
   })
 
+  it('keeps a bound below half a millisecond bounded, rather than disabling it', async () => {
+    // Zero means "no bound", so rounding a positive value down to zero inverted
+    // the request: the shortest timeout anyone could ask for became none.
+    vi.stubEnv('SIM_TIMEOUT_SECONDS', '0.0004')
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await client().request('/api/v2/workflows')
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('refuses a delay longer than Node can wait, which would silently become 1ms', async () => {
     // Past 2^31-1 ms Node does not fail — it clamps to 1ms, so the request the
     // caller asked to wait longest for would be the first one aborted.

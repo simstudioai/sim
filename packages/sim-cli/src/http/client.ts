@@ -300,8 +300,10 @@ function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
 
   // Rounded because a fractional millisecond is rejected outright by
   // `AbortSignal.timeout`, and a sub-millisecond timeout is not a distinction
-  // anyone is drawing.
-  const ms = Math.round(seconds * 1000)
+  // anyone is drawing. Floored at 1ms for anything above zero: rounding alone
+  // sent a bound under 0.0005s to 0, which this function reserves for "no
+  // bound at all", so asking for the shortest possible timeout produced none.
+  const ms = seconds === 0 ? 0 : Math.max(1, Math.round(seconds * 1000))
   if (ms > MAX_TIMEOUT_MS) {
     throw new SimApiError(
       `SIM_TIMEOUT_SECONDS "${raw}" is longer than Node can wait (${Math.floor(MAX_TIMEOUT_MS / 1000)}s). Use 0 to wait indefinitely.`,
