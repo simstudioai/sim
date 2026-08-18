@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
-import { workspaceBYOKKeys } from '@sim/db/schema'
+import { organizationBYOKKeys, workspace, workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, notExists } from 'drizzle-orm'
+import { isOrganizationBYOKEntitled } from '@/lib/api-key/byok-entitlement'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
@@ -20,6 +21,16 @@ export interface BYOKKeyResult {
 
 const rotationCounters = new Map<string, number>()
 
+interface EncryptedBYOKKey {
+  id: string
+  encryptedApiKey: string
+}
+
+interface BYOKKeyScope {
+  workspaceId: string
+  organizationId?: string
+}
+
 /**
  * Advances the per-process round-robin cursor for a rotation pool and returns
  * the next index. Counters are per server instance, which keeps rotation free
@@ -32,10 +43,40 @@ function nextRotationIndex(poolKey: string, poolSize: number): number {
 }
 
 /**
- * Resolves a workspace BYOK key for a provider. When the workspace has
- * multiple keys stored for the provider, requests round-robin across them in
- * creation order. A key that fails to decrypt is skipped in favor of the next
- * one in the pool.
+ * Rotates through one already-selected key pool, skipping corrupt ciphertext.
+ * Callers choose the pool before invoking this helper so a broken workspace
+ * pool can never fall through to an organization pool.
+ */
+async function decryptBYOKPool(
+  keys: readonly EncryptedBYOKKey[],
+  rotationPoolKey: string,
+  providerId: BYOKProviderId,
+  scope: BYOKKeyScope
+): Promise<BYOKKeyResult | null> {
+  const startIndex = nextRotationIndex(rotationPoolKey, keys.length)
+  for (let offset = 0; offset < keys.length; offset++) {
+    const key = keys[(startIndex + offset) % keys.length]
+    try {
+      const { decrypted } = await decryptSecret(key.encryptedApiKey)
+      return { apiKey: decrypted, isBYOK: true }
+    } catch (error) {
+      logger.error('Failed to decrypt BYOK key, skipping', {
+        ...scope,
+        providerId,
+        keyId: key.id,
+        error,
+      })
+    }
+  }
+
+  return null
+}
+
+/**
+ * Resolves the effective BYOK key for a workspace and provider. A nonempty
+ * workspace pool is always exclusive. Only a successful zero-row workspace
+ * lookup may inherit the live organization pool, which is entitlement-gated
+ * before any organization key is rotated or decrypted.
  *
  * The key list is read fresh every call (not cached): BYOK is not a hot query,
  * and reading fresh keeps revocation immediate across ECS tasks.
@@ -49,7 +90,7 @@ export async function getBYOKKey(
   }
 
   try {
-    const keys = await db
+    const workspaceKeys = await db
       .select({ id: workspaceBYOKKeys.id, encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
       .from(workspaceBYOKKeys)
       .where(
@@ -60,27 +101,57 @@ export async function getBYOKKey(
       )
       .orderBy(asc(workspaceBYOKKeys.createdAt), asc(workspaceBYOKKeys.id))
 
-    if (!keys.length) {
+    if (workspaceKeys.length) {
+      return decryptBYOKPool(workspaceKeys, `${workspaceId}:${providerId}`, providerId, {
+        workspaceId,
+      })
+    }
+
+    const organizationKeys = await db
+      .select({
+        organizationId: organizationBYOKKeys.organizationId,
+        id: organizationBYOKKeys.id,
+        encryptedApiKey: organizationBYOKKeys.encryptedApiKey,
+      })
+      .from(workspace)
+      .innerJoin(
+        organizationBYOKKeys,
+        eq(organizationBYOKKeys.organizationId, workspace.organizationId)
+      )
+      .where(
+        and(
+          eq(workspace.id, workspaceId),
+          eq(organizationBYOKKeys.providerId, providerId),
+          notExists(
+            db
+              .select({ id: workspaceBYOKKeys.id })
+              .from(workspaceBYOKKeys)
+              .where(
+                and(
+                  eq(workspaceBYOKKeys.workspaceId, workspace.id),
+                  eq(workspaceBYOKKeys.providerId, providerId)
+                )
+              )
+          )
+        )
+      )
+      .orderBy(asc(organizationBYOKKeys.createdAt), asc(organizationBYOKKeys.id))
+
+    if (!organizationKeys.length) {
       return null
     }
 
-    const startIndex = nextRotationIndex(`${workspaceId}:${providerId}`, keys.length)
-    for (let offset = 0; offset < keys.length; offset++) {
-      const key = keys[(startIndex + offset) % keys.length]
-      try {
-        const { decrypted } = await decryptSecret(key.encryptedApiKey)
-        return { apiKey: decrypted, isBYOK: true }
-      } catch (error) {
-        logger.error('Failed to decrypt BYOK key, skipping', {
-          workspaceId,
-          providerId,
-          keyId: key.id,
-          error,
-        })
-      }
+    const organizationId = organizationKeys[0].organizationId
+    if (!(await isOrganizationBYOKEntitled(organizationId))) {
+      return null
     }
 
-    return null
+    return decryptBYOKPool(
+      organizationKeys,
+      `organization:${organizationId}:${providerId}`,
+      providerId,
+      { workspaceId, organizationId }
+    )
   } catch (error) {
     logger.error('Failed to get BYOK key', { workspaceId, providerId, error })
     return null
