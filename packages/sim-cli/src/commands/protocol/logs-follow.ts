@@ -548,6 +548,15 @@ Examples:
         const seed = await collectUnprinted(client, path, query, state, Math.max(lines, 1), 1)
         remember(state, seed.rows)
         state.floor = seed.rows.at(-1)?.startedAt ?? null
+        // The API clamps `limit` into 1–1000 rather than rejecting it, so a
+        // larger `-n` comes back short with no indication. Fewer rows than asked
+        // for is only a shortfall when more were waiting: a workspace holding
+        // ten runs answers `-n 50` with ten and nothing is missing.
+        if (seed.truncated && seed.rows.length < lines) {
+          status.warn(
+            `asked for ${lines} earlier runs but a page holds ${seed.rows.length}; following from there — see sim logs list for more`
+          )
+        }
         write(lines > 0 ? seed.rows.slice(0, lines).reverse() : [])
 
         let failures = 0

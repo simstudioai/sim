@@ -265,6 +265,33 @@ describe('sim logs follow', () => {
     expect(stdout.join('')).not.toContain('older ones were skipped')
   })
 
+  it('says so when the requested backlog is larger than a page holds', async () => {
+    // The API clamps limit into 1–1000 instead of rejecting, so -n above that
+    // comes back short and the follow anchors its floor to the partial page.
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    const rows = Array.from({ length: 3 }, (_, index) =>
+      row(`run_${index}`, `2026-08-17T10:00:0${index}.000Z`)
+    )
+    respondWith([page(rows, 'more'), page(rows, 'more')])
+
+    await follow('-n', '50')
+
+    expect(stderr.join('')).toContain('asked for 50 earlier runs')
+    expect(stdout.join('')).not.toContain('asked for 50')
+  })
+
+  it('stays quiet when the workspace simply holds fewer runs than asked for', async () => {
+    // Short because there is no more to give is not a shortfall, and warning
+    // there would fire on every small workspace.
+    Object.defineProperty(process.stderr, 'isTTY', { value: true, configurable: true })
+    const rows = [row('run_0', '2026-08-17T10:00:00.000Z')]
+    respondWith([page(rows, null), page(rows, null)])
+
+    await follow('-n', '50')
+
+    expect(stderr.join('')).not.toContain('asked for 50')
+  })
+
   it('does not warn when the last budgeted page proves the follow caught up', async () => {
     // A page holding a run already printed is the watermark: everything below it
     // is older, so stopping there is the correct terminus, not a truncation.
