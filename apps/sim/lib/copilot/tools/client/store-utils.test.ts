@@ -64,7 +64,7 @@ describe('resolveToolDisplay', () => {
       resolveToolDisplay(ReadTool.id, ClientToolCallState.error, {
         path: 'workflows/Elder v2/The Elder/lint.json',
       })?.text
-    ).toBe('Attempted to read lint results for The Elder')
+    ).toBe('Attempted to validate The Elder')
     expect(
       resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
         path: 'tables/CRM/Leads/views.json',
@@ -231,5 +231,26 @@ describe('resolveToolDisplay', () => {
 
   it('hides internal deferred tool loaders', () => {
     expect(resolveToolDisplay('load_custom_tool', ClientToolCallState.executing)).toBeUndefined()
+  })
+})
+
+describe('lint reads render as validation', () => {
+  it.each([
+    [ClientToolCallState.generating, 'Validating The Elder'],
+    [ClientToolCallState.success, 'Validated The Elder'],
+    [ClientToolCallState.error, 'Attempted to validate The Elder'],
+    [ClientToolCallState.aborted, 'Skipped validating The Elder'],
+  ])('state %s -> %s', (state, expected) => {
+    expect(
+      resolveToolDisplay('read', state, { path: 'workflows/Elder v2/The Elder/lint.json' })?.text
+    ).toBe(expected)
+  })
+
+  it('only workflow lint artifacts get the verb; other reads keep Reading', () => {
+    expect(
+      resolveToolDisplay('read', ClientToolCallState.success, {
+        path: 'workflows/Elder v2/The Elder/meta.json',
+      })?.text
+    ).toBe('Read metadata for The Elder')
   })
 })

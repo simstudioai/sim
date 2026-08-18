@@ -45,7 +45,15 @@ function specialToolDisplay(
   }
 
   if (toolName === ReadTool.id) {
-    const target = describeReadTarget(readStringParam(params, 'path'))
+    const path = readStringParam(params, 'path')
+    // lint.json is computed at read time, so reading it IS running the checks —
+    // "Validating X" describes the outcome where "Reading issues in X" would
+    // describe the mechanism.
+    const validated = describeValidationReadTarget(path)
+    if (validated) {
+      return { text: formatValidatingLabel(validated, state), icon: FileText }
+    }
+    const target = describeReadTarget(path)
     return {
       text: formatReadingLabel(target, state),
       icon: FileText,
@@ -80,6 +88,33 @@ function formatReadingLabel(target: string | undefined, state: ClientToolCallSta
       return `Skipped reading${suffix}`
     default:
       return `Reading${suffix}`
+  }
+}
+
+/** The workflow name when `path` is a lint artifact; undefined otherwise. */
+function describeValidationReadTarget(path: string | undefined): string | undefined {
+  if (!path) return undefined
+  const segments = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map(decodeVfsSegmentSafe)
+  if (segments.length < 2 || segments[segments.length - 1] !== 'lint.json') return undefined
+  if (VFS_DIR_TO_RESOURCE[segments[0]] !== 'workflow') return undefined
+  return stripExtension(getLeafResourceSegment(segments))
+}
+
+function formatValidatingLabel(target: string, state: ClientToolCallState): string {
+  switch (state) {
+    case ClientToolCallState.success:
+      return `Validated ${target}`
+    case ClientToolCallState.error:
+      return `Attempted to validate ${target}`
+    case ClientToolCallState.rejected:
+    case ClientToolCallState.aborted:
+      return `Skipped validating ${target}`
+    default:
+      return `Validating ${target}`
   }
 }
 
@@ -127,7 +162,6 @@ function describeReadTarget(path: string | undefined): string | undefined {
 const RESOURCE_ARTIFACT_LABELS: Record<string, string> = {
   'state.json': '',
   'meta.json': 'metadata for',
-  'lint.json': 'lint results for',
   'deployment.json': 'deployment status for',
   'versions.json': 'versions of',
   'executions.json': 'runs of',
