@@ -11,6 +11,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { compileSimPageChunk, isSimPageSource } from '@/lib/copilot/tools/server/files/page-compile'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { getE2BDocFormat } from './doc-compile'
@@ -78,11 +79,20 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       const { operation, fileRecord } = intent
       const docInfo = getDocumentFormatInfo(fileRecord.name)
       const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(fileRecord.name) : null
+      // Agent-authored pages arrive as markdown-shaped source and are compiled
+      // to real HTML as they are stored, so the file is portable HTML from the
+      // first byte. Raw-HTML sources pass through untouched (bespoke pages).
+      const isHtmlTarget = fileRecord.name.toLowerCase().endsWith('.html')
 
       let finalContent: string
       switch (operation) {
         case 'append': {
           const existing = intent.existingContent ?? ''
+          if (isHtmlTarget && isSimPageSource(content, existing)) {
+            const compiled = compileSimPageChunk(content, existing.trim() === '')
+            finalContent = existing ? `${existing}\n${compiled}` : compiled
+            break
+          }
           // The JS engines (isolated-vm and E2B-node pptx/docx) use the `{ ... }`
           // block-append convention — block statements scope cleanly inside the
           // compile wrapper. Python docs (pdf/xlsx) are a single cohesive script,
@@ -100,7 +110,10 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           break
         }
         case 'update': {
-          finalContent = content
+          finalContent =
+            isHtmlTarget && isSimPageSource(content, '')
+              ? compileSimPageChunk(content, true)
+              : content
           break
         }
         case 'patch': {

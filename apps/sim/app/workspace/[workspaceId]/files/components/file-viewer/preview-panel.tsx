@@ -1,9 +1,16 @@
 'use client'
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useTheme } from 'next-themes'
 import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  SIM_ARTIFACT_SHELL,
+  SIM_ARTIFACT_STYLESHEET,
+  simTokenOverrides,
+  usesSimArtifactStyles,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/artifact-stylesheet'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
@@ -127,27 +134,62 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
 })()
 </script>`
 
-function buildHtmlPreviewDocument(content: string): string {
+/**
+ * Stamps the app's resolved theme onto the document root. The frame has an
+ * opaque origin and inherits nothing, so `prefers-color-scheme` inside it
+ * follows the OS rather than Sim's own toggle — a page would render light
+ * against a dark app. Every theme-aware page keys off `[data-theme]`, so
+ * carrying it across is what makes the two agree.
+ */
+function stampTheme(html: string, theme: 'dark' | 'light'): string {
+  if (/<html[\s>]/i.test(html)) {
+    return html.replace(/<html(\s[^>]*)?>/i, (match, attrs: string | undefined) =>
+      /\sdata-theme=/i.test(attrs ?? '') ? match : `<html data-theme="${theme}"${attrs ?? ''}>`
+    )
+  }
+  return html
+}
+
+export function buildHtmlPreviewDocument(
+  content: string,
+  theme: 'dark' | 'light' = 'light'
+): string {
   const headInjection = [
     '<meta charset="utf-8">',
     `<base href="${HTML_PREVIEW_BASE_URL}">`,
     `<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}">`,
+    // Ahead of the page's own <style>, so anything it declares still wins. The
+    // token overrides follow the sheet so the app's live values beat its
+    // fallbacks, and the shell follows both.
+    usesSimArtifactStyles(content)
+      ? `<style>${SIM_ARTIFACT_STYLESHEET}</style><style>${simTokenOverrides()}</style>${SIM_ARTIFACT_SHELL}`
+      : '',
     HTML_PREVIEW_BOOTSTRAP,
   ].join('')
 
   if (/<head[\s>]/i.test(content)) {
-    return content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${headInjection}`)
+    return stampTheme(
+      content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${headInjection}`),
+      theme
+    )
   }
 
   if (/<html[\s>]/i.test(content)) {
-    return content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${headInjection}</head>`)
+    return stampTheme(
+      content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${headInjection}</head>`),
+      theme
+    )
   }
 
-  return `<!DOCTYPE html><html><head>${headInjection}</head><body>${content}</body></html>`
+  return `<!DOCTYPE html><html data-theme="${theme}"><head>${headInjection}</head><body>${content}</body></html>`
 }
 
 const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
-  const wrappedContent = buildHtmlPreviewDocument(content)
+  const { resolvedTheme } = useTheme()
+  const wrappedContent = buildHtmlPreviewDocument(
+    content,
+    resolvedTheme === 'dark' ? 'dark' : 'light'
+  )
   const containerRef = useRef<HTMLDivElement>(null)
   const [isRenderable, setIsRenderable] = useState(false)
   const [resumeNonce, setResumeNonce] = useState(0)

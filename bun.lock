@@ -292,6 +292,7 @@
         "lib0": "0.2.117",
         "lru-cache": "11.3.6",
         "mammoth": "^1.9.0",
+        "marked": "15.0.12",
         "mermaid": "11.16.1",
         "micromatch": "4.0.8",
         "monaco-editor": "0.55.1",
