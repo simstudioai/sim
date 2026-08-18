@@ -7,6 +7,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   subscriptionsCreate: vi.fn(),
   subscriptionsList: vi.fn(),
+  subscriptionsRetrieve: vi.fn(),
   subscriptionsUpdate: vi.fn(),
   invoicesRetrieve: vi.fn(),
   invoicesUpdate: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   productsCreate: vi.fn(),
   productsRetrieve: vi.fn(),
   pricesList: vi.fn(),
+  pricesCreate: vi.fn(),
   pricesRetrieve: vi.fn(),
   enqueue: vi.fn(),
   patchPayload: vi.fn(),
@@ -37,10 +39,11 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   requireStripeClient: () => ({
     customers: { create: mocks.customersCreate, list: mocks.customersList },
     products: { create: mocks.productsCreate, retrieve: mocks.productsRetrieve },
-    prices: { list: mocks.pricesList, retrieve: mocks.pricesRetrieve },
+    prices: { list: mocks.pricesList, create: mocks.pricesCreate, retrieve: mocks.pricesRetrieve },
     subscriptions: {
       create: mocks.subscriptionsCreate,
       list: mocks.subscriptionsList,
+      retrieve: mocks.subscriptionsRetrieve,
       update: mocks.subscriptionsUpdate,
     },
     invoices: { retrieve: mocks.invoicesRetrieve, update: mocks.invoicesUpdate },
@@ -52,6 +55,12 @@ vi.mock('@/lib/billing/webhooks/enterprise-reconciliation-lease', () => ({
   ),
 }))
 vi.mock('@/lib/core/outbox/service', () => ({
+  deferOutboxHandler: (reason: string, minimumBackoffMs?: number, consumeAttempt = true) => ({
+    outcome: 'deferred',
+    reason,
+    ...(minimumBackoffMs === undefined ? {} : { minimumBackoffMs }),
+    ...(consumeAttempt ? {} : { consumeAttempt: false }),
+  }),
   enqueueOutboxEvent: mocks.enqueue,
   patchOutboxEventPayload: mocks.patchPayload,
 }))
@@ -60,12 +69,140 @@ import {
   buildEnterpriseProvisioningRequestKey,
   decideEnterpriseProvisioningIssue,
   decideEnterpriseProvisioningRetry,
+  getEnterpriseIssuancePreflight,
+  getLatestEnterpriseProvisionings,
   provisionEnterpriseInStripe,
   syncEnterpriseMetadataInStripe,
 } from '@/lib/billing/enterprise-provisioning'
 
 afterAll(() => {
   resetDbChainMock()
+})
+
+describe('Enterprise issuance preflight', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('returns a bounded workspace page with an authoritative matching total', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.member, [])
+    queueTableRows(schemaMock.workspace, [{ value: 3 }])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'workspace-1', name: 'One', archivedAt: null },
+      { id: 'workspace-2', name: 'Two', archivedAt: new Date('2026-01-01T00:00:00.000Z') },
+    ])
+    queueTableRows(schemaMock.workspace, [
+      { id: 'workspace-1', name: 'One', archivedAt: null, total: 3 },
+      {
+        id: 'workspace-2',
+        name: 'Two',
+        archivedAt: new Date('2026-01-01T00:00:00.000Z'),
+        total: 3,
+      },
+      { id: 'workspace-3', name: 'Three', archivedAt: null, total: 3 },
+    ])
+
+    await expect(
+      getEnterpriseIssuancePreflight({
+        ownerUserId: 'owner-1',
+        search: '',
+        limit: 2,
+        offset: 0,
+      })
+    ).resolves.toMatchObject({
+      personalWorkspaces: [
+        { id: 'workspace-1', name: 'One', archived: false },
+        { id: 'workspace-2', name: 'Two', archived: true },
+      ],
+      workspacePagination: { total: 3, limit: 2, offset: 0, hasMore: true },
+      workspaceSelection: {
+        totalEligible: 3,
+        defaultSelectedIds: ['workspace-1', 'workspace-2', 'workspace-3'],
+        defaultSelectedWorkspaces: [
+          { id: 'workspace-1', name: 'One', archived: false },
+          { id: 'workspace-2', name: 'Two', archived: true },
+          { id: 'workspace-3', name: 'Three', archived: false },
+        ],
+        includesAllEligible: true,
+        limit: 1_000,
+      },
+    })
+  })
+
+  it('does not silently choose an arbitrary subset when eligibility exceeds the issuance cap', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.member, [])
+    queueTableRows(schemaMock.workspace, [{ value: 1_001 }])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1', name: 'One', archivedAt: null }])
+    queueTableRows(
+      schemaMock.workspace,
+      Array.from({ length: 1_001 }, (_, index) => ({
+        id: `workspace-${index + 1}`,
+        name: `Workspace ${index + 1}`,
+        archivedAt: null,
+        total: 1_001,
+      }))
+    )
+
+    const result = await getEnterpriseIssuancePreflight({
+      ownerUserId: 'owner-1',
+      search: '',
+      limit: 1,
+      offset: 0,
+    })
+
+    expect(result.workspaceSelection).toEqual({
+      totalEligible: 1_001,
+      defaultSelectedIds: [],
+      defaultSelectedWorkspaces: [],
+      includesAllEligible: false,
+      limit: 1_000,
+    })
+  })
+
+  it('previews backdated ledger usage, prepaid balance, and the effective default limit', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.member, [
+      {
+        role: 'owner',
+        organizationId: 'org-1',
+        organizationName: 'Acme',
+        organizationCreditBalance: '25',
+      },
+    ])
+    queueTableRows(schemaMock.workspace, [{ value: 0 }])
+    queueTableRows(schemaMock.workspace, [])
+    queueTableRows(schemaMock.workspace, [])
+    queueTableRows(schemaMock.subscription, [])
+    queueTableRows(schemaMock.usageLog, [{ cost: '150' }])
+
+    const result = await getEnterpriseIssuancePreflight({
+      ownerUserId: 'owner-1',
+      search: '',
+      limit: 1,
+      offset: 0,
+      invoiceAmountUsd: 1_200,
+      billingInterval: 'year',
+      reportingPeriodAnchorDate: '2026-08-01',
+    })
+
+    expect(result.billingPreview).toMatchObject({
+      reportingPeriod: {
+        anchorDate: '2026-08-01',
+        interval: 'year',
+        currentStart: '2026-08-01T00:00:00.000Z',
+        currentEnd: '2027-08-01T00:00:00.000Z',
+        source: 'reporting',
+      },
+      usage: { usedDollars: 150, limitDollars: 1_225 },
+      configuredUsageLimitDollars: 1_200,
+      prepaidBalanceDollars: 25,
+      effectiveUsageLimitDollars: 1_225,
+      exceedsLimit: false,
+    })
+  })
 })
 
 function operationPayload(overrides: Record<string, unknown> = {}) {
@@ -102,37 +239,55 @@ describe('Enterprise issuance serialization decisions', () => {
   it('includes the configured or invoice-defaulted usage limit in the request key', () => {
     const input = {
       ownerUserId: 'owner-1',
-      monthlyInvoiceAmountUsd: 125,
+      invoiceAmountUsd: 125,
+      reportingPeriodAnchorDate: '2026-08-01',
       usageLimitCredits: 24000,
       seats: 12,
       requestedByEmail: 'admin@sim.ai',
       requestedByUserId: 'admin-1',
     }
+    const normalizedTerms = {
+      billingInterval: 'year' as const,
+      reportingPeriodAnchorDate: '2026-08-01',
+    }
 
-    expect(buildEnterpriseProvisioningRequestKey(input, 'org-1')).toBe(
-      'enterprise-v4:owner-1:org-1:12500:24000:12:concurrency=default:workflow-timeout=default:collection=active'
+    expect(buildEnterpriseProvisioningRequestKey(input, 'org-1', normalizedTerms)).toBe(
+      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::24000:12:concurrency=default:workflow-timeout=default:collection=active'
     )
     expect(
-      buildEnterpriseProvisioningRequestKey({ ...input, concurrencyLimit: 1250 }, 'org-1')
+      buildEnterpriseProvisioningRequestKey(
+        { ...input, concurrencyLimit: 1250 },
+        'org-1',
+        normalizedTerms
+      )
     ).toBe(
-      'enterprise-v4:owner-1:org-1:12500:24000:12:concurrency=1250:workflow-timeout=default:collection=active'
+      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::24000:12:concurrency=1250:workflow-timeout=default:collection=active'
     )
     expect(
-      buildEnterpriseProvisioningRequestKey({ ...input, pausePaymentCollection: true }, 'org-1')
+      buildEnterpriseProvisioningRequestKey(
+        { ...input, pausePaymentCollection: true },
+        'org-1',
+        normalizedTerms
+      )
     ).toBe(
-      'enterprise-v4:owner-1:org-1:12500:24000:12:concurrency=default:workflow-timeout=default:collection=paused'
+      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::24000:12:concurrency=default:workflow-timeout=default:collection=paused'
     )
     expect(
-      buildEnterpriseProvisioningRequestKey({ ...input, usageLimitCredits: undefined }, 'org-1')
+      buildEnterpriseProvisioningRequestKey(
+        { ...input, usageLimitCredits: undefined },
+        'org-1',
+        normalizedTerms
+      )
     ).toBe(
-      'enterprise-v4:owner-1:org-1:12500:25000:12:concurrency=default:workflow-timeout=default:collection=active'
+      'enterprise-v5:owner-1:org-1:12500:year:2026-08-01::25000:12:concurrency=default:workflow-timeout=default:collection=active'
     )
   })
 
   it('keeps concurrency and workflow timeout in distinct request-key slots', () => {
     const input = {
       ownerUserId: 'owner-1',
-      monthlyInvoiceAmountUsd: 125,
+      invoiceAmountUsd: 125,
+      reportingPeriodAnchorDate: '2026-08-01',
       usageLimitCredits: 24000,
       seats: 12,
       requestedByEmail: 'admin@sim.ai',
@@ -141,11 +296,13 @@ describe('Enterprise issuance serialization decisions', () => {
 
     const concurrencyKey = buildEnterpriseProvisioningRequestKey(
       { ...input, concurrencyLimit: 100 },
-      'org-1'
+      'org-1',
+      { billingInterval: 'year', reportingPeriodAnchorDate: '2026-08-01' }
     )
     const workflowTimeoutKey = buildEnterpriseProvisioningRequestKey(
       { ...input, workflowExecutionTimeoutSeconds: 100 },
-      'org-1'
+      'org-1',
+      { billingInterval: 'year', reportingPeriodAnchorDate: '2026-08-01' }
     )
 
     expect(concurrencyKey).not.toBe(workflowTimeoutKey)
@@ -242,10 +399,59 @@ function arrangeWorkerReads(
   queueTableRows(schemaMock.member, [{ value: finalMemberCount }])
 }
 
+describe('Enterprise workspace-move progress', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('keeps the total failed count visible when list views omit bounded failure details', async () => {
+    const payload = operationPayload({
+      request: {
+        ...operationPayload().request,
+        workspaceIds: ['workspace-1', 'workspace-2', 'workspace-3'],
+      },
+    })
+    const now = new Date('2026-08-13T00:00:00.000Z')
+    queueTableRows(schemaMock.outboxEvent, [
+      {
+        id: 'operation-1',
+        eventType: 'stripe.provision-enterprise',
+        status: 'pending',
+        payload,
+        attempts: 0,
+        maxAttempts: 5,
+        availableAt: now,
+        lockedAt: null,
+        processedAt: null,
+        lastError: null,
+        createdAt: now,
+      },
+    ])
+    queueTableRows(schemaMock.outboxEvent, [{ operationId: 'operation-1', moved: 1, failed: 1 }])
+
+    const provisionings = await getLatestEnterpriseProvisionings(['org-1'])
+
+    expect(provisionings.get('org-1')?.workspaceMoves).toEqual({
+      selected: 3,
+      moved: 1,
+      pending: 1,
+      failedCount: 1,
+      failed: [],
+    })
+  })
+})
+
 describe('Enterprise issuance outbox handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      items: { data: [] },
+      schedule: null,
+    })
     mocks.subscriptionsList.mockResolvedValue({ data: [], has_more: false })
     mocks.customersList.mockResolvedValue({ data: [], has_more: false })
     mocks.pricesList.mockResolvedValue({ data: [], has_more: false })
@@ -305,6 +511,48 @@ describe('Enterprise issuance outbox handler', () => {
         subscriptionId: 'sub_1',
       },
     })
+  })
+
+  it('creates an annual Price when the issuance cadence is yearly', async () => {
+    arrangeWorkerReads()
+    mocks.pricesRetrieve.mockResolvedValue({
+      id: 'price_1',
+      currency: 'usd',
+      unit_amount: 120000,
+      recurring: { interval: 'year' },
+      product: 'prod_1',
+      metadata: { enterpriseOperationId: 'operation-1' },
+    })
+    const annual = operationPayload({
+      request: {
+        ...operationPayload().request,
+        requestKey: 'enterprise-v5:annual',
+        invoiceAmountCents: 120000,
+        billingInterval: 'year',
+        reportingPeriodAnchorDate: '2026-08-01',
+      },
+    })
+
+    await provisionEnterpriseInStripe(annual, context())
+
+    expect(mocks.productsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        default_price_data: expect.objectContaining({
+          unit_amount: 120000,
+          recurring: { interval: 'year' },
+        }),
+      }),
+      expect.any(Object)
+    )
+    expect(mocks.subscriptionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          invoiceAmountCents: '120000',
+          reportingPeriodAnchorDate: '2026-08-01',
+        }),
+      }),
+      expect.any(Object)
+    )
   })
 
   it('recovers an existing subscription and nudges a genuine webhook with retry revision', async () => {
@@ -472,15 +720,28 @@ describe('Enterprise metadata outbox handler', () => {
     queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-1', payload }])
     queueTableRows(schemaMock.member, [{ value: 10 }])
     mocks.subscriptionsUpdate.mockResolvedValue({ id: 'sub_1' })
+    const checkpointPayload = vi.fn()
 
     await expect(
       syncEnterpriseMetadataInStripe(payload, {
         eventId: 'metadata-event-1',
         eventType: 'stripe.sync-enterprise-metadata',
         attempts: 0,
-        checkpointPayload: vi.fn(),
+        checkpointPayload,
       })
-    ).rejects.toThrow('Awaiting verified Stripe webhook application')
+    ).resolves.toEqual({
+      outcome: 'deferred',
+      reason: 'Waiting for the verified Stripe webhook acknowledgement',
+      minimumBackoffMs: 30_000,
+      consumeAttempt: false,
+    })
+
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      acknowledgement: {
+        startedAt: expect.any(String),
+        deadlineAt: expect.any(String),
+      },
+    })
 
     expect(mocks.subscriptionsUpdate).toHaveBeenCalledWith(
       'sub_1',
@@ -493,6 +754,7 @@ describe('Enterprise metadata outbox handler', () => {
           simConfigDeliveryRevision: '0',
           simConfigDeliveryAttempt: '0',
         }),
+        expand: ['latest_invoice'],
       },
       {
         idempotencyKey: 'enterprise-config:local-sub-1:metadata-event-1:delivery:0:attempt:0',
@@ -527,18 +789,348 @@ describe('Enterprise metadata outbox handler', () => {
         attempts: 0,
         checkpointPayload: vi.fn(),
       })
-    ).rejects.toThrow('Awaiting verified Stripe webhook application')
+    ).resolves.toEqual({
+      outcome: 'deferred',
+      reason: 'Waiting for the verified Stripe webhook acknowledgement',
+      minimumBackoffMs: 30_000,
+      consumeAttempt: false,
+    })
 
     expect(mocks.subscriptionsUpdate).toHaveBeenCalledWith(
       'sub_1',
-      {
+      expect.objectContaining({
         metadata: expect.objectContaining({
           concurrencyLimit: '',
           simConfigOperationId: 'metadata-event-2',
         }),
-      },
+      }),
       expect.any(Object)
     )
+  })
+
+  it('does not consume attempts while a written Stripe delivery is inside its webhook grace period', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 6,
+      deliveryRevision: 2,
+      acknowledgement: {
+        startedAt: '2026-08-13T00:00:00.000Z',
+        deadlineAt: '2099-08-13T00:30:00.000Z',
+      },
+      metadata: { plan: 'enterprise', referenceId: 'org-1', seats: 15 },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-grace', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: '15',
+        simConfigOperationId: 'metadata-event-grace',
+        simConfigRevision: '6',
+        simConfigDeliveryRevision: '2',
+      },
+    })
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-grace',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 4,
+        checkpointPayload: vi.fn(),
+      })
+    ).resolves.toMatchObject({
+      outcome: 'deferred',
+      consumeAttempt: false,
+      reason: 'Waiting for the verified Stripe webhook acknowledgement',
+    })
+
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+  })
+
+  it('consumes the finite missing-ack budget only after the durable grace deadline', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 6,
+      deliveryRevision: 2,
+      acknowledgement: {
+        startedAt: '2000-08-13T00:00:00.000Z',
+        deadlineAt: '2000-08-13T00:30:00.000Z',
+      },
+      metadata: { plan: 'enterprise', referenceId: 'org-1', seats: 15 },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-missing', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {
+        simConfigOperationId: 'metadata-event-missing',
+        simConfigDeliveryRevision: '2',
+      },
+    })
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-missing',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 4,
+        checkpointPayload: vi.fn(),
+      })
+    ).resolves.toEqual({
+      outcome: 'deferred',
+      reason:
+        'Verified Stripe webhook acknowledgement was not received before the acknowledgement deadline',
+    })
+  })
+
+  it('replaces the single Enterprise Price in place without proration', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 6,
+      deliveryRevision: 0,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 120000,
+        reportingPeriodAnchorDate: '2026-01-31',
+      },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      stripeProgress: {},
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-3', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      schedule: null,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      items: {
+        data: [{ id: 'si_1', price: { product: 'prod_1' } }],
+      },
+    })
+    mocks.pricesList.mockResolvedValue({ data: [], has_more: false })
+    mocks.pricesCreate.mockResolvedValue({
+      id: 'price_year',
+      currency: 'usd',
+      unit_amount: 120000,
+      recurring: { interval: 'year', interval_count: 1 },
+      product: 'prod_1',
+      metadata: { enterpriseConfigOperationId: 'metadata-event-3' },
+    })
+    mocks.subscriptionsUpdate.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      items: { data: [] },
+      pause_collection: null,
+    })
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-3',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 0,
+        checkpointPayload,
+      })
+    ).resolves.toMatchObject({ outcome: 'deferred' })
+
+    expect(mocks.subscriptionsUpdate).toHaveBeenCalledWith(
+      'sub_1',
+      expect.objectContaining({
+        items: [{ id: 'si_1', price: 'price_year', quantity: 1 }],
+        proration_behavior: 'none',
+        billing_cycle_anchor: 'now',
+        metadata: expect.objectContaining({
+          invoiceAmountCents: '120000',
+          reportingPeriodAnchorDate: '2026-01-31',
+        }),
+      }),
+      expect.any(Object)
+    )
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      stripeProgress: { priceId: 'price_year' },
+    })
+  })
+
+  it('preserves paused collection and freezes the cadence-change invoice as a draft', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 7,
+      deliveryRevision: 0,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 120000,
+      },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      stripeProgress: {},
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-paused', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      schedule: null,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+      items: {
+        data: [
+          {
+            id: 'si_1',
+            price: { product: 'prod_1', recurring: { interval: 'month', interval_count: 1 } },
+          },
+        ],
+      },
+    })
+    mocks.pricesList.mockResolvedValue({ data: [], has_more: false })
+    mocks.pricesCreate.mockResolvedValue({
+      id: 'price_year',
+      currency: 'usd',
+      unit_amount: 120000,
+      recurring: { interval: 'year', interval_count: 1 },
+      product: 'prod_1',
+      metadata: { enterpriseConfigOperationId: 'metadata-event-paused' },
+    })
+    mocks.subscriptionsUpdate.mockResolvedValue({
+      id: 'sub_1',
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+      latest_invoice: { id: 'in_change', status: 'draft', auto_advance: true },
+    })
+
+    await syncEnterpriseMetadataInStripe(payload, {
+      eventId: 'metadata-event-paused',
+      eventType: 'stripe.sync-enterprise-metadata',
+      attempts: 0,
+      checkpointPayload: vi.fn(),
+    })
+
+    expect(mocks.invoicesUpdate).toHaveBeenCalledWith(
+      'in_change',
+      { auto_advance: false },
+      { idempotencyKey: 'enterprise:metadata-event-paused:initial-invoice-draft' }
+    )
+    expect(mocks.subscriptionsUpdate.mock.calls[0][1]).not.toHaveProperty('pause_collection')
+  })
+
+  it('does not treat an old paid invoice as a failed paused amount-only update', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 8,
+      deliveryRevision: 0,
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 150000,
+      },
+      terms: { invoiceAmountCents: 150000, billingInterval: 'year' as const },
+      stripeProgress: {},
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-paused-amount', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      schedule: null,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+      latest_invoice: { id: 'in_old', status: 'paid', auto_advance: false },
+      items: {
+        data: [
+          {
+            id: 'si_1',
+            price: { product: 'prod_1', recurring: { interval: 'year', interval_count: 1 } },
+          },
+        ],
+      },
+    })
+    mocks.pricesList.mockResolvedValue({ data: [], has_more: false })
+    mocks.pricesCreate.mockResolvedValue({
+      id: 'price_year_new_amount',
+      currency: 'usd',
+      unit_amount: 150000,
+      recurring: { interval: 'year', interval_count: 1 },
+      product: 'prod_1',
+      metadata: { enterpriseConfigOperationId: 'metadata-event-paused-amount' },
+    })
+    mocks.subscriptionsUpdate.mockResolvedValue({
+      id: 'sub_1',
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+      latest_invoice: { id: 'in_old', status: 'paid', auto_advance: false },
+    })
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-paused-amount',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 0,
+        checkpointPayload: vi.fn(),
+      })
+    ).resolves.toMatchObject({ outcome: 'deferred' })
+
+    expect(mocks.invoicesUpdate).not.toHaveBeenCalled()
+    expect(mocks.subscriptionsUpdate.mock.calls[0][1]).not.toHaveProperty('billing_cycle_anchor')
+  })
+
+  it('rejects billing-term changes controlled by a Stripe Schedule', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 6,
+      deliveryRevision: 0,
+      metadata: { plan: 'enterprise', referenceId: 'org-1', seats: 15 },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      stripeProgress: {},
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-4', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {},
+      schedule: 'sub_sched_1',
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      items: { data: [{ id: 'si_1', price: { product: 'prod_1' } }] },
+    })
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-4',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 0,
+        checkpointPayload: vi.fn(),
+      })
+    ).rejects.toThrow('Stripe Schedule')
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
   })
 
   it('suppresses an older metadata event after acquiring the subscription lease', async () => {

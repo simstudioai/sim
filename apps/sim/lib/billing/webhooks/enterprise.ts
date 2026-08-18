@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, outboxEvent, subscription, user, workspace } from '@sim/db/schema'
+import { member, organization, outboxEvent, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, inArray, sql } from 'drizzle-orm'
@@ -8,12 +8,15 @@ import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
 import { deriveEnterpriseCreditLimits } from '@/lib/billing/enterprise-credit-limits'
 import {
+  ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
+  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
   type EnterpriseProvisionPayload,
+  enterpriseMetadataIntentMatchesStripeSubscription,
+  enterpriseMetadataSyncPayloadSchema,
   enterpriseOperationMatchesStripeSubscription,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import {
   acquireOrganizationMutationLock,
   reapplyPaidOrgJoinBillingForExistingMemberTx,
@@ -25,88 +28,20 @@ import {
   type EnterpriseReconciliationLease,
   withEnterpriseReconciliationLease,
 } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
-import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
-import { patchOutboxEventPayload } from '@/lib/core/outbox/service'
-import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { enqueueOutboxEvent, patchOutboxEventPayload } from '@/lib/core/outbox/service'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
-import {
-  attachOwnedWorkspacesToOrganizationTx,
-  ownedAttachableWorkspacesWhere,
-} from '@/lib/workspaces/organization-workspaces'
 import { parseEnterpriseSubscriptionMetadata } from '../types'
 
 const logger = createLogger('BillingEnterprise')
 
-interface EnterpriseWorkspaceSweepPlan {
-  operationId: string
-  ownerUserId: string
-  workspaceIds: string[]
-}
-
-function sameOrderedIds(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((id, index) => id === right[index])
-}
-
-async function planEnterpriseOwnerWorkspaceSweep(
-  metadata: Stripe.Metadata,
-  organizationId: string
-): Promise<EnterpriseWorkspaceSweepPlan | null> {
-  const operationId = metadata.enterpriseOperationId
-  if (!operationId) return null
-
-  const [operationRow] = await db
-    .select({ eventType: outboxEvent.eventType, payload: outboxEvent.payload })
-    .from(outboxEvent)
-    .where(eq(outboxEvent.id, operationId))
-    .limit(1)
-  const payload = operationRow ? parseEnterpriseProvisionPayload(operationRow.payload) : null
-  if (
-    operationRow?.eventType !== ENTERPRISE_PROVISION_EVENT_TYPE ||
-    !payload ||
-    payload.applicationResult ||
-    payload.request.organizationId !== organizationId
-  ) {
-    return null
-  }
-
-  const workspaceIds = (
-    await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(
-        ownedAttachableWorkspacesWhere({
-          userId: payload.request.ownerUserId,
-          includeArchived: true,
-        })
-      )
-      .orderBy(workspace.id)
-  ).map((row) => row.id)
-
-  return { operationId, ownerUserId: payload.request.ownerUserId, workspaceIds }
-}
-
 export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
-  return stripeWebhookIdempotency.executeWithIdempotency(
-    'manual-enterprise-subscription',
-    event.id,
-    () => processManualEnterpriseSubscription(event)
-  )
+  return processManualEnterpriseSubscription(event)
 }
 
 async function processManualEnterpriseSubscription(event: Stripe.Event) {
   const eventSubscription = event.data.object as Stripe.Subscription
-  const eventPlan = eventSubscription.metadata?.plan?.toLowerCase() ?? ''
-  if (eventPlan !== 'enterprise') {
-    logger.info('[subscription] Skipping non-enterprise subscription', {
-      subscriptionId: eventSubscription.id,
-      plan: eventPlan || 'unknown',
-    })
-    return
-  }
-
   return withEnterpriseReconciliationLease(eventSubscription.id, (lease) =>
     reconcileManualEnterpriseSubscription(eventSubscription, lease)
   )
@@ -169,11 +104,22 @@ async function reconcileManualEnterpriseSubscription(
     throw new Error('Invalid enterprise metadata for subscription')
   }
 
-  const { seats, monthlyPrice } = enterpriseMetadata
-  const workspaceSweepPlan = await planEnterpriseOwnerWorkspaceSweep(metadata, referenceId)
-
+  const { seats, invoiceAmountUsd } = enterpriseMetadata
   // Get the first subscription item which contains the period information
   const referenceItem = stripeSubscription.items?.data?.[0]
+  if (
+    stripeSubscription.items?.data?.length !== 1 ||
+    referenceItem?.price.currency !== 'usd' ||
+    referenceItem.price.unit_amount === null ||
+    Math.abs(referenceItem.price.unit_amount / 100 - invoiceAmountUsd) > 1e-8 ||
+    (referenceItem.price.recurring?.interval !== 'month' &&
+      referenceItem.price.recurring?.interval !== 'year') ||
+    (referenceItem.price.recurring.interval_count ?? 1) !== 1
+  ) {
+    throw new Error(
+      'Enterprise subscription must have one USD monthly or annual Price matching its metadata'
+    )
+  }
 
   const subscriptionRow = {
     id: generateId(),
@@ -204,12 +150,6 @@ async function reconcileManualEnterpriseSubscription(
   }
 
   const coreResult = await db.transaction(async (tx) => {
-    if (workspaceSweepPlan && workspaceSweepPlan.workspaceIds.length > 0) {
-      await acquireInvitationMutationLocks(tx, {
-        invitationIds: [],
-        workspaceIds: workspaceSweepPlan.workspaceIds,
-      })
-    }
     await acquireOrganizationMutationLock(tx, referenceId)
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${`stripe-subscription:${stripeSubscription.id}`}, 0))`
@@ -339,6 +279,35 @@ async function reconcileManualEnterpriseSubscription(
       )
     }
 
+    const configOperationId = metadata.simConfigOperationId
+    if (typeof configOperationId === 'string' && configOperationId.length > 0) {
+      const [configurationRow] = await tx
+        .select({ eventType: outboxEvent.eventType, payload: outboxEvent.payload })
+        .from(outboxEvent)
+        .where(eq(outboxEvent.id, configOperationId))
+        .for('update')
+        .limit(1)
+      const configurationPayload = enterpriseMetadataSyncPayloadSchema.safeParse(
+        configurationRow?.payload
+      )
+      const validConfiguration = Boolean(
+        existing &&
+          configurationRow?.eventType === ENTERPRISE_METADATA_SYNC_EVENT_TYPE &&
+          configurationPayload.success &&
+          configurationPayload.data.subscriptionId === existing.id &&
+          enterpriseMetadataIntentMatchesStripeSubscription(
+            configurationPayload.data,
+            configOperationId,
+            stripeSubscription
+          )
+      )
+      if (!validConfiguration) {
+        throw new Error(
+          `Enterprise configuration operation ${configOperationId} does not exactly match the Stripe subscription`
+        )
+      }
+    }
+
     if (existing) {
       await tx
         .update(subscription)
@@ -366,7 +335,7 @@ async function reconcileManualEnterpriseSubscription(
 
     const creditLimits = deriveEnterpriseCreditLimits({
       metadata,
-      monthlyPriceUsd: monthlyPrice,
+      invoiceAmountUsd,
       prepaidBalanceDollars: organizationRow.creditBalance,
     })
     await tx
@@ -377,44 +346,17 @@ async function reconcileManualEnterpriseSubscription(
       })
       .where(eq(organization.id, referenceId))
 
-    let attachedWorkspaceIds: string[] = []
     if (operationNewlyApplied && correlatedOperation) {
-      if (
-        !workspaceSweepPlan ||
-        workspaceSweepPlan.operationId !== operationId ||
-        workspaceSweepPlan.ownerUserId !== correlatedOperation.request.ownerUserId
-      ) {
-        throw new Error('Unable to establish the Enterprise owner workspace sweep')
+      for (const [sequence, workspaceId] of correlatedOperation.request.workspaceIds.entries()) {
+        await enqueueOutboxEvent(tx, ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE, {
+          provisioningOperationId: operationId,
+          workspaceId,
+          destinationOrganizationId: referenceId,
+          expectedOwnerId: correlatedOperation.request.ownerUserId,
+          adminEmail: correlatedOperation.request.requestedByEmail,
+          sequence,
+        })
       }
-
-      await acquireUserBillingIdentityLock(tx, workspaceSweepPlan.ownerUserId)
-      const currentWorkspaceIds = (
-        await tx
-          .select({ id: workspace.id })
-          .from(workspace)
-          .where(
-            ownedAttachableWorkspacesWhere({
-              userId: workspaceSweepPlan.ownerUserId,
-              includeArchived: true,
-            })
-          )
-          .orderBy(workspace.id)
-      ).map((row) => row.id)
-      if (!sameOrderedIds(workspaceSweepPlan.workspaceIds, currentWorkspaceIds)) {
-        throw new Error(
-          'Enterprise owner personal workspaces changed during reconciliation; retry the webhook'
-        )
-      }
-
-      const attached = await attachOwnedWorkspacesToOrganizationTx(tx, {
-        ownerUserId: workspaceSweepPlan.ownerUserId,
-        organizationId: referenceId,
-        workspaceIds: currentWorkspaceIds,
-        externalMemberPolicy: 'external-all',
-        ownerMatch: 'owner',
-        includeArchived: true,
-      })
-      attachedWorkspaceIds = attached.attachedWorkspaceIds
     }
 
     // The organization lock is held across the census and all member billing
@@ -448,7 +390,10 @@ async function reconcileManualEnterpriseSubscription(
       operationNewlyApplied,
       hasCorrelatedOperation: Boolean(correlatedOperation),
       subscriptionNewlyInserted: !existing,
-      attachedWorkspaceIds,
+      queuedWorkspaceCount:
+        operationNewlyApplied && correlatedOperation
+          ? correlatedOperation.request.workspaceIds.length
+          : 0,
       ...creditLimits,
     }
   })
@@ -460,14 +405,11 @@ async function reconcileManualEnterpriseSubscription(
     operationNewlyApplied,
     hasCorrelatedOperation,
     subscriptionNewlyInserted,
-    attachedWorkspaceIds,
+    queuedWorkspaceCount,
     configuredUsageLimitCredits,
     prepaidCredits,
     effectiveUsageLimitCredits,
   } = coreResult
-  for (const workspaceId of attachedWorkspaceIds) {
-    invalidateWorkspaceTableLimitsCache(workspaceId)
-  }
   const shouldAnnounce = hasCorrelatedOperation ? operationNewlyApplied : subscriptionNewlyInserted
 
   logger.info('[subscription.created] Upserted enterprise subscription', {
@@ -475,11 +417,11 @@ async function reconcileManualEnterpriseSubscription(
     referenceId: subscriptionRow.referenceId,
     plan: subscriptionRow.plan,
     status: subscriptionRow.status,
-    monthlyPrice,
+    invoiceAmountUsd,
     effectiveUsageLimitCredits,
     prepaidCredits,
     seats,
-    attachedWorkspaceCount: attachedWorkspaceIds.length,
+    queuedWorkspaceCount,
     note: 'Seats from metadata, Stripe quantity set to 1',
   })
 
@@ -522,7 +464,7 @@ async function reconcileManualEnterpriseSubscription(
         stripeCustomerId,
         stripeSubscriptionId: stripeSubscription.id,
         seats,
-        monthlyPrice,
+        invoiceAmountUsd,
         configuredUsageLimitCredits,
         effectiveUsageLimitCredits,
         prepaidCredits,
@@ -532,7 +474,8 @@ async function reconcileManualEnterpriseSubscription(
     captureServerEvent(actorId ?? referenceId, 'enterprise_subscription_created', {
       reference_id: referenceId,
       seats,
-      monthly_price: monthlyPrice,
+      invoice_amount: invoiceAmountUsd,
+      billing_interval: subscriptionRow.billingInterval === 'year' ? 'year' : 'month',
       currency: 'usd',
     })
   }

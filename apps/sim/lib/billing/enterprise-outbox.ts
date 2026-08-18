@@ -8,6 +8,7 @@ import type { DbOrTx } from '@/lib/db/types'
 
 export const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
 export const ENTERPRISE_METADATA_SYNC_EVENT_TYPE = 'stripe.sync-enterprise-metadata'
+export const ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE = 'enterprise.move-workspace'
 
 const nonnegativeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 
@@ -18,7 +19,14 @@ export const enterpriseProvisionRequestSchema = z.object({
   requestedByEmail: z.string().min(1),
   requestedByUserId: z.string().nullable(),
   invoiceAmountCents: z.number().int().positive(),
+  billingInterval: z.enum(['month', 'year']).default('month'),
+  reportingPeriodAnchorDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  workspaceIds: z.array(z.string().min(1)).max(1_000).default([]),
   usageLimitCredits: nonnegativeInteger,
+  prepaidBalanceCreditsAtIssuance: nonnegativeInteger.default(0),
   seats: z.number().int().positive(),
   concurrencyLimit: z.number().int().positive().max(MAX_BILLING_CONCURRENCY_LIMIT).optional(),
   workflowExecutionTimeoutSeconds: z
@@ -31,7 +39,7 @@ export const enterpriseProvisionRequestSchema = z.object({
 })
 
 export const enterpriseProvisionPayloadSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   request: enterpriseProvisionRequestSchema,
   retryRevision: nonnegativeInteger,
   stripeProgress: z
@@ -57,10 +65,78 @@ export const enterpriseMetadataSyncPayloadSchema = z.object({
   subscriptionId: z.string().min(1),
   revision: z.number().int().positive(),
   deliveryRevision: nonnegativeInteger.default(0),
+  acknowledgement: z
+    .object({
+      startedAt: z.string().datetime(),
+      deadlineAt: z.string().datetime(),
+    })
+    .optional(),
   metadata: z.record(z.string(), z.unknown()),
+  terms: z
+    .object({
+      invoiceAmountCents: z.number().int().positive(),
+      billingInterval: z.enum(['month', 'year']),
+    })
+    .optional(),
+  stripeProgress: z.object({ priceId: z.string().min(1).optional() }).default({}),
 })
 
 export type EnterpriseMetadataSyncPayload = z.infer<typeof enterpriseMetadataSyncPayloadSchema>
+
+function stripeMetadataValueMatches(
+  metadata: Stripe.Metadata,
+  key: string,
+  expected: unknown
+): boolean {
+  if (expected === null) return metadata[key] === undefined || metadata[key] === ''
+  if (expected === undefined) return true
+  return metadata[key] === String(expected)
+}
+
+/** Exact guard before a configuration marker can acknowledge an admin intent. */
+export function enterpriseMetadataIntentMatchesStripeSubscription(
+  payload: EnterpriseMetadataSyncPayload,
+  operationId: string,
+  stripeSubscription: Stripe.Subscription
+): boolean {
+  const metadata = stripeSubscription.metadata ?? {}
+  if (
+    metadata.simConfigOperationId !== operationId ||
+    metadata.simConfigRevision !== String(payload.revision) ||
+    metadata.simConfigDeliveryRevision !== String(payload.deliveryRevision) ||
+    !Object.entries(payload.metadata).every(([key, value]) =>
+      stripeMetadataValueMatches(metadata, key, value)
+    )
+  ) {
+    return false
+  }
+
+  if (!payload.terms) return true
+  const items = stripeSubscription.items?.data ?? []
+  const price = items[0]?.price
+  return (
+    !stripeSubscription.schedule &&
+    stripeSubscription.collection_method === 'send_invoice' &&
+    stripeSubscription.days_until_due === 30 &&
+    items.length === 1 &&
+    (items[0]?.quantity ?? 1) === 1 &&
+    price?.currency === 'usd' &&
+    price.unit_amount === payload.terms.invoiceAmountCents &&
+    price.recurring?.interval === payload.terms.billingInterval &&
+    (price.recurring.interval_count ?? 1) === 1
+  )
+}
+
+export const enterpriseWorkspaceMovePayloadSchema = z.object({
+  provisioningOperationId: z.string().min(1),
+  workspaceId: z.string().min(1),
+  destinationOrganizationId: z.string().min(1),
+  expectedOwnerId: z.string().min(1),
+  adminEmail: z.string().email(),
+  sequence: z.number().int().min(0),
+})
+
+export type EnterpriseWorkspaceMovePayload = z.infer<typeof enterpriseWorkspaceMovePayloadSchema>
 
 export type EnterpriseOperationStatus =
   | 'pending'
@@ -129,10 +205,12 @@ export function enterpriseOperationMatchesStripeSubscription(
     stripeSubscription.days_until_due === 30 &&
     price?.currency === 'usd' &&
     price.unit_amount === request.invoiceAmountCents &&
-    price.recurring?.interval === 'month' &&
+    price.recurring?.interval === request.billingInterval &&
     (price.recurring.interval_count ?? 1) === 1 &&
     stripeMetadataInteger(metadata, 'invoiceAmountCents') === request.invoiceAmountCents &&
     stripeMetadataInteger(metadata, 'usageLimitCredits') === request.usageLimitCredits &&
+    (request.reportingPeriodAnchorDate === undefined ||
+      metadata.reportingPeriodAnchorDate === request.reportingPeriodAnchorDate) &&
     stripeMetadataInteger(metadata, 'seats') === request.seats &&
     (request.concurrencyLimit === undefined ||
       stripeMetadataInteger(metadata, 'concurrencyLimit') === request.concurrencyLimit) &&
@@ -215,21 +293,25 @@ function positiveInteger(value: unknown): number | null {
 export interface EnterpriseMetadataIntentState {
   latestRevision: number
   desiredMetadata: Record<string, unknown>
+  desiredTerms: EnterpriseMetadataSyncPayload['terms'] | null
   hasUnappliedIntent: boolean
   effectiveSeatCapacity: number | null
   configurationUpdate: {
     id: string
     status: 'pending' | 'processing' | 'failed'
     requestedMetadata: Record<string, unknown>
+    requestedTerms: EnterpriseMetadataSyncPayload['terms'] | null
+    providerAccepted: boolean
     error: string | null
   } | null
 }
 
 /**
  * Resolve the latest admin-authored Enterprise configuration entirely from the
- * generic outbox. A dead-lettered intent is not effective until explicitly
- * retried. An increase cannot grant seats before Stripe's webhook applies it;
- * a decrease constrains admission immediately, so both directions are safe.
+ * generic outbox. A dead letter before the provider accepts the mutation is
+ * ineffective. Once the durable acknowledgement window starts, Stripe already
+ * contains the desired state, so a later dead letter remains effective and
+ * fail-closed until reconciliation or an explicit retry completes.
  */
 export async function resolveEnterpriseMetadataIntent(
   executor: DbOrTx,
@@ -264,6 +346,7 @@ export async function resolveEnterpriseMetadataIntent(
     return {
       latestRevision: appliedRevision,
       desiredMetadata: appliedMetadata,
+      desiredTerms: null,
       hasUnappliedIntent: false,
       effectiveSeatCapacity: appliedSeats,
       configurationUpdate: null,
@@ -277,7 +360,9 @@ export async function resolveEnterpriseMetadataIntent(
 
   const appliedOperationId = appliedMetadata.simConfigOperationId
   const operationApplied = appliedOperationId === latest.id
-  const hasUnappliedIntent = latest.status !== 'dead_letter' && !operationApplied
+  const providerAccepted = parsed.data.acknowledgement !== undefined
+  const hasUnappliedIntent =
+    !operationApplied && (latest.status !== 'dead_letter' || providerAccepted)
   const desiredMetadata = hasUnappliedIntent ? parsed.data.metadata : appliedMetadata
   const desiredSeats = positiveInteger(parsed.data.metadata.seats)
   const effectiveSeatCapacity = hasUnappliedIntent
@@ -291,6 +376,7 @@ export async function resolveEnterpriseMetadataIntent(
   return {
     latestRevision: Math.max(appliedRevision, parsed.data.revision),
     desiredMetadata,
+    desiredTerms: hasUnappliedIntent ? (parsed.data.terms ?? null) : null,
     hasUnappliedIntent,
     effectiveSeatCapacity,
     configurationUpdate: operationApplied
@@ -304,6 +390,8 @@ export async function resolveEnterpriseMetadataIntent(
                 ? 'processing'
                 : 'pending',
           requestedMetadata: parsed.data.metadata,
+          requestedTerms: parsed.data.terms ?? null,
+          providerAccepted,
           error: latest.status === 'dead_letter' ? (latest.lastError ?? null) : null,
         },
   }

@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { member, subscription as subscriptionTable, user, userStats } from '@sim/db/schema'
+import { member, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   organizationMemberQuerySchema,
@@ -10,8 +10,7 @@ import {
 } from '@/lib/api/contracts/organization'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMembersAPI')
@@ -101,41 +100,18 @@ export const GET = withRouteHandler(
           .leftJoin(userStats, eq(user.id, userStats.userId))
           .where(eq(member.organizationId, organizationId))
 
-        // The billing period is the same for every member — it comes from
-        // whichever subscription covers them. Fetch once and attach to
-        // every row instead of calling `getUserUsageData` per-member,
-        // which would run an O(N) pooled query for each of N rows.
-        const [orgSub] = await db
-          .select({
-            periodStart: subscriptionTable.periodStart,
-            periodEnd: subscriptionTable.periodEnd,
+        const { billingPeriod, includeLegacyBaseline, usageByUser } =
+          await getOrganizationMemberUsageSnapshot(organizationId, {
+            userIds: base.length <= 1_000 ? base.map((row) => row.userId) : undefined,
           })
-          .from(subscriptionTable)
-          .where(
-            and(
-              eq(subscriptionTable.referenceId, organizationId),
-              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
-            )
-          )
-          .limit(1)
-
-        const billingPeriodStart = orgSub?.periodStart ?? null
-        const billingPeriodEnd = orgSub?.periodEnd ?? null
-
-        // currentPeriodCost is only a baseline; add each member's attributed
-        // usage_log for the period (batched, one query) so the roster shows real
-        // usage rather than the frozen baseline.
-        const usageByUser = await getOrgMemberLedgerByUser(
-          organizationId,
-          billingPeriodStart && billingPeriodEnd
-            ? { start: billingPeriodStart, end: billingPeriodEnd }
-            : null
-        )
+        const billingPeriodStart = billingPeriod?.start ?? null
+        const billingPeriodEnd = billingPeriod?.end ?? null
 
         const membersWithUsage = base.map((row) => ({
           ...row,
           currentPeriodCost: (
-            Number(row.currentPeriodCost ?? 0) + (usageByUser.get(row.userId) ?? 0)
+            (includeLegacyBaseline ? Number(row.currentPeriodCost ?? 0) : 0) +
+            (usageByUser.get(row.userId) ?? 0)
           ).toString(),
           billingPeriodStart,
           billingPeriodEnd,

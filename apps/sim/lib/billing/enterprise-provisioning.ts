@@ -1,21 +1,26 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, outboxEvent, subscription, user } from '@sim/db/schema'
+import { member, organization, outboxEvent, subscription, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, count, desc, eq, ilike, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
+import { resolveEnterpriseReportingPeriod } from '@/lib/billing/core/reporting-period'
+import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   deriveEnterpriseOperationStatus,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
+  ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
   type EnterpriseOperationStatus,
   type EnterpriseProvisionPayload,
   type EnterpriseProvisionRequest,
+  enterpriseMetadataIntentMatchesStripeSubscription,
   enterpriseMetadataSyncPayloadSchema,
   enterpriseProvisionPayloadSchema,
+  enterpriseWorkspaceMovePayloadSchema,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
 import {
@@ -28,9 +33,49 @@ import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 import { env } from '@/lib/core/config/env'
-import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
+import {
+  deferOutboxHandler,
+  enqueueOutboxEvent,
+  type OutboxEventContext,
+  type OutboxHandler,
+} from '@/lib/core/outbox/service'
+import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
+import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
+const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_GRACE_MS = 30 * 60 * 1000
+const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_POLL_MS = 30 * 1000
+const MAX_ENTERPRISE_WORKSPACE_SELECTION = 1_000
+
+async function waitForEnterpriseWebhookAcknowledgement(
+  acknowledgement: { startedAt: string; deadlineAt: string } | undefined,
+  context: OutboxEventContext
+) {
+  let durableAcknowledgement = acknowledgement
+  if (!durableAcknowledgement) {
+    const startedAt = new Date()
+    durableAcknowledgement = {
+      startedAt: startedAt.toISOString(),
+      deadlineAt: new Date(
+        startedAt.getTime() + ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_GRACE_MS
+      ).toISOString(),
+    }
+    await context.checkpointPayload({ acknowledgement: durableAcknowledgement })
+  }
+
+  const remainingGraceMs = new Date(durableAcknowledgement.deadlineAt).getTime() - Date.now()
+  if (remainingGraceMs > 0) {
+    return deferOutboxHandler(
+      'Waiting for the verified Stripe webhook acknowledgement',
+      Math.min(ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_POLL_MS, remainingGraceMs),
+      false
+    )
+  }
+
+  return deferOutboxHandler(
+    'Verified Stripe webhook acknowledgement was not received before the acknowledgement deadline'
+  )
+}
 
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -192,6 +237,33 @@ async function findOperationPrice(
   return match
 }
 
+async function findConfigurationPrice(
+  stripe: Stripe,
+  productId: string,
+  operationId: string
+): Promise<Stripe.Price | null> {
+  let match: Stripe.Price | null = null
+  let startingAfter: string | undefined
+  for (;;) {
+    const page = await stripe.prices.list({
+      product: productId,
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    })
+    for (const candidate of page.data) {
+      if (candidate.metadata?.enterpriseConfigOperationId !== operationId) continue
+      if (match && match.id !== candidate.id) {
+        throw new Error('Multiple Stripe prices exist for this Enterprise configuration update')
+      }
+      match = candidate
+    }
+    if (!page.has_more) break
+    startingAfter = page.data.at(-1)?.id
+    if (!startingAfter) break
+  }
+  return match
+}
+
 function isStripeMissingResource(error: unknown): boolean {
   return Boolean(
     error &&
@@ -228,7 +300,7 @@ function assertEnterprisePrice(
   if (
     price.currency !== 'usd' ||
     price.unit_amount !== request.invoiceAmountCents ||
-    price.recurring?.interval !== 'month' ||
+    price.recurring?.interval !== request.billingInterval ||
     (price.recurring.interval_count ?? 1) !== 1 ||
     price.metadata?.enterpriseOperationId !== operationId ||
     productId !== expectedProductId
@@ -237,10 +309,32 @@ function assertEnterprisePrice(
   }
 }
 
+function assertEnterpriseConfigurationPrice(
+  price: Stripe.Price,
+  terms: { invoiceAmountCents: number; billingInterval: 'month' | 'year' },
+  operationId: string,
+  expectedProductId: string
+): void {
+  const productId = typeof price.product === 'string' ? price.product : price.product?.id
+  if (
+    price.currency !== 'usd' ||
+    price.unit_amount !== terms.invoiceAmountCents ||
+    price.recurring?.interval !== terms.billingInterval ||
+    (price.recurring.interval_count ?? 1) !== 1 ||
+    price.metadata?.enterpriseConfigOperationId !== operationId ||
+    productId !== expectedProductId
+  ) {
+    throw new Error('Recovered Stripe price does not match the Enterprise billing-term update')
+  }
+}
+
 export interface IssueEnterpriseProvisioningInput {
   ownerUserId: string
   organizationName?: string
-  monthlyInvoiceAmountUsd: number
+  invoiceAmountUsd: number
+  billingInterval?: 'month' | 'year'
+  reportingPeriodAnchorDate?: string
+  workspaceIds?: string[]
   usageLimitCredits?: number
   seats: number
   concurrencyLimit?: number
@@ -255,7 +349,9 @@ export interface EnterpriseProvisioningView {
   ownerUserId: string
   organizationId: string
   status: EnterpriseOperationStatus
-  monthlyInvoiceAmountUsd: number
+  invoiceAmountUsd: number
+  billingInterval: 'month' | 'year'
+  reportingPeriodAnchorDate: string | null
   usageLimitCredits: number
   seats: number
   concurrencyLimit: number
@@ -265,12 +361,230 @@ export interface EnterpriseProvisioningView {
   error: string | null
   createdAt: string
   updatedAt: string
+  workspaceMoves: EnterpriseWorkspaceMoveProgress
+}
+
+export interface EnterpriseWorkspaceMoveProgress {
+  selected: number
+  moved: number
+  pending: number
+  failedCount: number
+  failed: Array<{ eventId: string; workspaceId: string; error: string | null }>
 }
 
 export class EnterpriseProvisioningError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'EnterpriseProvisioningError'
+  }
+}
+
+export interface EnterpriseIssuancePreflight {
+  owner: { id: string; name: string; email: string }
+  organization: { id: string; name: string; role: string } | null
+  personalWorkspaces: Array<{ id: string; name: string; archived: boolean }>
+  workspacePagination: { total: number; limit: number; offset: number; hasMore: boolean }
+  workspaceSelection: {
+    totalEligible: number
+    defaultSelectedIds: string[]
+    defaultSelectedWorkspaces: Array<{ id: string; name: string; archived: boolean }>
+    includesAllEligible: boolean
+    limit: number
+  }
+  billingPreview: {
+    reportingPeriod: {
+      anchorDate: string
+      interval: 'month' | 'year'
+      currentStart: string
+      currentEnd: string
+      source: 'reporting'
+    }
+    usage: { usedDollars: number; limitDollars: number }
+    invoiceAmountUsd: number
+    configuredUsageLimitDollars: number
+    prepaidBalanceDollars: number
+    effectiveUsageLimitDollars: number
+    exceedsLimit: boolean
+  } | null
+  canIssue: boolean
+  reason: string | null
+}
+
+export async function getEnterpriseIssuancePreflight({
+  ownerUserId,
+  search,
+  limit,
+  offset,
+  invoiceAmountUsd,
+  billingInterval,
+  reportingPeriodAnchorDate,
+  usageLimitDollars,
+}: {
+  ownerUserId: string
+  search: string
+  limit: number
+  offset: number
+  invoiceAmountUsd?: number
+  billingInterval?: 'month' | 'year'
+  reportingPeriodAnchorDate?: string
+  usageLimitDollars?: number
+}): Promise<EnterpriseIssuancePreflight> {
+  const [owner] = await db
+    .select({ id: user.id, name: user.name, email: user.email })
+    .from(user)
+    .where(eq(user.id, ownerUserId))
+    .limit(1)
+  if (!owner) throw new EnterpriseProvisioningError('Owner user not found')
+
+  const [membership] = await db
+    .select({
+      role: member.role,
+      organizationId: organization.id,
+      organizationName: organization.name,
+      organizationCreditBalance: organization.creditBalance,
+    })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, ownerUserId))
+    .limit(1)
+  const trimmedSearch = search.trim()
+  const allPersonalWorkspacesWhere = ownedAttachableWorkspacesWhere({
+    userId: ownerUserId,
+    includeArchived: true,
+  })
+  const personalWorkspaceWhere = and(
+    allPersonalWorkspacesWhere,
+    trimmedSearch
+      ? or(ilike(workspace.name, `%${trimmedSearch}%`), eq(workspace.id, trimmedSearch))
+      : undefined
+  )
+  const [personalWorkspaceCount, personalWorkspaces, selectionRows] = await Promise.all([
+    db.select({ value: count() }).from(workspace).where(personalWorkspaceWhere),
+    db
+      .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
+      .from(workspace)
+      .where(personalWorkspaceWhere)
+      .orderBy(workspace.name, workspace.id)
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({
+        id: workspace.id,
+        name: workspace.name,
+        archivedAt: workspace.archivedAt,
+        total: sql<number>`count(*) over()`.mapWith(Number),
+      })
+      .from(workspace)
+      .where(allPersonalWorkspacesWhere)
+      .orderBy(workspace.id)
+      .limit(MAX_ENTERPRISE_WORKSPACE_SELECTION + 1),
+  ])
+
+  let reason: string | null = null
+  if (membership?.role && membership.role !== 'owner') {
+    reason = 'The selected user is already a non-owner member of an organization'
+  } else if (membership?.organizationId) {
+    const [nonterminalSubscription] = await db
+      .select({ id: subscription.id })
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, membership.organizationId),
+          or(
+            isNull(subscription.status),
+            notInArray(subscription.status, [...TERMINAL_SUBSCRIPTION_STATUSES])
+          )
+        )
+      )
+      .limit(1)
+    if (nonterminalSubscription) {
+      reason = 'The selected owner organization already has a nonterminal subscription'
+    }
+  }
+
+  const totalPersonalWorkspaces = personalWorkspaceCount[0]?.value ?? 0
+  const totalEligibleWorkspaces = selectionRows[0]?.total ?? 0
+  const includesAllEligible = totalEligibleWorkspaces <= MAX_ENTERPRISE_WORKSPACE_SELECTION
+  const previewTermsComplete =
+    invoiceAmountUsd !== undefined &&
+    billingInterval !== undefined &&
+    reportingPeriodAnchorDate !== undefined
+  const prepaidBalanceDollars = Number(membership?.organizationCreditBalance ?? 0)
+  if (
+    reason === null &&
+    usageLimitDollars !== undefined &&
+    usageLimitDollars < prepaidBalanceDollars
+  ) {
+    reason = 'Enterprise usage limit cannot be below the organization prepaid balance'
+  }
+  let billingPreview: EnterpriseIssuancePreflight['billingPreview'] = null
+  if (previewTermsComplete) {
+    const reportingPeriod = resolveEnterpriseReportingPeriod(
+      reportingPeriodAnchorDate,
+      billingInterval
+    )
+    const configuredUsageLimitDollars =
+      usageLimitDollars === undefined
+        ? invoiceAmountUsd
+        : Math.max(0, usageLimitDollars - prepaidBalanceDollars)
+    const effectiveUsageLimitDollars = configuredUsageLimitDollars + prepaidBalanceDollars
+    const usedDollars = membership?.organizationId
+      ? await getBillingPeriodUsageCost(
+          { type: 'organization', id: membership.organizationId },
+          reportingPeriod
+        )
+      : 0
+    billingPreview = {
+      reportingPeriod: {
+        anchorDate: reportingPeriod.anchorDate,
+        interval: reportingPeriod.interval,
+        currentStart: reportingPeriod.start.toISOString(),
+        currentEnd: reportingPeriod.end.toISOString(),
+        source: reportingPeriod.source,
+      },
+      usage: { usedDollars, limitDollars: effectiveUsageLimitDollars },
+      invoiceAmountUsd,
+      configuredUsageLimitDollars,
+      prepaidBalanceDollars,
+      effectiveUsageLimitDollars,
+      exceedsLimit: usedDollars > effectiveUsageLimitDollars,
+    }
+  }
+
+  return {
+    owner,
+    organization: membership
+      ? {
+          id: membership.organizationId,
+          name: membership.organizationName,
+          role: membership.role,
+        }
+      : null,
+    personalWorkspaces: personalWorkspaces.map(({ archivedAt, ...row }) => ({
+      ...row,
+      archived: archivedAt !== null,
+    })),
+    workspacePagination: {
+      total: totalPersonalWorkspaces,
+      limit,
+      offset,
+      hasMore: offset + personalWorkspaces.length < totalPersonalWorkspaces,
+    },
+    workspaceSelection: {
+      totalEligible: totalEligibleWorkspaces,
+      defaultSelectedIds: includesAllEligible ? selectionRows.map((row) => row.id) : [],
+      defaultSelectedWorkspaces: includesAllEligible
+        ? selectionRows.map(({ total: _total, archivedAt, ...row }) => ({
+            ...row,
+            archived: archivedAt !== null,
+          }))
+        : [],
+      includesAllEligible,
+      limit: MAX_ENTERPRISE_WORKSPACE_SELECTION,
+    },
+    billingPreview,
+    canIssue: reason === null,
+    reason,
   }
 }
 
@@ -286,15 +600,21 @@ function slugifyOrganizationName(name: string, organizationId: string): string {
 /** Builds a deterministic key from every Enterprise commercial term. */
 export function buildEnterpriseProvisioningRequestKey(
   input: IssueEnterpriseProvisioningInput,
-  organizationId: string
+  organizationId: string,
+  normalizedTerms: {
+    billingInterval: 'month' | 'year'
+    reportingPeriodAnchorDate: string
+  }
 ): string {
-  const usageLimitCredits =
-    input.usageLimitCredits ?? dollarsToCredits(input.monthlyInvoiceAmountUsd)
+  const usageLimitCredits = input.usageLimitCredits ?? dollarsToCredits(input.invoiceAmountUsd)
   const requestTerms: Array<string | number> = [
-    'enterprise-v4',
+    'enterprise-v5',
     input.ownerUserId,
     organizationId,
-    Math.round(input.monthlyInvoiceAmountUsd * 100),
+    Math.round(input.invoiceAmountUsd * 100),
+    normalizedTerms.billingInterval,
+    normalizedTerms.reportingPeriodAnchorDate,
+    [...(input.workspaceIds ?? [])].sort().join(','),
     usageLimitCredits,
     input.seats,
     `concurrency=${input.concurrencyLimit ?? 'default'}`,
@@ -306,7 +626,8 @@ export function buildEnterpriseProvisioningRequestKey(
 
 function toEnterpriseProvisioningView(
   row: typeof outboxEvent.$inferSelect,
-  payload: EnterpriseProvisionPayload
+  payload: EnterpriseProvisionPayload,
+  workspaceMoves: EnterpriseWorkspaceMoveProgress
 ): EnterpriseProvisioningView {
   const request = payload.request
   const updatedAt = row.processedAt ?? row.lockedAt ?? row.availableAt ?? row.createdAt
@@ -315,8 +636,10 @@ function toEnterpriseProvisioningView(
     ownerUserId: request.ownerUserId,
     organizationId: request.organizationId,
     status: deriveEnterpriseOperationStatus(row.status, payload),
-    monthlyInvoiceAmountUsd: request.invoiceAmountCents / 100,
-    usageLimitCredits: request.usageLimitCredits,
+    invoiceAmountUsd: request.invoiceAmountCents / 100,
+    billingInterval: request.billingInterval,
+    reportingPeriodAnchorDate: request.reportingPeriodAnchorDate ?? null,
+    usageLimitCredits: request.usageLimitCredits + request.prepaidBalanceCreditsAtIssuance,
     seats: request.seats,
     concurrencyLimit: getBillingConcurrencyLimit('enterprise', request.concurrencyLimit),
     workflowExecutionTimeoutSeconds:
@@ -330,7 +653,90 @@ function toEnterpriseProvisioningView(
     error: row.lastError,
     createdAt: row.createdAt.toISOString(),
     updatedAt: updatedAt.toISOString(),
+    workspaceMoves,
   }
+}
+
+async function getEnterpriseWorkspaceMoveProgress(
+  operations: Array<{ id: string; payload: EnterpriseProvisionPayload }>,
+  options: { includeFailures?: boolean } = {}
+): Promise<Map<string, EnterpriseWorkspaceMoveProgress>> {
+  const operationIds = operations.map((operation) => operation.id)
+  const operationIdExpression = sql<string>`${outboxEvent.payload} ->> 'provisioningOperationId'`
+  const progressRows =
+    operationIds.length === 0
+      ? []
+      : await db
+          .select({
+            operationId: operationIdExpression,
+            moved: sql<number>`count(*) filter (where ${outboxEvent.status} = 'completed')`.mapWith(
+              Number
+            ),
+            failed:
+              sql<number>`count(*) filter (where ${outboxEvent.status} = 'dead_letter')`.mapWith(
+                Number
+              ),
+          })
+          .from(outboxEvent)
+          .where(
+            and(
+              eq(outboxEvent.eventType, ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE),
+              inArray(operationIdExpression, operationIds)
+            )
+          )
+          .groupBy(operationIdExpression)
+
+  const failedRows =
+    options.includeFailures && operationIds.length > 0
+      ? await db
+          .select({
+            id: outboxEvent.id,
+            payload: outboxEvent.payload,
+            lastError: outboxEvent.lastError,
+          })
+          .from(outboxEvent)
+          .where(
+            and(
+              eq(outboxEvent.eventType, ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE),
+              eq(outboxEvent.status, 'dead_letter'),
+              inArray(operationIdExpression, operationIds)
+            )
+          )
+          .orderBy(outboxEvent.createdAt, outboxEvent.id)
+          .limit(operationIds.length * MAX_ENTERPRISE_WORKSPACE_SELECTION)
+      : []
+
+  const result = new Map<string, EnterpriseWorkspaceMoveProgress>()
+  for (const operation of operations) {
+    result.set(operation.id, {
+      selected: operation.payload.request.workspaceIds.length,
+      moved: 0,
+      pending: operation.payload.request.workspaceIds.length,
+      failedCount: 0,
+      failed: [],
+    })
+  }
+  for (const row of progressRows) {
+    const progress = result.get(row.operationId)
+    if (!progress) continue
+    progress.moved = row.moved
+    progress.failedCount = row.failed
+  }
+  for (const row of failedRows) {
+    const parsed = enterpriseWorkspaceMovePayloadSchema.safeParse(row.payload)
+    if (!parsed.success) continue
+    const progress = result.get(parsed.data.provisioningOperationId)
+    if (!progress) continue
+    progress.failed.push({
+      eventId: row.id,
+      workspaceId: parsed.data.workspaceId,
+      error: row.lastError,
+    })
+  }
+  for (const progress of result.values()) {
+    progress.pending = Math.max(0, progress.selected - progress.moved - progress.failedCount)
+  }
+  return result
 }
 
 async function getEnterpriseProvisioningById(
@@ -348,7 +754,21 @@ async function getEnterpriseProvisioningById(
     .limit(1)
   if (!row) return null
   const payload = parseEnterpriseProvisionPayload(row.payload)
-  return payload ? toEnterpriseProvisioningView(row, payload) : null
+  if (!payload) return null
+  const progress = await getEnterpriseWorkspaceMoveProgress([{ id: row.id, payload }], {
+    includeFailures: true,
+  })
+  return toEnterpriseProvisioningView(
+    row,
+    payload,
+    progress.get(row.id) ?? {
+      selected: payload.request.workspaceIds.length,
+      moved: 0,
+      pending: payload.request.workspaceIds.length,
+      failedCount: 0,
+      failed: [],
+    }
+  )
 }
 
 type EnterpriseSubscriptionState = Pick<
@@ -425,17 +845,33 @@ export function decideEnterpriseProvisioningRetry(
 export async function issueEnterpriseProvisioning(
   input: IssueEnterpriseProvisioningInput
 ): Promise<EnterpriseProvisioningView> {
-  const invoiceAmountCents = Math.round(input.monthlyInvoiceAmountUsd * 100)
+  const invoiceAmountCents = Math.round(input.invoiceAmountUsd * 100)
   if (
     invoiceAmountCents <= 0 ||
     !Number.isSafeInteger(invoiceAmountCents) ||
-    Math.abs(input.monthlyInvoiceAmountUsd * 100 - invoiceAmountCents) > 1e-8
+    Math.abs(input.invoiceAmountUsd * 100 - invoiceAmountCents) > 1e-8
   ) {
     throw new EnterpriseProvisioningError(
-      'Monthly invoice amount must be at least $0.01 and use whole cents'
+      'Invoice amount must be at least $0.01 and use whole cents'
     )
   }
-  const defaultUsageLimitCredits = dollarsToCredits(input.monthlyInvoiceAmountUsd)
+  const defaultUsageLimitCredits = dollarsToCredits(input.invoiceAmountUsd)
+  const billingInterval = input.billingInterval ?? 'year'
+  const reportingPeriodAnchorDate =
+    input.reportingPeriodAnchorDate ?? new Date().toISOString().slice(0, 10)
+  const parsedReportingAnchor = new Date(`${reportingPeriodAnchorDate}T00:00:00.000Z`)
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(reportingPeriodAnchorDate) ||
+    !Number.isFinite(parsedReportingAnchor.getTime()) ||
+    parsedReportingAnchor.toISOString().slice(0, 10) !== reportingPeriodAnchorDate ||
+    parsedReportingAnchor.getTime() > Date.now()
+  ) {
+    throw new EnterpriseProvisioningError('Reporting-period start must be today or a past date')
+  }
+  const workspaceIds = [...new Set(input.workspaceIds ?? [])].sort()
+  if (workspaceIds.length > MAX_ENTERPRISE_WORKSPACE_SELECTION) {
+    throw new EnterpriseProvisioningError('At most 1,000 workspaces can be selected')
+  }
   if (
     input.concurrencyLimit !== undefined &&
     parseBillingConcurrencyLimit(input.concurrencyLimit) !== input.concurrencyLimit
@@ -449,29 +885,26 @@ export async function issueEnterpriseProvisioning(
   ) {
     throw new EnterpriseProvisioningError('Workflow execution timeout is invalid')
   }
+
+  // Discover the lock scope without holding a transaction connection or row
+  // lock. The transaction below re-reads all membership state after taking
+  // the canonical organization → user-billing-identity lock order.
+  const [membershipSnapshot] = await db
+    .select({ role: member.role, organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, input.ownerUserId))
+    .limit(1)
+
   const result = await db.transaction(async (tx) => {
-    const [owner] = await tx
-      .select({ id: user.id, name: user.name, email: user.email })
-      .from(user)
-      .where(eq(user.id, input.ownerUserId))
-      .for('update')
-      .limit(1)
-    if (!owner) throw new EnterpriseProvisioningError('Owner user not found')
-
-    const [membership] = await tx
-      .select({ role: member.role, organizationId: member.organizationId })
-      .from(member)
-      .where(eq(member.userId, input.ownerUserId))
-      .limit(1)
-
     let organizationId: string
-    if (membership) {
-      if (membership.role !== 'owner') {
+    let organizationToCreate: { id: string; name: string } | null = null
+    if (membershipSnapshot) {
+      if (membershipSnapshot.role !== 'owner') {
         throw new EnterpriseProvisioningError(
           'The selected user is a member, but not the owner, of an organization'
         )
       }
-      organizationId = membership.organizationId
+      organizationId = membershipSnapshot.organizationId
       await acquireOrganizationMutationLock(tx, organizationId)
       await acquireUserBillingIdentityLock(tx, input.ownerUserId)
       const [currentMembership] = await tx
@@ -503,11 +936,22 @@ export async function issueEnterpriseProvisioning(
         )
       }
       organizationId = `org_${generateId()}`
+      organizationToCreate = { id: organizationId, name: input.organizationName }
+    }
+
+    const [owner] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, input.ownerUserId))
+      .limit(1)
+    if (!owner) throw new EnterpriseProvisioningError('Owner user not found')
+
+    if (organizationToCreate) {
       const now = new Date()
       await tx.insert(organization).values({
-        id: organizationId,
-        name: input.organizationName,
-        slug: slugifyOrganizationName(input.organizationName, organizationId),
+        id: organizationToCreate.id,
+        name: organizationToCreate.name,
+        slug: slugifyOrganizationName(organizationToCreate.name, organizationToCreate.id),
         createdAt: now,
         updatedAt: now,
       })
@@ -520,8 +964,31 @@ export async function issueEnterpriseProvisioning(
       })
     }
 
-    await acquireOrganizationMutationLock(tx, organizationId)
-    const requestKey = buildEnterpriseProvisioningRequestKey(input, organizationId)
+    // Existing organizations were locked before the billing-identity lock.
+    // Newly created rows are transaction-private, so no second advisory lock
+    // is necessary and avoiding one preserves the canonical lock order.
+    const [organizationRow] = await tx
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .for('update')
+      .limit(1)
+    if (!organizationRow) throw new EnterpriseProvisioningError('Organization not found')
+    const prepaidCredits = dollarsToCredits(Number(organizationRow.creditBalance ?? 0))
+    if (input.usageLimitCredits !== undefined && input.usageLimitCredits < prepaidCredits) {
+      throw new EnterpriseProvisioningError(
+        'Enterprise usage limit cannot be below the organization prepaid balance'
+      )
+    }
+    const configuredUsageLimitCredits =
+      input.usageLimitCredits === undefined
+        ? defaultUsageLimitCredits
+        : input.usageLimitCredits - prepaidCredits
+    const normalizedInput = { ...input, usageLimitCredits: configuredUsageLimitCredits }
+    const requestKey = buildEnterpriseProvisioningRequestKey(normalizedInput, organizationId, {
+      billingInterval,
+      reportingPeriodAnchorDate,
+    })
     const [lockedOwner] = await tx
       .select({ role: member.role })
       .from(member)
@@ -539,6 +1006,30 @@ export async function issueEnterpriseProvisioning(
       throw new EnterpriseProvisioningError(
         'Enterprise seat capacity cannot be below current internal membership'
       )
+    }
+
+    if (workspaceIds.length > 0) {
+      const selectedWorkspaces = await tx
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(
+          and(
+            ownedAttachableWorkspacesWhere({
+              userId: input.ownerUserId,
+              includeArchived: true,
+            }),
+            inArray(workspace.id, workspaceIds)
+          )
+        )
+        .orderBy(workspace.id)
+      if (
+        selectedWorkspaces.length !== workspaceIds.length ||
+        selectedWorkspaces.some((row, index) => row.id !== workspaceIds[index])
+      ) {
+        throw new EnterpriseProvisioningError(
+          'One or more selected workspaces are no longer owned personal workspaces'
+        )
+      }
     }
 
     const operationRows = await tx
@@ -569,7 +1060,11 @@ export async function issueEnterpriseProvisioning(
       requestedByEmail: input.requestedByEmail,
       requestedByUserId: input.requestedByUserId,
       invoiceAmountCents,
-      usageLimitCredits: input.usageLimitCredits ?? defaultUsageLimitCredits,
+      billingInterval,
+      reportingPeriodAnchorDate,
+      workspaceIds,
+      usageLimitCredits: configuredUsageLimitCredits,
+      prepaidBalanceCreditsAtIssuance: prepaidCredits,
       seats: input.seats,
       ...(input.concurrencyLimit !== undefined ? { concurrencyLimit: input.concurrencyLimit } : {}),
       ...(input.workflowExecutionTimeoutSeconds !== undefined
@@ -578,7 +1073,7 @@ export async function issueEnterpriseProvisioning(
       pausePaymentCollection: input.pausePaymentCollection ?? false,
     }
     const payload: EnterpriseProvisionPayload = {
-      version: 1,
+      version: 2,
       request,
       retryRevision: 0,
       stripeProgress: {},
@@ -600,7 +1095,10 @@ export async function issueEnterpriseProvisioning(
       description: `Admin requested Enterprise issuance for organization ${view.organizationId}`,
       metadata: {
         organizationId: view.organizationId,
-        invoiceAmountCents: Math.round(view.monthlyInvoiceAmountUsd * 100),
+        invoiceAmountCents: Math.round(view.invoiceAmountUsd * 100),
+        billingInterval: view.billingInterval,
+        reportingPeriodAnchorDate: view.reportingPeriodAnchorDate,
+        workspaceCount: workspaceIds.length,
         usageLimitCredits: view.usageLimitCredits,
         seats: view.seats,
         concurrencyLimit: view.concurrencyLimit,
@@ -691,6 +1189,74 @@ export async function retryEnterpriseProvisioning(
       resourceId: operationId,
       description: 'Admin retried Enterprise issuance',
       metadata: { organizationId: view.organizationId, status: view.status },
+    })
+  }
+  return view
+}
+
+export async function retryEnterpriseWorkspaceMove(
+  operationId: string,
+  moveEventId: string,
+  actor: { id: string | null; name: string; email: string | null }
+): Promise<EnterpriseProvisioningView> {
+  const [snapshot] = await db
+    .select({ payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.id, moveEventId),
+        eq(outboxEvent.eventType, ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE)
+      )
+    )
+    .limit(1)
+  const parsedSnapshot = enterpriseWorkspaceMovePayloadSchema.safeParse(snapshot?.payload)
+  if (!parsedSnapshot.success || parsedSnapshot.data.provisioningOperationId !== operationId) {
+    throw new EnterpriseProvisioningError('Enterprise workspace move not found')
+  }
+
+  const retried = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, parsedSnapshot.data.destinationOrganizationId)
+    const [row] = await tx
+      .select({ status: outboxEvent.status, payload: outboxEvent.payload })
+      .from(outboxEvent)
+      .where(eq(outboxEvent.id, moveEventId))
+      .for('update')
+      .limit(1)
+    const payload = enterpriseWorkspaceMovePayloadSchema.safeParse(row?.payload)
+    if (!row || !payload.success || payload.data.provisioningOperationId !== operationId) {
+      throw new EnterpriseProvisioningError('Enterprise workspace move not found')
+    }
+    if (row.status !== 'dead_letter') return false
+    await tx
+      .update(outboxEvent)
+      .set({
+        status: 'pending',
+        attempts: 0,
+        lastError: null,
+        availableAt: new Date(),
+        lockedAt: null,
+        processedAt: null,
+      })
+      .where(eq(outboxEvent.id, moveEventId))
+    return true
+  })
+
+  const view = await getEnterpriseProvisioningById(operationId)
+  if (!view) throw new EnterpriseProvisioningError('Enterprise operation not found')
+  if (retried) {
+    recordAudit({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: AuditAction.ORGANIZATION_UPDATED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: parsedSnapshot.data.workspaceId,
+      description: 'Admin retried Enterprise issuance workspace move',
+      metadata: {
+        organizationId: parsedSnapshot.data.destinationOrganizationId,
+        provisioningOperationId: operationId,
+        moveEventId,
+      },
     })
   }
   return view
@@ -846,7 +1412,9 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
     organizationId: request.organizationId,
     enterpriseOperationId: context.eventId,
     invoiceAmountCents: request.invoiceAmountCents.toString(),
-    monthlyPrice: (request.invoiceAmountCents / 100).toFixed(2),
+    ...(request.reportingPeriodAnchorDate
+      ? { reportingPeriodAnchorDate: request.reportingPeriodAnchorDate }
+      : {}),
     usageLimitCredits: request.usageLimitCredits.toString(),
     seats: request.seats.toString(),
     ...(request.concurrencyLimit !== undefined
@@ -902,7 +1470,7 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
           default_price_data: {
             currency: 'usd',
             unit_amount: request.invoiceAmountCents,
-            recurring: { interval: 'month' },
+            recurring: { interval: request.billingInterval },
             metadata: { enterpriseOperationId: context.eventId },
           },
           expand: ['default_price'],
@@ -1047,7 +1615,7 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
   const stripeSubscriptionId = subscriptionRow.stripeSubscriptionId
   if (metadataRecord(subscriptionRow.metadata).simConfigOperationId === context.eventId) return
 
-  await withEnterpriseReconciliationLease(stripeSubscriptionId, async () => {
+  return withEnterpriseReconciliationLease(stripeSubscriptionId, async () => {
     const [currentSubscription] = await db
       .select({ metadata: subscription.metadata })
       .from(subscription)
@@ -1095,44 +1663,216 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
     metadata.simConfigDeliveryRevision = String(latestPayload.data.deliveryRevision)
     metadata.simConfigDeliveryAttempt = String(context.attempts)
 
-    await requireStripeClient().subscriptions.update(
+    const stripe = requireStripeClient()
+    const terms = latestPayload.data.terms
+    const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+      expand: ['latest_invoice'],
+    })
+    const deliveryAlreadyWritten = enterpriseMetadataIntentMatchesStripeSubscription(
+      latestPayload.data,
+      context.eventId,
+      stripeSubscription
+    )
+    if (deliveryAlreadyWritten) {
+      return waitForEnterpriseWebhookAcknowledgement(latestPayload.data.acknowledgement, context)
+    }
+    let priceId = latestPayload.data.stripeProgress.priceId ?? null
+    let updateItems: Stripe.SubscriptionUpdateParams.Item[] | undefined
+    let billingIntervalChanged = false
+
+    if (terms) {
+      if (stripeSubscription.schedule) {
+        throw new Error(
+          'Enterprise billing terms cannot be changed while a Stripe Schedule controls the subscription'
+        )
+      }
+      if (
+        stripeSubscription.collection_method !== 'send_invoice' ||
+        stripeSubscription.days_until_due !== 30
+      ) {
+        throw new Error(
+          'Enterprise billing-term updates require send-invoice collection with 30-day terms'
+        )
+      }
+      const items = stripeSubscription.items.data
+      if (items.length !== 1) {
+        throw new Error(
+          'Enterprise billing-term updates require exactly one Stripe subscription item'
+        )
+      }
+      const currentItem = items[0]
+      billingIntervalChanged = currentItem.price.recurring?.interval !== terms.billingInterval
+      const productId =
+        typeof currentItem.price.product === 'string'
+          ? currentItem.price.product
+          : currentItem.price.product?.id
+      if (!productId) throw new Error('Enterprise subscription price has no reusable product')
+
+      let price: Stripe.Price | null = null
+      if (priceId) {
+        price = await stripe.prices.retrieve(priceId)
+      } else {
+        price = await findConfigurationPrice(stripe, productId, context.eventId)
+      }
+      if (!price) {
+        price = await stripe.prices.create(
+          {
+            currency: 'usd',
+            unit_amount: terms.invoiceAmountCents,
+            recurring: { interval: terms.billingInterval },
+            product: productId,
+            metadata: { enterpriseConfigOperationId: context.eventId },
+          },
+          {
+            idempotencyKey: `enterprise-config:${payload.subscriptionId}:${context.eventId}:price`,
+          }
+        )
+      }
+      assertEnterpriseConfigurationPrice(price, terms, context.eventId, productId)
+      priceId = price.id
+      if (latestPayload.data.stripeProgress.priceId !== priceId) {
+        await context.checkpointPayload({ stripeProgress: { priceId } })
+      }
+      updateItems = [{ id: currentItem.id, price: priceId, quantity: 1 }]
+    }
+
+    const updatedSubscription = await stripe.subscriptions.update(
       stripeSubscriptionId,
-      { metadata },
+      {
+        metadata,
+        ...(updateItems
+          ? {
+              items: updateItems,
+              proration_behavior: 'none' as const,
+              ...(billingIntervalChanged ? { billing_cycle_anchor: 'now' as const } : {}),
+            }
+          : {}),
+        expand: ['latest_invoice'],
+      },
       {
         idempotencyKey: `enterprise-config:${payload.subscriptionId}:${context.eventId}:delivery:${latestPayload.data.deliveryRevision}:attempt:${context.attempts}`,
       }
     )
 
+    const priorPause = stripeSubscription.pause_collection
+    const updatedPause = updatedSubscription.pause_collection
+    const pausePreserved =
+      priorPause === null
+        ? updatedPause === null
+        : priorPause?.behavior === updatedPause?.behavior &&
+          (priorPause?.resumes_at ?? null) === (updatedPause?.resumes_at ?? null)
+    if (!pausePreserved) {
+      throw new Error('Stripe did not preserve Enterprise payment-collection pause settings')
+    }
+
+    // Stripe's keep_as_draft contract handles future invoices itself. Only an
+    // interval switch creates an immediate full-period invoice; inspect that
+    // invoice rather than mistaking an older paid invoice for a failed update
+    // during an amount-only Price replacement.
+    if (
+      terms &&
+      billingIntervalChanged &&
+      updatedSubscription.pause_collection?.behavior === 'keep_as_draft'
+    ) {
+      await keepInitialEnterpriseInvoiceAsDraft({
+        stripe,
+        subscription: updatedSubscription,
+        operationId: context.eventId,
+      })
+    }
+
     // Stripe's verified webhook is the only path that applies metadata to the
-    // canonical subscription row. Keep this same outbox operation retryable
-    // until a later attempt observes that acknowledgement.
-    throw new Error('Awaiting verified Stripe webhook application')
+    // canonical subscription row. Normal delivery latency has a durable grace
+    // window that does not consume handler attempts. A genuinely missing
+    // acknowledgement begins consuming the finite outbox budget after it.
+    return waitForEnterpriseWebhookAcknowledgement(latestPayload.data.acknowledgement, context)
+  })
+}
+
+export const moveEnterpriseWorkspace: OutboxHandler<unknown> = async (rawPayload, context) => {
+  const parsed = enterpriseWorkspaceMovePayloadSchema.safeParse(rawPayload)
+  if (!parsed.success) throw new Error('Invalid Enterprise workspace-move outbox payload')
+  const payload = parsed.data
+
+  const [earlierActive] = await db
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE),
+        inArray(outboxEvent.status, ['pending', 'processing']),
+        sql`${outboxEvent.payload} ->> 'provisioningOperationId' = ${payload.provisioningOperationId}`,
+        sql`coalesce((${outboxEvent.payload} ->> 'sequence')::integer, 0) < ${payload.sequence}`,
+        sql`${outboxEvent.id} <> ${context.eventId}`
+      )
+    )
+    .limit(1)
+  if (earlierActive) {
+    // This is dependency ordering, not a failed delivery. The earlier row has
+    // its own finite attempt budget and will become completed or dead-letter,
+    // so waiting here must not consume this workspace's retry budget.
+    return deferOutboxHandler('Waiting for an earlier Enterprise workspace move', undefined, false)
+  }
+
+  await moveWorkspaceToOrganization({
+    workspaceId: payload.workspaceId,
+    destinationOrganizationId: payload.destinationOrganizationId,
+    expectedOwnerId: payload.expectedOwnerId,
+    adminEmail: payload.adminEmail,
   })
 }
 
 export const enterpriseIssuanceOutboxHandlers = {
   [ENTERPRISE_PROVISION_EVENT_TYPE]: provisionEnterpriseInStripe,
   [ENTERPRISE_METADATA_SYNC_EVENT_TYPE]: syncEnterpriseMetadataInStripe,
+  [ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE]: moveEnterpriseWorkspace,
 } as const
 
-export async function getLatestEnterpriseProvisionings(organizationIds: string[]) {
+export async function getLatestEnterpriseProvisionings(
+  organizationIds: string[],
+  options: { includeWorkspaceMoveFailures?: boolean } = {}
+) {
   const result = new Map<string, EnterpriseProvisioningView>()
   if (organizationIds.length === 0) return result
+  const organizationIdExpression = sql<string>`${outboxEvent.payload} #>> '{request,organizationId}'`
   const rows = await db
-    .select()
+    .selectDistinctOn([organizationIdExpression])
     .from(outboxEvent)
     .where(
       and(
         eq(outboxEvent.eventType, ENTERPRISE_PROVISION_EVENT_TYPE),
-        inArray(sql<string>`${outboxEvent.payload} #>> '{request,organizationId}'`, organizationIds)
+        inArray(organizationIdExpression, organizationIds)
       )
     )
-    .orderBy(desc(outboxEvent.createdAt), desc(outboxEvent.id))
+    .orderBy(organizationIdExpression, desc(outboxEvent.createdAt), desc(outboxEvent.id))
+  const latestRows: Array<{
+    row: typeof outboxEvent.$inferSelect
+    payload: EnterpriseProvisionPayload
+  }> = []
   for (const row of rows) {
     const payload = parseEnterpriseProvisionPayload(row.payload)
     if (!payload) throw new Error(`Enterprise issuance outbox payload ${row.id} is invalid`)
-    if (result.has(payload.request.organizationId)) continue
-    result.set(payload.request.organizationId, toEnterpriseProvisioningView(row, payload))
+    latestRows.push({ row, payload })
+  }
+  const progress = await getEnterpriseWorkspaceMoveProgress(
+    latestRows.map(({ row, payload }) => ({ id: row.id, payload })),
+    { includeFailures: options.includeWorkspaceMoveFailures }
+  )
+  for (const { row, payload } of latestRows) {
+    result.set(
+      payload.request.organizationId,
+      toEnterpriseProvisioningView(
+        row,
+        payload,
+        progress.get(row.id) ?? {
+          selected: payload.request.workspaceIds.length,
+          moved: 0,
+          pending: payload.request.workspaceIds.length,
+          failedCount: 0,
+          failed: [],
+        }
+      )
+    )
   }
   return result
 }

@@ -3,8 +3,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   adminDashboardBalanceGrantBodySchema,
+  adminDashboardEnterprisePreflightQuerySchema,
+  adminDashboardEnterprisePreflightSchema,
   adminDashboardIssueEnterpriseBodySchema,
   adminDashboardLimitsBodySchema,
+  adminDashboardOrganizationDetailQuerySchema,
   adminDashboardOrganizationSummarySchema,
   adminDashboardUpdateMemberBodySchema,
 } from '@/lib/api/contracts/v1/admin/dashboard'
@@ -63,7 +66,17 @@ describe('admin dashboard credit grant contract', () => {
         usageLimitDollars: 0.001,
         effectiveUsageLimitDollars: 0.001,
         prepaidBalanceDollars: 0.001,
+        invoiceAmountUsd: null,
         monthlyInvoiceAmountUsd: null,
+        billingInterval: null,
+        reportingPeriod: {
+          anchorDate: null,
+          interval: null,
+          currentStart: '2026-08-01T00:00:00.000Z',
+          currentEnd: '2026-09-01T00:00:00.000Z',
+          source: 'default',
+        },
+        usage: { usedDollars: 0.001, limitDollars: 0.001 },
         provisioning: null,
       }).success
     ).toBe(true)
@@ -74,7 +87,7 @@ describe('admin dashboard credit grant contract', () => {
     expect(
       adminDashboardIssueEnterpriseBodySchema.safeParse({
         ownerUserId: 'owner-1',
-        monthlyInvoiceAmountUsd: 500,
+        invoiceAmountUsd: 500,
         seats: 10,
         concurrencyLimit: 1250,
         pausePaymentCollection: true,
@@ -82,6 +95,115 @@ describe('admin dashboard credit grant contract', () => {
     ).toBe(true)
     expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 0 }).success).toBe(false)
     expect(adminDashboardLimitsBodySchema.safeParse({ concurrencyLimit: 1.5 }).success).toBe(false)
+  })
+
+  it('defaults Enterprise issuance to annual while accepting an explicit monthly cadence', () => {
+    const annual = adminDashboardIssueEnterpriseBodySchema.parse({
+      ownerUserId: 'owner-1',
+      invoiceAmountUsd: 1_200,
+      seats: 10,
+    })
+    const monthly = adminDashboardIssueEnterpriseBodySchema.parse({
+      ownerUserId: 'owner-1',
+      invoiceAmountUsd: 100,
+      billingInterval: 'month',
+      seats: 10,
+    })
+
+    expect(annual.billingInterval).toBe('year')
+    expect(monthly.billingInterval).toBe('month')
+  })
+
+  it('keeps the legacy monthly issuance request monthly during a rolling deployment', () => {
+    const legacy = adminDashboardIssueEnterpriseBodySchema.parse({
+      ownerUserId: 'owner-1',
+      monthlyInvoiceAmountUsd: 100,
+      seats: 10,
+    })
+
+    expect(legacy).toMatchObject({
+      billingInterval: 'month',
+      invoiceAmountUsd: 100,
+    })
+    expect(legacy).not.toHaveProperty('monthlyInvoiceAmountUsd')
+  })
+
+  it('rejects conflicting legacy and interval invoice amounts', () => {
+    expect(
+      adminDashboardIssueEnterpriseBodySchema.safeParse({
+        ownerUserId: 'owner-1',
+        invoiceAmountUsd: 1_200,
+        monthlyInvoiceAmountUsd: 100,
+        seats: 10,
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects a monthly-named legacy amount with an explicit annual cadence', () => {
+    expect(
+      adminDashboardIssueEnterpriseBodySchema.safeParse({
+        ownerUserId: 'owner-1',
+        monthlyInvoiceAmountUsd: 100,
+        billingInterval: 'year',
+        seats: 10,
+      }).success
+    ).toBe(false)
+  })
+
+  it('paginates Enterprise workspace preflight without hiding the total inventory', () => {
+    expect(adminDashboardEnterprisePreflightQuerySchema.parse({ ownerUserId: 'owner-1' })).toEqual({
+      ownerUserId: 'owner-1',
+      search: '',
+      limit: 50,
+      offset: 0,
+    })
+    expect(
+      adminDashboardEnterprisePreflightSchema.safeParse({
+        owner: { id: 'owner-1', name: 'Owner', email: 'owner@example.com' },
+        organization: null,
+        personalWorkspaces: [{ id: 'workspace-1', name: 'One', archived: false }],
+        workspacePagination: { total: 51, limit: 50, offset: 0, hasMore: true },
+        workspaceSelection: {
+          totalEligible: 51,
+          defaultSelectedIds: Array.from({ length: 51 }, (_, index) => `workspace-${index + 1}`),
+          defaultSelectedWorkspaces: Array.from({ length: 51 }, (_, index) => ({
+            id: `workspace-${index + 1}`,
+            name: `Workspace ${index + 1}`,
+            archived: false,
+          })),
+          includesAllEligible: true,
+          limit: 1_000,
+        },
+        billingPreview: null,
+        canIssue: true,
+        reason: null,
+      }).success
+    ).toBe(true)
+  })
+
+  it('keeps organization detail unbounded for legacy callers and supports bounded collection pages', () => {
+    expect(adminDashboardOrganizationDetailQuerySchema.parse({})).toEqual({
+      paginated: false,
+      limit: 50,
+      memberOffset: 0,
+      externalCollaboratorOffset: 0,
+      workspaceOffset: 0,
+    })
+    expect(
+      adminDashboardOrganizationDetailQuerySchema.parse({
+        paginated: 'true',
+        limit: '25',
+        memberOffset: '50',
+        externalCollaboratorOffset: '75',
+        workspaceOffset: '100',
+      })
+    ).toEqual({
+      paginated: true,
+      limit: 25,
+      memberOffset: 50,
+      externalCollaboratorOffset: 75,
+      workspaceOffset: 100,
+    })
   })
 
   it('does not expose included allowance as an editable organization control', () => {
@@ -95,7 +217,7 @@ describe('admin dashboard credit grant contract', () => {
     expect(
       adminDashboardIssueEnterpriseBodySchema.safeParse({
         ownerUserId: 'owner-1',
-        monthlyInvoiceAmountUsd: 500,
+        invoiceAmountUsd: 500,
         seats: 10,
         concurrencyLimit: null,
       }).success

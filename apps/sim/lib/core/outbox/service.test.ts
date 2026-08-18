@@ -25,6 +25,7 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import {
+  deferOutboxHandler,
   enqueueOrReschedulePendingOutboxEvent,
   enqueueOutboxEvent,
   processOutboxEvents,
@@ -287,6 +288,45 @@ describe('processOutboxEvents — handler success and retry', () => {
     const scheduledAt = retryUpdate?.availableAt as Date
     expect(scheduledAt.getTime()).toBeGreaterThan(before + 7500)
     expect(scheduledAt.getTime()).toBeLessThan(before + 10_000)
+  })
+
+  it('keeps an acknowledged external wait pending without recording a failure', async () => {
+    const handler = vi.fn(async () => deferOutboxHandler('waiting for webhook'))
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 2 })])
+    holdLease()
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.retried).toBe(1)
+    const deferredUpdate = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
+    expect(deferredUpdate).toMatchObject({ attempts: 3, lastError: null, lockedAt: null })
+  })
+
+  it('dead-letters a deferred wait only after its acknowledgement budget is exhausted', async () => {
+    const handler = vi.fn(async () => deferOutboxHandler('webhook acknowledgement missing'))
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 9, maxAttempts: 10 })])
+    holdLease()
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.deadLettered).toBe(1)
+    const deadUpdate = updateSets().find((set) => set.status === 'dead_letter')
+    expect(deadUpdate).toMatchObject({
+      attempts: 10,
+      lastError: 'webhook acknowledgement missing',
+    })
+  })
+
+  it('reschedules an internal dependency wait without consuming its attempt budget', async () => {
+    const handler = vi.fn(async () => deferOutboxHandler('waiting for dependency', 5_000, false))
+    queueTableRows(outboxEvent, [makePendingRow({ attempts: 4, maxAttempts: 5 })])
+    holdLease()
+
+    const result = await processOutboxEvents({ 'test.event': handler })
+
+    expect(result.retried).toBe(1)
+    const deferredUpdate = updateSets().find((set) => set.status === 'pending' && 'attempts' in set)
+    expect(deferredUpdate).toMatchObject({ attempts: 4, lastError: null, lockedAt: null })
   })
 
   it('dead-letters on failure when attempts reaches maxAttempts', async () => {

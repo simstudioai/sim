@@ -4,9 +4,11 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
+import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
 import {
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
+  type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
 import {
   computeDailyRefreshConsumed,
@@ -67,24 +69,53 @@ interface MemberUsageData {
  */
 export async function getOrgMemberLedgerByUser(
   organizationId: string,
-  period?: { start: Date; end: Date } | null,
-  executor: DbClient = db
+  period?: UsageQueryPeriod | null,
+  executor: DbClient = db,
+  userIds?: readonly string[]
 ): Promise<Map<string, number>> {
   let billingPeriod = period ?? null
   if (period === undefined) {
     const subscription = await getOrganizationSubscription(organizationId, { executor })
-    billingPeriod =
-      subscription?.periodStart && subscription?.periodEnd
-        ? { start: subscription.periodStart, end: subscription.periodEnd }
-        : null
+    billingPeriod = resolveSubscriptionUsagePeriod(subscription)
   }
   if (!billingPeriod) return new Map<string, number>()
   return getBillingPeriodUsageCostByUser(
     { type: 'organization', id: organizationId },
     billingPeriod,
     undefined,
-    executor
+    executor,
+    userIds
   )
+}
+
+export interface OrganizationMemberUsageSnapshot {
+  billingPeriod: UsageQueryPeriod | null
+  includeLegacyBaseline: boolean
+  usageByUser: Map<string, number>
+}
+
+/**
+ * Resolves the organization's usage period once and returns the ledger usage
+ * for only the requested actors. Reporting periods never include the legacy
+ * userStats baseline; Stripe/default periods retain it for compatibility.
+ */
+export async function getOrganizationMemberUsageSnapshot(
+  organizationId: string,
+  options: {
+    executor?: DbClient
+    userIds?: readonly string[]
+  } = {}
+): Promise<OrganizationMemberUsageSnapshot> {
+  const executor = options.executor ?? db
+  const subscription = await getOrganizationSubscription(organizationId, { executor })
+  const billingPeriod = resolveSubscriptionUsagePeriod(subscription)
+  return {
+    billingPeriod,
+    includeLegacyBaseline: billingPeriod?.source !== 'reporting',
+    usageByUser: billingPeriod
+      ? await getOrgMemberLedgerByUser(organizationId, billingPeriod, executor, options.userIds)
+      : new Map(),
+  }
 }
 
 /**
@@ -137,16 +168,14 @@ export async function getOrganizationBillingData(
     // Per-member current-period usage = userStats baseline + attributed usage_log
     // rows. currentPeriodCost is no longer incremented on the hot path, so the
     // baseline alone under-reports; add each member's ledger sum for the period.
-    const billingPeriod =
-      subscription.periodStart && subscription.periodEnd
-        ? { start: subscription.periodStart, end: subscription.periodEnd }
-        : null
-    const usageByUser = await getOrgMemberLedgerByUser(organizationId, billingPeriod, executor)
+    const { billingPeriod, includeLegacyBaseline, usageByUser } =
+      await getOrganizationMemberUsageSnapshot(organizationId, { executor })
 
     // Process member data
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
       const currentUsage =
-        Number(memberRecord.currentPeriodCost || 0) + (usageByUser.get(memberRecord.userId) ?? 0)
+        (includeLegacyBaseline ? Number(memberRecord.currentPeriodCost || 0) : 0) +
+        (usageByUser.get(memberRecord.userId) ?? 0)
       const usageLimit = Number(memberRecord.currentUsageLimit || getFreeTierLimit())
       const percentUsed = usageLimit > 0 ? (currentUsage / usageLimit) * 100 : 0
 
@@ -168,10 +197,10 @@ export async function getOrganizationBillingData(
     // from raw baselines, NOT members[].currentUsage — the latter already folds
     // in per-member usage_log for display, so summing it AND adding the org
     // ledger would double-count.
-    let totalCurrentUsage = membersWithUsage.reduce(
-      (sum, m) => sum + Number(m.currentPeriodCost || 0),
-      0
-    )
+    let totalCurrentUsage =
+      billingPeriod?.source === 'reporting'
+        ? 0
+        : membersWithUsage.reduce((sum, m) => sum + Number(m.currentPeriodCost || 0), 0)
     if (billingPeriod) {
       totalCurrentUsage += await getBillingPeriodUsageCost(
         { type: 'organization', id: subscription.referenceId },
@@ -239,8 +268,8 @@ export async function getOrganizationBillingData(
     const pendingSeats = await countPendingSeatInvitations(organizationId, executor)
     const usedSeats = members.length + pendingSeats
 
-    const billingPeriodStart = subscription.periodStart || null
-    const billingPeriodEnd = subscription.periodEnd || null
+    const billingPeriodStart = billingPeriod?.start ?? null
+    const billingPeriodEnd = billingPeriod?.end ?? null
 
     return {
       organizationId,

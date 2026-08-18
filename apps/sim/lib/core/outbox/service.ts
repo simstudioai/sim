@@ -74,7 +74,35 @@ export interface OutboxEventContext {
  * Throwing bumps `attempts` and schedules a retry via exponential
  * backoff; a successful return transitions the event to `completed`.
  */
-export type OutboxHandler<T = unknown> = (payload: T, context: OutboxEventContext) => Promise<void>
+export interface DeferredOutboxHandlerResult {
+  outcome: 'deferred'
+  reason: string
+  minimumBackoffMs?: number
+  /**
+   * Defaults to true for an external acknowledgement with a finite retry
+   * budget. Set false only for an internal dependency whose own outbox row
+   * independently reaches completed or dead-letter.
+   */
+  consumeAttempt?: boolean
+}
+
+export function deferOutboxHandler(
+  reason: string,
+  minimumBackoffMs?: number,
+  consumeAttempt = true
+): DeferredOutboxHandlerResult {
+  return {
+    outcome: 'deferred',
+    reason,
+    ...(minimumBackoffMs !== undefined ? { minimumBackoffMs } : {}),
+    ...(consumeAttempt ? {} : { consumeAttempt: false }),
+  }
+}
+
+export type OutboxHandler<T = unknown> = (
+  payload: T,
+  context: OutboxEventContext
+) => Promise<undefined | DeferredOutboxHandlerResult>
 
 /**
  * Map of `eventType` → handler. Register all handlers in one place
@@ -464,7 +492,10 @@ async function runHandler(
   }
 
   try {
-    await runHandlerWithTimeout(handler, event)
+    const handlerResult = await runHandlerWithTimeout(handler, event)
+    if (handlerResult?.outcome === 'deferred') {
+      return scheduleDeferred(event, handlerResult)
+    }
     const updated = await updateIfLeaseHeld(event, {
       status: 'completed',
       lastError: null,
@@ -625,6 +656,52 @@ async function scheduleRetry(
   return 'pending'
 }
 
+async function scheduleDeferred(
+  event: typeof outboxEvent.$inferSelect,
+  result: DeferredOutboxHandlerResult
+): Promise<'pending' | 'dead_letter' | 'lease_lost'> {
+  const nextAttempts = event.attempts + (result.consumeAttempt === false ? 0 : 1)
+  if (result.consumeAttempt !== false && nextAttempts >= event.maxAttempts) {
+    const updated = await updateIfLeaseHeld(event, {
+      attempts: nextAttempts,
+      status: 'dead_letter',
+      lastError: result.reason,
+      processedAt: new Date(),
+      lockedAt: null,
+    })
+    if (!updated) return 'lease_lost'
+    logger.error('Outbox event dead-lettered while awaiting external acknowledgement', {
+      eventId: event.id,
+      eventType: event.eventType,
+      attempts: nextAttempts,
+      reason: result.reason,
+    })
+    return 'dead_letter'
+  }
+
+  const backoffMs = Math.max(
+    result.minimumBackoffMs ?? 0,
+    Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** nextAttempts)
+  )
+  const nextAvailableAt = new Date(Date.now() + backoffMs)
+  const updated = await updateIfLeaseHeld(event, {
+    attempts: nextAttempts,
+    status: 'pending',
+    lastError: null,
+    availableAt: nextAvailableAt,
+    lockedAt: null,
+  })
+  if (!updated) return 'lease_lost'
+  logger.info('Outbox event is awaiting external acknowledgement', {
+    eventId: event.id,
+    eventType: event.eventType,
+    attempts: nextAttempts,
+    backoffMs,
+    nextAvailableAt: nextAvailableAt.toISOString(),
+  })
+  return 'pending'
+}
+
 async function updateProcessingIfLeaseHeld(
   event: typeof outboxEvent.$inferSelect,
   patch: {
@@ -651,7 +728,7 @@ function runHandlerWithTimeout(
   handler: OutboxHandler,
   event: typeof outboxEvent.$inferSelect,
   timeoutMs: number = DEFAULT_HANDLER_TIMEOUT_MS
-): Promise<void> {
+): Promise<undefined | DeferredOutboxHandlerResult> {
   const controller = new AbortController()
   const context: OutboxEventContext = {
     eventId: event.id,

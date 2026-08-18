@@ -1301,12 +1301,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
           payerSubscription.plan,
           payerSubscription.seats
         )
-        const [{ sum: orgBaselineSum }] = await db
-          .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
-          .from(member)
-          .leftJoin(userStats, eq(member.userId, userStats.userId))
-          .where(eq(member.organizationId, organizationId))
-          .limit(1)
+        let orgBaseline = 0
+        if (exactBillingContext.billingPeriod.source !== 'reporting') {
+          const [{ sum }] = await db
+            .select({ sum: sql`COALESCE(SUM(${userStats.currentPeriodCost}), 0)` })
+            .from(member)
+            .leftJoin(userStats, eq(member.userId, userStats.userId))
+            .where(eq(member.organizationId, organizationId))
+            .limit(1)
+          orgBaseline = Number.parseFloat(String(sum ?? '0'))
+        }
         const { getBillingPeriodUsageCost } = await import('@/lib/billing/core/usage-log')
         const orgLedger = await getBillingPeriodUsageCost(
           billingAttribution.billingEntity,
@@ -1317,7 +1321,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           organizationId,
           planName: getDisplayPlanName(payerSubscription.plan),
           orgLimit,
-          orgUsageBefore: Number.parseFloat(String(orgBaselineSum ?? '0')) + orgLedger,
+          orgUsageBefore: orgBaseline + orgLedger,
         }
       } else if (billingAttribution?.billingEntity.type === 'user' && usr?.email) {
         const sub = await getHighestPriorityPersonalSubscription(usr.id)
