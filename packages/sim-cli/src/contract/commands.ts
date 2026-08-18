@@ -456,11 +456,14 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   listSecrets: {
+    // `description` trails the existing columns: `--output text` is positional,
+    // so inserting ahead of `updated` would shift every field a script already cuts.
     columns: [
       { header: 'name' },
       { header: 'scope' },
       { header: 'role' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+      { header: 'description' },
     ],
   },
   getWorkspace: {
