@@ -84,10 +84,9 @@ services:
     # full headroom NODE_OPTIONS=--max-old-space-size=8192 asks for.
     region: oregon
     healthCheckPath: /
-    envVarGroups:
-      - sim-shared-secrets
-      - sim-r2-storage
     envVars:
+      - fromGroup: sim-shared-secrets
+      - fromGroup: sim-r2-storage
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
@@ -139,9 +138,8 @@ services:
     plan: starter
     region: oregon
     healthCheckPath: /health
-    envVarGroups:
-      - sim-shared-secrets
     envVars:
+      - fromGroup: sim-shared-secrets
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
@@ -166,9 +164,8 @@ services:
     dockerContext: .
     plan: starter
     region: oregon
-    envVarGroups:
-      - sim-shared-secrets
     envVars:
+      - fromGroup: sim-shared-secrets
       - key: TZ
         value: UTC
       # Internal address of sim-app — the cron container polls this over HTTP.
