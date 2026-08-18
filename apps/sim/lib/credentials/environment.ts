@@ -217,6 +217,8 @@ interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'
   envKey: string
   envOwnerUserId: string | null
+  /** Teammate-facing note. Always null on `env_personal`, which has no shared audience. */
+  description: string | null
   updatedAt: Date
 }
 
@@ -740,6 +742,7 @@ export async function getAccessibleEnvCredentials(
       type: credential.type,
       envKey: credential.envKey,
       envOwnerUserId: credential.envOwnerUserId,
+      description: credential.description,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -772,6 +775,7 @@ export async function getAccessibleEnvCredentials(
       type: row.type,
       envKey: row.envKey,
       envOwnerUserId: row.envOwnerUserId,
+      description: row.type === 'env_workspace' ? row.description : null,
       updatedAt: row.updatedAt,
     }))
 }

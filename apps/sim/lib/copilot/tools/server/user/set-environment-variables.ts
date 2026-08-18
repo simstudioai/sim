@@ -7,6 +7,7 @@ import {
   getDefaultWorkspaceId,
 } from '@/lib/copilot/tools/handlers/access'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
+import { setWorkspaceSecret } from '@/lib/credentials/secret-values'
 import { upsertPersonalEnvVars, upsertWorkspaceEnvVars } from '@/lib/environment/utils'
 
 type EnvironmentVariableInputValue = string | number | boolean | null | undefined
@@ -14,7 +15,11 @@ type EnvironmentVariableInputValue = string | number | boolean | null | undefine
 interface EnvironmentVariableInput {
   name: string
   value: EnvironmentVariableInputValue
+  description?: string | null
 }
+
+/** Matches the secret detail form and `PUT /api/v2/secrets`. */
+const DESCRIPTION_MAX_LENGTH = 500
 
 interface SetEnvironmentVariablesParams {
   variables: Record<string, EnvironmentVariableInputValue> | EnvironmentVariableInput[]
@@ -35,6 +40,30 @@ interface SetEnvironmentVariablesResult {
 }
 
 const EnvVarSchema = z.object({ variables: z.record(z.string(), z.string()) })
+
+/**
+ * Collects the descriptions the model actually sent. A variable that omits the
+ * field is absent from the result, so an existing description survives a value
+ * rotation; a blank one clears it. The object form of `variables` carries none.
+ */
+function normalizeDescriptions(
+  input: Record<string, EnvironmentVariableInputValue> | EnvironmentVariableInput[]
+): Record<string, string | null> {
+  if (!Array.isArray(input)) return {}
+
+  const descriptions: Record<string, string | null> = {}
+  for (const item of input) {
+    if (!item || typeof item.name !== 'string' || item.description === undefined) continue
+    const description = item.description?.trim() ?? ''
+    if (description.length > DESCRIPTION_MAX_LENGTH) {
+      throw new Error(
+        `description for ${item.name} must be at most ${DESCRIPTION_MAX_LENGTH} characters`
+      )
+    }
+    descriptions[item.name] = description === '' ? null : description
+  }
+  return descriptions
+}
 
 function normalizeVariables(
   input: Record<string, EnvironmentVariableInputValue> | EnvironmentVariableInput[]
@@ -100,6 +129,14 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
     const scope = params.scope === 'personal' ? 'personal' : 'workspace'
 
     const normalized = normalizeVariables(variables || {})
+    const descriptions = normalizeDescriptions(variables || {})
+    // Rejected rather than dropped, matching the secrets domain: an `env_personal`
+    // row is a per-workspace mirror of one user-global secret, so a description
+    // written there would exist in this workspace alone — and a personal secret
+    // has no teammates to inform.
+    if (scope === 'personal' && Object.keys(descriptions).length > 0) {
+      throw new Error('description is only supported for a workspace secret')
+    }
     const { variables: validatedVariables } = EnvVarSchema.parse({ variables: normalized })
     const variableNames = Object.keys(validatedVariables)
     const added: string[] = []
@@ -114,6 +151,20 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<
         validatedVariables,
         authenticatedUserId
       )
+      // Same writer the Set Secret use case calls, so the description lands with
+      // the semantics the secrets UI and API already define. It runs second
+      // because a brand-new key has no credential row to describe until the
+      // upsert above has minted one — and only for described keys, so a plain
+      // rotation stays a single write.
+      for (const [name, description] of Object.entries(descriptions)) {
+        await setWorkspaceSecret({
+          workspaceId: resolvedWorkspaceId,
+          name,
+          value: validatedVariables[name],
+          userId: authenticatedUserId,
+          description,
+        })
+      }
     } else {
       const result = await upsertPersonalEnvVars(authenticatedUserId, validatedVariables)
       added.push(...result.added)

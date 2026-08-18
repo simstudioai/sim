@@ -295,13 +295,25 @@ export const Browser: ToolCatalogEntry = {
   mode: 'async',
   parameters: {
     properties: {
+      sessionId: {
+        description:
+          'Reusable session ID returned by an earlier browser call in this chat. Supply it only on a later user message that continues the same browsing objective, and at most once per user message.',
+        type: 'string',
+      },
       task: {
         description:
-          'The web task to complete, in plain language (include the target site/URL if known).',
+          "Optional brief scoping instruction that the conversation does not already convey. Do not restate the user's request.",
+        type: 'string',
+      },
+      title: {
+        description:
+          "Required private orchestration label (3–8 words) for this Browser Agent session's stable objective. When resuming with sessionId, copy the registry title unchanged.",
+        maxLength: 120,
+        minLength: 1,
         type: 'string',
       },
     },
-    required: ['task'],
+    required: ['title'],
     type: 'object',
   },
   subagentId: 'browser',
@@ -1248,16 +1260,14 @@ export const Cp: ToolCatalogEntry = {
     properties: {
       destination: {
         type: 'string',
-        maxLength: 4096,
         description:
           'Target path under workflows/. An existing folder (or a path ending in "/") duplicates sources into it keeping their names; otherwise the last segment names the copy and the preceding segments are the target folder (created automatically when missing).',
       },
       sources: {
         type: 'array',
-        maxItems: 100,
         description:
           'Canonical workflow VFS paths to duplicate, e.g. ["workflows/My%20Workflow"]. Copy paths verbatim from glob/grep/read output.',
-        items: { type: 'string', maxLength: 4096 },
+        items: { type: 'string' },
       },
       toolTitle: {
         type: 'string',
@@ -3716,10 +3726,9 @@ export const Mkdir: ToolCatalogEntry = {
     properties: {
       paths: {
         type: 'array',
-        maxItems: 100,
         description:
           'Canonical folder VFS paths to create, e.g. ["files/Reports/2026"]. Missing parent segments are created automatically.',
-        items: { type: 'string', maxLength: 4096 },
+        items: { type: 'string' },
       },
       toolTitle: {
         type: 'string',
@@ -3742,16 +3751,14 @@ export const Mv: ToolCatalogEntry = {
     properties: {
       destination: {
         type: 'string',
-        maxLength: 4096,
         description:
           'Target path. A path ending in "/" (or naming an existing folder) moves sources into it keeping their names — always use the trailing "/" form when targeting a folder. Otherwise the last segment is the new name and the preceding segments are the target folder (created automatically when missing).',
       },
       sources: {
         type: 'array',
-        maxItems: 100,
         description:
           'Canonical VFS paths to move or rename, e.g. ["files/draft.md"]. All sources must share one category. Copy paths verbatim from glob/grep/read output.',
-        items: { type: 'string', maxLength: 4096 },
+        items: { type: 'string' },
       },
       toolTitle: {
         type: 'string',
@@ -4184,10 +4191,9 @@ export const Rm: ToolCatalogEntry = {
     properties: {
       paths: {
         type: 'array',
-        maxItems: 100,
         description:
           'Canonical VFS paths to delete, e.g. ["files/Reports/draft.md"]. Copy paths verbatim from glob/grep/read output. Paths from different categories may be mixed in one call.',
-        items: { type: 'string', maxLength: 4096 },
+        items: { type: 'string' },
       },
       toolTitle: {
         type: 'string',
@@ -4752,6 +4758,11 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
         items: {
           type: 'object',
           properties: {
+            description: {
+              type: 'string',
+              description:
+                'What the variable is for, as one short phrase a teammate reads at a glance — aim for under 80 characters, like "Stripe live key for the billing workflow". Not a sentence, and never a restatement of the name. Workspace scope only; sending it with scope personal is rejected, since a personal secret has no teammates to inform. Omit it on an existing variable to leave its current description untouched; send an empty string to clear one.',
+            },
             name: { type: 'string', description: 'Variable name' },
             value: { type: 'string', description: 'Variable value' },
           },
