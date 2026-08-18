@@ -77,6 +77,31 @@ export interface WebhookPreprocessingResult {
 
 const WEBHOOK_BODY_LABEL = 'Webhook request body'
 
+/**
+ * Flattens a `multipart/form-data` body into the plain object shape provider handlers
+ * already receive from JSON and urlencoded bodies. Jotform posts submissions this way,
+ * and every field it sends is text.
+ *
+ * Parsing the decoded body rather than the original bytes is safe here because the parts
+ * are delimited by an ASCII boundary and an uploaded part is reduced to its filename —
+ * its bytes are never read, so re-encoding cannot corrupt anything we keep. Discarding
+ * them also stops a stray upload from inflating the execution input.
+ */
+async function parseMultipartBody(
+  rawBody: string,
+  contentType: string
+): Promise<Record<string, unknown>> {
+  const formData = await new Response(rawBody, {
+    headers: { 'content-type': contentType },
+  }).formData()
+
+  const fields: Record<string, unknown> = {}
+  for (const [key, value] of formData.entries()) {
+    fields[key] = typeof value === 'string' ? value : value.name
+  }
+  return fields
+}
+
 export async function parseWebhookBody(
   request: NextRequest,
   requestId: string
@@ -121,6 +146,8 @@ export async function parseWebhookBody(
       } else {
         body = Object.fromEntries(formData.entries())
       }
+    } else if (contentType.includes('multipart/form-data')) {
+      body = await parseMultipartBody(rawBody, contentType)
     } else {
       body = JSON.parse(rawBody)
     }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-17",
+  "updatedAt": "2026-08-18",
   "integrations": [
     {
       "type": "onepassword",
@@ -11532,8 +11532,14 @@
         }
       ],
       "operationCount": 43,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "jotform_webhook",
+          "name": "Jotform Webhook",
+          "description": "Trigger workflow when a Jotform form receives a new submission"
+        }
+      ],
+      "triggerCount": 1,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
