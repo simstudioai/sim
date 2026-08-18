@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getTableById, loadWorkspace } = vi.hoisted(() => ({
   getTableById: vi.fn(),
@@ -58,10 +58,6 @@ describe('table application context', () => {
     loadWorkspace.mockImplementation(async (workspaceId: string) =>
       workspaceId === 'workspace-1' ? WORKSPACE_ONE : WORKSPACE_TWO
     )
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
   })
 
   it('derives workspace scope from the canonical active table', async () => {

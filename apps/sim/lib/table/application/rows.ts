@@ -43,10 +43,10 @@ import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
-import { buildIdByName, getColumnId, unknownColumnNames } from '@/lib/table/column-keys'
+import { buildColumnNameById, buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
+import { signalTableRowsChanged } from '@/lib/table/events'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -81,17 +81,6 @@ interface TableScopedInput {
   tableId: string
   assertedWorkspaceId?: string
   requestId?: string
-  /**
-   * Whether the calling surface publishes the stricter `/api/v2` write contract:
-   * a row naming a column the table does not have is refused rather than having
-   * that key dropped, and a value the column's type cannot coerce is answered
-   * with a 400 rather than stored as `null`.
-   *
-   * Absent — every first-party surface, and the only behavior any of them has
-   * ever had: the workspace grid, the internal `/api/table` routes, `/api/v1`,
-   * the Copilot table tools, and the executor's Table block all drop the
-   * unknown key and blank the uncoercible cell. Read-only use cases ignore it.
-   */
 }
 
 /** The write policy `strictWrite` selects, for the row-service primitives. */
@@ -133,7 +122,7 @@ function actorUserId(
 
 /**
  * Refuses a wire row naming a column the table does not have. Applied only to a
- * `strictWrite` caller — see {@link TableScopedInput.strictWrite}.
+ * `strictWrite` caller — see {@link rowWriteOptions}.
  *
  * The name→id remap drops unrecognised keys, so without this an insert of
  * `{"nosuchcol":"x"}` created an empty row under a 201, and a patch of
@@ -147,7 +136,14 @@ function assertKnownColumnNames(
   idByName: ReadonlyMap<string, string>,
   rowLabel?: string
 ): void {
-  const unknown = unknownColumnNames(data, idByName)
+  assertNoUnknownColumns(unknownColumnNames(data, idByName), rowLabel)
+}
+
+/**
+ * Refuses a wire row naming a column the table does not have, on either wire.
+ * Shared so the two keyings cannot drift in how they name the offending keys.
+ */
+function assertNoUnknownColumns(unknown: string[], rowLabel?: string): void {
   if (unknown.length === 0) return
   const where = rowLabel ? `${rowLabel}: ` : ''
   throw new TableRowsValidationError(
@@ -170,48 +166,54 @@ function assertKnownColumnNames(
  * name remap drops keys it does not recognise, and a storage id names no column
  * *name*, so feeding id-keyed data through the name path silently drops every
  * cell and reports the write as successful.
+ *
+ * Row data needs this and filters, sorts and predicates do not: their
+ * translators pass an unrecognised field through unchanged (`idByName.get(key)
+ * ?? key`), so they are already correct under either keying. Only the row-data
+ * remap is lossy, which is why only it carries a discriminator.
  */
 export type TableRowDataKeying = 'names' | 'ids'
 
 /**
- * Refuses a wire row naming a column id the table does not have. The id-keyed
- * counterpart of {@link assertKnownColumnNames}, and applied on the same
- * `strictWrite` condition, so strictness means the same thing on either wire.
+ * The id-keyed counterpart of {@link assertKnownColumnNames}, applied on the same
+ * `strictWrite` condition so strictness means the same thing on either wire.
+ *
+ * `buildColumnNameById` keys by {@link getColumnId}, so a legacy pre-backfill
+ * column — which has no id and is stored under its name — is recognised rather
+ * than reported unknown.
  */
 function assertKnownColumnIds(data: RowData, table: TableDefinition, rowLabel?: string): void {
-  // `getColumnId`, not `column.id`: a legacy pre-backfill column has no id and is
-  // stored under its name, so reading the raw field would reject a write that
-  // every other consumer of the schema accepts.
-  const ids = new Set(table.schema.columns.map((column) => getColumnId(column)))
-  const unknown = Object.keys(data).filter((key) => !ids.has(key))
-  if (unknown.length === 0) return
-  const where = rowLabel ? `${rowLabel}: ` : ''
-  throw new TableRowsValidationError(
-    `${where}Unknown column${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}`
+  assertNoUnknownColumns(
+    unknownColumnNames(data, buildColumnNameById(table.schema.columns)),
+    rowLabel
   )
 }
 
 /**
  * Normalizes one wire row to storage keying. See {@link TableRowDataKeying}.
+ *
+ * Note the asymmetry a lax (non-`strictWrite`) caller sees: the name path drops
+ * keys naming no column, while the id path stores what it is given. That
+ * matches what each wire did before this discriminator existed, and only
+ * `strictWrite` makes the two agree.
  */
 function rowDataToStorage(
   data: RowData,
   table: TableDefinition,
   keying: TableRowDataKeying,
-  strict = false,
-  rowLabel?: string
+  strict = false
 ): RowData {
   if (keying === 'ids') {
-    if (strict) assertKnownColumnIds(data, table, rowLabel)
+    if (strict) assertKnownColumnIds(data, table)
     return data
   }
   const idByName = buildIdByName(table.schema)
-  if (strict) assertKnownColumnNames(data, idByName, rowLabel)
+  if (strict) assertKnownColumnNames(data, idByName)
   return rowDataNameToId(data, idByName)
 }
 
 /**
- * {@link rowDataToStorage} over a batch. The name index is built once for the
+ * {@link rowDataToStorage} over a batch. Either index is built once for the
  * whole batch rather than per row — these paths run over up to
  * `MAX_BATCH_INSERT_SIZE` rows.
  */
@@ -222,8 +224,10 @@ function rowsToStorage(
   strict = false
 ): RowData[] {
   if (keying === 'ids') {
+    if (!strict) return [...rows]
+    const nameById = buildColumnNameById(table.schema.columns)
     return rows.map((row, index) => {
-      if (strict) assertKnownColumnIds(row, table, `Row ${index + 1}`)
+      assertNoUnknownColumns(unknownColumnNames(row, nameById), `Row ${index + 1}`)
       return row
     })
   }
@@ -479,14 +483,6 @@ interface CreateSingleTableRowInput extends TableScopedInput {
   /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
   dataKeying: TableRowDataKeying
   kind: 'single'
-  /**
-   * Tab that caused this write, when the calling surface knows it. Lets that
-   * tab skip its own refetch — see {@link signalTableRowsChangedByActor}, whose
-   * soundness condition (the caller's hook reconciles the write locally across
-   * every cached rows query) is why only the single-row paths accept this.
-   * Omitted by every surface that cannot name a tab, which broadcasts to all.
-   */
-  actorClientId?: string
   data: RowData
   position?: number
   afterRowId?: string
@@ -589,16 +585,9 @@ export const createTableRows = defineAuthorizedTableUseCase({
     )
     return { kind: 'batch', table: context.table, rows: created }
   },
-  afterSuccess: ({ context, input, result }) => {
+  afterSuccess: ({ context, result }) => {
     const affected = result.kind === 'single' ? 1 : result.rows.length
-    if (affected === 0) return
-    // Only the single-row path carries an actor; a batch insert genuinely needs
-    // the originating tab to refetch, so it broadcasts to everyone.
-    if (input.kind === 'single') {
-      signalTableRowsChangedByActor(context.tableId, input.actorClientId)
-      return
-    }
-    signalTableRowsChanged(context.tableId)
+    if (affected > 0) signalTableRowsChanged(context.tableId)
   },
 })
 
@@ -825,14 +814,6 @@ export interface UpdateTableRowInput extends TableScopedInput {
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
   includePersistedSecretProvenance?: boolean
-  /**
-   * Tab that caused this write, when the calling surface knows it. Lets that
-   * tab skip its own refetch — see {@link signalTableRowsChangedByActor}, whose
-   * soundness condition (the caller's hook reconciles the write locally across
-   * every cached rows query) is why only the single-row paths accept this.
-   * Omitted by every surface that cannot name a tab, which broadcasts to all.
-   */
-  actorClientId?: string
 }
 
 export interface UpdateTableRowResult extends TableResult {
@@ -872,8 +853,8 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       ),
     }
   },
-  afterSuccess: ({ context, input, result }) => {
-    if (result.changed) signalTableRowsChangedByActor(context.tableId, input.actorClientId)
+  afterSuccess: ({ context, result }) => {
+    if (result.changed) signalTableRowsChanged(context.tableId)
   },
 })
 
@@ -923,14 +904,6 @@ export const updateTableRows = defineAuthorizedTableUseCase({
 
 export interface DeleteTableRowInput extends TableScopedInput {
   rowId: string
-  /**
-   * Tab that caused this write, when the calling surface knows it. Lets that
-   * tab skip its own refetch — see {@link signalTableRowsChangedByActor}, whose
-   * soundness condition (the caller's hook reconciles the write locally across
-   * every cached rows query) is why only the single-row paths accept this.
-   * Omitted by every surface that cannot name a tab, which broadcasts to all.
-   */
-  actorClientId?: string
 }
 
 export interface DeleteTableRowResult extends TableResult {
@@ -944,8 +917,7 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     await deleteRow(context.table, input.rowId, requestId(input))
     return { table: context.table, deletedRowId: input.rowId }
   },
-  afterSuccess: ({ context, input }) =>
-    signalTableRowsChangedByActor(context.tableId, input.actorClientId),
+  afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
 })
 
 export type DeleteTableRowsInput = TableScopedInput &

@@ -80,6 +80,12 @@ export function mapJobRow(row: LatestJobRow | null | undefined): DerivedJobField
   }
 }
 
+/**
+ * The columns {@link mapJobRow} reads, as one source for both job reads: the
+ * batch `DISTINCT ON` selects it directly, and {@link latestNonExportJobJson}
+ * derives its `jsonb_build_object` pairs from it. Adding a field here reaches
+ * both — the two cannot drift into disagreeing about what a job row is.
+ */
 const JOB_PROJECTION = {
   id: tableJobs.id,
   type: tableJobs.type,
@@ -87,7 +93,7 @@ const JOB_PROJECTION = {
   rowsProcessed: tableJobs.rowsProcessed,
   error: tableJobs.error,
   payload: tableJobs.payload,
-} as const
+} as const satisfies Record<keyof LatestJobRow, Column>
 
 /**
  * The latest non-export job for one table, as a single jsonb value correlated to
@@ -105,16 +111,15 @@ const JOB_PROJECTION = {
  * first, one row. `NULL` when the table has no such job; feed the result straight to
  * {@link mapJobRow}.
  */
-export function latestNonExportJobJson(outerTableId: Column | SQL): SQL<LatestJobRow | null> {
+export function latestNonExportJobJson(outerTableId: Column): SQL<LatestJobRow | null> {
+  // Keys come from JOB_PROJECTION, never from input, so `sql.raw` here cannot
+  // carry anything a caller controls.
+  const pairs = Object.entries(JOB_PROJECTION).flatMap(([key, column]) => [
+    sql.raw(`'${key}'`),
+    column,
+  ])
   return sql<LatestJobRow | null>`(
-    select jsonb_build_object(
-      'id', ${tableJobs.id},
-      'type', ${tableJobs.type},
-      'status', ${tableJobs.status},
-      'rowsProcessed', ${tableJobs.rowsProcessed},
-      'error', ${tableJobs.error},
-      'payload', ${tableJobs.payload}
-    )
+    select jsonb_build_object(${sql.join(pairs, sql`, `)})
     from ${tableJobs}
     where ${tableJobs.tableId} = ${outerTableId} and ${tableJobs.type} <> 'export'
     order by ${tableJobs.startedAt} desc

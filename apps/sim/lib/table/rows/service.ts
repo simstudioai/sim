@@ -1626,7 +1626,11 @@ export async function updateRow(
     const uniqueValidation = await checkUniqueConstraintsDb(
       data.tableId,
       mergedData,
-      table.schema,
+      // Narrowed to the patched unique columns, not just used as a gate: the
+      // probe issues one SELECT per unique column it is given, so a table with
+      // several would otherwise re-check all of them to validate a patch that
+      // touched one. `schema` is read only for its unique columns here.
+      { ...table.schema, columns: patchedUniqueColumns },
       data.rowId // Exclude current row
     )
     if (!uniqueValidation.valid) {

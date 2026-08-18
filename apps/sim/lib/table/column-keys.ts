@@ -188,7 +188,7 @@ export function remapViewConfigColumnRefs(
  * drop — a key that survives to here unrecognised is a cell the caller asked to
  * write and the table never stored. Callers on a surface that can answer the
  * client check {@link unknownColumnNames} first; see
- * `namedDataToStorage` in `application/rows.ts`.
+ * `rowDataToStorage` in `application/rows.ts`.
  */
 export function rowDataNameToId(data: RowData, idByName: Map<string, string>): RowData {
   const out: RowData = {}

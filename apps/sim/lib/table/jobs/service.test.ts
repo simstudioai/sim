@@ -101,10 +101,8 @@ describe('latestNonExportJobJson', () => {
     expect(values).toContain(schemaMock.userTableDefinitions.id)
   })
 
-  it('projects every field mapJobRow reads', () => {
-    const { text } = renderLateral()
-    for (const key of ['id', 'type', 'status', 'rowsProcessed', 'error', 'payload']) {
-      expect(text).toContain(`'${key}',`)
-    }
-  })
+  // No drift test for the projected field list: the fragment derives its
+  // jsonb pairs from JOB_PROJECTION, which `satisfies Record<keyof
+  // LatestJobRow, Column>`. A missing field is a compile error, which is
+  // stronger than anything asserted here could be.
 })

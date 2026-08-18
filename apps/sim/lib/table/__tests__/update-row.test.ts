@@ -14,7 +14,7 @@ import {
   upsertRow,
 } from '@/lib/table/rows/service'
 import type { TableDefinition } from '@/lib/table/types'
-import { getUniqueColumns } from '@/lib/table/validation'
+import { checkUniqueConstraintsDb, getUniqueColumns } from '@/lib/table/validation'
 
 // Capacity is exercised in billing.test.ts; here it's a no-op so the timeout-scaling
 // suites can use large synthetic row counts without tripping the plan limit.
@@ -563,6 +563,9 @@ describe('updateRow — uniqueness probe scoping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    // The common case: one unique column. The two tests that need a different
+    // shape override this.
+    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
     dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
     dbChainMockFns.returning.mockResolvedValue([
       { id: EXISTING_ROW.id, updatedAt: PERSISTED_UPDATED_AT },
@@ -570,9 +573,6 @@ describe('updateRow — uniqueness probe scoping', () => {
   })
 
   it('does not probe when the patch touches no unique column', async () => {
-    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
-    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
-
     await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { age: 31 }, workspaceId: 'ws-1' },
       TABLE,
@@ -583,9 +583,6 @@ describe('updateRow — uniqueness probe scoping', () => {
   })
 
   it('still probes when the patch touches a unique column', async () => {
-    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
-    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
-
     await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
       TABLE,
@@ -596,8 +593,28 @@ describe('updateRow — uniqueness probe scoping', () => {
   })
 
   it('probes against the merged row, so the excluded row is still the one being edited', async () => {
-    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
-    vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
+    await updateRow(
+      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
+      TABLE,
+      'req-1'
+    )
+
+    // The merged row is what gets probed, the excluded row is the one being
+    // edited, and the schema is narrowed to the unique columns this patch
+    // touched — the probe issues one query per column it is handed.
+    expect(checkUniqueConstraintsDb).toHaveBeenCalledWith(
+      'tbl-1',
+      { name: 'Grace', age: 30 },
+      { ...TABLE.schema, columns: [{ name: 'name', type: 'string', unique: true }] },
+      'row-1'
+    )
+  })
+
+  it('hands the probe only the unique columns the patch touched', async () => {
+    vi.mocked(getUniqueColumns).mockReturnValue([
+      { name: 'name', type: 'string', unique: true },
+      { name: 'email', type: 'string', unique: true },
+    ])
 
     await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
@@ -605,16 +622,11 @@ describe('updateRow — uniqueness probe scoping', () => {
       'req-1'
     )
 
-    expect(checkUniqueConstraintsDb).toHaveBeenCalledWith(
-      'tbl-1',
-      { name: 'Grace', age: 30 },
-      TABLE.schema,
-      'row-1'
-    )
+    const schemaArg = vi.mocked(checkUniqueConstraintsDb).mock.calls[0][2]
+    expect(schemaArg.columns).toEqual([{ name: 'name', type: 'string', unique: true }])
   })
 
   it('surfaces a duplicate on a column the patch does write', async () => {
-    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
     vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
     vi.mocked(checkUniqueConstraintsDb).mockResolvedValueOnce({
       valid: false,
@@ -631,7 +643,6 @@ describe('updateRow — uniqueness probe scoping', () => {
   })
 
   it('does not probe on a table with no unique columns at all', async () => {
-    const { checkUniqueConstraintsDb, getUniqueColumns } = await import('@/lib/table/validation')
     vi.mocked(getUniqueColumns).mockReturnValue([])
 
     await updateRow(

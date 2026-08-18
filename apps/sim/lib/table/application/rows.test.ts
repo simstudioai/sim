@@ -19,7 +19,6 @@ const {
   mockResolveContext,
   mockResolvePermission,
   mockSignalRowsChanged,
-  mockSignalRowsChangedByActor,
   mockUpsertRow,
   mockWithLockedTable,
   mockInsertRow,
@@ -42,7 +41,6 @@ const {
   mockResolveContext: vi.fn(),
   mockResolvePermission: vi.fn(),
   mockSignalRowsChanged: vi.fn(),
-  mockSignalRowsChangedByActor: vi.fn(),
   mockUpsertRow: vi.fn(),
   mockWithLockedTable: vi.fn(),
   mockInsertRow: vi.fn(),
@@ -139,12 +137,10 @@ vi.mock('@/lib/table/application/context', () => ({
 
 vi.mock('@/lib/table/events', () => ({
   signalTableRowsChanged: mockSignalRowsChanged,
-  signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
 }))
 
 import {
   createTableRows,
-  deleteTableRow,
   deleteTableRows,
   listTableRows,
   ProjectedWireRowsValidationError,
@@ -1295,87 +1291,5 @@ describe('row data keying', () => {
         },
       })
     ).rejects.toThrow(/Row 2: Unknown columns: zzz, qqq/)
-  })
-})
-
-/**
- * Naming the acting tab lets that tab skip refetching its own write. Only the
- * single-row paths accept an actor — see `events.attribution.test.ts` for why,
- * and for the pinned list of surfaces allowed to supply one.
- */
-describe('row change attribution', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockResolvePermission.mockResolvedValue('write')
-    mockResolveContext.mockResolvedValue({
-      tableId: TABLE.id,
-      table: TABLE,
-      workspaceId: TABLE.workspaceId,
-      workspaceOrganizationId: 'organization-1',
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
-    mockAssertRowCapacity.mockResolvedValue(10_000)
-    mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
-    mockIsScopeCompatible.mockReturnValue(true)
-  })
-
-  it('names the acting tab on a single-row update', async () => {
-    await updateTableRow.execute({
-      principal: PRINCIPAL,
-      input: {
-        tableId: TABLE.id,
-        rowId: 'row-1',
-        data: { name: 'Ada' },
-        strictWrite: false,
-        dataKeying: 'names',
-        actorClientId: 'tab-42',
-      },
-    })
-
-    expect(mockSignalRowsChangedByActor).toHaveBeenCalledWith(TABLE.id, 'tab-42')
-    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
-  })
-
-  it('broadcasts to everyone when the surface cannot name a tab', async () => {
-    await updateTableRow.execute({
-      principal: PRINCIPAL,
-      input: {
-        tableId: TABLE.id,
-        rowId: 'row-1',
-        data: { name: 'Ada' },
-        strictWrite: false,
-        dataKeying: 'names',
-      },
-    })
-
-    expect(mockSignalRowsChangedByActor).toHaveBeenCalledWith(TABLE.id, undefined)
-  })
-
-  it('names the acting tab on a single-row delete', async () => {
-    await deleteTableRow.execute({
-      principal: PRINCIPAL,
-      input: { tableId: TABLE.id, rowId: 'row-1', actorClientId: 'tab-42' },
-    })
-
-    expect(mockSignalRowsChangedByActor).toHaveBeenCalledWith(TABLE.id, 'tab-42')
-  })
-
-  it('broadcasts a batch insert to everyone even though a tab is named', async () => {
-    await createTableRows.execute({
-      principal: PRINCIPAL,
-      input: {
-        kind: 'batch',
-        tableId: TABLE.id,
-        rows: [{ name: 'Ada' }, { name: 'Grace' }],
-        strictWrite: false,
-        dataKeying: 'names',
-      },
-    })
-
-    // A batch write is not reconciled locally by the acting tab, so it must
-    // refetch like everyone else.
-    expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
-    expect(mockSignalRowsChangedByActor).not.toHaveBeenCalled()
   })
 })
