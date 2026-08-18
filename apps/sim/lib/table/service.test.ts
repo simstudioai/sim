@@ -174,7 +174,7 @@ describe('getTableById job derivation', () => {
           status: 'running',
           rowsProcessed: 4,
           error: null,
-          payload: { doomedCount: 10 },
+          doomedCount: 10,
         },
       }),
     ])
@@ -199,7 +199,7 @@ describe('getTableById job derivation', () => {
           status: 'running',
           rowsProcessed: 4,
           error: null,
-          payload: { doomedCount: 10 },
+          doomedCount: 10,
         },
       }),
     ])
@@ -216,7 +216,7 @@ describe('getTableById job derivation', () => {
           status: 'ready',
           rowsProcessed: 4,
           error: null,
-          payload: { doomedCount: 10 },
+          doomedCount: 10,
         },
       }),
     ])
@@ -258,7 +258,7 @@ describe('getTableById job derivation', () => {
           status: 'running',
           rowsProcessed: 1,
           error: null,
-          payload: { doomedCount: 5 },
+          doomedCount: 5,
         },
       }),
     ])

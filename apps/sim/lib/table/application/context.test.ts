@@ -47,6 +47,23 @@ async function withUnhandledRejectionWatch(body: () => Promise<void>): Promise<u
   return seen
 }
 
+/**
+ * Holds the table load open so a test can observe what the resolver does before
+ * the table arrives. `release` resolves it with the canonical table.
+ */
+function deferTableLoad(): { release: () => void } {
+  let releaseTable: (table: unknown) => void = () => {}
+  getTableById.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        releaseTable = resolve
+      })
+  )
+  return {
+    release: () => releaseTable({ id: 'table-1', workspaceId: 'workspace-1', name: 'Contacts' }),
+  }
+}
+
 describe('table application context', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -73,13 +90,7 @@ describe('table application context', () => {
   })
 
   it('starts the workspace load without waiting for the table when a workspace is asserted', async () => {
-    let releaseTable: (table: unknown) => void = () => {}
-    getTableById.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          releaseTable = resolve
-        })
-    )
+    const { release } = deferTableLoad()
 
     const pending = resolveActiveTableContext({
       tableId: 'table-1',
@@ -90,18 +101,12 @@ describe('table application context', () => {
 
     expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
 
-    releaseTable({ id: 'table-1', workspaceId: 'workspace-1', name: 'Contacts' })
+    release()
     await expect(pending).resolves.toMatchObject({ tableId: 'table-1', workspaceId: 'workspace-1' })
   })
 
   it('waits for the table before loading a workspace when none is asserted', async () => {
-    let releaseTable: (table: unknown) => void = () => {}
-    getTableById.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          releaseTable = resolve
-        })
-    )
+    const { release } = deferTableLoad()
 
     const pending = resolveActiveTableContext({ tableId: 'table-1' })
     await Promise.resolve()
@@ -109,7 +114,7 @@ describe('table application context', () => {
 
     expect(loadWorkspace).not.toHaveBeenCalled()
 
-    releaseTable({ id: 'table-1', workspaceId: 'workspace-1', name: 'Contacts' })
+    release()
     await expect(pending).resolves.toMatchObject({ tableId: 'table-1', workspaceId: 'workspace-1' })
     expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
   })

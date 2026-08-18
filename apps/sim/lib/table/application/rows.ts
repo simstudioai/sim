@@ -83,7 +83,19 @@ interface TableScopedInput {
   requestId?: string
 }
 
-/** The write policy `strictWrite` selects, for the row-service primitives. */
+/**
+ * The write policy `strictWrite` selects, for the row-service primitives.
+ *
+ * `strictWrite` means the calling surface publishes the stricter `/api/v2` write
+ * contract: a row naming a column the table does not have is refused rather than
+ * having that key dropped, and a value the column's type cannot coerce is
+ * answered with a 400 rather than stored as `null`.
+ *
+ * Absent — every first-party surface, and the only behavior any of them has ever
+ * had: the workspace grid, the internal `/api/table` routes, `/api/v1`, the
+ * Copilot table tools, and the executor's Table block all drop the unknown key
+ * and blank the uncoercible cell.
+ */
 function rowWriteOptions(input: { strictWrite: boolean }): RowWriteOptions {
   return input.strictWrite ? { uncoercibleValues: 'reject' } : {}
 }
@@ -729,7 +741,16 @@ function projectedRowsSecretProvenance(
   })
 }
 
-/** Atomically validates name-keyed projected rows against the locked schema and replaces the table. */
+/**
+ * Atomically validates name-keyed projected rows against the locked schema and
+ * replaces the table.
+ *
+ * Deliberately carries no {@link TableRowDataKeying}: unlike the six generic
+ * write use cases this one is not surface-agnostic. Its resolved-secret gate and
+ * its "row matches no column" check both compare by `column.name` (see
+ * {@link projectedRowsForTable}), and its only caller is Copilot's
+ * `Function.execute` output — keys a model can only have written as names.
+ */
 export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
   operation: tableOperations.replaceRows,
   resolveContext: ({ input }: { input: ReplaceProjectedWireRowsInput }) =>

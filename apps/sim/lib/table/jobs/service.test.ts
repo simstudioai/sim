@@ -1,11 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock } from '@sim/testing'
-import { describe, expect, it } from 'vitest'
+import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   EMPTY_JOB_FIELDS,
   type LatestJobRow,
+  latestJobsForTables,
   latestNonExportJobJson,
   mapJobRow,
 } from '@/lib/table/jobs/service'
@@ -17,7 +18,7 @@ function job(overrides: Partial<LatestJobRow>): LatestJobRow {
     status: 'running',
     rowsProcessed: 0,
     error: null,
-    payload: null,
+    doomedCount: null,
     ...overrides,
   }
 }
@@ -29,7 +30,7 @@ describe('mapJobRow', () => {
   })
 
   it('projects a running delete job and its remaining doomed rows', () => {
-    expect(mapJobRow(job({ rowsProcessed: 4, payload: { doomedCount: 10 } }))).toEqual({
+    expect(mapJobRow(job({ rowsProcessed: 4, doomedCount: 10 }))).toEqual({
       jobStatus: 'running',
       jobId: 'job-1',
       jobType: 'delete',
@@ -41,23 +42,19 @@ describe('mapJobRow', () => {
 
   it('ignores doomedCount once the delete job is terminal', () => {
     expect(
-      mapJobRow(job({ status: 'ready', rowsProcessed: 4, payload: { doomedCount: 10 } }))
-        .pendingDeleteRemaining
+      mapJobRow(job({ status: 'ready', rowsProcessed: 4, doomedCount: 10 })).pendingDeleteRemaining
     ).toBe(0)
   })
 
   it('ignores doomedCount for a running job that is not a delete', () => {
     expect(
-      mapJobRow(job({ type: 'import', rowsProcessed: 4, payload: { doomedCount: 10 } }))
-        .pendingDeleteRemaining
+      mapJobRow(job({ type: 'import', rowsProcessed: 4, doomedCount: 10 })).pendingDeleteRemaining
     ).toBe(0)
   })
 
   it('treats a missing doomedCount as zero and never goes negative', () => {
     expect(mapJobRow(job({ rowsProcessed: 4 })).pendingDeleteRemaining).toBe(0)
-    expect(
-      mapJobRow(job({ rowsProcessed: 25, payload: { doomedCount: 10 } })).pendingDeleteRemaining
-    ).toBe(0)
+    expect(mapJobRow(job({ rowsProcessed: 25, doomedCount: 10 })).pendingDeleteRemaining).toBe(0)
   })
 
   it('carries a failed job error through', () => {
@@ -103,6 +100,77 @@ describe('latestNonExportJobJson', () => {
 
   // No drift test for the projected field list: the fragment derives its
   // jsonb pairs from JOB_PROJECTION, which `satisfies Record<keyof
-  // LatestJobRow, Column>`. A missing field is a compile error, which is
+  // LatestJobRow, Column | SQL>`. A missing field is a compile error, which is
   // stronger than anything asserted here could be.
+
+  /**
+   * `table_jobs.payload` also holds a delete job's unbounded `excludeRowIds`, and
+   * this read runs on essentially every table request — so selecting the whole
+   * column is a payload leak the type system cannot see (`doomedCount` would still
+   * be present, just derived in JS). Only the rendered pair list shows it.
+   */
+  it('projects doomedCount out of the payload instead of the payload column', () => {
+    const pairs = renderPairs()
+    expect(pairs.sql).toContain("'doomedCount'")
+    expect(pairs.sql).toContain("->'doomedCount'")
+    expect(pairs.sql).not.toContain("'payload'")
+    expect(pairs.sql).not.toContain(', payload')
+  })
+})
+
+/** The `jsonb_build_object` key/value list the lateral builds from JOB_PROJECTION. */
+function renderPairs(): { sql: string; params: unknown[] } {
+  // double-cast-allowed: the mocked drizzle `sql` tag exposes the raw template parts
+  const fragment = latestNonExportJobJson(schemaMock.userTableDefinitions.id) as unknown as {
+    values: Array<{ fragments?: unknown[]; toSQL?: () => { sql: string; params: unknown[] } }>
+  }
+  const join = fragment.values.find((value) => Array.isArray(value?.fragments))
+  if (!join?.toSQL) throw new Error('lateral no longer builds its pairs with sql.join')
+  return join.toSQL()
+}
+
+/**
+ * The list endpoint runs this once per page, so the batch read must narrow too. It
+ * shares JOB_PROJECTION with the lateral, and this pins that sharing down.
+ */
+describe('latestJobsForTables', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('selects doomedCount rather than the whole payload column', async () => {
+    await latestJobsForTables(['table-1'])
+
+    const projection = dbChainMockFns.selectDistinctOn.mock.calls[0][1] as Record<string, unknown>
+    expect(Object.keys(projection)).toEqual([
+      'tableId',
+      'id',
+      'type',
+      'status',
+      'rowsProcessed',
+      'error',
+      'doomedCount',
+    ])
+    expect(projection).not.toHaveProperty('payload')
+    expect(projection.doomedCount).not.toBe(schemaMock.tableJobs.payload)
+  })
+
+  it('still derives a running delete job from the narrowed row', async () => {
+    dbChainMockFns.orderBy.mockResolvedValueOnce([
+      {
+        tableId: 'table-1',
+        id: 'job-1',
+        type: 'delete',
+        status: 'running',
+        rowsProcessed: 4,
+        error: null,
+        doomedCount: 10,
+      },
+    ])
+
+    const jobs = await latestJobsForTables(['table-1'])
+
+    expect(jobs.get('table-1')).toMatchObject({ jobId: 'job-1', pendingDeleteRemaining: 6 })
+  })
 })

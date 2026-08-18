@@ -61,15 +61,17 @@ export interface LatestJobRow {
   status: string
   rowsProcessed: number
   error: string | null
-  payload: unknown
+  /**
+   * The one field {@link mapJobRow} needs out of {@link TableDeleteJobPayload},
+   * projected on its own so the read never drags the rest of the payload back.
+   * `null` when the job has no payload, or a payload without the key.
+   */
+  doomedCount: number | null
 }
 
 export function mapJobRow(row: LatestJobRow | null | undefined): DerivedJobFields {
   if (!row) return EMPTY_JOB_FIELDS
-  const doomedCount =
-    row.type === 'delete' && row.status === 'running'
-      ? ((row.payload as TableDeleteJobPayload | null)?.doomedCount ?? 0)
-      : 0
+  const doomedCount = row.type === 'delete' && row.status === 'running' ? (row.doomedCount ?? 0) : 0
   return {
     jobStatus: row.status as TableDefinition['jobStatus'],
     jobId: row.id,
@@ -81,10 +83,27 @@ export function mapJobRow(row: LatestJobRow | null | undefined): DerivedJobField
 }
 
 /**
- * The columns {@link mapJobRow} reads, as one source for both job reads: the
- * batch `DISTINCT ON` selects it directly, and {@link latestNonExportJobJson}
- * derives its `jsonb_build_object` pairs from it. Adding a field here reaches
- * both — the two cannot drift into disagreeing about what a job row is.
+ * The one number {@link mapJobRow} wants out of `table_jobs.payload`, extracted in
+ * SQL so the payload itself never crosses the wire. `payload` also carries the
+ * delete job's `filter` and an unbounded `excludeRowIds` array, and the latest
+ * non-export job is read on essentially every table request — a table that once ran
+ * a large delete would otherwise ship that id list on every read, forever.
+ *
+ * `->` (not `->>`) keeps the value jsonb: postgres-js decodes jsonb through its
+ * built-in `JSON.parse` handler (OID 3802), so this arrives as a JS `number`, or
+ * `null` for a missing payload, a payload without the key, a payload that is not an
+ * object, or an explicit JSON `null`. `->>` would hand back text and force a parse.
+ * All four null cases collapse to the same `?? 0` {@link mapJobRow} already applied
+ * to `payload?.doomedCount`, so no boundary coercion is needed.
+ */
+const doomedCountExpr = sql<number | null>`${tableJobs.payload}->'doomedCount'`
+
+/**
+ * What {@link mapJobRow} reads, as one source for both job reads: the batch
+ * `DISTINCT ON` selects it directly, and {@link latestNonExportJobJson} derives its
+ * `jsonb_build_object` pairs from it. Adding or renaming a field here reaches both —
+ * the two cannot drift into disagreeing about what a job row is. Entries may be a
+ * plain `Column` or a derived `SQL` expression; both render in either position.
  */
 const JOB_PROJECTION = {
   id: tableJobs.id,
@@ -92,8 +111,8 @@ const JOB_PROJECTION = {
   status: tableJobs.status,
   rowsProcessed: tableJobs.rowsProcessed,
   error: tableJobs.error,
-  payload: tableJobs.payload,
-} as const satisfies Record<keyof LatestJobRow, Column>
+  doomedCount: doomedCountExpr,
+} as const satisfies Record<keyof LatestJobRow, Column | SQL>
 
 /**
  * The latest non-export job for one table, as a single jsonb value correlated to
@@ -106,17 +125,18 @@ const JOB_PROJECTION = {
  * cannot simply be skipped: a table's reported `rowCount` is the stored count minus
  * this job's `pendingDeleteRemaining`, so the count and the job row are one read.
  *
- * Semantics match the batch {@link latestJobsForTables} exactly — exports excluded
- * (they run concurrently and have their own client surface), newest `started_at`
- * first, one row. `NULL` when the table has no such job; feed the result straight to
- * {@link mapJobRow}.
+ * Semantics match the batch {@link latestJobsForTables} exactly — same
+ * {@link JOB_PROJECTION} fields (which is `doomedCount` extracted from the payload,
+ * never the payload itself), exports excluded (they run concurrently and have their
+ * own client surface), newest `started_at` first, one row. `NULL` when the table has
+ * no such job; feed the result straight to {@link mapJobRow}.
  */
 export function latestNonExportJobJson(outerTableId: Column): SQL<LatestJobRow | null> {
   // Keys come from JOB_PROJECTION, never from input, so `sql.raw` here cannot
   // carry anything a caller controls.
-  const pairs = Object.entries(JOB_PROJECTION).flatMap(([key, column]) => [
+  const pairs = Object.entries(JOB_PROJECTION).flatMap(([key, expression]) => [
     sql.raw(`'${key}'`),
-    column,
+    expression,
   ])
   return sql<LatestJobRow | null>`(
     select jsonb_build_object(${sql.join(pairs, sql`, `)})

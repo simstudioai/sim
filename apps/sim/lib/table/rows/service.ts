@@ -1618,6 +1618,11 @@ export async function updateRow(
   // probe opens its own transaction and queries once per unique column, so on a
   // table that has any unique column this was several round trips on every
   // edit, including edits nowhere near one.
+  //
+  // The one case this does not cover is a unique constraint added to a column
+  // that already held duplicates: such a row is no longer blocked from edits
+  // elsewhere in it. That is the intended outcome — an unrelated cell edit
+  // should not fail on data it did not write.
   const patchedColumnIds = new Set(Object.keys(data.data))
   const patchedUniqueColumns = getUniqueColumns(table.schema).filter((column) =>
     patchedColumnIds.has(getColumnId(column))

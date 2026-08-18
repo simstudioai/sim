@@ -558,6 +558,10 @@ describe('batchUpdateRows — per-row partial merge', () => {
  * The safety argument is that a merge cannot newly violate uniqueness on a
  * column it leaves alone: that value is the one already stored, and it
  * satisfied the constraint when it was written.
+ *
+ * The one case that does not cover is a unique constraint added to a column
+ * that already held duplicates — such a row is no longer blocked from edits
+ * elsewhere in it, which is the intended outcome.
  */
 describe('updateRow — uniqueness probe scoping', () => {
   beforeEach(() => {
