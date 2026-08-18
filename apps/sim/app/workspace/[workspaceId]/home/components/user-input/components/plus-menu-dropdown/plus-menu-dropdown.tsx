@@ -8,6 +8,7 @@ import {
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '@sim/emcn'
+import { FolderPathLabel } from '@/components/ui'
 import {
   ResourceMenuSections,
   useAvailableResources,
@@ -41,35 +42,6 @@ const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integratio
 const NON_ATTACHABLE_RESOURCE_TYPES = new Set<MothershipResourceType>(['browser'])
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
-
-interface FolderMentionPathProps {
-  segments: readonly string[]
-}
-
-/** Right-aligned folder location whose middle ancestors yield space first. */
-function FolderMentionPath({ segments }: FolderMentionPathProps) {
-  const family = segments[0]
-  const parentNames = segments.slice(1)
-  const nearestParent = parentNames.at(-1)
-  const middleParents = parentNames.slice(0, -1)
-
-  return (
-    <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
-      <span className='flex-shrink-0'>{family}</span>
-      {middleParents.length > 0 && (
-        <span className='min-w-0 truncate whitespace-pre [flex-shrink:9999]'>
-          {` / ${middleParents.join(' / ')}`}
-        </span>
-      )}
-      {nearestParent && (
-        <>
-          <span className='flex-shrink-0 whitespace-pre'> / </span>
-          <span className='min-w-0 truncate'>{nearestParent}</span>
-        </>
-      )}
-    </span>
-  )
-}
 
 interface PlusMenuDropdownProps {
   workspaceId: string
@@ -333,7 +305,9 @@ export const PlusMenuDropdown = React.memo(
             // Plus-click shows short fixed labels (Workflows, Tables, …) — let it size
             // to its content via the emcn DropdownMenuContent default max-w.
             // Mention mode renders resource names directly, so widen for breathing room.
-            isMention && 'max-w-[min(300px,calc(100vw-32px))]'
+            // Wide enough that a folder row fits its name and its right-aligned
+            // location column without either collapsing to a stub.
+            isMention && 'w-[min(380px,calc(100vw-32px))] max-w-[calc(100vw-32px)]'
           )}
           onCloseAutoFocus={handleCloseAutoFocus}
           onOpenAutoFocus={handleOpenAutoFocus}
@@ -370,9 +344,6 @@ export const PlusMenuDropdown = React.memo(
                   const config = getResourceConfig(type)
                   const isActive = index === activeIndex
                   const location = folderMentionLocations.get(`${type}:${item.id}`)
-                  const locationPath = location
-                    ? [getResourceConfig(location.familyType).label, ...location.parentNames]
-                    : null
                   return (
                     <button
                       key={`${type}:${item.id}`}
@@ -384,13 +355,27 @@ export const PlusMenuDropdown = React.memo(
                         handleSelect({ type, id: item.id, title: item.name })
                       }}
                       className={cn(
-                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors duration-0 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors duration-0 [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
                         /* `activeIndex` is the cursor, not a selection — hover surface. */
                         isActive && 'bg-[var(--surface-hover)]'
                       )}
                     >
-                      {config.renderDropdownItem({ item })}
-                      {locationPath && <FolderMentionPath segments={locationPath} />}
+                      {/* Capped, not shrinkable: a long name must never squeeze out the
+                          location that tells two same-named folders apart. */}
+                      <span
+                        className={cn(
+                          'flex min-w-0 items-center gap-2 [&>span]:min-w-0 [&>span]:truncate',
+                          location && 'max-w-[65%] flex-shrink-0'
+                        )}
+                      >
+                        {config.renderDropdownItem({ item })}
+                      </span>
+                      {location && (
+                        <FolderPathLabel
+                          prefix={getResourceConfig(location.familyType).label}
+                          segments={location.parentNames}
+                        />
+                      )}
                     </button>
                   )
                 })
