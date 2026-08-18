@@ -54,6 +54,7 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   CreateBaseModal,
@@ -1338,6 +1339,17 @@ export function Knowledge() {
     return tags
   }, [connectorFilter, contentFilter, ownerFilter, members])
 
+  /**
+   * The zero-data graphic is for a workspace with nothing in it — not for a
+   * search or filter that happened to match nothing, and not for an empty
+   * subfolder, both of which would make its copy wrong.
+   */
+  const showEmptyState =
+    rows.length === 0 &&
+    currentFolderId === null &&
+    !urlSearchQuery.trim() &&
+    filterTags.length === 0
+
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
@@ -1355,6 +1367,7 @@ export function Knowledge() {
           filter={filterConfig}
         />
         <Resource.Table
+          emptyState={showEmptyState ? <KnowledgeEmptyState /> : undefined}
           columns={COLUMNS}
           rows={rows}
           selectable={canEdit ? selectableConfig : undefined}

@@ -85,6 +85,7 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -1804,6 +1805,17 @@ export function Files() {
     return tags
   }, [typeFilter, sizeFilter, uploadedByFilter, membersById])
 
+  /**
+   * The zero-data graphic is for a workspace with nothing in it — not for a
+   * search or filter that happened to match nothing, and not for an empty
+   * subfolder, both of which would make its copy wrong.
+   */
+  const showEmptyState =
+    rows.length === 0 &&
+    currentFolderId === null &&
+    !urlSearchTerm.trim() &&
+    filterTags.length === 0
+
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <Resource>
@@ -1904,6 +1916,7 @@ export function Files() {
           filter={filterConfig}
         />
         <Resource.Table
+          emptyState={showEmptyState ? <FilesEmptyState /> : undefined}
           columns={COLUMNS}
           rows={rows}
           selectable={selectableConfig}

@@ -53,6 +53,7 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -731,6 +732,17 @@ export function Tables() {
     return tags
   }, [rowCountFilter, ownerFilter, membersById, setRowCountFilter, setOwnerFilter])
 
+  /**
+   * The zero-data graphic is for a workspace with nothing in it — not for a
+   * search or filter that happened to match nothing, and not for an empty
+   * subfolder, both of which would make its copy wrong.
+   */
+  const showEmptyState =
+    rows.length === 0 &&
+    currentFolderId === null &&
+    !urlSearchTerm.trim() &&
+    filterTags.length === 0
+
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
@@ -1267,6 +1279,7 @@ export function Tables() {
           filter={filterConfig}
         />
         <Resource.Table
+          emptyState={showEmptyState ? <TablesEmptyState /> : undefined}
           columns={COLUMNS}
           rows={rows}
           selectable={canEdit ? selectableConfig : undefined}

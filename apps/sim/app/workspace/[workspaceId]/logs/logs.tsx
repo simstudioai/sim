@@ -58,6 +58,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { Resource, type ResourceTableHandle } from '@/app/workspace/[workspaceId]/components'
+import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -900,6 +901,15 @@ export default function Logs() {
     setTimeRange,
   ])
 
+  /**
+   * The zero-data graphic means "this workspace has never run anything" — a
+   * search or filter that matched nothing is a different message, so neither
+   * gets the graphic. Held back while the first page is in flight so it cannot
+   * flash before the runs arrive.
+   */
+  const showEmptyState =
+    rows.length === 0 && !logsQuery.isLoading && !debouncedSearchQuery && filterTags.length === 0
+
   const workflowsData = useMemo<WorkflowData[]>(
     () =>
       Object.values(allWorkflows).map((w) => ({
@@ -1191,6 +1201,7 @@ export default function Logs() {
         ) : (
           <Resource.Table
             apiRef={resourceTableRef}
+            emptyState={showEmptyState ? <LogsEmptyState /> : undefined}
             virtualized
             columns={LOG_COLUMNS}
             rows={rows}
