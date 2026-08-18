@@ -1,3 +1,4 @@
+import { isIPv4, isIPv6 } from 'node:net'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 import { getEmailDomain } from '@/lib/core/utils/urls'
@@ -5,16 +6,38 @@ import { getEmailDomain } from '@/lib/core/utils/urls'
 const logger = createLogger('SmtpEhloName')
 
 /**
- * A dotted FQDN built from RFC 1035 labels, or an RFC 5321 address literal such
- * as `[203.0.113.5]`. A single dotless label is deliberately rejected: strict
- * relays treat it the same way they treat the loopback literal this module
- * exists to avoid.
+ * A dotted FQDN built from RFC 1035 labels. A single dotless label is
+ * deliberately rejected: strict relays treat it the same way they treat the
+ * loopback literal this module exists to avoid.
  */
-const EHLO_NAME_PATTERN =
-  /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+|\[[0-9A-Fa-f:.]{1,45}\])$/
+const FQDN_PATTERN =
+  /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+
+/**
+ * An RFC 5321 §4.1.3 address literal — `[192.0.2.1]` or `[IPv6:2001:db8::1]`.
+ * The address itself is parsed rather than pattern-matched, so a bracketed
+ * value that merely looks like one (`[::::]`, `[13]`) is refused here instead
+ * of at the relay.
+ */
+function isAddressLiteral(value: string): boolean {
+  if (!value.startsWith('[') || !value.endsWith(']')) return false
+  const inner = value.slice(1, -1)
+  return inner.startsWith('IPv6:') ? isIPv6(inner.slice(5)) : isIPv4(inner)
+}
 
 function isValidEhloName(value: string): boolean {
-  return value.length <= 255 && EHLO_NAME_PATTERN.test(value)
+  return value.length <= 255 && (FQDN_PATTERN.test(value) || isAddressLiteral(value))
+}
+
+/**
+ * Drops a trailing `:port`, leaving an IPv6 literal such as `[::1]` intact.
+ * `getEmailDomain` reports a URL's `host`, so a deployment served on a
+ * non-default port would otherwise carry one into the greeting, where it is
+ * not a legal domain.
+ */
+function stripPort(host: string): string {
+  const lastColon = host.lastIndexOf(':')
+  return lastColon === -1 || host.indexOf(']') > lastColon ? host : host.slice(0, lastColon)
 }
 
 let warnedInvalidName = false
@@ -49,6 +72,6 @@ export function getSmtpEhloName(): string | undefined {
     }
   }
 
-  const appDomain = getEmailDomain()
+  const appDomain = stripPort(getEmailDomain())
   return isValidEhloName(appDomain) ? appDomain : undefined
 }

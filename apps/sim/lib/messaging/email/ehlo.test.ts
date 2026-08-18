@@ -36,6 +36,19 @@ describe('getSmtpEhloName', () => {
     expect(getSmtpEhloName()).toBe('[203.0.113.5]')
   })
 
+  it('accepts an RFC 5321 IPv6 address literal', () => {
+    setEnv({ SMTP_EHLO_NAME: '[IPv6:2001:db8::1]' })
+    expect(getSmtpEhloName()).toBe('[IPv6:2001:db8::1]')
+  })
+
+  it.each(['[::::]', '[13]', '[999.1.1.1]', '[2001:db8::1]', '[IPv6:203.0.113.5]'])(
+    'ignores the malformed address literal %s rather than letting the relay refuse it',
+    (literal) => {
+      setEnv({ SMTP_EHLO_NAME: literal })
+      expect(getSmtpEhloName()).toBe('sim.example.com')
+    }
+  )
+
   it('ignores a dotless name, which strict relays reject just like the literal', () => {
     setEnv({ SMTP_EHLO_NAME: 'sim-app' })
     expect(getSmtpEhloName()).toBe('sim.example.com')
@@ -46,7 +59,12 @@ describe('getSmtpEhloName', () => {
     expect(getSmtpEhloName()).toBe('sim.example.com')
   })
 
-  it("returns undefined when the app domain carries a port, leaving nodemailer's default", () => {
+  it('strips a port from the app domain instead of falling back over it', () => {
+    urlsMockFns.mockGetEmailDomain.mockReturnValue('sim.example.com:8443')
+    expect(getSmtpEhloName()).toBe('sim.example.com')
+  })
+
+  it("returns undefined for a dev app domain, leaving nodemailer's default", () => {
     urlsMockFns.mockGetEmailDomain.mockReturnValue('localhost:3000')
     expect(getSmtpEhloName()).toBeUndefined()
   })
