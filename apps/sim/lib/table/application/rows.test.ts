@@ -19,6 +19,7 @@ const {
   mockResolveContext,
   mockResolvePermission,
   mockSignalRowsChanged,
+  mockSignalRowsChangedByActor,
   mockUpsertRow,
   mockWithLockedTable,
   mockInsertRow,
@@ -41,6 +42,7 @@ const {
   mockResolveContext: vi.fn(),
   mockResolvePermission: vi.fn(),
   mockSignalRowsChanged: vi.fn(),
+  mockSignalRowsChangedByActor: vi.fn(),
   mockUpsertRow: vi.fn(),
   mockWithLockedTable: vi.fn(),
   mockInsertRow: vi.fn(),
@@ -137,6 +139,7 @@ vi.mock('@/lib/table/application/context', () => ({
 
 vi.mock('@/lib/table/events', () => ({
   signalTableRowsChanged: mockSignalRowsChanged,
+  signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
 }))
 
 import {

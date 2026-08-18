@@ -120,12 +120,12 @@ export interface TableDefinitionFactoryOptions {
   updatedAt?: Date | string
 }
 
-const UNLOCKED_TABLE_LOCKS: TableLocksFixture = {
+const UNLOCKED_TABLE_LOCKS: TableLocksFixture = Object.freeze({
   schemaLocked: false,
   insertLocked: false,
   updateLocked: false,
   deleteLocked: false,
-}
+})
 
 /**
  * Creates a table definition fixture with sensible defaults — the shape route

@@ -1,6 +1,11 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  resolvePrincipalAttribution,
+} from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
@@ -25,13 +30,14 @@ import {
   deleteRowsByFilter,
   deleteRowsByIds,
   findRowMatches,
-  getRowById,
+  getRowSummaryById,
   insertRow,
   queryRows,
   replaceTableRows as replaceTableRowsPrimitive,
   rowDataNameToId,
   sortSpecNamesToIds,
   TABLE_LIMITS,
+  type TableRowSummary,
   updateRow,
   updateRowsByFilter,
   upsertRow,
@@ -42,11 +48,15 @@ import {
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
+import {
+  resolveRowWriteProvenance,
+  type TableRowProvenanceEnvelope,
+} from '@/lib/table/application/row-secret-provenance'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { buildColumnNameById, buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -55,6 +65,7 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import { loadEnrichmentDetail } from '@/lib/table/rows/executions'
 import {
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
@@ -109,7 +120,9 @@ type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenanc
 async function loadAuthorizedRowsProvenance(
   principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
   workspaceId: string,
-  rows: TableRow[],
+  // The loader reads only id, updatedAt and data, so a row without its
+  // executions sidecar is enough — see `TABLE_ROW_SIDECAR_SELECTION`.
+  rows: TableRowSummary[],
   include: boolean | undefined
 ): Promise<TableRowsProvenance | undefined> {
   if (!include) return undefined
@@ -262,6 +275,38 @@ function defaultedRowSecretProvenance(
   provided: TableRowSecretProvenanceWrite | undefined
 ): TableRowSecretProvenanceWrite {
   return provided ?? createExactEmptyTableRowSecretProvenance(storageData)
+}
+
+/**
+ * The stamp a single-row write should carry: resolved from the caller's envelope
+ * when it handed one over, otherwise defaulted. Shared by the update and upsert
+ * use cases so the envelope contract has one implementation, not two.
+ */
+function singleRowWriteProvenance(options: {
+  principal: Principal
+  workspaceId: string
+  table: TableDefinition
+  input: {
+    dataKeying: TableRowDataKeying
+    data: RowData
+    secretProvenance?: TableRowSecretProvenanceWrite
+    secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  }
+  storageData: RowData
+}): TableRowSecretProvenanceWrite | undefined {
+  const { principal, workspaceId, table, input, storageData } = options
+  if (!input.secretProvenanceEnvelope) {
+    return defaultedRowSecretProvenance(storageData, input.secretProvenance)
+  }
+  return resolveRowWriteProvenance({
+    envelope: input.secretProvenanceEnvelope,
+    principal,
+    workspaceId,
+    table,
+    keying: input.dataKeying,
+    wireRows: [input.data],
+    storageRows: [storageData],
+  }).stamps[0]
 }
 
 function defaultedRowsSecretProvenance(
@@ -466,7 +511,8 @@ export interface ReadTableRowInput extends TableScopedInput {
 }
 
 export interface ReadTableRowResult extends TableResult {
-  row: TableRow
+  /** Without the executions sidecar — no read surface puts it on the wire. */
+  row: TableRowSummary
   secretProvenance?: TableRowsProvenance
 }
 
@@ -474,7 +520,7 @@ export const readTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.readRow,
   resolveContext: ({ input }: { input: ReadTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<ReadTableRowResult> {
-    const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
+    const row = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
     if (!row) throw new OrchestrationError('not_found', 'Row not found')
     return {
       table: context.table,
@@ -489,12 +535,44 @@ export const readTableRow = defineAuthorizedTableUseCase({
   },
 })
 
+export interface ReadTableRowEnrichmentInput extends TableScopedInput {
+  rowId: string
+  groupId: string
+}
+
+export interface ReadTableRowEnrichmentResult extends TableResult {
+  detail: Awaited<ReturnType<typeof loadEnrichmentDetail>>
+}
+
+/**
+ * The enrichment cascade breakdown — provider outcomes, cost, timing — for one
+ * cell. Deliberately kept off the hot grid read and fetched on demand by the
+ * details panel; `null` for a cell with no recorded run, or a run predating the
+ * feature.
+ *
+ * Shares {@link tableOperations.readRow}: this is a projection of the same row,
+ * under the same role, so it is not a second semantic operation.
+ */
+export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRow,
+  resolveContext: ({ input }: { input: ReadTableRowEnrichmentInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<ReadTableRowEnrichmentResult> {
+    return {
+      table: context.table,
+      detail: await loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+    }
+  },
+})
+
 interface CreateSingleTableRowInput extends TableScopedInput {
   /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
   strictWrite: boolean
   /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
   dataKeying: TableRowDataKeying
   kind: 'single'
+  /** See {@link UpdateTableRowInput.actorClientId}. */
+  actorClientId?: string
   data: RowData
   position?: number
   afterRowId?: string
@@ -597,9 +675,16 @@ export const createTableRows = defineAuthorizedTableUseCase({
     )
     return { kind: 'batch', table: context.table, rows: created }
   },
-  afterSuccess: ({ context, result }) => {
-    const affected = result.kind === 'single' ? 1 : result.rows.length
-    if (affected > 0) signalTableRowsChanged(context.tableId)
+  afterSuccess: ({ context, input, result }) => {
+    // Narrowed on the input, not the result: only the single-row variant carries
+    // an actor, and the two discriminants always agree.
+    if (input.kind === 'single') {
+      signalTableRowsChangedByActor(context.tableId, input.actorClientId)
+      return
+    }
+    // A batch insert is not reconciled locally by the acting tab, so it must
+    // refetch like every other subscriber.
+    if (result.kind === 'batch' && result.rows.length > 0) signalTableRowsChanged(context.tableId)
   },
 })
 
@@ -834,7 +919,23 @@ export interface UpdateTableRowInput extends TableScopedInput {
   rowId: string
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
+  /**
+   * Private provenance envelope as it arrived on the wire, resolved here against
+   * the canonical schema. Mutually exclusive with {@link secretProvenance}: a
+   * surface either resolves its own stamp or hands over the envelope for this
+   * use case to resolve, never both.
+   */
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
   includePersistedSecretProvenance?: boolean
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that tab
+   * skip refetching its own write — see {@link signalTableRowsChangedByActor},
+   * whose soundness condition is that the caller's hook reconciles the write
+   * locally across every cached rows query. Only the single-row paths accept
+   * one: a batch or filter-scoped write genuinely needs the acting tab to
+   * refetch. Absent by default, which broadcasts to every subscriber as before.
+   */
+  actorClientId?: string
 }
 
 export interface UpdateTableRowResult extends TableResult {
@@ -848,6 +949,13 @@ export const updateTableRow = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
     const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const secretProvenance = singleRowWriteProvenance({
+      principal,
+      workspaceId: context.workspaceId,
+      table: context.table,
+      input,
+      storageData: data,
+    })
     const row = await updateRow(
       {
         tableId: context.tableId,
@@ -855,7 +963,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
         rowId: input.rowId,
         data,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+        secretProvenance,
       },
       context.table,
       requestId(input),
@@ -874,8 +982,8 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       ),
     }
   },
-  afterSuccess: ({ context, result }) => {
-    if (result.changed) signalTableRowsChanged(context.tableId)
+  afterSuccess: ({ context, input, result }) => {
+    if (result.changed) signalTableRowsChangedByActor(context.tableId, input.actorClientId)
   },
 })
 
@@ -925,6 +1033,8 @@ export const updateTableRows = defineAuthorizedTableUseCase({
 
 export interface DeleteTableRowInput extends TableScopedInput {
   rowId: string
+  /** See {@link UpdateTableRowInput.actorClientId}. */
+  actorClientId?: string
 }
 
 export interface DeleteTableRowResult extends TableResult {
@@ -938,7 +1048,8 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     await deleteRow(context.table, input.rowId, requestId(input))
     return { table: context.table, deletedRowId: input.rowId }
   },
-  afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
+  afterSuccess: ({ context, input }) =>
+    signalTableRowsChangedByActor(context.tableId, input.actorClientId),
 })
 
 export type DeleteTableRowsInput = TableScopedInput &
@@ -1014,11 +1125,16 @@ export interface UpsertTableRowInput extends TableScopedInput {
   data: RowData
   conflictTarget?: string
   secretProvenance?: TableRowSecretProvenanceWrite
+  /** See {@link UpdateTableRowInput.secretProvenanceEnvelope}. */
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface UpsertTableRowResult extends TableResult {
-  row: TableRow
+  /** Without the executions sidecar — see {@link UpsertResult.row}. */
+  row: TableRowSummary
   operation: 'insert' | 'update'
+  secretProvenance?: TableRowsProvenance
 }
 
 export const upsertTableRow = defineAuthorizedTableUseCase({
@@ -1032,6 +1148,13 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
         : input.conflictTarget
     const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const secretProvenance = singleRowWriteProvenance({
+      principal,
+      workspaceId: context.workspaceId,
+      table: context.table,
+      input,
+      storageData: data,
+    })
     const result = await upsertRow(
       {
         tableId: context.tableId,
@@ -1039,13 +1162,23 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
         data,
         conflictTarget,
         userId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+        secretProvenance,
       },
       context.table,
       requestId(input),
       rowWriteOptions(input)
     )
-    return { table: context.table, row: result.row, operation: result.operation }
+    return {
+      table: context.table,
+      row: result.row,
+      operation: result.operation,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        principal,
+        context.workspaceId,
+        [result.row],
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
   afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
 })
