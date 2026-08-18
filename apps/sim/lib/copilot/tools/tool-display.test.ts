@@ -700,3 +700,53 @@ describe('terminal-title projection is idempotent', () => {
     )
   })
 })
+
+describe('resource-naming titles', () => {
+  it('names the table a row/column operation targets', () => {
+    expect(getToolDisplayTitle('table_rows', { operation: 'insert', tableName: 'Runtimes' })).toBe(
+      'Adding rows to Runtimes'
+    )
+    expect(
+      getToolDisplayTitle('table_columns', {
+        operation: 'add',
+        columnName: 'status',
+        tableName: 'Runtimes',
+      })
+    ).toBe('Adding column status in Runtimes')
+    expect(getToolDisplayTitle('table_views', { operation: 'list', tableName: 'Runtimes' })).toBe(
+      'Reading views of Runtimes'
+    )
+  })
+
+  it('falls back cleanly when the table is unnamed', () => {
+    expect(getToolDisplayTitle('table_rows', { operation: 'update' })).toBe('Updating rows')
+  })
+
+  it('names the block behind a block-schema read', () => {
+    expect(getToolDisplayTitle('read', { path: 'components/blocks/slack_v2.json' })).toBe(
+      'Loading Slack'
+    )
+    expect(
+      getToolDisplayTitle('read', { path: 'components/blocks/google_sheets_v2/README.md' })
+    ).toBe('Loading Google Sheets tips')
+  })
+
+  it('shows the text a browser type/insert call sends', () => {
+    expect(getToolDisplayTitle('browser_type', { text: 'hello there' })).toBe(
+      'Typing "hello there"'
+    )
+    expect(getToolDisplayTitle('browser_insert_text', {})).toBe('Inserting text')
+  })
+
+  it('names downloads, docs searches, and generated files', () => {
+    expect(getToolDisplayTitle('download_file', { fileName: 'report.csv' })).toBe(
+      'Downloading report.csv'
+    )
+    expect(
+      getToolDisplayTitle('search_library_docs', { library_name: 'React', query: 'useEffect' })
+    ).toBe('Searching React docs for useEffect')
+    expect(getToolDisplayTitle('generate_image', { path: 'files/hero.png' })).toBe(
+      'Generating hero.png'
+    )
+  })
+})

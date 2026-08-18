@@ -84,41 +84,47 @@ function stringOrNumberArg(args: ToolArgs, key: string): string {
  */
 function splitTableTitle(name: string, args: ToolArgs): string {
   const op = stringArg(args, 'operation')
-  const target = firstStringArg(args, 'name', 'columnName', 'viewName', 'tableName', 'title')
+  const target = firstStringArg(args, 'columnName', 'viewName', 'name', 'title')
   const suffix = target ? ` ${target}` : ''
+  // "in Runtimes" / "of Runtimes" — enrichment resolves the nested tableId.
+  const table = stringArg(args, 'tableName')
+  const inTable = table ? ` in ${table}` : ''
+  const ofTable = table ? ` of ${table}` : ''
   switch (name) {
     case 'table_manage':
-      if (op === 'create') return `Creating table${suffix}`
-      if (op === 'delete') return `Deleting table${suffix}`
-      if (op === 'read' || op === 'get' || op === 'list') return 'Reading table'
-      return 'Updating table'
+      if (op === 'create') return `Creating table${suffix || (table ? ` ${table}` : '')}`
+      if (op === 'delete') return `Deleting table${table ? ` ${table}` : suffix}`
+      if (op === 'read' || op === 'get' || op === 'list')
+        return `Reading${table ? ` ${table}` : ' table'}`
+      return `Updating${table ? ` ${table}` : ' table'}`
     case 'table_rows':
-      if (op === 'insert' || op === 'add' || op === 'create') return 'Adding rows'
-      if (op === 'update') return 'Updating rows'
-      if (op === 'delete') return 'Deleting rows'
-      if (op === 'read' || op === 'list' || op === 'query') return 'Reading rows'
-      return 'Editing rows'
+      if (op === 'insert' || op === 'add' || op === 'create')
+        return `Adding rows${inTable ? ` to ${table}` : ''}`
+      if (op === 'update') return `Updating rows${inTable}`
+      if (op === 'delete') return `Deleting rows${inTable}`
+      if (op === 'read' || op === 'list' || op === 'query') return `Reading rows${ofTable}`
+      return `Editing rows${ofTable}`
     case 'table_columns':
-      if (op === 'add' || op === 'create') return `Adding column${suffix}`
-      if (op === 'update') return `Updating column${suffix}`
-      if (op === 'delete') return `Deleting column${suffix}`
-      if (op === 'read' || op === 'list') return 'Reading columns'
-      return 'Editing columns'
+      if (op === 'add' || op === 'create') return `Adding column${suffix}${inTable}`
+      if (op === 'update') return `Updating column${suffix}${inTable}`
+      if (op === 'delete') return `Deleting column${suffix}${inTable}`
+      if (op === 'read' || op === 'list') return `Reading columns${ofTable}`
+      return `Editing columns${ofTable}`
     case 'table_automations':
-      if (op === 'read' || op === 'list') return 'Reading automations'
-      if (op === 'delete') return 'Removing automation'
-      return 'Wiring automation'
+      if (op === 'read' || op === 'list') return `Reading automations${ofTable}`
+      if (op === 'delete') return `Removing automation${inTable}`
+      return `Wiring automation${inTable}`
     case 'table_enrichments':
-      if (op === 'read' || op === 'list') return 'Reading enrichments'
-      if (op === 'delete') return 'Removing enrichment'
-      return 'Configuring enrichment'
+      if (op === 'read' || op === 'list') return `Reading enrichments${ofTable}`
+      if (op === 'delete') return `Removing enrichment${inTable}`
+      return `Configuring enrichment${suffix}${inTable}`
     case 'table_views':
-      if (op === 'create') return `Creating view${suffix}`
-      if (op === 'delete') return `Deleting view${suffix}`
-      if (op === 'read' || op === 'list') return 'Reading views'
-      return 'Editing views'
+      if (op === 'create') return `Creating view${suffix}${inTable}`
+      if (op === 'delete') return `Deleting view${suffix}${inTable}`
+      if (op === 'read' || op === 'list') return `Reading views${ofTable}`
+      return `Editing views${ofTable}`
     default:
-      return 'Updating table'
+      return `Updating${table ? ` ${table}` : ' table'}`
   }
 }
 
@@ -163,6 +169,29 @@ function displayUrl(raw: string): string {
   } catch {
     return raw.slice(0, 80)
   }
+}
+
+/**
+ * Human name for a block type id: strip the version suffix and title-case the
+ * snake_case stem (`slack_v2` -> `Slack`, `google_sheets_v2` -> `Google Sheets`).
+ */
+export function blockDisplayName(blockType: string): string {
+  const stem = stripVersionSuffix(blockType.trim())
+  if (!stem) return blockType
+  return stem
+    .split('_')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+/** Ellipsizes the middle so both ends of a value stay recognizable. */
+function truncateMiddle(value: string, maxChars: number): string {
+  const text = value.replace(/\s+/g, ' ').trim()
+  if (text.length <= maxChars) return text
+  const head = Math.ceil((maxChars - 1) / 2)
+  const tail = Math.floor((maxChars - 1) / 2)
+  return `${text.slice(0, head)}…${text.slice(text.length - tail)}`
 }
 
 function isWorkflowArtifactPath(path: string, filename: string): boolean {
@@ -305,12 +334,12 @@ function queryUserTableTitle(args: ToolArgs): string {
 }
 
 function searchKnowledgeBaseTitle(args: ToolArgs): string {
-  const titles: Record<string, string> = {
-    get: 'Reading knowledge base',
-    query: 'Searching knowledge base',
-    list_tags: 'Listing knowledge base tags',
-  }
-  return titles[stringArg(args, 'operation')] ?? 'Searching knowledge base'
+  const query = stringArg(args, 'query')
+  const operation = stringArg(args, 'operation')
+  if (operation === 'get') return 'Reading knowledge base'
+  if (operation === 'list_tags') return 'Listing knowledge base tags'
+  // A search row is far more useful with the question it asked.
+  return query ? `Searching knowledge base for ${query}` : 'Searching knowledge base'
 }
 
 function manageSandboxTitle(args: ToolArgs): string {
@@ -524,9 +553,7 @@ const TOOL_TITLES: Record<string, string> = {
   manage_knowledge_base: 'Managing knowledge base',
   search_knowledge_base: 'Searching knowledge base',
   open_resource: 'Opening resource',
-  generate_image: 'Generating image',
-  generate_video: 'Generating video',
-  generate_audio: 'Generating audio',
+
   ffmpeg: 'Processing media',
   get_deployment_status: 'Checking deployment status',
   create_empty_file: 'Creating file',
@@ -538,7 +565,7 @@ const TOOL_TITLES: Record<string, string> = {
   publish_custom_block: 'Publishing custom block',
   deploy_as_mcp: 'Deploying as MCP tool',
   diff_workflows: 'Comparing workflows',
-  download_file: 'Downloading file',
+
   run_function: 'Running code',
   generate_api_key: 'Generating API key',
   // Retired in favor of the account/ and organization/ VFS namespaces. Kept so
@@ -589,8 +616,7 @@ const TOOL_TITLES: Record<string, string> = {
   browser_screenshot: 'Taking screenshot',
   browser_click: 'Clicking element',
   browser_click_at: 'Clicking point',
-  browser_type: 'Typing text',
-  browser_insert_text: 'Inserting text',
+
   browser_drag: 'Dragging element',
   browser_select_option: 'Selecting option',
   browser_hover: 'Hovering element',
@@ -996,6 +1022,40 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       const text = stringArg(args, 'text')
       return text ? `Waiting for "${text}"` : 'Waiting for page'
     }
+    case 'generate_image':
+    case 'generate_video':
+    case 'generate_audio': {
+      const kind =
+        name === 'generate_image' ? 'image' : name === 'generate_video' ? 'video' : 'audio'
+      const target =
+        firstStringArg(args, 'toolTitle', 'title') ||
+        (stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : '')
+      return target ? `Generating ${target}` : `Generating ${kind}`
+    }
+    case 'download_file': {
+      const target =
+        firstStringArg(args, 'fileName', 'toolTitle', 'title') ||
+        (stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : '') ||
+        (stringArg(args, 'url') ? displayUrl(stringArg(args, 'url')) : '')
+      return target ? `Downloading ${target}` : 'Downloading file'
+    }
+    case 'search_library_docs': {
+      const library = firstStringArg(args, 'library_name', 'libraryName', 'library')
+      const query = stringArg(args, 'query')
+      if (library && query) return `Searching ${library} docs for ${query}`
+      if (library) return `Searching ${library} docs`
+      return query ? `Searching library docs for ${query}` : 'Searching library docs'
+    }
+    case 'run_code': {
+      const title = stringArg(args, 'title')
+      return title || 'Running code'
+    }
+    case 'browser_type':
+    case 'browser_insert_text': {
+      const verb = name === 'browser_type' ? 'Typing' : 'Inserting'
+      const text = stringArg(args, 'text')
+      return text ? `${verb} "${truncateMiddle(text, 32)}"` : `${verb} text`
+    }
     case 'browser_press_key': {
       const key = stringArg(args, 'key')
       return key ? `Pressing ${key}` : 'Pressing key'
@@ -1161,6 +1221,12 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       }
       // Workflow artifacts name BOTH the workflow and which part, so five
       // reads in a row differentiate instead of all saying the same thing.
+      // A block schema read is the model looking up how a block works; name
+      // the block, not the file. The row's icon is chosen from the same id.
+      const blockSchema = path.match(/^components\/blocks\/([^/]+)\.json$/)
+      if (blockSchema) return `Loading ${blockDisplayName(decodePathSegment(blockSchema[1]))}`
+      const blockTips = path.match(/^components\/blocks\/([^/]+)\/README\.md$/)
+      if (blockTips) return `Loading ${blockDisplayName(decodePathSegment(blockTips[1]))} tips`
       const workflowArtifact = path.match(/^workflows\/([^/]+)\/([^/]+)$/)
       if (workflowArtifact) {
         const part =

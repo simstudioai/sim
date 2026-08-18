@@ -29,8 +29,10 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/copilot/tools/tool-display'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
+import { tableKeys } from '@/hooks/queries/utils/table-keys'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -123,6 +125,33 @@ function resolveTargetWorkflowName(args: Record<string, unknown> | undefined): s
   return resolveWorkflowNameForDisplay(args?.workflowId ?? registry.hydration.workflowId)
 }
 
+/**
+ * Table name for a nested `args.tableId`. Tables reach the client through
+ * React Query rather than a Zustand store, so the cached workspace list is
+ * the synchronous source a title can read; an uncached id simply stays
+ * unnamed rather than blocking the row.
+ */
+function resolveTableNameForDisplay(tableId: unknown): string | undefined {
+  const id = stringParam(tableId)
+  if (!id) return undefined
+  const cache = getQueryClient().getQueryCache()
+  for (const query of cache.findAll({ queryKey: tableKeys.lists() })) {
+    const data = query.state.data
+    const tables = Array.isArray(data)
+      ? data
+      : isRecordLike(data) && Array.isArray((data as { tables?: unknown }).tables)
+        ? ((data as { tables: unknown[] }).tables as unknown[])
+        : []
+    for (const table of tables) {
+      if (!isRecordLike(table)) continue
+      if (stringParam(table.id) !== id) continue
+      const name = stringParam(table.name)
+      if (name) return name
+    }
+  }
+  return undefined
+}
+
 function resolveBlockNameForDisplay(blockId: unknown): string | undefined {
   const id = stringParam(blockId)
   if (!id) return undefined
@@ -191,8 +220,20 @@ export function resolveIntegrationToolDisplayTitle(tool: {
  * the current workflow), so their titles can only name the workflow once the
  * client resolves the id against the workflow registry.
  */
+const TABLE_SCOPED_TOOL_IDS = new Set<string>([
+  'table_automations',
+  'table_columns',
+  'table_enrichments',
+  'table_manage',
+  'table_rows',
+  'table_views',
+])
+
 const WORKFLOW_SCOPED_TOOL_IDS = new Set<string>([
   'deploy_as_api',
+  'diff_workflows',
+  'list_deployment_versions',
+  'publish_custom_block',
   'deploy_as_chat',
   'deploy_as_mcp',
   'get_block_outputs',
@@ -250,6 +291,22 @@ export function resolveToolDisplayTitle(name: string, args?: Record<string, unkn
   // defaulting to the current workflow. Resolve the name here and hand it to
   // the shared resolver as `workflowName`, which every workflow title already
   // reads, so deployments, reads, and block work all say WHICH workflow.
+  // Table tools keep their operands nested under `args`, and identify the
+  // table by id — so the shared resolver sees neither the column being added
+  // nor which table it belongs to. Lift both here.
+  if (TABLE_SCOPED_TOOL_IDS.has(name)) {
+    const nested = isRecordLike(args?.args) ? (args?.args as Record<string, unknown>) : undefined
+    const tableName =
+      stringParam(args?.tableName) ?? resolveTableNameForDisplay(nested?.tableId ?? args?.tableId)
+    if (nested || tableName) {
+      return getToolDisplayTitle(name, {
+        ...args,
+        ...(nested ?? {}),
+        ...(tableName ? { tableName } : {}),
+      })
+    }
+  }
+
   if (WORKFLOW_SCOPED_TOOL_IDS.has(name) && !stringParam(args?.workflowName)) {
     const workflowName = resolveTargetWorkflowName(args)
     // Block-scoped tools carry a blockId for the same reason; resolve it too,
