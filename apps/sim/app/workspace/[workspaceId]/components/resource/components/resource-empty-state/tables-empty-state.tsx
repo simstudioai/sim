@@ -51,7 +51,7 @@ const SELECTED_CELL = { row: 1, column: 0 } as const
 function TablesGraphic() {
   return (
     <div aria-hidden='true' className={`relative h-[148px] w-[320px] ${CORNER_FADE}`}>
-      <div className='absolute top-[14px] left-[54px] border-[var(--border-1)] border-t border-l'>
+      <div className='absolute top-[14px] left-[54px] rounded-tl-[6px] border-[var(--border-1)] border-t border-l'>
         <div className='grid' style={{ gridTemplateColumns: COLUMN_TEMPLATE }}>
           {HEADER_WIDTHS.map((width, column) => (
             <div
