@@ -42,11 +42,15 @@ import {
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
+import {
+  resolveRowWriteProvenance,
+  type TableRowProvenanceEnvelope,
+} from '@/lib/table/application/row-secret-provenance'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { buildColumnNameById, buildIdByName, unknownColumnNames } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
-import { signalTableRowsChanged } from '@/lib/table/events'
+import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -495,6 +499,15 @@ interface CreateSingleTableRowInput extends TableScopedInput {
   /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
   dataKeying: TableRowDataKeying
   kind: 'single'
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that tab
+   * skip refetching its own write — see {@link signalTableRowsChangedByActor},
+   * whose soundness condition is that the caller's hook reconciles the write
+   * locally across every cached rows query. Only the single-row paths accept
+   * one: a batch or filter-scoped write genuinely needs the acting tab to
+   * refetch. Absent by default, which broadcasts to every subscriber as before.
+   */
+  actorClientId?: string
   data: RowData
   position?: number
   afterRowId?: string
@@ -597,9 +610,16 @@ export const createTableRows = defineAuthorizedTableUseCase({
     )
     return { kind: 'batch', table: context.table, rows: created }
   },
-  afterSuccess: ({ context, result }) => {
-    const affected = result.kind === 'single' ? 1 : result.rows.length
-    if (affected > 0) signalTableRowsChanged(context.tableId)
+  afterSuccess: ({ context, input, result }) => {
+    // Narrowed on the input, not the result: only the single-row variant carries
+    // an actor, and the two discriminants always agree.
+    if (input.kind === 'single') {
+      signalTableRowsChangedByActor(context.tableId, input.actorClientId)
+      return
+    }
+    // A batch insert is not reconciled locally by the acting tab, so it must
+    // refetch like every other subscriber.
+    if (result.kind === 'batch' && result.rows.length > 0) signalTableRowsChanged(context.tableId)
   },
 })
 
@@ -834,7 +854,23 @@ export interface UpdateTableRowInput extends TableScopedInput {
   rowId: string
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
+  /**
+   * Private provenance envelope as it arrived on the wire, resolved here against
+   * the canonical schema. Mutually exclusive with {@link secretProvenance}: a
+   * surface either resolves its own stamp or hands over the envelope for this
+   * use case to resolve, never both.
+   */
+  secretProvenanceEnvelope?: TableRowProvenanceEnvelope
   includePersistedSecretProvenance?: boolean
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that tab
+   * skip refetching its own write — see {@link signalTableRowsChangedByActor},
+   * whose soundness condition is that the caller's hook reconciles the write
+   * locally across every cached rows query. Only the single-row paths accept
+   * one: a batch or filter-scoped write genuinely needs the acting tab to
+   * refetch. Absent by default, which broadcasts to every subscriber as before.
+   */
+  actorClientId?: string
 }
 
 export interface UpdateTableRowResult extends TableResult {
@@ -848,6 +884,17 @@ export const updateTableRow = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
     const data = rowDataToStorage(input.data, context.table, input.dataKeying, input.strictWrite)
+    const secretProvenance = input.secretProvenanceEnvelope
+      ? resolveRowWriteProvenance({
+          envelope: input.secretProvenanceEnvelope,
+          principal,
+          workspaceId: context.workspaceId,
+          table: context.table,
+          keying: input.dataKeying,
+          wireRows: [input.data],
+          storageRows: [data],
+        }).stamps[0]
+      : defaultedRowSecretProvenance(data, input.secretProvenance)
     const row = await updateRow(
       {
         tableId: context.tableId,
@@ -855,7 +902,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
         rowId: input.rowId,
         data,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
+        secretProvenance,
       },
       context.table,
       requestId(input),
@@ -874,8 +921,8 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       ),
     }
   },
-  afterSuccess: ({ context, result }) => {
-    if (result.changed) signalTableRowsChanged(context.tableId)
+  afterSuccess: ({ context, input, result }) => {
+    if (result.changed) signalTableRowsChangedByActor(context.tableId, input.actorClientId)
   },
 })
 
@@ -925,6 +972,15 @@ export const updateTableRows = defineAuthorizedTableUseCase({
 
 export interface DeleteTableRowInput extends TableScopedInput {
   rowId: string
+  /**
+   * Tab that caused this write, when the calling surface knows it. Lets that tab
+   * skip refetching its own write — see {@link signalTableRowsChangedByActor},
+   * whose soundness condition is that the caller's hook reconciles the write
+   * locally across every cached rows query. Only the single-row paths accept
+   * one: a batch or filter-scoped write genuinely needs the acting tab to
+   * refetch. Absent by default, which broadcasts to every subscriber as before.
+   */
+  actorClientId?: string
 }
 
 export interface DeleteTableRowResult extends TableResult {
@@ -938,7 +994,8 @@ export const deleteTableRow = defineAuthorizedTableUseCase({
     await deleteRow(context.table, input.rowId, requestId(input))
     return { table: context.table, deletedRowId: input.rowId }
   },
-  afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
+  afterSuccess: ({ context, input }) =>
+    signalTableRowsChangedByActor(context.tableId, input.actorClientId),
 })
 
 export type DeleteTableRowsInput = TableScopedInput &

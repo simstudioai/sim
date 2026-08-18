@@ -199,14 +199,36 @@ type InternalJsonParseOptions = Pick<
   'maxBodyBytes' | 'validationErrorResponse'
 >
 
-type InternalJsonPresenter<C extends JsonApiRouteContract, R> = [R] extends [
-  ContractJsonResponse<C>,
-]
+/**
+ * What a presenter may render from, beyond the use case's result.
+ *
+ * A surface that serves more than one caller kind can owe them different wire
+ * shapes for the same domain result — the internal table row routes answer a
+ * session in stable column ids and a workflow execution in column names. That is
+ * presentation, not domain, so it belongs in the adapter rather than the use
+ * case. {@link InternalJsonRouteOptions.responseHeaders} and
+ * {@link InternalJsonRouteOptions.finalizeResponse} already receive this pair;
+ * this closes the same gap for `present`.
+ */
+export interface InternalJsonPresenterContext<I, P extends Principal> {
+  principal: P
+  input: I
+}
+
+type InternalJsonPresenter<C extends JsonApiRouteContract, I, R, P extends Principal> = [
+  R,
+] extends [ContractJsonResponse<C>]
   ? {
-      present?(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+      present?(
+        result: NoInfer<R>,
+        context: InternalJsonPresenterContext<NoInfer<I>, P>
+      ): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
     }
   : {
-      present(result: NoInfer<R>): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
+      present(
+        result: NoInfer<R>,
+        context: InternalJsonPresenterContext<NoInfer<I>, P>
+      ): ContractJsonResponse<C> | Promise<ContractJsonResponse<C>>
     }
 
 type InternalJsonRouteOptions<
@@ -239,7 +261,7 @@ type InternalJsonRouteOptions<
     result: NoInfer<R>
     body: ContractJsonResponse<C>
   }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
-} & InternalJsonPresenter<C, R>
+} & InternalJsonPresenter<C, I, R, P>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
   return NextResponse.json(withRequestId(descriptor.body), {
@@ -333,7 +355,7 @@ export function defineInternalJsonRoute<
           request,
         })
         await options.onSuccess?.({ principal, input, result })
-        const body = options.present ? await options.present(result) : result
+        const body = options.present ? await options.present(result, { principal, input }) : result
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
