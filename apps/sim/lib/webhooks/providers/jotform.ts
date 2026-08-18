@@ -46,13 +46,19 @@ function readCredentials(
   return { formId, apiKey, region: toStringOrNull(config.apiRegion)?.trim() || undefined }
 }
 
+/** Compares callback URLs without letting a trailing slash decide the outcome. */
+function sameUrl(a: string, b: string): boolean {
+  return a.replace(/\/+$/, '') === b.replace(/\/+$/, '')
+}
+
 /**
- * Jotform identifies a form's webhooks by their position in the form's webhook map, so an
- * id captured at registration goes stale the moment any other webhook on the form is
- * removed. Nothing persists it; the delete path re-resolves it by matching the URL.
+ * Jotform identifies a form's webhooks by their position in the form's webhook map, and
+ * adding one renumbers the rest — the documented POST sample returns the new entry as
+ * `"0"`. An id captured at registration is therefore stale as soon as the form's webhooks
+ * change at all. Nothing persists it; every path re-resolves it by matching the URL.
  */
 function findWebhookIdByUrl(content: unknown, notificationUrl: string): string | null {
-  return normalizeWebhooks(content).find((entry) => entry.url === notificationUrl)?.id ?? null
+  return normalizeWebhooks(content).find((entry) => sameUrl(entry.url, notificationUrl))?.id ?? null
 }
 
 async function listWebhookIdForUrl(
@@ -118,6 +124,17 @@ export const jotformHandler: WebhookProviderHandler = {
     const notificationUrl = getNotificationUrl(ctx.webhook)
 
     try {
+      /* Jotform keeps a plain list and does not treat the URL as a key, so posting one it
+         already holds is not a no-op — it would leave the form delivering every submission
+         twice. Redeploys re-run this, so the existing list decides whether to post. */
+      if (await listWebhookIdForUrl(credentials, notificationUrl)) {
+        logger.info(`[${ctx.requestId}] Jotform webhook was already registered`, {
+          webhookId: ctx.webhook.id,
+          formId: credentials.formId,
+        })
+        return {}
+      }
+
       const response = await fetch(
         buildJotformUrl(
           credentials,

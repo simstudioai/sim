@@ -107,12 +107,12 @@ export const jotformWebhookTrigger: TriggerConfig = {
     pretty: {
       type: 'string',
       description:
-        'Human-readable summary of the answers, as comma-separated "Question Label:Answer" pairs',
+        'Human-readable summary of the answers, as comma-separated "Question Label:Answer" pairs. Unanswered questions are left out.',
     },
     rawRequest: {
       type: 'json',
       description:
-        "Submitted answers keyed by question, in Jotform's q{questionId}_{slugifiedLabel} form. Values are strings, or objects for multi-part questions such as name and address.",
+        'The submitted form body. Answers are keyed q{questionId}_{slugifiedLabel} and hold a string, or an object for a multi-part question such as name or address. A file answer instead appears under the plain slugified label as an array of upload URLs, with the chosen filenames under temp_upload. The body also carries form-internal fields such as slug, buildDate, submitSource, and jsExecutionTracker.',
     },
     raw: {
       type: 'json',

@@ -64,6 +64,41 @@ describe('jotformHandler formatInput', () => {
     })
   })
 
+  /**
+   * Field names and shapes taken from a captured Jotform delivery: answers sit under
+   * q{qid}_{slug}, a file answer lands under the bare slug as upload URLs, and the body
+   * carries form-internal keys alongside them.
+   */
+  it('carries a real payload through unflattened', async () => {
+    const result = await jotformHandler.formatInput!({
+      body: {
+        formID: '243231271343446',
+        submissionID: '6084250982513018472',
+        formTitle: 'Tutor Appointment Form',
+        username: 'UserNiloth',
+        type: 'WEB',
+        ip: '27.51.18.17',
+        pretty: "Student's Name:Niloth P, Grade:12",
+        rawRequest: JSON.stringify({
+          slug: 'submit/243231271343446',
+          jsExecutionTracker: 'build-date-1732271172685=>init-started',
+          q3_studentsName: { first: 'Niloth', last: 'P' },
+          q35_grade: '12',
+          temp_upload: { q6_reports: ['Report Card.pdf#jotformfs-e4f4'] },
+          reports: ['https://www.jotform.com/uploads/UserNiloth/Report%20Card.pdf'],
+        }),
+      },
+    } as never)
+
+    const input = result.input as Record<string, Record<string, unknown>>
+    expect(input.submissionType).toBe('WEB')
+    expect(input.rawRequest.q3_studentsName).toEqual({ first: 'Niloth', last: 'P' })
+    expect(input.rawRequest.reports).toEqual([
+      'https://www.jotform.com/uploads/UserNiloth/Report%20Card.pdf',
+    ])
+    expect(input.rawRequest.slug).toBe('submit/243231271343446')
+  })
+
   it('keeps the submission when rawRequest is not valid JSON', async () => {
     const result = await jotformHandler.formatInput!({
       body: { submissionID: '5678', rawRequest: 'not json' },
@@ -91,31 +126,54 @@ describe('jotformHandler createSubscription', () => {
   })
 
   it('registers the notification URL on the form', async () => {
-    fetchMock.mockResolvedValueOnce(envelope({ '0': NOTIFICATION_URL }))
+    fetchMock
+      .mockResolvedValueOnce(envelope({}))
+      .mockResolvedValueOnce(envelope({ '0': NOTIFICATION_URL }))
 
     await jotformHandler.createSubscription!(
       createContext({ formId: '231504059977966', apiKey: 'jf-key' })
     )
 
-    const [url, init] = fetchMock.mock.calls[0]
+    const [url, init] = fetchMock.mock.calls[1]
     expect(url).toBe('https://api.jotform.com/form/231504059977966/webhooks')
     expect(init.method).toBe('POST')
     expect(init.headers.APIKEY).toBe('jf-key')
     expect(init.body).toBe(`webhookURL=${encodeURIComponent(NOTIFICATION_URL)}`)
   })
 
-  it('uses the host that issued the key', async () => {
+  it('does not post again when the form already carries the URL', async () => {
     fetchMock.mockResolvedValueOnce(envelope({ '0': NOTIFICATION_URL }))
+
+    await jotformHandler.createSubscription!(createContext({ formId: '1', apiKey: 'jf-key' }))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET')
+  })
+
+  it('treats a stored URL that differs only by a trailing slash as the same webhook', async () => {
+    fetchMock.mockResolvedValueOnce(envelope({ '0': `${NOTIFICATION_URL}/` }))
+
+    await jotformHandler.createSubscription!(createContext({ formId: '1', apiKey: 'jf-key' }))
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the host that issued the key', async () => {
+    fetchMock
+      .mockResolvedValueOnce(envelope({}))
+      .mockResolvedValueOnce(envelope({ '0': NOTIFICATION_URL }))
 
     await jotformHandler.createSubscription!(
       createContext({ formId: '1', apiKey: 'jf-key', apiRegion: 'eu' })
     )
 
-    expect(fetchMock.mock.calls[0][0]).toBe('https://eu-api.jotform.com/form/1/webhooks')
+    expect(fetchMock.mock.calls[1][0]).toBe('https://eu-api.jotform.com/form/1/webhooks')
   })
 
   it('fails when the URL is missing from the returned webhook list', async () => {
-    fetchMock.mockResolvedValueOnce(envelope({ '0': 'https://elsewhere.example.com/hook' }))
+    fetchMock
+      .mockResolvedValueOnce(envelope({}))
+      .mockResolvedValueOnce(envelope({ '0': 'https://elsewhere.example.com/hook' }))
 
     await expect(
       jotformHandler.createSubscription!(createContext({ formId: '1', apiKey: 'jf-key' }))
