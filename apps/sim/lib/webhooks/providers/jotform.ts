@@ -1,6 +1,8 @@
+import { db, webhook, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -74,6 +76,53 @@ async function listWebhookIdForUrl(
   )
   const envelope = await parseJotformResponse(response, 'Jotform List Webhooks')
   return findWebhookIdByUrl(envelope.content, notificationUrl)
+}
+
+/**
+ * Reports whether another webhook row belonging to an active deployment is served by the
+ * same Jotform callback — the same form and the same URL.
+ *
+ * Redeploying a trigger prepares the replacement row alongside the live one, and a workflow
+ * keeps its webhook path across deployments, so both rows resolve to one callback on one
+ * form. Registration adopts the callback already there instead of posting a duplicate, which
+ * leaves the retired row's cleanup pointing at the callback the new row now depends on.
+ * Teardown is skipped in that case, exactly as the Telegram handler skips `deleteWebhook`
+ * while an active deployment still uses the same bot.
+ */
+async function activeDeploymentSharesJotformCallback(
+  webhookRecord: Record<string, unknown>,
+  formId: string,
+  notificationUrl: string
+): Promise<boolean> {
+  const workflowId = webhookRecord.workflowId
+  const webhookId = webhookRecord.id
+  if (typeof workflowId !== 'string' || typeof webhookId !== 'string') return false
+
+  const activeWebhooks = await db
+    .select({ path: webhook.path, providerConfig: webhook.providerConfig })
+    .from(webhook)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(webhook.deploymentVersionId, workflowDeploymentVersion.id)
+    )
+    .where(
+      and(
+        eq(webhook.workflowId, workflowId),
+        ne(webhook.id, webhookId),
+        eq(webhook.provider, 'jotform'),
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true),
+        isNull(webhook.archivedAt)
+      )
+    )
+
+  return activeWebhooks.some((activeWebhook) => {
+    const config = getProviderConfig({ providerConfig: activeWebhook.providerConfig })
+    return (
+      toStringOrNull(config.formId)?.trim() === formId &&
+      sameUrl(getNotificationUrl({ path: activeWebhook.path }), notificationUrl)
+    )
+  })
 }
 
 export const jotformHandler: WebhookProviderHandler = {
@@ -184,6 +233,20 @@ export const jotformHandler: WebhookProviderHandler = {
     const notificationUrl = getNotificationUrl(ctx.webhook)
 
     try {
+      if (
+        await activeDeploymentSharesJotformCallback(
+          ctx.webhook,
+          credentials.formId,
+          notificationUrl
+        )
+      ) {
+        logger.info(
+          `[${ctx.requestId}] Skipping Jotform webhook deletion because an active deployment is served by the same callback`,
+          { webhookId: ctx.webhook.id }
+        )
+        return
+      }
+
       const webhookId = await listWebhookIdForUrl(credentials, notificationUrl)
 
       if (!webhookId) {

@@ -1,7 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 const WEBHOOK_ID = 'webhook-uuid-1234'
 const NOTIFICATION_URL = 'https://app.example.com/api/webhooks/trigger/jotform-path'
@@ -9,7 +12,8 @@ const NOTIFICATION_URL = 'https://app.example.com/api/webhooks/trigger/jotform-p
 vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getProviderConfig: (webhook: { providerConfig?: Record<string, unknown> }) =>
     webhook.providerConfig || {},
-  getNotificationUrl: () => NOTIFICATION_URL,
+  getNotificationUrl: (webhook: { path?: string | null }) =>
+    `https://app.example.com/api/webhooks/trigger/${webhook.path ?? 'jotform-path'}`,
 }))
 
 import { jotformHandler } from '@/lib/webhooks/providers/jotform'
@@ -18,7 +22,7 @@ const fetchMock = vi.fn()
 
 function createContext(providerConfig: Record<string, unknown>) {
   return {
-    webhook: { id: WEBHOOK_ID, path: 'jotform-path', providerConfig },
+    webhook: { id: WEBHOOK_ID, workflowId: 'wf-1', path: 'jotform-path', providerConfig },
     workflow: {},
     userId: 'user-1',
     requestId: 'req-1',
@@ -201,6 +205,7 @@ describe('jotformHandler createSubscription', () => {
 describe('jotformHandler deleteSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -224,6 +229,44 @@ describe('jotformHandler deleteSubscription', () => {
     await jotformHandler.deleteSubscription!(createContext({ formId: '1', apiKey: 'jf-key' }))
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * Redeploying prepares the replacement row before the retired row is cleaned up, and the
+   * workflow keeps its path, so both rows name one callback on one form. Without the guard
+   * the retired row's cleanup deletes the callback the live row is now relying on and the
+   * trigger goes silent.
+   */
+  it('leaves the callback alone while an active deployment is served by it', async () => {
+    queueTableRows(schemaMock.webhook, [{ path: 'jotform-path', providerConfig: { formId: '1' } }])
+
+    await jotformHandler.deleteSubscription!(createContext({ formId: '1', apiKey: 'jf-key' }))
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('still deletes when the active deployment points at a different form', async () => {
+    queueTableRows(schemaMock.webhook, [
+      { path: 'jotform-path', providerConfig: { formId: '999' } },
+    ])
+    fetchMock
+      .mockResolvedValueOnce(envelope({ '0': NOTIFICATION_URL }))
+      .mockResolvedValueOnce(envelope({}))
+
+    await jotformHandler.deleteSubscription!(createContext({ formId: '1', apiKey: 'jf-key' }))
+
+    expect(fetchMock.mock.calls[1][1].method).toBe('DELETE')
+  })
+
+  it('still deletes when the active deployment is served by a different path', async () => {
+    queueTableRows(schemaMock.webhook, [{ path: 'other-path', providerConfig: { formId: '1' } }])
+    fetchMock
+      .mockResolvedValueOnce(envelope({ '0': NOTIFICATION_URL }))
+      .mockResolvedValueOnce(envelope({}))
+
+    await jotformHandler.deleteSubscription!(createContext({ formId: '1', apiKey: 'jf-key' }))
+
+    expect(fetchMock.mock.calls[1][1].method).toBe('DELETE')
   })
 
   it('swallows a failed cleanup unless the caller is strict', async () => {
