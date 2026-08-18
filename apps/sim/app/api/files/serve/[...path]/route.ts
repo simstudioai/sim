@@ -166,9 +166,11 @@ export const GET = withRouteHandler(
         return await handleLocalFilePublic(fullPath)
       }
 
-      // Resolved from the key's stored binding, not its prefix alone: a mothership chat
-      // attachment carries a `workspace/…` key but is not a workspace file, and the
-      // workspace-file use case below would resolve it to a 404.
+      // Which module owns the object decides which branch below may serve it, and that
+      // is the row's answer, not the prefix's — a `workspace/` key carries both Files
+      // module files and mothership chat attachments. Reading the prefix alone here is
+      // what sent every attachment into the workspace-file use case, which matches on
+      // `context = 'workspace'` and answered 404 for a file that was present.
       const storageContext = await resolveStoredFileContext(cloudKey)
       const workspacePrincipal =
         storageContext === 'workspace'
