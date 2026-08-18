@@ -20,6 +20,7 @@ import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
   serializeConnectors,
+  serializeCredentialGroups,
   serializeCredentials,
   serializeDeployments,
   serializeFileMeta,
@@ -27,7 +28,9 @@ import {
   serializeKBMeta,
   serializeOrganization,
   serializeOrganizationCustomBlocks,
+  serializeOrganizationWorkspaces,
   serializeOrgCustomBlockDetail,
+  serializePermissionGroupRoster,
   serializeSandbox,
   serializeSandboxCatalog,
   serializeTableMeta,
@@ -778,14 +781,79 @@ describe('account and organization namespace serializers', () => {
         { type: 'acme_retired', name: 'Retired', enabled: false },
       ],
       forksMounted: false,
+      permissionGroupsMounted: false,
+      credentialGroupsMounted: true,
     })
 
     expect(readme).toContain('# Organization')
     expect(readme).toContain('custom-blocks/{type}.json')
     expect(readme).toContain('**Acme Scorer** (`acme_scorer`) — published from Scorer in Platform')
     expect(readme).toContain('**Retired** (`acme_retired`) — disabled')
-    // Forks are admin-gated; an unmounted file must not be advertised.
+    // Gated files must not be advertised when unmounted for this viewer.
     expect(readme).not.toContain('forks.json')
+    expect(readme).not.toContain('permission-groups.json')
+    expect(readme).toContain('credential-groups.json')
+  })
+
+  it('scopes credential-group people to admins and flags truncated counts', () => {
+    const base = {
+      id: 'cg-1',
+      name: 'Clients',
+      description: null,
+      status: 'active' as const,
+      options: [
+        { provider: 'gmail', label: 'Work email', required: true, configurationStatus: 'ready' },
+        { provider: 'slack', configurationStatus: 'not_configured' },
+      ],
+      enrollmentCounts: { completed: 2, invited: 1 },
+      enrollmentsTruncated: true,
+      people: [{ email: 'a@x.com', status: 'completed' }],
+    }
+
+    const admin = JSON.parse(serializeCredentialGroups([base], { includeEmails: true }))
+    expect(admin.credentialGroups[0].people).toHaveLength(1)
+    expect(admin.credentialGroups[0].enrollments.countsFromFirstPageOnly).toBe(true)
+    expect(admin.credentialGroups[0].options[1].configurationStatus).toBe('not_configured')
+
+    const member = JSON.parse(serializeCredentialGroups([base], { includeEmails: false }))
+    expect(member.credentialGroups[0].people).toBeUndefined()
+    // The runtime contract the model most needs: empty loop, not an error.
+    expect(member.note).toContain('empty loop, not an error')
+  })
+
+  it('maps the org workspace directory with access flags and fork parentage', () => {
+    const dir = JSON.parse(
+      serializeOrganizationWorkspaces([
+        { id: 'ws-1', name: 'Platform', hasAccess: true, forkedFromWorkspaceId: null },
+        { id: 'ws-2', name: 'Client Fork', hasAccess: false, forkedFromWorkspaceId: 'ws-1' },
+      ])
+    )
+    expect(dir.workspaces[1]).toEqual({
+      id: 'ws-2',
+      name: 'Client Fork',
+      hasAccess: false,
+      forkedFromWorkspaceId: 'ws-1',
+    })
+    expect(dir.note).toContain('nameable, not readable')
+  })
+
+  it('gives the admin roster restrictions per group, not per viewer', () => {
+    const roster = JSON.parse(
+      serializePermissionGroupRoster([
+        {
+          id: 'pg-1',
+          name: 'Contractors',
+          description: null,
+          isDefault: false,
+          memberCount: 4,
+          workspaces: [{ id: 'ws-1', name: 'Platform' }],
+          activeRestrictions: [{ key: 'hideDeployApi', description: 'Cannot deploy as API' }],
+        },
+      ])
+    )
+    expect(roster.permissionGroups[0].memberCount).toBe(4)
+    expect(roster.permissionGroups[0].activeRestrictions[0].key).toBe('hideDeployApi')
+    expect(roster.note).toContain('access-control.json')
   })
 
   it('summarizes fork mappings by resource type and omits them at the root', () => {

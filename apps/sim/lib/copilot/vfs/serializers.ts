@@ -1652,6 +1652,8 @@ export function buildOrganizationReadme(input: {
     workspaceName?: string | null
   }>
   forksMounted: boolean
+  permissionGroupsMounted: boolean
+  credentialGroupsMounted: boolean
 }): string {
   const lines: string[] = [
     '# Organization',
@@ -1663,8 +1665,19 @@ export function buildOrganizationReadme(input: {
     '- `organization.json` — org identity, your relationship (internal/external) and role, who can manage it. Plan usage and credits live in `account/billing.json`, not here.',
     '- `access-control.json` — the permission group governing YOU and the restrictions it enforces. Restrictions are enforced server-side on every action, so consult this before promising an action is possible. It describes this user only.',
     '- `custom-blocks.json` — names-only index of org-published blocks.',
-    '- `custom-blocks/{type}.json` — one block in depth: provenance and a read-only view of the DEPLOYED workflow graph backing it. To add the block to a workflow, use its callable schema at `components/blocks/{type}.json`; the deployed graph is for understanding what the block does, not for editing.',
+    '- `custom-blocks/{type}.json` — one block in depth: provenance and a read-only view of the DEPLOYED workflow graph backing it (org members only). To add the block to a workflow, use its callable schema at `components/blocks/{type}.json`; the deployed graph is for understanding what the block does, not for editing.',
+    '- `workspaces.json` — every workspace in the organization with your access flag and fork parentage (org members only).',
   ]
+  if (input.permissionGroupsMounted) {
+    lines.push(
+      '- `permission-groups.json` — the admin roster: every group with member count, targeted workspaces, and active restrictions.'
+    )
+  }
+  if (input.credentialGroupsMounted) {
+    lines.push(
+      '- `credential-groups.json` — managed credential groups: per-provider configuration readiness and enrollment progress. Consumed in workflows via the credential_group block.'
+    )
+  }
   if (input.forksMounted) {
     lines.push(
       "- `forks.json` — this workspace's place in the fork tree and what was mapped from the parent. Forking, promoting, and rolling back are admin actions in the UI."
@@ -1683,6 +1696,123 @@ export function buildOrganizationReadme(input: {
   }
   lines.push('')
   return lines.join('\n')
+}
+
+/**
+ * `organization/workspaces.json` — the org's workspace map: every workspace in
+ * the organization, with whether the viewer can open it and its fork
+ * parentage. Broader than `account/workspaces.json`, which lists only what the
+ * viewer can reach.
+ */
+export function serializeOrganizationWorkspaces(
+  workspaces: Array<{
+    id: string
+    name: string
+    hasAccess: boolean
+    forkedFromWorkspaceId?: string | null
+  }>
+): string {
+  return JSON.stringify(
+    {
+      workspaces: workspaces.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        hasAccess: entry.hasAccess,
+        ...(entry.forkedFromWorkspaceId
+          ? { forkedFromWorkspaceId: entry.forkedFromWorkspaceId }
+          : {}),
+      })),
+      note: 'Every workspace in the organization. hasAccess is YOUR access; workspaces without it are nameable, not readable, and only the current workspace is mounted in this VFS.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/permission-groups.json` — the org-admin roster: every group
+ * with member count, targeted workspaces, and the restrictions its config
+ * activates. `access-control.json` stays the per-viewer view; this is the
+ * management matrix.
+ */
+export function serializePermissionGroupRoster(
+  groups: Array<{
+    id: string
+    name: string
+    description: string | null
+    isDefault: boolean
+    memberCount: number
+    workspaces: Array<{ id: string; name: string }>
+    activeRestrictions: Array<{ key: string; description: string }>
+  }>
+): string {
+  return JSON.stringify(
+    {
+      permissionGroups: groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        ...(group.description ? { description: group.description } : {}),
+        isDefault: group.isDefault,
+        memberCount: group.memberCount,
+        workspaces: group.workspaces,
+        activeRestrictions: group.activeRestrictions,
+      })),
+      note: 'Management view (org admins). The group governing THIS user, with resolution reason, is in access-control.json. Group membership and scopes are edited in the Sim UI.',
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * `organization/credential-groups.json` — managed credential groups with the
+ * two facts that decide whether a workflow using them will actually run:
+ * per-option configuration readiness and enrollment progress. Enrollee emails
+ * are the same privilege as the settings page, so they appear for workspace
+ * admins only.
+ */
+export function serializeCredentialGroups(
+  groups: Array<{
+    id: string
+    name: string
+    description: string | null
+    status: 'active' | 'disabled'
+    options: Array<{
+      provider: string
+      label?: string | null
+      required?: boolean
+      configurationStatus: string
+    }>
+    enrollmentCounts: Record<string, number>
+    enrollmentsTruncated: boolean
+    people?: Array<{ email: string; status: string }>
+  }>,
+  options: { includeEmails: boolean }
+): string {
+  return JSON.stringify(
+    {
+      credentialGroups: groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        ...(group.description ? { description: group.description } : {}),
+        status: group.status,
+        options: group.options.map((option) => ({
+          provider: option.provider,
+          ...(option.label ? { label: option.label } : {}),
+          ...(option.required !== undefined ? { required: option.required } : {}),
+          configurationStatus: option.configurationStatus,
+        })),
+        enrollments: {
+          ...group.enrollmentCounts,
+          ...(group.enrollmentsTruncated ? { countsFromFirstPageOnly: true } : {}),
+        },
+        ...(options.includeEmails && group.people ? { people: group.people } : {}),
+      })),
+      note: 'A workflow consumes a group through a credential_group block (operation list_credentials -> ForEach over the returned credentialId page). list_credentials returns only ACTIVE credentials of in_progress/completed people — an active group with zero completed enrollments yields an empty loop, not an error. An option at not_configured makes the whole group unusable. Enrollment is admin-driven from the settings UI; invite links cannot be created or read from here.',
+    },
+    null,
+    2
+  )
 }
 
 /**

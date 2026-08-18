@@ -82,6 +82,7 @@ import {
   serializeConnectorOverview,
   serializeConnectorSchema,
   serializeConnectors,
+  serializeCredentialGroups,
   serializeCredentials,
   serializeCustomTool,
   serializeDeployments,
@@ -93,7 +94,9 @@ import {
   serializeMcpServer,
   serializeOrganization,
   serializeOrganizationCustomBlocks,
+  serializeOrganizationWorkspaces,
   serializeOrgCustomBlockDetail,
+  serializePermissionGroupRoster,
   serializeRecentExecutions,
   serializeSandbox,
   serializeSandboxCatalog,
@@ -113,6 +116,8 @@ import {
   isHosted,
 } from '@/lib/core/config/env-flags'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
+import { listCredentialGroups } from '@/lib/credential-groups/service'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -140,6 +145,10 @@ import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { getActivePermissionGroupRestrictions } from '@/lib/permission-groups/features'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
+import {
+  listOrganizationWorkspaceRefs,
+  listPermissionGroupRoster,
+} from '@/lib/permission-groups/queries'
 import { listTables } from '@/lib/table/service'
 import {
   listTableViewsByWorkspace,
@@ -2572,6 +2581,111 @@ export class WorkspaceVFS {
           }
       }
 
+      // Everything below is registered LAZILY: the paths appear in the key
+      // view (so glob lists them) but no query runs until something reads
+      // one. Registration itself is the permission gate — an unpermitted
+      // viewer's file simply does not exist.
+      if (hostContext.viewer.isHostOrganizationMember) {
+        this.registerLazy('organization/workspaces.json', async () => {
+          try {
+            const [refs, accessible] = await Promise.all([
+              listOrganizationWorkspaceRefs(organizationId),
+              listAccessibleWorkspaceRowsForUser(userId).catch(() => []),
+            ])
+            const accessibleIds = new Set(accessible.map((row) => row.workspace.id))
+            const forkParents = new Map(
+              accessible.map((row) => [row.workspace.id, row.workspace.forkedFromWorkspaceId])
+            )
+            return serializeOrganizationWorkspaces(
+              refs.map((ref) => ({
+                id: ref.id,
+                name: ref.name,
+                hasAccess: accessibleIds.has(ref.id),
+                forkedFromWorkspaceId: forkParents.get(ref.id) ?? null,
+              }))
+            )
+          } catch (err) {
+            logger.warn('Failed to load org workspaces', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      if (hostContext.viewer.isHostOrganizationAdmin) {
+        this.registerLazy('organization/permission-groups.json', async () => {
+          try {
+            const roster = await listPermissionGroupRoster(organizationId)
+            if (roster.length === 0) return null
+            return serializePermissionGroupRoster(roster)
+          } catch (err) {
+            logger.warn('Failed to load permission-group roster', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
+      const credentialGroupsAvailable = hostContext.features?.credentialGroups === true
+      if (credentialGroupsAvailable) {
+        const includeEmails = hostContext.viewer.permission === 'admin'
+        this.registerLazy('organization/credential-groups.json', async () => {
+          try {
+            const records = await listCredentialGroups(workspaceId)
+            if (records.length === 0) return null
+            const groups = await Promise.all(
+              records.map(async (record) => {
+                const enrollmentCounts: Record<string, number> = {}
+                let people: Array<{ email: string; status: string }> | undefined
+                let truncated = false
+                try {
+                  const page = await listCredentialGroupEnrollments(workspaceId, record.id, 100)
+                  truncated = page.nextCursor !== null
+                  for (const enrollment of page.enrollments) {
+                    enrollmentCounts[enrollment.status] =
+                      (enrollmentCounts[enrollment.status] ?? 0) + 1
+                  }
+                  if (includeEmails) {
+                    people = page.enrollments.map((enrollment) => ({
+                      email: enrollment.email,
+                      status: enrollment.status,
+                    }))
+                  }
+                } catch {
+                  // Counts degrade to empty; the group itself still lists.
+                }
+                return {
+                  id: record.id,
+                  name: record.name,
+                  description: record.description,
+                  status: record.status,
+                  options: record.options.map((option) => ({
+                    provider: option.provider,
+                    label: 'label' in option ? option.label : undefined,
+                    required: 'required' in option ? option.required : undefined,
+                    configurationStatus: option.configurationStatus,
+                  })),
+                  enrollmentCounts,
+                  enrollmentsTruncated: truncated,
+                  ...(people ? { people } : {}),
+                }
+              })
+            )
+            return serializeCredentialGroups(groups, { includeEmails })
+          } catch (err) {
+            logger.warn('Failed to load credential groups', {
+              workspaceId,
+              error: toError(err).message,
+            })
+            return null
+          }
+        })
+      }
+
       const forksAvailable =
         hostContext.viewer.permission === 'admin' &&
         (await isForkingAvailableForWorkspace(organizationId, userId).catch(() => false))
@@ -2583,6 +2697,8 @@ export class WorkspaceVFS {
           isEnterprise: hostContext.ownerBilling.isEnterprise,
           customBlocks: orgBlocks,
           forksMounted: forksAvailable,
+          permissionGroupsMounted: hostContext.viewer.isHostOrganizationAdmin,
+          credentialGroupsMounted: credentialGroupsAvailable,
         })
       )
 
