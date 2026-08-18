@@ -101,7 +101,6 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
   const identifierNames: string[] = []
   const values: string[] = []
   const environmentReads: DirectEnvironmentRead[] = []
-  let environmentVariablesShadowed = false
   const visit = (node: ts.Node): void => {
     const isTemplateToken =
       node.kind === ts.SyntaxKind.TemplateHead ||
@@ -111,25 +110,6 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
       const text: unknown = Reflect.get(node, 'text')
       if (typeof text === 'string' && text) values.push(text)
       if (ts.isIdentifier(node) && node.text) identifierNames.push(node.text)
-      /**
-       * A rebinding of the runtime environment name makes every read off it ambiguous, so
-       * detection is disabled for the whole file rather than resolving scopes.
-       *
-       * Reuses the pair this file already applies to reject a placeholder in a write position
-       * instead of re-deriving the node kinds: `isDeclarationIdentifier` covers declarations,
-       * parameters, destructured bindings and imports, while `isWriteIdentifier` covers every
-       * assignment operator, `++`/`--`, destructuring targets, and `for…in` / `for…of`
-       * initializers — including the bare `for (environmentVariables of rows)` form, which has
-       * no declaration to key off.
-       */
-      if (
-        !environmentVariablesShadowed &&
-        ts.isIdentifier(node) &&
-        node.text === ENVIRONMENT_VARIABLES_IDENTIFIER &&
-        (isDeclarationIdentifier(node) || isWriteIdentifier(node))
-      ) {
-        environmentVariablesShadowed = true
-      }
       const rawText: unknown = Reflect.get(node, 'rawText')
       if (typeof rawText === 'string' && rawText) values.push(rawText)
     }
@@ -145,12 +125,17 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return {
-    identifierNames,
-    values,
-    /** A shadowed binding makes every read ambiguous, so none of them are reported. */
-    environmentReads: environmentVariablesShadowed ? [] : environmentReads,
-  }
+  /**
+   * A local binding that shadows the runtime environment name is deliberately NOT used to
+   * discard these reads.
+   *
+   * Doing so was file-wide, so a helper declaring its own `environmentVariables` silently
+   * dropped genuine reads of the mounted binding everywhere else in the source, and a dropped
+   * read never reaches the output matcher — leaving a real secret unmasked. Reporting a read
+   * off a shadowing local costs far less: the matcher is given that secret's exact value, the
+   * code never emits it, and nothing matches.
+   */
+  return { identifierNames, values, environmentReads }
 }
 
 function collectForbiddenSentinels(

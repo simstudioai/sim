@@ -1378,65 +1378,33 @@ describe('writing a configured name is not reading it', () => {
   })
 })
 
-describe('a shadowed environment binding disables direct-read detection', () => {
+describe('a shadowing local does not suppress reads', () => {
   /**
-   * A local object that merely shares the runtime binding's name is not the mounted
-   * environment, so reading a same-named key off it is not a use of the secret. The trail
-   * must not claim uses that never happened.
+   * A read off a shadowing local is reported rather than discarded. Dropping it was file-wide,
+   * so a helper with its own `environmentVariables` silently removed genuine reads elsewhere in
+   * the source — and a dropped read never reaches the output matcher, leaving a real secret
+   * unmasked. Reporting one costs only an exact value the code never emits.
    */
+  it('reports a read that a helper-scoped binding would previously have discarded', async () => {
+    const code = [
+      'function helper(environmentVariables) { return environmentVariables.API_KEY }',
+      'return helper({}) + environmentVariables.API_KEY',
+    ].join('\n')
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
   it.each([
     [
       'const declaration',
       "const environmentVariables = { API_KEY: 'x' }\nreturn environmentVariables.API_KEY",
     ],
-    ['let declaration', "let environmentVariables = {}\nreturn environmentVariables['API_KEY']"],
-    [
-      'function parameter',
-      'function read(environmentVariables) { return environmentVariables.API_KEY }\nreturn read({})',
-    ],
-    [
-      'arrow parameter',
-      'const read = (environmentVariables) => environmentVariables.API_KEY\nreturn read({})',
-    ],
-    [
-      'destructured binding',
-      'const { environmentVariables } = payload\nreturn environmentVariables.API_KEY',
-    ],
+    ['bare for-of target', 'for (environmentVariables of rows) log(environmentVariables.API_KEY)'],
     [
       'bare reassignment',
       "environmentVariables = { API_KEY: 'x' }\nreturn environmentVariables.API_KEY",
     ],
-    ['bare for-of target', 'for (environmentVariables of rows) log(environmentVariables.API_KEY)'],
-    [
-      'bare for-in target',
-      "for (environmentVariables in rows) log(environmentVariables['API_KEY'])",
-    ],
-    [
-      'declared for-of target',
-      'for (const environmentVariables of rows) log(environmentVariables.API_KEY)',
-    ],
-    ['logical assignment', 'environmentVariables ||= {}\nreturn environmentVariables.API_KEY'],
-    ['nullish assignment', "environmentVariables ??= {}\nreturn environmentVariables['API_KEY']"],
-    [
-      'object destructuring assignment',
-      '({ environmentVariables } = payload)\nreturn environmentVariables.API_KEY',
-    ],
-    [
-      'array destructuring assignment',
-      '[environmentVariables] = rows\nreturn environmentVariables.API_KEY',
-    ],
-    [
-      'catch binding',
-      'try { go() } catch (environmentVariables) { log(environmentVariables.API_KEY) }',
-    ],
-  ])('javascript: %s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
-  })
-
-  it('javascript still reports an unshadowed read', async () => {
-    expect(
-      await directReadNames('return environmentVariables.API_KEY', CodeLanguage.JavaScript)
-    ).toEqual(['API_KEY'])
+  ])('javascript reports despite a shadow: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
   })
 
   it.each([
@@ -1445,87 +1413,8 @@ describe('a shadowed environment binding disables direct-read detection', () => 
       'def parameter',
       "def read(environmentVariables):\n    return environmentVariables['API_KEY']",
     ],
-    ['passed to a function', "log(environmentVariables)\nk = environmentVariables['API_KEY']"],
-    ['for target', "for environmentVariables in rows:\n    k = environmentVariables['API_KEY']"],
-    [
-      'with-as target',
-      "with open(p) as environmentVariables:\n    k = environmentVariables['API_KEY']",
-    ],
-  ])('python: %s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.Python)).toEqual([])
-  })
-
-  /** Cursor's cross-line case: the `.` sits on the previous line inside parentheses. */
-  it('python: attribute access split across a line', async () => {
-    expect(
-      await directReadNames(
-        "k = (other.\n     environmentVariables['API_KEY'])",
-        CodeLanguage.Python
-      )
-    ).toEqual([])
-  })
-
-  it('python: attribute access after a line continuation', async () => {
-    expect(
-      await directReadNames(
-        "k = other.\\\n    environmentVariables['API_KEY']",
-        CodeLanguage.Python
-      )
-    ).toEqual([])
-  })
-
-  it('python still reports an unshadowed read', async () => {
-    expect(
-      await directReadNames("k = environmentVariables['API_KEY']", CodeLanguage.Python)
-    ).toEqual(['API_KEY'])
-  })
-})
-
-describe('a rebound shell variable is not the mounted secret', () => {
-  /**
-   * Each shell secret is its own variable, so a script that writes the name is expanding its
-   * own value from that point on. Recording it would claim a use of the injected secret that
-   * never happened.
-   */
-  it.each([
-    ['plain assignment', 'API_KEY=local\necho "$API_KEY"'],
-    ['export assignment', 'export API_KEY=local\necho "$API_KEY"'],
-    ['local assignment', 'f() { local API_KEY=x; echo "$API_KEY"; }\nf'],
-    ['readonly assignment', 'readonly API_KEY=x\necho "$API_KEY"'],
-    ['append assignment', 'API_KEY+=suffix\necho "$API_KEY"'],
-    ['read into the name', 'read API_KEY\necho "$API_KEY"'],
-    ['for loop target', 'for API_KEY in a b; do echo "$API_KEY"; done'],
-    ['unset', 'unset API_KEY\necho "$API_KEY"'],
-  ])('%s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.Shell)).toEqual([])
-  })
-
-  /** Rebinding one variable says nothing about the others, unlike the single object JS and Python share. */
-  it('drops only the rebound name', async () => {
-    const compiled = await compileCodePlaceholders({
-      code: 'API_KEY=local\necho "$API_KEY $OTHER_KEY"',
-      language: CodeLanguage.Shell,
-      environmentVariables: { API_KEY: 'a-value', OTHER_KEY: 'b-value' },
-    })
-    expect(compiled.resolvedSecretNames).toEqual(['OTHER_KEY'])
-  })
-
-  /**
-   * Cursor's case: these mention the name without binding it, so the expansion beside them is
-   * still a real read of the mounted secret and must keep its masking.
-   */
-  it.each([
-    ['literal argument', 'echo API_KEY=$API_KEY'],
-    ['quoted literal', 'echo "API_KEY=$API_KEY"'],
-    ['comment naming the key', '# rotate API_KEY monthly\necho "$API_KEY"'],
-    ['comment with an assignment shape', '# API_KEY=old\necho "$API_KEY"'],
-    ['name inside another word', 'echo MY_API_KEY_BACKUP\necho "$API_KEY"'],
-  ])('keeps the read despite a bare mention: %s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.Shell)).toEqual(['API_KEY'])
-  })
-
-  it('still reports a name the script only expands', async () => {
-    expect(await directReadNames('echo "$API_KEY"', CodeLanguage.Shell)).toEqual(['API_KEY'])
+  ])('python reports despite a shadow: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
   })
 })
 

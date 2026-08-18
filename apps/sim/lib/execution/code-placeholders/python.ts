@@ -572,21 +572,6 @@ function classifyPythonBarePlaceholder(
 const PYTHON_DIRECT_ENVIRONMENT_READ =
   /environmentVariables\s*(?:\[\s*(['"])([A-Za-z0-9_]+)\1\s*\]|\.\s*get\s*\(\s*(['"])([A-Za-z0-9_]+)\3)/g
 
-/** Every mention of the runtime binding, whatever it is being used for. */
-const PYTHON_ENVIRONMENT_IDENTIFIER = /environmentVariables/g
-
-/**
- * The only two shapes this detector can attribute: a literal subscript or `.get()`.
- *
- * Anything else — `environmentVariables = {...}`, a `def` parameter, `for … in`, `as`, or
- * simply passing it to a function — either rebinds the name or aliases the object somewhere
- * this scanner cannot follow. There is no Python parser here to resolve scopes with, so the
- * rule is an allowlist: if a mention is not one of these two reads, detection is off for the
- * whole file. Under-reporting is the safe direction — a trail that claims a use that never
- * happened is worse than one that misses a use.
- */
-const PYTHON_ATTRIBUTABLE_ENVIRONMENT_USE = /^environmentVariables\s*(?:\[|\.\s*get\s*\()/
-
 /**
  * Reports environment reads that bypass `{{NAME}}`, skipping any match that the lexer places
  * inside a string or comment — the same authority the placeholder rewriter uses to decide
@@ -607,6 +592,18 @@ function recordPythonDirectEnvironmentReads(
   let match: RegExpExecArray | null
   while ((match = PYTHON_DIRECT_ENVIRONMENT_READ.exec(code)) !== null) {
     if (isIdentifierCharacter(code[match.index - 1])) continue
+    /**
+     * `other.environmentVariables['K']` reads a different object that merely shares the name,
+     * so it is not the mounted binding at all. This is the receiver check the JavaScript side
+     * gets from the AST, and unlike a scope or rebinding rule it cannot suppress a genuine
+     * read: it only rejects an access whose receiver is demonstrably something else.
+     *
+     * Whitespace and line continuations are skipped, so a `.` left on a previous line inside
+     * parentheses reads the same as one written adjacently.
+     */
+    let previous = match.index - 1
+    while (previous >= 0 && /[\s\\]/.test(code[previous])) previous -= 1
+    if (code[previous] === '.') continue
     if (!context.tracksDirectEnvironmentRead(match[2] ?? match[4] ?? '')) continue
     matches.push(match)
   }
@@ -617,25 +614,6 @@ function recordPythonDirectEnvironmentReads(
     ...lexed.comments,
     ...lexed.strings.map((token): [number, number] => [token.start, token.end]),
   ]
-
-  /**
-   * Every real mention has to be an attributable read before any of them is recorded.
-   *
-   * This also settles attribute access: `other.environmentVariables['K']` reads an unrelated
-   * object that merely shares the name, and it is caught here by the preceding `.` rather
-   * than by a look-behind, so a `.` separated by a newline inside parentheses or after a
-   * line continuation is handled the same as one separated by a space.
-   */
-  PYTHON_ENVIRONMENT_IDENTIFIER.lastIndex = 0
-  let mention: RegExpExecArray | null
-  while ((mention = PYTHON_ENVIRONMENT_IDENTIFIER.exec(code)) !== null) {
-    if (isOffsetInRanges(mention.index, ignoredRanges)) continue
-    if (isIdentifierCharacter(code[mention.index - 1])) continue
-    let previous = mention.index - 1
-    while (previous >= 0 && /[\s\\]/.test(code[previous])) previous -= 1
-    if (code[previous] === '.') return
-    if (!PYTHON_ATTRIBUTABLE_ENVIRONMENT_USE.test(code.slice(mention.index))) return
-  }
 
   /**
    * A write or `del` target is reported like any other access, deliberately.
