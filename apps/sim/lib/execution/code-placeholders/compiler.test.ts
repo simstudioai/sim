@@ -1346,6 +1346,29 @@ describe('a shadowed environment binding disables direct-read detection', () => 
       'bare reassignment',
       "environmentVariables = { API_KEY: 'x' }\nreturn environmentVariables.API_KEY",
     ],
+    ['bare for-of target', 'for (environmentVariables of rows) log(environmentVariables.API_KEY)'],
+    [
+      'bare for-in target',
+      "for (environmentVariables in rows) log(environmentVariables['API_KEY'])",
+    ],
+    [
+      'declared for-of target',
+      'for (const environmentVariables of rows) log(environmentVariables.API_KEY)',
+    ],
+    ['logical assignment', 'environmentVariables ||= {}\nreturn environmentVariables.API_KEY'],
+    ['nullish assignment', "environmentVariables ??= {}\nreturn environmentVariables['API_KEY']"],
+    [
+      'object destructuring assignment',
+      '({ environmentVariables } = payload)\nreturn environmentVariables.API_KEY',
+    ],
+    [
+      'array destructuring assignment',
+      '[environmentVariables] = rows\nreturn environmentVariables.API_KEY',
+    ],
+    [
+      'catch binding',
+      'try { go() } catch (environmentVariables) { log(environmentVariables.API_KEY) }',
+    ],
   ])('javascript: %s', async (_label, code) => {
     expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
   })
