@@ -57,6 +57,11 @@ Each setting resolves independently, first match wins:
 | --- | --- |
 | 1 | Command-line flag (`--endpoint`, `--workspace`, `--output`) |
 | 2 | Environment (`SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT`) |
+
+`SIM_TIMEOUT_SECONDS` bounds each request (default `3600`, `0` waits
+indefinitely) and `SIM_DEBUG=1` traces requests to stderr. Node ignores
+`HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is also set, on Node 22.21+ or
+24.5+; the CLI warns when a proxy is configured but will not be used.
 | 3 | `~/.sim/config` / `~/.sim/credentials` for the selected profile |
 | 4 | Built-in default (`https://www.sim.ai`, `table`) |
 

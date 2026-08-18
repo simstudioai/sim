@@ -101,6 +101,12 @@ credentials. The `default` profile is `[default]` in both.
 | `SIM_CONFIG_DIR` | Relocate both files away from `~/.sim` |
 | `SIM_CONFIG_FILE` | Relocate only the config file |
 | `SIM_CREDENTIALS_FILE` | Relocate only the credentials file |
+| `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely. Defaults to `3600`, above every timeout the server itself applies |
+| `SIM_DEBUG` | Trace each request's method, URL, status and duration to stderr |
+
+Node ignores `HTTPS_PROXY` unless you also set `NODE_USE_ENV_PROXY=1`, and only
+from Node 22.21 and 24.5. The CLI warns when a proxy is configured but will not
+be used.
 
 For CI, set `SIM_API_KEY` and `SIM_WORKSPACE` and nothing needs to touch the
 filesystem at all.

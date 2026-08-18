@@ -1,6 +1,7 @@
 import chalk from 'chalk'
 import type { ResolvedProfile } from '../config/index'
 import { USER_AGENT } from '../version'
+import { warnIfKeyOverCleartext, warnIfProxyIgnored } from './environment'
 
 /**
  * A failure the CLI can explain. Anything thrown as a `SimApiError` is printed
@@ -249,6 +250,54 @@ function dropUnionBranchNoise(issues: DetailIssue[]): DetailIssue[] {
   return kept.length > 0 ? kept : issues
 }
 
+/**
+ * How long a single request may take before the CLI gives up, in seconds.
+ *
+ * The default is deliberately above every bound the server itself applies: a
+ * synchronous workflow run is allowed 3000s on a paid plan, so a tighter
+ * default would abort real work and report it as a transport failure. What it
+ * catches is the case the server cannot — a connection that is accepted and
+ * then never answers, which otherwise hangs the terminal indefinitely.
+ *
+ * `SIM_TIMEOUT_SECONDS=0` removes the bound, for a self-hosted deployment that
+ * runs executions without one of its own.
+ */
+const DEFAULT_TIMEOUT_SECONDS = 3600
+
+function resolveTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.SIM_TIMEOUT_SECONDS
+  if (raw === undefined || raw.trim() === '') return DEFAULT_TIMEOUT_SECONDS * 1000
+
+  const seconds = Number(raw)
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    throw new SimApiError(
+      `Invalid SIM_TIMEOUT_SECONDS "${raw}". Use a non-negative number of seconds, or 0 to disable.`,
+      0
+    )
+  }
+  return seconds * 1000
+}
+
+/** Whether to trace requests to stderr. */
+function debugEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.SIM_DEBUG
+  return raw !== undefined && raw !== '' && raw !== '0' && raw.toLowerCase() !== 'false'
+}
+
+/**
+ * Traces one request on stderr.
+ *
+ * Method, URL, status and duration only. Bodies and headers are deliberately
+ * absent: the request carries the API key, and `secrets set` carries the secret
+ * itself, so a trace that included either would write credentials into whatever
+ * log the user pasted it into.
+ */
+function traceRequest(method: string, url: string, status: number | string, startedAt: number) {
+  process.stderr.write(
+    `${chalk.dim(`[sim] ${method} ${url} → ${status} ${Math.round(performance.now() - startedAt)}ms`)}\n`
+  )
+}
+
 /** Formats nested validation issues as readable, path-aware lines. */
 export function formatApiErrorDetails(details: unknown): string[] {
   const issues: DetailIssue[] = []
@@ -366,11 +415,27 @@ export class SimClient {
 
     const url = buildUrl(this.profile.endpoint, path, options.query)
     const hasBody = options.body !== undefined
+    const method = options.method ?? 'GET'
+
+    warnIfProxyIgnored()
+    warnIfKeyOverCleartext(this.profile.endpoint, Boolean(apiKey))
+
+    // The caller's signal still cancels; the timeout only adds a second reason
+    // to abort, so neither can mask the other.
+    const timeoutMs = resolveTimeoutMs()
+    const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined
+    const signal =
+      options.signal && timeout
+        ? AbortSignal.any([options.signal, timeout])
+        : (options.signal ?? timeout)
+
+    const trace = debugEnabled()
+    const startedAt = performance.now()
 
     let response: Response
     try {
       response = await fetch(url, {
-        method: options.method ?? 'GET',
+        method,
         headers: {
           ...(apiKey ? { 'x-api-key': apiKey } : {}),
           accept: 'application/json',
@@ -379,18 +444,27 @@ export class SimClient {
           ...options.headers,
         },
         body: hasBody ? JSON.stringify(options.body) : undefined,
-        signal: options.signal,
+        signal,
         redirect: 'manual',
       })
     } catch (cause) {
+      if (trace) traceRequest(method, url, 'failed', startedAt)
       if (options.signal?.aborted) {
         throw new SimApiError('Request cancelled.', 0)
+      }
+      if (timeout?.aborted) {
+        throw new SimApiError(
+          `${url} did not answer within ${timeoutMs / 1000}s. Raise SIM_TIMEOUT_SECONDS, or set it to 0 to wait indefinitely.`,
+          0
+        )
       }
       throw new SimApiError(
         `Could not reach ${this.profile.endpoint}: ${(cause as Error).message}`,
         0
       )
     }
+
+    if (trace) traceRequest(method, url, response.status, startedAt)
 
     if (REDIRECT_STATUSES.has(response.status)) throw this.toRedirectError(url, path, response)
 
