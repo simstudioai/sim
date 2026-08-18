@@ -4761,12 +4761,16 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
             description: {
               type: 'string',
               description:
-                'What the variable is for, in one short phrase — aim for under 80 characters, like "Stripe live key for the billing workflow". Not a sentence, and never a restatement of the name. Workspace scope only; sending it with scope personal is rejected. Omit it on an existing variable to leave its current description untouched; send an empty string to clear one.',
+                'What the variable is for, in one short phrase — aim for under 80 characters, like "Stripe live key for the billing workflow". Not a sentence, and never a restatement of the name. Workspace scope only; sending it with scope personal is rejected. Omit it on an existing variable to leave its current description untouched; send an empty string to clear one. You may send it alone, without a value, to describe a secret that already exists.',
             },
             name: { type: 'string', description: 'Variable name' },
-            value: { type: 'string', description: 'Variable value' },
+            value: {
+              type: 'string',
+              description:
+                "Variable value. Omit it to leave an existing variable's value untouched and change only its description — never invent or guess a value you were not given, which would overwrite the real secret.",
+            },
           },
-          required: ['name', 'value'],
+          required: ['name'],
         },
       },
     },
