@@ -301,14 +301,22 @@ const TIME_RANGE_MS: Record<string, number> = {
   'past-30-days': 30 * 24 * 60 * 60 * 1000,
 }
 
-/** Normalizes multi-select arrays or comma strings into a comma-separated string. */
+/**
+ * Normalizes multi-select arrays or comma strings into a comma-separated string.
+ *
+ * Every entry is itself split on commas and trimmed: a single option id can hold
+ * several values (the merged trigger labels), and advanced-mode fields are typed
+ * by hand. The filters this feeds split on commas without trimming, so a stray
+ * space would silently match nothing.
+ */
 function joinIds(value: unknown): string | undefined {
-  if (Array.isArray(value)) {
-    const ids = value.filter((id): id is string => typeof id === 'string' && id.length > 0)
-    return ids.length > 0 ? ids.join(',') : undefined
-  }
-  if (typeof value === 'string' && value.trim().length > 0) return value.trim()
-  return undefined
+  const entries = Array.isArray(value) ? value : [value]
+  const ids = entries
+    .filter((entry): entry is string => typeof entry === 'string')
+    .flatMap((entry) => entry.split(','))
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0)
+  return ids.length > 0 ? ids.join(',') : undefined
 }
 
 /** Workflow filter, whichever mode the card is in. */

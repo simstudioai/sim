@@ -35,6 +35,22 @@ describe('LogsV2Block trigger filter', () => {
     expect(buildQueryParams({ triggers: ' slack,gmail ' }).triggers).toBe('slack,gmail')
   })
 
+  it('trims each hand-typed entry, not just the ends of the string', () => {
+    // The filters split on commas without trimming, so a surviving space would
+    // match no stored trigger and silently narrow the result set to nothing.
+    expect(buildQueryParams({ triggers: 'api, schedule, slack' }).triggers).toBe(
+      'api,schedule,slack'
+    )
+    expect(buildQueryParams({ triggers: 'api,,schedule,' }).triggers).toBe('api,schedule')
+    expect(buildQueryParams({ triggers: ' , ' }).triggers).toBeUndefined()
+  })
+
+  it('trims entries inside a multi-select selection too', () => {
+    expect(buildQueryParams({ triggers: ['api ', ' copilot, mothership'] }).triggers).toBe(
+      'api,copilot,mothership'
+    )
+  })
+
   it('never sends triggers on the run-details operation', () => {
     expect(
       LogsV2Block.tools.config!.params!({
