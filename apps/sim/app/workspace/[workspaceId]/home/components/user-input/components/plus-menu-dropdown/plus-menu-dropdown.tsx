@@ -8,7 +8,6 @@ import {
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { FolderPathLabel } from '@/components/ui'
 import {
   ResourceMenuSections,
   useAvailableResources,
@@ -16,6 +15,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { MentionRowContent } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/mention-row-content'
 import {
   buildFolderMentionLocationMap,
   resourceMentionMatches,
@@ -355,27 +355,14 @@ export const PlusMenuDropdown = React.memo(
                         handleSelect({ type, id: item.id, title: item.name })
                       }}
                       className={cn(
-                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors duration-0 [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+                        'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left text-[var(--text-body)] text-caption outline-none transition-colors duration-0 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
                         /* `activeIndex` is the cursor, not a selection — hover surface. */
                         isActive && 'bg-[var(--surface-hover)]'
                       )}
                     >
-                      {/* Capped, not shrinkable: a long name must never squeeze out the
-                          location that tells two same-named folders apart. */}
-                      <span
-                        className={cn(
-                          'flex min-w-0 items-center gap-2 [&>span]:min-w-0 [&>span]:truncate',
-                          location && 'max-w-[65%] flex-shrink-0'
-                        )}
-                      >
+                      <MentionRowContent location={location}>
                         {config.renderDropdownItem({ item })}
-                      </span>
-                      {location && (
-                        <FolderPathLabel
-                          prefix={getResourceConfig(location.familyType).label}
-                          segments={location.parentNames}
-                        />
-                      )}
+                      </MentionRowContent>
                     </button>
                   )
                 })
