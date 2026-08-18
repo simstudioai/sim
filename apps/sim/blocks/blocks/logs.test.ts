@@ -10,7 +10,7 @@ vi.mock('@/lib/workflows/subblocks/options', () => ({
 
 import { LogsV2Block } from '@/blocks/blocks/logs'
 
-function buildQueryParams(params: Record<string, any>) {
+function buildQueryParams(params: Record<string, unknown>) {
   return LogsV2Block.tools.config!.params!({ operation: 'query', ...params })
 }
 
@@ -48,6 +48,14 @@ describe('LogsV2Block trigger filter', () => {
 
 describe('LogsV2Block trigger subblocks', () => {
   const subBlockIds = LogsV2Block.subBlocks.map((subBlock) => subBlock.id)
+
+  it('declares triggers as the string it is transformed into', () => {
+    // The generic handler JSON.parses any post-transform input declared 'array' or
+    // 'json', so declaring the joined string as an array would warn on every run
+    // and would turn JSON-looking advanced input into an array the tool rejects.
+    expect(LogsV2Block.inputs.triggers.type).toBe('string')
+    expect(typeof buildQueryParams({ triggers: ['api', 'schedule'] }).triggers).toBe('string')
+  })
 
   it('exposes basic and advanced modes behind one canonical param', () => {
     expect(subBlockIds).toContain('triggerSelector')

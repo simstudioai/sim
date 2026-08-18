@@ -597,8 +597,8 @@ export const LogsV2Block: BlockConfig = {
     workflowIds: { type: 'array', description: 'Workflow IDs to filter by (canonical param)' },
     level: { type: 'array', description: 'Statuses to include (empty for all)' },
     triggers: {
-      type: 'array',
-      description: 'Trigger types to include (canonical param, empty for all)',
+      type: 'string',
+      description: 'Comma-separated trigger types to include (canonical param, empty for all)',
     },
     timeRange: { type: 'string', description: 'Preset time window' },
     startDate: { type: 'string', description: 'ISO 8601 lower bound (overrides Time Range)' },
