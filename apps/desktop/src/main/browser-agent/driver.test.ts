@@ -1697,6 +1697,52 @@ describe('credential protection', () => {
     expect(effect?.targetChanged).toBe(false)
   })
 
+  // The click-that-navigates race from the field: "Begin Assessment" submits a
+  // form, the navigation tears the origin document down, and the CDP dispatch
+  // rejects mid-press. The press already reached the page — the navigation IS
+  // the success — so this must come back dispatched, not failed.
+  it('reports a click whose navigation destroyed the page as a success', async () => {
+    const contents = await openPage()
+    let currentUrl = 'https://example.com/tests/IPIP-BFFM/'
+    vi.mocked(contents.getURL).mockImplementation(() => currentUrl)
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (isPageCall(expression, 'describePointTarget')) {
+        return Promise.resolve({ found: true, element: 'Begin Assessment', cursor: 'pointer' })
+      }
+      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+      if (isPageCall(expression, 'readPageActionState')) {
+        return Promise.resolve({
+          url: currentUrl,
+          title: 'Test',
+          focus: 'body',
+          mutationRevision: 0,
+          dialogs: [],
+          popups: [],
+          scroll: [0],
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method: string) => {
+      if (method === 'Input.dispatchMouseEvent') {
+        currentUrl = 'https://example.com/tests/IPIP-BFFM/1.php'
+        throw new Error('Execution context was destroyed, most likely because of a navigation.')
+      }
+      return {}
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 100, y: 200 })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        dispatched: true,
+        navigatedDuringDispatch: true,
+        effectObserved: true,
+      },
+    })
+  })
+
   it('ignores a dialog that was already open before the click', async () => {
     const contents = await openPage()
     let actionReads = 0

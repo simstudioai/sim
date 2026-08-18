@@ -1101,6 +1101,41 @@ function pageTargetForElement(contents: WebContents, elementId: number): PageExe
 // never leave the agent unable to act — hand-off is cooperative via
 // browser_request_takeover, whose serialized tool slot already keeps agent
 // input out while the user drives.
+/**
+ * The click-that-navigates race: a press submits a form, the navigation tears
+ * the origin document down, and everything AFTER the dispatch — the CDP call's
+ * own completion, the confirmation probe, the postcondition reads — fails
+ * against a destroyed context. Reporting that as a failed click is wrong twice
+ * over: the press reached the page, and the navigation IS the strongest
+ * possible evidence it worked. This detects that case at the driver level,
+ * where the navigation epoch and URL survive the renderer teardown.
+ *
+ * Returns a success result when the page provably navigated since dispatch
+ * began, and null otherwise (caller keeps its original failure).
+ */
+function navigationRescue(
+  contents: WebContents,
+  epochAtDispatch: number,
+  urlAtDispatch: string,
+  base: { trusted: boolean; activation: string }
+): Record<string, unknown> | null {
+  if (contents.isDestroyed()) return null
+  const navigated =
+    navigationEpoch(contents) !== epochAtDispatch || contents.getURL() !== urlAtDispatch
+  if (!navigated) return null
+  return {
+    dispatched: true,
+    trusted: base.trusted,
+    activation: base.activation,
+    effectObserved: true,
+    possibleEffectObserved: true,
+    navigatedDuringDispatch: true,
+    effect: { urlChanged: true },
+    dialogs: [],
+    note: 'The click triggered a page navigation, and the origin document was torn down before its result could be read — that teardown is why no postconditions are reported, not a failure. Take a fresh browser_snapshot of the new page.',
+  }
+}
+
 function assertActiveContents(contents: WebContents, expectedNavigationEpoch?: number): void {
   const active = session.automationTab()
   if (
@@ -2200,6 +2235,8 @@ async function executeToolInner(
       }
 
       const observeTopPage = targetFrame !== null || Number(prepared.frameDepth || 0) > 0
+      const epochAtDispatch = navigationEpoch(contents)
+      const urlAtDispatch = contents.getURL()
       const beforePage = await pageActionState(target, true, elementId)
       const beforeElement = await activeElementState(target)
       const beforeTopPage = observeTopPage ? await pageActionState(contents, true) : beforePage
@@ -2244,6 +2281,11 @@ async function executeToolInner(
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
+          const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
+            trusted: true,
+            activation: 'native-pointer',
+          })
+          if (rescued) return rescued
           throw new ToolError(
             `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
           )
@@ -2280,6 +2322,11 @@ async function executeToolInner(
             activation = 'native-pointer'
             prepared = finalSurface
           } catch (error) {
+            const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
+              trusted: true,
+              activation: 'native-pointer',
+            })
+            if (rescued) return rescued
             throw new ToolError(
               `Native framed click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
             )
@@ -2325,16 +2372,33 @@ async function executeToolInner(
           } else {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
-            const synthetic = unwrapPageResult(
-              await execInPage(
-                target,
-                clickElement,
-                [elementId, true, false],
-                true,
-                executionDeadline
+            let synthetic: unknown
+            try {
+              synthetic = unwrapPageResult(
+                await execInPage(
+                  target,
+                  clickElement,
+                  [elementId, true, false],
+                  true,
+                  executionDeadline
+                )
               )
-            )
+            } catch (error) {
+              // A synchronous form-submit navigation destroys the context
+              // before the dispatch's return value crosses the bridge.
+              const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
+                trusted: false,
+                activation: 'synthetic',
+              })
+              if (rescued) return rescued
+              throw error
+            }
             if (!isRecordLike(synthetic) || synthetic.dispatched !== true) {
+              const rescued = navigationRescue(contents, epochAtDispatch, urlAtDispatch, {
+                trusted: false,
+                activation: 'synthetic',
+              })
+              if (rescued) return rescued
               throw new ToolError('The frame did not confirm synthetic click dispatch.')
             }
           }
@@ -2363,6 +2427,13 @@ async function executeToolInner(
             )),
         tabChanged,
       }
+      // Page-read URLs go blind when the click navigated and the origin
+      // context died: the after-state reads {} and urlChanged computes false
+      // for a maximally successful click. The driver-level epoch/URL survive
+      // the teardown, so fold them in.
+      const navigatedByDriver =
+        !contents.isDestroyed() &&
+        (navigationEpoch(contents) !== epochAtDispatch || contents.getURL() !== urlAtDispatch)
       const clickEffectObserved =
         observation.effect.urlChanged ||
         observation.effect.dialogChanged ||
@@ -2375,9 +2446,13 @@ async function executeToolInner(
           topObservation.effect.dialogChanged ||
           topObservation.effect.popupChanged ||
           topObservation.effect.targetChanged)
-      const effectObserved = clickEffectObserved || topClickEffectObserved || tabChanged
+      const effectObserved =
+        clickEffectObserved || topClickEffectObserved || tabChanged || navigatedByDriver
       const possibleEffectObserved =
-        observation.possibleEffectObserved || topObservation.possibleEffectObserved || tabChanged
+        observation.possibleEffectObserved ||
+        topObservation.possibleEffectObserved ||
+        tabChanged ||
+        navigatedByDriver
       const dialogs = Array.from(
         new Set([
           ...(Array.isArray(afterPage.dialogs) ? afterPage.dialogs.map(String) : []),
@@ -2385,7 +2460,10 @@ async function executeToolInner(
         ])
       )
       const navigated =
-        observation.effect.urlChanged || topObservation.effect.urlChanged || tabChanged
+        observation.effect.urlChanged ||
+        topObservation.effect.urlChanged ||
+        tabChanged ||
+        navigatedByDriver
       // Only a dialog that ARRIVED with the navigation obstructs it. Comparing
       // against the union of what was already open stops the false positive
       // that fires on every SPA route change under a persistent `role=dialog`
@@ -3204,6 +3282,7 @@ async function executeToolInner(
         throw new ToolError('clickCount must be 1 (click), 2 (double-click), or 3 (triple-click).')
       }
       const clickNavigationEpoch = navigationEpoch(contents)
+      const urlAtDispatch = contents.getURL()
       assertCurrentExecution()
       assertActiveContents(contents)
       const pointTarget = unwrapPageResult(
@@ -3226,6 +3305,11 @@ async function executeToolInner(
       try {
         await cdp.clickAt(contents, x, y, true, clickCount)
       } catch (error) {
+        const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
+          trusted: true,
+          activation: 'native-pointer',
+        })
+        if (rescued) return rescued
         throw new ToolError(
           `Native click dispatch failed (${getErrorMessage(error)}). The action was not retried because a partial pointer press may already have reached the page. Take a fresh snapshot before continuing.`
         )
