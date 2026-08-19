@@ -42,15 +42,29 @@ const CONSENT_CATEGORY_COPY: Record<string, ConsentCategoryCopy | undefined> = {
   },
 } satisfies Record<ConsentCategory, ConsentCategoryCopy>
 
+/** The runtime's category union, without re-declaring it. */
+type ConsentCategoryName = Parameters<ReturnType<typeof useConsentManager>['setSelectedConsent']>[0]
+
+interface ConsentPreferencesProps {
+  /**
+   * Called after a switch stages its new value, for a surface that commits per
+   * toggle. `revert` puts the category back, for a commit that then fails. The
+   * banner omits this and commits from its own footer instead.
+   */
+  onChange?: (change: { name: ConsentCategoryName; revert: () => void }) => void
+  /** Locks every switch, e.g. while a commit is in flight. */
+  disabled?: boolean
+}
+
 /**
  * The per-category consent switches, shared by the two surfaces that offer
  * them: the banner's expanded state and the Privacy settings page. Both write
- * to `selectedConsents`; committing is the caller's, since the banner saves
- * from its own footer and settings saves from the shell's header.
+ * to `selectedConsents`; whether that is then committed is the caller's, via
+ * {@link ConsentPreferencesProps.onChange}.
  *
- * Must be rendered inside a `ConsentManagerProvider`.
+ * Must be rendered inside a `ConsentStoreProvider`.
  */
-export function ConsentPreferences() {
+export function ConsentPreferences({ onChange, disabled = false }: ConsentPreferencesProps) {
   const { consents, selectedConsents, setSelectedConsent, getDisplayedConsents } =
     useConsentManager()
 
@@ -77,8 +91,14 @@ export function ConsentPreferences() {
             <Switch
               id={inputId}
               checked={selectedConsents[type.name] ?? consents[type.name] ?? false}
-              disabled={type.disabled}
-              onCheckedChange={(checked) => setSelectedConsent(type.name, checked)}
+              disabled={type.disabled || disabled}
+              onCheckedChange={(checked) => {
+                setSelectedConsent(type.name, checked)
+                onChange?.({
+                  name: type.name,
+                  revert: () => setSelectedConsent(type.name, !checked),
+                })
+              }}
             />
           </li>
         )

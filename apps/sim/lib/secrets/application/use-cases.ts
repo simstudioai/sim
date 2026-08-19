@@ -19,6 +19,7 @@ import {
   setWorkspaceSecret,
 } from '@/lib/credentials/secret-values'
 import { secretOperations } from '@/lib/secrets/application/operations'
+import { getSecretUsage } from '@/lib/secrets/usage/queries'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -354,4 +355,75 @@ export const deleteSecretUseCase = defineAuthorizedWorkspaceUseCase({
     description: `Deleted ${input.scope} secret "${input.name}"`,
     metadata: { scope: input.scope, name: input.name },
   }),
+})
+
+export interface ListSecretUsageInput {
+  workspaceId: string
+  name: string
+  scope: SecretScope
+  limit: number
+}
+
+/**
+ * Gates the usage trail behind the same permission that reveals the value.
+ *
+ * The trail names workflows, people, and run ids. Someone who may use a secret but not read
+ * it has no claim on that, and letting a Member enumerate who else uses a key would hand back
+ * a slice of exactly what the value masking withholds. Workspace secrets therefore require
+ * workspace-admin or credential-admin on that key — the same predicate
+ * `maskWorkspaceEnvForViewer` applies — while a personal secret is only ever the caller's own.
+ */
+async function requireSecretUsageReadAccess(params: {
+  workspaceId: string
+  name: string
+  scope: SecretScope
+  userId: string
+}): Promise<void> {
+  if (params.scope === 'personal') return
+
+  const [workspaceAccess, keyAccess] = await Promise.all([
+    checkWorkspaceAccess(params.workspaceId, params.userId),
+    getWorkspaceEnvKeyAdminAccess({
+      workspaceId: params.workspaceId,
+      envKeys: [params.name],
+      userId: params.userId,
+    }),
+  ])
+
+  if (!workspaceAccess.canAdmin && !keyAccess.adminKeys.has(params.name)) {
+    throw new ForbiddenOperationError(
+      'SECRET_ADMIN_ACCESS_REQUIRED',
+      'Credential admin permission required to view this secret usage'
+    )
+  }
+}
+
+export const listSecretUsageUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: secretOperations.usage,
+  resolveContext: ({ input }: { input: ListSecretUsageInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const userId = principalUserId(principal)
+    await requireSecretUsageReadAccess({
+      workspaceId: context.workspaceId,
+      name: input.name,
+      scope: input.scope,
+      userId,
+    })
+
+    return getSecretUsage({
+      workspaceId: context.workspaceId,
+      secretName: input.name,
+      secretScope: input.scope,
+      /**
+       * A personal trail is only ever the caller's own. Scoping the read to their id is what
+       * enforces that — two people can hold a personal `OPENAI_KEY`, and a name-and-scope
+       * filter alone would hand each of them the other's workflows, actors, and run links.
+       * A workspace secret has no owner, so it reads under the storage sentinel.
+       */
+      secretOwnerUserId: input.scope === 'personal' ? userId : '',
+      limit: input.limit,
+    })
+  },
 })

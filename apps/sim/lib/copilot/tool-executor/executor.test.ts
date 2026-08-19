@@ -14,8 +14,9 @@ const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoiste
   isClientExecuted: vi.fn(),
 }))
 
-const { executeAppTool } = vi.hoisted(() => ({
+const { executeAppTool, recordSecretUsage } = vi.hoisted(() => ({
   executeAppTool: vi.fn(),
+  recordSecretUsage: vi.fn(),
 }))
 
 vi.mock('./router', () => ({
@@ -28,6 +29,8 @@ vi.mock('./router', () => ({
 vi.mock('@/tools', () => ({
   executeTool: executeAppTool,
 }))
+
+vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage }))
 
 import { clearHandlers, executeTool, registerHandler } from './executor'
 
@@ -409,5 +412,96 @@ describe('copilot tool executor fallback', () => {
         },
       }
     )
+  })
+
+  /**
+   * An integration tool resolves `{{SECRET}}` into its user-only params, which is a real use
+   * of a workspace secret. This is the branch that carries it — a gateway call Go resolves to
+   * `slack_send` is not in the copilot catalog, so it lands here rather than on a handler.
+   */
+  it('records the secrets an integration tool call resolved', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SLACK_TOKEN', plaintext: 'xoxb-value', encryptedValue: 'enc', scope: 'workspace' },
+    ])
+    registry.recordResolved('SLACK_TOKEN', 'xoxb-value')
+    executeAppTool.mockResolvedValue({ success: true })
+
+    await executeTool(
+      'slack_send',
+      { token: '{{SLACK_TOKEN}}' },
+      {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        copilotToolExecution: true,
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(recordSecretUsage).toHaveBeenCalledWith(
+      [{ name: 'SLACK_TOKEN', scope: 'workspace', ownerUserId: null }],
+      {
+        workspaceId: 'ws-1',
+        source: 'copilot',
+        actorUserId: 'user-1',
+        trigger: 'copilot',
+      }
+    )
+  })
+
+  /** A failed call still resolved the secret, so the trail must not lose it. */
+  it('records usage even when the integration tool throws', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SLACK_TOKEN', plaintext: 'xoxb-value', encryptedValue: 'enc', scope: 'workspace' },
+    ])
+    registry.recordResolved('SLACK_TOKEN', 'xoxb-value')
+    executeAppTool.mockRejectedValue(new Error('provider rejected the call'))
+
+    await expect(
+      executeTool(
+        'slack_send',
+        {},
+        {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+    ).rejects.toThrow('provider rejected the call')
+
+    expect(recordSecretUsage).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * `function_execute` records its own mounted secrets in the copilot handler. If it also
+   * recorded here, every Sim agent code run would count each secret twice.
+   */
+  it('does not record from the handler branch, which owns its own accounting', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'a-value', encryptedValue: 'enc', scope: 'workspace' },
+    ])
+    registry.recordResolved('API_KEY', 'a-value')
+    registerHandler('function_execute', async () => ({ success: true }))
+
+    await executeTool(
+      'function_execute',
+      { code: 'return 1' },
+      {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        resolvedSecretTraceRegistry: registry,
+      }
+    )
+
+    expect(recordSecretUsage).not.toHaveBeenCalled()
   })
 })

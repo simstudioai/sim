@@ -9,7 +9,10 @@ import {
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { setRecordValue } from '@/lib/core/utils/records'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import type { ResolvedSecretTraceCatalogEntry } from '@/executor/utils/resolved-secret-trace-registry'
+import type {
+  ResolvedSecretScope,
+  ResolvedSecretTraceCatalogEntry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 export { MAX_SECRET_MOUNT_NAME_LENGTH, MAX_SECRET_MOUNT_NAMES }
 
@@ -31,6 +34,15 @@ interface CredentialAccessRow {
 interface AuthorizedEncryptedSecret {
   name: string
   encryptedValue: string
+  /** Which environment authorized this value, so the usage trail can attribute it. */
+  scope: ResolvedSecretScope
+  /**
+   * Whose personal environment a `personal` value came from — the actor for their own
+   * secret, the sharer for one shared with them. Never the actor by default: the trail is
+   * read per owner, so attributing a shared secret to its borrower would file the row under
+   * a secret the borrower does not have.
+   */
+  ownerUserId?: string
 }
 
 export interface MaterializedCopilotCodeSecrets {
@@ -239,7 +251,7 @@ export async function materializeCopilotCodeSecrets(params: {
         overLimit.push(name)
         continue
       }
-      authorizedSources.push({ name, encryptedValue: workspaceValue })
+      authorizedSources.push({ name, encryptedValue: workspaceValue, scope: 'workspace' })
       continue
     }
 
@@ -249,7 +261,12 @@ export async function materializeCopilotCodeSecrets(params: {
       continue
     }
     if (ownPersonalValue !== undefined) {
-      authorizedSources.push({ name, encryptedValue: ownPersonalValue })
+      authorizedSources.push({
+        name,
+        encryptedValue: ownPersonalValue,
+        scope: 'personal',
+        ownerUserId: params.actorUserId,
+      })
       continue
     }
 
@@ -267,7 +284,13 @@ export async function materializeCopilotCodeSecrets(params: {
     }
     const sharedPersonalValue = sharedPersonal?.encryptedValue ?? undefined
     if (sharedPersonalValue !== undefined) {
-      authorizedSources.push({ name, encryptedValue: sharedPersonalValue })
+      authorizedSources.push({
+        name,
+        encryptedValue: sharedPersonalValue,
+        scope: 'personal',
+        /** Non-null by the `authorizedSharedPersonalRows` filter above. */
+        ownerUserId: sharedPersonal?.envOwnerUserId as string,
+      })
       continue
     }
 
@@ -279,12 +302,18 @@ export async function materializeCopilotCodeSecrets(params: {
   }
   if (unavailable.length > 0) throw unavailableError(unavailable)
 
-  let decryptedEntries: Array<{ name: string; plaintext: string; encryptedValue: string }>
+  let decryptedEntries: ResolvedSecretTraceCatalogEntry[]
   try {
     decryptedEntries = await Promise.all(
-      authorizedSources.map(async ({ name, encryptedValue }) => {
+      authorizedSources.map(async ({ name, encryptedValue, scope, ownerUserId }) => {
         const { decrypted } = await decryptSecret(encryptedValue)
-        return { name, plaintext: decrypted, encryptedValue }
+        return {
+          name,
+          plaintext: decrypted,
+          encryptedValue,
+          scope,
+          ...(ownerUserId ? { ownerUserId } : {}),
+        }
       })
     )
   } catch {
