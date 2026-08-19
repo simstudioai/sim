@@ -139,6 +139,21 @@ export const extractDocAssetsServerTool: BaseServerTool<
       )
       written.push({ fileId: themeFile.id, fileName: themeFile.name, vfsPath: themeFile.vfsPath })
 
+      // PDF: the page-by-page rebuild recipe — text blocks with font/size/
+      // color and position, filled rects, and rect-over-image overlays.
+      if ('layout' in extracted && extracted.layout.length > 0) {
+        const layoutFile = await writeAsset(
+          'layout.json',
+          Buffer.from(JSON.stringify(extracted.layout, null, 2), 'utf8'),
+          'application/json'
+        )
+        written.push({
+          fileId: layoutFile.id,
+          fileName: layoutFile.name,
+          vfsPath: layoutFile.vfsPath,
+        })
+      }
+
       for (const media of extracted.media) {
         assertServerToolNotAborted(context)
         const mediaExt = getFileExtension(media.name)

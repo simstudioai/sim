@@ -40,9 +40,43 @@ export interface ExtractedPdfMedia {
   bytes: Buffer
 }
 
+export interface PdfTextBlock {
+  text: string
+  xPt: number
+  yPt: number
+  wPt: number
+  hPt: number
+  font: string
+  sizePt: number
+  colorHex: string | null
+}
+
+export interface PdfFilledRect {
+  xPt: number
+  yPt: number
+  wPt: number
+  hPt: number
+  colorHex: string | null
+}
+
+export interface PdfOverlay {
+  imageAt: { xPt: number; yPt: number }
+  colorHex: string | null
+  coverage: number
+}
+
+/** One page's rebuild recipe: what sits where, in which font and color. */
+export interface PdfPageLayout {
+  page: number
+  texts: PdfTextBlock[]
+  rects: PdfFilledRect[]
+  overlays: PdfOverlay[]
+}
+
 export interface ExtractedPdfAssets {
   theme: ExtractedPdfTheme
   media: ExtractedPdfMedia[]
+  layout: PdfPageLayout[]
 }
 
 const SCRIPT = `
@@ -81,22 +115,45 @@ for path in sorted(glob.glob(outdir + "/asset-*")):
     if num in rows:
         files[num] = path
 
+def to_hex(color):
+    if color is None:
+        return None
+    vals = list(color) if isinstance(color, (tuple, list)) else [color]
+    try:
+        if len(vals) == 1:
+            r = g = b = float(vals[0])
+        elif len(vals) == 3:
+            r, g, b = (float(v) for v in vals)
+        elif len(vals) == 4:
+            c, m, y, k = (float(v) for v in vals)
+            r, g, b = (1 - c) * (1 - k), (1 - m) * (1 - k), (1 - y) * (1 - k)
+        else:
+            return None
+    except (TypeError, ValueError):
+        return None
+    f = lambda v: max(0, min(255, int(round(v * 255))))
+    return "%02X%02X%02X" % (f(r), f(g), f(b))
+
 fonts = set()
 placements = []
 page_size = None
+layout = []
 with pdfplumber.open(inp) as pdf:
     page_count = len(pdf.pages)
     if pdf.pages:
         p0 = pdf.pages[0]
         page_size = {"widthPt": round(float(p0.width), 2), "heightPt": round(float(p0.height), 2)}
     for pi, page in enumerate(pdf.pages[:100], start=1):
+        char_color = {}
         for ch in page.chars[:8000]:
             name = ch.get("fontname") or ""
             if name:
                 fonts.add(re.sub(r"^[A-Z]{6}\\+", "", name))
+            char_color[(round(ch["x0"], 1), round(ch["top"], 1))] = ch.get("non_stroking_color")
+        page_images = []
         for im in page.images:
             src = im.get("srcsize") or (0, 0)
-            placements.append({
+            entry = {
                 "page": pi,
                 "xPt": round(float(im["x0"]), 2),
                 "yPt": round(float(im["top"]), 2),
@@ -104,7 +161,66 @@ with pdfplumber.open(inp) as pdf:
                 "hPt": round(float(im["bottom"] - im["top"]), 2),
                 "srcW": int(src[0] or 0),
                 "srcH": int(src[1] or 0),
+            }
+            placements.append(entry)
+            page_images.append(entry)
+
+        # Text blocks: words grouped into lines, each line carrying its font,
+        # size, and fill color — the recipe for what text sits where.
+        words = page.extract_words(extra_attrs=["fontname", "size"])[:800]
+        lines = {}
+        for w in words:
+            lines.setdefault(round(w["top"] / 2), []).append(w)
+        texts = []
+        for key in sorted(lines):
+            ws = sorted(lines[key], key=lambda w: w["x0"])
+            first = ws[0]
+            color = to_hex(char_color.get((round(first["x0"], 1), round(first["top"], 1))))
+            texts.append({
+                "text": " ".join(w["text"] for w in ws)[:400],
+                "xPt": round(float(first["x0"]), 2),
+                "yPt": round(float(first["top"]), 2),
+                "wPt": round(float(max(w["x1"] for w in ws) - first["x0"]), 2),
+                "hPt": round(float(max(w["bottom"] for w in ws) - first["top"]), 2),
+                "font": re.sub(r"^[A-Z]{6}\\+", "", first.get("fontname") or ""),
+                "sizePt": round(float(first.get("size") or 0), 1),
+                "colorHex": color,
             })
+        texts = texts[:60]
+
+        # Filled rects: backgrounds and the scrims decks lay over photos.
+        rects = []
+        for r in page.rects[:80]:
+            if not r.get("fill"):
+                continue
+            rects.append({
+                "xPt": round(float(r["x0"]), 2),
+                "yPt": round(float(r["top"]), 2),
+                "wPt": round(float(r["x1"] - r["x0"]), 2),
+                "hPt": round(float(r["bottom"] - r["top"]), 2),
+                "colorHex": to_hex(r.get("non_stroking_color")),
+            })
+        rects = rects[:40]
+
+        # A rect covering most of an image is an overlay scrim — the "image
+        # opacity" effect. Alpha is not recoverable from the stream, so the
+        # renderer's page image is the reference for how strong it looks.
+        overlays = []
+        for r in rects:
+            for im in page_images:
+                ix0, iy0 = im["xPt"], im["yPt"]
+                ix1, iy1 = ix0 + im["wPt"], iy0 + im["hPt"]
+                rx0, ry0 = r["xPt"], r["yPt"]
+                rx1, ry1 = rx0 + r["wPt"], ry0 + r["hPt"]
+                inter = max(0, min(ix1, rx1) - max(ix0, rx0)) * max(0, min(iy1, ry1) - max(iy0, ry0))
+                area = im["wPt"] * im["hPt"]
+                if area > 0 and inter / area >= 0.5:
+                    overlays.append({
+                        "imageAt": {"xPt": ix0, "yPt": iy0},
+                        "colorHex": r["colorHex"],
+                        "coverage": round(inter / area, 2),
+                    })
+        layout.append({"page": pi, "texts": texts, "rects": rects, "overlays": overlays})
 
 # Inferred palette: quantized dominant colors over up to 3 rendered pages.
 palette = []
@@ -156,6 +272,7 @@ print("__SIM_RESULT__=" + json.dumps({
     "pageCount": page_count,
     "inferredPalette": palette,
     "images": images,
+    "layout": layout,
 }))
 `.trim()
 
@@ -173,6 +290,7 @@ interface SandboxPdfResult {
   pageCount?: number
   inferredPalette?: string[]
   images?: SandboxPdfImage[]
+  layout?: PdfPageLayout[]
 }
 
 export async function extractPdfAssets(binary: Buffer): Promise<ExtractedPdfAssets> {
@@ -209,5 +327,6 @@ export async function extractPdfAssets(binary: Buffer): Promise<ExtractedPdfAsse
       name: image.name,
       bytes: Buffer.from(image.base64, 'base64'),
     })),
+    layout: payload.layout ?? [],
   }
 }
