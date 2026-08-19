@@ -563,15 +563,9 @@ export function General() {
 
         {!isAuthDisabled && (
           <SettingsSection label='Account'>
-            <div className='flex flex-col gap-3'>
-              <div className='flex items-center justify-between'>
-                <Label>Delete account</Label>
-                <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
-              </div>
-              <p className='text-[var(--text-muted)] text-small'>
-                Permanently deletes your account and everything only you can reach — workflows,
-                chats, files, knowledge bases and credentials. This cannot be undone.
-              </p>
+            <div className='flex items-center justify-between'>
+              <Label>Delete account</Label>
+              <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
             </div>
           </SettingsSection>
         )}
