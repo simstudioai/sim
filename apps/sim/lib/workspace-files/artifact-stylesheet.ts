@@ -823,8 +823,19 @@ export const SIM_ARTIFACT_SHELL = `<script>
       for (let i = first; i <= last; i++) tocLinks[i].classList.add('is-active')
       thumb.style.setProperty('--track-top', positions[first][0] + 'px')
       thumb.style.setProperty('--track-bottom', positions[last][1] + 'px')
+      // The left rail highlights the section CONTAINING the reading position
+      // (the last h2 at or above the top line, matching the 72px
+      // scroll-padding a clicked anchor lands at) — not the furthest section
+      // merely visible below, which mis-highlighted after every click.
       let section = null
-      for (let i = 0; i <= last; i++) if (headings[i].tagName === 'H2') section = headings[i]
+      for (let i = 0; i < headings.length; i++) {
+        if (headings[i].tagName === 'H2' && rects[i] <= viewTop + 1) section = headings[i]
+      }
+      if (!section) {
+        for (let i = first; i <= last; i++) {
+          if (headings[i].tagName === 'H2') { section = headings[i]; break }
+        }
+      }
       if (section) {
         const link = byId.get(section.id)
         if (link) link.classList.add('is-active')
