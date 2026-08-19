@@ -55,6 +55,22 @@ describe('resolveSetupContext', () => {
     })
   })
 
+  it('finds an existing installation in the default child directory', () => {
+    const root = tempRoot()
+    const installRoot = path.join(root, 'sim')
+    mkdirSync(installRoot)
+    writeFileSync(
+      path.join(installRoot, 'docker-compose.prod.yml'),
+      'image: ghcr.io/simstudioai/simstudio:latest\n'
+    )
+
+    expect(resolveSetupContext(root, [])).toEqual({
+      kind: 'standalone',
+      root: installRoot,
+      existing: true,
+    })
+  })
+
   it('fails on a partial Sim checkout', () => {
     const root = tempRoot()
     writePackage(root, 'package.json', 'simstudio')

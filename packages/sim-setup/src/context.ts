@@ -112,7 +112,7 @@ export function resolveSetupContext(
     }
   }
 
-  return { kind: 'standalone', root: path.join(path.resolve(start), 'sim'), existing: false }
+  return resolveSetupContextAtRoot(path.join(path.resolve(start), 'sim'))
 }
 
 export const SETUP_CONTEXT = resolveSetupContext()
