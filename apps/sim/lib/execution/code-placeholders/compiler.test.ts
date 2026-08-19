@@ -1383,6 +1383,24 @@ describe('a shadowing local does not suppress reads', () => {
   })
 })
 
+describe('shell backslash escaping is parity, not presence', () => {
+  /**
+   * `\\$KEY` is an escaped backslash followed by a LIVE expansion — bash prints `\` plus the
+   * value — while `\$KEY` is an escaped dollar and stays literal. Checking only the adjacent
+   * character read the even case as escaped and dropped a real read from usage and masking.
+   */
+  it.each([
+    ['no backslash', 'echo "$API_KEY"', ['API_KEY']],
+    ['one (escaped dollar)', 'echo "\\$API_KEY"', []],
+    ['two (escaped backslash, live expansion)', 'echo "\\\\$API_KEY"', ['API_KEY']],
+    ['three (escaped both)', 'echo "\\\\\\$API_KEY"', []],
+    ['four (two literal backslashes, live expansion)', 'echo "\\\\\\\\$API_KEY"', ['API_KEY']],
+    ['unquoted even run', 'echo \\\\$API_KEY', ['API_KEY']],
+  ])('%s', async (_label, code, expected) => {
+    expect(await directReadNames(code, CodeLanguage.Shell)).toEqual(expected)
+  })
+})
+
 describe('shell true positives survive the fail-closed rule', () => {
   it.each([
     ['bare unquoted', 'echo $API_KEY'],

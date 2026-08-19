@@ -594,6 +594,24 @@ function collectShellOccurrenceContexts(
   return contexts
 }
 
+/**
+ * Whether the character at `index` is escaped: an odd run of backslashes immediately before it.
+ *
+ * Parity, not presence — `\\$KEY` is an escaped backslash followed by a live expansion, so
+ * checking only the adjacent character reads a real read as escaped and drops it from usage
+ * and masking alike. The same rule already decides line continuations in
+ * {@link logicalLineEndAfterContinuations}.
+ */
+function isBackslashEscaped(code: string, index: number): boolean {
+  let backslashes = 0
+  let cursor = index - 1
+  while (cursor >= 0 && code[cursor] === '\\') {
+    backslashes += 1
+    cursor -= 1
+  }
+  return backslashes % 2 === 1
+}
+
 /** `$NAME` and `${NAME}` — including `${NAME:-default}`, whose name still ends at `:`. */
 const SHELL_PARAMETER_EXPANSION = /\$(?:\{\s*([A-Za-z_][A-Za-z0-9_]*)|([A-Za-z_][A-Za-z0-9_]*))/g
 
@@ -611,7 +629,7 @@ function recordShellDirectEnvironmentReads(
   SHELL_PARAMETER_EXPANSION.lastIndex = 0
   let match: RegExpExecArray | null
   while ((match = SHELL_PARAMETER_EXPANSION.exec(code)) !== null) {
-    if (code[match.index - 1] === '\\') continue
+    if (isBackslashEscaped(code, match.index)) continue
     const name = match[1] ?? match[2]
     if (name && context.tracksDirectEnvironmentRead(name)) matches.push(match)
   }
