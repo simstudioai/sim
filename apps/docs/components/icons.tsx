@@ -4510,7 +4510,7 @@ export function QuartrIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'>
       <rect width='32' height='32' rx='6' fill='white' />
-      <g transform='translate(6 6.19) scale(0.17)'>
+      <g transform='translate(6 6.19) scale(0.16624)'>
         <path
           d='M34.07 88.5C34.07 104.79 58.42 118 77.23 118C87.24 118 96.25 114.26 102.48 108.31L77.23 88.5H34.07Z'
           fill='black'
