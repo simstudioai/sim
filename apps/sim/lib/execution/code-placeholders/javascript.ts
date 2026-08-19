@@ -42,15 +42,26 @@ const ENVIRONMENT_VARIABLES_IDENTIFIER = 'environmentVariables'
  * forms. A computed subscript is deliberately not resolved — see
  * {@link CodePlaceholderCompilationContext.recordDirectEnvironmentRead}.
  */
+/** Parentheses group; they never change which object an expression evaluates to. */
+function unwrapParentheses(node: ts.Expression): ts.Expression {
+  let current = node
+  while (ts.isParenthesizedExpression(current)) current = current.expression
+  return current
+}
+
+/** Whether this expression is, after grouping, the bare runtime environment identifier. */
+function isEnvironmentReceiver(node: ts.Expression): boolean {
+  const unwrapped = unwrapParentheses(node)
+  return ts.isIdentifier(unwrapped) && unwrapped.text === ENVIRONMENT_VARIABLES_IDENTIFIER
+}
+
 function directEnvironmentRead(node: ts.Node): DirectEnvironmentRead | undefined {
   if (ts.isPropertyAccessExpression(node)) {
-    if (!ts.isIdentifier(node.expression)) return undefined
-    if (node.expression.text !== ENVIRONMENT_VARIABLES_IDENTIFIER) return undefined
+    if (!isEnvironmentReceiver(node.expression)) return undefined
     return node.name.text ? { name: node.name.text, offset: node.getStart() } : undefined
   }
   if (ts.isElementAccessExpression(node)) {
-    if (!ts.isIdentifier(node.expression)) return undefined
-    if (node.expression.text !== ENVIRONMENT_VARIABLES_IDENTIFIER) return undefined
+    if (!isEnvironmentReceiver(node.expression)) return undefined
     const argument = node.argumentExpression
     if (!ts.isStringLiteralLike(argument) || !argument.text) return undefined
     return { name: argument.text, offset: node.getStart() }
@@ -78,19 +89,24 @@ interface DestructuredEnvironmentReads {
  */
 function destructuredEnvironmentReads(node: ts.Node): DestructuredEnvironmentReads | undefined {
   let pattern: ts.ObjectBindingPattern | ts.ObjectLiteralExpression | undefined
-  if (
-    ts.isVariableDeclaration(node) &&
-    node.initializer !== undefined &&
-    ts.isIdentifier(node.initializer) &&
-    node.initializer.text === ENVIRONMENT_VARIABLES_IDENTIFIER &&
-    ts.isObjectBindingPattern(node.name)
-  ) {
-    pattern = node.name
+  if (ts.isObjectBindingPattern(node)) {
+    /**
+     * One receiver rule wherever the pattern sits: a variable declaration, a parameter
+     * default (`function f({ KEY } = environmentVariables)`), or a binding element's own
+     * default all hang the initializer off the pattern's parent, so checking the parent's
+     * initializer covers every declaration position without per-kind cases.
+     */
+    const parent = node.parent
+    const initializer =
+      ts.isVariableDeclaration(parent) || ts.isParameter(parent) || ts.isBindingElement(parent)
+        ? parent.initializer
+        : undefined
+    if (initializer === undefined || !isEnvironmentReceiver(initializer)) return undefined
+    pattern = node
   } else if (
     ts.isBinaryExpression(node) &&
     node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
-    ts.isIdentifier(node.right) &&
-    node.right.text === ENVIRONMENT_VARIABLES_IDENTIFIER &&
+    isEnvironmentReceiver(node.right) &&
     ts.isObjectLiteralExpression(node.left)
   ) {
     pattern = node.left
@@ -164,7 +180,7 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
       const environmentRead = directEnvironmentRead(node)
       if (environmentRead) environmentReads.push(environmentRead)
     } else if (
-      node.kind === ts.SyntaxKind.VariableDeclaration ||
+      node.kind === ts.SyntaxKind.ObjectBindingPattern ||
       node.kind === ts.SyntaxKind.BinaryExpression
     ) {
       const destructured = destructuredEnvironmentReads(node)

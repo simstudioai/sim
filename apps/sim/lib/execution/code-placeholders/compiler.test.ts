@@ -1399,6 +1399,45 @@ describe('destructured environment reads are reads', () => {
     expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
   })
 
+  it.each([
+    [
+      'parameter default',
+      'function f({ API_KEY } = environmentVariables) { return API_KEY }\nreturn f()',
+    ],
+    [
+      'arrow parameter default',
+      'const f = ({ API_KEY } = environmentVariables) => API_KEY\nreturn f()',
+    ],
+    [
+      'binding-element default',
+      'const { config: { API_KEY } = environmentVariables } = payload\nreturn API_KEY',
+    ],
+    ['parenthesized initializer', 'const { API_KEY } = (environmentVariables)\nreturn API_KEY'],
+    [
+      'double-parenthesized initializer',
+      'const { API_KEY } = ((environmentVariables))\nreturn API_KEY',
+    ],
+    ['parenthesized member access', 'return (environmentVariables).API_KEY'],
+    ['parenthesized subscript', "return (environmentVariables)['API_KEY']"],
+  ])('receiver rule covers: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  /**
+   * The environment wrapped in a container and read back out is data flow, not a receiver —
+   * the same documented boundary as an alias (`const e = environmentVariables`) or a computed
+   * key. Attribution stops where the receiver stops being demonstrably the environment
+   * object; following containers has no fixed point.
+   */
+  it('does not follow the environment through an array literal', async () => {
+    expect(
+      await directReadNames(
+        'for (const { API_KEY } of [environmentVariables]) log(API_KEY)',
+        CodeLanguage.JavaScript
+      )
+    ).toEqual([])
+  })
+
   it('reports every configured name for a rest grab', async () => {
     const compiled = await compileCodePlaceholders({
       code: 'const { ...all } = environmentVariables\nreturn all',
