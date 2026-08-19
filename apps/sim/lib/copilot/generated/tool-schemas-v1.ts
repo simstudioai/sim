@@ -2276,7 +2276,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         path: {
           type: 'string',
           description:
-            'Workspace VFS path of the source document, e.g. files/Brand%20Deck.pptx. Must be an existing .pptx or .docx file.',
+            'Workspace VFS path of the source document, e.g. files/Brand%20Deck.pptx. Must be an existing .pptx, .docx, or .pdf file.',
         },
       },
       required: ['path'],
