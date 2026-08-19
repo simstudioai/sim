@@ -1,12 +1,12 @@
-/**
- * Isometric knowledge-base mark, built on the landing page's iso-illustration
- * recipe: `ISO_STROKE` contours at `ISO_LINE_STROKE_WIDTH`, faces filled from the
- * three-tier surface ramp, round caps and joins throughout.
- *
- * Geometry is authored in a large unit space so the shared 3.2 stroke constant
- * lands as a hairline once the mark is scaled down to empty-state size, exactly
- * as it does on the landing marks (they draw 3.2 into a ~526-unit viewBox).
- */
+import { cn } from '@sim/emcn'
+import {
+  ISO_FILL_HIGH,
+  ISO_FILL_LOW,
+  ISO_FILL_MID,
+  ISO_FILL_PULSE_LOW,
+  ISO_STROKE as ISO_STROKE_BASE,
+} from '@/app/(landing)/components/mothership/components/iso-marks/iso-illustration-style'
+
 const COS_30 = Math.cos(Math.PI / 6)
 
 type Point = readonly [number, number]
@@ -62,22 +62,20 @@ const SLABS: Box[] = [0, 90, 180].map((offset) => ({
  * Those marks are the focal art of their section; here the mark sits beside a
  * ruled grid and a skeleton feed whose lines are 1px of `--border-1`. Carrying
  * the landing's full-weight contour made the volumes read as ink next to those,
- * so the stroke is mixed toward `--border-1` and thinned to land near a hairline
- * once the mark is scaled to empty-state size.
+ * so the shared stroke is mixed toward `--border-1` and thinned to land near a
+ * hairline once the mark is scaled to empty-state size. Only the width diverges
+ * from the shared recipe; the fills are imported so a change to the iso ramp
+ * reaches this mark too.
  */
-const ISO_STROKE =
-  'color-mix(in srgb, color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted)) 55%, var(--border-1))'
-const ISO_FILL_LOW = 'var(--surface-6)'
-const ISO_FILL_MID = 'color-mix(in srgb, var(--surface-3) 58%, var(--surface-6))'
-const ISO_FILL_HIGH = 'var(--surface-3)'
+const ISO_STROKE = `color-mix(in srgb, ${ISO_STROKE_BASE} 55%, var(--border-1))`
 /** Darker than any outer face — the bore's wall turns away from the light. */
-const ISO_FILL_BORE = 'color-mix(in srgb, var(--surface-6) 72%, var(--surface-7))'
+const ISO_FILL_BORE = ISO_FILL_PULSE_LOW
 const ISO_LINE_STROKE_WIDTH = 1.9
 
 /**
  * Maps flat artwork into the plane of the front volume's cover.
  *
- * The cover is the face at max x, spanned by the volume's depth going across and
+ * The cover is the face at max y, spanned by the volume's width going across and
  * its height going up. Those two edges are its basis vectors in projected space,
  * and a matrix built from them lets a plain `<circle>` be authored in face
  * coordinates — the projection skews it into the right ellipse. Local units are
@@ -112,6 +110,17 @@ const BORE_CLIP_ID = 'knowledge-iso-bore-clip'
 
 const ALL_POINTS: Point[] = SLABS.flatMap((box) => Object.values(boxFaces(box)).flat())
 
+/** `SLABS` is a module constant and the projection is pure, so every face path is fixed. */
+const SLAB_PATHS = SLABS.map((box) => {
+  const faces = boxFaces(box)
+  return {
+    key: `${box.x}-${box.y}`,
+    left: toPath(faces.left),
+    right: toPath(faces.right),
+    top: toPath(faces.top),
+  }
+})
+
 const PADDING = 14
 const MIN_X = Math.min(...ALL_POINTS.map(([x]) => x)) - PADDING
 const MAX_X = Math.max(...ALL_POINTS.map(([x]) => x)) + PADDING
@@ -139,10 +148,47 @@ const LINE_PROPS = {
   strokeLinejoin: 'round' as const,
 }
 
+/**
+ * Down the hole: the near mouth is floored with the wall tone, then the far mouth
+ * is painted over it in the cover tone of the volume standing behind — looking
+ * through a bore in the front volume lands on that volume's face, not on the page.
+ * Both are clipped to the near mouth so the bore never paints outside its opening.
+ */
+function BoreInterior() {
+  return (
+    <g clipPath={`url(#${BORE_CLIP_ID})`}>
+      <circle
+        cx={BORE_CX}
+        cy={BORE_CY}
+        r={BORE_RADIUS}
+        transform={COVER_PLANE}
+        fill={ISO_FILL_BORE}
+        stroke='none'
+      />
+      <circle
+        cx={FAR_CX}
+        cy={FAR_CY}
+        r={BORE_RADIUS}
+        transform={COVER_PLANE}
+        fill={ISO_FILL_MID}
+        stroke='none'
+      />
+      <circle cx={FAR_CX} cy={FAR_CY} r={BORE_RADIUS} transform={COVER_PLANE} {...LINE_PROPS} />
+    </g>
+  )
+}
+
 interface KnowledgeIsoMarkProps {
   height?: number
 }
 
+/**
+ * Isometric knowledge-base mark on the landing page's iso-illustration recipe.
+ *
+ * Geometry is authored in a large unit space so the shared stroke constant lands
+ * as a hairline once the mark is scaled to empty-state size — as it does on the
+ * landing marks, which draw 3.2 into a ~526-unit viewBox.
+ */
 export function KnowledgeIsoMark({ height = 148 }: KnowledgeIsoMarkProps) {
   const width = height * ((MAX_X - MIN_X) / (MAX_Y - MIN_Y))
   return (
@@ -153,7 +199,7 @@ export function KnowledgeIsoMark({ height = 148 }: KnowledgeIsoMarkProps) {
       fill='none'
       aria-hidden='true'
       focusable='false'
-      className={`block max-w-none shrink-0 ${STACK_FADE}`}
+      className={cn('block max-w-none shrink-0', STACK_FADE)}
     >
       <defs>
         <mask id={BORE_MASK_ID}>
@@ -166,47 +212,19 @@ export function KnowledgeIsoMark({ height = 148 }: KnowledgeIsoMarkProps) {
       </defs>
 
       <g mask={`url(#${BORE_MASK_ID})`}>
-        {SLABS.map((box) => {
-          const faces = boxFaces(box)
-          return (
-            <g key={`${box.x}-${box.y}`}>
-              <path d={toPath(faces.left)} fill={ISO_FILL_MID} stroke='none' />
-              <path d={toPath(faces.right)} fill={ISO_FILL_LOW} stroke='none' />
-              <path d={toPath(faces.top)} fill={ISO_FILL_HIGH} stroke='none' />
-              <path d={toPath(faces.left)} {...LINE_PROPS} />
-              <path d={toPath(faces.right)} {...LINE_PROPS} />
-              <path d={toPath(faces.top)} {...LINE_PROPS} />
-            </g>
-          )
-        })}
+        {SLAB_PATHS.map((slab) => (
+          <g key={slab.key}>
+            <path d={slab.left} fill={ISO_FILL_MID} stroke='none' />
+            <path d={slab.right} fill={ISO_FILL_LOW} stroke='none' />
+            <path d={slab.top} fill={ISO_FILL_HIGH} stroke='none' />
+            <path d={slab.left} {...LINE_PROPS} />
+            <path d={slab.right} {...LINE_PROPS} />
+            <path d={slab.top} {...LINE_PROPS} />
+          </g>
+        ))}
       </g>
 
-      {/*
-       * Down the hole: the near mouth is floored with the wall tone, then the far
-       * mouth is painted over it in the cover tone of the volume standing behind —
-       * looking through a bore in the front volume lands on that volume's face,
-       * not on the page. Both are clipped to the near mouth so the bore never
-       * paints outside its own opening.
-       */}
-      <g clipPath={`url(#${BORE_CLIP_ID})`}>
-        <circle
-          cx={BORE_CX}
-          cy={BORE_CY}
-          r={BORE_RADIUS}
-          transform={COVER_PLANE}
-          fill={ISO_FILL_BORE}
-          stroke='none'
-        />
-        <circle
-          cx={FAR_CX}
-          cy={FAR_CY}
-          r={BORE_RADIUS}
-          transform={COVER_PLANE}
-          fill={ISO_FILL_MID}
-          stroke='none'
-        />
-        <circle cx={FAR_CX} cy={FAR_CY} r={BORE_RADIUS} transform={COVER_PLANE} {...LINE_PROPS} />
-      </g>
+      <BoreInterior />
 
       <circle cx={BORE_CX} cy={BORE_CY} r={BORE_RADIUS} transform={COVER_PLANE} {...LINE_PROPS} />
     </svg>

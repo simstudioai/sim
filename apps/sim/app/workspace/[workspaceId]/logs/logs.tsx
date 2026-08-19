@@ -903,12 +903,19 @@ export default function Logs() {
 
   /**
    * The zero-data graphic means "this workspace has never run anything" — a
-   * search or filter that matched nothing is a different message, so neither
-   * gets the graphic. Held back while the first page is in flight so it cannot
-   * flash before the runs arrive.
+   * search or filter that matched nothing is a different message, so neither gets
+   * the graphic. Held back while the first page is in flight so it cannot flash
+   * before the runs arrive, and while the query is serving the previous key's
+   * result: the filters are part of the query key, so clearing a search that
+   * matched nothing keeps `isLoading` false while `rows` is still the stale empty
+   * set, and only the placeholder gate suppresses the graphic across that refetch.
    */
   const showEmptyState =
-    rows.length === 0 && !logsQuery.isLoading && !debouncedSearchQuery && filterTags.length === 0
+    rows.length === 0 &&
+    !logsQuery.isLoading &&
+    !logsQuery.isPlaceholderData &&
+    !debouncedSearchQuery &&
+    filterTags.length === 0
 
   const workflowsData = useMemo<WorkflowData[]>(
     () =>

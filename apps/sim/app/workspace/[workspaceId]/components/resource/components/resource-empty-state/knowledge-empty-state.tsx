@@ -1,6 +1,7 @@
-import { Chip, ChipLink, Plus } from '@sim/emcn'
-import { BookOpen } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
 import { KnowledgeIsoMark } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-iso'
 
 const KNOWLEDGE_DOCS_URL = 'https://docs.sim.ai/knowledgebase'
@@ -27,15 +28,7 @@ export function KnowledgeEmptyState({
           <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
             New base
           </Chip>
-          <ChipLink
-            href={KNOWLEDGE_DOCS_URL}
-            target='_blank'
-            rel='noopener noreferrer'
-            variant='border'
-            leftIcon={BookOpen}
-          >
-            Docs
-          </ChipLink>
+          <EmptyStateDocsLink href={KNOWLEDGE_DOCS_URL} />
         </div>
       }
     />

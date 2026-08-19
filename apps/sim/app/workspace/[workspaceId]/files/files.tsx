@@ -264,7 +264,12 @@ export function Files() {
     }
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
-  const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
+  const {
+    data: files = EMPTY_WORKSPACE_FILES,
+    isLoading,
+    isPlaceholderData,
+    error,
+  } = useWorkspaceFiles(workspaceId)
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedFileIds = usePinnedIds(workspaceId, 'file')
@@ -1806,14 +1811,20 @@ export function Files() {
   }, [typeFilter, sizeFilter, uploadedByFilter, membersById])
 
   /**
-   * The zero-data graphic is for a workspace with nothing in it — not for a
-   * search or filter that happened to match nothing, and not for an empty
-   * subfolder, both of which would make its copy wrong.
+   * Only for a workspace that genuinely holds nothing — a search or filter that
+   * matched nothing, or an empty subfolder, would make the copy wrong. Reads the
+   * debounced query because `rows` is filtered by it: gating on the instant URL
+   * value flashes the graphic for one debounce window after a search is cleared.
+   * The loading and placeholder gates cover the paints where `rows` is empty only
+   * because the list has not arrived — a cold cache when the server prefetch
+   * declined to seed, and the retained previous result during a workspace switch.
    */
   const showEmptyState =
     rows.length === 0 &&
+    !isLoading &&
+    !isPlaceholderData &&
     currentFolderId === null &&
-    !urlSearchTerm.trim() &&
+    !debouncedSearchTerm.trim() &&
     filterTags.length === 0
 
   if (fileIdFromRoute && !selectedFile && isLoading) {

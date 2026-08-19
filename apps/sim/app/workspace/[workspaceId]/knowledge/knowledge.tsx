@@ -192,7 +192,7 @@ export function Knowledge() {
     }
   }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
 
-  const { knowledgeBases, error } = useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, isLoading, isPlaceholderData, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   /**
    * Indexed once: `ownerCell` resolves a member per row, so passing the raw array makes the
@@ -1340,14 +1340,20 @@ export function Knowledge() {
   }, [connectorFilter, contentFilter, ownerFilter, members])
 
   /**
-   * The zero-data graphic is for a workspace with nothing in it — not for a
-   * search or filter that happened to match nothing, and not for an empty
-   * subfolder, both of which would make its copy wrong.
+   * Only for a workspace that genuinely holds nothing — a search or filter that
+   * matched nothing, or an empty subfolder, would make the copy wrong. Reads the
+   * debounced query because `rows` is filtered by it: gating on the instant URL
+   * value flashes the graphic for one debounce window after a search is cleared.
+   * The loading and placeholder gates cover the paints where `rows` is empty only
+   * because the list has not arrived — a cold cache when the server prefetch
+   * declined to seed, and the retained previous result during a workspace switch.
    */
   const showEmptyState =
     rows.length === 0 &&
+    !isLoading &&
+    !isPlaceholderData &&
     currentFolderId === null &&
-    !urlSearchQuery.trim() &&
+    !debouncedSearchQuery.trim() &&
     filterTags.length === 0
 
   return (

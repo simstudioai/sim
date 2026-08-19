@@ -136,7 +136,12 @@ export function Tables() {
   // mutation service) invalidates the list so this view refetches without waiting for staleness.
   useWorkspaceTablesRoom(workspaceId)
 
-  const { data: tables = EMPTY_TABLES, error } = useTablesList(workspaceId)
+  const {
+    data: tables = EMPTY_TABLES,
+    isLoading,
+    isPlaceholderData,
+    error,
+  } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedTableIds = usePinnedIds(workspaceId, 'table')
   // Folder pins live in their own `resourceType` namespace, so a page listing
@@ -733,14 +738,20 @@ export function Tables() {
   }, [rowCountFilter, ownerFilter, membersById, setRowCountFilter, setOwnerFilter])
 
   /**
-   * The zero-data graphic is for a workspace with nothing in it — not for a
-   * search or filter that happened to match nothing, and not for an empty
-   * subfolder, both of which would make its copy wrong.
+   * Only for a workspace that genuinely holds nothing — a search or filter that
+   * matched nothing, or an empty subfolder, would make the copy wrong. Reads the
+   * debounced query because `rows` is filtered by it: gating on the instant URL
+   * value flashes the graphic for one debounce window after a search is cleared.
+   * The loading and placeholder gates cover the paints where `rows` is empty only
+   * because the list has not arrived — a cold cache when the server prefetch
+   * declined to seed, and the retained previous result during a workspace switch.
    */
   const showEmptyState =
     rows.length === 0 &&
+    !isLoading &&
+    !isPlaceholderData &&
     currentFolderId === null &&
-    !urlSearchTerm.trim() &&
+    !debouncedSearchTerm.trim() &&
     filterTags.length === 0
 
   const handleContentContextMenu = useCallback(

@@ -1,6 +1,7 @@
-import { Chip, ChipLink, Upload } from '@sim/emcn'
-import { BookOpen } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn'
+import { Upload } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
 
 const FILES_DOCS_URL = 'https://docs.sim.ai/files'
 
@@ -19,19 +20,6 @@ const HAIRLINE = {
   strokeLinejoin: 'round' as const,
 } as const
 
-/**
- * A folder held open with sheets standing proud of its front panel.
- *
- * Depth is carried by the surface ramp rather than by shadow: the back panel is
- * the darkest tier, the sheets are the lightest, and the front panel sits between
- * them. Shadows would need separate light and dark recipes; the ramp inverts on
- * its own.
- *
- * The tab's diagonal is filleted at both ends and every outer corner shares one
- * radius, so the silhouette reads as a single drawn shape. Mixing radii, or
- * running the diagonal into square junctions, makes the corners fight each other
- * at this size.
- */
 const CORNER = 10
 const FOLDER_BACK = [
   'M 22 34',
@@ -58,6 +46,16 @@ const FOLDER_BACK = [
 const FOLDER_FADE =
   '[-webkit-mask-image:linear-gradient(to_top,#000_58%,transparent_100%)] [mask-image:linear-gradient(to_top,#000_58%,transparent_100%)]'
 
+/**
+ * A folder held open with sheets standing proud of its front panel.
+ *
+ * Depth is carried by the surface ramp rather than by shadow: the back panel is the
+ * darkest tier, the sheets the lightest, the front panel between them. Shadows
+ * would need separate light and dark recipes; the ramp inverts on its own.
+ *
+ * Every outer corner shares one radius so the silhouette reads as a single drawn
+ * shape — mixing radii makes the corners fight each other at this size.
+ */
 function FilesGraphic() {
   return (
     <svg
@@ -67,7 +65,7 @@ function FilesGraphic() {
       fill='none'
       aria-hidden='true'
       focusable='false'
-      className={`block max-w-none shrink-0 ${FOLDER_FADE}`}
+      className={cn('block max-w-none shrink-0', FOLDER_FADE)}
     >
       <path d={FOLDER_BACK} fill='var(--surface-4)' {...HAIRLINE} />
 
@@ -106,15 +104,7 @@ export function FilesEmptyState({ onUpload, uploadDisabled = false }: FilesEmpty
           <Chip variant='primary' onClick={onUpload} disabled={uploadDisabled} leftIcon={Upload}>
             Upload
           </Chip>
-          <ChipLink
-            href={FILES_DOCS_URL}
-            target='_blank'
-            rel='noopener noreferrer'
-            variant='border'
-            leftIcon={BookOpen}
-          >
-            Docs
-          </ChipLink>
+          <EmptyStateDocsLink href={FILES_DOCS_URL} />
         </div>
       }
     />

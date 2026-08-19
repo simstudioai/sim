@@ -1,6 +1,7 @@
-import { Chip, ChipLink, Plus } from '@sim/emcn'
-import { BookOpen } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
 
 /**
  * Neutral ink at two strengths.
@@ -49,10 +50,10 @@ const CELL_WIDTHS = [
  */
 const SELECTED_CELL = { row: 1, column: 0 } as const
 
-/** Nothing but ruled lines and the ink sitting in them, running off two edges. */
+/** Skeleton grid with one cell held in an edit ring, running off two edges. */
 function TablesGraphic() {
   return (
-    <div aria-hidden='true' className={`relative h-[148px] w-[320px] ${CORNER_FADE}`}>
+    <div aria-hidden='true' className={cn('relative h-[148px] w-[320px]', CORNER_FADE)}>
       <div className='absolute top-[14px] left-[54px] rounded-tl-[6px] border-[var(--border-1)] border-t border-l'>
         <div className='grid' style={{ gridTemplateColumns: COLUMN_TEMPLATE }}>
           {HEADER_WIDTHS.map((width, column) => (
@@ -119,15 +120,7 @@ export function TablesEmptyState({ onCreate, createDisabled = false }: TablesEmp
           <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
             New table
           </Chip>
-          <ChipLink
-            href={TABLES_DOCS_URL}
-            target='_blank'
-            rel='noopener noreferrer'
-            variant='border'
-            leftIcon={BookOpen}
-          >
-            Docs
-          </ChipLink>
+          <EmptyStateDocsLink href={TABLES_DOCS_URL} />
         </div>
       }
     />
