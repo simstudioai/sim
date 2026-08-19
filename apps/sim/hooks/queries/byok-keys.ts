@@ -173,7 +173,7 @@ export function useUpsertOrganizationBYOKKey() {
       logger.info(`Saved BYOK key for ${body.providerId} in organization ${organizationId}`)
       return data
     },
-    onSuccess: async (_data, variables) => {
+    onSettled: async (_data, _error, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: byokKeysKeys.organizationList(variables.organizationId),
@@ -202,7 +202,7 @@ export function useDeleteOrganizationBYOKKey() {
       logger.info(`Deleted BYOK key for ${body.providerId} from organization ${organizationId}`)
       return data
     },
-    onSuccess: async (_data, variables) => {
+    onSettled: async (_data, _error, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: byokKeysKeys.organizationList(variables.organizationId),
