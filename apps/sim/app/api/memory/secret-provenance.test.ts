@@ -5,7 +5,19 @@
 import { memorySecretProvenance } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockIsEnforced, mockReport } = vi.hoisted(() => ({
+  mockIsEnforced: vi.fn(() => false),
+  mockReport: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
+  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge'],
+  isDurableSecretProvenanceEnforced: mockIsEnforced,
+  reportUnrecordedDurableProvenance: mockReport,
+}))
+
 import { AuthType } from '@/lib/auth/hybrid'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -47,6 +59,8 @@ function privateMemoryWrite(
 describe('memory write secret provenance', () => {
   beforeEach(() => {
     resetDbChainMock()
+    mockReport.mockClear()
+    mockIsEnforced.mockReturnValue(false)
   })
   it('classifies a headerless external write as exact-empty', () => {
     const request = new NextRequest('http://localhost/api/memory', { method: 'POST' })
@@ -266,5 +280,64 @@ describe('memory write secret provenance', () => {
     await expect(response.json()).resolves.toMatchObject({
       [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
     })
+  })
+  /**
+   * One entry for the read, not one per record: the per-record import knows no workspace, so its
+   * report can only ever be a log line, and passing the workspace down instead would write
+   * thousands of audit rows for a single event.
+   */
+  it('reports one aggregated entry for a read that proceeded unvouched', async () => {
+    const request = new NextRequest('http://localhost/api/memory', {
+      headers: {
+        [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+      },
+    })
+
+    await createMemoryResponse({
+      request,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      body: { success: true },
+      memories: [
+        { id: 'memory-1', data: 'value', secretProvenanceVersion: 1 },
+        { id: 'memory-2', data: 'value', secretProvenanceVersion: 1 },
+      ],
+    })
+
+    expect(mockReport).toHaveBeenCalledTimes(1)
+    expect(mockReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'memory',
+        cause: 'durable-provenance-unknown',
+        affectedCount: 2,
+        workspaceId: 'workspace-1',
+      })
+    )
+  })
+
+  /**
+   * Under enforcement the import fails the registry closed rather than proceeding, so there is no
+   * fail-open read to record. Counting those records anyway would audit something that never
+   * happened, in the one trail whose whole purpose is to say a read went ahead unvouched.
+   */
+  it('records nothing when the surface is enforced and the read fails closed', async () => {
+    mockIsEnforced.mockReturnValue(true)
+    const request = new NextRequest('http://localhost/api/memory', {
+      headers: {
+        [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+      },
+    })
+
+    await createMemoryResponse({
+      request,
+      authType: AuthType.INTERNAL_JWT,
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      body: { success: true },
+      memories: [{ id: 'memory-1', data: 'value', secretProvenanceVersion: 1 }],
+    })
+
+    expect(mockReport).not.toHaveBeenCalled()
   })
 })

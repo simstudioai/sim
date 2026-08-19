@@ -209,11 +209,22 @@ export async function importDurableSecretProvenance(
   registry: ResolvedSecretTraceRegistry,
   provenance: DurableSecretProvenance,
   value?: unknown,
-  surface?: DurableSecretProvenanceSurface
+  surface?: DurableSecretProvenanceSurface,
+  /**
+   * Set by a caller that reports the whole read itself.
+   *
+   * This function sees one record and knows no workspace, so its report can only ever be a log
+   * line, one per record. A caller reading a page can say the same thing once, with the workspace
+   * and the count — which is the entry that reaches the people who own the secrets. Both reporting
+   * would double-count the same event at two different granularities.
+   */
+  options: { reportUnrecorded?: boolean } = {}
 ): Promise<boolean> {
   if (provenance.status === 'unknown') {
     if (surface && !isDurableSecretProvenanceEnforced(surface)) {
-      reportUnrecordedDurableProvenance({ surface, cause: 'durable-provenance-unknown' })
+      if (options.reportUnrecorded !== false) {
+        reportUnrecordedDurableProvenance({ surface, cause: 'durable-provenance-unknown' })
+      }
       return true
     }
     registry.markIncomplete('durable-provenance-unknown')

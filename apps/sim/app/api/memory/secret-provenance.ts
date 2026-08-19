@@ -9,7 +9,10 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   importDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import { reportUnrecordedDurableProvenance } from '@/lib/execution/durable-secret-provenance-enforcement'
+import {
+  isDurableSecretProvenanceEnforced,
+  reportUnrecordedDurableProvenance,
+} from '@/lib/execution/durable-secret-provenance-enforcement'
 import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
@@ -121,6 +124,12 @@ export async function createMemoryResponse(options: {
     matching.push(memory)
     memoriesById.set(memory.id, matching)
   }
+  /**
+   * Counted only while the surface is open. Under enforcement the import fails the registry closed
+   * instead of proceeding, so counting those records would audit a fail-open read that never
+   * happened — and this entry exists precisely to say a read went ahead unvouched.
+   */
+  const memoryEnforced = isDurableSecretProvenanceEnforced('memory')
   let unrecordedMemoryCount = 0
   for (let index = 0; index < ids.length; index += PRIVATE_MEMORY_QUERY_CHUNK_SIZE) {
     const pageIds = ids.slice(index, index + PRIVATE_MEMORY_QUERY_CHUNK_SIZE)
@@ -139,8 +148,10 @@ export async function createMemoryResponse(options: {
           status: sidecar?.status ?? null,
           entries: sidecar?.entries,
         })
-        if (provenance.status === 'unknown') unrecordedMemoryCount += 1
-        await importDurableSecretProvenance(registry, provenance, record.data, 'memory')
+        if (provenance.status === 'unknown' && !memoryEnforced) unrecordedMemoryCount += 1
+        await importDurableSecretProvenance(registry, provenance, record.data, 'memory', {
+          reportUnrecorded: false,
+        })
       }
     }
   }
