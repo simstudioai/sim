@@ -73,7 +73,17 @@ export default defineConfig({
       '@daytona/sdk',
     ],
     extensions: [
-      syncEnvVars(() => [{ name: 'DB_APP_NAME', value: 'sim-trigger' }]),
+      syncEnvVars(() => [
+        { name: 'DB_APP_NAME', value: 'sim-trigger' },
+        /**
+         * Workers run Trigger.dev by definition, but the flag saying so was only
+         * set on the app container, so `isTriggerAvailable()` was false in every
+         * task run and dispatched work silently took the in-process fallback.
+         * Ineffective where dispatching is impossible: the check also requires
+         * TRIGGER_SECRET_KEY, which only the Trigger.dev runtime provides.
+         */
+        { name: 'TRIGGER_DEV_ENABLED', value: 'TRUE' },
+      ]),
       additionalFiles({
         files: [
           './lib/execution/isolated-vm-worker.cjs',

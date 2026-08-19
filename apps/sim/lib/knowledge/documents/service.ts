@@ -721,6 +721,7 @@ async function dispatchViaBatchTrigger(
 ): Promise<number> {
   let dispatched = 0
   const batchIds: string[] = []
+  const undispatched: DocumentProcessingPayload[] = []
   const region = await resolveTriggerRegion()
   for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
     const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
@@ -747,11 +748,25 @@ async function dispatchViaBatchTrigger(
       logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
         error: getErrorMessage(error),
       })
+      undispatched.push(...chunk)
     }
   }
   if (batchIds.length > 0) {
     logger.info(`[${requestId}] Trigger.dev batches dispatched`, { batchIds })
   }
+
+  /**
+   * Only a total dispatch failure raises, so a chunk failing alone would leave its
+   * documents at `pending` with nothing recording why. Processing them here is
+   * slower than the queue but does not drop the work.
+   */
+  if (undispatched.length > 0) {
+    logger.warn(
+      `[${requestId}] Processing ${undispatched.length} documents in-process after failed enqueue`
+    )
+    dispatched += await dispatchInProcess(undispatched, requestId)
+  }
+
   return dispatched
 }
 
