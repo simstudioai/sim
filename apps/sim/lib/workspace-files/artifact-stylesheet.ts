@@ -374,11 +374,20 @@ figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top:
 .art-search::placeholder { color: var(--text-muted); }
 .art-cols { display: grid; gap: 2.25rem; grid-template-columns: 1fr; }
 .art-cols > .art-main { padding-top: 1.5rem; min-width: 0; }
-@media (min-width: 1100px) {
+/* Rails stagger with the viewport the way the docs do on a laptop: the
+   section sidebar survives down to resource-panel widths, the TOC joins on
+   wide surfaces, and a truly narrow pane collapses to a single column. The
+   iframe's own width drives the queries, so the chat panel gets the sidebar
+   treatment while the Files page and standalone views get the full frame. */
+.art-cols > .rail { display: none; }
+@media (min-width: 640px) {
+  .art-cols { grid-template-columns: 240px minmax(0, 1fr); }
+  .art-cols > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+}
+@media (min-width: 1060px) {
   .art-cols { grid-template-columns: 300px minmax(0, 1fr) 268px; }
   .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
-@media (max-width: 1099px) { .art-cols > .rail { display: none; } }
 .rail ol, .rail ul { list-style: none; margin: 0; padding: 0; }
 .rail a[hidden] { display: none; }
 
