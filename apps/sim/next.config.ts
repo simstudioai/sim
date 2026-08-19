@@ -7,38 +7,7 @@ import {
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
-
-/**
- * Marketing routes (`app/(landing)/**`, plus the root) exempted from COEP.
- *
- * COEP is a *document* header and is inherited across client-side `<Link>`
- * navigations, so `/demo`'s own exemption only applies on a direct load. Any
- * landing page left isolated soft-navigates into `/demo` still credentialless,
- * where the Cal.com booker iframe loads uncredentialed and hangs forever.
- * Every route under `app/(landing)` must be listed here.
- */
-const LANDING_ROUTES = [
-  'blog',
-  'careers',
-  'changelog',
-  'comparisons',
-  'contact',
-  'cookie-policy',
-  'demo',
-  'enterprise',
-  'files',
-  'integrations',
-  'knowledge',
-  'library',
-  'logs',
-  'models',
-  'pricing',
-  'privacy',
-  'solutions',
-  'tables',
-  'terms',
-  'workflows',
-] as const
+import { LANDING_ROUTES } from './lib/landing/routes'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
