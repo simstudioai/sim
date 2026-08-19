@@ -38,20 +38,17 @@ const USAGE = `Usage:
   npx @sim/setup down                        remove containers (data kept)
   npx @sim/setup reset                       archive .env + wipe managed data
 
-Inside a Sim source checkout, the existing commands remain available:
-  bun run setup                                run the setup wizard
-  bun run setup status                         show configured capabilities and integrations
-  bun run setup <feature>                      configure ${SETUP_FEATURES}
-  bun run sim setup [--quick] [--mode compose|dev|k8s]
-  bun run sim config                           show configured capabilities and integrations
-  bun run sim add <feature>                    configure one feature
-  bun run sim doctor [--fix] [--json]          check your setup
-  bun run sim start | stop | restart           bring your install up / down / cycle
-  bun run sim update                           pull/rebuild and apply Compose images
-  bun run sim status                           what's installed and healthy
-  bun run sim logs                             follow logs
-  bun run sim down                             remove containers (data kept)
-  bun run sim reset                            archive .env + wipe managed data`
+Inside a Sim source checkout, use the repository command:
+  bun run sim-setup [--quick] [--mode compose|dev|k8s]
+  bun run sim-setup config                      show configured capabilities and integrations
+  bun run sim-setup add <feature>                configure ${SETUP_FEATURES}
+  bun run sim-setup doctor [--fix] [--json]      check your setup
+  bun run sim-setup start | stop | restart       bring your install up / down / cycle
+  bun run sim-setup update                       pull/rebuild and apply Compose images
+  bun run sim-setup status                       what's installed and healthy
+  bun run sim-setup logs                         follow logs
+  bun run sim-setup down                         remove containers (data kept)
+  bun run sim-setup reset                        archive .env + wipe managed data`
 
 function readPackageVersion(): string {
   const metadata: unknown = JSON.parse(
@@ -133,25 +130,12 @@ async function main(): Promise<void> {
     return
   }
 
-  if (!command || command === 'setup' || command.startsWith('-')) {
-    const setupArgs = command === 'setup' ? args.slice(1) : args
-    const feature = setupArgs[0]?.startsWith('-') ? undefined : setupArgs[0]
-    if (feature === 'status') {
-      const { runSetupStatus } = await import('./setup-status')
-      process.exitCode = await runSetupStatus()
-      return
-    }
-    if (feature) {
-      const featureIndex = setupArgs.indexOf(feature)
-      const { runFeatureSetup } = await import('./feature-setup')
-      await runFeatureSetup(feature, setupArgs.slice(featureIndex + 1))
-      return
-    }
-    const modeIdx = setupArgs.indexOf('--mode')
+  if (!command || command.startsWith('-')) {
+    const modeIdx = args.indexOf('--mode')
     const { runWizard } = await import('./wizard')
     await runWizard({
-      quick: setupArgs.includes('--quick'),
-      mode: modeIdx === -1 ? undefined : parseMode(setupArgs[modeIdx + 1]),
+      quick: args.includes('--quick'),
+      mode: modeIdx === -1 ? undefined : parseMode(args[modeIdx + 1]),
     })
     return
   }

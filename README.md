@@ -76,7 +76,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 When it finishes, open [http://localhost:3000](http://localhost:3000).
 
-Run the same command inside a cloned Sim repository to unlock the source-only local development and Kubernetes modes. The existing `bun run setup` and `bun run sim` commands remain available to contributors.
+Inside a cloned Sim repository, run `bun run sim-setup` to unlock the source-only local development and Kubernetes modes.
 
 Reconfigure an optional capability without rerunning the full wizard:
 
