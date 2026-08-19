@@ -54,6 +54,8 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   CreateBaseModal,
@@ -191,7 +193,7 @@ export function Knowledge() {
     }
   }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
 
-  const { knowledgeBases, error } = useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, isLoading, isPlaceholderData, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   /**
    * Indexed once: `ownerCell` resolves a member per row, so passing the raw array makes the
@@ -1338,6 +1340,17 @@ export function Knowledge() {
     return tags
   }, [connectorFilter, contentFilter, ownerFilter, members])
 
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading,
+    isPlaceholderData,
+    error,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+    folderId: currentFolderId,
+    foldersResolved,
+  })
+
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
@@ -1355,6 +1368,11 @@ export function Knowledge() {
           filter={filterConfig}
         />
         <Resource.Table
+          emptyState={
+            showEmptyState ? (
+              <KnowledgeEmptyState onCreate={handleOpenCreateModal} createDisabled={!canEdit} />
+            ) : undefined
+          }
           columns={COLUMNS}
           rows={rows}
           selectable={canEdit ? selectableConfig : undefined}

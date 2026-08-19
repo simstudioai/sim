@@ -53,6 +53,8 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -135,7 +137,12 @@ export function Tables() {
   // mutation service) invalidates the list so this view refetches without waiting for staleness.
   useWorkspaceTablesRoom(workspaceId)
 
-  const { data: tables = EMPTY_TABLES, error } = useTablesList(workspaceId)
+  const {
+    data: tables = EMPTY_TABLES,
+    isLoading,
+    isPlaceholderData,
+    error,
+  } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedTableIds = usePinnedIds(workspaceId, 'table')
   // Folder pins live in their own `resourceType` namespace, so a page listing
@@ -731,6 +738,17 @@ export function Tables() {
     return tags
   }, [rowCountFilter, ownerFilter, membersById, setRowCountFilter, setOwnerFilter])
 
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading,
+    isPlaceholderData,
+    error,
+    search: debouncedSearchTerm,
+    filterCount: filterTags.length,
+    folderId: currentFolderId,
+    foldersResolved,
+  })
+
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
@@ -1267,6 +1285,14 @@ export function Tables() {
           filter={filterConfig}
         />
         <Resource.Table
+          emptyState={
+            showEmptyState ? (
+              <TablesEmptyState
+                onCreate={handleCreateTable}
+                createDisabled={uploading || !canEdit || createTable.isPending}
+              />
+            ) : undefined
+          }
           columns={COLUMNS}
           rows={rows}
           selectable={canEdit ? selectableConfig : undefined}

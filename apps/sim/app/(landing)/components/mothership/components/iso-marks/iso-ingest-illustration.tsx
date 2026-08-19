@@ -9,7 +9,7 @@ import {
   ISO_FILL_PULSE_LOW,
   ISO_FILL_PULSE_MID,
   ISO_STROKE,
-} from '@/app/(landing)/components/mothership/components/iso-marks/iso-illustration-style'
+} from '@/components/iso/iso-illustration-style'
 
 export interface IsoIngestIllustrationProps {
   size?: number
