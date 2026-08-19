@@ -1287,6 +1287,39 @@ describe('WorkflowBlockHandler', () => {
         expect(persistingComplete).not.toHaveBeenCalled()
       })
 
+      it('forwards the emit-only sink to the child, so nested hops still stream', async () => {
+        // The viewer id alone is not enough: a nested custom block clears
+        // `canStreamCustomBlockToViewer` off the inherited id and then needs a sink to
+        // stream through. Without this the live trace stops at the first sub-executor.
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+        const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
+
+        await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1', liveStreamCallbacks: emitOnly }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        expect(forwarded.liveTraceViewerUserId).toBe('viewer-1')
+        expect(forwarded.liveStreamCallbacks).toBe(emitOnly)
+      })
+
+      it('withholds both the viewer id and the sink when streaming is not permitted', async () => {
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: false })
+        const emitOnly = { onBlockStart: vi.fn(), onBlockComplete: vi.fn() }
+
+        await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'outsider', liveStreamCallbacks: emitOnly }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        expect(forwarded.liveTraceViewerUserId).toBeUndefined()
+        expect(forwarded.liveStreamCallbacks).toBeUndefined()
+      })
+
       it('keeps the boundary shut when the surface offers no emit-only sink', async () => {
         mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
         const persistingStart = vi.fn()

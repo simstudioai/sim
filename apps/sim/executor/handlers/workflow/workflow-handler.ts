@@ -732,6 +732,13 @@ export class WorkflowBlockHandler implements BlockHandler {
           // A live viewer of a custom block is authorized against the source
           // workspace, so the child may name it. Deeper hops inherit the same gate.
           liveTraceViewerUserId: shouldPropagateCallbacks ? ctx.liveTraceViewerUserId : undefined,
+          // The emit-only sink travels WITH the viewer id, or a nested hop would clear the
+          // access check and then have nothing to stream through — live traces would stop
+          // at the first sub-executor. Always the inherited chain, never `parentStreamSink`:
+          // for a same-workspace workflow block that is the persisting composite, which
+          // would put a custom block nested inside one straight back onto the parent's
+          // progress markers.
+          liveStreamCallbacks: shouldPropagateCallbacks ? ctx.liveStreamCallbacks : undefined,
         },
       })
 
