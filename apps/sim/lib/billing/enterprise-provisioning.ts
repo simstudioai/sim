@@ -3,7 +3,20 @@ import { db } from '@sim/db'
 import { member, organization, outboxEvent, subscription, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { and, count, desc, eq, gt, ilike, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
@@ -53,6 +66,7 @@ const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_GRACE_MS = 30 * 60 * 1000
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_POLL_MS = 30 * 1000
 const MAX_ENTERPRISE_WORKSPACE_SELECTION = 1_000
+const MAX_ENTERPRISE_PROVISIONING_LOOKUP_ORGANIZATIONS = 250
 const ENTERPRISE_MEMBER_RECONCILIATION_BATCH_SIZE = 50
 
 async function waitForEnterpriseWebhookAcknowledgement(
@@ -1054,10 +1068,63 @@ export async function issueEnterpriseProvisioning(
       )
       .orderBy(desc(outboxEvent.createdAt), desc(outboxEvent.id))
       .for('update')
-    const subscriptionRows = await tx
-      .select()
+      .limit(1)
+    const latestOperation = operationRows[0]
+    const latestPayload = latestOperation
+      ? parseEnterpriseProvisionPayload(latestOperation.payload)
+      : null
+    if (latestOperation && !latestPayload) {
+      throw new EnterpriseProvisioningError(
+        `Existing Enterprise issuance operation ${latestOperation.id} has an invalid payload`
+      )
+    }
+
+    const appliedSubscriptionId = latestPayload?.applicationResult?.subscriptionId ?? null
+    const subscriptionRows: EnterpriseSubscriptionState[] = []
+    if (appliedSubscriptionId) {
+      const [appliedSubscription] = await tx
+        .select({
+          status: subscription.status,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          metadata: subscription.metadata,
+        })
+        .from(subscription)
+        .where(
+          and(
+            eq(subscription.referenceId, organizationId),
+            eq(subscription.stripeSubscriptionId, appliedSubscriptionId)
+          )
+        )
+        .limit(1)
+      if (appliedSubscription) subscriptionRows.push(appliedSubscription)
+    }
+
+    const [unrelatedNonterminalSubscription] = await tx
+      .select({
+        status: subscription.status,
+        stripeSubscriptionId: subscription.stripeSubscriptionId,
+        metadata: subscription.metadata,
+      })
       .from(subscription)
-      .where(eq(subscription.referenceId, organizationId))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          or(
+            isNull(subscription.status),
+            notInArray(subscription.status, [...TERMINAL_SUBSCRIPTION_STATUSES])
+          ),
+          appliedSubscriptionId
+            ? or(
+                isNull(subscription.stripeSubscriptionId),
+                ne(subscription.stripeSubscriptionId, appliedSubscriptionId)
+              )
+            : undefined
+        )
+      )
+      .limit(1)
+    if (unrelatedNonterminalSubscription) {
+      subscriptionRows.push(unrelatedNonterminalSubscription)
+    }
 
     const decision = decideEnterpriseProvisioningIssue(requestKey, operationRows, subscriptionRows)
     if (decision.kind === 'reuse') {
@@ -1939,6 +2006,15 @@ export async function getLatestEnterpriseProvisionings(
 ) {
   const result = new Map<string, EnterpriseProvisioningView>()
   if (organizationIds.length === 0) return result
+  const uniqueOrganizationIds = [...new Set(organizationIds)]
+  if (uniqueOrganizationIds.length > MAX_ENTERPRISE_PROVISIONING_LOOKUP_ORGANIZATIONS) {
+    throw new Error(
+      `Enterprise provisioning lookup is limited to ${MAX_ENTERPRISE_PROVISIONING_LOOKUP_ORGANIZATIONS} organizations`
+    )
+  }
+  if (options.includeWorkspaceMoveFailures && uniqueOrganizationIds.length !== 1) {
+    throw new Error('Workspace-move failure details require exactly one organization')
+  }
   const organizationIdExpression = sql<string>`${outboxEvent.payload} #>> '{request,organizationId}'`
   const rows = await db
     .selectDistinctOn([organizationIdExpression])
@@ -1946,7 +2022,7 @@ export async function getLatestEnterpriseProvisionings(
     .where(
       and(
         eq(outboxEvent.eventType, ENTERPRISE_PROVISION_EVENT_TYPE),
-        inArray(organizationIdExpression, organizationIds)
+        inArray(organizationIdExpression, uniqueOrganizationIds)
       )
     )
     .orderBy(organizationIdExpression, desc(outboxEvent.createdAt), desc(outboxEvent.id))

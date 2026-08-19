@@ -463,6 +463,20 @@ describe('Enterprise workspace-move progress', () => {
       failed: [],
     })
   })
+
+  it('rejects provisioning lookups larger than one admin page', async () => {
+    await expect(
+      getLatestEnterpriseProvisionings(Array.from({ length: 251 }, (_, index) => `org-${index}`))
+    ).rejects.toThrow('limited to 250 organizations')
+  })
+
+  it('only loads workspace-move failure details for one organization', async () => {
+    await expect(
+      getLatestEnterpriseProvisionings(['org-1', 'org-2'], {
+        includeWorkspaceMoveFailures: true,
+      })
+    ).rejects.toThrow('require exactly one organization')
+  })
 })
 
 describe('Enterprise member reconciliation', () => {
