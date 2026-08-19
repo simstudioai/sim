@@ -24,6 +24,7 @@ import {
   applyDependentOverrides,
   collectClearedDependents,
   type NeedsConfigurationField,
+  replaceCustomBlockInputs,
   type SubBlockTransform,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type {
@@ -372,6 +373,14 @@ export interface CopyWorkflowStateParams {
    */
   transformBlockType?: (blockType: string, block: { id: string; name: string }) => string
   /**
+   * Per TARGET block id, the inputs the user configured for a custom block whose type this
+   * sync repoints. Applied ONLY when the type actually changes: the source's inputs are keyed
+   * by the source block's field ids and mean nothing against the new config, so they are
+   * dropped and these written in their place. Already allowlisted to the target block's
+   * declared field ids by the planner, which is the only side that can resolve that config.
+   */
+  customBlockInputsByBlockId?: ReadonlyMap<string, ReadonlyMap<string, string>>
+  /**
    * The target workflow's current draft subBlocks (block id -> subBlocks), for
    * `replace` mode only. When present, required dependents that the sync left empty
    * (the parent change cleared and the stored mapping didn't fill) are reported in
@@ -432,6 +441,7 @@ export async function copyWorkflowStateIntoTarget(
     folderIdMap,
     transformSubBlocks,
     transformBlockType,
+    customBlockInputsByBlockId,
     targetCurrentBlocks,
     dependentOverrides,
     nameRegistry,
@@ -551,12 +561,20 @@ export async function copyWorkflowStateIntoTarget(
       )
     }
 
+    const nextBlockType = transformBlockType
+      ? transformBlockType(block.type, { id: oldBlockId, name: block.name })
+      : block.type
+    if (nextBlockType !== block.type) {
+      // Only a custom block can change type, and once it does its stored inputs describe the
+      // OLD block's fields. Replace them with what the user configured for the target rather
+      // than leaving the serializer to drop them silently.
+      subBlocks = replaceCustomBlockInputs(subBlocks, customBlockInputsByBlockId?.get(newBlockId))
+    }
+
     newBlocks[newBlockId] = {
       ...block,
       id: newBlockId,
-      type: transformBlockType
-        ? transformBlockType(block.type, { id: oldBlockId, name: block.name })
-        : block.type,
+      type: nextBlockType,
       // double-cast-allowed: remap helpers return SubBlockRecord; the entries retain the SubBlockState shape this block requires
       subBlocks: subBlocks as unknown as Record<string, SubBlockState>,
       data: updatedData,

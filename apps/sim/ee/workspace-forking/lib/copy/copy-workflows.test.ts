@@ -489,3 +489,150 @@ describe('copyWorkflowStateIntoTarget webhook path pinning', () => {
     expect(writtenSubBlocks().triggerPath).toBeUndefined()
   })
 })
+
+describe('copyWorkflowStateIntoTarget custom-block remap', () => {
+  const PROD = 'custom_block_prod01'
+  const UAT = 'custom_block_uat0001'
+
+  /** A placed custom block whose inputs are keyed by the SOURCE block's Start field ids. */
+  const customBlockState = {
+    blocks: {
+      'blk-cb': {
+        id: 'blk-cb',
+        type: UAT,
+        name: 'Invoice Parser',
+        position: { x: 0, y: 0 },
+        subBlocks: {
+          workflowId: { id: 'workflowId', type: 'short-input', value: 'wf-uat' },
+          'field-uat-a': { id: 'field-uat-a', type: 'short-input', value: 'uat value A' },
+          'field-uat-b': { id: 'field-uat-b', type: 'short-input', value: 'uat value B' },
+        },
+        outputs: {},
+        enabled: true,
+      },
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+    variables: {},
+  } as never
+
+  const baseParams = {
+    targetWorkflowId: 'wf-tgt',
+    targetWorkspaceId: 'ws-parent',
+    userId: 'u1',
+    mode: 'replace' as const,
+    now: new Date('2026-07-01'),
+    sourceState: customBlockState,
+    sourceMeta: { name: 'Orchestrator', description: null, folderId: null, sortOrder: 0 },
+    workflowIdMap: new Map(),
+    folderIdMap: new Map(),
+    nameRegistry: buildWorkflowNameRegistry([]),
+    resolveBlockId: (_t: string, sourceBlockId: string) => `tgt-${sourceBlockId}`,
+  }
+
+  const stubTx = () =>
+    ({ update: () => ({ set: () => ({ where: () => Promise.resolve() }) }) }) as unknown as DbOrTx
+
+  function writtenBlock() {
+    const state = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)?.[1] as {
+      blocks: Record<string, { type: string; subBlocks?: Record<string, { value?: unknown }> }>
+    }
+    return state.blocks['tgt-blk-cb']
+  }
+
+  it('repoints the placed block at the mapped target type', async () => {
+    // The push symptom was read as "it still has the old custom block" — but both
+    // environments' blocks share a NAME, so a successful rewrite looks identical on the
+    // canvas. Pin the type itself rather than trusting the visual.
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => (type === UAT ? PROD : type),
+    })
+
+    expect(writtenBlock().type).toBe(PROD)
+  })
+
+  it('drops the source-keyed inputs when the type changes, instead of leaving them to rot', async () => {
+    // Left in place they survive the copy and are then dropped SILENTLY by the serializer
+    // (a stored value with no matching config is a deleted input), which is what made a
+    // synced block render with its name and no fields.
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => (type === UAT ? PROD : type),
+    })
+
+    const subBlocks = writtenBlock().subBlocks ?? {}
+    expect(subBlocks['field-uat-a']).toBeUndefined()
+    expect(subBlocks['field-uat-b']).toBeUndefined()
+  })
+
+  it('writes the inputs configured for the target block', async () => {
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => (type === UAT ? PROD : type),
+      customBlockInputsByBlockId: new Map([
+        ['tgt-blk-cb', new Map([['field-prod-x', 'prod value X']])],
+      ]),
+    })
+
+    const subBlocks = writtenBlock().subBlocks ?? {}
+    expect(subBlocks['field-prod-x']?.value).toBe('prod value X')
+    // No value migrated across the swap — two custom blocks are independent workflows.
+    expect(subBlocks['field-uat-a']).toBeUndefined()
+  })
+
+  it('preserves reserved wiring across the swap', async () => {
+    // `workflowId`/`inputMapping` are computed value-fns the serializer recomputes; dropping
+    // them here would be harmless but replacing them with a stale literal would not be.
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => (type === UAT ? PROD : type),
+      customBlockInputsByBlockId: new Map([
+        [
+          'tgt-blk-cb',
+          new Map([
+            ['workflowId', 'crafted'],
+            ['field-prod-x', 'ok'],
+          ]),
+        ],
+      ]),
+    })
+
+    const subBlocks = writtenBlock().subBlocks ?? {}
+    expect(subBlocks.workflowId?.value).toBe('wf-uat')
+    expect(subBlocks['field-prod-x']?.value).toBe('ok')
+  })
+
+  it('leaves inputs untouched when the type does NOT change', async () => {
+    // Identity mapping, or no mapping at all: the field ids still describe this same block,
+    // so the values carry exactly like a regular block's.
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => type,
+      customBlockInputsByBlockId: new Map([
+        ['tgt-blk-cb', new Map([['field-prod-x', 'must not apply']])],
+      ]),
+    })
+
+    const subBlocks = writtenBlock().subBlocks ?? {}
+    expect(writtenBlock().type).toBe(UAT)
+    expect(subBlocks['field-uat-a']?.value).toBe('uat value A')
+    expect(subBlocks['field-prod-x']).toBeUndefined()
+  })
+})

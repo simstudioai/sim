@@ -38,7 +38,7 @@ import {
   resolveToolParamRequired,
 } from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
-import { isCustomBlockType } from '@/blocks/custom/build-config'
+import { isCustomBlockType, RESERVED_PARAMS } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
@@ -236,6 +236,40 @@ export interface RemapForkBlockTypeResult {
    * reference is a blocker; whether the type actually moved is visible from `type`.
    */
   resolved: boolean
+}
+
+/**
+ * Replace a retyped custom block's inputs with the values configured for the TARGET block.
+ *
+ * A custom block's input sub-blocks are keyed by the SOURCE Start field's stable id, so once
+ * the block's `type` is repointed they describe fields the new config does not declare. The
+ * serializer would drop them silently ({@link file://apps/sim/serializer/index.ts} — a stored
+ * value with no matching config is a deleted input), which is what made a synced block look
+ * corrupted: same name, no fields.
+ *
+ * There is deliberately NO attempt to match or migrate values across the swap. Two custom
+ * blocks are independent workflows; a field id that happens to collide would carry a value
+ * that means something else. Instead the inputs the user configured for the target at sync
+ * time are written verbatim, and everything else is dropped explicitly.
+ *
+ * `values` is already allowlisted to the target block's declared field ids by the planner,
+ * which is the only side that can resolve the target config. Reserved wiring
+ * (`workflowId`/`inputMapping`) is preserved untouched — those are computed value-fns the
+ * serializer recomputes and never carries forward.
+ */
+export function replaceCustomBlockInputs(
+  subBlocks: SubBlockRecord,
+  values: ReadonlyMap<string, string> | undefined
+): SubBlockRecord {
+  const next: SubBlockRecord = {}
+  for (const [key, subBlock] of Object.entries(subBlocks)) {
+    if (RESERVED_PARAMS.has(key)) next[key] = subBlock
+  }
+  for (const [fieldId, value] of values ?? []) {
+    if (RESERVED_PARAMS.has(fieldId)) continue
+    next[fieldId] = { value }
+  }
+  return next
 }
 
 /**
