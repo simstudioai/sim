@@ -61,6 +61,7 @@ import type {
 import {
   FILTER_SECTION_LABEL_CLASS,
   FloatingOverflowText,
+  isResourceListEmpty,
   Resource,
 } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -69,6 +70,7 @@ import {
   folderedResourceListHref,
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { DocumentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
@@ -411,6 +413,7 @@ export function KnowledgeBase({
   const {
     documents,
     pagination,
+    isLoading: isLoadingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
     hasProcessingDocuments,
@@ -1145,6 +1148,25 @@ export function KnowledgeBase({
     [enabledFilter, tagFilterEntries]
   )
 
+  /**
+   * The zero-data graphic is for a base that holds no documents — not a search or a
+   * filter that matched nothing, and not a page past the last one. Counts on the
+   * server's `total` rather than the visible rows, because this list is paginated:
+   * an empty page 2 is a paging position, not an empty base.
+   *
+   * The remaining gates mirror the workspace resource pages — the list must have
+   * arrived, must not be serving the previous query key's rows, and must not have
+   * failed. This list has no folders, so the folder arguments are omitted.
+   */
+  const showEmptyState = isResourceListEmpty({
+    rowCount: pagination.total,
+    isLoading: isLoadingDocuments,
+    isPlaceholderData: isPlaceholderDocuments,
+    error: documentsError,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+  })
+
   const selectableConfig: SelectableConfig = {
     selectedIds: selectedDocuments,
     onSelectRow: handleSelectDocument,
@@ -1271,6 +1293,14 @@ export function KnowledgeBase({
         <Resource.Table
           columns={DOCUMENT_COLUMNS}
           rows={documentRows}
+          emptyState={
+            showEmptyState ? (
+              <DocumentsEmptyState
+                onAddDocuments={handleAddDocuments}
+                addDisabled={userPermissions.canEdit !== true}
+              />
+            ) : undefined
+          }
           selectable={selectableConfig}
           onRowClick={handleDocumentClick}
           onRowContextMenu={handleDocumentContextMenu}
