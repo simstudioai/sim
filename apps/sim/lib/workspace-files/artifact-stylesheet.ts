@@ -475,7 +475,16 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 }
 .art-theme:hover { background: var(--surface-active); }
 .art-cols { display: grid; gap: 2.25rem; grid-template-columns: 1fr; }
-.art-cols > .art-main { padding-top: 1.5rem; min-width: 0; }
+.art-cols > .art-main {
+  padding-top: 1.5rem;
+  min-width: 0;
+  /* The docs' content measure, CENTERED in its cell: 1400px container minus
+     the rails leaves ~760px of prose column; without the cap the content
+     hugged the left rail and left dead space before the TOC on wide panes. */
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
 /* Rails stagger with the viewport the way the docs do on a laptop: the
    section sidebar survives down to resource-panel widths, the TOC joins on
    wide surfaces, and a truly narrow pane collapses to a single column. The
