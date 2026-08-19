@@ -377,12 +377,6 @@ export function Document({
     closeMenu: closeContextMenu,
   } = useContextMenu()
 
-  /**
-   * Kept separate from `documentError`: without the document there is no page to draw,
-   * while a failed chunk read still has one to frame it.
-   */
-  const chunkError = initialError || searchError
-
   const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
   /**
@@ -398,6 +392,17 @@ export function Document({
   const DocumentIcon =
     ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
+
+  /**
+   * Kept separate from `documentError`: without the document there is no page to draw,
+   * while a failed chunk read still has one to frame it.
+   *
+   * A document that is not `completed` is excluded, because the chunk read rejects for
+   * those by design — `requireChunkReadable` throws `KnowledgeDocumentNotReadyError`
+   * before it queries anything. That is the document's state, not a failure, and
+   * `chunkRows` already renders a row saying which state it is in.
+   */
+  const chunkError = isCompleted ? initialError || searchError : null
   const canEdit = userPermissions.canEdit === true
 
   const isInEditorView = selectedChunkId !== null || isCreatingNewChunk
