@@ -751,6 +751,42 @@ describe('knowledge embedding transport fallback', () => {
     expect(error.retryAfterMs).toBe(42_000)
   })
 
+  /**
+   * A stated wait past the ceiling cannot be honoured, so retrying only clamps
+   * every attempt below the reopen time and spends the budget for nothing. The
+   * error still classifies as transient, so the fallback chain takes over at
+   * once rather than after the retries burn down.
+   */
+  it('does not retry a wait it cannot honour, falling back immediately', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    const fetchMock = vi.fn().mockImplementation(async (url: string) =>
+      url === 'https://api.openai.com/v1/embeddings'
+        ? ({
+            ok: false,
+            status: 429,
+            statusText: '429',
+            // Six minutes, far past EMBEDDING_MAX_RETRY_DELAY_MS.
+            headers: new Headers({
+              'x-ratelimit-remaining-tokens': '0',
+              'x-ratelimit-reset-tokens': '6m0s',
+            }),
+            json: async () => ({ error: 'rate limited' }),
+            text: async () => 'rate limited',
+          } as Response)
+        : jsonResponse(openAIBody([[9, 9]], 2))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = embedKnowledgeForDeployment(['hello'], options, false)
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    const openAICalls = fetchMock.mock.calls.filter(([url]) => url.includes('api.openai.com'))
+    expect(openAICalls).toHaveLength(1)
+    expect(result.embeddings).toEqual([[9, 9]])
+  })
+
   it('classifies only transient embedding failures for failover', () => {
     expect(isTransientEmbeddingError(new EmbeddingAPIError('unavailable', 503))).toBe(true)
     expect(isTransientEmbeddingError(new EmbeddingAPIError('rate limited', 429))).toBe(true)

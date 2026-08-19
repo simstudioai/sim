@@ -84,6 +84,25 @@ export class EmbeddingAPIError extends Error {
   }
 }
 
+/**
+ * True when the provider asked us to wait longer than we are willing to hold a
+ * request for.
+ *
+ * Retrying in that case cannot succeed: the loop clamps every attempt to
+ * {@link EMBEDDING_MAX_RETRY_DELAY_MS}, so the whole budget is spent inside a
+ * window that has not reopened. The error is still transient — it just is not
+ * worth retrying here — so refusing the retry surfaces it immediately and the
+ * fallback chain, which classifies separately via `shouldFallback`, reaches the
+ * next provider at once instead of after the budget burns down.
+ */
+function statedWaitExceedsCeiling(error: unknown): boolean {
+  return (
+    error instanceof EmbeddingAPIError &&
+    error.retryAfterMs !== undefined &&
+    error.retryAfterMs > EMBEDDING_MAX_RETRY_DELAY_MS
+  )
+}
+
 export function isTransientEmbeddingError(error: unknown): boolean {
   if (error instanceof EmbeddingAPIError) {
     return error.status === 429 || error.status >= 500
@@ -266,7 +285,8 @@ async function callEmbeddingAPI(
       maxRetries: EMBEDDING_MAX_RETRIES,
       initialDelayMs: 1000,
       maxDelayMs: EMBEDDING_MAX_RETRY_DELAY_MS,
-      retryCondition: isTransientEmbeddingError,
+      retryCondition: (error) =>
+        isTransientEmbeddingError(error) && !statedWaitExceedsCeiling(error),
     }
   )
 }
