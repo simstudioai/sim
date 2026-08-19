@@ -63,6 +63,7 @@ import {
   FloatingOverflowText,
   isResourceListEmpty,
   Resource,
+  ResourceNotFound,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
@@ -1258,15 +1259,11 @@ export function KnowledgeBase({
 
   if (error && !knowledgeBase) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <DatabaseX className='size-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[20px] text-[var(--text-secondary)]'>Knowledge base not found</h2>
-          <p className='text-[var(--text-muted)] text-small'>
-            This knowledge base may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceNotFound
+        icon={DatabaseX}
+        title='Knowledge base not found'
+        description='This knowledge base may have been deleted or moved'
+      />
     )
   }
 
