@@ -227,6 +227,21 @@ export function isIndexableConnectorFile(fileName: string): boolean {
 }
 
 /**
+ * Whether a document carries anything worth indexing.
+ *
+ * A source file has to have bytes. A zero-byte file is not payload: it produces an
+ * empty stored object, and for a PDF that reaches OCR as an empty request and comes
+ * back as an opaque `400 Bad Request` — billing an external call to learn the file
+ * was empty, and reporting it as an API fault rather than as what it is.
+ */
+export function hasIndexablePayload(
+  doc: Pick<ExternalDocument, 'content' | 'sourceFile'>
+): boolean {
+  if (doc.sourceFile) return doc.sourceFile.bytes.length > 0
+  return doc.content.trim().length > 0
+}
+
+/**
  * MIME type to store a file under when the shared pipeline should parse it, or
  * `undefined` when the connector should decode it as text itself.
  *
