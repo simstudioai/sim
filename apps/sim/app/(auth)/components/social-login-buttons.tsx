@@ -85,7 +85,7 @@ export function SocialLoginButtons({
   const googleButton = (
     <Chip
       fullWidth
-      leftAdornment={<GoogleIcon className='size-[20px] flex-shrink-0' />}
+      leftAdornment={<GoogleIcon className='size-[20px] shrink-0' />}
       className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
