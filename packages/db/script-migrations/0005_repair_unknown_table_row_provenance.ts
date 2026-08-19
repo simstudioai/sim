@@ -15,17 +15,19 @@ interface RepairPage {
 /**
  * Returns one page of `unknown` rows to the untracked state.
  *
- * Both halves belong in one statement. Clearing the marker while a sidecar row survives beside it
- * is the state a derived table transformation reads as unknown, so a split repair would be undone
- * by the next column operation.
+ * Takes the parent row lock before touching the sidecar, in `id` order, because that is the order
+ * `mutateTableRowsWithSecretProvenance` takes them: it locks `user_table_rows` up front, then
+ * upserts the sidecar inside the same transaction. Deleting the sidecar first and only then
+ * updating the parent is the opposite order, so an overlapping write would deadlock — and Postgres
+ * would resolve it by aborting either the deployment or somebody's table write. Sharing the
+ * writer's order means the two serialize instead.
  *
- * The delete re-checks `status` rather than trusting the id the page captured. A provenance-aware
- * write commits its exact sidecar and its version marker together, and can land between this
- * statement's snapshot and its delete; matching on `row_id` alone would drop that fresh exact
- * sidecar and clear the marker behind it, leaving a genuinely secret-bearing row reading as
- * legacy — provenance destroyed by the repair meant to make provenance safe. Under READ COMMITTED
- * the delete re-evaluates its condition against the updated row, so the writer's row no longer
- * matches and is left alone; whichever of the two commits second sees the other's result.
+ * Holding the parent lock is also what makes the status re-check below decisive rather than
+ * racy: a provenance-aware write commits its exact sidecar and its version marker together under
+ * that same lock, so once it is held the write is either wholly done or has not begun. Matching on
+ * the id alone would drop a freshly exact sidecar and clear the marker behind it, leaving a
+ * genuinely secret-bearing row reading as legacy — provenance destroyed by the repair meant to make
+ * provenance safe.
  *
  * `secret_provenance_version` is not a column the demote trigger watches, so this leaves
  * `updated_at` alone and cannot disturb a concurrent write's sidecar binding.
@@ -35,30 +37,44 @@ async function repairUnknownProvenancePage(
   batchSize: number,
   afterRowId: string
 ): Promise<RepairPage> {
-  const [page] = await sql<[RepairPage]>`
-    WITH page AS (
-      SELECT row_id
-      FROM user_table_row_secret_provenance
-      WHERE status = 'unknown' AND row_id > ${afterRowId}
-      ORDER BY row_id
-      LIMIT ${batchSize}
-    ), cleared AS (
+  const candidates = await sql<{ rowId: string }[]>`
+    SELECT row_id AS "rowId"
+    FROM user_table_row_secret_provenance
+    WHERE status = 'unknown' AND row_id > ${afterRowId}
+    ORDER BY row_id
+    LIMIT ${batchSize}
+  `
+  if (candidates.length === 0) return { candidates: 0, repaired: 0, lastRowId: null }
+  const rowIds = candidates.map((candidate) => candidate.rowId)
+
+  const repaired = await sql.begin(async (tx) => {
+    await tx`
+      SELECT id FROM user_table_rows
+      WHERE id = ANY(${rowIds}::text[])
+      ORDER BY id
+      FOR UPDATE
+    `
+    const cleared = await tx<{ rowId: string }[]>`
       DELETE FROM user_table_row_secret_provenance
-      WHERE row_id IN (SELECT row_id FROM page)
+      WHERE row_id = ANY(${rowIds}::text[])
         AND status = 'unknown'
-      RETURNING row_id
-    ), marked AS (
+      RETURNING row_id AS "rowId"
+    `
+    if (cleared.length === 0) return 0
+    const marked = await tx<{ id: string }[]>`
       UPDATE user_table_rows
       SET secret_provenance_version = NULL
-      WHERE id IN (SELECT row_id FROM cleared)
+      WHERE id = ANY(${cleared.map((row) => row.rowId)}::text[])
       RETURNING id
-    )
-    SELECT
-      (SELECT count(*) FROM page)::int AS "candidates",
-      (SELECT count(*) FROM marked)::int AS "repaired",
-      (SELECT max(row_id) FROM page) AS "lastRowId"
-  `
-  return page
+    `
+    return marked.length
+  })
+
+  return {
+    candidates: rowIds.length,
+    repaired: repaired as number,
+    lastRowId: rowIds[rowIds.length - 1],
+  }
 }
 
 /**
