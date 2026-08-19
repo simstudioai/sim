@@ -76,6 +76,7 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
     input: log.input,
     output,
     ...(childIds ?? {}),
+    ...(log.childExecution ? { childExecutionId: log.childExecution.executionId } : {}),
     ...(log.errorHandled && { errorHandled: true }),
     ...(log.tries !== undefined && { tries: log.tries }),
     ...(log.loopId && { loopId: log.loopId }),
@@ -368,8 +369,13 @@ function stripChildTraceSpansFromOutput(
   return rest
 }
 
-/** Recursively flattens synthetic workflow wrappers, preserving real block spans. */
-function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
+/**
+ * Recursively flattens synthetic workflow wrappers, preserving real block spans.
+ *
+ * Shared with read-time custom-block hydration so a cross-workspace child nests
+ * under its boundary span exactly the way an in-process child workflow does.
+ */
+export function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
   const flattened: TraceSpan[] = []
 
   for (const span of spans) {

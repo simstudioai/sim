@@ -335,6 +335,19 @@ export interface ContextExtensions {
    * Each hop appends the current workflow ID before making outgoing requests.
    */
   callChain?: string[]
+
+  /**
+   * The Sim user watching this run's live block stream, when there is exactly one
+   * and they are a known, authenticated workspace member — i.e. an editor/manual
+   * run. Deliberately UNSET on chat deployments, public API, webhook, and schedule
+   * runs, whose stream consumer may be an anonymous external visitor.
+   *
+   * Used to decide whether a custom block may stream the SOURCE workflow's block
+   * events across the invocation boundary: only if this viewer has access to the
+   * source workspace. Absent means the boundary holds, so every surface that does
+   * not opt in is fail-closed by default.
+   */
+  liveTraceViewerUserId?: string
 }
 
 export interface WorkflowInput {

@@ -524,6 +524,7 @@ export class DAGExecutor {
       runFromBlockContext: overrides?.runFromBlockContext,
       stopAfterBlockId: this.contextExtensions.stopAfterBlockId,
       callChain: this.contextExtensions.callChain,
+      liveTraceViewerUserId: this.contextExtensions.liveTraceViewerUserId,
     }
 
     if (this.contextExtensions.resumeFromSnapshot) {

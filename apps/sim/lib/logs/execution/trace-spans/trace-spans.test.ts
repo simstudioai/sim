@@ -2381,3 +2381,55 @@ describe('traceSpansIndicateFailure', () => {
     expect(traceSpansIndicateFailure([])).toBe(false)
   })
 })
+
+describe('custom-block boundary spans', () => {
+  const customBlockLog = {
+    blockId: 'cb-1',
+    blockName: 'Published Block',
+    blockType: 'custom_block_abc',
+    startedAt: '2024-01-01T10:00:00.000Z',
+    endedAt: '2024-01-01T10:00:01.000Z',
+    durationMs: 1000,
+    success: true,
+    executionOrder: 1,
+    input: {},
+    output: { answer: 42 },
+  }
+
+  it("never PERSISTS a custom block's child spans into the parent trace", () => {
+    // The child's spans are handed to an authorized LIVE viewer for terminal
+    // reconciliation, and they ride the block log to get there — but they must not
+    // land in the parent's stored trace. Persisting them would bake a publish-time
+    // decision into the row, where read-time hydration re-checks the viewer instead.
+    const result: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [
+        {
+          ...customBlockLog,
+          childTraceSpans: [
+            { id: 'child-1', name: 'Publisher Agent', type: 'agent', blockId: 'src-1' },
+          ],
+        },
+      ],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(result)
+    const boundary = traceSpans[0].children?.find((s) => s.blockId === 'cb-1') ?? traceSpans[0]
+
+    expect(boundary.children ?? []).toEqual([])
+  })
+
+  it('carries the opaque childExecutionId so read-time hydration can find the run', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: {},
+      logs: [{ ...customBlockLog, childExecution: { executionId: 'child-exec-1' } }],
+    } as unknown as ExecutionResult
+
+    const { traceSpans } = buildTraceSpans(result)
+    const boundary = traceSpans[0].children?.find((s) => s.blockId === 'cb-1') ?? traceSpans[0]
+
+    expect(boundary.childExecutionId).toBe('child-exec-1')
+  })
+})

@@ -33,6 +33,7 @@ import {
   type ForkReferenceResolver,
   type ForkRemapKind,
   REQUIRED_KINDS,
+  remapForkBlockType,
   remapForkSubBlocks,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -210,6 +211,31 @@ export function collectForkClearedRefCandidates(
           kind: ref.kind,
           sourceId: ref.sourceId,
           sourceLabel: labelFor(ref.kind, ref.sourceId),
+          cause: 'reference',
+          sourceDeleted: false,
+        })
+      }
+
+      // A custom block's reference is the block's own TYPE, so it is not part of the
+      // sub-block scan above. Unlike every other entry here it does not describe something
+      // that would CLEAR — an unmapped custom block keeps invoking the source environment's
+      // block — but it rides the same `reference` cause so it reaches the sync gate, which is
+      // the only thing that makes the silent cross-environment call visible. `sync-blockers`
+      // gives it its own `unmapped-custom-block` reason so the copy stays accurate.
+      const blockTypeRef = remapForkBlockType(block.type, resolver, {
+        blockId: targetBlockId,
+        blockName: blockLabel,
+      })
+      if (blockTypeRef.reference && !blockTypeRef.remapped) {
+        out.push({
+          targetWorkflowId: item.targetWorkflowId,
+          workflowName: item.sourceMeta.name,
+          blockId: targetBlockId,
+          blockLabel,
+          fieldLabel: 'Block',
+          kind: 'custom-block',
+          sourceId: blockTypeRef.reference.sourceId,
+          sourceLabel: labelFor('custom-block', blockTypeRef.reference.sourceId),
           cause: 'reference',
           sourceDeleted: false,
         })

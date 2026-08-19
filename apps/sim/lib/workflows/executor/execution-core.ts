@@ -965,6 +965,13 @@ async function executeWorkflowCoreImpl(
       stopAfterBlockId: resolvedStopAfterBlockId,
       onChildWorkflowInstanceReady,
       callChain: metadata.callChain,
+      // The live block stream has a single known, authenticated Sim viewer only on
+      // a client session — the execute route rejects `isClientSession` for API-key
+      // and public-API callers, so it implies an authenticated session. Every other
+      // surface (chat deployments, webhooks, schedules, background jobs) leaves this
+      // unset, which is what keeps a custom block from streaming its SOURCE
+      // workspace's block events to a consumer who may be an anonymous visitor.
+      ...(metadata.isClientSession ? { liveTraceViewerUserId: userId } : {}),
     }
 
     if (snapshot.state) {
