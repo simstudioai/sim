@@ -15,15 +15,23 @@ export const ISO_FILL_PROPS = {
   pointerEvents: 'none',
 } satisfies SVGProps<SVGPathElement>
 
-export function createIsoLineProps(className: string, stroke: string): SVGProps<SVGPathElement> {
+/**
+ * Contour props for an iso face. `strokeWidth` defaults to the shared weight; a mark
+ * drawn at a different scale passes its own so the recipe stays single-sourced.
+ */
+export function createIsoLineProps<T extends SVGElement = SVGPathElement>(
+  className: string | undefined,
+  stroke: string,
+  strokeWidth: number = ISO_LINE_STROKE_WIDTH
+): SVGProps<T> {
   return {
-    className,
+    ...(className ? { className } : {}),
     fill: 'none',
     pathLength: 1,
     pointerEvents: 'none',
     opacity: 1,
     stroke,
-    strokeWidth: ISO_LINE_STROKE_WIDTH,
+    strokeWidth,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
   }

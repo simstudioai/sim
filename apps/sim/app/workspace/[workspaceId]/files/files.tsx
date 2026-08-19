@@ -85,6 +85,8 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -263,8 +265,19 @@ export function Files() {
     }
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
-  const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
-  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
+  const {
+    data: files = EMPTY_WORKSPACE_FILES,
+    isLoading,
+    isPlaceholderData,
+    error,
+  } = useWorkspaceFiles(workspaceId)
+  const {
+    data: folders = EMPTY_WORKSPACE_FILE_FOLDERS,
+    isSuccess: foldersLoaded,
+    isPlaceholderData: foldersArePlaceholder,
+  } = useWorkspaceFileFolders(workspaceId)
+  /** Matches `FolderNavigation.foldersResolved`, which the other resource pages read. */
+  const foldersResolved = foldersLoaded && !foldersArePlaceholder
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedFileIds = usePinnedIds(workspaceId, 'file')
   // Folders pin under their own resource type, so their pinned set is a separate query.
@@ -1804,6 +1817,17 @@ export function Files() {
     return tags
   }, [typeFilter, sizeFilter, uploadedByFilter, membersById])
 
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading,
+    isPlaceholderData,
+    error,
+    search: debouncedSearchTerm,
+    filterCount: filterTags.length,
+    folderId: currentFolderId,
+    foldersResolved,
+  })
+
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <Resource>
@@ -1904,6 +1928,14 @@ export function Files() {
           filter={filterConfig}
         />
         <Resource.Table
+          emptyState={
+            showEmptyState ? (
+              <FilesEmptyState
+                onUpload={handleUploadClick}
+                uploadDisabled={uploading || !canEdit}
+              />
+            ) : undefined
+          }
           columns={COLUMNS}
           rows={rows}
           selectable={selectableConfig}

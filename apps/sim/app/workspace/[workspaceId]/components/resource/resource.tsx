@@ -225,6 +225,16 @@ interface ResourceTableProps {
    * chrome and positioning; it never alters the table's rendering.
    */
   overlay?: ReactNode
+  /**
+   * Sanctioned empty slot. Rendered below the column headers when `rows` is
+   * empty, filling the otherwise blank scroll area. It never replaces the table
+   * region or the headers — the chrome guarantee holds — so a consumer can show
+   * a zero-data graphic without the list losing its structure.
+   *
+   * The table owns the growth box the slot is centred in, so any node centres —
+   * the slot does not have to carry its own `flex-1` to sit in the middle.
+   */
+  emptyState?: ReactNode
 }
 
 /**
@@ -263,9 +273,12 @@ const ResourceTable = memo(function ResourceTable({
   isLoadingMore,
   pagination,
   overlay,
+  emptyState,
 }: ResourceTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
+
+  const showEmptyState = rows.length === 0 && Boolean(emptyState)
 
   const [contextMenuRowId, setContextMenuRowId] = useState<string | null>(null)
 
@@ -358,7 +371,10 @@ const ResourceTable = memo(function ResourceTable({
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
       <div
         ref={scrollRef}
-        className='min-h-0 flex-1 overflow-auto overscroll-none'
+        className={cn(
+          'min-h-0 flex-1 overflow-auto overscroll-none',
+          showEmptyState && 'flex flex-col'
+        )}
         onDragOver={bodyDrop?.onDragOver}
         onDragLeave={bodyDrop?.onDragLeave}
         onDrop={bodyDrop?.onDrop}
@@ -440,6 +456,7 @@ const ResourceTable = memo(function ResourceTable({
                 ))}
           </div>
         </div>
+        {showEmptyState ? <div className='flex min-h-0 flex-1 flex-col'>{emptyState}</div> : null}
         {hasMore && (
           <div ref={loadMoreRef} className='flex items-center justify-center py-3'>
             {isLoadingMore && (
