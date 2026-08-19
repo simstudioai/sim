@@ -35,6 +35,7 @@ const ARTIFACT_TOKENS = [
   '--surface-1',
   '--surface-2',
   '--surface-3',
+  '--surface-4',
   '--surface-5',
   '--surface-hover',
   '--surface-active',
@@ -111,6 +112,7 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --surface-1: #fbfbfb;
   --surface-2: #ffffff;
   --surface-3: #f7f7f7;
+  --surface-4: #f5f5f5;
   --surface-5: #f3f3f3;
   --surface-hover: #f2f2f2;
   --surface-active: #ececec;
@@ -136,7 +138,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --code-bg: #f5f5f5;
   --code-surface: var(--surface-5);
   --selection-bg: #add6ff;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* The PLATFORM stack, not the docs' webfont: pages live inside the app,
+     and emcn/sim render the system face — Inter here read as foreign. The
+     docs' geometry survives; the face is the platform's. */
+  --font-sans: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --text-caption: 12px;
   --text-small: 13px;
@@ -149,6 +154,7 @@ export const SIM_ARTIFACT_STYLESHEET = `
     --surface-1: #1e1e1e;
     --surface-2: #232323;
     --surface-3: #242424;
+    --surface-4: #2c2c2c;
     --surface-5: #363636;
     --surface-hover: #262626;
     --surface-active: #2c2c2c;
@@ -186,6 +192,7 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --surface-1: #1e1e1e;
   --surface-2: #232323;
   --surface-3: #242424;
+  --surface-4: #2c2c2c;
   --surface-5: #363636;
   --surface-hover: #262626;
   --surface-active: #2c2c2c;
@@ -218,9 +225,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 h1, h2, h3, h4 { text-wrap: balance; }
-h1 { font-size: 1.5rem; font-weight: 550; letter-spacing: -0.02em; color: var(--text-primary); line-height: 1.25; margin: 0 0 0.75rem; }
+h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); line-height: 1.25; margin: 0 0 0.75rem; }
 h2 { font-size: 1.25rem; font-weight: 500; letter-spacing: -0.015em; color: var(--text-primary); margin: 2.5rem 0 0.9rem; }
-h3, h4 { font-size: var(--text-md); font-weight: 470; letter-spacing: -0.01em; color: var(--text-body); margin: 1.75rem 0 0.5rem; }
+h3, h4 { font-size: var(--text-md); font-weight: 500; letter-spacing: -0.01em; color: var(--text-body); margin: 1.75rem 0 0.5rem; }
 p, li { max-width: 70ch; }
 p { margin: 0 0 1rem; }
 /* Content links — the docs' prose anchor (fumadocs prose, compiled): 500
@@ -236,7 +243,7 @@ a {
   transition: opacity 0.2s;
 }
 a:hover { opacity: 0.8; }
-strong { color: var(--text-primary); font-weight: 550; }
+strong { color: var(--text-primary); font-weight: 600; }
 hr { border: 0; border-top: 1px solid var(--border); margin: 3em 0; }
 hr + * { margin-top: 0; }
 /* Lists — the docs' prose metrics: 1rem/1.625em indents, muted markers. */
@@ -427,16 +434,24 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 }
 .art-bar-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-right: auto; }
 .art-search {
-  width: min(260px, 45vw);
+  /* emcn ChipInput chrome verbatim (chip-chrome.ts): h-30px rounded-lg,
+     --surface-5 fill (--surface-4 dark via token), --border-1 border, 14px
+     text, px-2, no focus ring. */
   height: 30px;
-  padding: 0 0.6rem;
-  font-family: var(--font-sans);
-  font-size: var(--text-small);
-  color: var(--text-primary);
-  background: var(--surface-5);
+  padding: 0 0.5rem;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
+  background: var(--chip-fill, var(--surface-5));
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-body);
+  outline: none;
+  transition: background-color 0.15s, border-color 0.15s;
+  width: 200px;
 }
+/* emcn's chip fill flips to --surface-4 in dark. */
+:root[data-theme="dark"] { --chip-fill: var(--surface-4); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --chip-fill: var(--surface-4); } }
 .art-search::placeholder { color: var(--text-muted); }
 /* Top-of-page controls: Copy page + prev/next chevrons on the title row. */
 .page-actions {
@@ -525,7 +540,7 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   align-items: center;
   gap: 6px;
   font-size: var(--text-small);
-  font-weight: 480;
+  font-weight: 500;
   color: var(--text-muted);
   margin: 0 0 0.5rem;
 }
@@ -537,7 +552,7 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   padding-top: 6px;
   padding-bottom: 6px;
   font-size: var(--text-small);
-  font-weight: 430;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--text-muted);
   text-decoration: none;
@@ -552,12 +567,12 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .toc-items a::after {
   content: attr(data-text);
   display: block; height: 0; visibility: hidden; overflow: hidden;
-  font-weight: 470; pointer-events: none;
+  font-weight: 500; pointer-events: none;
 }
 .toc-items a[data-depth="2"] { padding-left: 20px; }
 .toc-items a[data-depth="3"] { padding-left: 32px; }
 .toc-items a:hover { color: var(--text-body); }
-.toc-items a.is-active { color: var(--text-primary); font-weight: 470; }
+.toc-items a.is-active { color: var(--text-primary); font-weight: 500; }
 /* The track: the full outline path in foreground at 10%, and the same path in
    full foreground clipped to the active range — fumadocs animates the clip
    window, which is the "black segment" that slides as you scroll. */

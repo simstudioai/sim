@@ -143,8 +143,10 @@ describe('docs fidelity', () => {
   })
 
   // Inter leads the stack; each surface injects the matching @font-face.
-  it('leads the sans stack with the docs font', () => {
-    expect(SIM_ARTIFACT_STYLESHEET).toContain('--font-sans: "Inter",')
+  // Pages live inside the app: the PLATFORM stack, not the docs' webfont.
+  it('uses the platform font stack', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('--font-sans: ui-sans-serif, -apple-system')
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain('"Inter"')
   })
 
   // The docs' prose anchor: 500 weight, 1.5px underline offset 3.5px, hover

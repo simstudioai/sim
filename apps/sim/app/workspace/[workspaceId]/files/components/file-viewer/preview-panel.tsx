@@ -13,7 +13,6 @@ import {
   usesSimArtifactStyles,
 } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
-import { SIM_PAGE_FONT_URL, simPageFontFace } from '@/lib/workspace-files/page-font'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
@@ -145,55 +144,6 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
 })()
 </script>`
 
-/**
- * Inter for the sandboxed preview: `font-src` allows only `data:`, so the
- * host fetches the app-served woff2 once per session and inlines it. Until
- * the fetch lands (or off-browser) the page renders on the system stack and
- * upgrades on the next build — a font swap, not a layout break.
- */
-let interFontFaceCss = ''
-let interFontFacePromise: Promise<string> | null = null
-function loadInterFontFace(): Promise<string> {
-  if (!interFontFacePromise) {
-    interFontFacePromise = fetch(SIM_PAGE_FONT_URL)
-      .then((response) => (response.ok ? response.arrayBuffer() : null))
-      .then((buffer) => {
-        if (!buffer) return ''
-        const bytes = new Uint8Array(buffer)
-        let binary = ''
-        for (let i = 0; i < bytes.length; i += 0x8000) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-        }
-        interFontFaceCss = simPageFontFace(`data:font/woff2;base64,${btoa(binary)}`)
-        return interFontFaceCss
-      })
-      .catch(() => '')
-  }
-  return interFontFacePromise
-}
-
-function useSimPageFontFace(): string {
-  const [fontFace, setFontFace] = useState(interFontFaceCss)
-  useEffect(() => {
-    if (interFontFaceCss) return
-    let cancelled = false
-    loadInterFontFace().then((value) => {
-      if (!cancelled && value) setFontFace(value)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  return fontFace
-}
-
-/**
- * Stamps the app's resolved theme onto the document root. The frame has an
- * opaque origin and inherits nothing, so `prefers-color-scheme` inside it
- * follows the OS rather than Sim's own toggle — a page would render light
- * against a dark app. Every theme-aware page keys off `[data-theme]`, so
- * carrying it across is what makes the two agree.
- */
 function stampTheme(html: string, theme: 'dark' | 'light'): string {
   if (/<html[\s>]/i.test(html)) {
     return html.replace(/<html(\s[^>]*)?>/i, (match, attrs: string | undefined) =>
@@ -207,8 +157,7 @@ export function buildHtmlPreviewDocument(
   content: string,
   theme: 'dark' | 'light' = 'light',
   workspaceId?: string,
-  lenient?: boolean,
-  fontFaceCss: string = interFontFaceCss
+  lenient?: boolean
 ): string {
   // The pdf model: a page file STORES its source (frontmatter + markdown +
   // sim: fences) and every rendering surface compiles on demand. Partial
@@ -225,7 +174,7 @@ export function buildHtmlPreviewDocument(
     // token overrides follow the sheet so the app's live values beat its
     // fallbacks, and the shell follows both.
     usesSimArtifactStyles(content)
-      ? `<style>${fontFaceCss}${SIM_ARTIFACT_STYLESHEET}</style><style>${simTokenOverrides()}</style>${SIM_ARTIFACT_SHELL}`
+      ? `<style>${SIM_ARTIFACT_STYLESHEET}</style><style>${simTokenOverrides()}</style>${SIM_ARTIFACT_SHELL}`
       : '',
     HTML_PREVIEW_BOOTSTRAP,
   ].join('')
@@ -331,7 +280,6 @@ const HtmlPreview = memo(function HtmlPreview({
 }) {
   const { resolvedTheme } = useTheme()
   const router = useRouter()
-  const fontFaceCss = useSimPageFontFace()
   const batchedContent = useStreamBatchedValue(content, isStreaming === true, 2000)
   const builtContent = buildHtmlPreviewDocument(
     batchedContent,
@@ -339,8 +287,7 @@ const HtmlPreview = memo(function HtmlPreview({
     workspaceId,
     // Mid-stream, a fence still being written is malformed by definition —
     // suppress the skip notices until the stream settles.
-    isStreaming === true,
-    fontFaceCss
+    isStreaming === true
   )
   // AFTER the build: workspace image srcs (/api/files/view/…) only exist in
   // the COMPILED document — the raw source says sim:file/… — so substituting
