@@ -5087,6 +5087,7 @@ import {
   updateProjectTool,
 } from '@/tools/sentry'
 import { serperSearchTool } from '@/tools/serper'
+import { searchTool as serplySearchTool } from '@/tools/serply/search'
 import {
   servicenowAddIncidentCommentTool,
   servicenowAggregateTool,
@@ -8149,6 +8150,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   github_latest_commit: githubLatestCommitTool,
   github_latest_commit_v2: githubLatestCommitV2Tool,
   serper_search: serperSearchTool,
+  serply_search: serplySearchTool,
   semrush_backlinks: semrushBacklinksTool,
   semrush_backlinks_anchors: semrushBacklinksAnchorsTool,
   semrush_backlinks_competitors: semrushBacklinksCompetitorsTool,
