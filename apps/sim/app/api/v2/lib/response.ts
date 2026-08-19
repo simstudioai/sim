@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
+import {
+  V2_ERROR_CODE_BY_STATUS,
+  V2_ERROR_STATUS_BY_CODE,
+  type V2ErrorCode,
+} from '@/lib/api/contracts/v2/error-codes'
 import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
@@ -20,41 +25,6 @@ import type { RateLimitResult } from '@/app/api/v1/middleware'
  * middleware and the platform domain services — these helpers only standardize
  * the HTTP envelope.
  */
-
-export type V2ErrorCode =
-  | 'BAD_REQUEST'
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'CONFLICT'
-  | 'PAYLOAD_TOO_LARGE'
-  | 'UNSUPPORTED_MEDIA_TYPE'
-  | 'USAGE_LIMIT_EXCEEDED'
-  | 'LOCKED'
-  | 'RATE_LIMITED'
-  | 'CLIENT_CLOSED_REQUEST'
-  | 'INTERNAL_ERROR'
-  | 'SERVICE_UNAVAILABLE'
-
-const STATUS_BY_CODE: Record<V2ErrorCode, number> = {
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  USAGE_LIMIT_EXCEEDED: 402,
-  FORBIDDEN: 403,
-  NOT_FOUND: 404,
-  CONFLICT: 409,
-  PAYLOAD_TOO_LARGE: 413,
-  UNSUPPORTED_MEDIA_TYPE: 415,
-  LOCKED: 423,
-  RATE_LIMITED: 429,
-  CLIENT_CLOSED_REQUEST: 499,
-  INTERNAL_ERROR: 500,
-  SERVICE_UNAVAILABLE: 503,
-}
-
-const V2_CODE_BY_HTTP_STATUS: Partial<Record<number, V2ErrorCode>> = Object.fromEntries(
-  Object.entries(STATUS_BY_CODE).map(([code, status]) => [status, code as V2ErrorCode])
-)
 
 /**
  * Every v2 response is authed, per-caller data (ids/filters appear in query
@@ -195,7 +165,7 @@ export function v2Error(
 ): NextResponse {
   const error: { code: V2ErrorCode; message: string; details?: unknown } = { code, message }
   if (options.details !== undefined) error.details = options.details
-  const status = options.status ?? STATUS_BY_CODE[code]
+  const status = options.status ?? V2_ERROR_STATUS_BY_CODE[code]
   const retryAfterSeconds = options.omitRetryAfter
     ? undefined
     : RETRY_AFTER_SECONDS_BY_STATUS[status]
@@ -215,7 +185,7 @@ export function v2Error(
 
 /** Renders a trusted typed HTTP error without changing the v2 envelope. */
 export function v2HttpError(error: HttpError): NextResponse {
-  const code = V2_CODE_BY_HTTP_STATUS[error.statusCode]
+  const code = V2_ERROR_CODE_BY_STATUS[error.statusCode]
   if (!code) return v2Error('INTERNAL_ERROR', 'Internal server error')
   return v2Error(code, error.message)
 }

@@ -22,7 +22,6 @@ import {
 } from '@/lib/api/contracts/v2/mcp-servers'
 import {
   documentedSchema,
-  ERROR_RESPONSES,
   type ErrorResponseId,
   FULL_SET_LIST,
   HEAD_MIRRORS_GET,
@@ -34,6 +33,7 @@ import {
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
+  withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -1158,6 +1158,8 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
-  errorResponses: ERROR_RESPONSES,
+  errorResponses: withErrorExamples({
+    Conflict: { message: 'API key name already exists' },
+  }),
   routes,
 })

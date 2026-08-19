@@ -4,6 +4,7 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  EMBEDDING_MAX_RETRIES,
   EmbeddingAPIError,
   embed,
   embedKnowledgeForDeployment,
@@ -28,11 +29,13 @@ vi.mock('@/lib/api-key/byok', () => ({
 
 const originalFetch = global.fetch
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(body: unknown, status = 200, responseHeaders?: HeadersInit): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: String(status),
+    // A real Response always carries these; the failure path reads them for rate-limit signals.
+    headers: new Headers(responseHeaders),
     json: async () => body,
     text: async () => JSON.stringify(body),
   } as Response
@@ -677,11 +680,12 @@ describe('knowledge embedding transport fallback', () => {
     await vi.runAllTimersAsync()
     const result = await pending
 
-    expect(fetchMock).toHaveBeenCalledTimes(5)
-    expect(fetchMock.mock.calls.slice(0, 4).every(([url]) => url.includes('api.openai.com'))).toBe(
-      true
-    )
-    expect(fetchMock.mock.calls[4][0]).toBe('https://openrouter.ai/api/v1/embeddings')
+    const attempts = EMBEDDING_MAX_RETRIES + 1
+    expect(fetchMock).toHaveBeenCalledTimes(attempts + 1)
+    expect(
+      fetchMock.mock.calls.slice(0, attempts).every(([url]) => url.includes('api.openai.com'))
+    ).toBe(true)
+    expect(fetchMock.mock.calls[attempts][0]).toBe('https://openrouter.ai/api/v1/embeddings')
     expect(projectInputs).toHaveBeenCalledOnce()
     expect(result.embeddings).toEqual([[7, 8]])
   })
@@ -713,11 +717,109 @@ describe('knowledge embedding transport fallback', () => {
       .filter(([url]) => url === 'https://openrouter.ai/api/v1/embeddings')
       .flatMap(([, init]) => JSON.parse((init as RequestInit).body as string).input as string[])
     expect(openRouterInputs).toEqual([secondInput])
-    expect(fetchMock).toHaveBeenCalledTimes(6)
+    // The succeeding batch, every attempt on the failing one, then its fallback.
+    expect(fetchMock).toHaveBeenCalledTimes(1 + (EMBEDDING_MAX_RETRIES + 1) + 1)
     expect(result.embeddings).toEqual([[1], [2]])
     expect(result.totalTokens).toBe(6)
     expect(result.billableTokens).toBe(3)
     expect(result.isBYOK).toBe(false)
+  })
+
+  /**
+   * The retry loop replaces its own backoff with a provider-stated wait, but only
+   * if the wait reaches it. Nothing downstream of the transport could see the
+   * response headers, so a rate-limited embedding request retried blind.
+   */
+  it('carries the provider-stated retry wait onto the thrown error', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test' })
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      statusText: '429',
+      headers: new Headers({ 'retry-after': '42' }),
+      json: async () => ({ error: 'rate limited' }),
+      text: async () => 'rate limited',
+    } as Response)
+
+    const pending = embed(['hello'], { ...options, apiKey: 'openai-test' }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    const error = await pending
+
+    expect(error).toBeInstanceOf(EmbeddingAPIError)
+    expect(error.status).toBe(429)
+    expect(error.retryAfterMs).toBe(42_000)
+  })
+
+  /**
+   * A stated wait past the ceiling cannot be honoured, so retrying only clamps
+   * every attempt below the reopen time and spends the budget for nothing. The
+   * error still classifies as transient, so the fallback chain takes over at
+   * once rather than after the retries burn down.
+   */
+  it('does not retry a wait it cannot honour, falling back immediately', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    const fetchMock = vi.fn().mockImplementation(async (url: string) =>
+      url === 'https://api.openai.com/v1/embeddings'
+        ? ({
+            ok: false,
+            status: 429,
+            statusText: '429',
+            // Six minutes, far past EMBEDDING_MAX_RETRY_DELAY_MS.
+            headers: new Headers({
+              'x-ratelimit-remaining-tokens': '0',
+              'x-ratelimit-reset-tokens': '6m0s',
+            }),
+            json: async () => ({ error: 'rate limited' }),
+            text: async () => 'rate limited',
+          } as Response)
+        : jsonResponse(openAIBody([[9, 9]], 2))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = embedKnowledgeForDeployment(['hello'], options, false)
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    const openAICalls = fetchMock.mock.calls.filter(([url]) => url.includes('api.openai.com'))
+    expect(openAICalls).toHaveLength(1)
+    expect(result.embeddings).toEqual([[9, 9]])
+  })
+
+  /**
+   * A window shorter than the whole budget is still reachable: the individual
+   * waits are clamped below it but they accumulate, so a later attempt lands
+   * after it reopens. Refusing these would strand a single-provider caller that
+   * had only to wait a little longer than one clamped delay.
+   */
+  it('keeps retrying a wait the budget can outlast, and recovers', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test' })
+    let call = 0
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      call++
+      if (call === 1) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: '429',
+          // Above the per-attempt ceiling, well inside the total budget.
+          headers: new Headers({ 'retry-after': '35' }),
+          json: async () => ({ error: 'rate limited' }),
+          text: async () => 'rate limited',
+        } as Response
+      }
+      return jsonResponse(openAIBody([[4, 4]], 2))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = embed(['hello'], { ...options, apiKey: 'openai-test' })
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.embeddings).toEqual([[4, 4]])
   })
 
   it('classifies only transient embedding failures for failover', () => {
