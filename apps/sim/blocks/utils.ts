@@ -761,3 +761,26 @@ Example 3 (Array Input):
   placeholder: 'Describe the JSON schema structure you need...',
   generationType: 'json-schema' as const,
 }
+
+/**
+ * Coerces an optional numeric subblock value to a finite number, throwing on
+ * non-numeric input instead of silently forwarding NaN. Preserves explicit 0.
+ */
+export function toOptionalFiniteNumber(value: unknown, fieldLabel: string): number | undefined {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${fieldLabel} must be a valid number`)
+  }
+  return parsed
+}
+
+/**
+ * Normalizes a boolean subblock value that may arrive as a string (e.g. from a
+ * dynamic <Block.output> reference) instead of an actual boolean.
+ */
+export function toOptionalBoolean(value: unknown): boolean | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'boolean') return value
+  return String(value).trim().toLowerCase() === 'true'
+}

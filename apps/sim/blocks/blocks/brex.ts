@@ -1,7 +1,7 @@
 import { BrexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, toOptionalBoolean, toOptionalFiniteNumber } from '@/blocks/utils'
 import type { BrexResponse } from '@/tools/brex/types'
 
 /** Coerces a required money-amount field to a finite number, throwing on blank/non-numeric input rather than silently sending 0 or NaN to Brex. */
@@ -14,23 +14,6 @@ function toRequiredAmount(value: unknown, fieldLabel: string): number {
     throw new Error(`${fieldLabel} must be a valid number`)
   }
   return parsed
-}
-
-/** Coerces an optional numeric field to a finite number, throwing on non-numeric input instead of silently forwarding NaN. Preserves explicit 0. */
-function toOptionalFiniteNumber(value: unknown, fieldLabel: string): number | undefined {
-  if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`${fieldLabel} must be a valid number`)
-  }
-  return parsed
-}
-
-/** Normalizes a boolean field that may arrive as a string (e.g. from a dynamic <Block.output> reference) instead of an actual boolean. */
-function toOptionalBoolean(value: unknown): boolean | undefined {
-  if (value == null) return undefined
-  if (typeof value === 'boolean') return value
-  return String(value).toLowerCase() === 'true'
 }
 
 const PAGINATED_OPERATIONS = new Set([
