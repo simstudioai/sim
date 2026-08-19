@@ -36,6 +36,7 @@ export const SIM_PAGE_CONTENT_TYPE = 'text/x-sim-page'
 
 const frontmatterSchema = z.object({
   title: z.string().min(1),
+  /** Tolerated for old sources; no longer rendered — the docs have no eyebrow. */
   eyebrow: z.string().optional(),
   lede: z.string().optional(),
   layout: z.enum(['docs', 'report']).optional(),
@@ -362,7 +363,6 @@ function compileSimPageDocument(source: string, lenient = false): string {
     '</head>',
     '<body>',
     `<div class="page" data-layout="${meta.layout ?? 'docs'}">`,
-    ...(meta.eyebrow ? [`<p class="eyebrow">${escapeHtml(meta.eyebrow)}</p>`] : []),
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
     compileBody(rest, lenient),
