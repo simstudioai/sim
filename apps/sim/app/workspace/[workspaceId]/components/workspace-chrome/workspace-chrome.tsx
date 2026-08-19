@@ -105,10 +105,24 @@ function TitleBarHistoryNav() {
   useEffect(() => {
     const nav = (window as { navigation?: ChromiumNavigation }).navigation
     if (!nav) return
-    const sync = () => setCan({ back: nav.canGoBack, forward: nav.canGoForward })
+    let disposed = false
+    // currententrychange dispatches SYNCHRONOUSLY from the history mutation
+    // that caused it, which can originate inside another component's
+    // useInsertionEffect (style libraries navigate during commit). Scheduling
+    // state there is forbidden ("useInsertionEffect must not schedule
+    // updates"), so the update defers to a microtask, which flushes after
+    // the commit's synchronous work unwinds.
+    const sync = () => {
+      queueMicrotask(() => {
+        if (!disposed) setCan({ back: nav.canGoBack, forward: nav.canGoForward })
+      })
+    }
     sync()
     nav.addEventListener('currententrychange', sync)
-    return () => nav.removeEventListener('currententrychange', sync)
+    return () => {
+      disposed = true
+      nav.removeEventListener('currententrychange', sync)
+    }
   }, [])
 
   return (
