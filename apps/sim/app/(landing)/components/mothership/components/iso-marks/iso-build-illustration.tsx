@@ -14,7 +14,7 @@ export interface IsoBuildIllustrationProps {
 
 const STROKE_PAINT = ISO_STROKE
 
-const LINE_PROPS = createIsoLineProps('iso-build-line', STROKE_PAINT)
+const LINE_PROPS = createIsoLineProps(STROKE_PAINT, undefined, 'iso-build-line')
 
 /** Isometric tile module the floor grid and the columns are built on. */
 const TILE_WIDTH = 38

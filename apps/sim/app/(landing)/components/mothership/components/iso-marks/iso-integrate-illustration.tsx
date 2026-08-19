@@ -14,7 +14,7 @@ export interface IsoIntegrateIllustrationProps {
 
 const STROKE_PAINT = ISO_STROKE
 
-const LINE_PROPS = createIsoLineProps('iso-integrate-line', STROKE_PAINT)
+const LINE_PROPS = createIsoLineProps(STROKE_PAINT, undefined, 'iso-integrate-line')
 
 /**
  * Inline supplied illustration for the Integrate area - a three-tier isometric
