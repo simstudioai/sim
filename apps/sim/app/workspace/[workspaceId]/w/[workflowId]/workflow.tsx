@@ -1658,6 +1658,13 @@ const WorkflowContent = React.memo(
       [collaborativeBatchRemoveEdges]
     )
 
+    /**
+     * The block the user touched most recently, retained after deselection
+     * and reset on reload. Drives z-ordering (the last touched card stays on
+     * top) and is the fallback source for positionless adds.
+     */
+    const [lastInteractedNodeId, setLastInteractedNodeId] = useState<string | null>(null)
+
     const isAutoConnectSourceCandidate = useCallback((block: BlockState): boolean => {
       if (!block.enabled) return false
       if (block.type === 'response') return false
@@ -1922,21 +1929,22 @@ const WorkflowContent = React.memo(
 
     /**
      * Edge for a positionless add (cmdk, toolbar click). The source is the
-     * currently selected block — or, with nothing selected, the canvas's
-     * only block (a fresh workflow's trigger; notes don't count), since
-     * attachment is unambiguous there. Otherwise no edge: there is no
-     * meaningful point to run proximity against — the placement point is the
-     * synthetic viewport centre — and guessing a source produced edges the
-     * user never implied. A source inside a container also yields no edge,
-     * since the new block lands at root level and the edge would cross the
-     * container boundary.
+     * currently selected block, falling back to the last block the user
+     * touched this session, then to the canvas's only block (a fresh
+     * workflow's trigger; notes don't count), since attachment is
+     * unambiguous there. Otherwise no edge:
+     * there is no meaningful point to run proximity against — the placement
+     * point is the synthetic viewport centre — and guessing a source
+     * produced edges the user never implied. A source inside a container
+     * also yields no edge, since the new block lands at root level and the
+     * edge would cross the container boundary.
      */
     const tryCreateEdgeForPositionlessAdd = useCallback(
       (targetBlockId: string): Edge | undefined => {
         if (!autoConnectRef.current) return undefined
 
         const selectedNodes = getNodes().filter((node) => node.selected)
-        let sourceId = selectedNodes[selectedNodes.length - 1]?.id
+        let sourceId = selectedNodes[selectedNodes.length - 1]?.id ?? lastInteractedNodeId
         if (!sourceId) {
           const flowBlocks = Object.values(blocks).filter(
             (block) => !isAnnotationOnlyBlock(block.type)
@@ -1952,26 +1960,32 @@ const WorkflowContent = React.memo(
         const sourceHandle = determineSourceHandle({ id: sourceId, type: source.type })
         return createEdgeObject(sourceId, targetBlockId, sourceHandle)
       },
-      [blocks, getNodes, isAutoConnectSourceCandidate, determineSourceHandle, createEdgeObject]
+      [
+        blocks,
+        getNodes,
+        lastInteractedNodeId,
+        isAutoConnectSourceCandidate,
+        determineSourceHandle,
+        createEdgeObject,
+      ]
     )
 
     /**
-     * Position for a block added with nothing selected: parked in the trigger
-     * column, below the blocks already there. Mirrors auto-layout, which
-     * assigns blocks with no incoming edges to layer 0 (the Start column), so
-     * hand-added unattached blocks stack exactly where a layout pass would
-     * put them. Returns null when no root-level block anchors the column.
+     * Position for a block added unattached: parked at the bottom of the
+     * rightmost column of root-level flow blocks — near the end of the
+     * workflow, where the user is most likely to wire it in. Notes don't
+     * anchor the column. Returns null when the canvas has no root-level flow
+     * block to anchor on.
      */
     const getUnattachedBlockPosition = useCallback(
       (blockType: string): { x: number; y: number } | null => {
-        const targetedIds = new Set(edges.map((edge) => edge.target))
-        const layerZeroBlocks = Object.values(blocks).filter(
-          (block) => !block.data?.parentId && !targetedIds.has(block.id)
+        const anchorCandidates = Object.values(blocks).filter(
+          (block) => !block.data?.parentId && !isAnnotationOnlyBlock(block.type)
         )
-        if (layerZeroBlocks.length === 0) return null
+        if (anchorCandidates.length === 0) return null
 
-        const anchor = layerZeroBlocks.reduce((topmost, block) =>
-          block.position.y < topmost.position.y ? block : topmost
+        const anchor = anchorCandidates.reduce((rightmost, block) =>
+          block.position.x > rightmost.position.x ? block : rightmost
         )
 
         return nudgeBelowOccupiedSpots(
@@ -1982,7 +1996,7 @@ const WorkflowContent = React.memo(
           estimateNewBlockDimensions(blockType)
         )
       },
-      [blocks, edges, getBlockDimensions, nudgeBelowOccupiedSpots]
+      [blocks, getBlockDimensions, nudgeBelowOccupiedSpots]
     )
 
     /**
@@ -2939,7 +2953,6 @@ const WorkflowContent = React.memo(
 
     // Local state for nodes - allows smooth drag without store updates on every frame
     const [displayNodes, setDisplayNodes] = useState<Node[]>([])
-    const [lastInteractedNodeId, setLastInteractedNodeId] = useState<string | null>(null)
 
     const selectedNodeIds = useMemo(
       () => displayNodes.filter((node) => node.selected).map((node) => node.id),
