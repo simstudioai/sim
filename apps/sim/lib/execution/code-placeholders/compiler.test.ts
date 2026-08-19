@@ -1318,63 +1318,28 @@ describe('direct environment read edge cases', () => {
   })
 })
 
-describe('writing a configured name is not reading it', () => {
-  it.each([
-    ['javascript property assignment', "environmentVariables.API_KEY = 'x'"],
-    ['javascript subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
-    ['javascript delete', 'delete environmentVariables.API_KEY'],
-    ['javascript delete subscript', "delete environmentVariables['API_KEY']"],
-  ])('%s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
-  })
-
+describe('touching a configured name reports it, whatever the code does with it', () => {
   /**
-   * Python reports a write or `del` target like any other access. `resolvedSecretNames` feeds
-   * an exact-value matcher, so naming a secret the code never read is a no-op there, while
-   * missing one that was read leaves it unmasked — and the heuristics needed to tell them
-   * apart kept leaking in that second direction.
+   * `environmentVariables` is a plain object deserialized from the run payload, not a handle on
+   * the stored secret: writing to it changes nothing outside the sandbox and is discarded when
+   * the run ends. Telling a write apart from a read therefore buys almost nothing, so the
+   * detector does not try — the same rule every language here follows.
    */
   it.each([
+    ['property assignment', "environmentVariables.API_KEY = 'x'"],
     ['subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
-    ['del', "del environmentVariables['API_KEY']"],
-    /** Greptile's case: the inner access computes a key, so it is a genuine read. */
-    ['nested read inside a del', "del environmentVariables[environmentVariables['API_KEY']]"],
-    ['parenthesized del', "del (environmentVariables['API_KEY'])"],
-  ])('python reports the access either way: %s', async (_label, code) => {
-    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
-  })
-
-  /**
-   * A compound, logical, or increment update loads the current value before storing, so it is
-   * a read of the mounted secret and has to keep its masking. Only a plain `=` stores without
-   * reading.
-   */
-  it.each([
     ['compound assignment', "environmentVariables.API_KEY += 'x'"],
-    ['logical assignment', "environmentVariables.API_KEY ||= 'x'"],
-    ['nullish assignment', "environmentVariables.API_KEY ??= 'x'"],
-    ['subscript compound assignment', "environmentVariables['API_KEY'] += 'x'"],
-    ['postfix increment', 'environmentVariables.API_KEY++'],
-    ['prefix increment', '++environmentVariables.API_KEY'],
-  ])('javascript reads through an update: %s', async (_label, code) => {
+    ['delete', 'delete environmentVariables.API_KEY'],
+  ])('javascript: %s', async (_label, code) => {
     expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
   })
 
-  /** Python's augmented assignment reads first too. */
-  it('python reads through an augmented assignment', async () => {
-    expect(
-      await directReadNames("environmentVariables['API_KEY'] += 'x'", CodeLanguage.Python)
-    ).toEqual(['API_KEY'])
-  })
-
-  /** Reading the same key elsewhere is still a use, even if another line writes it. */
-  it('javascript still reports a read alongside a write', async () => {
-    expect(
-      await directReadNames(
-        "environmentVariables.API_KEY = 'x'\nreturn environmentVariables.API_KEY",
-        CodeLanguage.JavaScript
-      )
-    ).toEqual(['API_KEY'])
+  it.each([
+    ['subscript assignment', "environmentVariables['API_KEY'] = 'x'"],
+    ['del', "del environmentVariables['API_KEY']"],
+    ['nested read inside a del', "del environmentVariables[environmentVariables['API_KEY']]"],
+  ])('python: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
   })
 })
 

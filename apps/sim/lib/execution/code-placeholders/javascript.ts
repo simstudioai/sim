@@ -40,35 +40,7 @@ const ENVIRONMENT_VARIABLES_IDENTIFIER = 'environmentVariables'
  * forms. A computed subscript is deliberately not resolved — see
  * {@link CodePlaceholderCompilationContext.recordDirectEnvironmentRead}.
  */
-/**
- * Whether this member access is written *without* being read.
- *
- * Only a plain `=` and `delete` qualify. A compound assignment (`+=`), a logical assignment
- * (`||=`, `&&=`, `??=`), and `++`/`--` all load the current value before storing, so they are
- * genuine reads of the mounted secret and have to keep their masking.
- *
- * This deliberately does not reuse `isWriteIdentifier`. That predicate answers the rewriter's
- * question — is this a target the substitution must refuse — and so treats every assignment
- * operator alike, which is correct there and wrong here. Two different questions; conflating
- * them silently dropped `+=` from masking.
- *
- * A member reached through a destructuring assignment (`({ k: environmentVariables.K } = o)`)
- * is not recognized and is reported as a read. That is the mild direction: an extra usage row
- * rather than an unmasked value.
- */
-function writesWithoutReading(node: ts.Node): boolean {
-  const parent = node.parent
-  if (!parent) return false
-  if (ts.isDeleteExpression(parent)) return true
-  return (
-    ts.isBinaryExpression(parent) &&
-    parent.left === node &&
-    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken
-  )
-}
-
 function directEnvironmentRead(node: ts.Node): DirectEnvironmentRead | undefined {
-  if (writesWithoutReading(node)) return undefined
   if (ts.isPropertyAccessExpression(node)) {
     if (!ts.isIdentifier(node.expression)) return undefined
     if (node.expression.text !== ENVIRONMENT_VARIABLES_IDENTIFIER) return undefined
