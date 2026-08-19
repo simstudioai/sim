@@ -42,15 +42,23 @@ const CONSENT_CATEGORY_COPY: Record<string, ConsentCategoryCopy | undefined> = {
   },
 } satisfies Record<ConsentCategory, ConsentCategoryCopy>
 
+interface ConsentPreferencesProps {
+  /**
+   * Called after a switch stages its new value, for a surface that commits per
+   * toggle. The banner omits it and commits from its own footer instead.
+   */
+  onChange?: () => void
+}
+
 /**
  * The per-category consent switches, shared by the two surfaces that offer
  * them: the banner's expanded state and the Privacy settings page. Both write
- * to `selectedConsents`; committing is the caller's, since the banner saves
- * from its own footer and settings saves from the shell's header.
+ * to `selectedConsents`; whether that is then committed is the caller's, via
+ * {@link ConsentPreferencesProps.onChange}.
  *
- * Must be rendered inside a `ConsentManagerProvider`.
+ * Must be rendered inside a `ConsentStoreProvider`.
  */
-export function ConsentPreferences() {
+export function ConsentPreferences({ onChange }: ConsentPreferencesProps) {
   const { consents, selectedConsents, setSelectedConsent, getDisplayedConsents } =
     useConsentManager()
 
@@ -78,7 +86,10 @@ export function ConsentPreferences() {
               id={inputId}
               checked={selectedConsents[type.name] ?? consents[type.name] ?? false}
               disabled={type.disabled}
-              onCheckedChange={(checked) => setSelectedConsent(type.name, checked)}
+              onCheckedChange={(checked) => {
+                setSelectedConsent(type.name, checked)
+                onChange?.()
+              }}
             />
           </li>
         )
