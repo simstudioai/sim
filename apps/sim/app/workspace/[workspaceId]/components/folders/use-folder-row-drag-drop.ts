@@ -72,6 +72,47 @@ export interface FolderedRowMove {
   resourceIds: string[]
 }
 
+/**
+ * Drops every row that one of the dragged folders already carries.
+ *
+ * Moving a folder takes its contents with it, so naming both a folder and something inside it
+ * would move the parent AND separately pull the child out of it: the two land as siblings and
+ * the hierarchy the user dragged is gone. The folder wins, because it is the thing they
+ * grabbed the outside of.
+ *
+ * Only reachable since search began returning rows from across the workspace — a list showing
+ * one folder's direct children can never show a row alongside its own ancestor.
+ */
+export function dropRowsCarriedByDraggedFolders(
+  move: FolderedRowMove,
+  {
+    descendantsByFolderId,
+    getFolderParentId,
+    getResourceFolderId,
+  }: {
+    descendantsByFolderId: Map<string, Set<string>>
+    getFolderParentId: (folderId: string) => string | null | undefined
+    getResourceFolderId: (resourceId: string) => string | null | undefined
+  }
+): FolderedRowMove {
+  const draggedFolderIds = new Set(move.folderIds)
+  if (draggedFolderIds.size === 0) return move
+
+  const isCarried = (ownerFolderId: string | null | undefined): boolean => {
+    if (!ownerFolderId) return false
+    for (const folderId of draggedFolderIds) {
+      if (ownerFolderId === folderId) return true
+      if (descendantsByFolderId.get(folderId)?.has(ownerFolderId)) return true
+    }
+    return false
+  }
+
+  return {
+    folderIds: move.folderIds.filter((id) => !isCarried(getFolderParentId(id))),
+    resourceIds: move.resourceIds.filter((id) => !isCarried(getResourceFolderId(id))),
+  }
+}
+
 export interface UseFolderRowDragDropOptions {
   /**
    * This list's private drag MIME. Each surface owns one so a drag started in another list is
@@ -122,6 +163,21 @@ export interface UseFolderRowDragDropOptions {
    */
   currentFolderId?: string | null
   /**
+   * The folder the list body drops into, or `undefined` when the body does not stand for a
+   * folder at all and must decline.
+   *
+   * It differs from {@link currentFolderId} whenever the visible rows are not that folder's
+   * contents. Dropping on the blank area below the rows would then file a row into a folder
+   * the drop UI never names — harmless when every row already lives there (the target
+   * declines the no-op), destructive when they do not. A row drop is unaffected: that target
+   * names its own destination.
+   *
+   * Required, and deliberately without a default: a destructuring default fires on an
+   * explicit `undefined` too, so `= currentFolderId` would silently swallow the very value a
+   * searching caller passes to decline and leave the guard unreachable.
+   */
+  bodyDropFolderId: string | null | undefined
+  /**
    * OS file drops, which Files accepts and the other lists do not.
    *
    * When `matches` recognises the drag, folder rows still highlight and still spring open — the
@@ -157,6 +213,7 @@ export function useFolderRowDragDrop({
   selection,
   onSpringOpenFolder,
   currentFolderId = null,
+  bodyDropFolderId,
   externalDrop,
 }: UseFolderRowDragDropOptions): FolderRowDragDrop {
   const [activeDropTarget, setActiveDropTarget] = useState<ActiveDropTarget | null>(null)
@@ -192,6 +249,9 @@ export function useFolderRowDragDrop({
   const currentFolderIdRef = useRef(currentFolderId)
   currentFolderIdRef.current = currentFolderId
 
+  const bodyDropFolderIdRef = useRef(bodyDropFolderId)
+  bodyDropFolderIdRef.current = bodyDropFolderId
+
   const dragGhost = useRowDragGhost()
 
   /** Returns the list to its resting state once a drag is over, however it ended. */
@@ -207,9 +267,10 @@ export function useFolderRowDragDrop({
 
   /**
    * Splits the drag into the rows that would actually move into `targetFolderId`, dropping any
-   * row already sitting directly there. `null` when the drop is illegal outright — the target is
-   * one of the dragged folders or inside one, which would orphan a subtree into itself — or when
-   * nothing would actually change.
+   * row already sitting directly there and any row a dragged folder already carries (see
+   * {@link dropRowsCarriedByDraggedFolders}). `null` when the drop is illegal outright — the
+   * target is one of the dragged folders or inside one, which would orphan a subtree into
+   * itself — or when nothing would actually change.
    *
    * Takes a folder id rather than a row id because the destination is not always a row: the
    * list body files into the folder currently open, which has no row of its own, and `null`
@@ -235,8 +296,12 @@ export function useFolderRowDragDrop({
         resourceIds.push(source.id)
       }
 
-      if (folderIds.length === 0 && resourceIds.length === 0) return null
-      return { folderIds, resourceIds }
+      const moved = dropRowsCarriedByDraggedFolders(
+        { folderIds, resourceIds },
+        { descendantsByFolderId, getFolderParentId, getResourceFolderId }
+      )
+      if (moved.folderIds.length === 0 && moved.resourceIds.length === 0) return null
+      return moved
     },
     []
   )
@@ -437,9 +502,11 @@ export function useFolderRowDragDrop({
            * early return would leave the body overlay showing from the previous folder. Setting
            * the same value repeatedly is free — React bails on an unchanged state write.
            */
+          const targetFolderId = bodyDropFolderIdRef.current
           const canDrop =
+            targetFolderId !== undefined &&
             sourceRowIds.length > 0 &&
-            resolveMoveToFolder(currentFolderIdRef.current, sourceRowIds) !== null
+            resolveMoveToFolder(targetFolderId, sourceRowIds) !== null
           setActiveDropTarget((current) =>
             canDrop ? armDropTarget(current, { kind: 'body' }) : null
           )
@@ -454,17 +521,19 @@ export function useFolderRowDragDrop({
         },
         onDrop: (e: DragEvent<HTMLDivElement>) => {
           if (optionsRef.current.externalDrop?.matches(e.dataTransfer)) return
+          /**
+           * Read from the ref, not the closure. This config is memoized, and during a drag the
+           * only dep that routinely changes is the hovered row — so after a spring-open into an
+           * empty folder, which has no rows to hover, a captured folder id would still name
+           * the folder the drag came FROM and file the rows back into it.
+           */
+          const targetFolderId = bodyDropFolderIdRef.current
+          /** The body never armed, so a release here is a miss rather than a move. */
+          if (targetFolderId === undefined) return
           e.preventDefault()
           e.stopPropagation()
           const sourceRowIds =
             readRowDragPayload(e.dataTransfer, dragMime) ?? draggedRowIdsRef.current
-          /**
-           * Read from the ref, not the closure. This config is memoized, and during a drag the
-           * only dep that routinely changes is the hovered row — so after a spring-open into an
-           * empty folder, which has no rows to hover, a captured `currentFolderId` would still
-           * name the folder the drag came FROM and file the rows back into it.
-           */
-          const targetFolderId = currentFolderIdRef.current
           const move =
             sourceRowIds.length > 0 ? resolveMoveToFolder(targetFolderId, sourceRowIds) : null
           if (move) springNav.markDropHandled()

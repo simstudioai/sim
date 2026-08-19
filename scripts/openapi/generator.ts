@@ -692,7 +692,20 @@ function validateSecurity(
   }
 }
 
-function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObject): JsonObject {
+/**
+ * The error responses this document's operations actually reference, as `components.responses`.
+ *
+ * Only the referenced ones are built. An error response carries a worked example, and the
+ * message in one is often the domain's rather than the surface's — a `423` reads `Workflow is
+ * locked` in one document and `This table is insert-locked` in another. Emitting the whole set
+ * everywhere would ship each document a body for a status it never answers, phrased by a
+ * domain it does not contain.
+ */
+function errorComponents(
+  definition: OpenApiDocumentDefinition,
+  schemas: JsonObject,
+  referencedErrors: ReadonlySet<string>
+): JsonObject {
   const generated = generateSchema(
     definition.errorSchema,
     'output',
@@ -707,6 +720,7 @@ function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObj
   )
   const responses: JsonObject = {}
   for (const [id, response] of Object.entries(definition.errorResponses)) {
+    if (!referencedErrors.has(id)) continue
     nonEmpty(id, 'Error response id')
     nonEmpty(response.description, `${id} description`)
     invariant(
@@ -718,6 +732,11 @@ function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObj
     for (const header of response.headers ?? []) {
       invariant(definition.headers[header], `${id} references unknown response header ${header}`)
     }
+    /**
+     * Held to the same standard as every other documented example: it must parse against
+     * the error schema, so a documented body cannot describe a shape the API never sends.
+     */
+    validateExamples(definition.errorSchema, [response.example], 'output', `${id} example`)
     responses[id] = {
       description: response.description,
       ...(referencedHeaders(response.headers)
@@ -726,6 +745,13 @@ function errorComponents(definition: OpenApiDocumentDefinition, schemas: JsonObj
       content: {
         'application/json': {
           schema: { $ref: `#/components/schemas/${generated.name}` },
+          /**
+           * Sits beside the `$ref` rather than on the shared schema: one schema serves every
+           * status, so a schema-level example is necessarily one status's body shown under
+           * all of them. A Media Type Object example overrides the schema's, which is what
+           * makes each status tab show its own.
+           */
+          example: response.example,
         },
       },
     }
@@ -742,7 +768,10 @@ export function generateOpenApiDocument(definition: OpenApiDocumentDefinition): 
   validateSecurity(definition.security, definition, 'OpenAPI document')
 
   const schemas: JsonObject = {}
-  const responses = errorComponents(definition, schemas)
+  const referencedErrors = new Set(
+    definition.routes.flatMap((route) => [...route.operation.errors])
+  )
+  const responses = errorComponents(definition, schemas, referencedErrors)
   const paths: JsonObject = {}
   const operationIds = new Set<string>()
   const routeKeys = new Set<string>()

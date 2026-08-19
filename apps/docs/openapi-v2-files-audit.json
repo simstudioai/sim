@@ -59,10 +59,34 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Restrict results to files inside this folder — its direct children, or its whole subtree when `recursive` is true. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
             "schema": {
-              "description": "Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "description": "Restrict results to files inside this folder — its direct children, or its whole subtree when `recursive` is true. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
               "$ref": "#/components/schemas/FolderPathInput"
+            }
+          },
+          {
+            "name": "recursive",
+            "in": "query",
+            "required": false,
+            "description": "Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+            "schema": {
+              "description": "Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "enum": [
+                "true",
+                "1",
+                "yes",
+                "on",
+                "y",
+                "enabled",
+                "false",
+                "0",
+                "no",
+                "off",
+                "n",
+                "disabled"
+              ],
+              "type": "string"
             }
           },
           {
@@ -2102,6 +2126,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request"
+              }
             }
           }
         }
@@ -2112,16 +2142,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UsageLimitExceeded": {
-        "description": "The workspace has exceeded its usage or billing limits.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "API key required"
+              }
             }
           }
         }
@@ -2132,6 +2158,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Insufficient workspace permissions",
+                "details": {
+                  "code": "INSUFFICIENT_WORKSPACE_ROLE"
+                }
+              }
             }
           }
         }
@@ -2142,6 +2177,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Not found"
+              }
             }
           }
         }
@@ -2152,21 +2193,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "RunIdConflict": {
-        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
-        "headers": {
-          "X-Run-Id": {
-            "$ref": "#/components/headers/X-Run-Id"
-          }
-        },
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "CONFLICT",
+                "message": "File already exists"
+              }
             }
           }
         }
@@ -2177,26 +2209,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UnsupportedMediaType": {
-        "description": "The request uses an unsupported media type.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Locked": {
-        "description": "The resource is locked and cannot be modified.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "PAYLOAD_TOO_LARGE",
+                "message": "Request body is too large"
+              }
             }
           }
         }
@@ -2212,16 +2230,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-01T00:00:30.000Z"
+                }
+              }
             }
           }
         }
@@ -2232,6 +2249,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
             }
           }
         }
@@ -2247,6 +2270,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Service temporarily unavailable"
+              }
             }
           }
         }

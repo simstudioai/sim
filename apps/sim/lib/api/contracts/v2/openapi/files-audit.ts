@@ -24,7 +24,6 @@ import {
 } from '@/lib/api/contracts/v2/files'
 import {
   documentedSchema,
-  ERROR_RESPONSES,
   type ErrorResponseId,
   FOLDER_TREE_TOO_LARGE,
   FULL_SET_LIST,
@@ -39,6 +38,7 @@ import {
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
+  withErrorExamples,
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -902,6 +902,8 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
     ...V2_COMMON_HEADERS,
   },
   errorSchema: V2_ERROR_SCHEMA,
-  errorResponses: ERROR_RESPONSES,
+  errorResponses: withErrorExamples({
+    Conflict: { message: 'File already exists' },
+  }),
   routes,
 })
