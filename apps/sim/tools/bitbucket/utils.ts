@@ -25,6 +25,7 @@ export const BITBUCKET_DEFAULT_MAX_CHARACTERS = 100_000
 export const BITBUCKET_MAX_CHARACTERS = 500_000
 export const BITBUCKET_DEFAULT_LOG_CHARACTERS = 20_000
 export const BITBUCKET_MAX_LOG_CHARACTERS = 200_000
+export const BITBUCKET_MIN_LOG_RANGE_BYTES = 4_096
 export const BITBUCKET_RAW_TRANSFER_MAX_BYTES = 10 * 1024 * 1024
 
 export const BITBUCKET_READ_RETRY: ToolRetryConfig = {
@@ -242,7 +243,10 @@ export function bitbucketHeadRange(maxCharacters: number | undefined): string {
 }
 
 export function bitbucketTailRange(maxCharacters: number | undefined): string {
-  const byteLimit = bitbucketMaxCharacters(maxCharacters, true) * 4
+  const byteLimit = Math.max(
+    bitbucketMaxCharacters(maxCharacters, true) * 4,
+    BITBUCKET_MIN_LOG_RANGE_BYTES
+  )
   return `bytes=-${byteLimit}`
 }
 

@@ -398,6 +398,19 @@ describe('Bitbucket pipeline step logs', () => {
     })
   })
 
+  it('overfetches a provider-compatible minimum for small log tails', () => {
+    const params = {
+      ...REPOSITORY_PARAMS,
+      pipelineUuid: '{pipeline-1}',
+      stepUuid: '{step-1}',
+      maxCharacters: 100,
+    } satisfies BitbucketGetPipelineStepLogParams
+
+    expect(bitbucketGetPipelineStepLogTool.request.headers(params)).toMatchObject({
+      Range: 'bytes=-4096',
+    })
+  })
+
   it('trims the partial leading line of a ranged log and reports total bytes', async () => {
     const body = 'ise\nFAILED: expected 1 to be 2\n'
     const result = await bitbucketGetPipelineStepLogTool.transformResponse!(
