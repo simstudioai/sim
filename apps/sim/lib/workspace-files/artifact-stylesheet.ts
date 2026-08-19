@@ -516,13 +516,9 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
      in the container, with equal flexible gutters either side. The rails
      live inside the gutters (sidebar hugging the left edge, TOC the right),
      so their unequal content widths can never skew the middle column. */
-  .art-cols { grid-template-columns: minmax(min-content, 1fr) minmax(0, 760px) minmax(min-content, 1fr); }
+  .art-cols:not(.no-side-nav) { grid-template-columns: minmax(min-content, 1fr) minmax(0, 760px) minmax(min-content, 1fr); }
   .art-cols > .rail[data-rail="nav"] { justify-self: start; }
   .art-cols > .rail[data-rail="toc"] { justify-self: end; }
-  /* No sidebar: no reserved left gutter — content leads, TOC trails. The
-     hidden rail leaves the grid, so the two remaining children auto-place. */
-  .art-cols.no-side-nav { grid-template-columns: minmax(0, 760px) fit-content(268px); justify-content: center; }
-  .art-cols.no-side-nav > .rail[data-rail="toc"] { justify-self: start; }
   .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 /* Rails scroll invisibly, like the docs — no scrollbar chrome beside the

@@ -120,6 +120,26 @@ describe('docs shell', () => {
 })
 
 describe('docs fidelity', () => {
+  it('keeps every grid template at equal specificity so wider tiers win', () => {
+    // The 560px tier selects .art-cols:not(.no-side-nav) (0,2,0); a wider
+    // tier written as bare .art-cols (0,1,0) loses despite its media query,
+    // leaving the 2-column template active and wrapping the TOC to the next
+    // grid row. Every template rule must carry the same specificity.
+    const templates = SIM_ARTIFACT_STYLESHEET.split('\n').filter((line) =>
+      line.includes('grid-template-columns:')
+    )
+    expect(templates.length).toBeGreaterThanOrEqual(4)
+    for (const line of templates) {
+      const selector = (line.trim().split('{')[0] ?? '').trim()
+      if (!selector.startsWith('.art-cols')) continue
+      if (selector === '.art-cols') {
+        expect(line).toContain('grid-template-columns: 1fr')
+      } else {
+        expect(selector).toMatch(/^\.art-cols(:not\(\.no-side-nav\)|\.no-side-nav)$/)
+      }
+    }
+  })
+
   // The docs table treatment: header rule on --border, row rules on
   // --surface-active, no outer chrome.
   it('styles tables as the docs divider tables', () => {
