@@ -454,6 +454,12 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   .art-cols { grid-template-columns: fit-content(300px) minmax(0, 1fr) fit-content(268px); }
   .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
+/* Rails scroll invisibly, like the docs — no scrollbar chrome beside the
+   TOC; the absolutely-positioned clerk track SVGs also can't tip the box
+   into showing one. */
+.art-cols > .rail { scrollbar-width: none; }
+.art-cols > .rail::-webkit-scrollbar { display: none; }
+.toc-track, .toc-thumb { display: block; }
 .rail ol, .rail ul { list-style: none; margin: 0; padding: 0; }
 .rail a[hidden] { display: none; }
 /* Chrome links are navigation, not prose: no underline weight or hover fade. */
