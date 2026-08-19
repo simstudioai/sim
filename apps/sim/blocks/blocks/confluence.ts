@@ -19,6 +19,48 @@ const SPACE_FIELD = ['spaceSelector', 'spaceId'] as const
 /** Canonical upload/reference pair for an attachment's file. V2 only. */
 const ATTACHMENT_FILE_FIELD = ['attachmentFileUpload', 'attachmentFileReference'] as const
 
+/**
+ * V2 operations whose tool takes a page id. Creating a page or blog post produces
+ * one rather than consuming it, and the comment/attachment mutations address their
+ * own `commentId`/`attachmentId`, so none of those render the page target.
+ */
+const PAGE_ID_OPERATIONS = [
+  'read',
+  'update',
+  'delete',
+  'create_comment',
+  'list_comments',
+  'list_attachments',
+  'list_labels',
+  'upload_attachment',
+  'add_label',
+  'delete_label',
+  'delete_page_property',
+  'get_page_children',
+  'get_page_ancestors',
+  'list_page_versions',
+  'get_page_version',
+  'list_page_properties',
+  'create_page_property',
+  'get_page_descendants',
+] as const
+
+/**
+ * The legacy block's page-consuming operations. Kept separate from
+ * {@link PAGE_ID_OPERATIONS}: the two blocks expose different operation sets, and
+ * the legacy one is sunset, so it must not track changes to its replacement.
+ */
+const LEGACY_PAGE_ID_OPERATIONS = [
+  'read',
+  'update',
+  'delete',
+  'create_comment',
+  'list_comments',
+  'list_attachments',
+  'list_labels',
+  'upload_attachment',
+] as const
+
 export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   type: 'confluence',
   name: 'Confluence (Legacy)',
@@ -63,10 +105,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           { text: 'Rewrite comment', field: 'commentId', core: true },
           { text: 'as', field: 'comment' },
         ],
-        delete_comment: [
-          { text: 'Delete comment', field: 'commentId', core: true },
-          { text: 'from page', field: PAGE_FIELD },
-        ],
+        delete_comment: [{ text: 'Delete comment', field: 'commentId', core: true }],
         upload_attachment: [
           { text: 'Attach', field: 'attachmentFile', core: true },
           { text: 'to page', field: PAGE_FIELD, core: true },
@@ -75,10 +114,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
           { text: 'List attachments on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        delete_attachment: [
-          { text: 'Delete attachment', field: 'attachmentId', core: true },
-          { text: 'from page', field: PAGE_FIELD },
-        ],
+        delete_attachment: [{ text: 'Delete attachment', field: 'attachmentId', core: true }],
         list_labels: [{ text: 'List labels on page', field: PAGE_FIELD, core: true }],
         get_space: [{ text: 'Read space', field: 'spaceId', core: true }],
         list_spaces: ['List spaces', { text: ', up to', field: 'limit', after: 'results' }],
@@ -146,19 +182,8 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
-      required: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-        ],
-      },
+      condition: { field: 'operation', value: [...LEGACY_PAGE_ID_OPERATIONS] },
+      required: { field: 'operation', value: [...LEGACY_PAGE_ID_OPERATIONS] },
     },
     {
       id: 'manualPageId',
@@ -166,20 +191,10 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       type: 'short-input',
       canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
+      dependsOn: ['credential', 'domain'],
       mode: 'advanced',
-      required: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-        ],
-      },
+      condition: { field: 'operation', value: [...LEGACY_PAGE_ID_OPERATIONS] },
+      required: { field: 'operation', value: [...LEGACY_PAGE_ID_OPERATIONS] },
     },
     {
       id: 'spaceId',
@@ -441,7 +456,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
     },
     sentences: {
       byOperation: {
-        read: [{ text: 'Read page', field: PAGE_FIELD, core: true }],
+        read: [{ text: 'Get page', field: PAGE_FIELD, core: true }],
         create: [
           { text: 'Create page', field: 'title', core: true },
           { text: 'in', field: SPACE_FIELD },
@@ -515,10 +530,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           { text: 'Rewrite comment', field: 'commentId', core: true },
           { text: 'as', field: 'comment' },
         ],
-        delete_comment: [
-          { text: 'Delete comment', field: 'commentId', core: true },
-          { text: 'from page', field: PAGE_FIELD },
-        ],
+        delete_comment: [{ text: 'Delete comment', field: 'commentId', core: true }],
         upload_attachment: [
           { text: 'Attach', field: ATTACHMENT_FILE_FIELD, core: true },
           { text: 'to page', field: PAGE_FIELD, core: true },
@@ -527,10 +539,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
           { text: 'List attachments on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
         ],
-        delete_attachment: [
-          { text: 'Delete attachment', field: 'attachmentId', core: true },
-          { text: 'from page', field: PAGE_FIELD },
-        ],
+        delete_attachment: [{ text: 'Delete attachment', field: 'attachmentId', core: true }],
         list_labels: [
           { text: 'List labels on page', field: PAGE_FIELD, core: true },
           { text: ', up to', field: 'limit', after: 'results' },
@@ -603,7 +612,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       type: 'dropdown',
       options: [
         // Page Operations
-        { label: 'Read Page', id: 'read' },
+        { label: 'Get Page', id: 'read' },
         { label: 'Create Page', id: 'create' },
         { label: 'Update Page', id: 'update' },
         { label: 'Delete Page', id: 'delete' },
@@ -702,58 +711,8 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       placeholder: 'Select Confluence page',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_pages_in_space',
-          'list_blogposts',
-          'get_blogpost',
-          'update_blogpost',
-          'delete_blogpost',
-          'list_blogposts_in_space',
-          'search',
-          'search_in_space',
-          'get_space',
-          'create_space',
-          'update_space',
-          'delete_space',
-          'list_spaces',
-          'get_pages_by_label',
-          'list_space_labels',
-          'list_space_permissions',
-          'list_space_properties',
-          'create_space_property',
-          'delete_space_property',
-          'list_tasks',
-          'get_task',
-          'update_task',
-          'get_user',
-        ],
-        not: true,
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-          'add_label',
-          'delete_label',
-          'delete_page_property',
-          'get_page_children',
-          'get_page_ancestors',
-          'list_page_versions',
-          'get_page_version',
-          'list_page_properties',
-          'create_page_property',
-          'get_page_descendants',
-        ],
-      },
+      condition: { field: 'operation', value: [...PAGE_ID_OPERATIONS] },
+      required: { field: 'operation', value: [...PAGE_ID_OPERATIONS] },
     },
     {
       id: 'manualPageId',
@@ -761,59 +720,10 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       type: 'short-input',
       canonicalParamId: 'pageId',
       placeholder: 'Enter Confluence page ID',
+      dependsOn: ['credential', 'domain'],
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: [
-          'list_pages_in_space',
-          'list_blogposts',
-          'get_blogpost',
-          'update_blogpost',
-          'delete_blogpost',
-          'list_blogposts_in_space',
-          'search',
-          'search_in_space',
-          'get_space',
-          'create_space',
-          'update_space',
-          'delete_space',
-          'list_spaces',
-          'get_pages_by_label',
-          'list_space_labels',
-          'list_space_permissions',
-          'list_space_properties',
-          'create_space_property',
-          'delete_space_property',
-          'list_tasks',
-          'get_task',
-          'update_task',
-          'get_user',
-        ],
-        not: true,
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'read',
-          'update',
-          'delete',
-          'create_comment',
-          'list_comments',
-          'list_attachments',
-          'list_labels',
-          'upload_attachment',
-          'add_label',
-          'delete_label',
-          'delete_page_property',
-          'get_page_children',
-          'get_page_ancestors',
-          'list_page_versions',
-          'get_page_version',
-          'list_page_properties',
-          'create_page_property',
-          'get_page_descendants',
-        ],
-      },
+      condition: { field: 'operation', value: [...PAGE_ID_OPERATIONS] },
+      required: { field: 'operation', value: [...PAGE_ID_OPERATIONS] },
     },
     {
       id: 'spaceSelector',
