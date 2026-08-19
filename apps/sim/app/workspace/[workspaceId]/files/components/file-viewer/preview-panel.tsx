@@ -122,9 +122,10 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
       const href = anchor.getAttribute('href') || ''
       if (allowHref(href)) return
       event.preventDefault()
-      // sim: resource links resolve to in-app routes; the sandbox cannot
-      // navigate, so hand the click to the host, which routes it in the app.
-      if (href.startsWith('/workspace/')) {
+      // The sandbox can neither navigate nor open windows, so hand the click
+      // to the host: workspace routes go through the app router, external
+      // http(s) links open a new tab.
+      if (href.startsWith('/workspace/') || /^https?:\\/\\//i.test(href)) {
         parent.postMessage({ __simPageNav: href }, '*')
       }
     },
@@ -297,8 +298,11 @@ const HtmlPreview = memo(function HtmlPreview({
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const href = (event.data as { __simPageNav?: unknown } | null)?.__simPageNav
-      if (typeof href === 'string' && href.startsWith('/workspace/')) {
+      if (typeof href !== 'string') return
+      if (href.startsWith('/workspace/')) {
         router.push(href)
+      } else if (/^https?:\/\//i.test(href)) {
+        window.open(href, '_blank', 'noopener,noreferrer')
       }
     }
     window.addEventListener('message', onMessage)

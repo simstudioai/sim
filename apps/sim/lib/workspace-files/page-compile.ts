@@ -288,10 +288,14 @@ function compileBody(source: string): string {
 export function compileSimPage(source: string, options?: { workspaceId?: string }): string {
   // Workspace images (`![alt](sim:file/<id>)`) resolve to the authed byte
   // route regardless of surface; deep links additionally need the workspace.
-  const compiled = compileSimPageDocument(source).replace(
-    /src="sim:file\/([^"]+)"/g,
-    'src="/api/files/view/$1"'
-  )
+  const compiled = compileSimPageDocument(source)
+    .replace(/src="sim:file\/([^"]+)"/g, 'src="/api/files/view/$1"')
+    // External links leave the page in a new tab on every surface; in the
+    // sandboxed preview the bootstrap bridges the click to the host instead.
+    .replace(
+      /<a href="(https?:\/\/[^"]+)"/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer"'
+    )
   return options?.workspaceId ? resolveSimResourceLinks(compiled, options.workspaceId) : compiled
 }
 

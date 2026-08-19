@@ -119,6 +119,15 @@ describe('compileSimPage', () => {
     expect(html).toContain('<a href="/workspace/ws1/w/wf1" data-sim-link="">gateway</a>')
   })
 
+  it('sends external links to a new tab on every surface', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\nSee the [Sim docs](https://docs.sim.ai/start).'
+    )
+    expect(html).toContain(
+      '<a href="https://docs.sim.ai/start" target="_blank" rel="noopener noreferrer">'
+    )
+  })
+
   it('resolves workspace image refs to the authed byte route', () => {
     const html = compileSimPage('---\ntitle: T\n---\n![diagram](sim:file/img9)')
     expect(html).toContain('src="/api/files/view/img9"')
