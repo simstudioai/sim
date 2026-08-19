@@ -551,18 +551,21 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .codeblock-copy.is-copied { color: var(--brand-accent); }
 .codeblock pre { border: none; border-radius: 0; margin: 0; background: transparent; }
 
-/* Footer pagination — the docs' previous/next cards. */
-.page-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 3rem; }
+/* Footer pagination — the docs' PageFooter verbatim: name + chevron on a
+   hover pill (mt-12 flex gap-2 py-3; cards flex-1 gap-1.5 rounded-lg px-3
+   py-3 text-sm --text-body, hover --surface-active; chevrons 14px
+   --text-icon; a missing side keeps its half as a spacer). */
+.page-nav { display: flex; gap: 0.5rem; margin-top: 3rem; padding: 0.75rem 0; }
 .page-nav-card {
-  display: flex; flex-direction: column; gap: 0.15rem;
-  border: 1px solid var(--border); border-radius: 0.75rem;
-  padding: 0.75rem 1rem; text-decoration: none;
+  flex: 1; display: flex; align-items: center; gap: 0.375rem; min-width: 0;
+  border-radius: 0.5rem; padding: 0.75rem;
+  font-size: var(--text-sm); font-weight: 400; color: var(--text-body);
+  text-decoration: none; transition: background-color 0.2s;
 }
-.page-nav-card:hover { background: var(--surface-hover); }
-.page-nav-card.prev { grid-column: 1; }
-.page-nav-card.next { grid-column: 2; text-align: right; }
-.page-nav-dir { font-size: var(--text-caption); color: var(--text-muted); }
-.page-nav-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
+.page-nav-card:hover { background: var(--surface-active); opacity: 1; }
+.page-nav-card.next { justify-content: flex-end; }
+.page-nav-card svg { flex-shrink: 0; color: var(--text-icon); }
+.page-nav-spacer { flex: 1; }
 `.trim()
 
 /**

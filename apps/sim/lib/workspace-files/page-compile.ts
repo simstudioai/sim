@@ -46,13 +46,26 @@ const frontmatterSchema = z.object({
 
 const MD_LINK = /^\s*\[([^\]]+)\]\(([^)]+)\)\s*$/
 
-/** Renders one footer pagination card from a frontmatter `[Title](href)` link. */
-function paginationCard(value: string, direction: 'prev' | 'next'): string {
-  const match = value.match(MD_LINK)
-  if (!match) return ''
+const CHEVRON_ATTRS =
+  'viewBox="-1 -2 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+const CHEVRON_LEFT = `<svg ${CHEVRON_ATTRS}><path d="M13.25 3L6.25 10.25L13.25 17.5"/></svg>`
+const CHEVRON_RIGHT = `<svg ${CHEVRON_ATTRS}><path d="M6.25 3L13.25 10.25L6.25 17.5"/></svg>`
+
+/**
+ * One footer navigation card from a frontmatter `[Title](href)` link — the
+ * docs' own PageFooter: the destination name with a direction chevron on a
+ * hover pill, no border and no Previous/Next label (the chevron already says
+ * which way you are going). A missing side renders a spacer so the other
+ * card keeps its half.
+ */
+function paginationCard(value: string | undefined, direction: 'prev' | 'next'): string {
+  const match = value?.match(MD_LINK)
+  if (!match) return '<div class="page-nav-spacer"></div>'
   const [, title, href] = match
-  const label = direction === 'prev' ? '← Previous' : 'Next →'
-  return `<a class="page-nav-card ${direction}" href="${escapeHtml(href)}"><span class="page-nav-dir">${label}</span><span class="page-nav-title">${escapeHtml(title)}</span></a>`
+  const name = escapeHtml(title)
+  return direction === 'prev'
+    ? `<a class="page-nav-card prev" href="${escapeHtml(href)}">${CHEVRON_LEFT}${name}</a>`
+    : `<a class="page-nav-card next" href="${escapeHtml(href)}">${name}${CHEVRON_RIGHT}</a>`
 }
 
 /** YAML leaves unquoted scalars typed; reject null/objects rather than stringify them. */
@@ -344,15 +357,11 @@ function compileSimPageDocument(source: string, lenient = false): string {
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
     compileBody(rest, lenient),
-    ...(() => {
-      const cards = [
-        meta.prev ? paginationCard(meta.prev, 'prev') : '',
-        meta.next ? paginationCard(meta.next, 'next') : '',
-      ]
-        .filter(Boolean)
-        .join('')
-      return cards ? [`<footer class="page-nav">${cards}</footer>`] : []
-    })(),
+    ...(meta.prev || meta.next
+      ? [
+          `<footer class="page-nav">${paginationCard(meta.prev, 'prev')}${paginationCard(meta.next, 'next')}</footer>`,
+        ]
+      : []),
     '</div>',
     '</body>',
     '</html>',

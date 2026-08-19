@@ -133,6 +133,11 @@ describe('compileSimPage', () => {
     expect(html).toContain('src="/api/files/view/img9"')
   })
 
+  it('keeps a lone next card right-aligned with a spacer', () => {
+    const html = compileSimPage('---\ntitle: T\nnext: "[API](sim:file/b)"\n---\nBody.')
+    expect(html).toContain('<div class="page-nav-spacer"></div><a class="page-nav-card next"')
+  })
+
   it('renders frontmatter prev/next as footer pagination cards', () => {
     const html = compileSimPage(
       '---\ntitle: T\nprev: "[Getting Started](sim:file/a)"\nnext: "[API Reference](sim:file/b)"\n---\nBody.',
@@ -140,8 +145,11 @@ describe('compileSimPage', () => {
     )
     expect(html).toContain('<footer class="page-nav">')
     expect(html).toContain('class="page-nav-card prev"')
-    expect(html).toContain('<span class="page-nav-title">API Reference</span>')
+    expect(html).toContain('Getting Started')
     expect(html).toContain('href="/workspace/ws1/files/b/view"')
+    // The docs' PageFooter shape: chevron + name, no Previous/Next labels.
+    expect(html).toContain('M6.25 3L13.25 10.25L6.25 17.5')
+    expect(html).not.toContain('Previous')
   })
 
   it('renders sim:accordion like sim:faq with title keys', () => {
