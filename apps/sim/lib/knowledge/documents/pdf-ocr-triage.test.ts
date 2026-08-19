@@ -8,15 +8,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockParseBuffer, mockDownload, mockGetDocumentProxy, mockToken, mockBaseUrl } = vi.hoisted(
-  () => ({
-    mockParseBuffer: vi.fn(),
-    mockDownload: vi.fn(),
-    mockGetDocumentProxy: vi.fn(),
-    mockToken: vi.fn(),
-    mockBaseUrl: vi.fn(),
-  })
-)
+const { mockParseBuffer, mockDownload, mockToken, mockBaseUrl } = vi.hoisted(() => ({
+  mockParseBuffer: vi.fn(),
+  mockDownload: vi.fn(),
+  mockToken: vi.fn(),
+  mockBaseUrl: vi.fn(),
+}))
 
 vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
 vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
@@ -29,7 +26,6 @@ vi.mock('@/lib/file-parsers', () => ({
   isSupportedFileType: (extension: string) => ['pdf'].includes(extension),
 }))
 vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
-vi.mock('unpdf', () => ({ getDocumentProxy: mockGetDocumentProxy }))
 
 import { env } from '@/lib/core/config/env'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
@@ -38,6 +34,14 @@ import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 /** External, so the OCR path uses the URL directly instead of re-uploading it. */
 const PDF_URL = 'https://example.com/Contract.pdf'
 const typeset = 'The Supplier shall provide the Services described herein. '.repeat(60)
+
+/** A real PDF, because splitting loads the document rather than trusting metadata. */
+async function pdfOfPages(count: number): Promise<Buffer> {
+  const { PDFDocument } = await import('pdf-lib')
+  const pdf = await PDFDocument.create()
+  for (let i = 0; i < count; i++) pdf.addPage()
+  return Buffer.from(await pdf.save())
+}
 
 function parse() {
   return runWithKnowledgeModelInputProvenance(
@@ -52,7 +56,6 @@ describe('PDF OCR triage', () => {
     vi.clearAllMocks()
     Object.assign(env, { OCR_PROVIDER: 'mistral', MISTRAL_API_KEY: 'key' })
     mockDownload.mockResolvedValue(Buffer.from('%PDF-1.7'))
-    mockGetDocumentProxy.mockResolvedValue({ numPages: 2 })
     mockToken.mockResolvedValue('internal-token')
     mockBaseUrl.mockReturnValue('http://sim.local')
   })
@@ -107,6 +110,7 @@ describe('PDF OCR triage', () => {
     const result = await parse()
 
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
+    // 1001 pages against a 1000-page request cap: two chunks, two requests.
     expect(fetchMock).toHaveBeenCalled()
   })
 
@@ -143,5 +147,36 @@ describe('PDF OCR triage', () => {
     const result = await parse()
 
     expect(result.metadata.processingMethod).toBe('mistral-ocr')
+  })
+})
+
+describe('Azure OCR chunking', () => {
+  /**
+   * Both providers cap how many pages one OCR request may carry. Mistral split the
+   * document to fit; Azure refused anything over the cap, so a long PDF could not
+   * be ingested at all. The cap belongs to a request, not to a document.
+   */
+  it('splits a PDF past the page cap instead of refusing it', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-ocr',
+    })
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: { pageCount: 2500 } })
+    mockDownload.mockResolvedValue(await pdfOfPages(1001))
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised page' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await parse()
+
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
+    // 1001 pages against a 1000-page request cap: two chunks, two requests.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
