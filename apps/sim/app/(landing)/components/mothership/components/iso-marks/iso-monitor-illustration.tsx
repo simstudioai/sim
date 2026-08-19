@@ -14,7 +14,7 @@ export interface IsoMonitorIllustrationProps {
 
 const STROKE_PAINT = ISO_STROKE
 
-const LINE_PROPS = createIsoLineProps('iso-monitor-line', STROKE_PAINT)
+const LINE_PROPS = createIsoLineProps(STROKE_PAINT, undefined, 'iso-monitor-line')
 
 /**
  * Inline supplied illustration for the Monitor area - an isometric housing whose

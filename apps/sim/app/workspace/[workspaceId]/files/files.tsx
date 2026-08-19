@@ -59,6 +59,7 @@ import type {
 import {
   EMPTY_CELL_PLACEHOLDER,
   FILTER_SECTION_LABEL_CLASS,
+  isResourceListEmpty,
   OwnerAvatar,
   ownerCell,
   Resource,
@@ -86,7 +87,6 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -1928,6 +1928,8 @@ export function Files() {
           filter={filterConfig}
         />
         <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
           emptyState={
             showEmptyState ? (
               <FilesEmptyState
@@ -1936,8 +1938,6 @@ export function Files() {
               />
             ) : undefined
           }
-          columns={COLUMNS}
-          rows={rows}
           selectable={selectableConfig}
           rowDragDrop={rowDragDropConfig}
           onRowClick={handleRowClick}

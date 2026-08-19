@@ -23,6 +23,7 @@ import type {
 import {
   EMPTY_CELL_PLACEHOLDER,
   FILTER_SECTION_LABEL_CLASS,
+  isResourceListEmpty,
   OwnerAvatar,
   ownerCell,
   Resource,
@@ -54,7 +55,6 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -1285,6 +1285,8 @@ export function Tables() {
           filter={filterConfig}
         />
         <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
           emptyState={
             showEmptyState ? (
               <TablesEmptyState
@@ -1293,8 +1295,6 @@ export function Tables() {
               />
             ) : undefined
           }
-          columns={COLUMNS}
-          rows={rows}
           selectable={canEdit ? selectableConfig : undefined}
           rowDragDrop={rowDragDropConfig}
           onRowClick={handleRowClick}
