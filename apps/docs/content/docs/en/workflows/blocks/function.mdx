@@ -279,10 +279,13 @@ packages, and 10 managed CLI tools.
 
 When a Function block is used as an Agent tool, its code can read every workspace
 secret by default — both `{{MY_SECRET}}` and `environmentVariables['MY_SECRET']`.
-Use `{{MY_SECRET}}` when the value may appear in execution logs: a successful
-double-brace substitution activates [execution-trace masking](/platform/credentials#execution-log-protection),
-while direct `environmentVariables['MY_SECRET']` access alone does not activate
-it by itself.
+Prefer `{{MY_SECRET}}` when the value may appear in execution logs. A successful
+double-brace substitution always activates
+[execution-trace masking](/platform/credentials#execution-log-protection). A direct
+`environmentVariables['MY_SECRET']` read activates it too, but only when Sim can
+recognize the read in the code beforehand — a name built at runtime, or a file that
+reassigns `environmentVariables` itself, is not recognized. See
+[the recognition limits](/platform/credentials#execution-log-protection).
 
 To narrow that, set **Secret access** to *Selected secrets* in the block's
 tool configuration and pick the names the code may read. Two things change:
