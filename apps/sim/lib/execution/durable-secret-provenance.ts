@@ -10,13 +10,15 @@ import {
   type PrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
 import {
+  PROVENANCE_MAX_ENTRIES,
+  PROVENANCE_MAX_SERIALIZED_BYTES,
+} from '@/lib/execution/provenance-limits'
+import {
   type ResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
   type ResolvedSecretTraceScopeV1,
 } from '@/executor/utils/resolved-secret-trace-registry'
 
-const MAX_DURABLE_SECRET_PROVENANCE_ENTRIES = 10_000
-const MAX_DURABLE_SECRET_PROVENANCE_BYTES = 8 * 1024 * 1024
 const MAX_DURABLE_HASH_NODES = 50_000
 const MAX_DURABLE_HASH_DEPTH = 100
 const MAX_DURABLE_HASH_BYTES = 16 * 1024 * 1024
@@ -38,7 +40,7 @@ function compareStrings(left: string, right: string): number {
 export function normalizeDurableSecretProvenanceEntries(
   value: unknown
 ): DurableSecretProvenanceEntry[] | undefined {
-  if (!Array.isArray(value) || value.length > MAX_DURABLE_SECRET_PROVENANCE_ENTRIES) {
+  if (!Array.isArray(value) || value.length > PROVENANCE_MAX_ENTRIES) {
     return undefined
   }
 
@@ -74,7 +76,7 @@ export function normalizeDurableSecretProvenanceEntries(
     const key = `${entry.sourceUserId ?? ''}\u0000${entry.sourceWorkspaceId ?? ''}\u0000${entry.sourceValueHash ?? ''}\u0000${entry.name ?? ''}\u0000${entry.encryptedValue}`
     if (entries.has(key)) continue
     bytes += Buffer.byteLength(key, 'utf8')
-    if (bytes > MAX_DURABLE_SECRET_PROVENANCE_BYTES) return undefined
+    if (bytes > PROVENANCE_MAX_SERIALIZED_BYTES) return undefined
     entries.set(key, entry)
   }
 
@@ -86,7 +88,7 @@ export function normalizeDurableSecretProvenanceEntries(
       compareStrings(left.name ?? '', right.name ?? '') ||
       compareStrings(left.encryptedValue, right.encryptedValue)
   )
-  if (Buffer.byteLength(JSON.stringify(normalized), 'utf8') > MAX_DURABLE_SECRET_PROVENANCE_BYTES) {
+  if (Buffer.byteLength(JSON.stringify(normalized), 'utf8') > PROVENANCE_MAX_SERIALIZED_BYTES) {
     return undefined
   }
   return normalized
@@ -207,11 +209,22 @@ export async function importDurableSecretProvenance(
   registry: ResolvedSecretTraceRegistry,
   provenance: DurableSecretProvenance,
   value?: unknown,
-  surface?: DurableSecretProvenanceSurface
+  surface?: DurableSecretProvenanceSurface,
+  /**
+   * Set by a caller that reports the whole read itself.
+   *
+   * This function sees one record and knows no workspace, so its report can only ever be a log
+   * line, one per record. A caller reading a page can say the same thing once, with the workspace
+   * and the count — which is the entry that reaches the people who own the secrets. Both reporting
+   * would double-count the same event at two different granularities.
+   */
+  options: { reportUnrecorded?: boolean } = {}
 ): Promise<boolean> {
   if (provenance.status === 'unknown') {
     if (surface && !isDurableSecretProvenanceEnforced(surface)) {
-      reportUnrecordedDurableProvenance({ surface, cause: 'durable-provenance-unknown' })
+      if (options.reportUnrecorded !== false) {
+        reportUnrecordedDurableProvenance({ surface, cause: 'durable-provenance-unknown' })
+      }
       return true
     }
     registry.markIncomplete('durable-provenance-unknown')
