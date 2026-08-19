@@ -2441,6 +2441,50 @@ describe('Function Execute API Route', () => {
       expect(sandboxRequest.privateInputs[0].content).toContain('$UNRELATED `touch /tmp/nope`')
     })
 
+    /**
+     * The founding scenario of the usage trail: code that reads a secret and emits it only in
+     * transformed form. No output ever matches the value, so an output-gated report said
+     * "never used" for exactly the run an admin needs to see. A referenced secret reports
+     * whether or not its value surfaces.
+     */
+    it('reports a secret exfiltrated character by character', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: 's|e|c|r|e|t|-|v|a|l|u|e|-|1|2|3|4',
+        stdout: '',
+      })
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: "const k = '{{API_KEY}}'; return k.split('').join('|')",
+            envVars: { API_KEY: 'secret-value-1234' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual(['API_KEY'])
+    })
+
+    /** The ordinary silent use: the key authenticates a call and never appears in output. */
+    it('reports a secret used without appearing in the output', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: { status: 200 }, stdout: '' })
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            code: "await fetch('https://api.example.com', { headers: { auth: environmentVariables['API_KEY'] } }); return { status: 200 }",
+            envVars: { API_KEY: 'secret-value-1234' },
+          },
+          { 'x-sim-request-private-tool-metadata': 'resolved-secret-names-v1' }
+        )
+      )
+
+      expect(response.status).toBe(200)
+      expect((await response.json()).__resolvedSecretNames).toEqual(['API_KEY'])
+    })
+
     it('does not report a reference when validation rejects before code resolution', async () => {
       const response = await POST(
         createMockRequest(
@@ -2678,7 +2722,14 @@ describe('Function Execute API Route', () => {
       expect((await response.json()).__resolvedSecretNames).toEqual(['__proto__'])
     })
 
-    it('does not activate a referenced secret that does not cross the Function result', async () => {
+    /**
+     * Previously asserted the inverse: a referenced secret whose value stayed out of the
+     * result reported nothing. That gate made the trail miss silent use — the ordinary
+     * API-call case and the transformed-exfiltration case alike — so activation now follows
+     * the referenced set. The value never appearing costs nothing downstream; the masking
+     * matcher simply never fires on it.
+     */
+    it('activates a referenced secret even when its value never crosses the result', async () => {
       mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'safe-result', stdout: '' })
 
       const response = await POST(
@@ -2692,7 +2743,7 @@ describe('Function Execute API Route', () => {
         )
       )
 
-      expect((await response.json()).__resolvedSecretNames).toEqual([])
+      expect((await response.json()).__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
     it.concurrent('should resolve tag variables with <tag_name> syntax', async () => {
