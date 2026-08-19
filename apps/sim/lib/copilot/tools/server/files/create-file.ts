@@ -13,7 +13,6 @@ import {
   createWorkspaceFileByPath,
   updateWorkspaceFileContentByPath,
 } from '@/lib/workspace-files/application/write-workspace-file-by-path'
-import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 
 const logger = createLogger('CreateFileServerTool')
 const CREATE_FILE_TOOL_ID = 'create_empty_file'
@@ -58,20 +57,11 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     }
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
-    // A copilot-created .html file IS a Sim page unless the model says
-    // otherwise: an explicit contentType (the skill declares
-    // text/x-sim-page for pages and text/html for a bespoke raw page)
-    // always wins; with no declaration the .html default is a page. Either
-    // way the record advertises the file's nature from birth, so the viewer
-    // renders (never raw code) from the very first streamed byte, and the
-    // first apply_file_edit re-confirms from the actual content. User
-    // uploads never pass through here and stay text/html.
-    const declaredType = outputFile?.mimeType ?? explicitType
-    const inferredType = inferContentType(outputPath, declaredType)
-    const contentType =
-      !declaredType && inferredType === 'text/html' && outputPath.toLowerCase().endsWith('.html')
-        ? SIM_PAGE_CONTENT_TYPE
-        : inferredType
+    // .html defaults to plain text/html; a file is a Sim page only when the
+    // model DECLARES it (the skill passes contentType text/x-sim-page at
+    // creation) — or when the first apply_file_edit finds actual page
+    // source, which re-stamps the record from reality either way.
+    const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
     assertServerToolNotAborted(context)
     const mode = outputFile?.mode ?? 'create'
     // An empty shell provably contains no secrets; recording that keeps the
