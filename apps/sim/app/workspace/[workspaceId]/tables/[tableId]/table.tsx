@@ -1109,7 +1109,9 @@ export function Table({
    * user no way to see what was applied.
    */
   const handleFilterByCellValue = (conditions: readonly Predicate[]) => {
-    replaceFilter(withCellValueFilter(effectiveFilter, conditions))
+    const next = withCellValueFilter(effectiveFilter, conditions)
+    replaceFilter(next)
+    persistActiveViewConfig({ filter: next })
     setFilterOpen(true)
   }
 
@@ -1355,8 +1357,8 @@ export function Table({
       />
     ) : null
 
-  /** Right-aligned slot. Left `undefined` when both are absent so the options bar
-   *  doesn't render an empty flex row — a fragment would always read as truthy. */
+  /** Right-aligned slot. Left `undefined` when absent so the options bar
+   *  doesn't render an empty flex row. */
   const optionsTrailing = runStatus || undefined
 
   return (
@@ -1395,8 +1397,8 @@ export function Table({
         />
       )}
       {/* Sort + filter render in both modes. In embedded (mothership) mode there's no
-          Resource.Header, so the run/stop control rides in the options bar — pinned
-          right, opposite the menu cluster, next to Save. */}
+            Resource.Header, so the run/stop control rides in the options bar — pinned
+            right, opposite the menu cluster. */}
       <Resource.Options
         sort={sortConfig}
         filter={filterConfig}
