@@ -34,6 +34,19 @@ type ConditionEvaluation =
   | { status: 'no-verdict'; message: string; timedOut: boolean }
 
 /**
+ * Wraps one expression as a boolean test, on its own line so a trailing line
+ * comment ends before the closing parenthesis instead of swallowing it.
+ *
+ * The batched script and the per-branch fallback both wrap through here. Wrapping
+ * them separately let the two drift: an expression carrying a trailing comment
+ * parsed in the batch and failed in the fallback, so the recovery path rejected
+ * a branch the primary path accepted.
+ */
+function buildBooleanTest(expression: string): string {
+  return `Boolean(\n${expression}\n)`
+}
+
+/**
  * Builds one script that tests each expression in order and reports the index of
  * the first truthy one.
  *
@@ -42,16 +55,13 @@ type ConditionEvaluation =
  * a later expression that throws is still never reached and the run takes the
  * same branch it takes today. The `catch` reports the index it was on as data
  * rather than rethrowing, which is what lets the caller name the failing branch.
- *
- * Each expression sits on its own line inside `Boolean(...)` so a trailing line
- * comment ends before the closing parenthesis instead of swallowing it.
  */
-function buildConditionScript(expressions: string[], evalContext: Record<string, any>): string {
+function buildConditionScript(expressions: string[], evalContext: Record<string, unknown>): string {
   const tests = expressions
     .map(
       (expression, index) =>
         `  __simConditionIndex = ${index}\n` +
-        `  if (Boolean(\n${expression}\n  )) return { matchedIndex: ${index} }`
+        `  if (${buildBooleanTest(expression)}) return { matchedIndex: ${index} }`
     )
     .join('\n')
 
@@ -130,7 +140,7 @@ function isTimeoutFailure(error: string | undefined): boolean {
 async function evaluateConditionList(
   ctx: ExecutionContext,
   expressions: string[],
-  evalContext: Record<string, any>,
+  evalContext: Record<string, unknown>,
   currentNodeId?: string
 ): Promise<ConditionEvaluation> {
   const result = await runConditionCode(
@@ -207,10 +217,10 @@ async function evaluateConditionList(
 async function evaluateSingleCondition(
   ctx: ExecutionContext,
   expression: string,
-  evalContext: Record<string, any>,
+  evalContext: Record<string, unknown>,
   currentNodeId?: string
 ): Promise<boolean> {
-  const code = `const context = ${JSON.stringify(evalContext)};\nreturn Boolean(${expression})`
+  const code = `const context = ${JSON.stringify(evalContext)};\nreturn ${buildBooleanTest(expression)}`
   const result = await runConditionCode(ctx, code, currentNodeId)
 
   if (!result.success) {
@@ -335,8 +345,8 @@ export class ConditionBlockHandler implements BlockHandler {
   private buildEvaluationContext(
     ctx: ExecutionContext,
     sourceBlockId?: string
-  ): Record<string, any> {
-    let evalContext: Record<string, any> = {}
+  ): Record<string, unknown> {
+    let evalContext: Record<string, unknown> = {}
 
     if (sourceBlockId) {
       const sourceOutput = ctx.blockStates.get(sourceBlockId)?.output
@@ -359,7 +369,7 @@ export class ConditionBlockHandler implements BlockHandler {
   private async evaluateConditions(
     conditions: ConditionEntry[],
     outgoingConnections: Array<{ source: string; target: string; sourceHandle?: string }>,
-    evalContext: Record<string, any>,
+    evalContext: Record<string, unknown>,
     ctx: ExecutionContext,
     currentNodeId?: string
   ): Promise<{
@@ -386,7 +396,7 @@ export class ConditionBlockHandler implements BlockHandler {
 
   private async findMatchingCondition(
     conditions: ConditionEntry[],
-    evalContext: Record<string, any>,
+    evalContext: Record<string, unknown>,
     ctx: ExecutionContext,
     currentNodeId?: string
   ): Promise<ConditionEntry | null> {
@@ -433,7 +443,7 @@ export class ConditionBlockHandler implements BlockHandler {
 
   private async findMatchingConditionIndividually(
     conditions: ConditionEntry[],
-    evalContext: Record<string, any>,
+    evalContext: Record<string, unknown>,
     ctx: ExecutionContext,
     currentNodeId?: string
   ): Promise<ConditionEntry | null> {

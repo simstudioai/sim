@@ -499,6 +499,45 @@ describe('ConditionBlockHandler', () => {
       expect(mockExecuteTool).toHaveBeenCalledTimes(2)
     })
 
+    it('emits a batch script a trailing line comment cannot break', async () => {
+      mockExecuteTool.mockResolvedValueOnce(matchedAt(0))
+
+      await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify([
+          { id: 'cond1', title: 'if', value: 'context.value > 5 // gate' },
+          { id: 'else1', title: 'else', value: '' },
+        ]),
+      })
+
+      const [, toolParams] = mockExecuteTool.mock.calls[0]
+      // Compiling is the assertion: a comment that swallowed the closing
+      // parenthesis would fail the whole script at parse time.
+      expect(() => new Function(toolParams.code as string)).not.toThrow()
+    })
+
+    it('wraps a comment-bearing expression the same way when falling back', async () => {
+      // The fallback recovers a batch the sandbox could not parse, so it has to
+      // accept every expression the batch accepts — otherwise the recovery path
+      // rejects a branch the primary path would have matched.
+      mockExecuteTool.mockResolvedValueOnce({
+        success: false,
+        error: 'Invalid JavaScript syntax: Unexpected token',
+      })
+      mockExecuteTool.mockResolvedValueOnce({ success: true, output: { result: true } })
+
+      const result = await handler.execute(mockContext, mockBlock, {
+        conditions: JSON.stringify([
+          { id: 'cond1', title: 'if', value: 'context.value > 5 // gate' },
+          { id: 'cond2', title: 'else if', value: 'context.value ===' },
+          { id: 'else1', title: 'else', value: '' },
+        ]),
+      })
+
+      expect((result as any).selectedOption).toBe('cond1')
+      const [, fallbackParams] = mockExecuteTool.mock.calls[1]
+      expect(() => new Function(fallbackParams.code as string)).not.toThrow()
+    })
+
     it('does not fan a timed-out batch out into one call per branch', async () => {
       mockExecuteTool.mockResolvedValue({
         success: false,
