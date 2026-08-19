@@ -348,6 +348,20 @@ export interface ContextExtensions {
    * not opt in is fail-closed by default.
    */
   liveTraceViewerUserId?: string
+
+  /**
+   * Block callbacks that ONLY emit to the live stream — they never write the invoking
+   * run's progress markers. `onBlockStart`/`onBlockComplete` above are persist-then-emit
+   * composites: on the invoking run they write block names and I/O into that run's
+   * `LoggingSession` before reaching the stream.
+   *
+   * A custom block's child must reach the emit half and never the persist half. The
+   * stream is gated per viewer against the source workspace, but a persisted marker is
+   * keyed by the PARENT execution and is readable by anyone with parent-workspace access
+   * long after that check — so persisting the source workflow's block names there would
+   * leak them past the boundary the gate exists to hold.
+   */
+  liveStreamCallbacks?: Pick<ExecutionCallbacks, 'onBlockStart' | 'onBlockComplete'>
 }
 
 export interface WorkflowInput {

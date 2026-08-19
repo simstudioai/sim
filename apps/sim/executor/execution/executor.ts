@@ -525,6 +525,7 @@ export class DAGExecutor {
       stopAfterBlockId: this.contextExtensions.stopAfterBlockId,
       callChain: this.contextExtensions.callChain,
       liveTraceViewerUserId: this.contextExtensions.liveTraceViewerUserId,
+      liveStreamCallbacks: this.contextExtensions.liveStreamCallbacks,
     }
 
     if (this.contextExtensions.resumeFromSnapshot) {

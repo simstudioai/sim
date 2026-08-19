@@ -972,6 +972,9 @@ async function executeWorkflowCoreImpl(
       // unset, which is what keeps a custom block from streaming its SOURCE
       // workspace's block events to a consumer who may be an anonymous visitor.
       ...(metadata.isClientSession ? { liveTraceViewerUserId: userId } : {}),
+      // The RAW callbacks, not the `wrapped*` composites above: these emit to the stream
+      // without writing this run's progress markers. Only a custom block's child uses them.
+      liveStreamCallbacks: { onBlockStart, onBlockComplete },
     }
 
     if (snapshot.state) {

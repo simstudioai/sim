@@ -1254,6 +1254,55 @@ describe('WorkflowBlockHandler', () => {
         expect(output._childWorkflowInstanceId).toBeTruthy()
       })
 
+      it("streams via the emit-only sink, never the parent run's persisting callbacks", async () => {
+        // `ctx.onBlockStart/onBlockComplete` on the invoking run are persist-then-emit
+        // composites: they write block names and I/O into the PARENT's LoggingSession.
+        // Those markers are keyed by the parent execution and readable by anyone with
+        // parent-workspace access, long after the per-viewer gate this stream passed — so
+        // the source workflow's blocks must reach the emit half only.
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+        const persistingStart = vi.fn()
+        const persistingComplete = vi.fn()
+        const emitOnlyStart = vi.fn()
+        const emitOnlyComplete = vi.fn()
+
+        await handler.execute(
+          customBlockContext({
+            liveTraceViewerUserId: 'viewer-1',
+            onBlockStart: persistingStart,
+            onBlockComplete: persistingComplete,
+            liveStreamCallbacks: { onBlockStart: emitOnlyStart, onBlockComplete: emitOnlyComplete },
+          }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        await forwarded.onBlockStart?.('b1', 'Publisher Agent', 'agent', 1)
+        await forwarded.onBlockComplete?.('b1', 'Publisher Agent', 'agent', {})
+
+        expect(emitOnlyStart).toHaveBeenCalledTimes(1)
+        expect(emitOnlyComplete).toHaveBeenCalledTimes(1)
+        expect(persistingStart).not.toHaveBeenCalled()
+        expect(persistingComplete).not.toHaveBeenCalled()
+      })
+
+      it('keeps the boundary shut when the surface offers no emit-only sink', async () => {
+        mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+        const persistingStart = vi.fn()
+
+        await handler.execute(
+          customBlockContext({ liveTraceViewerUserId: 'viewer-1', onBlockStart: persistingStart }),
+          customBlock(),
+          {}
+        )
+
+        const forwarded = executorOptions[0].contextExtensions
+        await forwarded.onBlockStart?.('b1', 'Publisher Agent', 'agent', 1)
+
+        expect(persistingStart).not.toHaveBeenCalled()
+      })
+
       it('still exposes only curated outputs alongside the spans', async () => {
         mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
 

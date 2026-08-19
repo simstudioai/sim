@@ -613,6 +613,13 @@ export class WorkflowBlockHandler implements BlockHandler {
       // composed into one fan-out rather than spread into the options object twice
       // — two spreads of the same keys silently keep only the last, which would
       // cost the child's own log row every progress marker it has.
+      // Where the child's block events go on the parent side. A regular workflow block's
+      // child is part of the SAME run and belongs in its progress markers, so it keeps the
+      // persist-then-emit composites. A custom block's child must reach the stream only:
+      // its markers would be keyed by the parent execution and readable by anyone with
+      // parent-workspace access, outliving the per-viewer gate the stream was allowed under.
+      const parentStreamSink: Pick<ExecutionCallbacks, 'onBlockStart' | 'onBlockComplete'> =
+        isCustomBlock ? (ctx.liveStreamCallbacks ?? {}) : ctx
       const childCallbacks: ExecutionCallbacks & { childWorkflowContext?: ChildWorkflowContext } =
         {}
       if (emitsSessionMarkers || shouldPropagateCallbacks) {
@@ -637,7 +644,7 @@ export class WorkflowBlockHandler implements BlockHandler {
             }
           }
           if (shouldPropagateCallbacks) {
-            await ctx.onBlockStart?.(
+            await parentStreamSink.onBlockStart?.(
               blockId,
               blockName,
               blockType,
@@ -663,7 +670,7 @@ export class WorkflowBlockHandler implements BlockHandler {
             }
           }
           if (shouldPropagateCallbacks) {
-            await ctx.onBlockComplete?.(
+            await parentStreamSink.onBlockComplete?.(
               blockId,
               blockName,
               blockType,
