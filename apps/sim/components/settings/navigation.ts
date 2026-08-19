@@ -43,13 +43,7 @@ import {
 
 export type SettingsPlane = 'account' | 'organization' | 'selfhost' | 'workspace'
 
-export type AccountSettingsSection =
-  | 'general'
-  | 'privacy'
-  | 'billing'
-  | 'api-keys'
-  | 'admin'
-  | 'mothership'
+export type AccountSettingsSection = 'general' | 'billing' | 'api-keys' | 'admin' | 'mothership'
 
 /**
  * Settings a self-hoster needs from the managed service: their profile, what
@@ -387,9 +381,6 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
       group: 'account',
       order: 5,
       requiresHosted: true,
-    },
-    planes: {
-      account: { id: 'privacy', group: 'account', order: 5 },
     },
   },
   {
