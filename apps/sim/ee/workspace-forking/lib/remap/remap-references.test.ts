@@ -1319,7 +1319,17 @@ const knowledgePairBlock = () =>
       id: 'tagFilters',
       title: 'Tag Filters',
       type: 'knowledge-tag-filters',
+      canonicalParamId: 'tagFilters',
       dependsOn: ['knowledgeBaseSelector'],
+      mode: 'basic',
+    },
+    {
+      id: 'manualTagFilters',
+      title: 'Tag Filters',
+      type: 'knowledge-tag-filters',
+      canonicalParamId: 'tagFilters',
+      dependsOn: ['knowledgeBaseSelector'],
+      mode: 'advanced',
     },
     {
       id: 'documentTags',
@@ -1379,6 +1389,72 @@ describe('canonical mode policy (fork/promote)', () => {
     expect(result.tagFilters.value).toBe('[{"tagName":"team"}]')
     // The dormant basic selector is cleared outright (not remapped to the copy).
     expect(result.knowledgeBaseSelector.value).toBe('')
+  })
+
+  it('clears literal tag IDs when the active basic KB selector is remapped', () => {
+    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
+    const transform = createForkBootstrapTransform(resolveCopy as never)
+    const result = transform(
+      {
+        knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-src'),
+        manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', ''),
+        tagFilters: entry('tagFilters', 'knowledge-tag-filters', ''),
+        manualTagFilters: entry(
+          'manualTagFilters',
+          'knowledge-tag-filters',
+          '[{"tagId":"source-tag-definition-id","tagValue":"team"}]'
+        ),
+      },
+      'knowledge',
+      { knowledgeBaseId: 'basic', tagFilters: 'advanced' }
+    )
+
+    expect(result.knowledgeBaseSelector.value).toBe('kb-copy')
+    expect(result.manualTagFilters.value).toBe('')
+  })
+
+  it('preserves dynamic tag ID references when the active basic KB selector is remapped', () => {
+    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
+    const transform = createForkBootstrapTransform(resolveCopy as never)
+    const result = transform(
+      {
+        knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-src'),
+        manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', ''),
+        tagFilters: entry('tagFilters', 'knowledge-tag-filters', ''),
+        manualTagFilters: entry(
+          'manualTagFilters',
+          'knowledge-tag-filters',
+          '[{"tagId":"<start.tagId>","tagValue":"team"}]'
+        ),
+      },
+      'knowledge',
+      { knowledgeBaseId: 'basic', tagFilters: 'advanced' }
+    )
+
+    expect(result.knowledgeBaseSelector.value).toBe('kb-copy')
+    expect(result.manualTagFilters.value).toBe('[{"tagId":"<start.tagId>","tagValue":"team"}]')
+  })
+
+  it('removes only literal tag IDs from a mixed array when the KB selector is remapped', () => {
+    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
+    const transform = createForkBootstrapTransform(resolveCopy as never)
+    const result = transform(
+      {
+        knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-src'),
+        manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', ''),
+        tagFilters: entry('tagFilters', 'knowledge-tag-filters', ''),
+        manualTagFilters: entry(
+          'manualTagFilters',
+          'knowledge-tag-filters',
+          '[{"tagId":"source-tag-definition-id","tagValue":"literal"},{"tagId":"<start.tagId>","tagValue":"dynamic"}]'
+        ),
+      },
+      'knowledge',
+      { knowledgeBaseId: 'basic', tagFilters: 'advanced' }
+    )
+
+    expect(result.knowledgeBaseSelector.value).toBe('kb-copy')
+    expect(result.manualTagFilters.value).toBe('[{"tagId":"<start.tagId>","tagValue":"dynamic"}]')
   })
 
   it('advanced mode: nothing is detected as a reference (no mapping requirement)', () => {
@@ -1763,6 +1839,153 @@ describe('canonical mode policy (fork/promote)', () => {
       blockConfigs: kbToolConfigs,
     })
     expect(cleared.params).toEqual({ knowledgeBaseId: '', tagFilters: '' })
+  })
+
+  const canonicalKnowledgeToolConfigs = {
+    knowledge: {
+      subBlocks: [
+        {
+          id: 'knowledgeBaseSelector',
+          title: 'KB',
+          type: 'knowledge-base-selector',
+          canonicalParamId: 'knowledgeBaseId',
+          mode: 'basic',
+        },
+        {
+          id: 'manualKnowledgeBaseId',
+          title: 'KB ID',
+          type: 'short-input',
+          canonicalParamId: 'knowledgeBaseId',
+          mode: 'advanced',
+        },
+        {
+          id: 'tagFilters',
+          title: 'Tag Filters',
+          type: 'knowledge-tag-filters',
+          canonicalParamId: 'tagFilters',
+          dependsOn: ['knowledgeBaseSelector'],
+          mode: 'basic',
+        },
+        {
+          id: 'manualTagFilters',
+          title: 'Tag Filters',
+          type: 'knowledge-tag-filters',
+          canonicalParamId: 'tagFilters',
+          dependsOn: ['knowledgeBaseSelector'],
+          mode: 'advanced',
+        },
+      ] as SubBlockConfig[],
+    },
+  }
+
+  it('nested tool: preserves active basic tag filters when the KB is remapped', () => {
+    const result = remapToolBlockResources(
+      {
+        type: 'knowledge',
+        toolId: 'knowledge_search',
+        params: {
+          knowledgeBaseId: 'kb-src',
+          tagFilters: '[{"tagName":"team","tagValue":"docs"}]',
+          manualTagFilters: '[{"tagId":"stale-tag-id","tagValue":"docs"}]',
+        },
+      },
+      {
+        resolve: (kind, id) => (kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null),
+        resolveFileKey: () => null,
+        clearUnresolved: true,
+        blockConfigs: canonicalKnowledgeToolConfigs,
+        parentCanonicalModes: {
+          '0:knowledgeBaseId': 'basic',
+          '0:tagFilters': 'basic',
+        },
+        toolIndex: 0,
+      }
+    )
+
+    expect(result.params).toEqual({
+      knowledgeBaseId: 'kb-dst',
+      tagFilters: '[{"tagName":"team","tagValue":"docs"}]',
+      manualTagFilters: '',
+    })
+  })
+
+  it.each([
+    {
+      label: 'clears literal tag IDs',
+      filterValue: '[{"tagId":"source-tag-definition-id","tagValue":"team"}]',
+      expected: '',
+    },
+    {
+      label: 'preserves dynamic tag ID references',
+      filterValue: '[{"tagId":"<start.tagId>","tagValue":"team"}]',
+      expected: '[{"tagId":"<start.tagId>","tagValue":"team"}]',
+    },
+    {
+      label: 'removes only literal tag IDs from a mixed array',
+      filterValue:
+        '[{"tagId":"source-tag-definition-id","tagValue":"literal"},{"tagId":"<start.tagId>","tagValue":"dynamic"}]',
+      expected: '[{"tagId":"<start.tagId>","tagValue":"dynamic"}]',
+    },
+  ])('nested tool: $label when its basic KB is remapped', ({ filterValue, expected }) => {
+    const result = remapToolBlockResources(
+      {
+        type: 'knowledge',
+        toolId: 'knowledge_search',
+        params: {
+          knowledgeBaseId: 'kb-src',
+          tagFilters: '',
+          manualTagFilters: filterValue,
+        },
+      },
+      {
+        resolve: (kind, id) => (kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null),
+        resolveFileKey: () => null,
+        clearUnresolved: true,
+        blockConfigs: canonicalKnowledgeToolConfigs,
+        parentCanonicalModes: {
+          '0:knowledgeBaseId': 'basic',
+          '0:tagFilters': 'advanced',
+        },
+        toolIndex: 0,
+      }
+    )
+
+    expect(result.params).toEqual({
+      knowledgeBaseId: 'kb-dst',
+      tagFilters: '',
+      manualTagFilters: expected,
+    })
+  })
+
+  it('nested tool: clears a dormant raw basic value while preserving the live dynamic advanced value', () => {
+    const result = remapToolBlockResources(
+      {
+        type: 'knowledge',
+        toolId: 'knowledge_search',
+        params: {
+          knowledgeBaseId: 'kb-src',
+          tagFilters: '[{"tagName":"stale-basic","tagValue":"team"}]',
+          manualTagFilters: '[{"tagId":"<start.tagId>","tagValue":"team"}]',
+        },
+      },
+      {
+        resolve: (kind, id) => (kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null),
+        resolveFileKey: () => null,
+        clearUnresolved: true,
+        blockConfigs: canonicalKnowledgeToolConfigs,
+        parentCanonicalModes: {
+          '0:knowledgeBaseId': 'basic',
+          '0:tagFilters': 'advanced',
+        },
+        toolIndex: 0,
+      }
+    )
+
+    expect(result.params).toEqual({
+      knowledgeBaseId: 'kb-dst',
+      tagFilters: '',
+      manualTagFilters: '[{"tagId":"<start.tagId>","tagValue":"team"}]',
+    })
   })
 
   it('preserves a column selection under a COPIED table, clears it under a mapped one', () => {

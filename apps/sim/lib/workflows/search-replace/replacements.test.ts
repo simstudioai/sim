@@ -1327,7 +1327,7 @@ describe('buildWorkflowSearchReplacePlan', () => {
     ])
   })
 
-  it('replaces JSON-backed tag value fields without touching tag metadata', () => {
+  it('replaces connected JSON-backed tag ID and value fields without touching metadata', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tag-block-1'] = {
       id: 'tag-block-1',
@@ -1344,6 +1344,7 @@ describe('buildWorkflowSearchReplacePlan', () => {
             {
               id: 'filter-open',
               tagName: 'Status',
+              tagId: '<start.openTagId>',
               fieldType: 'text',
               operator: 'eq',
               tagValue: 'open ticket',
@@ -1400,6 +1401,7 @@ describe('buildWorkflowSearchReplacePlan', () => {
       {
         id: 'filter-open',
         tagName: 'Status',
+        tagId: '<start.resolvedTagId>',
         fieldType: 'text',
         operator: 'eq',
         tagValue: 'resolved ticket',

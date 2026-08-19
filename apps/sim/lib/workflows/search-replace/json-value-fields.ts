@@ -13,6 +13,7 @@ const SEARCHABLE_JSON_ARRAY_VALUE_FIELDS: Partial<Record<SubBlockType, Record<st
     value: 'Route',
   },
   'knowledge-tag-filters': {
+    tagId: 'Tag ID',
     tagValue: 'Value',
     valueTo: 'Value To',
   },

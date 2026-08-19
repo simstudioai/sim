@@ -4,14 +4,19 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
 
-export const knowledgeSearchTagFilterSchema = z.object({
-  tagName: z.string(),
-  tagSlot: z.string().optional(),
-  fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
-  operator: z.string().default('eq'),
-  value: z.union([z.string(), z.number(), z.boolean()]),
-  valueTo: z.union([z.string(), z.number()]).optional(),
-})
+export const knowledgeSearchTagFilterSchema = z
+  .object({
+    tagName: z.string().trim().min(1).optional(),
+    tagId: z.string().trim().min(1).optional(),
+    tagSlot: z.string().optional(),
+    fieldType: z.enum(['text', 'number', 'date', 'boolean']).optional(),
+    operator: z.string().default('eq'),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+    valueTo: z.union([z.string(), z.number()]).optional(),
+  })
+  .refine((filter) => Boolean(filter.tagName) !== Boolean(filter.tagId), {
+    message: 'Each tag filter must include exactly one of tagName or tagId',
+  })
 
 export const KNOWLEDGE_SEARCH_MODES = ['vector', 'hybrid'] as const
 

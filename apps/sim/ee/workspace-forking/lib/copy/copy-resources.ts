@@ -740,8 +740,10 @@ export async function copyForkResourceContainers(
     // schema: the copied documents carry tag VALUES in their slot columns, and both tag-filter
     // search and documentTags writes resolve display names through these definition rows (a copy
     // without them 400s / throws on every defined tag). Fresh ids, child KB id, all other columns
-    // verbatim - nothing persists a tag-definition id (workflow state, documents, and fork
-    // mappings all reference tags by display name / slot), so no id map is recorded.
+    // verbatim. Advanced Knowledge tag filters can persist definition ids, but the workflow
+    // remapper clears literal ID filters when their parent KB moves because tag definitions are
+    // not a first-class fork mapping resource. Name-based filters and dynamic ID references carry
+    // over; no tag-definition id map is recorded.
     if (kbEntryBySourceId.size > 0) {
       const tagDefinitions = await tx
         .select()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   Badge,
   Button,
@@ -14,7 +14,11 @@ import {
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
-import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
+import {
+  FIELD_TYPE_LABELS,
+  getPlaceholderForFieldType,
+  SUPPORTED_FIELD_TYPES,
+} from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -32,6 +36,7 @@ import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 interface TagFilter {
   id: string
   tagName: string
+  tagId?: string
   tagSlot?: string
   fieldType: FilterFieldType
   operator: string
@@ -55,11 +60,20 @@ interface KnowledgeTagFiltersProps {
 const createDefaultFilter = (): TagFilter => ({
   id: generateId(),
   tagName: '',
+  tagId: '',
   fieldType: 'text',
   operator: 'eq',
   tagValue: '',
   collapsed: false,
 })
+
+const ALL_OPERATOR_OPTIONS = Array.from(
+  new Map(
+    SUPPORTED_FIELD_TYPES.flatMap((fieldType) =>
+      getOperatorsForFieldType(fieldType).map((operator) => [operator.value, operator])
+    )
+  ).values()
+)
 
 export function KnowledgeTagFilters({
   blockId,
@@ -80,7 +94,12 @@ export function KnowledgeTagFilters({
     isPreview,
     previewContextValues,
   })
-  const knowledgeBaseIdValue = dependencyValues.knowledgeBaseSelector
+  const canonicalKnowledgeBaseIdValue = previewContextValues?.knowledgeBaseId
+  const knowledgeBaseIdValue =
+    typeof canonicalKnowledgeBaseIdValue === 'string' &&
+    canonicalKnowledgeBaseIdValue.trim().length > 0
+      ? canonicalKnowledgeBaseIdValue
+      : dependencyValues.knowledgeBaseSelector
   const knowledgeBaseId =
     typeof knowledgeBaseIdValue === 'string' && knowledgeBaseIdValue.trim().length > 0
       ? knowledgeBaseIdValue
@@ -101,18 +120,63 @@ export function KnowledgeTagFilters({
     disabled,
   })
 
-  const parseFilters = (filterValue: unknown): TagFilter[] =>
-    parseJsonArrayValue<TagFilter>(filterValue).map((f) => ({
-      ...f,
-      fieldType: f.fieldType || 'text',
-      operator: f.operator || 'eq',
-      collapsed: f.collapsed ?? false,
-    }))
-
   const currentValue = isPreview ? previewValue : storeValue
-  const parsedFilters = parseFilters(currentValue)
-  const filters: TagFilter[] = parsedFilters.length > 0 ? parsedFilters : [createDefaultFilter()]
+  const parsedFilters = useMemo(
+    () =>
+      parseJsonArrayValue<TagFilter>(currentValue).map((filter) => ({
+        ...filter,
+        fieldType: filter.fieldType || 'text',
+        operator: filter.operator || 'eq',
+        collapsed: filter.collapsed ?? false,
+      })),
+    [currentValue]
+  )
+  const defaultFilter = useMemo(createDefaultFilter, [])
+  const filters: TagFilter[] = parsedFilters.length > 0 ? parsedFilters : [defaultFilter]
   const isReadOnly = isPreview || disabled
+  const usesTagIds = subBlock.mode === 'advanced'
+  const getResolvedTagDefinition = (filter: TagFilter) =>
+    usesTagIds ? tagDefinitions.find((tag) => tag.id === filter.tagId) : undefined
+  const getEffectiveFieldType = (filter: TagFilter): FilterFieldType =>
+    (getResolvedTagDefinition(filter)?.fieldType || filter.fieldType || 'text') as FilterFieldType
+
+  useEffect(() => {
+    if (isReadOnly || !usesTagIds || parsedFilters.length === 0) return
+
+    let changed = false
+    const normalizedFilters = parsedFilters.map((filter) => {
+      const tagDefinition = tagDefinitions.find((tag) => tag.id === filter.tagId)
+      if (!tagDefinition) return filter
+
+      const fieldType = tagDefinition.fieldType as FilterFieldType
+      const validOperators = getOperatorsForFieldType(fieldType)
+      const operatorIsValid = validOperators.some((operator) => operator.value === filter.operator)
+      const operator = operatorIsValid ? filter.operator : validOperators[0]?.value || 'eq'
+      const valueTo = operator === 'between' ? filter.valueTo : undefined
+
+      if (
+        filter.tagSlot === tagDefinition.tagSlot &&
+        filter.fieldType === fieldType &&
+        filter.operator === operator &&
+        filter.valueTo === valueTo
+      ) {
+        return filter
+      }
+
+      changed = true
+      return {
+        ...filter,
+        tagSlot: tagDefinition.tagSlot,
+        fieldType,
+        operator,
+        valueTo,
+      }
+    })
+
+    if (changed) {
+      setStoreValue(JSON.stringify(normalizedFilters))
+    }
+  }, [isReadOnly, parsedFilters, setStoreValue, tagDefinitions, usesTagIds])
 
   /**
    * Updates the store with new filters
@@ -166,6 +230,18 @@ export function KnowledgeTagFilters({
           updated.valueTo = undefined
         }
 
+        if (field === 'tagId') {
+          const tagDef = tagDefinitions.find((t) => t.id === value)
+          updated.tagSlot = tagDef?.tagSlot
+          if (tagDef && f.tagId !== value) {
+            updated.fieldType = tagDef.fieldType as FilterFieldType
+            const operators = getOperatorsForFieldType(updated.fieldType)
+            updated.operator = operators[0]?.value || 'eq'
+            updated.tagValue = ''
+            updated.valueTo = undefined
+          }
+        }
+
         // When field type changes, reset operator and value
         if (field === 'fieldType') {
           const operators = getOperatorsForFieldType(value as FilterFieldType)
@@ -215,7 +291,9 @@ export function KnowledgeTagFilters({
   }
 
   if (isPreview) {
-    const appliedFilters = filters.filter((f) => f.tagName.trim() && f.tagValue.trim()).length
+    const appliedFilters = filters.filter(
+      (f) => (usesTagIds ? f.tagId?.trim() : f.tagName.trim()) && f.tagValue.trim()
+    ).length
 
     return (
       <div className='space-y-1'>
@@ -244,11 +322,17 @@ export function KnowledgeTagFilters({
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
+          {filter.collapsed
+            ? usesTagIds
+              ? tagDefinitions.find((tag) => tag.id === filter.tagId)?.displayName ||
+                filter.tagId ||
+                `Filter ${index + 1}`
+              : filter.tagName || `Filter ${index + 1}`
+            : `Filter ${index + 1}`}
         </span>
-        {filter.collapsed && filter.tagName && (
+        {filter.collapsed && (usesTagIds ? filter.tagId : filter.tagName) && (
           <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
+            {FIELD_TYPE_LABELS[getEffectiveFieldType(filter)] || 'Text'}
           </Badge>
         )}
       </div>
@@ -284,10 +368,18 @@ export function KnowledgeTagFilters({
   /**
    * Renders the value input with tag dropdown support
    */
-  const renderValueInput = (filter: TagFilter, field: 'tagValue' | 'valueTo') => {
-    const fieldValue = field === 'tagValue' ? filter.tagValue : filter.valueTo || ''
+  const renderConnectedInput = (
+    filter: TagFilter,
+    field: 'tagId' | 'tagValue' | 'valueTo',
+    placeholder: string
+  ) => {
+    const fieldValue =
+      field === 'tagId'
+        ? filter.tagId || ''
+        : field === 'tagValue'
+          ? filter.tagValue
+          : filter.valueTo || ''
     const cellKey = `${filter.id}-${field}`
-    const placeholder = getPlaceholderForFieldType(filter.fieldType)
     const filterIndex = filters.findIndex((candidate) => candidate.id === filter.id)
     const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
       activeSearchTarget,
@@ -304,7 +396,22 @@ export function KnowledgeTagFilters({
     const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
       cellKey,
       fieldValue,
-      (newValue) => handleTagDropdownSelection(filter.id, field, newValue)
+      (newValue) => {
+        if (field === 'tagId') {
+          const updatedFilters = filters.map((candidate) =>
+            candidate.id === filter.id
+              ? {
+                  ...candidate,
+                  tagId: newValue,
+                  tagSlot: undefined,
+                }
+              : candidate
+          )
+          emitTagSelection(JSON.stringify(updatedFilters))
+          return
+        }
+        handleTagDropdownSelection(filter.id, field, newValue)
+      }
     )
 
     return (
@@ -365,6 +472,12 @@ export function KnowledgeTagFilters({
     )
   }
 
+  const renderValueInput = (
+    filter: TagFilter,
+    field: 'tagValue' | 'valueTo',
+    fieldType: FilterFieldType
+  ) => renderConnectedInput(filter, field, getPlaceholderForFieldType(fieldType))
+
   /**
    * Renders the filter content (tag, operator, value inputs)
    */
@@ -374,7 +487,12 @@ export function KnowledgeTagFilters({
       label: tag.displayName,
     }))
 
-    const operators = getOperatorsForFieldType(filter.fieldType)
+    const resolvedTagDefinition = getResolvedTagDefinition(filter)
+    const effectiveFieldType = getEffectiveFieldType(filter)
+    const operators =
+      usesTagIds && !resolvedTagDefinition
+        ? ALL_OPERATOR_OPTIONS
+        : getOperatorsForFieldType(effectiveFieldType)
     const operatorOptions: ComboboxOption[] = operators.map((op) => ({
       value: op.value,
       label: op.label,
@@ -385,14 +503,18 @@ export function KnowledgeTagFilters({
     return (
       <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
         <div className='flex flex-col gap-1.5'>
-          <Label className='text-small'>Tag</Label>
-          <Combobox
-            options={tagOptions}
-            value={filter.tagName}
-            onChange={(value) => updateFilter(filter.id, 'tagName', value)}
-            disabled={isReadOnly || isLoading}
-            placeholder='Select tag'
-          />
+          <Label className='text-small'>{usesTagIds ? 'Tag ID' : 'Tag'}</Label>
+          {usesTagIds ? (
+            renderConnectedInput(filter, 'tagId', 'Enter tag ID')
+          ) : (
+            <Combobox
+              options={tagOptions}
+              value={filter.tagName}
+              onChange={(value) => updateFilter(filter.id, 'tagName', value)}
+              disabled={isReadOnly || isLoading}
+              placeholder='Select tag'
+            />
+          )}
         </div>
 
         <div className='flex flex-col gap-1.5'>
@@ -410,12 +532,16 @@ export function KnowledgeTagFilters({
           <Label className='text-small'>Value</Label>
           {isBetween ? (
             <div className='flex items-center gap-2'>
-              <div className='flex-1'>{renderValueInput(filter, 'tagValue')}</div>
+              <div className='flex-1'>
+                {renderValueInput(filter, 'tagValue', effectiveFieldType)}
+              </div>
               <span className='flex-shrink-0 text-muted-foreground text-xs'>to</span>
-              <div className='flex-1'>{renderValueInput(filter, 'valueTo')}</div>
+              <div className='flex-1'>
+                {renderValueInput(filter, 'valueTo', effectiveFieldType)}
+              </div>
             </div>
           ) : (
-            renderValueInput(filter, 'tagValue')
+            renderValueInput(filter, 'tagValue', effectiveFieldType)
           )}
         </div>
       </div>

@@ -792,7 +792,7 @@ describe('backfillCanonicalModes', () => {
     expect(modes.knowledgeBaseId).toBe('advanced')
   })
 
-  it('should not overwrite existing canonicalModes entries', () => {
+  it('should preserve existing canonicalModes entries while backfilling new pairs', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({
         type: 'knowledge',
@@ -809,9 +809,41 @@ describe('backfillCanonicalModes', () => {
 
     const { blocks, migrated } = backfillCanonicalModes(input)
 
-    expect(migrated).toBe(false)
+    expect(migrated).toBe(true)
     const modes = blocks.b1.data?.canonicalModes as Record<string, string>
     expect(modes.knowledgeBaseId).toBe('advanced')
+    expect(modes.documentId).toBe('basic')
+    expect(modes.tagFilters).toBe('basic')
+  })
+
+  it('should resolve tag filters to advanced when only manual tag IDs are set', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'knowledge',
+        data: {},
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown', value: 'search' },
+          manualTagFilters: {
+            id: 'manualTagFilters',
+            type: 'knowledge-tag-filters',
+            value: JSON.stringify([
+              {
+                id: 'filter-1',
+                tagId: 'tag-definition-id',
+                operator: 'eq',
+                tagValue: 'docs',
+              },
+            ]),
+          },
+        },
+      }),
+    }
+
+    const { blocks, migrated } = backfillCanonicalModes(input)
+
+    expect(migrated).toBe(true)
+    const modes = blocks.b1.data?.canonicalModes as Record<string, string>
+    expect(modes.tagFilters).toBe('advanced')
   })
 
   it('should skip blocks with no canonical pairs in their config', () => {

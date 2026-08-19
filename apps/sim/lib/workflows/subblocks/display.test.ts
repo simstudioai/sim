@@ -287,4 +287,23 @@ describe('getDisplayValue', () => {
     ).toBe('one, two +1')
     expect(getDisplayValue(['a', 'b'])).toBe('a, b')
   })
+
+  it('summarizes basic and advanced knowledge tag filters', () => {
+    expect(
+      getDisplayValue(
+        JSON.stringify([
+          { id: 'filter-1', tagName: 'Category', tagValue: 'docs' },
+          { id: 'filter-2', tagName: 'Priority', tagValue: 'high' },
+        ])
+      )
+    ).toBe('Category, Priority')
+    expect(
+      getDisplayValue(
+        JSON.stringify([
+          { id: 'filter-1', tagId: 'tag-definition-id', tagValue: 'docs' },
+          { id: 'filter-2', tagId: '<start.tagId>', tagValue: 'high' },
+        ])
+      )
+    ).toBe('tag-definition-id, <start.tagId>')
+  })
 })

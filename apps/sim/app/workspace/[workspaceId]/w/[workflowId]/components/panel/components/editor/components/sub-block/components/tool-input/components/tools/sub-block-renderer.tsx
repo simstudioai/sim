@@ -22,6 +22,7 @@ interface ToolSubBlockRendererProps {
   /** The tool's block type (e.g. `gmail`), so its params' selectors resolve dependencies. */
   toolType: string
   toolParams: Record<string, string> | undefined
+  dependencyContextValues?: Record<string, unknown>
   onParamChange: (toolIndex: number, paramId: string, value: string) => void
   disabled: boolean
   canonicalToggle?: {
@@ -60,6 +61,7 @@ export function ToolSubBlockRenderer({
   effectiveParamId,
   toolType,
   toolParams,
+  dependencyContextValues,
   onParamChange,
   disabled,
   canonicalToggle,
@@ -142,7 +144,7 @@ export function ToolSubBlockRenderer({
         isPreview={false}
         disabled={disabled}
         canonicalToggle={canonicalToggle}
-        dependencyContext={toolParams}
+        dependencyContext={dependencyContextValues ?? toolParams}
       />
     </DependencyBlockTypeProvider>
   )

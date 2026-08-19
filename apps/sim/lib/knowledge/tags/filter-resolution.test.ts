@@ -54,6 +54,109 @@ describe('resolveKnowledgeTagFilters', () => {
     expect(resolved.definitionsByKnowledgeBase.get('kb-1')).toHaveLength(1)
   })
 
+  it('resolves a tag ID and derives its slot and field type from the selected knowledge base', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      definition('kb-1', 'number1', 'score', 'number'),
+    ])
+
+    const resolved = await resolveKnowledgeTagFilters(
+      [
+        {
+          tagId: 'kb-1-number1',
+          tagSlot: 'tag7',
+          fieldType: 'text',
+          operator: 'gte',
+          value: 10,
+        },
+      ] as never,
+      ['kb-1']
+    )
+
+    expect(resolved.structuredFilters).toEqual([
+      { tagSlot: 'number1', fieldType: 'number', operator: 'gte', value: 10, valueTo: undefined },
+    ])
+  })
+
+  it('rejects a tag ID that does not belong to the selected knowledge base', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([definition('kb-1', 'tag1', 'category')])
+
+    await expect(
+      resolveKnowledgeTagFilters(
+        [{ tagId: 'tag-from-another-kb', operator: 'eq', value: 'billing' }],
+        ['kb-1']
+      )
+    ).rejects.toThrow('Tag IDs not found in the selected knowledge base: tag-from-another-kb')
+  })
+
+  it('rejects tag ID filters across multiple knowledge bases before loading definitions', async () => {
+    await expect(
+      resolveKnowledgeTagFilters(
+        [{ tagId: 'tag-definition-id', operator: 'eq', value: 'billing' }],
+        ['kb-1', 'kb-2']
+      )
+    ).rejects.toThrow('Tag ID filters can only search one knowledge base at a time')
+
+    expect(mockGetDocumentTagDefinitions).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { tagName: 'category', tagId: 'tag-definition-id' },
+    {},
+    { tagId: '   ' },
+    { tagName: 'category', tagId: 123 },
+  ])('rejects a filter without exactly one identifier', async (identifier) => {
+    await expect(
+      resolveKnowledgeTagFilters([{ ...identifier, operator: 'eq', value: 'billing' }] as never, [
+        'kb-1',
+      ])
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Each tag filter must include exactly one of tagName or tagId',
+    })
+
+    expect(mockGetDocumentTagDefinitions).not.toHaveBeenCalled()
+  })
+
+  it('validates operators against the field type resolved from a tag ID', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      definition('kb-1', 'boolean1', 'enabled', 'boolean'),
+    ])
+
+    await expect(
+      resolveKnowledgeTagFilters(
+        [
+          {
+            tagId: 'kb-1-boolean1',
+            fieldType: 'text',
+            operator: 'contains',
+            value: true,
+          },
+        ],
+        ['kb-1']
+      )
+    ).rejects.toThrow('Tag "enabled" is a boolean tag and does not support operator "contains"')
+  })
+
+  it('validates values against the field type resolved from a tag ID', async () => {
+    mockGetDocumentTagDefinitions.mockResolvedValue([
+      definition('kb-1', 'number1', 'score', 'number'),
+    ])
+
+    await expect(
+      resolveKnowledgeTagFilters(
+        [
+          {
+            tagId: 'kb-1-number1',
+            fieldType: 'text',
+            operator: 'gte',
+            value: 'not-a-number',
+          },
+        ],
+        ['kb-1']
+      )
+    ).rejects.toThrow('Tag "score" expects a number value')
+  })
+
   it('rejects a tag name the knowledge base does not define instead of ignoring it', async () => {
     mockGetDocumentTagDefinitions.mockResolvedValue([definition('kb-1', 'tag1', 'category')])
 
