@@ -174,19 +174,30 @@ with pdfplumber.open(inp) as pdf:
         texts = []
         for key in sorted(lines):
             ws = sorted(lines[key], key=lambda w: w["x0"])
-            first = ws[0]
-            color = to_hex(char_color.get((round(first["x0"], 1), round(first["top"], 1))))
-            texts.append({
-                "text": " ".join(w["text"] for w in ws)[:400],
-                "xPt": round(float(first["x0"]), 2),
-                "yPt": round(float(first["top"]), 2),
-                "wPt": round(float(max(w["x1"] for w in ws) - first["x0"]), 2),
-                "hPt": round(float(max(w["bottom"] for w in ws) - first["top"]), 2),
-                "font": re.sub(r"^[A-Z]{6}\\+", "", first.get("fontname") or ""),
-                "sizePt": round(float(first.get("size") or 0), 1),
-                "colorHex": color,
-            })
-        texts = texts[:60]
+            # Side-by-side text boxes share a baseline; a gap much wider than
+            # a space means a new box, not a continuation of the same line.
+            runs = [[ws[0]]]
+            for w in ws[1:]:
+                prev = runs[-1][-1]
+                gap = float(w["x0"]) - float(prev["x1"])
+                if gap > max(2.5 * float(prev.get("size") or 10), 18):
+                    runs.append([w])
+                else:
+                    runs[-1].append(w)
+            for run in runs:
+                first = run[0]
+                color = to_hex(char_color.get((round(first["x0"], 1), round(first["top"], 1))))
+                texts.append({
+                    "text": " ".join(w["text"] for w in run)[:400],
+                    "xPt": round(float(first["x0"]), 2),
+                    "yPt": round(float(first["top"]), 2),
+                    "wPt": round(float(max(w["x1"] for w in run) - first["x0"]), 2),
+                    "hPt": round(float(max(w["bottom"] for w in run) - first["top"]), 2),
+                    "font": re.sub(r"^[A-Z]{6}\\+", "", first.get("fontname") or ""),
+                    "sizePt": round(float(first.get("size") or 0), 1),
+                    "colorHex": color,
+                })
+        texts = texts[:80]
 
         # Filled rects: backgrounds and the scrims decks lay over photos.
         rects = []
