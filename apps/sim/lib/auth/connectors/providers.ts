@@ -80,6 +80,22 @@ interface AttioWorkspaceMemberResponse {
 }
 
 /**
+ * Shape of `GET https://api.bitbucket.org/2.0/user` for the authenticated user.
+ * @see https://developer.atlassian.com/cloud/bitbucket/rest/api-group-users/#api-user-get
+ */
+interface BitbucketCurrentUserResponse {
+  account_id?: string | null
+  uuid?: string | null
+  display_name?: string | null
+  nickname?: string | null
+  links?: {
+    avatar?: {
+      href?: string | null
+    }
+  }
+}
+
+/**
  * Builds a Salesforce connector bound to one login host — `genericOAuth` takes
  * static endpoints, so each authorization server needs its own registration.
  * See {@link SALESFORCE_LOGIN_HOSTS} for why there are two.
@@ -1453,6 +1469,102 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           }
         } catch (error) {
           logger.error('Error in Airtable getUserInfo:', { error })
+          return null
+        }
+      },
+    },
+
+    {
+      providerId: 'bitbucket',
+      clientId: env.BITBUCKET_CLIENT_ID as string,
+      clientSecret: env.BITBUCKET_CLIENT_SECRET as string,
+      authorizationUrl: 'https://bitbucket.org/site/oauth2/authorize',
+      tokenUrl: 'https://bitbucket.org/site/oauth2/access_token',
+      userInfoUrl: 'https://api.bitbucket.org/2.0/user',
+      scopes: getCanonicalScopesForProvider('bitbucket'),
+      responseType: 'code',
+      pkce: false,
+      authentication: 'basic',
+      accessTokenExpiresIn: 3600,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/bitbucket`,
+      getToken: async ({ code, redirectURI }) => {
+        const basicAuth = Buffer.from(
+          `${env.BITBUCKET_CLIENT_ID as string}:${env.BITBUCKET_CLIENT_SECRET as string}`
+        ).toString('base64')
+        const response = await fetch('https://bitbucket.org/site/oauth2/access_token', {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${basicAuth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            code,
+            grant_type: 'authorization_code',
+            redirect_uri: redirectURI,
+          }).toString(),
+        })
+        const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+          maxBytes: 1024 * 1024,
+          label: 'Bitbucket OAuth token response',
+        })
+
+        if (!response.ok || !isRecordLike(data)) {
+          logger.error('Bitbucket OAuth token exchange failed', { status: response.status })
+          throw new Error(`Bitbucket OAuth token exchange failed with HTTP ${response.status}`)
+        }
+
+        const tokens = getOAuth2Tokens(data)
+        if (!tokens.accessToken) {
+          throw new Error('Bitbucket OAuth token response did not include an access token')
+        }
+
+        const grantedScopes = data.scopes ?? data.scope
+        if (typeof grantedScopes === 'string') {
+          tokens.scopes = grantedScopes.split(/\s+/).filter(Boolean)
+        } else if (Array.isArray(grantedScopes)) {
+          tokens.scopes = grantedScopes.filter(
+            (scope): scope is string => typeof scope === 'string'
+          )
+        }
+
+        return tokens
+      },
+      getUserInfo: async (tokens) => {
+        try {
+          const response = await fetch('https://api.bitbucket.org/2.0/user', {
+            headers: {
+              Authorization: `Bearer ${tokens.accessToken}`,
+            },
+          })
+
+          if (!response.ok) {
+            await response.text().catch(() => {})
+            logger.error('Error fetching Bitbucket user info:', {
+              status: response.status,
+              statusText: response.statusText,
+            })
+            return null
+          }
+
+          const data: BitbucketCurrentUserResponse = await response.json()
+          const stableId = data.account_id ?? data.uuid
+          if (!stableId) {
+            logger.error('Bitbucket user info did not include an account_id or uuid')
+            return null
+          }
+
+          const now = new Date()
+          return {
+            id: `${stableId}-${generateId()}`,
+            name: data.display_name || data.nickname || 'Bitbucket User',
+            email: syntheticConnectorEmail('bitbucket', stableId),
+            image: data.links?.avatar?.href || undefined,
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Error in Bitbucket getUserInfo:', { error })
           return null
         }
       },

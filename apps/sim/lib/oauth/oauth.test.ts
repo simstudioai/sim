@@ -1,8 +1,10 @@
+import { getOAuth2Tokens } from '@better-auth/core/oauth2'
 import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
   setEnv({
+    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     GOOGLE_CLIENT_ID: 'google_client_id',
     GOOGLE_CLIENT_SECRET: 'google_client_secret',
     GITHUB_CLIENT_ID: 'github_client_id',
@@ -19,6 +21,8 @@ beforeAll(() => {
     JIRA_CLIENT_SECRET: 'jira_client_secret',
     AIRTABLE_CLIENT_ID: 'airtable_client_id',
     AIRTABLE_CLIENT_SECRET: 'airtable_client_secret',
+    BITBUCKET_CLIENT_ID: 'bitbucket_client_id',
+    BITBUCKET_CLIENT_SECRET: 'bitbucket_client_secret',
     NOTION_CLIENT_ID: 'notion_client_id',
     NOTION_CLIENT_SECRET: 'notion_client_secret',
     MICROSOFT_CLIENT_ID: 'microsoft_client_id',
@@ -64,6 +68,7 @@ beforeAll(() => {
 afterAll(resetEnvMock)
 
 import { GoogleIcon, GoogleVaultIcon } from '@/components/icons'
+import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
 import { OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
@@ -100,6 +105,121 @@ describe('OAuth Provider Branding', () => {
   })
 })
 
+function getBitbucketConnector() {
+  const connector = buildConnectorProviders().find(
+    (candidate) => candidate.providerId === 'bitbucket'
+  )
+  if (!connector) throw new Error('Bitbucket OAuth connector is not configured in this test')
+  return connector
+}
+
+describe('Bitbucket OAuth Connector', () => {
+  it('uses the canonical endpoints, scopes, Basic auth, and one-hour expiry', () => {
+    expect(getBitbucketConnector()).toMatchObject({
+      providerId: 'bitbucket',
+      authorizationUrl: 'https://bitbucket.org/site/oauth2/authorize',
+      tokenUrl: 'https://bitbucket.org/site/oauth2/access_token',
+      userInfoUrl: 'https://api.bitbucket.org/2.0/user',
+      scopes: [
+        'account',
+        'repository',
+        'repository:write',
+        'pullrequest',
+        'pullrequest:write',
+        'pipeline',
+        'pipeline:write',
+      ],
+      responseType: 'code',
+      pkce: false,
+      authentication: 'basic',
+      accessTokenExpiresIn: 3600,
+      redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+    })
+  })
+
+  it('exchanges the authorization code with Basic auth and normalizes plural scopes', async () => {
+    const connector = getBitbucketConnector()
+    const getToken = connector.getToken
+    if (!getToken) throw new Error('Bitbucket connector must define getToken')
+
+    const scopes = [
+      'account',
+      'repository',
+      'repository:write',
+      'pullrequest',
+      'pullrequest:write',
+      'pipeline',
+      'pipeline:write',
+    ]
+    const mockFetch = createMockFetch({
+      json: {
+        access_token: 'bitbucket_access_token',
+        expires_in: 3600,
+        refresh_token: 'bitbucket_refresh_token',
+        scopes: scopes.join(' '),
+        token_type: 'bearer',
+      },
+    })
+
+    const tokens = await withMockFetch(mockFetch, () =>
+      getToken({
+        code: 'authorization_code',
+        redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+      })
+    )
+
+    expect(tokens.accessToken).toBe('bitbucket_access_token')
+    expect(tokens.refreshToken).toBe('bitbucket_refresh_token')
+    expect(tokens.scopes).toEqual(scopes)
+    expect(tokens.accessTokenExpiresAt).toBeInstanceOf(Date)
+
+    const [endpoint, requestOptions] = mockFetch.mock.calls[0] as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ]
+    expect(endpoint).toBe('https://bitbucket.org/site/oauth2/access_token')
+    expect(requestOptions.headers.Authorization).toBe(
+      `Basic ${Buffer.from('bitbucket_client_id:bitbucket_client_secret').toString('base64')}`
+    )
+    expect(Object.fromEntries(new URLSearchParams(requestOptions.body))).toEqual({
+      code: 'authorization_code',
+      grant_type: 'authorization_code',
+      redirect_uri: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+    })
+  })
+
+  it('uses account_id before uuid and always synthesizes an internal email', async () => {
+    const connector = getBitbucketConnector()
+    const getUserInfo = connector.getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
+    const tokens = getOAuth2Tokens({ access_token: 'bitbucket_access_token' })
+
+    const accountIdentity = await withMockFetch(
+      createMockFetch({
+        json: {
+          account_id: 'account-123',
+          uuid: '{uuid-ignored}',
+          display_name: 'Ada Lovelace',
+          links: { avatar: { href: 'https://example.invalid/avatar.png' } },
+        },
+      }),
+      () => getUserInfo(tokens)
+    )
+    expect(accountIdentity?.id).toMatch(/^account-123-/)
+    expect(accountIdentity?.email).toBe('bitbucket-account-123@connectors.sim.invalid')
+    expect(accountIdentity?.name).toBe('Ada Lovelace')
+    expect(accountIdentity?.image).toBe('https://example.invalid/avatar.png')
+
+    const uuidIdentity = await withMockFetch(
+      createMockFetch({ json: { uuid: '{uuid-456}', nickname: 'grace' } }),
+      () => getUserInfo(tokens)
+    )
+    expect(uuidIdentity?.id).toMatch(/^\{uuid-456\}-/)
+    expect(uuidIdentity?.email).toBe('bitbucket-uuid-456@connectors.sim.invalid')
+    expect(uuidIdentity?.name).toBe('grace')
+  })
+})
+
 describe('OAuth Token Refresh', () => {
   describe('Basic Auth Providers', () => {
     const basicAuthProviders = [
@@ -107,6 +227,11 @@ describe('OAuth Token Refresh', () => {
         name: 'Airtable',
         providerId: 'airtable',
         endpoint: 'https://airtable.com/oauth2/v1/token',
+      },
+      {
+        name: 'Bitbucket',
+        providerId: 'bitbucket',
+        endpoint: 'https://bitbucket.org/site/oauth2/access_token',
       },
       { name: 'X (Twitter)', providerId: 'x', endpoint: 'https://api.x.com/2/oauth2/token' },
       {
@@ -499,6 +624,27 @@ describe('OAuth Token Refresh', () => {
         accessToken: 'new_access_token',
         expiresIn: 3600,
         refreshToken: newRefreshToken,
+      })
+    })
+
+    it.concurrent('should return Bitbucket rotating refresh tokens', async () => {
+      const mockFetch = createMockFetch({
+        json: {
+          access_token: 'new_bitbucket_access_token',
+          expires_in: 3600,
+          refresh_token: 'rotated_bitbucket_refresh_token',
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('bitbucket', 'old_bitbucket_refresh_token')
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'new_bitbucket_access_token',
+        expiresIn: 3600,
+        refreshToken: 'rotated_bitbucket_refresh_token',
       })
     })
 

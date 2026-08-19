@@ -24,6 +24,7 @@ const EXPECTED_PROVIDER_BY_SLUG: Record<string, string> = {
   asana: 'asana',
   attio: 'attio',
   'azure-ad': 'microsoft-ad',
+  bitbucket: 'bitbucket',
   box: 'box',
   'cal-com': 'calcom',
   confluence: 'confluence',

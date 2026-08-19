@@ -2504,6 +2504,146 @@
       "tags": ["version-control", "ci-cd", "project-management"]
     },
     {
+      "type": "bitbucket",
+      "slug": "bitbucket",
+      "name": "Bitbucket",
+      "description": "Work with Bitbucket Cloud repositories, pull requests, and pipelines",
+      "longDescription": "Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, and diagnose or control pipelines. This action integration uses OAuth and does not create webhooks or triggers.",
+      "bgColor": "#FFFFFF",
+      "iconName": "BitbucketIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/bitbucket",
+      "operations": [
+        {
+          "name": "List Workspaces",
+          "description": "List Bitbucket Cloud workspaces available to the authenticated account"
+        },
+        {
+          "name": "List Repositories",
+          "description": "List repositories in a Bitbucket Cloud workspace"
+        },
+        {
+          "name": "Get Repository",
+          "description": "Get a Bitbucket Cloud repository"
+        },
+        {
+          "name": "List Branches",
+          "description": "List branches in a Bitbucket Cloud repository"
+        },
+        {
+          "name": "Create Branch",
+          "description": "Create a branch at a commit hash or existing ref"
+        },
+        {
+          "name": "Delete Branch",
+          "description": "Delete a branch from a Bitbucket Cloud repository"
+        },
+        {
+          "name": "List Commits",
+          "description": "List repository commits in reverse chronological order"
+        },
+        {
+          "name": "Get Commit",
+          "description": "Get a repository commit by its full SHA-1"
+        },
+        {
+          "name": "List Directory",
+          "description": "List one shallow repository directory at a full commit SHA-1"
+        },
+        {
+          "name": "Get File Metadata",
+          "description": "Inspect file size and attributes at a full repository commit SHA-1"
+        },
+        {
+          "name": "Get File",
+          "description": "Read bounded UTF-8 text from a file at a full repository commit SHA-1"
+        },
+        {
+          "name": "List Pull Requests",
+          "description": "List pull requests in a Bitbucket Cloud repository"
+        },
+        {
+          "name": "Get Pull Request",
+          "description": "Get a pull request by repository-scoped ID"
+        },
+        {
+          "name": "Create Pull Request",
+          "description": "Create a pull request between repository branches"
+        },
+        {
+          "name": "Merge Pull Request",
+          "description": "Start an asynchronous pull request merge and return a task to poll when needed"
+        },
+        {
+          "name": "Get Pull Request Merge Task Status",
+          "description": "Poll the status of an asynchronous pull request merge task"
+        },
+        {
+          "name": "Decline Pull Request",
+          "description": "Decline an open pull request"
+        },
+        {
+          "name": "Approve Pull Request",
+          "description": "Approve a pull request as the authenticated account"
+        },
+        {
+          "name": "Request Pull Request Changes",
+          "description": "Request changes on a pull request as the authenticated account"
+        },
+        {
+          "name": "Get Pull Request Diff",
+          "description": "Read a bounded UTF-8 unified diff for one pull request file"
+        },
+        {
+          "name": "Get Pull Request Diffstat",
+          "description": "List per-file change statistics for a pull request"
+        },
+        {
+          "name": "List Pull Request Comments",
+          "description": "List global, inline, and reply comments on a pull request"
+        },
+        {
+          "name": "Create Pull Request Comment",
+          "description": "Create a global comment or reply on a pull request"
+        },
+        {
+          "name": "List Pull Request Commit Statuses",
+          "description": "List commit statuses associated with a pull request"
+        },
+        {
+          "name": "List Pipelines",
+          "description": "List pipelines for a Bitbucket Cloud repository"
+        },
+        {
+          "name": "Get Pipeline",
+          "description": "Get a pipeline by UUID"
+        },
+        {
+          "name": "Trigger Pipeline",
+          "description": "Run the repository pipeline selected by a branch or ref target"
+        },
+        {
+          "name": "Stop Pipeline",
+          "description": "Stop a running pipeline"
+        },
+        {
+          "name": "List Pipeline Steps",
+          "description": "List the steps in a pipeline"
+        },
+        {
+          "name": "Get Pipeline Step Log",
+          "description": "Read a bounded UTF-8 tail of a pipeline step log"
+        }
+      ],
+      "operationCount": 30,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "bitbucket",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["version-control", "ci-cd", "automation"]
+    },
+    {
       "type": "box",
       "slug": "box",
       "name": "Box",

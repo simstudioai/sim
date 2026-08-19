@@ -24,6 +24,7 @@
     "attio-service-account",
     "azure_data_explorer",
     "azure_devops",
+    "bitbucket",
     "box",
     "box-service-account",
     "brandfetch",

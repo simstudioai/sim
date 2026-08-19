@@ -2,6 +2,7 @@ import { airtableSelectors } from '@/hooks/selectors/providers/airtable/selector
 import { asanaSelectors } from '@/hooks/selectors/providers/asana/selectors'
 import { attioSelectors } from '@/hooks/selectors/providers/attio/selectors'
 import { bigquerySelectors } from '@/hooks/selectors/providers/bigquery/selectors'
+import { bitbucketSelectors } from '@/hooks/selectors/providers/bitbucket/selectors'
 import { calcomSelectors } from '@/hooks/selectors/providers/calcom/selectors'
 import { clickupSelectors } from '@/hooks/selectors/providers/clickup/selectors'
 import { cloudwatchSelectors } from '@/hooks/selectors/providers/cloudwatch/selectors'
@@ -37,6 +38,7 @@ export const selectorRegistry = {
   ...asanaSelectors,
   ...attioSelectors,
   ...bigquerySelectors,
+  ...bitbucketSelectors,
   ...calcomSelectors,
   ...confluenceSelectors,
   ...jsmSelectors,
