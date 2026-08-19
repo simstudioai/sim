@@ -121,8 +121,8 @@ interface TableProps {
   tableLocksEnabled?: boolean
   /**
    * Resolved `table-views` flag. Server-only to resolve for the same reason.
-   * Defaults to `false` so the embedded mothership table — which has no server
-   * context to resolve it — stays on today's Filter/Sort bar.
+   * Defaults to `false` so any caller that has not resolved the flag stays on
+   * today's Filter/Sort behavior.
    */
   viewsEnabled?: boolean
 }
@@ -1184,8 +1184,9 @@ export function Table({
       active: sortColumn ? { column: sortColumn, direction: sortDirection } : null,
       onSort: handleSortColumn,
       onClear: handleClearSort,
+      keepOpenOnSelect: viewsEnabled,
     }),
-    [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort]
+    [columnOptions, sortColumn, sortDirection, handleSortColumn, handleClearSort, viewsEnabled]
   )
 
   const handleFilterChange = useCallback(
@@ -1537,7 +1538,9 @@ export function Table({
           key={filterSeed}
           columns={columns}
           filter={effectiveFilter}
+          autoApply={viewsEnabled}
           onChange={handleFilterChange}
+          onClose={() => setFilterOpen(false)}
         />
       )}
       <SaveViewModal

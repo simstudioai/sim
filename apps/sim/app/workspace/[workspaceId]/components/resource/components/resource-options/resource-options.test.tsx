@@ -82,6 +82,7 @@ describe('SortDropdown', () => {
             active: { column: 'name', direction: 'asc' },
             onSort,
             onClear,
+            keepOpenOnSelect: true,
           }}
         />
       )
@@ -97,5 +98,29 @@ describe('SortDropdown', () => {
     expect(onClear).toHaveBeenCalledOnce()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     expect(document.body.querySelectorAll('[role="menuitem"]')).toHaveLength(2)
+  })
+
+  it('keeps the legacy close-on-select behavior by default', () => {
+    const onOpenChange = vi.fn()
+    const onSort = vi.fn()
+    act(() => {
+      root.render(
+        <SortDropdown
+          open
+          onOpenChange={onOpenChange}
+          config={{
+            options: [{ id: 'name', label: 'Name', icon: ColumnIcon }],
+            active: null,
+            onSort,
+          }}
+        />
+      )
+    })
+
+    const item = document.body.querySelector<HTMLElement>('[role="menuitem"]')
+    act(() => item?.click())
+
+    expect(onSort).toHaveBeenCalledWith('name', 'desc')
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

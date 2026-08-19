@@ -26,10 +26,20 @@ afterEach(() => {
 
 function renderFilter(
   onChange: (filter: TablePredicate | null) => void,
-  filter: TablePredicate | null = null
+  filter: TablePredicate | null = null,
+  autoApply = true,
+  onClose: () => void = vi.fn()
 ) {
   act(() => {
-    root.render(<TableFilter columns={COLUMNS} filter={filter} onChange={onChange} />)
+    root.render(
+      <TableFilter
+        columns={COLUMNS}
+        filter={filter}
+        autoApply={autoApply}
+        onChange={onChange}
+        onClose={onClose}
+      />
+    )
   })
 }
 
@@ -106,6 +116,25 @@ describe('TableFilter', () => {
     expect(container.textContent).not.toContain('Clear filters')
   })
 
+  it('keeps the legacy Apply flow while automatic view saves are disabled', () => {
+    const onChange = vi.fn()
+    renderFilter(onChange, null, false)
+    const input = valueInput()
+
+    act(() => typeInto(input, 'Ada'))
+    act(() => input?.dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+
+    expect(onChange).not.toHaveBeenCalled()
+    const applyButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Apply filter'
+    )
+    act(() => applyButton?.click())
+
+    expect(onChange).toHaveBeenCalledWith({
+      all: [{ field: 'col-name', op: 'eq', value: 'Ada' }],
+    })
+  })
+
   it('clears the active filter as soon as its last rule is removed', () => {
     const onChange = vi.fn()
     renderFilter(onChange, {
@@ -174,10 +203,12 @@ describe('TableFilter', () => {
   it('does not autosave when columns refresh without a user edit', () => {
     const onChange = vi.fn()
     act(() => {
-      root.render(<TableFilter columns={COLUMNS} filter={null} onChange={onChange} />)
+      root.render(<TableFilter columns={COLUMNS} filter={null} autoApply onChange={onChange} />)
     })
     act(() => {
-      root.render(<TableFilter columns={[...COLUMNS]} filter={null} onChange={onChange} />)
+      root.render(
+        <TableFilter columns={[...COLUMNS]} filter={null} autoApply onChange={onChange} />
+      )
     })
 
     expect(onChange).not.toHaveBeenCalled()

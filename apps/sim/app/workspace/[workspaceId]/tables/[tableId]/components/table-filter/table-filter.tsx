@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, ChipDropdown, ChipInput } from '@sim/emcn'
+import { Button, ChipDropdown, ChipInput, cn } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table'
@@ -43,10 +43,18 @@ function isCompleteRule(rule: FilterRule): boolean {
 interface TableFilterProps {
   columns: ColumnDefinition[]
   filter: TablePredicate | null
+  autoApply?: boolean
   onChange: (filter: TablePredicate | null) => void
+  onClose?: () => void
 }
 
-export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
+export function TableFilter({
+  columns,
+  filter,
+  autoApply = false,
+  onChange,
+  onClose,
+}: TableFilterProps) {
   const lastAppliedFilterRef = useRef<string | undefined>(undefined)
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = predicateToFilterRules(filter)
@@ -67,6 +75,7 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
       const nextRules = update(rulesRef.current)
       rulesRef.current = nextRules
       setRules(nextRules)
+      if (!autoApply) return
 
       const deferredRule = nextRules.find((rule) => rule.id === deferIncompleteRuleId)
       if (deferredRule && !isCompleteRule(deferredRule)) return
@@ -77,7 +86,7 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
       lastAppliedFilterRef.current = signature
       onChange(nextFilter)
     },
-    [columns, onChange]
+    [autoApply, columns, onChange]
   )
 
   // `value` is the filter field key (column id); `label` is what the user sees.
@@ -97,12 +106,26 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
 
   const handleRemove = useCallback(
     (id: string) => {
+      if (!autoApply) {
+        const nextRules = rulesRef.current.filter((rule) => rule.id !== id)
+        if (nextRules.length > 0) {
+          rulesRef.current = nextRules
+          setRules(nextRules)
+          return
+        }
+        const resetRules = [createRule(columns)]
+        rulesRef.current = resetRules
+        setRules(resetRules)
+        onChange(null)
+        onClose?.()
+        return
+      }
       applyRules((current) => {
         const next = current.filter((rule) => rule.id !== id)
         return next.length > 0 ? next : [createRule(columns)]
       })
     },
-    [applyRules, columns]
+    [applyRules, autoApply, columns, onChange, onClose]
   )
 
   const handleUpdate = useCallback(
@@ -156,6 +179,17 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
     [applyRules, columnById]
   )
 
+  const handleApply = useCallback(() => {
+    onChange(toAppliedPredicate(rulesRef.current, columns))
+  }, [columns, onChange])
+
+  const handleClear = () => {
+    const resetRules = [createRule(columns)]
+    rulesRef.current = resetRules
+    setRules(resetRules)
+    onChange(null)
+  }
+
   return (
     <div className='border-[var(--border)] border-b bg-[var(--bg)] px-4 py-2'>
       <div className='flex flex-col gap-1'>
@@ -169,11 +203,13 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
             onUpdate={handleUpdate}
             onColumnChange={handleColumnChange}
             onRemove={handleRemove}
+            autoApply={autoApply}
+            onApply={handleApply}
             onToggleLogical={handleToggleLogical}
           />
         ))}
 
-        <div className='mt-1 flex items-center'>
+        <div className={cn('mt-1 flex items-center', !autoApply && 'justify-between')}>
           <Button
             variant='ghost'
             size='sm'
@@ -183,6 +219,23 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
             <Plus className='mr-1 size-[10px]' />
             Add filter
           </Button>
+          {!autoApply && (
+            <div className='flex items-center gap-1.5'>
+              {filter !== null && (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={handleClear}
+                  className='px-2 py-1 text-[var(--text-secondary)] text-xs'
+                >
+                  Clear filters
+                </Button>
+              )}
+              <Button variant='default' size='sm' onClick={handleApply} className='text-xs'>
+                Apply filter
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -197,6 +250,8 @@ interface FilterRuleRowProps {
   onUpdate: (id: string, field: keyof FilterRule, value: string) => void
   onColumnChange: (id: string, columnId: string) => void
   onRemove: (id: string) => void
+  autoApply: boolean
+  onApply: () => void
   onToggleLogical: (id: string) => void
 }
 
@@ -208,6 +263,8 @@ const FilterRuleRow = memo(function FilterRuleRow({
   onUpdate,
   onColumnChange,
   onRemove,
+  autoApply,
+  onApply,
   onToggleLogical,
 }: FilterRuleRowProps) {
   // Keep a stale column id selectable/visible (e.g. after the column was
@@ -281,10 +338,20 @@ const FilterRuleRow = memo(function FilterRuleRow({
           matchTriggerWidth={false}
           className='min-w-[100px] flex-1'
         />
-      ) : (
+      ) : autoApply ? (
         <FilterValueInput
           value={rule.value}
           onCommit={(value) => onUpdate(rule.id, 'value', value)}
+        />
+      ) : (
+        <ChipInput
+          value={rule.value}
+          onChange={(event) => onUpdate(rule.id, 'value', event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') onApply()
+          }}
+          placeholder='Enter a value'
+          className='flex-1'
         />
       )}
 

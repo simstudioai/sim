@@ -48,6 +48,7 @@ export interface SortConfig {
   active: { column: string; direction: SortDirection } | null
   onSort: (column: string, direction: SortDirection) => void
   onClear?: () => void
+  keepOpenOnSelect?: boolean
 }
 
 export interface FilterTag {
@@ -283,7 +284,7 @@ export const SortDropdown = memo(function SortDropdown({
   open,
   onOpenChange,
 }: SortDropdownProps) {
-  const { options, active, onSort, onClear } = config
+  const { options, active, onSort, onClear, keepOpenOnSelect = false } = config
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
@@ -301,7 +302,7 @@ export const SortDropdown = memo(function SortDropdown({
           <>
             <DropdownMenuItem
               onSelect={(event) => {
-                event.preventDefault()
+                if (keepOpenOnSelect) event.preventDefault()
                 onClear()
               }}
             >
@@ -320,7 +321,7 @@ export const SortDropdown = memo(function SortDropdown({
             <DropdownMenuItem
               key={option.id}
               onSelect={(event) => {
-                event.preventDefault()
+                if (keepOpenOnSelect) event.preventDefault()
                 if (isActive) {
                   onSort(option.id, active.direction === 'asc' ? 'desc' : 'asc')
                 } else {
