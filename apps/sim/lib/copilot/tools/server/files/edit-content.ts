@@ -16,7 +16,7 @@ import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { consumeLatestFileIntent } from './file-intent-store'
+import { waitForLatestFileIntent } from './file-intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
@@ -62,7 +62,8 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
     // writing concurrently would each grab whichever prepare_file_edit landed last
     // and write their content into the wrong file. Falls back to latest-in-
     // message when no channel id is present (main-agent / legacy calls).
-    const intent = await consumeLatestFileIntent(workspaceId, {
+    // Waits briefly: a prepare batched into the same round may still be running.
+    const intent = await waitForLatestFileIntent(workspaceId, {
       chatId: context.chatId,
       messageId: context.messageId,
       channelId: context.parentToolCallId,
