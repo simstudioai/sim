@@ -12,6 +12,7 @@ import {
   isReactGrabEnabled,
   isReactScanEnabled,
 } from '@/lib/core/config/env-flags'
+import { ConsentProvider } from '@/app/_shell/consent/consent-provider'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
@@ -282,6 +283,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 <SessionProvider>
                   <TooltipProvider>
                     <BrandedLayout>{children}</BrandedLayout>
+                    {/* Cookie consent — hosted only */}
+                    {isHosted && <ConsentProvider />}
                   </TooltipProvider>
                 </SessionProvider>
               </QueryProvider>

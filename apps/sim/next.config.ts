@@ -23,6 +23,7 @@ const LANDING_ROUTES = [
   'changelog',
   'comparisons',
   'contact',
+  'cookie-policy',
   'demo',
   'enterprise',
   'files',
