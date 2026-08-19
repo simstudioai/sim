@@ -3,6 +3,7 @@ import path from 'node:path'
 import { EMAIL_SETUP, STORAGE_SETUP } from '../capability-config'
 import { promptCapabilitySetup, stageCapabilitySetupTransition } from '../capability-setup'
 import { ensureProductionComposeFile } from '../compose-asset'
+import { legacyComposeProjectName, standaloneComposeProjectName } from '../compose-project'
 import { SETUP_CONTEXT } from '../context'
 import type { Detection } from '../detect'
 import { ensureDocker } from '../docker'
@@ -27,14 +28,54 @@ import { APP_SIGNUP_URL, APP_URL } from '../urls'
 
 const REQUIRED_PORTS = [3000, 3002] as const
 
+interface ComposeProject {
+  Name: string
+  ConfigFiles: string
+}
+
+/** Returns the active Compose project already associated with this exact configuration file. */
+function activeComposeProject(composeFile: string): string | null {
+  const result = spawnSync('docker', ['compose', 'ls', '-a', '--format', 'json'], {
+    encoding: 'utf8',
+  })
+  if (result.status !== 0) return null
+
+  let projects: ComposeProject[]
+  try {
+    projects = JSON.parse(result.stdout)
+  } catch {
+    return null
+  }
+  const target = path.resolve(composeFile)
+  return (
+    projects.find((project) =>
+      project.ConfigFiles.split(',').some((file) => path.resolve(file.trim()) === target)
+    )?.Name ?? null
+  )
+}
+
+/** Builds a Compose command pinned to the selected standalone project when one is present. */
+function composeArgs(
+  composeFile: string,
+  project: string | undefined,
+  ...args: string[]
+): string[] {
+  return ['compose', ...(project ? ['-p', project] : []), '-f', composeFile, ...args]
+}
+
+/** Formats the pinned Compose prefix used in copyable diagnostics. */
+function composeCommand(composeFile: string, project: string | undefined): string {
+  return `docker compose${project ? ` -p ${project}` : ''} -f ${composeFile}`
+}
+
 /**
  * Host ports this compose project currently publishes. Read from the containers
  * rather than assumed from the file, because what matters is what is bound right
  * now — a project with only db/redis up publishes neither app port, so those
  * still need the conflict check.
  */
-function composePublishedPorts(composeFile: string): Set<number> {
-  const ids = spawnSync('docker', ['compose', '-f', composeFile, 'ps', '-q'], {
+function composePublishedPorts(composeFile: string, project: string | undefined): Set<number> {
+  const ids = spawnSync('docker', composeArgs(composeFile, project, 'ps', '-q'), {
     cwd: ROOT,
     encoding: 'utf8',
   })
@@ -65,14 +106,17 @@ function composePublishedPorts(composeFile: string): Set<number> {
  * instead of letting `docker compose up` die halfway through startup. Aborting
  * is fatal here: compose can't come up while the ports are held.
  */
-async function ensureComposePortsFree(composeFile: string): Promise<void> {
+async function ensureComposePortsFree(
+  composeFile: string,
+  project: string | undefined
+): Promise<void> {
   // A port this stack already publishes is not a conflict — `docker compose up
   // -d` reconciles its own containers, and reporting the install's own realtime
   // container as a blocker (offering to kill Docker's listener) is never right.
   // Skip only the ports this project actually publishes: leftover db/redis
   // containers must not wave through a foreign process sitting on 3000, which
   // would otherwise surface as a raw compose bind error instead of the prompt.
-  const ours = composePublishedPorts(composeFile)
+  const ours = composePublishedPorts(composeFile, project)
   const toCheck = REQUIRED_PORTS.filter((port) => !ours.has(port))
   if (toCheck.length < REQUIRED_PORTS.length) {
     const skipped = REQUIRED_PORTS.filter((port) => ours.has(port))
@@ -115,6 +159,26 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   const root = readEnvFile('root')
   const values = collectSecrets(root)
   const remove = new Set<string>()
+  const configuredComposeProject = root.vars.get('COMPOSE_PROJECT_NAME')
+  const activeProject =
+    SETUP_CONTEXT.kind === 'standalone' ? activeComposeProject(composeFile) : null
+  if (configuredComposeProject && activeProject && configuredComposeProject !== activeProject) {
+    throw new SetupError(
+      `COMPOSE_PROJECT_NAME is ${configuredComposeProject}, but ${composeFile} is running as project ${activeProject}.`,
+      ['stop the active project or restore its name in .env before running setup again']
+    )
+  }
+  const composeProject =
+    SETUP_CONTEXT.kind === 'standalone'
+      ? (configuredComposeProject ??
+        activeProject ??
+        (SETUP_CONTEXT.existing
+          ? legacyComposeProjectName(ROOT)
+          : standaloneComposeProjectName(ROOT)))
+      : undefined
+  if (composeProject && !configuredComposeProject) {
+    values.COMPOSE_PROJECT_NAME = composeProject
+  }
   // Before the key is minted: a half-set override mints against one environment
   // and validates against the other, and warning afterwards is too late — the
   // bad key is already stored, and the next run offers to keep it.
@@ -155,7 +219,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
   reconcileEnvValues('root', [...remove], values)
   p.log.step('Wrote .env (compose reads it for variable substitution)')
 
-  const validation = spawnSync('docker', ['compose', '-f', composeFile, 'config'], {
+  const validation = spawnSync('docker', composeArgs(composeFile, composeProject, 'config'), {
     cwd: ROOT,
     encoding: 'utf8',
   })
@@ -165,18 +229,19 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
     )
   }
 
-  await ensureComposePortsFree(composeFile)
+  await ensureComposePortsFree(composeFile, composeProject)
 
-  p.log.step(`Running docker compose -f ${composeFile} up -d`)
-  const result = spawnSync('docker', ['compose', '-f', composeFile, 'up', '-d'], {
+  const command = composeCommand(composeFile, composeProject)
+  p.log.step(`Running ${command} up -d`)
+  const result = spawnSync('docker', composeArgs(composeFile, composeProject, 'up', '-d'), {
     cwd: ROOT,
     stdio: 'inherit',
   })
   if (result.status !== 0) {
     throw new SetupError(`docker compose exited with ${result.status}.`, [
-      `inspect what failed: ${theme.command(`docker compose -f ${composeFile} logs --tail 50`)}`,
-      `container status: ${theme.command(`docker compose -f ${composeFile} ps`)}`,
-      `clean slate: ${theme.command(`docker compose -f ${composeFile} down`)} then re-run the wizard`,
+      `inspect what failed: ${theme.command(`${command} logs --tail 50`)}`,
+      `container status: ${theme.command(`${command} ps`)}`,
+      `clean slate: ${theme.command(`${command} down`)} then re-run the wizard`,
     ])
   }
 
@@ -190,7 +255,7 @@ export async function runComposeMode(detection: Detection, quick: boolean): Prom
     throw new SetupError(
       `${!appHealthy ? 'the app (:3000)' : 'realtime (:3002)'} never answered its health check.`,
       [
-        `follow the logs: ${theme.command(`docker compose -f ${composeFile} logs -f`)}`,
+        `follow the logs: ${theme.command(`${command} logs -f`)}`,
         `first boots on slow disks can exceed the wait — if containers are still starting, just wait and open ${APP_SIGNUP_URL}`,
       ]
     )

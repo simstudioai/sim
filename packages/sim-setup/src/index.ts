@@ -10,29 +10,18 @@ const SETUP_FEATURES =
   'email | storage | sandbox | jobs | cache | knowledge | knowledge-embeddings | llm | integration <slug>'
 
 const USAGE = `Usage:
-  npx @sim/setup                             run the setup wizard
-  npx @sim/setup [--quick] [--dir <path>]    create a Compose installation
-  npx @sim/setup config                      show configured capabilities and integrations
-  npx @sim/setup add <feature>               configure ${SETUP_FEATURES}
-  npx @sim/setup doctor [--fix] [--json]     check your setup
-  npx @sim/setup start | stop | restart      bring your install up / down / cycle
-  npx @sim/setup update                      pull and apply Compose images
-  npx @sim/setup status                      show what's installed and healthy
-  npx @sim/setup logs                        follow logs
-  npx @sim/setup down                        remove containers (data kept)
-  npx @sim/setup reset                       archive .env + wipe managed data
+  sim-setup [--quick] [--dir <path>] [--mode compose|dev|k8s]
+  sim-setup config                         show configured capabilities and integrations
+  sim-setup add <feature>                  configure ${SETUP_FEATURES}
+  sim-setup doctor [--fix] [--json]        check your setup
+  sim-setup start | stop | restart         bring your install up / down / cycle
+  sim-setup update                         pull/rebuild and apply Compose images
+  sim-setup status                         show what's installed and healthy
+  sim-setup logs                           follow logs
+  sim-setup down                           remove containers (data kept)
+  sim-setup reset                          archive .env + wipe managed data
 
-Inside a Sim source checkout, use the repository command:
-  bun run sim-setup [--quick] [--mode compose|dev|k8s]
-  bun run sim-setup config                      show configured capabilities and integrations
-  bun run sim-setup add <feature>                configure ${SETUP_FEATURES}
-  bun run sim-setup doctor [--fix] [--json]      check your setup
-  bun run sim-setup start | stop | restart       bring your install up / down / cycle
-  bun run sim-setup update                       pull/rebuild and apply Compose images
-  bun run sim-setup status                       what's installed and healthy
-  bun run sim-setup logs                         follow logs
-  bun run sim-setup down                         remove containers (data kept)
-  bun run sim-setup reset                        archive .env + wipe managed data`
+Note: dev and k8s modes require a Sim source checkout.`
 
 async function main(): Promise<void> {
   const invocation = parseSetupArguments(process.argv.slice(2))

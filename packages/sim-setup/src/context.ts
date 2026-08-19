@@ -53,7 +53,7 @@ function isStandaloneInstall(candidate: string): boolean {
   return readFileSync(composeFile, 'utf8').includes(SIM_COMPOSE_MARKER)
 }
 
-function directoryOverride(args: readonly string[]): string | null {
+export function directoryOverride(args: readonly string[]): string | null {
   const equalsArg = args.find((arg) => arg.startsWith('--dir='))
   if (equalsArg) {
     const value = equalsArg.slice('--dir='.length)

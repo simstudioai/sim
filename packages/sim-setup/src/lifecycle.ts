@@ -1,10 +1,11 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { ensureProductionComposeFile } from './compose-asset'
-import { resolveSetupContextAtRoot } from './context'
+import { legacyComposeProjectName } from './compose-project'
+import { directoryOverride, resolveSetupContextAtRoot, SETUP_CONTEXT } from './context'
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect'
-import { archiveEnvFile, archiveFile, ROOT } from './env-files'
+import { archiveEnvFile, archiveFile, parseEnv, ROOT } from './env-files'
 import { SetupError } from './errors'
 import { forwardCommands, isLocalKubeContext } from './modes/k8s'
 import { httpHealth } from './probes'
@@ -67,7 +68,7 @@ function dockerRun(args: string[], failMessage: string, cwd: string = ROOT): voi
   }
 }
 
-interface ComposeInstall {
+export interface ComposeInstall {
   kind: 'compose'
   /** Absolute path to the compose file Docker recorded for the project. */
   file: string
@@ -158,6 +159,28 @@ function composeInstalls(): ComposeInstall[] {
   return installs
 }
 
+/** Restores a setup-managed Compose target from disk even when `down` removed every container. */
+export function composeInstallFromDirectory(
+  root: string,
+  activeInstalls: readonly ComposeInstall[]
+): ComposeInstall | null {
+  const file = path.join(root, 'docker-compose.prod.yml')
+  if (!isSimComposeFile(file)) return null
+  if (activeInstalls.some((install) => path.resolve(install.file) === path.resolve(file)))
+    return null
+
+  const envFile = path.join(root, '.env')
+  const configuredProject = existsSync(envFile)
+    ? parseEnv(readFileSync(envFile, 'utf8')).get('COMPOSE_PROJECT_NAME')
+    : undefined
+  return {
+    kind: 'compose',
+    file,
+    dir: root,
+    project: configuredProject || legacyComposeProjectName(root),
+  }
+}
+
 /**
  * Compose args for an op on a detected install. `-p` is not optional: without it
  * Compose re-derives the project from the working directory, and that name is
@@ -203,12 +226,27 @@ function k8sInstall(detection: Detection): K8sInstall | null {
 }
 
 function detectInstalls(detection: Detection): Install[] {
-  const installs: Install[] = [...composeInstalls()]
+  const compose = composeInstalls()
+  if (SETUP_CONTEXT.kind === 'standalone' && SETUP_CONTEXT.existing) {
+    const fromDirectory = composeInstallFromDirectory(SETUP_CONTEXT.root, compose)
+    if (fromDirectory) compose.push(fromDirectory)
+  }
+  const installs: Install[] = [...compose]
   const dev = devInstall(detection)
   if (dev) installs.push(dev)
   const k8s = k8sInstall(detection)
   if (k8s) installs.push(k8s)
   return installs
+}
+
+/** Limits an explicit standalone `--dir` command to that installation. */
+function scopeInstallsToInvocation(installs: Install[]): Install[] {
+  if (SETUP_CONTEXT.kind !== 'standalone' || directoryOverride(process.argv.slice(2)) === null) {
+    return installs
+  }
+  return installs.filter(
+    (install) => install.kind === 'compose' && path.resolve(install.dir) === SETUP_CONTEXT.root
+  )
 }
 
 function describeInstall(install: Install): string {
@@ -501,7 +539,7 @@ async function reset(install: Install | null): Promise<void> {
 
 async function status(): Promise<void> {
   const detection = await runDetection()
-  const installs = detectInstalls(detection)
+  const installs = scopeInstallsToInvocation(detectInstalls(detection))
   const docker = dockerReachable()
   console.log(`\n${theme.heading('◆ Sim status')}\n`)
   // Every container probe goes through Docker, so when the daemon is down the
@@ -540,7 +578,7 @@ async function status(): Promise<void> {
 export async function runLifecycle(command: LifecycleCommand): Promise<void> {
   if (command === 'status') return status()
 
-  const installs = detectInstalls(await runDetection())
+  const installs = scopeInstallsToInvocation(detectInstalls(await runDetection()))
 
   // Reset stays useful with nothing running — it still archives stray .env files.
   if (command === 'reset') return reset(await resolveInstall(installs))
