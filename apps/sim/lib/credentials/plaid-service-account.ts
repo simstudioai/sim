@@ -1,5 +1,8 @@
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { tenantPrincipal } from '@/lib/credentials/principal'
+import type { CredentialRow } from '@/lib/credentials/queries'
 import {
   fetchProvider,
   isTransientProviderStatus,
@@ -43,6 +46,8 @@ export interface PlaidServiceAccountSecretBlob extends PlaidServiceAccountFields
   institutionId?: string
   metadata: Record<string, string>
 }
+
+type PlaidCredentialRow = Pick<CredentialRow, 'type' | 'providerId' | 'encryptedServiceAccountKey'>
 
 interface PlaidItemGetPayload {
   item?: unknown
@@ -204,5 +209,29 @@ export function parsePlaidServiceAccountSecretBlob(
     itemId,
     ...(institutionId ? { institutionId } : {}),
     metadata: stringMetadata,
+  }
+}
+
+/** Decrypts one authorized Plaid credential without projecting any secret material. */
+export async function decryptPlaidServiceAccountCredential(
+  credential: PlaidCredentialRow
+): Promise<PlaidServiceAccountSecretBlob> {
+  if (
+    credential.type !== 'service_account' ||
+    credential.providerId !== PLAID_SERVICE_ACCOUNT_PROVIDER_ID ||
+    !credential.encryptedServiceAccountKey
+  ) {
+    throw new OrchestrationError('not_found', 'Credential not found')
+  }
+
+  try {
+    const { decrypted } = await decryptSecret(credential.encryptedServiceAccountKey)
+    return parsePlaidServiceAccountSecretBlob(decrypted)
+  } catch (error) {
+    if (error instanceof OrchestrationError) throw error
+    throw new OrchestrationError(
+      'unauthorized',
+      'Plaid credential is no longer usable; reconnect it from Integrations'
+    )
   }
 }

@@ -4,7 +4,6 @@ import {
   buildPlaidInternalBody,
   mapPlaidInstitution,
   parsePlaidCountryCodes,
-  plaidAccessTokenParamField,
   plaidBaseParamFields,
   plaidInstitutionOutputProperties,
   plaidRecord,
@@ -24,7 +23,6 @@ export const plaidGetInstitutionTool: ToolConfig<
 
   params: {
     ...plaidBaseParamFields,
-    ...plaidAccessTokenParamField,
     institutionId: {
       type: 'string',
       required: true,

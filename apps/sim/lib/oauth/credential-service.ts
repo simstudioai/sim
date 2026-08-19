@@ -13,10 +13,6 @@ import {
   parseClientCredentialAccountSecretBlob,
 } from '@/lib/credentials/client-credential-accounts/server'
 import {
-  type PlaidServiceAccountSecretBlob,
-  parsePlaidServiceAccountSecretBlob,
-} from '@/lib/credentials/plaid-service-account'
-import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
 } from '@/lib/credentials/token-service-accounts/descriptors'
@@ -47,7 +43,6 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -406,24 +401,6 @@ async function getTokenServiceAccountSecret(
   return parseTokenServiceAccountSecretBlob(decrypted, providerId)
 }
 
-/** Loads one validated Plaid Item secret without projecting stored metadata. */
-async function getPlaidServiceAccountSecret(
-  credentialId: string
-): Promise<PlaidServiceAccountSecretBlob> {
-  const [credentialRow] = await db
-    .select({ encryptedServiceAccountKey: credential.encryptedServiceAccountKey })
-    .from(credential)
-    .where(eq(credential.id, credentialId))
-    .limit(1)
-
-  if (!credentialRow?.encryptedServiceAccountKey) {
-    throw new Error('Plaid service account secret not found')
-  }
-
-  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
-  return parsePlaidServiceAccountSecretBlob(decrypted)
-}
-
 interface CachedClientCredentialToken {
   accessToken: string
   expiresAtMs: number
@@ -623,10 +600,6 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
       throw new Error('Scopes are required for service account credentials')
     }
     return { accessToken: await getServiceAccountToken(credentialId, scopes, impersonateEmail) }
-  },
-  [PLAID_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
-    const secret = await getPlaidServiceAccountSecret(credentialId)
-    return { accessToken: secret.accessToken }
   },
 }
 

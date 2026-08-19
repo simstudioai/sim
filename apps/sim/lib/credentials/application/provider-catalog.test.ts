@@ -191,7 +191,7 @@ describe('listCredentialProviderCatalog', () => {
     )
   })
 
-  it('publishes the bespoke Plaid Item credential fields with explicit environments', async () => {
+  it('publishes Plaid fields but does not claim v2 availability before standalone visibility is fixed', async () => {
     mocks.getAllOAuthServices.mockReturnValue([
       ...services,
       {
@@ -206,7 +206,7 @@ describe('listCredentialProviderCatalog', () => {
     ])
     mocks.createVisibility.mockReturnValue({
       isOAuthServiceVisible: () => true,
-      isCredentialVisible: () => true,
+      isCredentialVisible: () => false,
     })
 
     const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
@@ -220,7 +220,7 @@ describe('listCredentialProviderCatalog', () => {
       providerId: 'plaid-service-account',
       name: 'Plaid Item credential',
       providerFamily: 'plaid',
-      available: true,
+      available: false,
       docsUrl: 'https://docs.sim.ai/integrations/plaid',
       requiresClientGeneratedCredentialId: false,
       fields: [
@@ -238,6 +238,9 @@ describe('listCredentialProviderCatalog', () => {
         { id: 'accessToken', required: true, secret: true },
       ],
     })
+    expect(() =>
+      requireAvailableServiceAccountCredentialProvider(catalog, 'plaid-service-account')
+    ).toThrow('Service-account provider is unavailable: plaid-service-account')
   })
 
   it('fails fast when a multi-server provider lacks complete labels', async () => {

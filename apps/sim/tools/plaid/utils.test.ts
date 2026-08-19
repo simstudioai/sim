@@ -17,21 +17,19 @@ import {
   toPlaidOptionalBoolean,
   toPlaidOptionalDateTime,
   toPlaidOptionalNumber,
-  toPlaidOptionalWebhookUrl,
 } from '@/tools/plaid/utils'
 
 describe('buildPlaidInternalBody', () => {
-  it('sends only the selected credential, injected Item token, operation, and inputs', () => {
+  it('sends only the opaque selected credential ID, operation, and inputs', () => {
     expect(
       buildPlaidInternalBody(
         'plaid_get_accounts',
-        { oauthCredential: ' credential-1 ', accessToken: ' item-token ' },
+        { plaidCredentialId: ' credential-1 ' },
         { account_ids: ['acc-1'] }
       )
     ).toEqual({
       operation: 'plaid_get_accounts',
       credentialId: 'credential-1',
-      accessToken: 'item-token',
       input: { account_ids: ['acc-1'] },
     })
   })
@@ -48,15 +46,13 @@ describe('splitPlaidList', () => {
     expect(splitPlaidList(' , ')).toBeUndefined()
   })
 
-  it('rejects non-string list values instead of expanding or stringifying them', () => {
-    expect(() => splitPlaidList(['US', 'GB'])).toThrow(
-      'Plaid list must be a comma-separated string'
-    )
+  it('accepts selector arrays and rejects non-string list values', () => {
+    expect(splitPlaidList(['US', 'GB'])).toEqual(['US', 'GB'])
     expect(() => splitPlaidList(['US', false])).toThrow(
-      'Plaid list must be a comma-separated string'
+      'Plaid list must be a string or an array of strings'
     )
     expect(() => splitPlaidList({ country: 'US' })).toThrow(
-      'Plaid list must be a comma-separated string'
+      'Plaid list must be a string or an array of strings'
     )
   })
 
@@ -79,28 +75,20 @@ describe('Plaid request enums and formats', () => {
     )
   })
 
-  it('validates products and rejects unsupported conditional sandbox products', () => {
-    expect(parsePlaidProducts('transactions, AUTH', 'initialProducts', { required: true })).toEqual(
-      ['transactions', 'auth']
+  it('accepts bounded open-world product identifiers', () => {
+    expect(parsePlaidProducts('transactions, AUTH', 'products')).toEqual(['transactions', 'auth'])
+    expect(parsePlaidProducts('made_up', 'products')).toEqual(['made_up'])
+    expect(() => parsePlaidProducts('not-valid!', 'products')).toThrow(
+      'products contains an invalid Plaid product: not-valid!'
     )
-    expect(() => parsePlaidProducts('made_up', 'products')).toThrow(
-      'products contains unsupported Plaid product: made_up'
-    )
-    expect(() =>
-      parsePlaidProducts('income_verification', 'initialProducts', { required: true })
-    ).toThrow('initialProducts cannot include income_verification')
   })
 
-  it('validates date-time and webhook formats without accepting URL credentials', () => {
+  it('accepts RFC3339 date-times with numeric offsets', () => {
     expect(toPlaidOptionalDateTime('2026-08-18T12:30:00-07:00', 'timestamp')).toBe(
       '2026-08-18T12:30:00-07:00'
     )
     expect(() => toPlaidOptionalDateTime('2026-08-18', 'timestamp')).toThrow(
       'timestamp must be an ISO 8601 date-time with a timezone'
-    )
-    expect(toPlaidOptionalWebhookUrl('https://example.com/plaid')).toBe('https://example.com/plaid')
-    expect(() => toPlaidOptionalWebhookUrl('https://user:pass@example.com/plaid')).toThrow(
-      'webhook must be a valid HTTP(S) URL'
     )
   })
 })
@@ -401,10 +389,11 @@ describe('mapPlaidItem', () => {
           future_field: true,
         },
       }).error
-    ).toMatchObject({
+    ).toEqual({
       error_type: 'ITEM_ERROR',
       error_code: 'ITEM_LOGIN_REQUIRED',
-      future_field: true,
+      error_message: 'Login required',
+      display_message: null,
     })
   })
 

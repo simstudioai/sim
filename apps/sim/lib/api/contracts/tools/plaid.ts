@@ -3,14 +3,12 @@ import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contract
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const credentialIdSchema = z.string().trim().min(1).max(512)
-const accessTokenSchema = z.string().min(1).max(16_384)
 const shortTextSchema = z.string().trim().min(1).max(256)
 const countryCodesSchema = z.array(z.string().length(2)).min(1).max(20)
 const accountIdsSchema = z.array(shortTextSchema).min(1).max(500)
 
 const baseShape = {
   credentialId: credentialIdSchema,
-  accessToken: accessTokenSchema,
 }
 
 const emptyInputSchema = z.object({}).strict()
@@ -82,7 +80,7 @@ export const plaidOperationBodySchema = z.discriminatedUnion('operation', [
       input: z
         .object({
           account_ids: accountIdsSchema.optional(),
-          min_last_updated_datetime: z.iso.datetime().optional(),
+          min_last_updated_datetime: z.iso.datetime({ offset: true }).optional(),
         })
         .strict(),
     })
@@ -109,7 +107,11 @@ export const plaidOperationContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/plaid',
   body: plaidOperationBodySchema,
-  response: { mode: 'json', schema: plaidOperationResponseSchema },
+  response: {
+    mode: 'json',
+    // untyped-response: successful Plaid payloads vary by operation and are validated by the matching tool transform
+    schema: plaidOperationResponseSchema,
+  },
 })
 
 export type PlaidOperationBody = ContractBodyInput<typeof plaidOperationContract>

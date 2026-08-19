@@ -4,7 +4,6 @@ import {
   buildPlaidInternalBody,
   mapPlaidAccount,
   mapPlaidNumbers,
-  plaidAccessTokenParamField,
   plaidAccountOutputProperties,
   plaidBaseParamFields,
   plaidNumbersOutputProperties,
@@ -24,7 +23,6 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
 
   params: {
     ...plaidBaseParamFields,
-    ...plaidAccessTokenParamField,
     accountIds: {
       type: 'string',
       required: false,

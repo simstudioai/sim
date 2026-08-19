@@ -3,7 +3,6 @@ import type { PlaidGetAccountsParams, PlaidGetAccountsResponse } from '@/tools/p
 import {
   buildPlaidInternalBody,
   mapPlaidAccount,
-  plaidAccessTokenParamField,
   plaidAccountOutputProperties,
   plaidBaseParamFields,
   plaidRecord,
@@ -22,7 +21,6 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
 
   params: {
     ...plaidBaseParamFields,
-    ...plaidAccessTokenParamField,
     accountIds: {
       type: 'string',
       required: false,

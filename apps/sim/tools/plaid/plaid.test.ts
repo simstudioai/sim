@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import { PlaidBlock } from '@/blocks/blocks/plaid'
+import { PlaidBlock, PlaidBlockMeta } from '@/blocks/blocks/plaid'
 import { filterOutputForLog } from '@/executor/utils/output-filter'
 import { plaidGetAccountsTool } from '@/tools/plaid/get_accounts'
 import { plaidGetAuthTool } from '@/tools/plaid/get_auth'
@@ -20,11 +20,8 @@ vi.unmock('@/blocks/registry')
 const buildParams = PlaidBlock.tools?.config?.params
 if (!buildParams) throw new Error('PlaidBlock params transform missing')
 
-const creds = { oauthCredential: 'cred_plaid_item_1' }
-const runtimeCreds = {
-  ...creds,
-  accessToken: 'tok',
-}
+const creds = { plaidCredentialId: 'cred_plaid_item_1' }
+const runtimeCreds = creds
 
 async function transform(tool: ToolConfig<any, any>, body: unknown): Promise<ToolResponse> {
   if (!tool.transformResponse) throw new Error(`${tool.id} transform missing`)
@@ -97,13 +94,39 @@ describe('PlaidBlock tools.config.params', () => {
     )
   })
 
-  it('binds every retained tool to the reusable credential and injected Item token', () => {
+  it('uses native selectors with canonical advanced manual fallbacks', () => {
+    expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'accountIdsSelector')
+    ).toMatchObject({
+      selectorKey: 'plaid.accounts',
+      canonicalParamId: 'accountIds',
+      multiSelect: true,
+      dependsOn: ['credential'],
+    })
+    expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualAccountIds')
+    ).toMatchObject({ canonicalParamId: 'accountIds', mode: 'advanced' })
+    expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'institutionSelector')
+    ).toMatchObject({
+      selectorKey: 'plaid.institutions',
+      canonicalParamId: 'institutionId',
+      dependsOn: ['credential'],
+    })
+    expect(
+      PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualInstitutionId')
+    ).toMatchObject({ canonicalParamId: 'institutionId', mode: 'advanced' })
+  })
+
+  it('binds every retained tool only to an opaque reusable credential ID', () => {
     for (const tool of retainedTools) {
-      expect(tool.params.oauthCredential).toMatchObject({
+      expect(tool.params.plaidCredentialId).toMatchObject({
         required: true,
         visibility: 'user-only',
       })
-      expect(tool.params.accessToken).toMatchObject({ required: false, visibility: 'hidden' })
+      expect(tool.params).not.toHaveProperty('oauthCredential')
+      expect(tool.params).not.toHaveProperty('credentialId')
+      expect(tool.params).not.toHaveProperty('accessToken')
       expect(tool.params).not.toHaveProperty('clientId')
       expect(tool.params).not.toHaveProperty('secret')
       expect(tool.params).not.toHaveProperty('environment')
@@ -111,9 +134,16 @@ describe('PlaidBlock tools.config.params', () => {
     }
   })
 
+  it('does not promote unsupported first-time Agent connection flows', () => {
+    expect(PlaidBlockMeta).not.toHaveProperty('skills')
+    expect(PlaidBlockMeta.templates.every((template) => !template.modules.includes('agent'))).toBe(
+      true
+    )
+  })
+
   it('forwards only the reusable credential for Item authentication', () => {
     expect(buildParams({ ...creds, operation: 'get_item' })).toEqual({
-      oauthCredential: 'cred_plaid_item_1',
+      plaidCredentialId: 'cred_plaid_item_1',
     })
   })
 
@@ -127,7 +157,7 @@ describe('PlaidBlock tools.config.params', () => {
       daysRequested: '',
       includeOriginalDescription: 'true',
     })
-    expect(result.oauthCredential).toBe('cred_plaid_item_1')
+    expect(result.plaidCredentialId).toBe('cred_plaid_item_1')
     expect(result.accountId).toBe('acc_1')
     expect(result.count).toBe(250)
     expect(result.includeOriginalDescription).toBe(true)
@@ -167,11 +197,7 @@ describe('PlaidBlock tools.config.params', () => {
       includeOriginalDescription: 'false',
       daysRequested: null,
     }
-    const mergedInputs = {
-      ...rawInputs,
-      ...buildParams(rawInputs),
-      accessToken: 'item-access-token',
-    }
+    const mergedInputs = { ...rawInputs, ...buildParams(rawInputs) }
 
     const request = prepareToolRequest(plaidSyncTransactionsTool, mergedInputs)
 
@@ -179,7 +205,6 @@ describe('PlaidBlock tools.config.params', () => {
     expect(JSON.parse(request.body ?? '')).toEqual({
       operation: 'plaid_sync_transactions',
       credentialId: 'cred_plaid_item_1',
-      accessToken: 'item-access-token',
       input: { include_original_description: false },
     })
   })
@@ -203,7 +228,6 @@ describe('plaid_sync_transactions request body', () => {
   it('drops null and empty optionals arriving from LLM tool calls', () => {
     const result = body({
       ...runtimeCreds,
-      accessToken: ' tok ',
       cursor: undefined,
       count: null as unknown as number,
       includeOriginalDescription: null as unknown as boolean,
@@ -212,7 +236,6 @@ describe('plaid_sync_transactions request body', () => {
     expect(JSON.parse(JSON.stringify(result))).toEqual({
       operation: 'plaid_sync_transactions',
       credentialId: 'cred_plaid_item_1',
-      accessToken: 'tok',
       input: {},
     })
   })
@@ -226,7 +249,6 @@ describe('plaid_sync_transactions request body', () => {
     expect(JSON.parse(JSON.stringify(result))).toEqual({
       operation: 'plaid_sync_transactions',
       credentialId: 'cred_plaid_item_1',
-      accessToken: 'tok',
       input: { count: 100, include_original_description: true },
     })
   })
@@ -251,6 +273,21 @@ describe('plaid_sync_transactions request body', () => {
         includeOriginalDescription: 'no' as unknown as boolean,
       })
     ).toThrow('includeOriginalDescription must be true or false')
+  })
+})
+
+describe('Plaid account selector normalization', () => {
+  const body = plaidGetAccountsTool.request.body
+  if (!body) throw new Error('accounts tool body builder missing')
+
+  it.each([
+    [
+      ['acc-1', 'acc-2'],
+      ['acc-1', 'acc-2'],
+    ],
+    ['acc-1, acc-2', ['acc-1', 'acc-2']],
+  ])('normalizes selector arrays and manual comma-separated values', (accountIds, expected) => {
+    expect(body({ ...runtimeCreds, accountIds }).input).toEqual({ account_ids: expected })
   })
 })
 
@@ -369,7 +406,6 @@ describe('Plaid output metadata', () => {
           properties: {
             error_type: { type: 'string' },
             display_message: { type: 'string', nullable: true },
-            causes: { type: 'array', optional: true, items: { type: 'json' } },
           },
         },
         available_products: { type: 'array', items: { type: 'string' } },

@@ -4,16 +4,13 @@ import { plaidOperationContract } from '@/lib/api/contracts/tools/plaid'
 import {
   createInternalSessionOrExecutorAuth,
   defineInternalJsonRoute,
-  extendInternalErrorPolicy,
   InternalUnauthenticatedError,
-  internalErrorResponse,
   internalRateLimits,
 } from '@/lib/api/server/routes'
-import { internalCredentialDetailErrorPolicy } from '@/lib/credentials/api/route-policies'
 import { CREDENTIAL_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { usePlaidServiceAccount } from '@/lib/credentials/application/use-plaid-service-account'
-import { PlaidGatewayError, PlaidProviderError } from '@/tools/plaid/utils.server'
+import { plaidErrorPolicy } from '@/app/api/tools/plaid/error-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,16 +30,6 @@ const plaidExecutorAuth = {
     return principal
   },
 }
-
-const plaidErrorPolicy = extendInternalErrorPolicy(internalCredentialDetailErrorPolicy, (error) => {
-  if (error instanceof PlaidProviderError) {
-    return internalErrorResponse(error.status, error.body)
-  }
-  if (error instanceof PlaidGatewayError) {
-    return internalErrorResponse(502, { error: error.message })
-  }
-  return null
-})
 
 export const POST = defineInternalJsonRoute({
   contract: plaidOperationContract,

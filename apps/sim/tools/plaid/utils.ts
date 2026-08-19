@@ -3,6 +3,7 @@ import type {
   PlaidAccount,
   PlaidAccountBalances,
   PlaidCounterparty,
+  PlaidError,
   PlaidIdentityAccount,
   PlaidIdentityOwner,
   PlaidInstitution,
@@ -42,68 +43,16 @@ const PLAID_COUNTRY_CODES = new Set([
   'FI',
 ])
 
-const PLAID_PRODUCTS = new Set([
-  'assets',
-  'auth',
-  'balance',
-  'balance_plus',
-  'beacon',
-  'identity',
-  'identity_match',
-  'investments',
-  'investments_auth',
-  'liabilities',
-  'payment_initiation',
-  'identity_verification',
-  'transactions',
-  'credit_details',
-  'income',
-  'income_verification',
-  'standing_orders',
-  'transfer',
-  'employment',
-  'recurring_transactions',
-  'transactions_refresh',
-  'signal',
-  'statements',
-  'processor_payments',
-  'processor_identity',
-  'profile',
-  'cra_base_report',
-  'cra_income_insights',
-  'cra_partner_insights',
-  'cra_network_insights',
-  'cra_cashflow_insights',
-  'cra_monitoring',
-  'cra_lend_score',
-  'cra_plaid_credit_score',
-  'cra_qualify',
-  'cra_home_lending',
-  'layer',
-  'pay_by_bank',
-  'protect_linked_bank',
-  'protect_transactions',
-])
-
 export const plaidCredentialParamFields = {
-  oauthCredential: {
+  plaidCredentialId: {
     type: 'string',
     required: true,
     visibility: 'user-only',
-    description: 'Reusable encrypted Plaid Item credential',
+    description: 'ID of a preconnected reusable Plaid Item credential',
   },
 } as const
 
 export const plaidBaseParamFields = plaidCredentialParamFields
-
-export const plaidAccessTokenParamField = {
-  accessToken: {
-    type: 'string',
-    required: false,
-    visibility: 'hidden',
-    description: 'Plaid Item access token injected from the selected credential at execution time',
-  },
-} as const
 
 type PlaidOperationInput<O extends PlaidOperationBody['operation']> = Extract<
   PlaidOperationBody,
@@ -113,28 +62,14 @@ type PlaidOperationInput<O extends PlaidOperationBody['operation']> = Extract<
 /** Builds the executor-delegated request without exposing Plaid application credentials. */
 export function buildPlaidInternalBody<O extends PlaidOperationBody['operation']>(
   operation: O,
-  params: { oauthCredential: unknown; accessToken?: unknown },
+  params: { plaidCredentialId: unknown },
   input: PlaidOperationInput<O>
 ): Extract<PlaidOperationBody, { operation: O }> {
   return {
     operation,
-    credentialId: requirePlaidInputString(params.oauthCredential, 'Plaid credential'),
-    accessToken: requirePlaidInputString(params.accessToken, 'accessToken'),
+    credentialId: requirePlaidInputString(params.plaidCredentialId, 'Plaid credential'),
     input,
   } as Extract<PlaidOperationBody, { operation: O }>
-}
-
-/**
- * Drops undefined- and null-valued fields so optional params never reach the
- * wire as null. Nulls can arrive from LLM tool calls, which bypass the block's
- * subblock coercion entirely.
- */
-export function plaidBody(fields: Record<string, unknown>): Record<string, unknown> {
-  const cleaned: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(fields)) {
-    if (value !== undefined && value !== null) cleaned[key] = value
-  }
-  return cleaned
 }
 
 /**
@@ -187,9 +122,7 @@ export function toPlaidOptionalBoolean(
 }
 
 /**
- * Splits a bounded comma-separated list into a trimmed, non-empty array. Tool
- * params declare these fields as strings, so arrays and objects are rejected at
- * the direct-call boundary instead of being expanded before request-size checks.
+ * Normalizes a bounded selector array or advanced comma-separated list.
  */
 export function splitPlaidList(
   value: unknown,
@@ -197,16 +130,18 @@ export function splitPlaidList(
   constraints: { maxCharacters?: number; maxItems?: number } = {}
 ): string[] | undefined {
   if (value == null || (typeof value === 'string' && value.trim() === '')) return undefined
-  if (typeof value !== 'string') {
-    throw new Error(`${fieldLabel} must be a comma-separated string`)
+  const source = Array.isArray(value) ? value : [value]
+  if (!source.every((item): item is string => typeof item === 'string')) {
+    throw new Error(`${fieldLabel} must be a string or an array of strings`)
   }
   const maxCharacters = constraints.maxCharacters ?? 10_000
   const maxItems = constraints.maxItems ?? 500
-  if (value.length > maxCharacters) {
+  const characterCount = source.reduce((total, item) => total + item.length, 0)
+  if (characterCount > maxCharacters) {
     throw new Error(`${fieldLabel} must be at most ${maxCharacters} characters`)
   }
-  const items = value
-    .split(',')
+  const items = source
+    .flatMap((item) => item.split(','))
     .map((item) => item.trim())
     .filter(Boolean)
   if (items.length > maxItems) {
@@ -225,27 +160,15 @@ export function parsePlaidCountryCodes(value: unknown): string[] {
   return codes
 }
 
-/** Parses and validates Plaid's closed request product enum. */
-export function parsePlaidProducts(
-  value: unknown,
-  fieldLabel: string,
-  options: { required?: boolean; allowIncomeVerification?: boolean } = {}
-): string[] | undefined {
+/** Parses bounded open-world Plaid product identifiers. */
+export function parsePlaidProducts(value: unknown, fieldLabel: string): string[] | undefined {
   const products = splitPlaidList(value, fieldLabel, {
     maxCharacters: 5_000,
     maxItems: 50,
   })?.map((product) => product.toLowerCase())
-  if (!products?.length) {
-    if (options.required) throw new Error(`${fieldLabel} must contain at least one value`)
-    return undefined
-  }
-  const invalid = products.find((product) => !PLAID_PRODUCTS.has(product))
-  if (invalid) throw new Error(`${fieldLabel} contains unsupported Plaid product: ${invalid}`)
-  if (!options.allowIncomeVerification && products.includes('income_verification')) {
-    throw new Error(
-      `${fieldLabel} cannot include income_verification because its required options are not supported`
-    )
-  }
+  if (!products?.length) return undefined
+  const invalid = products.find((product) => !/^[a-z][a-z0-9_]{0,63}$/.test(product))
+  if (invalid) throw new Error(`${fieldLabel} contains an invalid Plaid product: ${invalid}`)
   return products
 }
 
@@ -287,22 +210,6 @@ export function toPlaidOptionalDateTime(value: unknown, fieldLabel: string): str
   const rfc3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
   if (!rfc3339.test(text) || Number.isNaN(Date.parse(text))) {
     throw new Error(`${fieldLabel} must be an ISO 8601 date-time with a timezone`)
-  }
-  return text
-}
-
-/** Validates an optional HTTP(S) webhook URL without normalizing its contents. */
-export function toPlaidOptionalWebhookUrl(value: unknown): string | undefined {
-  const text = toPlaidOptionalString(value, 'webhook')
-  if (text === undefined) return undefined
-  let url: URL
-  try {
-    url = new URL(text)
-  } catch {
-    throw new Error('webhook must be a valid HTTP(S) URL')
-  }
-  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password) {
-    throw new Error('webhook must be a valid HTTP(S) URL')
   }
   return text
 }
@@ -385,12 +292,11 @@ function requireNullableRecord(value: unknown, path: string): Record<string, unk
   return value
 }
 
-/** Validates the documented Plaid error envelope while preserving additive provider fields. */
-function mapPlaidError(value: unknown, path: string): Record<string, unknown> | null {
+/** Validates and projects the documented Plaid error envelope. */
+function mapPlaidError(value: unknown, path: string): PlaidError | null {
   if (value === null) return null
   const record = requireRecord(value, path)
-  const mapped: Record<string, unknown> = {
-    ...record,
+  const mapped: PlaidError = {
     error_type: requireString(record.error_type, `${path}.error_type`),
     error_code: requireString(record.error_code, `${path}.error_code`),
     error_message: requireString(record.error_message, `${path}.error_message`),
@@ -406,7 +312,6 @@ function mapPlaidError(value: unknown, path: string): Record<string, unknown> | 
   if (hasOwn(record, 'request_id')) {
     mapped.request_id = requireString(record.request_id, `${path}.request_id`)
   }
-  if (hasOwn(record, 'causes')) mapped.causes = requireArray(record.causes, `${path}.causes`)
   if (hasOwn(record, 'status')) {
     const status = record.status
     if (status === null) {
@@ -901,12 +806,6 @@ const plaidErrorOutputProperties: Record<string, ToolOutputProperty> = {
     type: 'string',
     description: 'Plaid request ID for troubleshooting',
     optional: true,
-  },
-  causes: {
-    type: 'array',
-    description: 'Per-Item errors that caused this aggregate error',
-    optional: true,
-    items: { type: 'json', description: 'Provider error cause' },
   },
   status: {
     type: 'number',

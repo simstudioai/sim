@@ -123,7 +123,7 @@ export function PlaidServiceAccountModal({
           credentialId,
           ...secretFields,
           displayName: submittedDisplayName,
-          description: description.trim() || undefined,
+          description: description.trim() || null,
         })
         onCreated?.(credentialId)
       } else {

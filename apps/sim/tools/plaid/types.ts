@@ -2,18 +2,12 @@ import type { ToolResponse } from '@/tools/types'
 
 /** Credential params shared by every Plaid tool. */
 export interface PlaidBaseParams {
-  oauthCredential: string
+  plaidCredentialId: string
 }
 
-/** Params for tools that operate on a linked Item. */
-export interface PlaidAccessTokenParams extends PlaidBaseParams {
-  /** Runtime-injected from the encrypted Plaid credential. */
-  accessToken?: string
-}
+export type PlaidGetItemParams = PlaidBaseParams
 
-export type PlaidGetItemParams = PlaidAccessTokenParams
-
-export interface PlaidSyncTransactionsParams extends PlaidAccessTokenParams {
+export interface PlaidSyncTransactionsParams extends PlaidBaseParams {
   cursor?: string
   count?: number
   accountId?: string
@@ -21,19 +15,19 @@ export interface PlaidSyncTransactionsParams extends PlaidAccessTokenParams {
   daysRequested?: number
 }
 
-export interface PlaidSearchInstitutionsParams extends PlaidAccessTokenParams {
+export interface PlaidSearchInstitutionsParams extends PlaidBaseParams {
   query: string
   countryCodes?: string
   products?: string
 }
 
-export interface PlaidGetInstitutionParams extends PlaidAccessTokenParams {
+export interface PlaidGetInstitutionParams extends PlaidBaseParams {
   institutionId: string
   countryCodes?: string
 }
 
-export interface PlaidGetAccountsParams extends PlaidAccessTokenParams {
-  accountIds?: string
+export interface PlaidGetAccountsParams extends PlaidBaseParams {
+  accountIds?: string | string[]
 }
 
 export interface PlaidGetBalancesParams extends PlaidGetAccountsParams {
@@ -50,13 +44,27 @@ export interface PlaidItem {
   institution_id?: string | null
   institution_name?: string | null
   webhook: string | null
-  error: Record<string, unknown> | null
+  error: PlaidError | null
   available_products: string[]
   billed_products: string[]
   products?: string[]
   consent_expiration_time: string | null
   update_type: string
   created_at?: string
+}
+
+export interface PlaidError {
+  error_type: string
+  error_code: string
+  error_message: string
+  display_message: string | null
+  error_code_reason?: string | null
+  request_id?: string
+  status?: number | null
+  documentation_url?: string
+  suggested_action?: string | null
+  required_account_subtypes?: string[]
+  provided_account_subtypes?: string[]
 }
 
 export interface PlaidItemProductStatus {

@@ -4,7 +4,6 @@ import {
   buildPlaidInternalBody,
   mapPlaidItem,
   mapPlaidItemStatus,
-  plaidAccessTokenParamField,
   plaidBaseParamFields,
   plaidItemOutputProperties,
   plaidItemStatusOutputProperties,
@@ -22,7 +21,6 @@ export const plaidGetItemTool: ToolConfig<PlaidGetItemParams, PlaidGetItemRespon
 
   params: {
     ...plaidBaseParamFields,
-    ...plaidAccessTokenParamField,
   },
 
   request: {

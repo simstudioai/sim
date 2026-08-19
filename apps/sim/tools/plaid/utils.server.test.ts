@@ -23,7 +23,7 @@ const credential: PlaidServiceAccountSecretBlob = {
   metadata: {},
 }
 
-const base = { credentialId: 'credential-1', accessToken: 'item-token' }
+const base = { credentialId: 'credential-1' }
 
 const mappingCases: Array<{
   body: PlaidOperationBody
@@ -125,7 +125,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('Plaid provider operation mapping', () => {
   it.each(mappingCases)('maps $body.operation to its fixed endpoint', ({ body, path, payload }) => {
-    expect(buildPlaidProviderRequest(body)).toEqual({ path, payload })
+    expect(buildPlaidProviderRequest(body, credential.accessToken)).toEqual({ path, payload })
   })
 
   it('keeps application credentials in the server request and rejects redirects', async () => {
@@ -155,12 +155,19 @@ describe('Plaid provider operation mapping', () => {
     )
   })
 
-  it('preserves Plaid status and error JSON', async () => {
+  it('projects bounded Plaid errors and redacts reflected stored secrets', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
         new Response(
-          JSON.stringify({ error_code: 'ITEM_LOGIN_REQUIRED', error_type: 'ITEM_ERROR' }),
+          JSON.stringify({
+            error_code: 'ITEM_LOGIN_REQUIRED',
+            error_type: 'ITEM_ERROR',
+            error_message: `bad ${credential.accessToken} ${credential.clientSecret}`,
+            request_id: 'request-1',
+            causes: [{ long_lived_token: credential.accessToken }],
+            unexpected: 'not projected',
+          }),
           {
             status: 400,
           }
@@ -176,8 +183,15 @@ describe('Plaid provider operation mapping', () => {
     expect(error).toBeInstanceOf(PlaidProviderError)
     expect(error).toMatchObject({
       status: 400,
-      body: { error_code: 'ITEM_LOGIN_REQUIRED', error_type: 'ITEM_ERROR' },
+      body: {
+        error_code: 'ITEM_LOGIN_REQUIRED',
+        error_type: 'ITEM_ERROR',
+        error_message: 'bad [REDACTED] [REDACTED]',
+        request_id: 'request-1',
+      },
     })
+    expect(JSON.stringify(error)).not.toContain(credential.accessToken)
+    expect(JSON.stringify(error)).not.toContain(credential.clientSecret)
   })
 
   it.each([

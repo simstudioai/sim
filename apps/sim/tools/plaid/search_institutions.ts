@@ -8,7 +8,6 @@ import {
   mapPlaidInstitution,
   parsePlaidCountryCodes,
   parsePlaidProducts,
-  plaidAccessTokenParamField,
   plaidBaseParamFields,
   plaidInstitutionOutputProperties,
   plaidRecord,
@@ -29,7 +28,6 @@ export const plaidSearchInstitutionsTool: ToolConfig<
 
   params: {
     ...plaidBaseParamFields,
-    ...plaidAccessTokenParamField,
     query: {
       type: 'string',
       required: true,
@@ -59,9 +57,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
       buildPlaidInternalBody('plaid_search_institutions', params, {
         query: requirePlaidInputString(params.query, 'query'),
         country_codes: parsePlaidCountryCodes(params.countryCodes),
-        products: parsePlaidProducts(params.products, 'products', {
-          allowIncomeVerification: true,
-        }),
+        products: parsePlaidProducts(params.products, 'products'),
       }),
     internalAuth: 'executor_delegation',
   },

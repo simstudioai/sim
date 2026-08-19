@@ -24,26 +24,41 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       byOperation: {
         sync_transactions: [
           'Sync transactions',
-          { text: ', scoped to account', field: 'accountId' },
+          {
+            text: ', scoped to account',
+            field: ['accountIdSelector', 'manualAccountId'],
+          },
           { text: ', resuming from', field: 'cursor', after: 'cursor' },
           { text: ', up to', field: 'count', after: 'per page' },
         ],
-        get_accounts: ['List linked bank accounts', { text: ', filtered to', field: 'accountIds' }],
-        get_balances: ['Fetch real-time balances', { text: ', for accounts', field: 'accountIds' }],
+        get_accounts: [
+          'List linked bank accounts',
+          { text: ', filtered to', field: ['accountIdsSelector', 'manualAccountIds'] },
+        ],
+        get_balances: [
+          'Fetch real-time balances',
+          { text: ', for accounts', field: ['accountIdsSelector', 'manualAccountIds'] },
+        ],
         get_identity: [
           'Fetch account-holder identity',
-          { text: ', for accounts', field: 'accountIds' },
+          { text: ', for accounts', field: ['accountIdsSelector', 'manualAccountIds'] },
         ],
         get_auth: [
           'Fetch account and routing numbers',
-          { text: ', for accounts', field: 'accountIds' },
+          { text: ', for accounts', field: ['accountIdsSelector', 'manualAccountIds'] },
         ],
         get_item: ['Fetch the linked Item and its health'],
         search_institutions: [
           { text: 'Search institutions for', field: 'query', core: true },
           { text: ', in', field: 'countryCodes' },
         ],
-        get_institution: [{ text: 'Fetch institution', field: 'institutionId', core: true }],
+        get_institution: [
+          {
+            text: 'Fetch institution',
+            field: ['institutionSelector', 'manualInstitutionId'],
+            core: true,
+          },
+        ],
       },
     },
   },
@@ -54,7 +69,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       type: 'oauth-input',
       serviceId: 'plaid',
       credentialKind: 'service-account',
-      canonicalParamId: 'oauthCredential',
+      canonicalParamId: 'plaidCredentialId',
       mode: 'basic',
       placeholder: 'Select Plaid Item credential',
       required: true,
@@ -63,7 +78,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       id: 'manualCredential',
       title: 'Plaid Item',
       type: 'short-input',
-      canonicalParamId: 'oauthCredential',
+      canonicalParamId: 'plaidCredentialId',
       mode: 'advanced',
       placeholder: 'Enter credential ID',
       required: true,
@@ -85,10 +100,15 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       value: () => 'sync_transactions',
     },
     {
-      id: 'institutionId',
-      title: 'Institution ID',
-      type: 'short-input',
-      placeholder: 'Use Search Institutions, then paste the matching ID',
+      id: 'institutionSelector',
+      title: 'Institution',
+      type: 'project-selector',
+      selectorKey: 'plaid.institutions',
+      serviceId: 'plaid',
+      canonicalParamId: 'institutionId',
+      placeholder: 'Search Plaid institutions',
+      dependsOn: ['credential'],
+      mode: 'basic',
       condition: {
         field: 'operation',
         value: 'get_institution',
@@ -97,6 +117,16 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
         field: 'operation',
         value: 'get_institution',
       },
+    },
+    {
+      id: 'manualInstitutionId',
+      title: 'Institution ID',
+      type: 'short-input',
+      canonicalParamId: 'institutionId',
+      placeholder: 'e.g. ins_109508',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_institution' },
+      required: { field: 'operation', value: 'get_institution' },
     },
     {
       id: 'query',
@@ -123,9 +153,23 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       condition: { field: 'operation', value: 'search_institutions' },
     },
     {
-      id: 'accountIds',
+      id: 'accountIdsSelector',
+      title: 'Accounts',
+      type: 'project-selector',
+      selectorKey: 'plaid.accounts',
+      serviceId: 'plaid',
+      canonicalParamId: 'accountIds',
+      multiSelect: true,
+      placeholder: 'Filter by linked accounts',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: ACCOUNT_FILTER_OPERATIONS },
+    },
+    {
+      id: 'manualAccountIds',
       title: 'Account IDs',
       type: 'short-input',
+      canonicalParamId: 'accountIds',
       placeholder: 'Comma-separated account IDs (defaults to all)',
       mode: 'advanced',
       condition: { field: 'operation', value: ACCOUNT_FILTER_OPERATIONS },
@@ -153,10 +197,23 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       condition: { field: 'operation', value: 'sync_transactions' },
     },
     {
-      id: 'accountId',
+      id: 'accountIdSelector',
+      title: 'Account',
+      type: 'project-selector',
+      selectorKey: 'plaid.accounts',
+      serviceId: 'plaid',
+      canonicalParamId: 'accountId',
+      placeholder: 'Scope the sync to one account',
+      dependsOn: ['credential'],
+      mode: 'basic',
+      condition: { field: 'operation', value: 'sync_transactions' },
+    },
+    {
+      id: 'manualAccountId',
       title: 'Account ID',
       type: 'short-input',
-      placeholder: 'Scope the sync to a single account ID',
+      canonicalParamId: 'accountId',
+      placeholder: 'Scope the sync to one account ID',
       mode: 'advanced',
       condition: { field: 'operation', value: 'sync_transactions' },
     },
@@ -199,7 +256,9 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       tool: (params) => `plaid_${params.operation}`,
       params: (params) => {
         const { operation } = params
-        const result: Record<string, unknown> = { oauthCredential: params.oauthCredential }
+        const result: Record<string, unknown> = {
+          plaidCredentialId: params.plaidCredentialId,
+        }
 
         switch (operation) {
           case 'sync_transactions': {
@@ -254,9 +313,9 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    oauthCredential: {
+    plaidCredentialId: {
       type: 'string',
-      description: 'Reusable Plaid Item credential',
+      description: 'ID of a preconnected reusable Plaid Item credential',
     },
     institutionId: { type: 'string', description: 'Plaid institution ID' },
     query: { type: 'string', description: 'Institution name to search for' },
@@ -349,8 +408,8 @@ export const PlaidBlockMeta = {
       icon: PlaidIcon,
       title: 'Plaid identity check',
       prompt:
-        'Build an agent that verifies a customer by comparing the name, email, and address on their linked Plaid accounts against the customer record they submitted, and flags mismatches for review.',
-      modules: ['agent'],
+        'Build a workflow that compares the name, email, and address returned for a selected Plaid Item against a submitted customer record and routes mismatches for review.',
+      modules: ['workflows'],
       category: 'operations',
       tags: ['automation'],
     },
@@ -358,7 +417,7 @@ export const PlaidBlockMeta = {
       icon: PlaidIcon,
       title: 'Plaid connection health monitor',
       prompt:
-        'Build a scheduled workflow that checks each stored Plaid Item, inspects its error state and last successful update, and posts a Slack alert listing connections that need the user to re-link.',
+        'Build a scheduled workflow that checks a selected Plaid Item, inspects its error state and last successful update, looks up its institution, and posts a Slack alert when the connection needs the user to re-link.',
       modules: ['workflows', 'scheduled'],
       category: 'operations',
       tags: ['automation'],
@@ -366,50 +425,12 @@ export const PlaidBlockMeta = {
     },
     {
       icon: PlaidIcon,
-      title: 'Plaid bank coverage assistant',
+      title: 'Plaid bank coverage report',
       prompt:
-        'Build an agent that answers which banks Plaid supports for a given product by searching institutions by name and reporting each match with its supported products and OAuth requirement.',
-      modules: ['agent'],
+        'Build a workflow that searches Plaid institutions for a supplied bank name and reports each match with its institution ID, supported products, countries, and OAuth requirement.',
+      modules: ['workflows'],
       category: 'productivity',
       tags: ['automation'],
-    },
-  ],
-  skills: [
-    {
-      name: 'spending-summary',
-      description: 'Summarize spend from Plaid transactions by category, merchant, and account.',
-      content:
-        '# Spending Summary\n\nBuild a clear picture of recent spend from Plaid transactions.\n\n## Steps\n1. Sync transactions with the stored cursor (omit it for full history) and loop while hasMore is true, carrying nextCursor forward. If Plaid returns TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION, discard the pages from this batch and restart the loop from the cursor the batch started with.\n2. Group added transactions by personal_finance_category.primary and merchant_name, totaling amounts (positive amounts are money out).\n3. Note pending transactions separately and apply any modified or removed entries to previously stored data.\n\n## Output\nReturn total spend for the period, a breakdown by category and merchant, the largest transactions, and the new cursor to store for the next run.',
-    },
-    {
-      name: 'balance-check',
-      description: 'Check real-time balances across linked Plaid accounts and flag low ones.',
-      content:
-        '# Balance Check\n\nGive a quick read on cash across linked bank accounts.\n\n## Steps\n1. Use Get Balances for a live fetch (it is usually under 10 seconds but can take 30 seconds or more); fall back to Get Accounts for cached values when speed matters.\n2. For each account capture name, mask, type, subtype, and the available and current balances.\n3. Flag accounts whose available balance is below the requested threshold, and note accounts where available is null (institution does not report it).\n\n## Output\nReturn each account with its balances and currency, plus a flagged list of low-balance accounts.',
-    },
-    {
-      name: 'verify-account-holder',
-      description: 'Compare Plaid identity data against a submitted customer record.',
-      content:
-        "# Verify Account Holder\n\nCheck that a bank account really belongs to the customer.\n\n## Steps\n1. Use Get Identity for the Item and collect each account's owners with their names, emails, phone numbers, and addresses.\n2. Compare the submitted customer name, email, and address against the owner data, allowing for common formatting differences.\n3. Treat multiple owners as a joint account: a match on any owner counts.\n\n## Output\nReturn a match verdict per field (name, email, address), the owner data used, and any mismatch that needs manual review.",
-    },
-    {
-      name: 'ach-detail-collection',
-      description: 'Fetch account and routing numbers for ACH setup after checking verification.',
-      content:
-        '# ACH Detail Collection\n\nCollect eligible bank details for payment initiation.\n\n## Steps\n1. Use Get Auth Numbers for the Item, optionally filtered to the chosen account ID.\n2. Check verification_status on each account first: skip failed or expired states and surface pending states for follow-up. Null or empty means neither micro-deposit nor database verification applies.\n3. Read the numbers.ach entries for US accounts (account, routing, wire_routing, and is_tokenized_account_number for tokenized institutions like Chase); use eft, bacs, or international entries for non-US accounts.\n4. Pair each entry with its account name and mask from the accounts list so the right account is selected.\n\n## Output\nPass the eligible numbers directly to the payment step and persist only the account name and mask for reference — do not store full account or routing numbers in tables, files, or logs.',
-    },
-    {
-      name: 'connection-health-review',
-      description: 'Check a Plaid Item for errors and stale data before relying on it.',
-      content:
-        '# Connection Health Review\n\nMake sure a bank connection is still working.\n\n## Steps\n1. Use Get Item and inspect item.error — null means healthy; ITEM_LOGIN_REQUIRED means the user must re-link through Plaid Link.\n2. Check status.transactions.last_successful_update and last_failed_update for staleness.\n3. Confirm the products you depend on appear in the enabled products list.\n\n## Output\nReturn a health verdict, the institution name, any error code with what it means, and when data was last successfully updated.',
-    },
-    {
-      name: 'bank-coverage-check',
-      description: 'Find out whether Plaid supports a bank and which products it offers.',
-      content:
-        "# Bank Coverage Check\n\nAnswer whether a bank works with Plaid before onboarding a user.\n\n## Steps\n1. Search institutions by name, filtered to the relevant country codes and required products.\n2. For an exact match, use Get Institution with its institution ID for full details.\n3. Note whether the institution uses OAuth (the user signs in on the bank's own page) and which products it supports.\n\n## Output\nReturn the matching institutions with their IDs, supported products, countries, and OAuth requirement.",
     },
   ],
 } as const satisfies BlockMeta

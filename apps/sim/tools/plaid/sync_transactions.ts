@@ -7,7 +7,6 @@ import {
   buildPlaidInternalBody,
   mapPlaidRemovedTransaction,
   mapPlaidTransaction,
-  plaidAccessTokenParamField,
   plaidBaseParamFields,
   plaidRecord,
   plaidTransactionOutputProperties,
@@ -33,7 +32,6 @@ export const plaidSyncTransactionsTool: ToolConfig<
 
   params: {
     ...plaidBaseParamFields,
-    ...plaidAccessTokenParamField,
     cursor: {
       type: 'string',
       required: false,

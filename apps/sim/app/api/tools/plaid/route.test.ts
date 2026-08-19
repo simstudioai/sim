@@ -41,7 +41,6 @@ const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const body = {
   operation: 'plaid_get_item',
   credentialId: 'credential-1',
-  accessToken: 'item-token',
   input: {},
 } as const
 let delegationToken = ''
@@ -145,6 +144,20 @@ describe('POST /api/tools/plaid', () => {
     expect(mockExecute).not.toHaveBeenCalled()
   })
 
+  it('accepts RFC3339 balance timestamps with a numeric offset', async () => {
+    const offsetBody = {
+      operation: 'plaid_get_balances',
+      credentialId: 'credential-1',
+      input: { min_last_updated_datetime: '2026-08-18T12:30:00-07:00' },
+    } as const
+    const response = await POST(request(offsetBody))
+
+    expect(response.status).toBe(200)
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ body: offsetBody }) })
+    )
+  })
+
   it.each([
     [
       'wrong workspace or provider',
@@ -156,12 +169,11 @@ describe('POST /api/tools/plaid', () => {
       new OrchestrationError('forbidden', 'Credential access required'),
       403,
     ],
-    ['token mismatch', new OrchestrationError('forbidden', 'Credential token does not match'), 403],
   ])('projects %s without exposing secrets', async (_label, error, status) => {
     mockExecute.mockRejectedValueOnce(error)
     const response = await POST(request())
     expect(response.status).toBe(status)
-    expect(JSON.stringify(await response.json())).not.toContain('item-token')
+    expect(JSON.stringify(await response.json())).not.toContain('client-secret')
   })
 
   it('preserves Plaid provider status and error fields', async () => {
