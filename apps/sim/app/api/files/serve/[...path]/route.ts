@@ -22,6 +22,8 @@ import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
+import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
@@ -81,6 +83,21 @@ async function resolveServableBytes(params: {
   const { buffer, filename, storageKey, workspaceId, options, ownerKey, filePrincipal, signal } =
     params
   if (options.raw) return { buffer, contentType: getContentType(filename) }
+
+  // The pdf model for pages: a `.html` file stores its SOURCE (frontmatter +
+  // markdown + sim: fences) and serving compiles it to the rendered document,
+  // the same way a .pdf key stores its script and serves the binary. Raw
+  // requests above still return the source; bespoke/legacy HTML falls through
+  // untouched.
+  if (filename.toLowerCase().endsWith('.html')) {
+    const text = buffer.toString('utf8')
+    if (isSimPageSource(text)) {
+      return {
+        buffer: Buffer.from(renderSimPageDocument(text, { workspaceId }), 'utf8'),
+        contentType: 'text/html',
+      }
+    }
+  }
 
   if (options.preview) {
     // Images resolve independently of the document path: a HEIF has no compiled-source

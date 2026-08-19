@@ -11,6 +11,7 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { isSimPageSource } from '@/lib/workspace-files/page-compile'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { ChatContext } from '@/stores/panel'
 import { EditorContextMenu } from './editor-context-menu'
@@ -584,7 +585,14 @@ export const TextEditor = memo(function TextEditor({
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
-  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  // A streaming page-source .html hides its source the way a generating pdf
+  // hides its script: the preview compiles the partial source live, so the
+  // reader watches the docs-styled page grow instead of raw frontmatter and
+  // markdown. Bespoke raw HTML keeps the editor fallback — its half-written
+  // markup would render broken mid-stream.
+  const isPageSourceStream = previewType === 'html' && isSimPageSource(content)
+  const effectiveMode =
+    isStreaming && isIframeRendered ? (isPageSourceStream ? 'preview' : 'editor') : previewMode
   const showEditor = effectiveMode !== 'preview'
   const showPreviewPane = effectiveMode !== 'editor'
 

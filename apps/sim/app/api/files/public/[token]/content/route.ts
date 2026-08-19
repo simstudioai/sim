@@ -12,6 +12,8 @@ import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 import {
   createErrorResponse,
   createFileResponse,
@@ -89,6 +91,21 @@ export const GET = withRouteHandler(
       if (servable.kind === 'artifact') {
         buffer = servable.buffer
         contentType = servable.contentType
+      } else if (
+        file.originalName.toLowerCase().endsWith('.html') &&
+        isSimPageSource(raw.toString('utf8'))
+      ) {
+        // The pdf model for pages: the stored .html is source; a share serves
+        // the fully styled compiled document, matching the preview and serve
+        // routes. sim: links resolve to workspace routes (a viewer without
+        // workspace access simply lands on the sign-in gate).
+        buffer = Buffer.from(
+          renderSimPageDocument(raw.toString('utf8'), {
+            workspaceId: file.workspaceId ?? undefined,
+          }),
+          'utf8'
+        )
+        contentType = 'text/html'
       } else if (preview) {
         // Only for a render request: the Download button omits `preview`, so a saved
         // file is always the bytes that were shared.

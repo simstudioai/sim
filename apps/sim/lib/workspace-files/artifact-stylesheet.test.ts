@@ -4,9 +4,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   SIM_ARTIFACT_SHELL,
+  SIM_ARTIFACT_STYLESHEET,
   simTokenOverrides,
   usesSimArtifactStyles,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/artifact-stylesheet'
+} from '@/lib/workspace-files/artifact-stylesheet'
 import { buildHtmlPreviewDocument } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-panel'
 
 const MARKED =
@@ -94,6 +95,51 @@ describe('docs shell', () => {
   // would be lying about what it does.
   it('scopes search to the page', () => {
     expect(SIM_ARTIFACT_SHELL).toContain('Filter sections')
+  })
+
+  // The clerk TOC: a track threaded through the items and a full-strength copy
+  // clipped to the active range — the clip window is what animates on scroll.
+  it('draws the clerk track and animates the active segment via the clip window', () => {
+    expect(SIM_ARTIFACT_SHELL).toContain('toc-track')
+    expect(SIM_ARTIFACT_SHELL).toContain('--track-top')
+    expect(SIM_ARTIFACT_SHELL).toContain('--track-bottom')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('clip-path: polygon(0 var(--track-top')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('transition: clip-path')
+  })
+
+  // fumadocs clerk geometry: h2 lines at 8px, h3 at 16px, items indented 20/32.
+  it('indents TOC items and track lines by heading depth', () => {
+    expect(SIM_ARTIFACT_SHELL).toContain("depth === '2' ? 8 : 16")
+    expect(SIM_ARTIFACT_STYLESHEET).toContain(
+      '.toc-items a[data-depth="2"] { padding-left: 20px; }'
+    )
+    expect(SIM_ARTIFACT_STYLESHEET).toContain(
+      '.toc-items a[data-depth="3"] { padding-left: 32px; }'
+    )
+  })
+})
+
+describe('docs fidelity', () => {
+  // The docs table treatment: header rule on --border, row rules on
+  // --surface-active, no outer chrome.
+  it('styles tables as the docs divider tables', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain(
+      'thead th { font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border)'
+    )
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('border-bottom: 1px solid var(--surface-active)')
+  })
+
+  // The card/stat vocabulary is retired — a figure worth stating is a sentence
+  // or a table row, and legacy pages fall back to plain prose.
+  it('carries no card or stat chrome', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain('.card')
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain('.stat')
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain('.grid')
+  })
+
+  it('keeps the sidebar pill metrics from the docs sidebar', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('padding: 5px 0.5rem')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('line-height: 20px')
   })
 })
 

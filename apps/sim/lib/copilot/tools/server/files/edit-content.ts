@@ -11,9 +11,12 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { compileSimPageChunk, isSimPageSource } from '@/lib/copilot/tools/server/files/page-compile'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
+import {
+  HAND_WRITTEN_PAGE_MESSAGE,
+  isHandWrittenCompiledPage,
+} from '@/lib/workspace-files/page-compile'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { waitForLatestFileIntent } from './file-intent-store'
@@ -80,18 +83,29 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       const { operation, fileRecord } = intent
       const docInfo = getDocumentFormatInfo(fileRecord.name)
       const e2bFmt = isDocSandboxEnabled ? await getE2BDocFormat(fileRecord.name) : null
-      // Agent-authored pages arrive as markdown-shaped source and are compiled
-      // to real HTML as they are stored, so the file is portable HTML from the
-      // first byte. Raw-HTML sources pass through untouched (bespoke pages).
+      // Agent-authored pages are stored as SOURCE (frontmatter + markdown +
+      // sim: fences) and compiled to the docs-styled document at render time
+      // — the pdf model: the file holds the source, the preview/share/
+      // download surfaces serve the rendered version. Bespoke raw HTML
+      // passes through, but a hand-written copy of compiled output defeats
+      // the source format, so it is rejected with the steer back to source.
+      // Patches are exempt: small in-place fixes on a legacy stored-compiled
+      // page legitimately contain compiled fragments.
       const isHtmlTarget = fileRecord.name.toLowerCase().endsWith('.html')
+      if (
+        isHtmlTarget &&
+        (operation === 'append' || operation === 'update') &&
+        isHandWrittenCompiledPage(content)
+      ) {
+        return { success: false, message: HAND_WRITTEN_PAGE_MESSAGE }
+      }
 
       let finalContent: string
       switch (operation) {
         case 'append': {
           const existing = intent.existingContent ?? ''
-          if (isHtmlTarget && isSimPageSource(content, existing)) {
-            const compiled = compileSimPageChunk(content, existing.trim() === '')
-            finalContent = existing ? `${existing}\n${compiled}` : compiled
+          if (isHtmlTarget) {
+            finalContent = existing ? `${existing}\n${content}` : content
             break
           }
           // The JS engines (isolated-vm and E2B-node pptx/docx) use the `{ ... }`
@@ -111,10 +125,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           break
         }
         case 'update': {
-          finalContent =
-            isHtmlTarget && isSimPageSource(content, '')
-              ? compileSimPageChunk(content, true)
-              : content
+          finalContent = content
           break
         }
         case 'patch': {

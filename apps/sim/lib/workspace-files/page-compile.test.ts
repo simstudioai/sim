@@ -1,0 +1,147 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
+import {
+  compileSimPage,
+  isHandWrittenCompiledPage,
+  isSimPageSource,
+  SIM_PAGE_MARKER,
+} from '@/lib/workspace-files/page-compile'
+
+const SOURCE = `---
+title: Workspace Overview
+eyebrow: Snapshot · 18 August 2026
+lede: A concise inventory.
+---
+
+## Summary
+
+An experimentation workspace, **not** a production estate.
+
+\`\`\`sim:table
+columns: [Name, Status, "Blocks:num"]
+rows:
+  - [default-agent, Draft, 2]
+  - [forceful-arm, Deployed, 4]
+\`\`\`
+`
+
+describe('isSimPageSource', () => {
+  it('recognises source by its titled frontmatter', () => {
+    expect(isSimPageSource(SOURCE)).toBe(true)
+  })
+
+  // Raw HTML is the bespoke escape hatch and must render as-is everywhere.
+  it('is false for bespoke raw HTML', () => {
+    expect(isSimPageSource('<!DOCTYPE html><html><body>custom</body></html>')).toBe(false)
+  })
+
+  // Files stored by the retired write-time compiler stay renderable as-is.
+  it('is false for legacy stored-compiled pages', () => {
+    expect(isSimPageSource(`<!DOCTYPE html>\n${SIM_PAGE_MARKER}\n<h1>x</h1>`)).toBe(false)
+  })
+
+  it('is false for plain markdown without frontmatter', () => {
+    expect(isSimPageSource('# Title\n\nBody.')).toBe(false)
+  })
+})
+
+describe('compileSimPage', () => {
+  it('emits a complete document from frontmatter, closers included', () => {
+    const html = compileSimPage(SOURCE)
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('<meta name="sim-artifact">')
+    expect(html).toContain('<title>Workspace Overview</title>')
+    expect(html).toContain('<div class="page" data-layout="docs">')
+    expect(html).toContain('<h1>Workspace Overview</h1>')
+    expect(html).toContain('<p class="lede">A concise inventory.</p>')
+    expect(html).toContain('</body>')
+    expect(html).toContain('</html>')
+    // The write-time compiler's signature is retired: never emitted anew.
+    expect(html).not.toContain(SIM_PAGE_MARKER)
+  })
+
+  it('compiles markdown prose and headings through GFM', () => {
+    const html = compileSimPage(SOURCE)
+    expect(html).toContain('<h2>Summary</h2>')
+    expect(html).toContain('<strong>not</strong>')
+  })
+
+  it('compiles sim:table with numeric column alignment', () => {
+    const html = compileSimPage(SOURCE)
+    expect(html).toContain('<div class="scroll"><table>')
+    expect(html).toContain('<th class="num">Blocks</th>')
+    expect(html).toContain('<td class="num">4</td>')
+  })
+
+  it('compiles kv fences into key rows', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n```sim:kv\n- { key: "panel.ts:646", value: Reveal returns early. }\n```'
+    )
+    expect(html).toContain('<span class="key">panel.ts:646</span>')
+  })
+
+  it('compiles faq fences into native details rows', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n```sim:faq\n- { q: What is this?, markdown: A compiled page. }\n```'
+    )
+    expect(html).toContain('<div class="faq">')
+    expect(html).toContain('<summary>What is this?</summary>')
+  })
+
+  it('passes a diagram svg through inside a figure with its caption', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n```sim:diagram The loop.\n<svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg>\n```'
+    )
+    expect(html).toContain('<figure><svg viewBox="0 0 10 10">')
+    expect(html).toContain('<figcaption>The loop.</figcaption>')
+  })
+
+  // Authoring mistakes surface on the page the author reads, not in a log.
+  it('renders a visible notice for a malformed structured fence', () => {
+    const html = compileSimPage('---\ntitle: T\n---\n```sim:kv\n- { key: }\n```')
+    expect(html).toContain('was skipped')
+  })
+
+  // Cards and stats left the vocabulary; their fences degrade to notices.
+  it('renders retired fence kinds as skipped notices', () => {
+    const html = compileSimPage('---\ntitle: T\n---\n```sim:cards\n- title: X\n```')
+    expect(html).toContain('sim:cards')
+    expect(html).toContain('was skipped')
+  })
+
+  it('escapes html in yaml-derived values', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n```sim:kv\n- { key: "<script>", value: "<img src=x>" }\n```'
+    )
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).not.toContain('<img src=x>')
+  })
+})
+
+describe('isHandWrittenCompiledPage', () => {
+  it('rejects content carrying the compiler signature', () => {
+    expect(isHandWrittenCompiledPage(`<!DOCTYPE html>\n${SIM_PAGE_MARKER}\n<h1>x</h1>`)).toBe(true)
+  })
+
+  it('rejects an artifact-opted document with no styles of its own', () => {
+    expect(
+      isHandWrittenCompiledPage(
+        '<!DOCTYPE html><html><head><meta name="sim-artifact"></head><body><h1>x</h1></body></html>'
+      )
+    ).toBe(true)
+  })
+
+  it('allows a genuine bespoke page with inline styles', () => {
+    expect(
+      isHandWrittenCompiledPage(
+        '<!DOCTYPE html><html><head><style>body{color:#111}</style></head><body>custom</body></html>'
+      )
+    ).toBe(false)
+  })
+
+  it('allows page source', () => {
+    expect(isHandWrittenCompiledPage(SOURCE)).toBe(false)
+  })
+})

@@ -3,56 +3,38 @@ import { marked } from 'marked'
 import { z } from 'zod'
 
 /**
- * Write-time compiler for agent-authored `.html` pages.
+ * Compiler for agent-authored `.html` pages.
  *
- * The file agent writes a minimal, markdown-shaped source — frontmatter, GFM
- * prose, and `sim:` fences for structured blocks — and this compiles each
- * `apply_file_edit` chunk into the Sim page vocabulary as it is stored. The
- * stored file is always real, portable HTML; the agent never writes markup.
- * Same split the doc formats use (pptx/docx source compiled Sim-side), except
- * the compile happens at write time because HTML needs no sandbox to produce.
+ * The stored `.html` file holds the agent's SOURCE — YAML frontmatter, GFM
+ * prose, and `sim:` fences — the way a `.pdf` file stores its generating
+ * script. Rendering surfaces (the preview panel, the share view, download)
+ * call {@link compileSimPage} to produce the complete docs-styled HTML
+ * document on demand. The source is never mutated at write time, so agent
+ * appends stay plain concatenation and the raw editor view IS the source
+ * view, mirroring the pdf source/rendered duality.
  *
- * Compiled output deliberately leaves `</div></body></html>` unwritten: those
- * closing tags are optional in the HTML spec, and omitting them is what lets
- * later chunks append inside the page without re-parsing what exists.
- *
- * Raw HTML sources pass through untouched — a page starting `<!DOCTYPE` or
- * `<html` is the bespoke escape hatch, not source to compile.
+ * Content starting `<!DOCTYPE`/`<html` is a bespoke page and passes through
+ * every surface untouched — except a hand-written imitation of compiled
+ * output, which {@link isHandWrittenCompiledPage} rejects at write time.
  */
 
-/** Stamped into compiled output so continuation chunks know to compile too. */
+/**
+ * The retired write-time compiler's signature. New compiles no longer emit
+ * it, but legacy stored-compiled files carry it and an agent copying one
+ * would too — it stays recognized purely to reject imitations.
+ */
 export const SIM_PAGE_MARKER = '<!--sim-page-->'
 
 const frontmatterSchema = z.object({
   title: z.string().min(1),
   eyebrow: z.string().optional(),
   lede: z.string().optional(),
-  layout: z.enum(['docs', 'report', 'brief', 'dashboard']).optional(),
+  layout: z.enum(['docs', 'report']).optional(),
 })
 
-const toneSchema = z.enum(['neutral', 'ok', 'warn', 'bad'])
 /** YAML leaves unquoted scalars typed; reject null/objects rather than stringify them. */
 const textCell = z.union([z.string(), z.number(), z.boolean()]).transform((value) => String(value))
 
-const statsItemsSchema = z
-  .array(
-    z.object({
-      label: textCell,
-      value: textCell,
-      note: textCell.optional(),
-      tone: toneSchema.optional(),
-    })
-  )
-  .min(1)
-const cardsItemsSchema = z
-  .array(
-    z.object({
-      title: textCell,
-      markdown: textCell,
-      pill: z.object({ text: textCell, tone: toneSchema.optional() }).optional(),
-    })
-  )
-  .min(1)
 const tablePayloadSchema = z.object({
   columns: z
     .array(
@@ -85,9 +67,37 @@ function renderMarkdown(markdown: string): string {
   return marked.parse(markdown, { gfm: true, async: false }) as string
 }
 
-function pillHtml(text: string, tone?: string): string {
-  const modifier = tone === 'ok' || tone === 'warn' || tone === 'bad' ? ` pill--${tone}` : ''
-  return `<span class="pill${modifier}">${escapeHtml(text)}</span>`
+/**
+ * Inline markdown for structured-block text (table cells, kv values, faq
+ * questions): links, `code`, and emphasis render; raw HTML stays escaped
+ * because the text is escaped BEFORE the inline pass.
+ */
+function renderInlineMarkdown(text: string): string {
+  return marked.parseInline(escapeHtml(text), { gfm: true, async: false }) as string
+}
+
+const SIM_RESOURCE_ROUTES: Record<string, (workspaceId: string, id: string) => string> = {
+  workflow: (workspaceId, id) => `/workspace/${workspaceId}/w/${id}`,
+  table: (workspaceId, id) => `/workspace/${workspaceId}/tables/${id}`,
+  knowledge: (workspaceId, id) => `/workspace/${workspaceId}/knowledge/${id}`,
+  file: (workspaceId, id) => `/workspace/${workspaceId}/files/${id}/view`,
+}
+
+/**
+ * Rewrites `sim:` resource links (`[Name](sim:workflow/<id>)` in source) into
+ * real workspace routes. Applied when the rendering surface knows its
+ * workspace; without one the sim: hrefs stay put and render inert.
+ * `data-sim-link` marks them so the preview sandbox can bridge clicks to the
+ * app router instead of cancelling them.
+ */
+export function resolveSimResourceLinks(html: string, workspaceId: string): string {
+  return html.replace(
+    /href="sim:(workflow|table|knowledge|file)\/([^"]+)"/g,
+    (match, type: string, id: string) => {
+      const route = SIM_RESOURCE_ROUTES[type]
+      return route ? `href="${route(workspaceId, id)}" data-sim-link=""` : match
+    }
+  )
 }
 
 function loadYaml(body: string): unknown {
@@ -97,32 +107,6 @@ function loadYaml(body: string): unknown {
 type FenceRenderer = (payload: unknown) => string | null
 
 const FENCE_RENDERERS: Record<string, FenceRenderer> = {
-  stats: (payload) => {
-    const parsed = statsItemsSchema.safeParse(payload)
-    if (!parsed.success) return null
-    const cards = parsed.data
-      .map((item) => {
-        const note = item.note
-          ? item.tone
-            ? `<p>${pillHtml(item.note, item.tone)}</p>`
-            : `<p class="stat-note">${escapeHtml(item.note)}</p>`
-          : ''
-        return `<div class="card"><div class="stat-label">${escapeHtml(item.label)}</div><div class="stat">${escapeHtml(item.value)}</div>${note}</div>`
-      })
-      .join('')
-    return `<div class="grid">${cards}</div>`
-  },
-  cards: (payload) => {
-    const parsed = cardsItemsSchema.safeParse(payload)
-    if (!parsed.success) return null
-    const cards = parsed.data
-      .map((card) => {
-        const pill = card.pill ? `<p>${pillHtml(card.pill.text, card.pill.tone)}</p>` : ''
-        return `<article class="card">${pill}<h3>${escapeHtml(card.title)}</h3>${renderMarkdown(card.markdown)}</article>`
-      })
-      .join('')
-    return `<div class="grid">${cards}</div>`
-  },
   table: (payload) => {
     const parsed = tablePayloadSchema.safeParse(payload)
     if (!parsed.success) return null
@@ -139,7 +123,7 @@ const FENCE_RENDERERS: Record<string, FenceRenderer> = {
           `<tr>${row
             .map(
               (cell, index) =>
-                `<td${columns[index]?.align === 'num' ? ' class="num"' : ''}>${escapeHtml(cell)}</td>`
+                `<td${columns[index]?.align === 'num' ? ' class="num"' : ''}>${renderInlineMarkdown(cell)}</td>`
             )
             .join('')}</tr>`
       )
@@ -152,7 +136,7 @@ const FENCE_RENDERERS: Record<string, FenceRenderer> = {
     const rows = parsed.data
       .map(
         (item) =>
-          `<li><span class="key">${escapeHtml(item.key)}</span><span>${escapeHtml(item.value)}</span></li>`
+          `<li><span class="key">${escapeHtml(item.key)}</span><span>${renderInlineMarkdown(item.value)}</span></li>`
       )
       .join('')
     return `<ul class="rows">${rows}</ul>`
@@ -170,14 +154,30 @@ const FENCE_RENDERERS: Record<string, FenceRenderer> = {
   },
 }
 
+export const HAND_WRITTEN_PAGE_MESSAGE =
+  'Rejected: this content imitates the compiled page output (hand-written page HTML). Never write the page HTML yourself. Write page SOURCE instead — YAML frontmatter with a title, markdown prose, and sim: fences — and Sim renders it as the styled page. Raw HTML is only for a bespoke one-off page that carries its own complete inline <style>.'
+
 /**
- * True when this apply_file_edit content is Sim page source to compile.
- * First chunk announces itself with frontmatter carrying a title; every later
- * chunk is recognised by the marker the first compile stamped into the file.
+ * True when agent-authored content imitates the compiler's OUTPUT instead of
+ * being page source or a genuine bespoke page. The marker is the retired
+ * write-time compiler's signature — nothing may hand-write it — and an
+ * artifact-opted page without its own <style> can only have been copied from
+ * compiled output, since a bespoke page must carry its styles inline to
+ * render in the sandbox.
  */
-export function isSimPageSource(content: string, existingContent: string): boolean {
-  if (existingContent.includes(SIM_PAGE_MARKER)) return true
-  if (existingContent.trim() !== '') return false
+export function isHandWrittenCompiledPage(content: string): boolean {
+  if (content.includes(SIM_PAGE_MARKER)) return true
+  const trimmed = content.trimStart()
+  if (!/^<!doctype\b/i.test(trimmed) && !/^<html\b/i.test(trimmed)) return false
+  return /<meta\s+name=["']sim-artifact["']/i.test(content) && !/<style[\s>]/i.test(content)
+}
+
+/**
+ * True when `.html` content is Sim page source: it announces itself with
+ * YAML frontmatter carrying a valid title. Raw HTML (bespoke pages and
+ * legacy stored-compiled files) returns false and renders as-is.
+ */
+export function isSimPageSource(content: string): boolean {
   const trimmed = content.trimStart()
   if (!trimmed.startsWith('---\n')) return false
   const end = trimmed.indexOf('\n---', 3)
@@ -189,7 +189,7 @@ export function isSimPageSource(content: string, existingContent: string): boole
   }
 }
 
-/** Compiles the body portion — prose, fences, dividers — of a source chunk. */
+/** Compiles the body portion — prose, fences — of the source. */
 function compileBody(source: string): string {
   const lines = source.split('\n')
   const html: string[] = []
@@ -254,14 +254,18 @@ function compileBody(source: string): string {
 }
 
 /**
- * Compiles one source chunk to the HTML that gets stored. The first chunk
- * emits the document head and open page container from its frontmatter;
- * continuations emit body fragments that plain-append inside it.
+ * Compiles page source into the complete HTML document a rendering surface
+ * serves. Pure and stateless — the same call backs the live preview, the
+ * share view, and download, so all three always agree. When the surface
+ * knows its workspace, `sim:` resource links resolve to real routes.
  */
-export function compileSimPageChunk(content: string, isFirstChunk: boolean): string {
-  if (!isFirstChunk) return compileBody(content)
+export function compileSimPage(source: string, options?: { workspaceId?: string }): string {
+  const compiled = compileSimPageDocument(source)
+  return options?.workspaceId ? resolveSimResourceLinks(compiled, options.workspaceId) : compiled
+}
 
-  const trimmed = content.trimStart()
+function compileSimPageDocument(source: string): string {
+  const trimmed = source.trimStart()
   const end = trimmed.indexOf('\n---', 3)
   const frontmatterText = trimmed.slice(4, end)
   const rest = trimmed.slice(end + 4).replace(/^-*\n?/, '')
@@ -270,10 +274,10 @@ export function compileSimPageChunk(content: string, isFirstChunk: boolean): str
     meta = frontmatterSchema.parse(loadYaml(frontmatterText) ?? {})
   } catch {
     // isSimPageSource gates on parseable frontmatter; this is a safety net.
-    return compileBody(content)
+    return compileBody(source)
   }
 
-  const head = [
+  return [
     '<!DOCTYPE html>',
     '<html lang="en">',
     '<head>',
@@ -283,13 +287,13 @@ export function compileSimPageChunk(content: string, isFirstChunk: boolean): str
     `<title>${escapeHtml(meta.title)}</title>`,
     '</head>',
     '<body>',
-    SIM_PAGE_MARKER,
     `<div class="page" data-layout="${meta.layout ?? 'docs'}">`,
     ...(meta.eyebrow ? [`<p class="eyebrow">${escapeHtml(meta.eyebrow)}</p>`] : []),
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
+    compileBody(rest),
+    '</div>',
+    '</body>',
+    '</html>',
   ].join('\n')
-
-  const body = compileBody(rest)
-  return body ? `${head}\n${body}` : head
 }

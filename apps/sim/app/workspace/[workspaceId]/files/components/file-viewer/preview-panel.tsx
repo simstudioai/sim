@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
@@ -10,7 +11,8 @@ import {
   SIM_ARTIFACT_STYLESHEET,
   simTokenOverrides,
   usesSimArtifactStyles,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/artifact-stylesheet'
+} from '@/lib/workspace-files/artifact-stylesheet'
+import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
@@ -73,7 +75,8 @@ export const PreviewPanel = memo(function PreviewPanel({
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
-  if (previewType === 'html') return <HtmlPreview content={content} />
+  if (previewType === 'html')
+    return <HtmlPreview content={content} isStreaming={isStreaming} workspaceId={workspaceId} />
   if (previewType === 'csv')
     return (
       <CsvPreview
@@ -119,6 +122,11 @@ const HTML_PREVIEW_BOOTSTRAP = `<script>
       const href = anchor.getAttribute('href') || ''
       if (allowHref(href)) return
       event.preventDefault()
+      // sim: resource links resolve to in-app routes; the sandbox cannot
+      // navigate, so hand the click to the host, which routes it in the app.
+      if (href.startsWith('/workspace/')) {
+        parent.postMessage({ __simPageNav: href }, '*')
+      }
     },
     true
   )
@@ -152,8 +160,16 @@ function stampTheme(html: string, theme: 'dark' | 'light'): string {
 
 export function buildHtmlPreviewDocument(
   content: string,
-  theme: 'dark' | 'light' = 'light'
+  theme: 'dark' | 'light' = 'light',
+  workspaceId?: string
 ): string {
+  // The pdf model: a page file STORES its source (frontmatter + markdown +
+  // sim: fences) and every rendering surface compiles on demand. Partial
+  // source mid-stream compiles too, so the page builds up live as the agent
+  // appends. Raw HTML (bespoke and legacy stored-compiled pages) skips this.
+  if (isSimPageSource(content)) {
+    content = compileSimPage(content, { workspaceId })
+  }
   const headInjection = [
     '<meta charset="utf-8">',
     `<base href="${HTML_PREVIEW_BASE_URL}">`,
@@ -184,12 +200,66 @@ export function buildHtmlPreviewDocument(
   return `<!DOCTYPE html><html data-theme="${theme}"><head>${headInjection}</head><body>${content}</body></html>`
 }
 
-const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
+/**
+ * Batches iframe content updates while an agent streams. Every content change
+ * replaces the srcDoc (a full document reload), so applying each chunk as it
+ * arrives would reload the page several times a second; ~2s batches keep the
+ * growing page readable. Off-stream, the live value passes straight through.
+ */
+function useStreamBatchedValue(value: string, streaming: boolean, intervalMs: number): string {
+  const [batched, setBatched] = useState(value)
+  const lastAppliedAtRef = useRef(0)
+  useEffect(() => {
+    if (!streaming) {
+      lastAppliedAtRef.current = 0
+      setBatched(value)
+      return
+    }
+    const elapsed = Date.now() - lastAppliedAtRef.current
+    if (elapsed >= intervalMs) {
+      lastAppliedAtRef.current = Date.now()
+      setBatched(value)
+      return
+    }
+    const timer = setTimeout(() => {
+      lastAppliedAtRef.current = Date.now()
+      setBatched(value)
+    }, intervalMs - elapsed)
+    return () => clearTimeout(timer)
+  }, [value, streaming, intervalMs])
+  return streaming ? batched : value
+}
+
+const HtmlPreview = memo(function HtmlPreview({
+  content,
+  isStreaming,
+  workspaceId,
+}: {
+  content: string
+  isStreaming?: boolean
+  workspaceId?: string
+}) {
   const { resolvedTheme } = useTheme()
+  const router = useRouter()
+  const displayContent = useStreamBatchedValue(content, isStreaming === true, 2000)
   const wrappedContent = buildHtmlPreviewDocument(
-    content,
-    resolvedTheme === 'dark' ? 'dark' : 'light'
+    displayContent,
+    resolvedTheme === 'dark' ? 'dark' : 'light',
+    workspaceId
   )
+
+  // Receives sim-resource link clicks bridged out of the sandboxed page and
+  // routes them in the app. Only workspace-internal paths are honored.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const href = (event.data as { __simPageNav?: unknown } | null)?.__simPageNav
+      if (typeof href === 'string' && href.startsWith('/workspace/')) {
+        router.push(href)
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [router])
   const containerRef = useRef<HTMLDivElement>(null)
   const [isRenderable, setIsRenderable] = useState(false)
   const [resumeNonce, setResumeNonce] = useState(0)
