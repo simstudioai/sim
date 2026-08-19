@@ -82,7 +82,7 @@ describe('CustomPatternsEditor', () => {
     expect(onChange).toHaveBeenCalledWith([{ name: 'X', regex: 'b+', replacement: '<X>' }])
   })
 
-  it('preserves an existing row while rows are appended and truncated', () => {
+  it('preserves rows while they are appended, edited, and truncated', () => {
     const onChange = vi.fn()
     const firstPattern = row('a+')
     renderEditor([firstPattern], onChange)
@@ -90,10 +90,18 @@ describe('CustomPatternsEditor', () => {
     const firstRegexInput = container.querySelector('input[value="a+"]') as HTMLInputElement
     firstRegexInput.focus()
 
-    renderEditor([firstPattern, row('b+')], onChange)
+    const secondPattern = row('b+')
+    renderEditor([firstPattern, secondPattern], onChange)
     expect(container.querySelector('input[value="a+"]')).toBe(firstRegexInput)
     expect(document.activeElement).toBe(firstRegexInput)
 
+    const secondRegexInput = container.querySelector('input[value="b+"]') as HTMLInputElement
+    secondRegexInput.focus()
+    renderEditor([firstPattern, { ...secondPattern, regex: 'b*' }], onChange)
+    expect(container.querySelector('input[value="b*"]')).toBe(secondRegexInput)
+    expect(document.activeElement).toBe(secondRegexInput)
+
+    firstRegexInput.focus()
     renderEditor([firstPattern], onChange)
     expect(container.querySelector('input[value="a+"]')).toBe(firstRegexInput)
     expect(document.activeElement).toBe(firstRegexInput)

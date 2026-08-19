@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Chip, ChipInput } from '@sim/emcn'
 import { Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
@@ -27,6 +27,14 @@ interface CustomPatternsEditorProps {
  */
 export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEditorProps) {
   const [patternIds, setPatternIds] = useState(() => patterns.map(() => generateShortId()))
+
+  useEffect(() => {
+    setPatternIds((current) => {
+      if (current.length === patterns.length) return current
+      if (current.length > patterns.length) return current.slice(0, patterns.length)
+      return [...current, ...patterns.slice(current.length).map(() => generateShortId())]
+    })
+  }, [patterns.length])
 
   function updateRow(index: number, patch: Partial<CustomPiiPattern>) {
     onChange(patterns.map((pattern, i) => (i === index ? { ...pattern, ...patch } : pattern)))
