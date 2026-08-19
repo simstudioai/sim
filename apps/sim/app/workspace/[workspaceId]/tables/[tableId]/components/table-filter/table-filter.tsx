@@ -32,10 +32,12 @@ function toAppliedPredicate(
   rules: FilterRule[],
   columns: ColumnDefinition[]
 ): TablePredicate | null {
-  const validRules = rules.filter(
-    (rule) => rule.column && (rule.value || VALUELESS_OPS.has(rule.operator))
-  )
+  const validRules = rules.filter(isCompleteRule)
   return filterRulesToPredicate(validRules, columns)
+}
+
+function isCompleteRule(rule: FilterRule): boolean {
+  return Boolean(rule.column && (rule.value || VALUELESS_OPS.has(rule.operator)))
 }
 
 interface TableFilterProps {
@@ -61,10 +63,13 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   lastAppliedFilterRef.current ??= JSON.stringify(toAppliedPredicate(rules, columns))
 
   const applyRules = useCallback(
-    (update: (current: FilterRule[]) => FilterRule[]) => {
+    (update: (current: FilterRule[]) => FilterRule[], deferIncompleteRuleId?: string) => {
       const nextRules = update(rulesRef.current)
       rulesRef.current = nextRules
       setRules(nextRules)
+
+      const deferredRule = nextRules.find((rule) => rule.id === deferIncompleteRuleId)
+      if (deferredRule && !isCompleteRule(deferredRule)) return
 
       const nextFilter = toAppliedPredicate(nextRules, columns)
       const signature = JSON.stringify(nextFilter)
@@ -102,8 +107,9 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
 
   const handleUpdate = useCallback(
     (id: string, field: keyof FilterRule, value: string) => {
-      applyRules((current) =>
-        current.map((rule) => (rule.id === id ? { ...rule, [field]: value } : rule))
+      applyRules(
+        (current) => current.map((rule) => (rule.id === id ? { ...rule, [field]: value } : rule)),
+        field === 'operator' ? id : undefined
       )
     },
     [applyRules]
@@ -128,21 +134,23 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   // apply against a select column and be rejected server-side.
   const handleColumnChange = useCallback(
     (id: string, columnId: string) => {
-      applyRules((current) =>
-        current.map((rule) => {
-          if (rule.id !== id) return rule
-          const previous = columnById.get(rule.column)
-          const next = columnById.get(columnId)
-          const wasSelect = previous?.type === 'select'
-          const isSelect = next?.type === 'select'
-          if (!wasSelect && !isSelect) return { ...rule, column: columnId }
-          // Single- and multi-select take different operators, so a switch
-          // between them has to fall back too, not just select ↔ non-select.
-          const allowed = selectFilterOperators(next)
-          const fallback = next?.multiple ? 'contains' : 'eq'
-          const operator = isSelect && !allowed.has(rule.operator) ? fallback : rule.operator
-          return { ...rule, column: columnId, operator, value: '' }
-        })
+      applyRules(
+        (current) =>
+          current.map((rule) => {
+            if (rule.id !== id) return rule
+            const previous = columnById.get(rule.column)
+            const next = columnById.get(columnId)
+            const wasSelect = previous?.type === 'select'
+            const isSelect = next?.type === 'select'
+            if (!wasSelect && !isSelect) return { ...rule, column: columnId }
+            // Single- and multi-select take different operators, so a switch
+            // between them has to fall back too, not just select ↔ non-select.
+            const allowed = selectFilterOperators(next)
+            const fallback = next?.multiple ? 'contains' : 'eq'
+            const operator = isSelect && !allowed.has(rule.operator) ? fallback : rule.operator
+            return { ...rule, column: columnId, operator, value: '' }
+          }),
+        id
       )
     },
     [applyRules, columnById]

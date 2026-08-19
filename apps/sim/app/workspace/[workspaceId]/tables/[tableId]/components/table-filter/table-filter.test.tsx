@@ -128,6 +128,33 @@ describe('TableFilter', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('keeps a saved valueless filter until its replacement value is committed', () => {
+    const onChange = vi.fn()
+    renderFilter(onChange, { all: [{ field: 'col-name', op: 'isEmpty' }] })
+
+    const operatorTrigger = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'is empty'
+    )
+    act(() => {
+      operatorTrigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+    })
+    const equalsOption = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent?.trim() === 'equals')
+    act(() => equalsOption?.click())
+
+    expect(valueInput()).not.toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
+
+    act(() => typeInto(valueInput(), 'Ada'))
+    act(() => valueInput()?.dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith({
+      all: [{ field: 'col-name', op: 'eq', value: 'Ada' }],
+    })
+  })
+
   it('loads a saved OR filter verbatim without an unsolicited autosave', () => {
     const onChange = vi.fn()
     renderFilter(onChange, {
