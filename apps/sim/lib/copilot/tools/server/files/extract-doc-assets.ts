@@ -13,6 +13,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { extractDocAssets } from '@/lib/copilot/tools/server/files/doc-asset-extract'
+import { extractPdfAssets } from '@/lib/copilot/tools/server/files/doc-asset-extract-pdf'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -81,10 +82,10 @@ export const extractDocAssetsServerTool: BaseServerTool<
       )
       const sourceName = record.name
       const ext = getFileExtension(sourceName).toLowerCase()
-      if (ext !== 'pptx' && ext !== 'docx') {
+      if (ext !== 'pptx' && ext !== 'docx' && ext !== 'pdf') {
         return {
           success: false,
-          message: `"${sourceName}" is a .${ext || '?'} file — assets can only be extracted from .pptx or .docx documents`,
+          message: `"${sourceName}" is a .${ext || '?'} file — assets can only be extracted from .pptx, .docx, or .pdf documents`,
         }
       }
 
@@ -96,7 +97,10 @@ export const extractDocAssetsServerTool: BaseServerTool<
       )
 
       assertServerToolNotAborted(context)
-      const extracted = await extractDocAssets(content, ext)
+      // OOXML is a zip and extracts in-process; PDF needs the doc sandbox's
+      // poppler/pdfplumber toolchain (same environment that compiles docs).
+      const extracted =
+        ext === 'pdf' ? await extractPdfAssets(content) : await extractDocAssets(content, ext)
       if (extracted.media.length > MAX_MEDIA_FILES) {
         extracted.media = extracted.media.slice(0, MAX_MEDIA_FILES)
       }
@@ -147,14 +151,22 @@ export const extractDocAssetsServerTool: BaseServerTool<
         source: params.path,
         destination,
         mediaCount: extracted.media.length,
-        colorCount: Object.keys(extracted.theme.colors).length,
+        format: extracted.theme.format,
       })
 
-      const themeSummary = [
-        Object.keys(extracted.theme.colors).length > 0 ? 'theme colors' : null,
-        extracted.theme.fonts.major || extracted.theme.fonts.minor ? 'fonts' : null,
-        extracted.theme.slideSize ? 'slide size' : null,
-      ]
+      const themeSummary = (
+        extracted.theme.format === 'pdf'
+          ? [
+              extracted.theme.fonts.length > 0 ? 'font names' : null,
+              extracted.theme.inferredPalette.length > 0 ? 'inferred palette' : null,
+              'page size and image placements',
+            ]
+          : [
+              Object.keys(extracted.theme.colors).length > 0 ? 'theme colors' : null,
+              extracted.theme.fonts.major || extracted.theme.fonts.minor ? 'fonts' : null,
+              extracted.theme.slideSize ? 'slide size' : null,
+            ]
+      )
         .filter(Boolean)
         .join(', ')
       return {
