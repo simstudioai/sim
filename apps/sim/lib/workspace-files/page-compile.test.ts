@@ -146,7 +146,7 @@ describe('compileSimPage', () => {
     expect(html).toContain('<footer class="page-nav">')
     expect(html).toContain('class="page-nav-card prev"')
     expect(html).toContain('Getting Started')
-    expect(html).toContain('href="/workspace/ws1/files/b/view"')
+    expect(html).toContain('href="/workspace/ws1/files/b"')
     // The docs' PageFooter shape: chevron + name, no Previous/Next labels.
     expect(html).toContain('M6.25 3L13.25 10.25L6.25 17.5')
     expect(html).not.toContain('Previous')

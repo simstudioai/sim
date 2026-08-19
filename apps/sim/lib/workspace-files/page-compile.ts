@@ -124,7 +124,10 @@ const SIM_RESOURCE_ROUTES: Record<string, (workspaceId: string, id: string) => s
   workflow: (workspaceId, id) => `/workspace/${workspaceId}/w/${id}`,
   table: (workspaceId, id) => `/workspace/${workspaceId}/tables/${id}`,
   knowledge: (workspaceId, id) => `/workspace/${workspaceId}/knowledge/${id}`,
-  file: (workspaceId, id) => `/workspace/${workspaceId}/files/${id}/view`,
+  // The normal Files page with the file open — the same in-app navigation a
+  // markdown link performs (the fullscreen /view route is only for the
+  // standalone surface, not for links).
+  file: (workspaceId, id) => `/workspace/${workspaceId}/files/${id}`,
 }
 
 /**
