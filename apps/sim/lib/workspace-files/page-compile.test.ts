@@ -152,6 +152,16 @@ describe('compileSimPage', () => {
     expect(html).not.toContain('Previous')
   })
 
+  it('emits the set navigation for nav frontmatter', () => {
+    const html = compileSimPage(
+      '---\ntitle: Overview\nnav:\n  - label: Get Started\n    pages:\n      - "[Overview](sim:file/a)"\n      - "[API Reference](sim:file/b)"\n---\nBody.',
+      { workspaceId: 'ws1' }
+    )
+    expect(html).toContain('<nav class="set-nav" hidden aria-label="Pages">')
+    expect(html).toContain('<h6>Get Started</h6>')
+    expect(html).toContain('<a href="/workspace/ws1/files/a" data-sim-link="">Overview</a>')
+  })
+
   it('renders sim:accordion like sim:faq with title keys', () => {
     const html = compileSimPage(
       '---\ntitle: T\n---\n```sim:accordion\n- title: Advanced options\n  markdown: The details.\n```'

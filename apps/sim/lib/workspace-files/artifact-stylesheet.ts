@@ -506,6 +506,10 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
    padding, rounded-lg, weight 400, hover/active surfaces, no underline. The
    group label mirrors the sidebar separators: 12px, normal weight, muted. */
 .rail[data-rail="nav"] { padding-top: 20px; min-width: 150px; }
+/* Set navigation: docs-style groups with the current page's sections nested. */
+.rail[data-rail="nav"] .rail-title:not(:first-child) { margin-top: 1.25rem; }
+.rail[data-rail="nav"] li.is-current > a { color: var(--text-primary); }
+.rail-sections { margin: 2px 0 4px 12px; }
 .rail[data-rail="toc"] { min-width: 150px; }
 .rail[data-rail="nav"] .rail-title { font-size: var(--text-caption); font-weight: 400; color: var(--text-muted); margin: 0 0 0.4rem; padding: 0 0.5rem; }
 .rail[data-rail="nav"] li { margin-bottom: 1px; }
@@ -665,7 +669,45 @@ export const SIM_ARTIFACT_SHELL = `<script>
       li.appendChild(a)
       leftList.appendChild(li)
     }
-    left.append(leftTitle, leftList)
+    // A multi-page set carries its whole sidebar (compiler-emitted set-nav):
+    // groups of page links, the current page recognised by title and its
+    // sections nested beneath it — the docs' sidebar shape. A lone page
+    // keeps the plain section list.
+    const setNav = page.querySelector('nav.set-nav')
+    if (setNav) {
+      let currentEntry = null
+      for (const group of setNav.querySelectorAll('section')) {
+        const label = group.querySelector('h6')
+        if (label) {
+          const t = document.createElement('div')
+          t.className = 'rail-title'
+          t.textContent = label.textContent
+          left.appendChild(t)
+        }
+        const ol = document.createElement('ol')
+        for (const src of group.querySelectorAll('a')) {
+          const li = document.createElement('li')
+          const a = src.cloneNode(true)
+          if ((a.textContent || '').trim() === document.title.trim()) {
+            li.classList.add('is-current')
+            currentEntry = li
+          }
+          li.appendChild(a)
+          ol.appendChild(li)
+        }
+        left.appendChild(ol)
+      }
+      if (currentEntry) {
+        leftList.classList.add('rail-sections')
+        currentEntry.appendChild(leftList)
+      } else {
+        leftTitle.textContent = 'On this page'
+        left.append(leftTitle, leftList)
+      }
+      setNav.remove()
+    } else {
+      left.append(leftTitle, leftList)
+    }
 
     // Right rail — the clerk TOC.
     const right = document.createElement('nav')
@@ -812,7 +854,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
     }
     if (actions.childElementCount > 0) mid.insertBefore(actions, mid.firstChild)
 
-    const navLinks = [...leftList.querySelectorAll('a')]
+    const navLinks = [...left.querySelectorAll('a')]
     search.addEventListener('input', () => {
       const q = search.value.trim().toLowerCase()
       for (const a of navLinks) a.hidden = q !== '' && !(a.textContent || '').toLowerCase().includes(q)
