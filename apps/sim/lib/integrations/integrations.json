@@ -10925,11 +10925,11 @@
       "docsUrl": "https://docs.sim.ai/integrations/jira",
       "operations": [
         {
-          "name": "Read Issue",
+          "name": "Get Issue",
           "description": "Retrieve detailed information about a specific Jira issue"
         },
         {
-          "name": "Read Bulk Issues",
+          "name": "Get Bulk Issues",
           "description": "Retrieve multiple Jira issues from a project in bulk"
         },
         {
