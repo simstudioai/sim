@@ -333,9 +333,8 @@ const HtmlPreview = memo(function HtmlPreview({
   const router = useRouter()
   const fontFaceCss = useSimPageFontFace()
   const batchedContent = useStreamBatchedValue(content, isStreaming === true, 2000)
-  const displayContent = useInlinedWorkspaceImages(batchedContent)
-  const wrappedContent = buildHtmlPreviewDocument(
-    displayContent,
+  const builtContent = buildHtmlPreviewDocument(
+    batchedContent,
     resolvedTheme === 'dark' ? 'dark' : 'light',
     workspaceId,
     // Mid-stream, a fence still being written is malformed by definition —
@@ -343,6 +342,11 @@ const HtmlPreview = memo(function HtmlPreview({
     isStreaming === true,
     fontFaceCss
   )
+  // AFTER the build: workspace image srcs (/api/files/view/…) only exist in
+  // the COMPILED document — the raw source says sim:file/… — so substituting
+  // the host-fetched blob: URLs must run on the built output, or the
+  // sandboxed (cookie-less) frame 401s every image.
+  const wrappedContent = useInlinedWorkspaceImages(builtContent)
 
   // Receives sim-resource link clicks bridged out of the sandboxed page and
   // routes them in the app. Only workspace-internal paths are honored.
