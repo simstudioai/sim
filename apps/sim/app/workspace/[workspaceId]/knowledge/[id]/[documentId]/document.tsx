@@ -7,15 +7,19 @@ import {
   ChevronUp,
   Database,
   FileText,
+  FileX,
   Pencil,
   Plus,
   TagIcon,
   Trash,
+  TriangleAlert,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { EmptyState } from '@/components/empty-state/empty-state'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
 import type {
@@ -29,7 +33,11 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+  ResourceNotFound,
+} from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
@@ -138,6 +146,41 @@ const CHUNK_COLUMNS: ResourceColumn[] = [
   { id: 'status', header: 'Status', widthMultiplier: 0.75 },
 ]
 
+/** Stable identity for the error branch's empty row set. */
+const EMPTY_CHUNK_ROWS: ResourceRow[] = []
+
+/** Longer than this and a server message pushes the frame taller than the table body. */
+const ERROR_MESSAGE_MAX_LENGTH = 160
+
+interface ChunkLoadErrorProps {
+  message: string
+  /**
+   * Which read failed. A failed search leaves the loaded chunks intact, so saying the
+   * chunks could not be loaded would be untrue — it is the search that did not run.
+   */
+  kind: 'load' | 'search'
+}
+
+/**
+ * A failed read, drawn where the rows would have been.
+ *
+ * The table keeps its chrome and its controls — the headers still render, and the search
+ * box stays so a search that triggered the failure can be cleared. Only the body says
+ * what went wrong, instead of the page going silently blank.
+ *
+ * Tinted with the error token: at the muted weight the other empty states use, a failure
+ * is indistinguishable from "nothing here yet", which is the confusion this exists to end.
+ */
+function ChunkLoadError({ message, kind }: ChunkLoadErrorProps) {
+  return (
+    <EmptyState
+      graphic={<TriangleAlert className='size-[24px] text-[var(--text-error)]' />}
+      title={kind === 'search' ? 'Search failed' : "Couldn't load chunks"}
+      description={truncate(message, ERROR_MESSAGE_MAX_LENGTH)}
+    />
+  )
+}
+
 export function Document({
   knowledgeBaseId,
   documentId,
@@ -242,7 +285,7 @@ export function Document({
     }
   )
 
-  const searchError = searchQueryError instanceof Error ? searchQueryError.message : null
+  const searchError = searchQueryError ? getErrorMessage(searchQueryError) : null
 
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(() => new Set())
 
@@ -334,8 +377,6 @@ export function Document({
     closeMenu: closeContextMenu,
   } = useContextMenu()
 
-  const combinedError = documentError || searchError || initialError
-
   const isConnectorDocument = Boolean(documentData?.connectorId)
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
   /**
@@ -351,6 +392,17 @@ export function Document({
   const DocumentIcon =
     ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)
   const isCompleted = documentData?.processingStatus === 'completed'
+
+  /**
+   * Kept separate from `documentError`: without the document there is no page to draw,
+   * while a failed chunk read still has one to frame it.
+   *
+   * A document that is not `completed` is excluded, because the chunk read rejects for
+   * those by design — `requireChunkReadable` throws `KnowledgeDocumentNotReadyError`
+   * before it queries anything. That is the document's state, not a failure, and
+   * `chunkRows` already renders a row saying which state it is in.
+   */
+  const chunkError = isCompleted ? initialError || searchError : null
   const canEdit = userPermissions.canEdit === true
 
   const isInEditorView = selectedChunkId !== null || isCreatingNewChunk
@@ -533,7 +585,7 @@ export function Document({
 
   /**
    * `Knowledge Base / …the base's folders / <base> / <last>`. Every view on this route is that
-   * trail with a different last crumb — the document, a chunk, an error, a loading placeholder
+   * trail with a different last crumb — the document, a chunk, a loading placeholder
    * — so it is built once here rather than restated per view.
    */
   const documentTrail = useCallback(
@@ -572,35 +624,30 @@ export function Document({
 
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
     () =>
-      documentTrail(
-        combinedError
-          ? { label: 'Error', terminal: true }
-          : {
-              label: documentCrumbLabel,
-              icon: DocumentIcon,
-              editing: docRename.editingId
-                ? {
-                    isEditing: true,
-                    value: docRename.editValue,
-                    onChange: docRename.setEditValue,
-                    onSubmit: docRename.submitRename,
-                    onCancel: docRename.cancelRename,
-                    disabled: docRename.isSaving,
-                  }
-                : undefined,
-              dropdownItems: [
-                ...(userPermissions.canEdit
-                  ? [
-                      { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
-                      { label: 'Tags', icon: TagIcon, onClick: handleShowTags },
-                      { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
-                    ]
-                  : []),
-              ],
+      documentTrail({
+        label: documentCrumbLabel,
+        icon: DocumentIcon,
+        editing: docRename.editingId
+          ? {
+              isEditing: true,
+              value: docRename.editValue,
+              onChange: docRename.setEditValue,
+              onSubmit: docRename.submitRename,
+              onCancel: docRename.cancelRename,
+              disabled: docRename.isSaving,
             }
-      ),
+          : undefined,
+        dropdownItems: [
+          ...(userPermissions.canEdit
+            ? [
+                { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
+                { label: 'Tags', icon: TagIcon, onClick: handleShowTags },
+                { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
+              ]
+            : []),
+        ],
+      }),
     [
-      combinedError,
       documentTrail,
       documentCrumbLabel,
       DocumentIcon,
@@ -914,6 +961,12 @@ export function Document({
         }
       : undefined
 
+  /**
+   * A failed read paged nothing, so the bar would be counting pages that were never
+   * fetched. Read by the table and by the action bar's offset, which has to agree.
+   */
+  const tablePagination = chunkError ? undefined : paginationConfig
+
   const sortConfig: SortConfig = useMemo(
     () => ({
       options: [
@@ -1099,6 +1152,21 @@ export function Document({
     saveStatus,
   ])
 
+  /**
+   * Ahead of the editor branches on purpose — `selectedChunkId` renders the chunk editor
+   * without checking for a document, so a document that failed to load has to
+   * short-circuit before it. Mirrors the base page's 'not found' screen one level up.
+   */
+  if (documentError && !documentData) {
+    return (
+      <ResourceNotFound
+        icon={FileX}
+        title='Document not found'
+        description='This document may have been deleted or moved'
+      />
+    )
+  }
+
   if (isCreatingNewChunk && documentData) {
     return (
       <>
@@ -1191,18 +1259,23 @@ export function Document({
           ]}
         />
         <Resource.Options
-          search={combinedError ? undefined : searchConfig}
-          sort={combinedError ? undefined : sortConfig}
-          filterTags={combinedError ? undefined : filterTags}
-          filter={combinedError ? undefined : { content: filterContent }}
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={{ content: filterContent }}
         />
         <Resource.Table
           columns={CHUNK_COLUMNS}
-          rows={combinedError ? [] : chunkRows}
-          selectable={combinedError ? undefined : selectableConfig}
+          rows={chunkError ? EMPTY_CHUNK_ROWS : chunkRows}
+          emptyState={
+            chunkError ? (
+              <ChunkLoadError message={chunkError} kind={initialError ? 'load' : 'search'} />
+            ) : undefined
+          }
+          selectable={chunkError ? undefined : selectableConfig}
           onRowClick={isCompleted ? handleChunkClick : undefined}
           onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
-          pagination={paginationConfig}
+          pagination={tablePagination}
         />
       </Resource>
 
@@ -1223,7 +1296,7 @@ export function Document({
       />
 
       <ActionBar
-        className={paginationConfig ? 'bottom-[72px]' : undefined}
+        className={tablePagination ? 'bottom-[72px]' : undefined}
         selectedCount={selectedChunks.size}
         onEnable={disabledCount > 0 && !isConnectorDocument ? handleBulkEnable : undefined}
         onDisable={enabledCount > 0 && !isConnectorDocument ? handleBulkDisable : undefined}
