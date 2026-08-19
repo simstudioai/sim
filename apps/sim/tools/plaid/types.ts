@@ -3,11 +3,6 @@ import type { ToolResponse } from '@/tools/types'
 /** Credential params shared by every Plaid tool. */
 export interface PlaidBaseParams {
   oauthCredential: string
-  /** Runtime-injected from the encrypted Plaid credential. */
-  clientId?: string
-  /** Runtime-injected from the encrypted Plaid credential. */
-  secret?: string
-  environment?: string
 }
 
 /** Params for tools that operate on a linked Item. */
@@ -26,13 +21,13 @@ export interface PlaidSyncTransactionsParams extends PlaidAccessTokenParams {
   daysRequested?: number
 }
 
-export interface PlaidSearchInstitutionsParams extends PlaidBaseParams {
+export interface PlaidSearchInstitutionsParams extends PlaidAccessTokenParams {
   query: string
   countryCodes?: string
   products?: string
 }
 
-export interface PlaidGetInstitutionParams extends PlaidBaseParams {
+export interface PlaidGetInstitutionParams extends PlaidAccessTokenParams {
   institutionId: string
   countryCodes?: string
 }

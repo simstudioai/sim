@@ -4,18 +4,15 @@ import type {
   PlaidSyncTransactionsResponse,
 } from '@/tools/plaid/types'
 import {
-  buildPlaidHeaders,
+  buildPlaidInternalBody,
   mapPlaidRemovedTransaction,
   mapPlaidTransaction,
   plaidAccessTokenParamField,
   plaidBaseParamFields,
-  plaidBody,
   plaidRecord,
   plaidTransactionOutputProperties,
-  plaidUrl,
   requirePlaidArrayField,
   requirePlaidBooleanField,
-  requirePlaidInputString,
   requirePlaidStringField,
   toPlaidOptionalBoolean,
   toPlaidOptionalNumber,
@@ -71,11 +68,17 @@ export const plaidSyncTransactionsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => plaidUrl(params, '/transactions/sync'),
+    url: '/api/tools/plaid',
     method: 'POST',
-    headers: (params) => buildPlaidHeaders(params),
-    body: (params) => {
-      const options = plaidBody({
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) =>
+      buildPlaidInternalBody('plaid_sync_transactions', params, {
+        cursor: toPlaidOptionalString(params.cursor, 'cursor', { maxLength: 256 }),
+        count: toPlaidOptionalNumber(params.count, 'count', {
+          integer: true,
+          min: 1,
+          max: 500,
+        }),
         account_id: toPlaidOptionalString(params.accountId, 'accountId'),
         include_original_description: toPlaidOptionalBoolean(
           params.includeOriginalDescription,
@@ -86,18 +89,8 @@ export const plaidSyncTransactionsTool: ToolConfig<
           min: 1,
           max: 730,
         }),
-      })
-      return plaidBody({
-        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
-        cursor: toPlaidOptionalString(params.cursor, 'cursor', { maxLength: 256 }),
-        count: toPlaidOptionalNumber(params.count, 'count', {
-          integer: true,
-          min: 1,
-          max: 500,
-        }),
-        options: Object.keys(options).length > 0 ? options : undefined,
-      })
-    },
+      }),
+    internalAuth: 'executor_delegation',
   },
 
   transformResponse: async (response) => {

@@ -23,8 +23,6 @@ if (!buildParams) throw new Error('PlaidBlock params transform missing')
 const creds = { oauthCredential: 'cred_plaid_item_1' }
 const runtimeCreds = {
   ...creds,
-  clientId: 'c',
-  secret: 's',
   accessToken: 'tok',
 }
 
@@ -99,22 +97,17 @@ describe('PlaidBlock tools.config.params', () => {
     )
   })
 
-  it('binds every retained tool to the reusable credential and hidden runtime projection', () => {
+  it('binds every retained tool to the reusable credential and injected Item token', () => {
     for (const tool of retainedTools) {
       expect(tool.params.oauthCredential).toMatchObject({
         required: true,
         visibility: 'user-only',
       })
-      for (const field of ['clientId', 'secret', 'environment'] as const) {
-        expect(tool.params[field]).toMatchObject({ required: false, visibility: 'hidden' })
-      }
-    }
-
-    for (const tool of retainedTools.slice(0, 6)) {
       expect(tool.params.accessToken).toMatchObject({ required: false, visibility: 'hidden' })
-    }
-    for (const tool of retainedTools.slice(6)) {
-      expect(tool.params).not.toHaveProperty('accessToken')
+      expect(tool.params).not.toHaveProperty('clientId')
+      expect(tool.params).not.toHaveProperty('secret')
+      expect(tool.params).not.toHaveProperty('environment')
+      expect(tool.request.internalAuth).toBe('executor_delegation')
     }
   })
 
@@ -177,18 +170,17 @@ describe('PlaidBlock tools.config.params', () => {
     const mergedInputs = {
       ...rawInputs,
       ...buildParams(rawInputs),
-      clientId: 'client-id',
-      secret: 'client-secret',
       accessToken: 'item-access-token',
-      environment: 'sandbox',
     }
 
     const request = prepareToolRequest(plaidSyncTransactionsTool, mergedInputs)
 
-    expect(request.url).toBe('https://sandbox.plaid.com/transactions/sync')
+    expect(request.url).toBe('/api/tools/plaid')
     expect(JSON.parse(request.body ?? '')).toEqual({
-      access_token: 'item-access-token',
-      options: { include_original_description: false },
+      operation: 'plaid_sync_transactions',
+      credentialId: 'cred_plaid_item_1',
+      accessToken: 'item-access-token',
+      input: { include_original_description: false },
     })
   })
 })
@@ -217,7 +209,12 @@ describe('plaid_sync_transactions request body', () => {
       includeOriginalDescription: null as unknown as boolean,
       daysRequested: undefined,
     })
-    expect(result).toEqual({ access_token: 'tok' })
+    expect(JSON.parse(JSON.stringify(result))).toEqual({
+      operation: 'plaid_sync_transactions',
+      credentialId: 'cred_plaid_item_1',
+      accessToken: 'tok',
+      input: {},
+    })
   })
 
   it('coerces string-typed count and boolean, nesting options only when needed', () => {
@@ -226,10 +223,11 @@ describe('plaid_sync_transactions request body', () => {
       count: '100' as unknown as number,
       includeOriginalDescription: 'true' as unknown as boolean,
     })
-    expect(result).toEqual({
-      access_token: 'tok',
-      count: 100,
-      options: { include_original_description: true },
+    expect(JSON.parse(JSON.stringify(result))).toEqual({
+      operation: 'plaid_sync_transactions',
+      credentialId: 'cred_plaid_item_1',
+      accessToken: 'tok',
+      input: { count: 100, include_original_description: true },
     })
   })
 

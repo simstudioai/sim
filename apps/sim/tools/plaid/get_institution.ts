@@ -1,14 +1,13 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetInstitutionParams, PlaidGetInstitutionResponse } from '@/tools/plaid/types'
 import {
-  buildPlaidHeaders,
+  buildPlaidInternalBody,
   mapPlaidInstitution,
   parsePlaidCountryCodes,
+  plaidAccessTokenParamField,
   plaidBaseParamFields,
-  plaidBody,
   plaidInstitutionOutputProperties,
   plaidRecord,
-  plaidUrl,
   requirePlaidInputString,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -25,6 +24,7 @@ export const plaidGetInstitutionTool: ToolConfig<
 
   params: {
     ...plaidBaseParamFields,
+    ...plaidAccessTokenParamField,
     institutionId: {
       type: 'string',
       required: true,
@@ -40,15 +40,15 @@ export const plaidGetInstitutionTool: ToolConfig<
   },
 
   request: {
-    url: (params) => plaidUrl(params, '/institutions/get_by_id'),
+    url: '/api/tools/plaid',
     method: 'POST',
-    headers: (params) => buildPlaidHeaders(params),
+    headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) =>
-      plaidBody({
+      buildPlaidInternalBody('plaid_get_institution', params, {
         institution_id: requirePlaidInputString(params.institutionId, 'institutionId'),
         country_codes: parsePlaidCountryCodes(params.countryCodes),
-        options: { include_optional_metadata: true },
       }),
+    internalAuth: 'executor_delegation',
   },
 
   transformResponse: async (response) => {

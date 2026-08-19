@@ -1,16 +1,13 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetAccountsParams, PlaidGetAccountsResponse } from '@/tools/plaid/types'
 import {
-  buildPlaidHeaders,
+  buildPlaidInternalBody,
   mapPlaidAccount,
   plaidAccessTokenParamField,
   plaidAccountOutputProperties,
   plaidBaseParamFields,
-  plaidBody,
   plaidRecord,
-  plaidUrl,
   requirePlaidArrayField,
-  requirePlaidInputString,
   splitPlaidList,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -36,16 +33,16 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
   },
 
   request: {
-    url: (params) => plaidUrl(params, '/accounts/get'),
+    url: '/api/tools/plaid',
     method: 'POST',
-    headers: (params) => buildPlaidHeaders(params),
+    headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => {
       const accountIds = splitPlaidList(params.accountIds, 'accountIds')
-      return plaidBody({
-        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
-        options: accountIds ? { account_ids: accountIds } : undefined,
+      return buildPlaidInternalBody('plaid_get_accounts', params, {
+        account_ids: accountIds,
       })
     },
+    internalAuth: 'executor_delegation',
   },
 
   transformResponse: async (response) => {

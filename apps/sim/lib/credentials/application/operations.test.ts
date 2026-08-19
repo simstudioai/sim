@@ -33,4 +33,15 @@ describe('credential operations', () => {
       'Credential operation credentials.test_admin requires a user-bearing principal'
     )
   })
+
+  it('allows only executor delegation with credential membership to use service accounts', () => {
+    expect(credentialOperations.useServiceAccount).toMatchObject({
+      id: 'credentials.service_accounts.use',
+      minimumRole: 'read',
+      minimumCredentialRole: 'member',
+      workspaceApiKey: 'deny',
+      principalKinds: ['delegated'],
+      delegatedServices: ['executor'],
+    })
+  })
 })

@@ -46,10 +46,6 @@ Incrementally sync transactions for a linked Item. Omit the cursor on the first 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `cursor` | string | No | Cursor from a previous sync \(nextCursor\); omit to start from the beginning |
 | `count` | number | No | Number of updates to fetch per page \(1-500, default 100\) |
 | `accountId` | string | No | Scope the sync \(and cursor\) to a single account ID |
@@ -77,10 +73,6 @@ List the accounts linked to an Item with their names, types, and balances. Balan
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 
 #### Output
@@ -98,10 +90,6 @@ Get real-time balances for the accounts linked to an Item. The live institution 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 | `minLastUpdatedDatetime` | string | No | Oldest acceptable balance timestamp \(ISO 8601\). Only required for Capital One non-depository accounts |
 
@@ -120,10 +108,6 @@ Get account-holder identity information (names, emails, phone numbers, and addre
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 
 #### Output
@@ -142,10 +126,6 @@ Get account and routing numbers for depository accounts linked to an Item (ACH f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 
 #### Output
@@ -163,10 +143,6 @@ Get metadata and health status for a linked Item, including its institution, ena
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 
 #### Output
 
@@ -183,10 +159,6 @@ Search financial institutions supported by Plaid by name, returning at most 10
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `query` | string | Yes | Institution name to search for, e.g. 'Chase' |
 | `countryCodes` | string | No | Comma-separated ISO country codes to search in \(defaults to 'US'\) |
 | `products` | string | No | Comma-separated products the institutions must support, e.g. 'transactions,auth' |
@@ -206,10 +178,6 @@ Get details for a financial institution by its Plaid institution ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
-| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
-| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
-| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `institutionId` | string | Yes | Plaid institution ID, e.g. 'ins_109508' |
 | `countryCodes` | string | No | Comma-separated ISO country codes \(defaults to 'US'\) |
 

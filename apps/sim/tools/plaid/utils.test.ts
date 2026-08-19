@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import {
-  buildPlaidHeaders,
+  buildPlaidInternalBody,
   mapPlaidAccount,
   mapPlaidInstitution,
   mapPlaidItem,
@@ -13,7 +13,6 @@ import {
   parsePlaidCountryCodes,
   parsePlaidProducts,
   plaidRecord,
-  plaidUrl,
   splitPlaidList,
   toPlaidOptionalBoolean,
   toPlaidOptionalDateTime,
@@ -21,37 +20,20 @@ import {
   toPlaidOptionalWebhookUrl,
 } from '@/tools/plaid/utils'
 
-describe('plaidUrl', () => {
-  it('uses the sandbox host only when the environment is sandbox', () => {
-    expect(plaidUrl({ environment: 'sandbox' }, '/item/get')).toBe(
-      'https://sandbox.plaid.com/item/get'
-    )
-    expect(plaidUrl({ environment: ' Sandbox ' }, '/item/get')).toBe(
-      'https://sandbox.plaid.com/item/get'
-    )
-  })
-
-  it('defaults to production only when the environment is omitted', () => {
-    expect(plaidUrl({}, '/accounts/get')).toBe('https://production.plaid.com/accounts/get')
-    expect(plaidUrl({ environment: '  ' }, '/accounts/get')).toBe(
-      'https://production.plaid.com/accounts/get'
-    )
-  })
-
-  it('rejects unknown environments instead of silently sending secrets to production', () => {
-    expect(() => plaidUrl({ environment: 'development' }, '/accounts/get')).toThrow(
-      'Plaid environment must be production or sandbox'
-    )
-  })
-})
-
-describe('buildPlaidHeaders', () => {
-  it('sends trimmed credentials in the Plaid auth headers', () => {
-    const headers = buildPlaidHeaders({ clientId: ' client ', secret: ' shh ' })
-    expect(headers['PLAID-CLIENT-ID']).toBe('client')
-    expect(headers['PLAID-SECRET']).toBe('shh')
-    expect(headers['Content-Type']).toBe('application/json')
-    expect(headers['Plaid-Version']).toBe('2020-09-14')
+describe('buildPlaidInternalBody', () => {
+  it('sends only the selected credential, injected Item token, operation, and inputs', () => {
+    expect(
+      buildPlaidInternalBody(
+        'plaid_get_accounts',
+        { oauthCredential: ' credential-1 ', accessToken: ' item-token ' },
+        { account_ids: ['acc-1'] }
+      )
+    ).toEqual({
+      operation: 'plaid_get_accounts',
+      credentialId: 'credential-1',
+      accessToken: 'item-token',
+      input: { account_ids: ['acc-1'] },
+    })
   })
 })
 

@@ -403,7 +403,7 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 
 import type { QueryClient } from '@tanstack/react-query'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
-import { applyCredentialTokenPayload, executeTool, postProcessToolOutput } from '@/tools'
+import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
@@ -3884,55 +3884,6 @@ describe('Copilot OAuth Credential Enforcement', () => {
     expect(result.error).toContain('credentialId')
     expect(result.error).toContain('environment/credentials.json')
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('Plaid credential projection', () => {
-  it('overwrites caller auth fields only for Plaid tools', () => {
-    const params: Record<string, unknown> = {
-      accessToken: 'caller-token',
-      clientId: 'caller-client',
-      secret: 'caller-secret',
-      environment: 'production',
-    }
-
-    applyCredentialTokenPayload('plaid_get_accounts', params, {
-      accessToken: 'stored-token',
-      plaid: {
-        clientId: 'stored-client',
-        secret: 'stored-secret',
-        environment: 'sandbox',
-      },
-    })
-
-    expect(params).toMatchObject({
-      accessToken: 'stored-token',
-      clientId: 'stored-client',
-      secret: 'stored-secret',
-      environment: 'sandbox',
-    })
-  })
-
-  it('rejects an incomplete Plaid projection before any provider request can be built', () => {
-    expect(() =>
-      applyCredentialTokenPayload('plaid_get_item', {}, { accessToken: 'stored-token' })
-    ).toThrow('not a valid Plaid Item credential')
-  })
-
-  it('never projects Plaid-specific secrets into another integration', () => {
-    const params: Record<string, unknown> = {}
-    expect(() =>
-      applyCredentialTokenPayload('gmail_read', params, {
-        accessToken: 'plaid-item-token',
-        plaid: {
-          clientId: 'plaid-client',
-          secret: 'plaid-secret',
-          environment: 'sandbox',
-        },
-      })
-    ).toThrow('cannot be used with a non-Plaid tool')
-
-    expect(params).toEqual({})
   })
 })
 

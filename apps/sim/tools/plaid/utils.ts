@@ -1,3 +1,4 @@
+import type { PlaidOperationBody } from '@/lib/api/contracts/tools/plaid'
 import type {
   PlaidAccount,
   PlaidAccountBalances,
@@ -17,14 +18,6 @@ import type {
   PlaidTransactionLocation,
 } from '@/tools/plaid/types'
 import type { ToolOutputProperty } from '@/tools/types'
-
-export const PLAID_BASE_URLS = {
-  sandbox: 'https://sandbox.plaid.com',
-  production: 'https://production.plaid.com',
-} as const
-
-/** Pinned API version so response shapes stay stable across Plaid dashboard defaults. */
-const PLAID_API_VERSION = '2020-09-14'
 
 const PLAID_COUNTRY_CODES = new Set([
   'US',
@@ -92,32 +85,6 @@ const PLAID_PRODUCTS = new Set([
   'protect_transactions',
 ])
 
-/** Builds a Plaid URL from the two environments this integration supports. */
-export function plaidUrl(params: { environment?: string }, path: string): string {
-  const environment = params.environment?.trim().toLowerCase()
-  if (environment && environment !== 'production' && environment !== 'sandbox') {
-    throw new Error('Plaid environment must be production or sandbox')
-  }
-  const base = environment === 'sandbox' ? PLAID_BASE_URLS.sandbox : PLAID_BASE_URLS.production
-  return `${base}${path}`
-}
-
-/**
- * Builds the standard headers for Plaid API requests. Credentials travel in the
- * PLAID-CLIENT-ID / PLAID-SECRET headers rather than the JSON body.
- */
-export function buildPlaidHeaders(params: {
-  clientId?: unknown
-  secret?: unknown
-}): Record<string, string> {
-  return {
-    'Content-Type': 'application/json',
-    'PLAID-CLIENT-ID': requirePlaidInputString(params.clientId, 'clientId'),
-    'PLAID-SECRET': requirePlaidInputString(params.secret, 'secret'),
-    'Plaid-Version': PLAID_API_VERSION,
-  }
-}
-
 export const plaidCredentialParamFields = {
   oauthCredential: {
     type: 'string',
@@ -125,29 +92,9 @@ export const plaidCredentialParamFields = {
     visibility: 'user-only',
     description: 'Reusable encrypted Plaid Item credential',
   },
-  clientId: {
-    type: 'string',
-    required: false,
-    visibility: 'hidden',
-    description: 'Plaid client ID injected from the selected credential at execution time',
-  },
-  secret: {
-    type: 'string',
-    required: false,
-    visibility: 'hidden',
-    description: 'Plaid API secret injected from the selected credential at execution time',
-  },
 } as const
 
-export const plaidBaseParamFields = {
-  ...plaidCredentialParamFields,
-  environment: {
-    type: 'string',
-    required: false,
-    visibility: 'hidden',
-    description: 'Plaid environment injected from the selected credential at execution time',
-  },
-} as const
+export const plaidBaseParamFields = plaidCredentialParamFields
 
 export const plaidAccessTokenParamField = {
   accessToken: {
@@ -157,6 +104,25 @@ export const plaidAccessTokenParamField = {
     description: 'Plaid Item access token injected from the selected credential at execution time',
   },
 } as const
+
+type PlaidOperationInput<O extends PlaidOperationBody['operation']> = Extract<
+  PlaidOperationBody,
+  { operation: O }
+>['input']
+
+/** Builds the executor-delegated request without exposing Plaid application credentials. */
+export function buildPlaidInternalBody<O extends PlaidOperationBody['operation']>(
+  operation: O,
+  params: { oauthCredential: unknown; accessToken?: unknown },
+  input: PlaidOperationInput<O>
+): Extract<PlaidOperationBody, { operation: O }> {
+  return {
+    operation,
+    credentialId: requirePlaidInputString(params.oauthCredential, 'Plaid credential'),
+    accessToken: requirePlaidInputString(params.accessToken, 'accessToken'),
+    input,
+  } as Extract<PlaidOperationBody, { operation: O }>
+}
 
 /**
  * Drops undefined- and null-valued fields so optional params never reach the

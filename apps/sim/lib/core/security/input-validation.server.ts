@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
 import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import * as ipaddr from 'ipaddr.js'
@@ -417,7 +418,6 @@ export interface SecureFetchResponse {
 }
 
 const DEFAULT_MAX_REDIRECTS = 5
-const DEFAULT_SECURE_FETCH_TIMEOUT_MS = 300_000
 
 /**
  * Fail-safe ceiling applied by {@link secureFetchWithPinnedIP} when the caller does not
@@ -433,7 +433,7 @@ export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024
 export const MAX_JSON_API_RESPONSE_BYTES = 10 * 1024 * 1024
 
 function isRedirectStatus(status: number): boolean {
-  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308
+  return status >= 300 && status < 400 && status !== 304
 }
 
 function isRetryableHttpStatus(status: number): boolean {
@@ -446,61 +446,6 @@ function resolveRedirectUrl(baseUrl: string, location: string): string {
   } catch {
     throw new Error(`Invalid redirect location: ${location}`)
   }
-}
-
-const REDIRECT_ENTITY_HEADERS = new Set([
-  'content-encoding',
-  'content-length',
-  'content-type',
-  'transfer-encoding',
-])
-
-function withoutHeaders(
-  headers: Record<string, string> | undefined,
-  excludedNames: ReadonlySet<string>
-): Record<string, string> {
-  if (!headers) return {}
-  return Object.fromEntries(
-    Object.entries(headers).filter(([name]) => !excludedNames.has(name.toLowerCase()))
-  )
-}
-
-/**
- * Applies fetch-compatible redirect method/body rules and prevents credentials from crossing
- * origins. This mirrors {@link followRedirectsGuarded}: a cross-origin hop loses every
- * caller-supplied header, and a 307/308-style hop that would retain a body is refused outright.
- */
-function redirectOptions(
-  currentUrl: string,
-  nextUrl: string,
-  status: number,
-  options: SecureFetchOptions & { allowHttp?: boolean }
-): SecureFetchOptions & { allowHttp?: boolean } {
-  let method = (options.method ?? 'GET').toUpperCase()
-  let body = options.body
-  let headers = options.headers
-
-  if (
-    (status === 303 && method !== 'GET' && method !== 'HEAD') ||
-    ((status === 301 || status === 302) && method === 'POST')
-  ) {
-    method = 'GET'
-    body = undefined
-    headers = withoutHeaders(headers, REDIRECT_ENTITY_HEADERS)
-  }
-
-  if (new URL(nextUrl).origin !== new URL(currentUrl).origin) {
-    // Node's HTTP clients retain custom headers across origins. Dropping only Authorization is
-    // insufficient for APIs such as Plaid, which authenticate with provider-specific headers.
-    headers = {}
-    if (body !== undefined && body !== null) {
-      throw new Error('Blocked by SSRF policy: cross-origin redirect would forward a request body')
-    }
-  } else if (options.stripAuthOnRedirect) {
-    headers = withoutHeaders(headers, new Set(['authorization']))
-  }
-
-  return { ...options, method, body, headers }
 }
 
 /**
@@ -1018,84 +963,10 @@ export function createPinnedFetchWithDispatcher(
 export async function secureFetchWithPinnedIP(
   url: string,
   resolvedIP: string,
-  options: SecureFetchOptions & { allowHttp?: boolean } = {}
-): Promise<SecureFetchResponse> {
-  const requestedTimeout = options.timeout
-  const timeout =
-    typeof requestedTimeout === 'number' &&
-    Number.isFinite(requestedTimeout) &&
-    requestedTimeout > 0
-      ? requestedTimeout
-      : DEFAULT_SECURE_FETCH_TIMEOUT_MS
-
-  return secureFetchWithPinnedIPHop(url, resolvedIP, options, {
-    deadline: Date.now() + timeout,
-    redirectCount: 0,
-    timeout,
-  })
-}
-
-interface SecureFetchRedirectContext {
-  deadline: number
-  redirectCount: number
-  timeout: number
-}
-
-function awaitRedirectStep<T>(
-  operation: Promise<T>,
-  redirectContext: SecureFetchRedirectContext,
-  signal?: AbortSignal
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const remainingTimeout = redirectContext.deadline - Date.now()
-    if (remainingTimeout <= 0) {
-      reject(new Error(`Request timed out after ${redirectContext.timeout}ms`))
-      return
-    }
-
-    let settled = false
-    let onAbort: (() => void) | undefined
-    const timeoutId = setTimeout(() => {
-      settle(reject, new Error(`Request timed out after ${redirectContext.timeout}ms`))
-    }, remainingTimeout)
-    const cleanup = () => {
-      clearTimeout(timeoutId)
-      if (onAbort && signal) signal.removeEventListener('abort', onAbort)
-    }
-    const settle = <TValue>(callback: (value: TValue) => void, value: TValue) => {
-      if (settled) return
-      settled = true
-      cleanup()
-      callback(value)
-    }
-
-    if (signal) {
-      if (signal.aborted) {
-        settle(reject, signal.reason ?? new Error('Aborted'))
-        return
-      }
-      onAbort = () => settle(reject, signal.reason ?? new Error('Aborted'))
-      signal.addEventListener('abort', onAbort, { once: true })
-    }
-
-    operation.then(
-      (value) => settle(resolve, value),
-      (error) => settle(reject, error)
-    )
-  })
-}
-
-async function secureFetchWithPinnedIPHop(
-  url: string,
-  resolvedIP: string,
-  options: SecureFetchOptions & { allowHttp?: boolean },
-  redirectContext: SecureFetchRedirectContext
+  options: SecureFetchOptions & { allowHttp?: boolean } = {},
+  redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
-  const remainingTimeout = redirectContext.deadline - Date.now()
-  if (remainingTimeout <= 0) {
-    throw new Error(`Request timed out after ${redirectContext.timeout}ms`)
-  }
   const requestedMaxResponseBytes = options.maxResponseBytes
   const maxResponseBytes =
     typeof requestedMaxResponseBytes === 'number' && requestedMaxResponseBytes > 0
@@ -1129,47 +1000,36 @@ async function secureFetchWithPinnedIPHop(
       method: options.method || 'GET',
       headers: sanitizedHeaders,
       agent,
-      timeout: remainingTimeout,
+      timeout: options.timeout || 300000,
     }
 
     const protocol = isHttps ? https : http
-    let activeResponse: http.IncomingMessage | undefined
     const req = protocol.request(requestOptions, (res) => {
-      activeResponse = res
       const statusCode = res.statusCode || 0
       const location = res.headers.location
 
-      if (
-        isRedirectStatus(statusCode) &&
-        location &&
-        redirectContext.redirectCount < maxRedirects
-      ) {
-        res.destroy()
-        cleanupAbort()
-        let redirectUrl: string
-        let nextOptions: SecureFetchOptions & { allowHttp?: boolean }
-        try {
-          redirectUrl = resolveRedirectUrl(url, location)
-          nextOptions = redirectOptions(url, redirectUrl, statusCode, options)
-        } catch (error) {
-          settledReject(error)
-          return
-        }
+      if (isRedirectStatus(statusCode) && location && redirectCount < maxRedirects) {
+        res.resume()
+        const redirectUrl = resolveRedirectUrl(url, location)
 
-        awaitRedirectStep(
-          validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp }),
-          redirectContext,
-          options.signal
-        )
+        validateUrlWithDNS(redirectUrl, 'redirectUrl', { allowHttp: options.allowHttp })
           .then((validation) => {
             if (!validation.isValid) {
               settledReject(new Error(`Redirect blocked: ${validation.error}`))
               return
             }
-            return secureFetchWithPinnedIPHop(redirectUrl, validation.resolvedIP!, nextOptions, {
-              ...redirectContext,
-              redirectCount: redirectContext.redirectCount + 1,
-            })
+            const redirectOptions = options.stripAuthOnRedirect
+              ? {
+                  ...options,
+                  headers: omit(options.headers ?? {}, ['Authorization', 'authorization']),
+                }
+              : options
+            return secureFetchWithPinnedIP(
+              redirectUrl,
+              validation.resolvedIP!,
+              redirectOptions,
+              redirectCount + 1
+            )
           })
           .then((response) => {
             if (response) settledResolve(response)
@@ -1178,12 +1038,8 @@ async function secureFetchWithPinnedIPHop(
         return
       }
 
-      if (
-        isRedirectStatus(statusCode) &&
-        location &&
-        redirectContext.redirectCount >= maxRedirects
-      ) {
-        res.destroy()
+      if (isRedirectStatus(statusCode) && location && redirectCount >= maxRedirects) {
+        res.resume()
         settledReject(new Error(`Too many redirects (max: ${maxRedirects})`))
         return
       }
@@ -1246,15 +1102,12 @@ async function secureFetchWithPinnedIPHop(
       }
 
       let totalBytes = 0
-      let streamSettled = false
       const nodeRes = res
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           nodeRes.on('data', (chunk: Buffer) => {
-            if (streamSettled) return
             totalBytes += chunk.length
             if (totalBytes > maxResponseBytes) {
-              streamSettled = true
               cleanupAbort()
               controller.error(
                 new PayloadSizeLimitError({
@@ -1269,20 +1122,15 @@ async function secureFetchWithPinnedIPHop(
             controller.enqueue(new Uint8Array(chunk))
           })
           nodeRes.on('end', () => {
-            if (streamSettled) return
-            streamSettled = true
             cleanupAbort()
             controller.close()
           })
           nodeRes.on('error', (err) => {
-            if (streamSettled) return
-            streamSettled = true
             cleanupAbort()
             controller.error(err)
           })
         },
         cancel() {
-          streamSettled = true
           cleanupAbort()
           nodeRes.destroy()
         },
@@ -1321,14 +1169,7 @@ async function secureFetchWithPinnedIPHop(
     })
 
     let onAbort: (() => void) | null = null
-    const deadlineTimer = setTimeout(() => {
-      const error = new Error(`Request timed out after ${redirectContext.timeout}ms`)
-      activeResponse?.destroy(error)
-      req.destroy(error)
-      settledReject(error)
-    }, remainingTimeout)
     const cleanupAbort = () => {
-      clearTimeout(deadlineTimer)
       if (onAbort && options.signal) {
         options.signal.removeEventListener('abort', onAbort)
         onAbort = null
@@ -1347,27 +1188,19 @@ async function secureFetchWithPinnedIPHop(
     })
 
     req.on('timeout', () => {
-      const error = new Error(`Request timed out after ${redirectContext.timeout}ms`)
-      activeResponse?.destroy(error)
-      req.destroy(error)
-      settledReject(error)
+      req.destroy()
+      settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
     })
 
     if (options.signal) {
       if (options.signal.aborted) {
-        const reason = options.signal.reason ?? new Error('Aborted')
-        const error = reason instanceof Error ? reason : new Error('Aborted')
-        activeResponse?.destroy(error)
-        req.destroy(error)
-        settledReject(reason)
+        req.destroy()
+        settledReject(options.signal.reason ?? new Error('Aborted'))
         return
       }
       onAbort = () => {
-        const reason = options.signal?.reason ?? new Error('Aborted')
-        const error = reason instanceof Error ? reason : new Error('Aborted')
-        activeResponse?.destroy(error)
-        req.destroy(error)
-        settledReject(reason)
+        req.destroy()
+        settledReject(options.signal?.reason ?? new Error('Aborted'))
       }
       options.signal.addEventListener('abort', onAbort, { once: true })
     }

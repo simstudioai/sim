@@ -40,14 +40,7 @@ describe('resolveServiceAccountToken — Plaid', () => {
 
     await expect(
       resolveServiceAccountToken('credential-1', 'plaid-service-account')
-    ).resolves.toEqual({
-      accessToken: 'access-production-item',
-      plaid: {
-        clientId: 'client-id',
-        secret: 'environment-secret',
-        environment: 'production',
-      },
-    })
+    ).resolves.toEqual({ accessToken: 'access-production-item' })
   })
 
   it('fails closed if the encrypted blob belongs to another provider', async () => {

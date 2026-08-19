@@ -9,11 +9,7 @@ import {
   oauthTokenPostContract,
 } from '@/lib/api/contracts/oauth-connections'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import {
-  authorizeCredentialUse,
-  authorizeCredentialUseForAuth,
-  type CredentialAccessResult,
-} from '@/lib/auth/credential-access'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -26,7 +22,6 @@ import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/applicatio
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { getCredential, getOAuthToken, resolveOAuthAccountId } from '@/lib/oauth/credential-service'
 import { completeOAuthCredentialToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
-import { PLAID_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
@@ -256,52 +251,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    let preauthorizedCredentialAccess: CredentialAccessResult | undefined
-
-    /**
-     * Plaid requires both its application secret and long-lived Item access
-     * token to stay server-side. Unlike the ordinary OAuth/service-account
-     * payloads used by browser-backed selectors, this compound credential may
-     * therefore cross this route only for a verified internal executor JWT.
-     * Authorize first so the rejection cannot be used to probe whether an
-     * arbitrary credential id belongs to Plaid.
-     */
-    if (
-      resolved?.credentialType === 'service_account' &&
-      resolved.providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID
-    ) {
-      const authz = credentialId
-        ? await authorizeCredentialUseForAuth(auth, {
-            credentialId,
-            workflowId: workflowId ?? undefined,
-            callerUserId,
-          })
-        : { ok: false, error: 'Credential ID is required' }
-      if (!authz.ok) {
-        return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
-      }
-      preauthorizedCredentialAccess = authz
-      if (auth.authType !== AuthType.INTERNAL_JWT) {
-        return NextResponse.json(
-          {
-            code: 'PLAID_CREDENTIAL_EXECUTOR_ONLY',
-            error: 'Plaid Item credentials can only be used by server-side workflow execution',
-          },
-          { status: 403 }
-        )
-      }
-      const plaidToolMetadata = toolId ? getToolMetadata(toolId) : undefined
-      if (!plaidToolMetadata?.id.startsWith('plaid_')) {
-        return NextResponse.json(
-          {
-            code: 'PLAID_CREDENTIAL_TOOL_MISMATCH',
-            error: 'Plaid Item credentials can only be used with Plaid tools',
-          },
-          { status: 403 }
-        )
-      }
-    }
-
     const result = await resolveCredentialToken(auth, {
       requestId,
       credentialId,
@@ -311,7 +260,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       callerUserId,
       auditRequest: request,
       resolvedCredential: resolved,
-      preauthorizedCredentialAccess,
     })
 
     if (!result.ok) {

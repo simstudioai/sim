@@ -1,7 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetItemParams, PlaidGetItemResponse } from '@/tools/plaid/types'
 import {
-  buildPlaidHeaders,
+  buildPlaidInternalBody,
   mapPlaidItem,
   mapPlaidItemStatus,
   plaidAccessTokenParamField,
@@ -9,8 +9,6 @@ import {
   plaidItemOutputProperties,
   plaidItemStatusOutputProperties,
   plaidRecord,
-  plaidUrl,
-  requirePlaidInputString,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -28,12 +26,11 @@ export const plaidGetItemTool: ToolConfig<PlaidGetItemParams, PlaidGetItemRespon
   },
 
   request: {
-    url: (params) => plaidUrl(params, '/item/get'),
+    url: '/api/tools/plaid',
     method: 'POST',
-    headers: (params) => buildPlaidHeaders(params),
-    body: (params) => ({
-      access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
-    }),
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => buildPlaidInternalBody('plaid_get_item', params, {}),
+    internalAuth: 'executor_delegation',
   },
 
   transformResponse: async (response) => {

@@ -4,15 +4,14 @@ import type {
   PlaidSearchInstitutionsResponse,
 } from '@/tools/plaid/types'
 import {
-  buildPlaidHeaders,
+  buildPlaidInternalBody,
   mapPlaidInstitution,
   parsePlaidCountryCodes,
   parsePlaidProducts,
+  plaidAccessTokenParamField,
   plaidBaseParamFields,
-  plaidBody,
   plaidInstitutionOutputProperties,
   plaidRecord,
-  plaidUrl,
   requirePlaidArrayField,
   requirePlaidInputString,
 } from '@/tools/plaid/utils'
@@ -30,6 +29,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
 
   params: {
     ...plaidBaseParamFields,
+    ...plaidAccessTokenParamField,
     query: {
       type: 'string',
       required: true,
@@ -52,18 +52,18 @@ export const plaidSearchInstitutionsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => plaidUrl(params, '/institutions/search'),
+    url: '/api/tools/plaid',
     method: 'POST',
-    headers: (params) => buildPlaidHeaders(params),
+    headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) =>
-      plaidBody({
+      buildPlaidInternalBody('plaid_search_institutions', params, {
         query: requirePlaidInputString(params.query, 'query'),
         country_codes: parsePlaidCountryCodes(params.countryCodes),
         products: parsePlaidProducts(params.products, 'products', {
           allowIncomeVerification: true,
         }),
-        options: { include_optional_metadata: true },
       }),
+    internalAuth: 'executor_delegation',
   },
 
   transformResponse: async (response) => {

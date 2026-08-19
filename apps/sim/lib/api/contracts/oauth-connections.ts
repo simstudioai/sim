@@ -120,14 +120,6 @@ const oauthTokenResponseSchema = z.object({
   cloudId: z.string().optional(),
   domain: z.string().optional(),
   authStyle: z.enum(['x-api-token']).optional(),
-  plaid: z
-    .object({
-      clientId: z.string(),
-      secret: z.string(),
-      environment: z.enum(['production', 'sandbox']),
-    })
-    .strict()
-    .optional(),
 })
 
 /** Token material a resolved credential yields, on the wire and in-process alike. */

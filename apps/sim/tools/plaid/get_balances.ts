@@ -1,16 +1,13 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetBalancesParams, PlaidGetBalancesResponse } from '@/tools/plaid/types'
 import {
-  buildPlaidHeaders,
+  buildPlaidInternalBody,
   mapPlaidAccount,
   plaidAccessTokenParamField,
   plaidAccountOutputProperties,
   plaidBaseParamFields,
-  plaidBody,
   plaidRecord,
-  plaidUrl,
   requirePlaidArrayField,
-  requirePlaidInputString,
   splitPlaidList,
   toPlaidOptionalDateTime,
 } from '@/tools/plaid/utils'
@@ -44,22 +41,18 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
   },
 
   request: {
-    url: (params) => plaidUrl(params, '/accounts/balance/get'),
+    url: '/api/tools/plaid',
     method: 'POST',
-    headers: (params) => buildPlaidHeaders(params),
-    body: (params) => {
-      const options = plaidBody({
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) =>
+      buildPlaidInternalBody('plaid_get_balances', params, {
         account_ids: splitPlaidList(params.accountIds, 'accountIds'),
         min_last_updated_datetime: toPlaidOptionalDateTime(
           params.minLastUpdatedDatetime,
           'minLastUpdatedDatetime'
         ),
-      })
-      return plaidBody({
-        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
-        options: Object.keys(options).length > 0 ? options : undefined,
-      })
-    },
+      }),
+    internalAuth: 'executor_delegation',
   },
 
   transformResponse: async (response) => {

@@ -364,12 +364,6 @@ export async function getAtlassianServiceAccountSecret(
  */
 export interface ServiceAccountTokenResult {
   accessToken: string
-  /** Plaid only — application credentials and allowlisted runtime environment. */
-  plaid?: {
-    clientId: string
-    secret: string
-    environment: PlaidServiceAccountSecretBlob['environment']
-  }
   /** Atlassian only — the resolved Jira/Confluence cloud id. */
   cloudId?: string
   /** Atlassian and domain-scoped token providers (e.g. Shopify) — the site/store domain. */
@@ -632,14 +626,7 @@ const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolve
   },
   [PLAID_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => {
     const secret = await getPlaidServiceAccountSecret(credentialId)
-    return {
-      accessToken: secret.accessToken,
-      plaid: {
-        clientId: secret.clientId,
-        secret: secret.clientSecret,
-        environment: secret.environment,
-      },
-    }
+    return { accessToken: secret.accessToken }
   },
 }
 

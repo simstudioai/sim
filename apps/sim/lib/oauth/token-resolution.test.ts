@@ -174,54 +174,6 @@ describe('resolveCredentialToken', () => {
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
   })
 
-  it('projects the narrow Plaid credential fields after service-account authorization', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'plaid-credential-1',
-      providerId: 'plaid-service-account',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: true,
-      requesterUserId: 'user-1',
-      workspaceId: 'ws-1',
-    })
-    mockResolveServiceAccountToken.mockResolvedValue({
-      accessToken: 'access-production-item',
-      plaid: {
-        clientId: 'client-id',
-        secret: 'environment-secret',
-        environment: 'production',
-      },
-    })
-
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
-      requestId: 'req-1',
-      credentialId: 'plaid-credential-1',
-      workflowId: 'wf-1',
-    })
-
-    expect(result).toMatchObject({
-      ok: true,
-      token: {
-        accessToken: 'access-production-item',
-        plaid: {
-          clientId: 'client-id',
-          secret: 'environment-secret',
-          environment: 'production',
-        },
-      },
-    })
-    expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
-      'plaid-credential-1',
-      'plaid-service-account',
-      [],
-      undefined
-    )
-  })
-
   it('surfaces the classified service-account failure code', async () => {
     mockResolveOAuthAccountId.mockResolvedValue({
       credentialType: 'service_account',
