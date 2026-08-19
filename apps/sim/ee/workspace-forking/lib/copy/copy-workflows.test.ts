@@ -580,7 +580,9 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
       ...baseParams,
       tx: stubTx(),
       transformBlockType: (type) => (type === UAT ? PROD : type),
-      dependentOverrides: new Map([['tgt-blk-cb', new Map([['field-prod-x', 'prod value X']])]]),
+      dependentOverrides: new Map([
+        ['tgt-blk-cb', new Map([[`${PROD}::string::field-prod-x`, 'prod value X']])],
+      ]),
     })
 
     const subBlocks = writtenBlock().subBlocks ?? {}
@@ -602,8 +604,8 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
         [
           'tgt-blk-cb',
           new Map([
-            ['workflowId', 'crafted'],
-            ['field-prod-x', 'ok'],
+            [`${PROD}::string::workflowId`, 'crafted'],
+            [`${PROD}::string::field-prod-x`, 'ok'],
           ]),
         ],
       ]),
@@ -623,12 +625,66 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
       ...baseParams,
       tx: stubTx(),
       transformBlockType: (type) => type,
-      dependentOverrides: new Map([['tgt-blk-cb', new Map([['field-prod-x', 'must not apply']])]]),
+      dependentOverrides: new Map([
+        ['tgt-blk-cb', new Map([[`${PROD}::string::field-prod-x`, 'must not apply']])],
+      ]),
     })
 
     const subBlocks = writtenBlock().subBlocks ?? {}
     expect(writtenBlock().type).toBe(UAT)
     expect(subBlocks['field-uat-a']?.value).toBe('uat value A')
     expect(subBlocks['field-prod-x']).toBeUndefined()
+  })
+
+  it('ignores values stored for a DIFFERENT target, so a second remap starts clean', async () => {
+    // Map to A, configure it, then remap to B. A field id present on both would otherwise
+    // carry A's value into B — a different workflow's field that happens to share a name.
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+    const OTHER = 'custom_block_other99'
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => (type === UAT ? PROD : type),
+      dependentOverrides: new Map([
+        [
+          'tgt-blk-cb',
+          new Map([
+            [`${OTHER}::string::shared-field`, 'value from the previous target'],
+            [`${PROD}::string::shared-field`, 'value for this target'],
+          ]),
+        ],
+      ]),
+    })
+
+    expect(writtenBlock().subBlocks?.['shared-field']?.value).toBe('value for this target')
+  })
+
+  it('restores a boolean input as a real boolean, not the string it was stored as', async () => {
+    // The dependent store holds strings, but a boolean field's sub-block is a `switch` and the
+    // canvas stores it as a boolean — `'false'` left as text is truthy to the child workflow.
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => (type === UAT ? PROD : type),
+      dependentOverrides: new Map([
+        [
+          'tgt-blk-cb',
+          new Map([
+            [`${PROD}::boolean::flag-on`, 'true'],
+            [`${PROD}::boolean::flag-off`, 'false'],
+            [`${PROD}::string::text`, 'true'],
+          ]),
+        ],
+      ]),
+    })
+
+    const subBlocks = writtenBlock().subBlocks ?? {}
+    expect(subBlocks['flag-on']?.value).toBe(true)
+    expect(subBlocks['flag-off']?.value).toBe(false)
+    // A string field whose value happens to read "true" stays a string.
+    expect(subBlocks.text?.value).toBe('true')
   })
 })

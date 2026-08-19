@@ -562,7 +562,7 @@ export async function copyWorkflowStateIntoTarget(
       // wholesale because ALL of a custom block's inputs are reconfigurable, not a `dependsOn`
       // subset. `applyDependentOverrides` above is a no-op for them: it allowlists on
       // `dependsOn` + `selectorKey`, which no custom-block input has.
-      subBlocks = replaceCustomBlockInputs(subBlocks, blockOverrides)
+      subBlocks = replaceCustomBlockInputs(subBlocks, blockOverrides, nextBlockType)
     }
 
     newBlocks[newBlockId] = {

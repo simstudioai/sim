@@ -239,35 +239,86 @@ export interface RemapForkBlockTypeResult {
 }
 
 /**
+ * Separator for a configured custom-block input's storage key. `::` cannot occur in a
+ * `custom_block_<slug>` type, and a field id that contained it would simply fail to parse and
+ * be skipped rather than land on the wrong field.
+ */
+const CUSTOM_BLOCK_INPUT_KEY_SEPARATOR = '::'
+
+/**
+ * Storage key for one configured input of a repointed custom block.
+ *
+ * The stored value's own key carries the TARGET TYPE and the field's declared TYPE, because the
+ * dependent-value store is keyed only by `(target workflow, block, sub-block)` and holds a plain
+ * string:
+ *  - **target type** — remap a block to A, configure its fields, then remap it to B. Without the
+ *    type in the key, a field id that happens to exist on both would pre-fill and submit A's
+ *    value into B, which is a different workflow's field of the same name. Namespacing makes
+ *    that structurally impossible rather than a rule someone has to remember.
+ *  - **field type** — the canvas stores a `boolean` input as a real boolean (its sub-block is a
+ *    `switch`), so a stored `'true'` has to become `true` on the way in. Reading the type from
+ *    the key means the apply side needs no second lookup of the target's schema.
+ */
+export function customBlockInputStorageKey(
+  targetType: string,
+  fieldType: string,
+  fieldId: string
+): string {
+  const sep = CUSTOM_BLOCK_INPUT_KEY_SEPARATOR
+  return `${targetType}${sep}${fieldType}${sep}${fieldId}`
+}
+
+interface ParsedCustomBlockInputKey {
+  targetType: string
+  fieldType: string
+  fieldId: string
+}
+
+/** Inverse of {@link customBlockInputStorageKey}; null when the key is not one of ours. */
+export function parseCustomBlockInputStorageKey(key: string): ParsedCustomBlockInputKey | null {
+  const parts = key.split(CUSTOM_BLOCK_INPUT_KEY_SEPARATOR)
+  if (parts.length !== 3) return null
+  const [targetType, fieldType, fieldId] = parts
+  if (!targetType || !fieldType || !fieldId) return null
+  return { targetType, fieldType, fieldId }
+}
+
+/**
  * Replace a retyped custom block's inputs with the values configured for the TARGET block.
  *
  * A custom block's input sub-blocks are keyed by the SOURCE Start field's stable id, so once
  * the block's `type` is repointed they describe fields the new config does not declare. The
- * serializer would drop them silently ({@link file://apps/sim/serializer/index.ts} — a stored
- * value with no matching config is a deleted input), which is what made a synced block look
- * corrupted: same name, no fields.
+ * serializer would drop them silently (a stored value with no matching config is a deleted
+ * input), which is what made a synced block look corrupted: same name, no fields.
  *
  * There is deliberately NO attempt to match or migrate values across the swap. Two custom
  * blocks are independent workflows; a field id that happens to collide would carry a value
- * that means something else. Instead the inputs the user configured for the target at sync
- * time are written verbatim, and everything else is dropped explicitly.
+ * that means something else.
  *
- * `values` is already allowlisted to the target block's declared field ids by the planner,
- * which is the only side that can resolve the target config. Reserved wiring
- * (`workflowId`/`inputMapping`) is preserved untouched — those are computed value-fns the
- * serializer recomputes and never carries forward.
+ * Only values stored for THIS target type are applied — a key naming a previous target is
+ * skipped, so re-pointing a block twice never carries the first target's values into the
+ * second. Reserved wiring (`workflowId`/`inputMapping`) is preserved untouched: those are
+ * computed value-fns the serializer recomputes and never carries forward.
  */
 export function replaceCustomBlockInputs(
   subBlocks: SubBlockRecord,
-  values: ReadonlyMap<string, string> | undefined
+  values: ReadonlyMap<string, string> | undefined,
+  targetType: string
 ): SubBlockRecord {
   const next: SubBlockRecord = {}
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (RESERVED_PARAMS.has(key)) next[key] = subBlock
   }
-  for (const [fieldId, value] of values ?? []) {
-    if (RESERVED_PARAMS.has(fieldId)) continue
-    next[fieldId] = { value }
+  for (const [key, value] of values ?? []) {
+    const parsed = parseCustomBlockInputStorageKey(key)
+    if (!parsed || parsed.targetType !== targetType) continue
+    if (RESERVED_PARAMS.has(parsed.fieldId)) continue
+    // A `boolean` field's sub-block is a `switch`, which the canvas stores as a real boolean.
+    // Everything else is stored as text: `object`/`array` are authored as JSON and parsed by
+    // the executor, and a number rides a `short-input` like it does on the canvas.
+    next[parsed.fieldId] = {
+      value: parsed.fieldType === 'boolean' ? value === 'true' : value,
+    }
   }
   return next
 }

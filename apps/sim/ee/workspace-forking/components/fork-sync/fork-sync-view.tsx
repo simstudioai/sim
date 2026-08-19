@@ -33,6 +33,12 @@ import {
   forkBlockerResolution,
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import {
+  CUSTOM_BLOCK_BOOLEAN_FALSE,
+  CUSTOM_BLOCK_BOOLEAN_OPTIONS,
+  CUSTOM_BLOCK_BOOLEAN_TRUE,
+  customBlockInputControl,
+} from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
   applyDependentRepick,
@@ -90,9 +96,6 @@ const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
  * picker shows, and clipping them is what makes two same-prefixed keys indistinguishable.
  */
 const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] flex-shrink-0'
-
-/** Custom-block input types whose value is JSON, so the field needs a textarea, not a line. */
-const CUSTOM_BLOCK_JSON_FIELD_TYPES = new Set(['object', 'array'])
 
 interface DependentBlock {
   targetBlockId: string
@@ -209,16 +212,13 @@ function DependentSelector({
   reconfig,
   setReconfig,
 }: DependentSelectorProps) {
-  // A custom block's inputs exist BECAUSE its type was repointed, so `parentChanged` is
-  // always true for them — but unlike a re-picked selector their stored value is the user's
-  // own configuration for the target and must pre-fill, not blank out.
+  // `effectiveDependentValue` owns the custom-block carve-out, so the value shown here is the
+  // same one the Sync gate and the submitted payload see.
   const isCustomBlockInput = field.parentKind === 'custom-block'
   const effectiveValueIn = (f: ForkDependentReconfig, state: DependentReconfigState) =>
-    isCustomBlockInput
-      ? effectiveDependentValue(f, state, false)
-      : copying
-        ? effectiveCopyDependentValue(f, state)
-        : effectiveDependentValue(f, state, parentChanged)
+    copying && !isCustomBlockInput
+      ? effectiveCopyDependentValue(f, state)
+      : effectiveDependentValue(f, state, parentChanged)
   const baselineValueFor = (f: ForkDependentReconfig) => effectiveValueIn(f, {})
   const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
   if (isCustomBlockInput) {
@@ -228,17 +228,29 @@ function DependentSelector({
     // is JSON, matching how `subBlockTypeForField` renders them on the canvas.
     const setValue = (value: string) =>
       setReconfig((current) => ({ ...current, [dependentKey(field)]: value }))
-    const shared = {
-      title: field.title,
-      required: field.required,
-      value: effectiveValue(field),
-      onChange: setValue,
+    const value = effectiveValue(field)
+    const shared = { title: field.title, required: field.required }
+    switch (customBlockInputControl(field.fieldType)) {
+      case 'switch':
+        return (
+          <ChipModalField {...shared} type='custom'>
+            <ChipSwitch
+              options={CUSTOM_BLOCK_BOOLEAN_OPTIONS}
+              value={
+                value === CUSTOM_BLOCK_BOOLEAN_TRUE
+                  ? CUSTOM_BLOCK_BOOLEAN_TRUE
+                  : CUSTOM_BLOCK_BOOLEAN_FALSE
+              }
+              onChange={setValue}
+              aria-label={field.title}
+            />
+          </ChipModalField>
+        )
+      case 'textarea':
+        return <ChipModalField {...shared} type='textarea' value={value} onChange={setValue} />
+      default:
+        return <ChipModalField {...shared} type='input' value={value} onChange={setValue} />
     }
-    return CUSTOM_BLOCK_JSON_FIELD_TYPES.has(field.fieldType ?? '') ? (
-      <ChipModalField {...shared} type='textarea' />
-    ) : (
-      <ChipModalField {...shared} type='input' />
-    )
   }
 
   const { providedValues, providedContextKeys } = blockChainState(block, field, effectiveValue)

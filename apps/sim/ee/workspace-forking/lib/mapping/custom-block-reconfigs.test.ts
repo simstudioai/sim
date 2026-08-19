@@ -60,7 +60,12 @@ describe('collectForkCustomBlockReconfigs', () => {
     const out = await collectForkCustomBlockReconfigs({ ...baseParams, resolve: swapResolver })
 
     expect(out).toHaveLength(2)
-    expect(out.map((f) => f.subBlockKey)).toEqual(['field-a', 'field-b'])
+    // Namespaced by TARGET type and FIELD type: re-pointing the block again cannot reuse these
+    // values, and the apply side can restore a boolean's real type without a second lookup.
+    expect(out.map((f) => f.subBlockKey)).toEqual([
+      `${PROD}::string::field-a`,
+      `${PROD}::object::field-b`,
+    ])
     expect(out[0]).toMatchObject({
       parentKind: 'custom-block',
       // Joined to its own mapping row on (parentKind, parentSourceId) — the SOURCE type is

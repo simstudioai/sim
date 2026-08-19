@@ -4,7 +4,10 @@ import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
-import type { ForkReferenceResolver } from '@/ee/workspace-forking/lib/remap/remap-references'
+import {
+  customBlockInputStorageKey,
+  type ForkReferenceResolver,
+} from '@/ee/workspace-forking/lib/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('ForkCustomBlockReconfigs')
@@ -97,10 +100,13 @@ export async function collectForkCustomBlockReconfigs(
     const binding = bindingByType.get(swap.targetType)
     if (!binding) continue
     for (const field of binding.inputFields) {
-      // Sub-blocks are keyed by the field's stable id, falling back to its name for legacy
-      // fields with none — the same rule `buildCustomBlockConfig` keys its sub-blocks on, so
-      // a stored value lands on the sub-block the canvas will read it from.
-      const subBlockKey = field.id ?? field.name
+      // The canvas keys a custom block's sub-blocks by the field's stable id, falling back to
+      // its name for legacy fields with none. The STORAGE key namespaces that by the target
+      // type and field type, so re-pointing the block again cannot reuse this target's values
+      // and the apply side can restore a boolean's real type — see
+      // `customBlockInputStorageKey`.
+      const fieldId = field.id ?? field.name
+      const subBlockKey = customBlockInputStorageKey(swap.targetType, field.type, fieldId)
       out.push({
         parentKind: 'custom-block',
         parentSourceId: swap.sourceType,
@@ -115,7 +121,7 @@ export async function collectForkCustomBlockReconfigs(
         // something else. The diff overlays the stored value on top of this.
         currentValue: '',
         sourceValue: '',
-        required: binding.requiredInputIds.includes(subBlockKey),
+        required: binding.requiredInputIds.includes(fieldId),
         consumesContextKeys: [],
         context: {},
       })
