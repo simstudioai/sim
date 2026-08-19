@@ -38,16 +38,11 @@ describe('GET /api/secrets/usage', () => {
       entries: [
         {
           id: 'usage-1',
-          usageDate: '2026-03-14',
           useCount: 4,
-          firstUsedAt: new Date('2026-03-14T01:00:00.000Z'),
           lastUsedAt: new Date('2026-03-14T09:30:00.000Z'),
           source: 'workflow',
-          workflowId: 'workflow-1',
           workflowName: 'Nightly sync',
-          actorUserId: 'user-1',
           actorName: 'Ada',
-          actorEmail: 'ada@example.com',
           lastExecutionId: 'execution-1',
           lastExecutionAvailable: true,
           lastTrigger: 'schedule',
@@ -62,7 +57,6 @@ describe('GET /api/secrets/usage', () => {
       entries: [
         expect.objectContaining({
           id: 'usage-1',
-          firstUsedAt: '2026-03-14T01:00:00.000Z',
           lastUsedAt: '2026-03-14T09:30:00.000Z',
         }),
       ],

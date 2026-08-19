@@ -91,9 +91,8 @@ describe('recordSecretUsage', () => {
     expect(conflict?.target).toHaveLength(8)
     const set = JSON.stringify(conflict?.set)
     expect(set).toContain(' + 1')
-    /** Out-of-order completions must not walk the window backwards. */
+    /** Out-of-order completions must not walk the most recent timestamp backwards. */
     expect(set).toContain('greatest(')
-    expect(set).toContain('least(')
   })
 
   it('writes a Copilot run without a workflow', async () => {

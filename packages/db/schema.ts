@@ -752,7 +752,6 @@ export const secretUsage = pgTable(
     /** UTC day bucket. */
     usageDate: date('usage_date').notNull(),
     useCount: integer('use_count').notNull().default(0),
-    firstUsedAt: timestamp('first_used_at').notNull(),
     lastUsedAt: timestamp('last_used_at').notNull(),
     /** Deep-links the most recent run in Logs, where the block and its code are visible. */
     lastExecutionId: text('last_execution_id'),

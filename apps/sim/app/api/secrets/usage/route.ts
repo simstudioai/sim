@@ -25,7 +25,6 @@ export const GET = defineInternalJsonRoute({
   present: ({ entries }) => ({
     entries: entries.map((entry) => ({
       ...entry,
-      firstUsedAt: entry.firstUsedAt.toISOString(),
       lastUsedAt: entry.lastUsedAt.toISOString(),
     })),
   }),

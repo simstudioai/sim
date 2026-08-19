@@ -20,17 +20,11 @@ export const secretUsageQuerySchema = z.object({
 
 export const secretUsageEntrySchema = z.object({
   id: z.string(),
-  /** UTC day bucket, `YYYY-MM-DD`. */
-  usageDate: z.string(),
   useCount: z.number().int().nonnegative(),
-  firstUsedAt: z.string(),
   lastUsedAt: z.string(),
   source: z.enum(['workflow', 'copilot', 'mcp']),
-  workflowId: z.string().nullable(),
   workflowName: z.string().nullable(),
-  actorUserId: z.string().nullable(),
   actorName: z.string().nullable(),
-  actorEmail: z.string().nullable(),
   lastExecutionId: z.string().nullable(),
   /** False once that run's log has aged out of the workspace's retention window. */
   lastExecutionAvailable: z.boolean(),

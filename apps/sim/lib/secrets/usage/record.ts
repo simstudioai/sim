@@ -86,7 +86,6 @@ async function upsertSecretUsage(
     actorUserId: context.actorUserId ?? '',
     usageDate,
     useCount: 1,
-    firstUsedAt: now,
     lastUsedAt: now,
     lastExecutionId: context.executionId ?? null,
     lastTrigger: context.trigger ?? null,
@@ -110,11 +109,9 @@ async function upsertSecretUsage(
         useCount: sql`${secretUsage.useCount} + 1`,
         /**
          * `greatest` rather than a bare assignment: concurrent runs finishing out of order
-         * must not walk the most recent timestamp backwards, and the same reasoning keeps
-         * `first_used_at` at the earliest value the bucket has seen.
+         * must not walk the most recent timestamp backwards.
          */
         lastUsedAt: sql`greatest(${secretUsage.lastUsedAt}, excluded.last_used_at)`,
-        firstUsedAt: sql`least(${secretUsage.firstUsedAt}, excluded.first_used_at)`,
         /**
          * The run that owns `last_used_at` has to own the metadata beside it. Assigning
          * these unconditionally while the timestamp is chosen by `greatest` lets two runs

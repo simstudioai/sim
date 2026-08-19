@@ -1,5 +1,5 @@
 {
-  "id": "47db680b-30a8-474c-90f6-61bba1c4ff21",
+  "id": "a2a76094-681f-4205-a40a-f647f2f5ca7b",
   "prevId": "56c6fcb7-e404-407f-a24f-3963cae57f78",
   "version": "7",
   "dialect": "postgresql",
@@ -11223,12 +11223,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "first_used_at": {
-          "name": "first_used_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true
         },
         "last_used_at": {
           "name": "last_used_at",

@@ -11,7 +11,6 @@ CREATE TABLE "secret_usage" (
 	"actor_user_id" text DEFAULT '' NOT NULL,
 	"usage_date" date NOT NULL,
 	"use_count" integer DEFAULT 0 NOT NULL,
-	"first_used_at" timestamp NOT NULL,
 	"last_used_at" timestamp NOT NULL,
 	"last_execution_id" text,
 	"last_trigger" text,

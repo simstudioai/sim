@@ -5,16 +5,11 @@ import type { ResolvedSecretScope } from '@/executor/utils/resolved-secret-trace
 
 export interface SecretUsageEntry {
   id: string
-  usageDate: string
   useCount: number
-  firstUsedAt: Date
   lastUsedAt: Date
   source: 'workflow' | 'copilot' | 'mcp'
-  workflowId: string | null
   workflowName: string | null
-  actorUserId: string | null
   actorName: string | null
-  actorEmail: string | null
   lastExecutionId: string | null
   /**
    * Whether that run's log still exists. Usage outlives logs by design — the trail is not
@@ -50,16 +45,11 @@ export async function getSecretUsage(query: SecretUsageQuery): Promise<SecretUsa
   const rows = await db
     .select({
       id: secretUsage.id,
-      usageDate: secretUsage.usageDate,
       useCount: secretUsage.useCount,
-      firstUsedAt: secretUsage.firstUsedAt,
       lastUsedAt: secretUsage.lastUsedAt,
       source: secretUsage.source,
-      workflowId: secretUsage.workflowId,
       workflowName: workflow.name,
-      actorUserId: secretUsage.actorUserId,
       actorName: user.name,
-      actorEmail: user.email,
       lastExecutionId: secretUsage.lastExecutionId,
       /** At most one row: `execution_id` carries a unique index, so this cannot fan out. */
       lastExecutionLogId: workflowExecutionLogs.id,
@@ -84,11 +74,8 @@ export async function getSecretUsage(query: SecretUsageQuery): Promise<SecretUsa
     .limit(query.limit)
 
   return {
-    /** The storage sentinel is an implementation detail of the unique key, not a value. */
     entries: rows.map(({ lastExecutionLogId, ...row }) => ({
       ...row,
-      workflowId: row.workflowId || null,
-      actorUserId: row.actorUserId || null,
       lastExecutionAvailable: lastExecutionLogId !== null,
     })),
   }
