@@ -184,7 +184,7 @@ const FENCE_RENDERERS: Record<string, FenceRenderer> = {
     const rows = parsed.data
       .map(
         (item) =>
-          `<li><span class="key">${escapeHtml(item.key)}</span><span>${renderInlineMarkdown(item.value)}</span></li>`
+          `<li><span class="key">${renderInlineMarkdown(item.key)}</span><span>${renderInlineMarkdown(item.value)}</span></li>`
       )
       .join('')
     return `<ul class="rows">${rows}</ul>`

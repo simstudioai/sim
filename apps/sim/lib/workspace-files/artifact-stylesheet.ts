@@ -293,6 +293,8 @@ pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; d
    rule under the header, --surface-active rules between rows, bare last row. */
 table { border-collapse: collapse; border-spacing: 0; width: 100%; font-size: var(--text-sm); }
 th, td { text-align: left; padding: 0.5rem 0.75rem; line-height: 1.5; }
+/* The docs' tables read their first column as the row's label. */
+tbody td:first-child { font-weight: 500; color: var(--text-primary); }
 thead th { font-weight: 600; color: var(--text-primary); border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { color: var(--text-secondary); border-bottom: 1px solid var(--surface-active); }
 tbody tr:last-child td { border-bottom: none; }
@@ -402,7 +404,13 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   font-size: var(--text-sm);
 }
 @media (min-width: 720px) { .rows > li { grid-template-columns: 240px minmax(0, 1fr); } }
-.rows .key { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--text-secondary); word-break: break-all; }
+.rows .key {
+  /* A label, not code — the docs' th treatment. Backticks in the source opt
+     a code-like key (a path, an env var) into the inline-code chip. */
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
 
 /* Docs chrome --------------------------------------------------------------- */
 .art-bar {
