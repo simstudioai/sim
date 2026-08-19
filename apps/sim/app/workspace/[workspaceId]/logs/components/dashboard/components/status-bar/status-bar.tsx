@@ -81,7 +81,7 @@ function StatusBarInner({
 
           return (
             <div
-              key={i}
+              key={segment.timestamp}
               role='button'
               tabIndex={0}
               aria-pressed={isSelected}

@@ -569,15 +569,17 @@ function ChatContentInner({
     { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
   >
   type RenderGroup =
-    | { kind: 'inline'; markdown: string }
-    | { kind: 'block'; segment: BlockSegment; index: number }
+    | { id: string; kind: 'inline'; markdown: string }
+    | { id: string; kind: 'block'; segment: BlockSegment; index: number }
 
   const groups: RenderGroup[] = []
   let pendingMarkdown = ''
+  let inlineAnchor = 'start'
+  const specialOccurrences = new Map<string, number>()
 
   const flushMarkdown = () => {
     if (pendingMarkdown.trim()) {
-      groups.push({ kind: 'inline', markdown: pendingMarkdown })
+      groups.push({ id: `inline-after:${inlineAnchor}`, kind: 'inline', markdown: pendingMarkdown })
     }
     pendingMarkdown = ''
   }
@@ -604,7 +606,12 @@ function ChatContentInner({
       pendingMarkdown += s.content
     } else {
       flushMarkdown()
-      groups.push({ kind: 'block', segment: s, index: i })
+      const signature = `${s.type}:${JSON.stringify(s.data)}`
+      const occurrence = specialOccurrences.get(signature) ?? 0
+      specialOccurrences.set(signature, occurrence + 1)
+      const id = `special:${signature}:${occurrence}`
+      groups.push({ id, kind: 'block', segment: s, index: i })
+      inlineAnchor = id
     }
   }
   flushMarkdown()
@@ -622,11 +629,11 @@ function ChatContentInner({
    */
   return (
     <div className='space-y-3'>
-      {groups.map((group, i) => {
+      {groups.map((group) => {
         if (group.kind === 'inline') {
           return (
             <div
-              key={`inline-${i}`}
+              key={group.id}
               className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
             >
               <Streamdown
@@ -643,7 +650,7 @@ function ChatContentInner({
         }
         return (
           <SpecialTags
-            key={`special-${group.index}`}
+            key={group.id}
             segment={group.segment}
             interactionId={`${messageId ?? 'message'}:${group.index}`}
             questionAnswers={questionAnswers}

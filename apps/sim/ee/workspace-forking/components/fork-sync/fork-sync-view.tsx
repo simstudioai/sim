@@ -15,6 +15,7 @@ import {
 } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import type {
+  ForkClearedRef,
   ForkCopyableUnmapped,
   ForkDependentReconfig,
   ForkMappingEntry,
@@ -69,6 +70,20 @@ const COPYABLE_KIND_SECTIONS: ReadonlyArray<{
   { kind: 'skill', label: 'Skills' },
   { kind: 'mcp-server', label: 'MCP servers' },
 ]
+
+function withOccurrenceKeys<T>(items: T[], getSignature: (item: T) => string) {
+  const occurrences = new Map<string, number>()
+  return items.map((item, index) => {
+    const signature = getSignature(item)
+    const occurrence = occurrences.get(signature) ?? 0
+    occurrences.set(signature, occurrence + 1)
+    return { item, index, key: `${signature}:${occurrence}` }
+  })
+}
+
+function clearedRefSignature(ref: ForkClearedRef): string {
+  return `${ref.cause}:${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}`
+}
 
 /**
  * Sentinel option value for the "New copy" entry - the displayed resolution while a copyable
@@ -763,6 +778,14 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
     })),
   ]
 
+  const workflowChanges = withOccurrenceKeys(
+    controller.workflowChanges,
+    (change) => `${change.action}:${change.currentName}:${change.otherName}`
+  )
+  const keyedExcludedRows = withOccurrenceKeys(excludedRows, (row) => `${row.name}:${row.tooltip}`)
+  const blockingRefs = withOccurrenceKeys(controller.blockingRefs, clearedRefSignature)
+  const dependentClears = withOccurrenceKeys(controller.dependentClears, clearedRefSignature)
+
   return (
     <div className='flex flex-col gap-7'>
       <SettingsSection label='Sync direction'>
@@ -803,13 +826,10 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           {controller.workflowChanges.length + excludedRows.length > 0 ? (
             <Tooltip.Provider delayDuration={150}>
               <div className='flex flex-col gap-1'>
-                {controller.workflowChanges.map((change, index) => {
+                {workflowChanges.map(({ item: change, key }) => {
                   const renamed = change.currentName !== change.otherName
                   return (
-                    <div
-                      key={`${change.action}:${change.currentName}:${index}`}
-                      className='flex min-w-0 items-center gap-1.5'
-                    >
+                    <div key={key} className='flex min-w-0 items-center gap-1.5'>
                       <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
                         {change.currentName}
                       </span>
@@ -824,8 +844,8 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                     </div>
                   )
                 })}
-                {excludedRows.map(({ name, tooltip }, index) => (
-                  <div key={`excluded:${name}:${index}`} className='flex min-w-0 items-center'>
+                {keyedExcludedRows.map(({ item: { name, tooltip }, key }) => (
+                  <div key={key} className='flex min-w-0 items-center'>
                     <Tooltip.Root>
                       <Tooltip.Trigger asChild>
                         <span className='min-w-0 max-w-full truncate text-[var(--text-muted)] text-sm'>
@@ -950,12 +970,12 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           }
         >
           <div className='flex flex-col gap-1'>
-            {controller.blockingRefs.map((ref, index) => {
+            {blockingRefs.map(({ item: ref, index, key }) => {
               const dropKey = `${ref.kind}:${ref.sourceId}`
               const uses = controller.blockingUsesByResource.get(dropKey) ?? 1
               return (
                 <div
-                  key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
+                  key={key}
                   className='flex min-w-0 items-start justify-between gap-3 text-[var(--text-secondary)] text-small'
                 >
                   <span className='min-w-0'>
@@ -994,12 +1014,12 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
       {controller.dependentClears.length > 0 ? (
         <SettingsSection label='Will be cleared'>
           <div className='flex flex-col gap-1'>
-            {controller.dependentClears.map((ref, index) => {
+            {dependentClears.map(({ item: ref, key }) => {
               const droppedKey = `${ref.kind}:${ref.sourceId}`
               const dropped = controller.droppedRefs.has(droppedKey)
               return (
                 <div
-                  key={`${ref.targetWorkflowId}:${ref.blockId}:${ref.kind}:${ref.sourceId}:${ref.fieldLabel}:${index}`}
+                  key={key}
                   className='flex min-w-0 items-start justify-between gap-3 text-[var(--text-secondary)] text-small'
                 >
                   <span className='min-w-0'>

@@ -80,6 +80,19 @@ export interface BreadcrumbItem {
   terminal?: boolean
 }
 
+function keyedBreadcrumbs(breadcrumbs: BreadcrumbItem[]) {
+  const occurrences = new Map<string, number>()
+  return breadcrumbs.map((crumb, index) => {
+    const signature =
+      crumb.folderId !== undefined
+        ? `folder:${crumb.folderId ?? 'root'}`
+        : `segment:${crumb.label}:${crumb.terminal === true ? 'terminal' : 'resource'}`
+    const occurrence = occurrences.get(signature) ?? 0
+    occurrences.set(signature, occurrence + 1)
+    return { crumb, index, key: `${signature}:${occurrence}` }
+  })
+}
+
 /**
  * The single, strict contract for a top-right header action. Every action renders
  * as a {@link Chip} — consumers describe intent through these fields and nothing
@@ -160,6 +173,7 @@ export const ResourceHeader = memo(function ResourceHeader({
       : hasBreadcrumbs && breadcrumbs.length > 2
         ? breadcrumbs.length - 1
         : -1
+  const breadcrumbEntries = breadcrumbs ? keyedBreadcrumbs(breadcrumbs) : []
 
   return (
     <div
@@ -172,7 +186,7 @@ export const ResourceHeader = memo(function ResourceHeader({
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (
-            breadcrumbs.map((crumb, i) => {
+            breadcrumbEntries.map(({ crumb, index: i, key }) => {
               const segmentClassName = getBreadcrumbSegmentClassName(
                 i,
                 breadcrumbs.length,
@@ -204,7 +218,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                   : undefined
 
               return (
-                <Fragment key={`${crumb.label}-${i}`}>
+                <Fragment key={key}>
                   {i > 0 && (
                     <span className='mx-0.5 shrink-0 select-none text-[var(--text-icon)] text-sm'>
                       /
@@ -465,6 +479,7 @@ function BreadcrumbLocationPopover({
   const [open, setOpen] = useState(false)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rootBreadcrumb = breadcrumbs[0]
+  const breadcrumbEntries = keyedBreadcrumbs(breadcrumbs)
 
   const cancelScheduledClose = () => {
     if (closeTimeoutRef.current) {
@@ -569,9 +584,9 @@ function BreadcrumbLocationPopover({
             </span>
           </PopoverSection>
           <div className='flex flex-col gap-0.5'>
-            {breadcrumbs.map((crumb, index) => (
+            {breadcrumbEntries.map(({ crumb, index, key }) => (
               <BreadcrumbLocationItem
-                key={`${crumb.label}-${index}`}
+                key={key}
                 icon={crumb.icon || (index === 0 ? Icon : undefined)}
                 label={crumb.label}
                 onClick={crumb.onClick ? () => navigateAndClose(crumb.onClick) : undefined}

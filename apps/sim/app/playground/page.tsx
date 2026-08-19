@@ -84,6 +84,7 @@ import {
   ZoomOut,
 } from '@sim/emcn'
 import { ArrowLeft, Folder, Moon, Sun } from '@sim/emcn/icons'
+import { generateShortId } from '@sim/utils/id'
 import { notFound, useRouter } from 'next/navigation'
 import { env, isTruthy } from '@/lib/core/config/env'
 
@@ -148,9 +149,14 @@ export default function PlaygroundPage() {
   const [dateValue, setDateValue] = useState('')
   const [dateRangeStart, setDateRangeStart] = useState('')
   const [dateRangeEnd, setDateRangeEnd] = useState('')
-  const [tagItems, setTagItems] = useState<TagItem[]>([
-    { value: 'user@example.com', isValid: true },
-    { value: 'invalid-email', isValid: false, error: 'Invalid email format' },
+  const [tagItems, setTagItems] = useState<TagItem[]>(() => [
+    { id: generateShortId(), value: 'user@example.com', isValid: true },
+    {
+      id: generateShortId(),
+      value: 'invalid-email',
+      isValid: false,
+      error: 'Invalid email format',
+    },
   ])
 
   const toggleDarkMode = () => {
@@ -439,7 +445,7 @@ export default function PlaygroundPage() {
                     items={tagItems}
                     onAdd={(value) => {
                       const isValid = value.includes('@') && value.includes('.')
-                      setTagItems((prev) => [...prev, { value, isValid }])
+                      setTagItems((prev) => [...prev, { id: generateShortId(), value, isValid }])
                       return isValid
                     }}
                     onRemove={(_, index) => {
@@ -454,8 +460,8 @@ export default function PlaygroundPage() {
                 <div className='w-80'>
                   <TagInput
                     items={[
-                      { value: 'workflow', isValid: true },
-                      { value: 'automation', isValid: true },
+                      { id: 'workflow', value: 'workflow', isValid: true },
+                      { id: 'automation', value: 'automation', isValid: true },
                     ]}
                     onAdd={() => true}
                     onRemove={() => {}}
@@ -468,7 +474,7 @@ export default function PlaygroundPage() {
               <VariantRow label='disabled'>
                 <div className='w-80'>
                   <TagInput
-                    items={[{ value: 'disabled@email.com', isValid: true }]}
+                    items={[{ id: 'disabled-email', value: 'disabled@email.com', isValid: true }]}
                     onAdd={() => false}
                     onRemove={() => {}}
                     placeholder='Disabled input'

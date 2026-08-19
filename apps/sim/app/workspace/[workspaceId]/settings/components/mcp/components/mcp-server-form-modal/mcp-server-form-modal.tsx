@@ -10,6 +10,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   type ChipModalFooterAction,
+  type ChipModalFooterSecondaryAction,
   ChipModalHeader,
   cn,
   SecretInput,
@@ -17,6 +18,7 @@ import {
 import { ChevronDown, ChevronRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {
   checkEnvVarTrigger,
@@ -28,6 +30,7 @@ import { useMcpServerTest } from '@/hooks/queries/mcp'
 const logger = createLogger('McpServerFormModal')
 
 interface HeaderEntry {
+  id: string
   key: string
   value: string
 }
@@ -95,7 +98,7 @@ const DEFAULT_FORM_DATA: McpServerFormData = {
   transport: 'streamable-http',
   url: '',
   timeout: 30000,
-  headers: [{ key: '', value: '' }],
+  headers: [{ id: generateShortId(), key: '', value: '' }],
 }
 
 type InputFieldType = 'url' | 'header-key' | 'header-value'
@@ -293,7 +296,7 @@ function updateHeadersArray(
 
   const lastIdx = updated.length - 1
   if (index === lastIdx && updated[lastIdx] && (updated[lastIdx].key || updated[lastIdx].value)) {
-    updated.push({ key: '', value: '' })
+    updated.push({ id: generateShortId(), key: '', value: '' })
   }
 
   const lastIndex = updated.length - 1
@@ -619,14 +622,16 @@ export function McpServerFormModal({
     setSubmitError(null)
   }
 
-  const secondaryAction: ChipModalFooterAction | undefined =
+  const secondaryAction: ChipModalFooterSecondaryAction | undefined =
     mode === 'add'
       ? {
+          id: 'toggle-json-mode',
           label: formMode === 'form' ? 'Edit JSON' : 'Edit form',
           onClick: handleToggleJsonMode,
         }
       : formMode === 'form'
         ? {
+            id: 'test-connection',
             label: testButtonLabel,
             onClick: handleTestConnection,
             disabled: isTestingConnection || !isFormValid || isDomainBlocked,
@@ -726,7 +731,7 @@ export function McpServerFormModal({
               <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
                 {(formData.headers || []).map((header, index) => (
                   <HeaderRow
-                    key={index}
+                    key={header.id}
                     header={header}
                     index={index}
                     headerScrollLeft={headerScrollLeft}

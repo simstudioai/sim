@@ -348,6 +348,7 @@ export function ClientCredentialAccountModal({
         onCancel={() => onOpenChange(false)}
         secondaryActions={[
           {
+            id: 'setup-guide',
             label: 'Setup guide',
             onClick: () => openDocs(descriptor.docsUrl),
           },

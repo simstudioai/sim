@@ -1,4 +1,5 @@
 import { cn } from '@sim/emcn'
+import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { PROSE_SPACING, PROSE_TYPE } from '@/app/(landing)/components/prose-page/constants'
 import type { LegalBlock } from '@/app/(landing)/components/prose-page/types'
 
@@ -21,19 +22,23 @@ export function LegalBlockView({ block }: LegalBlockViewProps) {
       return <p className={PROSE_TYPE.body}>{block.content}</p>
     case 'subheading':
       return <h3 className={PROSE_TYPE.h3}>{block.text}</h3>
-    case 'list':
+    case 'list': {
+      const itemOccurrences = new Map<string, number>()
       return (
         <ul className={cn('list-disc', PROSE_SPACING.listIndent, PROSE_SPACING.listStack)}>
-          {block.items.map((item, index) => {
-            const itemKey = `item-${index}`
+          {block.items.map((item) => {
+            const signature = extractTextContent(item)
+            const occurrence = itemOccurrences.get(signature) ?? 0
+            itemOccurrences.set(signature, occurrence + 1)
             return (
-              <li key={itemKey} className={PROSE_TYPE.list}>
+              <li key={`${signature}:${occurrence}`} className={PROSE_TYPE.list}>
                 {item}
               </li>
             )
           })}
         </ul>
       )
+    }
     case 'callout':
       return <div className={PROSE_TYPE.callout}>{block.content}</div>
     case 'table':

@@ -81,4 +81,21 @@ describe('CustomPatternsEditor', () => {
     act(() => remove.dispatchEvent(new MouseEvent('click', { bubbles: true })))
     expect(onChange).toHaveBeenCalledWith([{ name: 'X', regex: 'b+', replacement: '<X>' }])
   })
+
+  it('preserves an existing row while rows are appended and truncated', () => {
+    const onChange = vi.fn()
+    const firstPattern = row('a+')
+    renderEditor([firstPattern], onChange)
+
+    const firstRegexInput = container.querySelector('input[value="a+"]') as HTMLInputElement
+    firstRegexInput.focus()
+
+    renderEditor([firstPattern, row('b+')], onChange)
+    expect(container.querySelector('input[value="a+"]')).toBe(firstRegexInput)
+    expect(document.activeElement).toBe(firstRegexInput)
+
+    renderEditor([firstPattern], onChange)
+    expect(container.querySelector('input[value="a+"]')).toBe(firstRegexInput)
+    expect(document.activeElement).toBe(firstRegexInput)
+  })
 })

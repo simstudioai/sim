@@ -182,7 +182,7 @@ export function PromptEditor({
 
       if (range.start > lastIndex) {
         const before = value.slice(lastIndex, range.start)
-        elements.push(<span key={`text-${i}-${lastIndex}-${range.start}`}>{before}</span>)
+        elements.push(<span key={`text-${lastIndex}-${range.start}`}>{before}</span>)
       }
 
       const mentionLabel = stripMentionTrigger(range.token)
@@ -196,7 +196,7 @@ export function PromptEditor({
       ) : null
 
       elements.push(
-        <span key={`mention-${i}-${range.start}-${range.end}`}>
+        <span key={`mention-${range.start}-${range.end}`}>
           <span className='relative'>
             {/* Invisible trigger glyph keeps the overlay's advance identical to
                 the transparent textarea; the icon centers over its slot. */}

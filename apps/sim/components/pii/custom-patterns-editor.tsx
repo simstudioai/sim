@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { Chip, ChipInput } from '@sim/emcn'
 import { Plus, Trash } from '@sim/emcn/icons'
+import { generateShortId } from '@sim/utils/id'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
@@ -24,26 +26,42 @@ interface CustomPatternsEditorProps {
  * was removed rather than kept.
  */
 export function CustomPatternsEditor({ patterns, onChange }: CustomPatternsEditorProps) {
+  const [patternIds, setPatternIds] = useState(() => patterns.map(() => generateShortId()))
+
   function updateRow(index: number, patch: Partial<CustomPiiPattern>) {
     onChange(patterns.map((pattern, i) => (i === index ? { ...pattern, ...patch } : pattern)))
   }
 
   function removeRow(index: number) {
+    setPatternIds((current) => current.filter((_, i) => i !== index))
     onChange(patterns.filter((_, i) => i !== index))
   }
 
   function addRow() {
     if (patterns.length >= MAX_PATTERNS) return
+    setPatternIds((current) => [...current, generateShortId()])
     onChange([...patterns, { name: '', regex: '', replacement: '' }])
   }
 
+  const fallbackOccurrences = new Map<string, number>()
+  const rows = patterns.map((pattern, index) => {
+    const signature = `${pattern.name}\u0000${pattern.regex}\u0000${pattern.replacement}`
+    const occurrence = fallbackOccurrences.get(signature) ?? 0
+    fallbackOccurrences.set(signature, occurrence + 1)
+    return {
+      id: patternIds[index] ?? `pattern:${signature}:${occurrence}`,
+      index,
+      pattern,
+    }
+  })
+
   return (
     <div className='flex flex-col gap-2'>
-      {patterns.map((pattern, index) => {
+      {rows.map(({ id, index, pattern }) => {
         const validation = pattern.regex.length > 0 ? validateRegexPattern(pattern.regex) : null
         const error = validation && !validation.valid ? validation.error : undefined
         return (
-          <div key={index} className='flex flex-col gap-1'>
+          <div key={id} className='flex flex-col gap-1'>
             <div className='flex items-start gap-2'>
               <ChipInput
                 placeholder='Name'

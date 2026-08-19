@@ -69,6 +69,7 @@ export {
   type ChipModalFooterAction,
   type ChipModalFooterCustomAction,
   type ChipModalFooterProps,
+  type ChipModalFooterSecondaryAction,
   type ChipModalFooterSlotAction,
   ChipModalHeader,
   type ChipModalHeaderProps,

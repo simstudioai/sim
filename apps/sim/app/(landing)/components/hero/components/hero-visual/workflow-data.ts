@@ -238,8 +238,8 @@ export const SCENE_JIRA_FOCUS_TRANSLATE = { x: -645, y: 0 } as const
  * `@GitHub` / `@Jira` mention.
  */
 export type PromptAtom =
-  | { kind: 'char'; char: string }
-  | { kind: 'mention'; label: string; icon: IconComponent }
+  | { id: string; kind: 'char'; char: string }
+  | { id: string; kind: 'mention'; label: string; icon: IconComponent }
 
 const PROMPT_SEGMENTS: Array<string | { label: string; icon: IconComponent }> = [
   'Create me a ',
@@ -248,11 +248,26 @@ const PROMPT_SEGMENTS: Array<string | { label: string; icon: IconComponent }> = 
   { label: 'Jira', icon: JiraIcon },
 ]
 
-export const PROMPT_ATOMS: PromptAtom[] = PROMPT_SEGMENTS.flatMap((seg) =>
-  typeof seg === 'string'
-    ? [...seg].map((char): PromptAtom => ({ kind: 'char', char }))
-    : [{ kind: 'mention', label: seg.label, icon: seg.icon } as PromptAtom]
-)
+let promptSourceOffset = 0
+export const PROMPT_ATOMS: PromptAtom[] = PROMPT_SEGMENTS.flatMap((seg) => {
+  if (typeof seg === 'string') {
+    const atoms = [...seg].map((char): PromptAtom => {
+      const id = `char-${promptSourceOffset}`
+      promptSourceOffset += char.length
+      return { id, kind: 'char', char }
+    })
+    return atoms
+  }
+
+  const atom: PromptAtom = {
+    id: `mention-${promptSourceOffset}-${seg.label}`,
+    kind: 'mention',
+    label: seg.label,
+    icon: seg.icon,
+  }
+  promptSourceOffset += seg.label.length + 1
+  return [atom]
+})
 
 /** Greeting shown above the input in the home state (matches the Mothership home). */
 export const HOME_GREETING = 'What should we get done?'

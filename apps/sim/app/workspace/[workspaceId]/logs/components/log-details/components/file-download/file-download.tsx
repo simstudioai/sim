@@ -122,9 +122,9 @@ export function FileCards({ files, isExecutionFile = false, workspaceId }: FileC
   return (
     <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
       <span className='text-[var(--text-tertiary)] text-caption'>Files ({files.length})</span>
-      {files.map((file, index) => (
+      {files.map((file) => (
         <FileCard
-          key={file.id || `file-${index}`}
+          key={file.id || file.key}
           file={file}
           isExecutionFile={isExecutionFile}
           workspaceId={workspaceId}

@@ -1034,9 +1034,9 @@ export function Chat() {
                       File upload error
                     </div>
                     <div className='space-y-1'>
-                      {uploadErrors.map((err, idx) => (
-                        <div key={idx} className='text-[var(--text-error)] text-micro'>
-                          {err}
+                      {uploadErrors.map((error) => (
+                        <div key={error.id} className='text-[var(--text-error)] text-micro'>
+                          {error.message}
                         </div>
                       ))}
                     </div>

@@ -114,11 +114,11 @@ const Caret = () => (
 function PromptAtoms({ atoms }: { atoms: PromptAtom[] }) {
   return (
     <>
-      {atoms.map((atom, i) =>
+      {atoms.map((atom) =>
         atom.kind === 'char' ? (
-          <span key={`${i}-${atom.char}`}>{atom.char}</span>
+          <span key={atom.id}>{atom.char}</span>
         ) : (
-          <span key={`${i}-${atom.label}`}>
+          <span key={atom.id}>
             <span className='relative'>
               <span className='invisible'>@</span>
               <atom.icon className='absolute inset-0 m-auto size-[12px] translate-y-[1.25px] text-[var(--text-icon)]' />

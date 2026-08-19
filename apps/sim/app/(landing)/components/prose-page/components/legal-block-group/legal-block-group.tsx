@@ -1,4 +1,5 @@
 import { cn } from '@sim/emcn'
+import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { LegalBlockView } from '@/app/(landing)/components/prose-page/components/legal-block-group/components'
 import { PROSE_SPACING } from '@/app/(landing)/components/prose-page/constants'
 import type { LegalBlock } from '@/app/(landing)/components/prose-page/types'
@@ -16,11 +17,21 @@ interface LegalBlockGroupProps {
 }
 
 export function LegalBlockGroup({ blocks }: LegalBlockGroupProps) {
+  const blockOccurrences = new Map<string, number>()
   return (
     <div className={cn('flex flex-col', PROSE_SPACING.blockStack)}>
-      {blocks.map((block, index) => (
-        <LegalBlockView key={`${block.kind}-${index}`} block={block} />
-      ))}
+      {blocks.map((block) => {
+        const content =
+          block.kind === 'subheading'
+            ? block.text
+            : block.kind === 'list'
+              ? block.items.map(extractTextContent).join('\u0000')
+              : extractTextContent(block.content)
+        const signature = `${block.kind}:${content}`
+        const occurrence = blockOccurrences.get(signature) ?? 0
+        blockOccurrences.set(signature, occurrence + 1)
+        return <LegalBlockView key={`${signature}:${occurrence}`} block={block} />
+      })}
     </div>
   )
 }

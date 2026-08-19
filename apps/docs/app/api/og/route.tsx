@@ -102,7 +102,12 @@ function splitOversizedWord(word: string, maxWidthEm: number): string[] {
  * so it sidesteps the bug instead of fighting Satori's own line-wrapping
  * (which is also disabled here — lines are pre-split, not auto-wrapped).
  */
-function wrapTitleLines(title: string, fontSize: number): string[] {
+interface TitleLine {
+  text: string
+  sourceOffset: number
+}
+
+function wrapTitleLines(title: string, fontSize: number): TitleLine[] {
   const maxWidthEm = TITLE_BOX_WIDTH / fontSize
   const words = title.split(' ')
   const lines: string[] = []
@@ -130,7 +135,12 @@ function wrapTitleLines(title: string, fontSize: number): string[] {
   }
   if (current) lines.push(current)
 
-  return lines.map((line) => line.replace(/ /g, ' '))
+  let lineOffset = 0
+  return lines.map((line) => {
+    const sourceOffset = lineOffset
+    lineOffset += line.length + 1
+    return { text: line.replace(/ /g, ' '), sourceOffset }
+  })
 }
 
 /**
@@ -211,8 +221,8 @@ export async function GET(request: NextRequest) {
       </div>
 
       <div style={getTitleStyle(title)}>
-        {titleLines.map((line, index) => (
-          <span key={index}>{line}</span>
+        {titleLines.map((line) => (
+          <span key={line.sourceOffset}>{line.text}</span>
         ))}
       </div>
     </div>,

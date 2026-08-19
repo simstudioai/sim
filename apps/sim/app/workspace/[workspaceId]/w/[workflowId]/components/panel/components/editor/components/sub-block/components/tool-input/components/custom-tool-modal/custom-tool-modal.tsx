@@ -391,6 +391,7 @@ export function CustomToolModal({
               isEditing
                 ? [
                     {
+                      id: 'delete',
                       label: 'Delete',
                       onClick: () => setShowDeleteConfirm(true),
                       variant: 'destructive',
@@ -412,11 +413,12 @@ export function CustomToolModal({
             secondaryActions={[
               isEditing
                 ? {
+                    id: 'delete',
                     label: 'Delete',
                     onClick: () => setShowDeleteConfirm(true),
                     variant: 'destructive',
                   }
-                : { label: 'Back', onClick: () => setActiveSection('schema') },
+                : { id: 'back', label: 'Back', onClick: () => setActiveSection('schema') },
             ]}
             primaryAction={{
               label: isEditing ? 'Update Tool' : 'Save Tool',

@@ -21,6 +21,11 @@ interface AttachedFile {
   dataUrl?: string
 }
 
+interface UploadError {
+  id: string
+  message: string
+}
+
 export const ChatInput: React.FC<{
   onSubmit?: (value: string, files?: AttachedFile[]) => void
   isStreaming?: boolean
@@ -30,7 +35,7 @@ export const ChatInput: React.FC<{
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [inputValue, setInputValue] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-  const [uploadErrors, setUploadErrors] = useState<string[]>([])
+  const [uploadErrors, setUploadErrors] = useState<UploadError[]>([])
   const [dragCounter, setDragCounter] = useState(0)
   const isDragOver = dragCounter > 0
 
@@ -54,7 +59,10 @@ export const ChatInput: React.FC<{
       const file = selectedFiles[i]
 
       if (file.size > maxSize) {
-        setUploadErrors((prev) => [...prev, `${file.name} is too large (max 10MB)`])
+        setUploadErrors((prev) => [
+          ...prev,
+          { id: generateId(), message: `${file.name} is too large (max 10MB)` },
+        ])
         continue
       }
 
@@ -62,7 +70,10 @@ export const ChatInput: React.FC<{
         (existing) => existing.name === file.name && existing.size === file.size
       )
       if (isDuplicate) {
-        setUploadErrors((prev) => [...prev, `${file.name} already added`])
+        setUploadErrors((prev) => [
+          ...prev,
+          { id: generateId(), message: `${file.name} already added` },
+        ])
         continue
       }
 
@@ -128,9 +139,9 @@ export const ChatInput: React.FC<{
       <div className='w-full max-w-3xl md:max-w-[748px]'>
         {uploadErrors.length > 0 && (
           <div className='mb-3 flex flex-col gap-2'>
-            {uploadErrors.map((error, idx) => (
-              <Badge key={`${error}-${idx}`} variant='red' size='lg' dot className='max-w-full'>
-                {error}
+            {uploadErrors.map((error) => (
+              <Badge key={error.id} variant='red' size='lg' dot className='max-w-full'>
+                {error.message}
               </Badge>
             ))}
           </div>

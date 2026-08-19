@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { generateShortId } from '@sim/utils/id'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { TagInput, type TagItem } from '../tag-input/tag-input'
 
@@ -84,7 +85,7 @@ export function ChipEmailsInput({
   id,
 }: ChipEmailsInputProps) {
   const [items, setItems] = React.useState<TagItem[]>(() =>
-    value.map((v) => ({ value: v, isValid: true }))
+    value.map((v) => ({ id: generateShortId(), value: v, isValid: true }))
   )
 
   /**
@@ -113,7 +114,7 @@ export function ChipEmailsInput({
     if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
       return
     }
-    itemsRef.current = value.map((v) => ({ value: v, isValid: true }))
+    itemsRef.current = value.map((v) => ({ id: generateShortId(), value: v, isValid: true }))
     setItems(itemsRef.current)
   }, [value])
 
@@ -128,6 +129,7 @@ export function ChipEmailsInput({
         commitItems([
           ...current,
           {
+            id: generateShortId(),
             value: email,
             isValid: false,
             error: allowDomains ? 'Invalid email or domain' : 'Invalid email format',
@@ -138,11 +140,14 @@ export function ChipEmailsInput({
 
       const reason = validate?.(email)
       if (reason) {
-        commitItems([...current, { value: email, isValid: false, error: reason }])
+        commitItems([
+          ...current,
+          { id: generateShortId(), value: email, isValid: false, error: reason },
+        ])
         return false
       }
 
-      const next = [...current, { value: email, isValid: true }]
+      const next = [...current, { id: generateShortId(), value: email, isValid: true }]
       commitItems(next)
       onChange(next.filter((item) => item.isValid).map((item) => item.value))
       return true

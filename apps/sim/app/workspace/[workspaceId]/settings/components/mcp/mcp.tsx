@@ -5,6 +5,7 @@ import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/
 import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { McpIcon } from '@/components/icons'
@@ -154,12 +155,18 @@ function ServerListItem({
 }
 
 function buildEditInitialData(server: McpServer) {
-  const entries: { key: string; value: string }[] = server.headers
-    ? Object.entries(server.headers).map(([key, value]) => ({ key, value }))
+  const entries: { id: string; key: string; value: string }[] = server.headers
+    ? Object.entries(server.headers).map(([key, value]) => ({
+        id: generateShortId(),
+        key,
+        value,
+      }))
     : []
-  if (entries.length === 0) entries.push({ key: '', value: '' })
+  if (entries.length === 0) entries.push({ id: generateShortId(), key: '', value: '' })
   const last = entries[entries.length - 1]
-  if (last.key !== '' || last.value !== '') entries.push({ key: '', value: '' })
+  if (last.key !== '' || last.value !== '') {
+    entries.push({ id: generateShortId(), key: '', value: '' })
+  }
 
   return {
     name: server.name || '',

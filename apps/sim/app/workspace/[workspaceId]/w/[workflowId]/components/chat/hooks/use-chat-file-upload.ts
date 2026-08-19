@@ -9,6 +9,11 @@ export interface ChatFile {
   file: File
 }
 
+export interface ChatUploadError {
+  id: string
+  message: string
+}
+
 export const MAX_CHAT_FILES = 15
 export const MAX_CHAT_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -18,7 +23,7 @@ export const MAX_CHAT_FILE_SIZE_BYTES = 10 * 1024 * 1024
  */
 export function useChatFileUpload() {
   const [chatFiles, setChatFiles] = useState<ChatFile[]>([])
-  const [uploadErrors, setUploadErrors] = useState<string[]>([])
+  const [uploadErrors, setUploadErrors] = useState<ChatUploadError[]>([])
   const [dragCounter, setDragCounter] = useState(0)
 
   const isDragOver = dragCounter > 0
@@ -31,13 +36,16 @@ export function useChatFileUpload() {
     setChatFiles((currentFiles) => {
       const remainingSlots = Math.max(0, MAX_CHAT_FILES - currentFiles.length)
       const candidateFiles = files.slice(0, remainingSlots)
-      const errors: string[] = []
+      const errors: ChatUploadError[] = []
       const validNewFiles: ChatFile[] = []
 
       for (const file of candidateFiles) {
         // Check file size
         if (file.size > MAX_CHAT_FILE_SIZE_BYTES) {
-          errors.push(`${file.name} is too large (max 10MB)`)
+          errors.push({
+            id: generateId(),
+            message: `${file.name} is too large (max 10MB)`,
+          })
           continue
         }
 
@@ -49,7 +57,7 @@ export function useChatFileUpload() {
           (newFile) => newFile.name === file.name && newFile.size === file.size
         )
         if (isDuplicateInCurrent || isDuplicateInNew) {
-          errors.push(`${file.name} already added`)
+          errors.push({ id: generateId(), message: `${file.name} already added` })
           continue
         }
 
@@ -88,7 +96,7 @@ export function useChatFileUpload() {
    * Surface an execution-time upload failure without removing the selected files.
    */
   const reportUploadError = useCallback((message: string) => {
-    setUploadErrors([message])
+    setUploadErrors([{ id: generateId(), message }])
   }, [])
 
   /**

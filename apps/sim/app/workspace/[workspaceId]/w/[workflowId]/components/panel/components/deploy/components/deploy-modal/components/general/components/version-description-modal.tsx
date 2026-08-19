@@ -164,6 +164,7 @@ export function VersionDescriptionModal({
           cancelDisabled={updateMutation.isPending || isGenerating}
           secondaryActions={[
             {
+              id: 'generate',
               label: isGenerating ? 'Generating...' : 'Generate',
               onClick: handleGenerateDescription,
               disabled: isGenerating || updateMutation.isPending,

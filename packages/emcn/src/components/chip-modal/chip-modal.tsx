@@ -1048,8 +1048,13 @@ export interface ChipModalFooterCustomAction {
   custom: React.ReactNode
 }
 
-/** One entry of the footer's left-docked `secondaryActions` cluster. */
+/** Declarative or custom action accepted by a footer slot. */
 export type ChipModalFooterSlotAction = ChipModalFooterAction | ChipModalFooterCustomAction
+
+/** A footer slot action with the stable identity required by `secondaryActions`. */
+export type ChipModalFooterSecondaryAction =
+  | (ChipModalFooterAction & { id: string })
+  | (ChipModalFooterCustomAction & { id: string })
 
 export interface ChipModalFooterProps {
   /**
@@ -1103,7 +1108,7 @@ export interface ChipModalFooterProps {
    * each entry is a constrained {@link ChipModalFooterSlotAction} — consumers
    * describe intent, never chrome.
    */
-  secondaryActions?: ChipModalFooterSlotAction[]
+  secondaryActions?: ChipModalFooterSecondaryAction[]
 }
 
 /**
@@ -1217,8 +1222,8 @@ function ChipModalFooter({
       leftSlot={
         secondaryActions && secondaryActions.length > 0 ? (
           <div className='flex min-w-0 flex-wrap items-center gap-2'>
-            {secondaryActions.map((action, index) => (
-              <React.Fragment key={index}>{renderFooterSlotAction(action)}</React.Fragment>
+            {secondaryActions.map((action) => (
+              <React.Fragment key={action.id}>{renderFooterSlotAction(action)}</React.Fragment>
             ))}
           </div>
         ) : undefined

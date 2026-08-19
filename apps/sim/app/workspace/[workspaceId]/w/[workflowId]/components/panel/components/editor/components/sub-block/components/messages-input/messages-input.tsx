@@ -542,11 +542,23 @@ export function MessagesInput({
     }
   }, [currentMessages.length])
 
+  const fallbackOccurrences = new Map<string, number>()
+  const keyedMessages = currentMessages.map((message, index) => {
+    const signature = `${message.role}\u0000${message.content}`
+    const occurrence = fallbackOccurrences.get(signature) ?? 0
+    fallbackOccurrences.set(signature, occurrence + 1)
+    return {
+      id: messageIdsRef.current[index] ?? `message:${signature}:${occurrence}`,
+      index,
+      message,
+    }
+  })
+
   return (
     <div className='flex w-full flex-col gap-2.5'>
-      {currentMessages.map((message, index) => (
+      {keyedMessages.map(({ id, index, message }) => (
         <div
-          key={messageIdsRef.current[index] ?? `fallback-${index}`}
+          key={id}
           className={cn(
             'relative flex w-full flex-col rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
             disabled && 'opacity-50'

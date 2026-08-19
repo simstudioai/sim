@@ -268,7 +268,13 @@ export const MessageActions = memo(function MessageActions({
           onCancel={() => handleModalClose(false)}
           secondaryActions={
             pendingFeedback === 'down' && requestId
-              ? [{ label: copiedRequestId ? 'Copied' : 'Copy ID', onClick: copyRequestId }]
+              ? [
+                  {
+                    id: 'copy-request-id',
+                    label: copiedRequestId ? 'Copied' : 'Copy ID',
+                    onClick: copyRequestId,
+                  },
+                ]
               : undefined
           }
           primaryAction={{

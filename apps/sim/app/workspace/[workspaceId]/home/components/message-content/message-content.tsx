@@ -59,6 +59,7 @@ interface AgentGroupSegment {
 
 interface OptionsSegment {
   type: 'options'
+  id: string
   items: OptionItem[]
 }
 
@@ -429,7 +430,11 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
 
     if (block.type === 'options') {
       if (!block.options?.length) continue
-      segments.push({ type: 'options', items: block.options })
+      segments.push({
+        type: 'options',
+        id: `options-${block.timestamp ?? 'untimed'}-${block.options.map((item) => item.id).join(':')}`,
+        items: block.options,
+      })
       continue
     }
 
@@ -662,7 +667,11 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'options') {
       if (!block.options?.length) continue
       flushLanes()
-      segments.push({ type: 'options', items: block.options })
+      segments.push({
+        type: 'options',
+        id: `options-${block.timestamp ?? 'untimed'}-${block.options.map((item) => item.id).join(':')}`,
+        items: block.options,
+      })
       continue
     }
 
@@ -966,7 +975,7 @@ function MessageContentInner({
             case 'options':
               return (
                 <div
-                  key={`options-${i}`}
+                  key={segment.id}
                   className={isStreaming ? 'animate-stream-fade-in' : undefined}
                 >
                   <Options items={segment.items} onSelect={onOptionSelect} />

@@ -49,18 +49,27 @@ interface InteractionCardRecapProps {
 
 /** Shared answered-state layout used by questions and credential requests. */
 export function InteractionCardRecap({ items }: InteractionCardRecapProps) {
+  const itemOccurrences = new Map<string, number>()
   return (
     <InteractionCard>
-      {items.map((item, index) => (
-        <div key={`${item.label}-${index}`} className='px-2 py-2'>
-          <p className='text-[var(--text-primary)] text-sm'>{item.label}</p>
-          <div className='mt-1.5 flex flex-col gap-1 text-[var(--text-muted)] text-sm'>
-            {item.values.map((value, valueIndex) => (
-              <p key={`${value}-${valueIndex}`}>{value}</p>
-            ))}
+      {items.map((item) => {
+        const signature = `${item.label}\u0000${item.values.join('\u0000')}`
+        const occurrence = itemOccurrences.get(signature) ?? 0
+        itemOccurrences.set(signature, occurrence + 1)
+        const valueOccurrences = new Map<string, number>()
+        return (
+          <div key={`${signature}\u0000${occurrence}`} className='px-2 py-2'>
+            <p className='text-[var(--text-primary)] text-sm'>{item.label}</p>
+            <div className='mt-1.5 flex flex-col gap-1 text-[var(--text-muted)] text-sm'>
+              {item.values.map((value) => {
+                const valueOccurrence = valueOccurrences.get(value) ?? 0
+                valueOccurrences.set(value, valueOccurrence + 1)
+                return <p key={`${value}\u0000${valueOccurrence}`}>{value}</p>
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </InteractionCard>
   )
 }

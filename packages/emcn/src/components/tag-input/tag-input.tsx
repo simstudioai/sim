@@ -4,6 +4,7 @@
  * @example
  * ```tsx
  * import { TagInput, type TagItem } from '../../index'
+ * import { generateShortId } from '@sim/utils/id'
  *
  * const [items, setItems] = useState<TagItem[]>([])
  *
@@ -11,7 +12,7 @@
  *   items={items}
  *   onAdd={(value) => {
  *     const isValid = isValidEmail(value)
- *     setItems(prev => [...prev, { value, isValid }])
+ *     setItems(prev => [...prev, { id: generateShortId(), value, isValid }])
  *     return isValid
  *   }}
  *   onRemove={(value, index) => {
@@ -81,6 +82,8 @@ const tagInputVariants = cva(
  * Represents a tag item with its value and validity status.
  */
 export interface TagItem {
+  /** Stable identity retained while the tag is edited, reordered, or removed. */
+  id: string
   value: string
   isValid: boolean
   /**
@@ -402,7 +405,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         )}
         {items.map((item, index) => (
           <TagInputTag
-            key={`item-${index}`}
+            key={item.id}
             item={item}
             index={index}
             onRemove={onRemove}
