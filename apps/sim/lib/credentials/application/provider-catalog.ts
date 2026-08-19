@@ -15,6 +15,7 @@ import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   type OAuthServiceMetadata,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { getAllOAuthServices, getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -89,6 +90,7 @@ interface ServiceAccountDescriptor {
 const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
 const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
   'https://docs.sim.ai/integrations/atlassian-service-account'
+const PLAID_DOCS_URL = 'https://docs.sim.ai/integrations/plaid'
 
 function providerField(
   field: TokenServiceAccountField | ClientCredentialAccountField
@@ -174,6 +176,54 @@ function getServiceAccountDescriptor(providerId: string): ServiceAccountDescript
           id: 'botToken',
           label: 'Bot token',
           placeholder: 'xoxb-...',
+          required: true,
+          secret: true,
+          multiline: false,
+        },
+      ],
+    }
+  }
+  if (providerId === PLAID_SERVICE_ACCOUNT_PROVIDER_ID) {
+    return {
+      name: 'Plaid Item credential',
+      description:
+        'Connect one Plaid Item with your Plaid application credentials and Item access token.',
+      docsUrl: PLAID_DOCS_URL,
+      helpText:
+        'The Item access token is long-lived and specific to one linked Item. Create another credential for each Item.',
+      fields: [
+        {
+          id: 'environment',
+          label: 'Environment',
+          placeholder: 'Select the Plaid environment',
+          required: true,
+          secret: false,
+          multiline: false,
+          options: [
+            { value: 'production', label: 'Production' },
+            { value: 'sandbox', label: 'Sandbox' },
+          ],
+        },
+        {
+          id: 'clientId',
+          label: 'Client ID',
+          placeholder: 'Paste your Plaid client ID',
+          required: true,
+          secret: false,
+          multiline: false,
+        },
+        {
+          id: 'clientSecret',
+          label: 'Secret',
+          placeholder: 'Paste the secret for the selected environment',
+          required: true,
+          secret: true,
+          multiline: false,
+        },
+        {
+          id: 'accessToken',
+          label: 'Item access token',
+          placeholder: 'access-production-… or access-sandbox-…',
           required: true,
           secret: true,
           multiline: false,

@@ -72,6 +72,8 @@ export interface PerformCreateCredentialParams {
   botToken?: string
   clientId?: string
   clientSecret?: string
+  accessToken?: string
+  environment?: 'production' | 'sandbox'
   certificateId?: string
   orgId?: string
   dataCenter?: string
@@ -270,6 +272,8 @@ export async function createCredentialRecord(
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,
+          accessToken: params.accessToken,
+          environment: params.environment,
           certificateId: params.certificateId,
           orgId: params.orgId,
           dataCenter: params.dataCenter,

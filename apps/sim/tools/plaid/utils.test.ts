@@ -6,13 +6,19 @@ import { extractErrorMessage } from '@/tools/error-extractors'
 import {
   buildPlaidHeaders,
   mapPlaidAccount,
+  mapPlaidInstitution,
+  mapPlaidItem,
   mapPlaidNumbers,
   mapPlaidTransaction,
+  parsePlaidCountryCodes,
+  parsePlaidProducts,
   plaidRecord,
   plaidUrl,
   splitPlaidList,
   toPlaidOptionalBoolean,
+  toPlaidOptionalDateTime,
   toPlaidOptionalNumber,
+  toPlaidOptionalWebhookUrl,
 } from '@/tools/plaid/utils'
 
 describe('plaidUrl', () => {
@@ -25,10 +31,16 @@ describe('plaidUrl', () => {
     )
   })
 
-  it('defaults to production for missing or unknown environments', () => {
+  it('defaults to production only when the environment is omitted', () => {
     expect(plaidUrl({}, '/accounts/get')).toBe('https://production.plaid.com/accounts/get')
-    expect(plaidUrl({ environment: 'development' }, '/accounts/get')).toBe(
+    expect(plaidUrl({ environment: '  ' }, '/accounts/get')).toBe(
       'https://production.plaid.com/accounts/get'
+    )
+  })
+
+  it('rejects unknown environments instead of silently sending secrets to production', () => {
+    expect(() => plaidUrl({ environment: 'development' }, '/accounts/get')).toThrow(
+      'Plaid environment must be production or sandbox'
     )
   })
 })
@@ -54,8 +66,60 @@ describe('splitPlaidList', () => {
     expect(splitPlaidList(' , ')).toBeUndefined()
   })
 
-  it('tolerates an array arriving from an LLM tool call', () => {
-    expect(splitPlaidList(['US', ' GB '])).toEqual(['US', 'GB'])
+  it('rejects non-string list values instead of expanding or stringifying them', () => {
+    expect(() => splitPlaidList(['US', 'GB'])).toThrow(
+      'Plaid list must be a comma-separated string'
+    )
+    expect(() => splitPlaidList(['US', false])).toThrow(
+      'Plaid list must be a comma-separated string'
+    )
+    expect(() => splitPlaidList({ country: 'US' })).toThrow(
+      'Plaid list must be a comma-separated string'
+    )
+  })
+
+  it('bounds work before splitting large direct-call input', () => {
+    expect(() => splitPlaidList('x'.repeat(10_001))).toThrow(
+      'Plaid list must be at most 10000 characters'
+    )
+    expect(() => splitPlaidList(Array.from({ length: 501 }, () => 'x').join(','))).toThrow(
+      'Plaid list must contain at most 500 values'
+    )
+  })
+})
+
+describe('Plaid request enums and formats', () => {
+  it('normalizes and validates request country codes', () => {
+    expect(parsePlaidCountryCodes(undefined)).toEqual(['US'])
+    expect(parsePlaidCountryCodes('us, gb')).toEqual(['US', 'GB'])
+    expect(() => parsePlaidCountryCodes('ZZ')).toThrow(
+      'countryCodes contains unsupported Plaid country code: ZZ'
+    )
+  })
+
+  it('validates products and rejects unsupported conditional sandbox products', () => {
+    expect(parsePlaidProducts('transactions, AUTH', 'initialProducts', { required: true })).toEqual(
+      ['transactions', 'auth']
+    )
+    expect(() => parsePlaidProducts('made_up', 'products')).toThrow(
+      'products contains unsupported Plaid product: made_up'
+    )
+    expect(() =>
+      parsePlaidProducts('income_verification', 'initialProducts', { required: true })
+    ).toThrow('initialProducts cannot include income_verification')
+  })
+
+  it('validates date-time and webhook formats without accepting URL credentials', () => {
+    expect(toPlaidOptionalDateTime('2026-08-18T12:30:00-07:00', 'timestamp')).toBe(
+      '2026-08-18T12:30:00-07:00'
+    )
+    expect(() => toPlaidOptionalDateTime('2026-08-18', 'timestamp')).toThrow(
+      'timestamp must be an ISO 8601 date-time with a timezone'
+    )
+    expect(toPlaidOptionalWebhookUrl('https://example.com/plaid')).toBe('https://example.com/plaid')
+    expect(() => toPlaidOptionalWebhookUrl('https://user:pass@example.com/plaid')).toThrow(
+      'webhook must be a valid HTTP(S) URL'
+    )
   })
 })
 
@@ -94,6 +158,20 @@ describe('toPlaidOptionalNumber', () => {
 
   it('throws on non-numeric input instead of sending it to Plaid', () => {
     expect(() => toPlaidOptionalNumber('abc', 'count')).toThrow('count must be a valid number')
+    expect(() => toPlaidOptionalNumber(false, 'count')).toThrow('count must be a valid number')
+    expect(() => toPlaidOptionalNumber(['100'], 'count')).toThrow('count must be a valid number')
+  })
+
+  it('enforces integer and range constraints when requested', () => {
+    expect(() =>
+      toPlaidOptionalNumber('1.5', 'count', { integer: true, min: 1, max: 500 })
+    ).toThrow('count must be a whole number')
+    expect(() => toPlaidOptionalNumber(0, 'count', { integer: true, min: 1, max: 500 })).toThrow(
+      'count must be at least 1'
+    )
+    expect(() => toPlaidOptionalNumber(501, 'count', { integer: true, min: 1, max: 500 })).toThrow(
+      'count must be at most 500'
+    )
   })
 })
 
@@ -109,23 +187,52 @@ describe('toPlaidOptionalBoolean', () => {
     expect(toPlaidOptionalBoolean(null)).toBeUndefined()
     expect(toPlaidOptionalBoolean(undefined)).toBeUndefined()
   })
+
+  it('rejects unrecognized boolean values instead of turning them into false', () => {
+    expect(() => toPlaidOptionalBoolean('yes')).toThrow(
+      'includeOriginalDescription must be true or false'
+    )
+    expect(() => toPlaidOptionalBoolean(0)).toThrow(
+      'includeOriginalDescription must be true or false'
+    )
+  })
 })
 
 describe('mapPlaidTransaction', () => {
-  it('maps documented fields and nulls absent nullable ones', () => {
+  const transaction = {
+    transaction_id: 'txn_1',
+    account_id: 'acc_1',
+    amount: 12.5,
+    iso_currency_code: 'USD',
+    unofficial_currency_code: null,
+    date: '2026-08-01',
+    datetime: null,
+    authorized_date: null,
+    authorized_datetime: null,
+    name: 'COFFEE SHOP',
+    merchant_name: 'Coffee Shop',
+    payment_channel: 'in store',
+    pending: false,
+    pending_transaction_id: null,
+    transaction_code: null,
+    location: {
+      address: null,
+      city: 'Oakland',
+      region: null,
+      postal_code: null,
+      country: null,
+      lat: 37.8,
+      lon: null,
+      store_number: null,
+    },
+  }
+
+  it('maps documented fields, preserves optional omission, and ignores additive fields', () => {
     const mapped = mapPlaidTransaction({
-      transaction_id: 'txn_1',
-      account_id: 'acc_1',
-      amount: 12.5,
-      iso_currency_code: 'USD',
-      date: '2026-08-01',
-      name: 'COFFEE SHOP',
-      merchant_name: 'Coffee Shop',
-      payment_channel: 'in store',
-      pending: false,
+      ...transaction,
       personal_finance_category: { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_COFFEE' },
-      location: { city: 'Oakland', lat: 37.8 },
-      counterparties: [{ name: 'Coffee Shop', type: 'merchant' }],
+      counterparties: [{ name: 'Coffee Shop', type: 'merchant', logo_url: null, website: null }],
+      future_additive_field: { accepted: true },
     })
 
     expect(mapped.transaction_id).toBe('txn_1')
@@ -134,54 +241,87 @@ describe('mapPlaidTransaction', () => {
     expect(mapped.personal_finance_category).toEqual({
       primary: 'FOOD_AND_DRINK',
       detailed: 'FOOD_AND_DRINK_COFFEE',
-      confidence_level: null,
     })
     expect(mapped.location?.city).toBe('Oakland')
     expect(mapped.location?.address).toBeNull()
     expect(mapped.counterparties).toHaveLength(1)
     expect(mapped.datetime).toBeNull()
     expect(mapped.pending_transaction_id).toBeNull()
-    expect(mapped.original_description).toBeNull()
+    expect(mapped).not.toHaveProperty('original_description')
   })
 
-  it('tolerates malformed entries without throwing', () => {
-    const mapped = mapPlaidTransaction('garbage')
-    expect(mapped.transaction_id).toBe('')
-    expect(mapped.amount).toBe(0)
-    expect(mapped.counterparties).toEqual([])
-    expect(mapped.location).toBeNull()
+  it('rejects malformed required transaction fields instead of fabricating defaults', () => {
+    expect(() => mapPlaidTransaction('garbage')).toThrow('transaction must be an object')
+    expect(() => mapPlaidTransaction({ ...transaction, amount: '12.5' })).toThrow(
+      'transaction.amount must be a finite number'
+    )
+    expect(() => mapPlaidTransaction({ ...transaction, pending: 'false' })).toThrow(
+      'transaction.pending must be a boolean'
+    )
+    expect(() => mapPlaidTransaction({ ...transaction, authorized_datetime: undefined })).toThrow(
+      'transaction.authorized_datetime must be a string or null'
+    )
+    expect(() => mapPlaidTransaction({ ...transaction, location: {} })).toThrow(
+      'transaction.location.address must be a string or null'
+    )
   })
 })
 
 describe('mapPlaidAccount', () => {
+  const account = {
+    account_id: 'acc_1',
+    name: 'Checking',
+    official_name: null,
+    mask: '0000',
+    type: 'depository',
+    subtype: 'checking',
+    balances: {
+      available: 100.5,
+      current: 110,
+      limit: null,
+      iso_currency_code: 'USD',
+      unofficial_currency_code: null,
+    },
+  }
+
   it('maps balances with nulls where the institution does not report values', () => {
-    const mapped = mapPlaidAccount({
-      account_id: 'acc_1',
-      name: 'Checking',
-      official_name: null,
-      mask: '0000',
-      type: 'depository',
-      subtype: 'checking',
-      balances: { available: 100.5, current: 110, iso_currency_code: 'USD' },
-    })
+    const mapped = mapPlaidAccount(account)
 
     expect(mapped.account_id).toBe('acc_1')
     expect(mapped.balances.available).toBe(100.5)
     expect(mapped.balances.limit).toBeNull()
     expect(mapped.official_name).toBeNull()
-    expect(mapped.verification_status).toBeNull()
+    expect(mapped).not.toHaveProperty('verification_status')
   })
 
   it('normalizes the documented empty-string verification_status to null', () => {
-    const mapped = mapPlaidAccount({ account_id: 'acc_1', verification_status: '' })
+    const mapped = mapPlaidAccount({ ...account, verification_status: '' })
     expect(mapped.verification_status).toBeNull()
+  })
+
+  it('rejects missing or mistyped required account fields', () => {
+    expect(() => mapPlaidAccount({ ...account, balances: undefined })).toThrow(
+      'account.balances must be an object'
+    )
+    expect(() => mapPlaidAccount({ ...account, account_id: undefined })).toThrow(
+      'account.account_id must be a string'
+    )
   })
 })
 
 describe('mapPlaidNumbers', () => {
   it('maps every scheme and keeps unused schemes as empty arrays', () => {
     const mapped = mapPlaidNumbers({
-      ach: [{ account_id: 'acc_1', account: '1111222233330000', routing: '011401533' }],
+      ach: [
+        {
+          account_id: 'acc_1',
+          account: '1111222233330000',
+          routing: '011401533',
+          wire_routing: null,
+        },
+      ],
+      eft: [],
+      international: [],
       bacs: [{ account_id: 'acc_2', account: '31926819', sort_code: '601613' }],
     })
 
@@ -191,7 +331,6 @@ describe('mapPlaidNumbers', () => {
         account: '1111222233330000',
         routing: '011401533',
         wire_routing: null,
-        is_tokenized_account_number: null,
       },
     ])
     expect(mapped.bacs[0].sort_code).toBe('601613')
@@ -206,12 +345,100 @@ describe('mapPlaidNumbers', () => {
           account_id: 'acc_1',
           account: '4111111111111111',
           routing: '021000021',
+          wire_routing: null,
           is_tokenized_account_number: true,
         },
       ],
+      eft: [],
+      international: [],
+      bacs: [],
     })
     expect(mapped.ach[0].is_tokenized_account_number).toBe(true)
   })
+
+  it('rejects a missing required scheme instead of treating it as empty', () => {
+    expect(() => mapPlaidNumbers({ ach: [], eft: [], international: [] })).toThrow(
+      'auth.numbers.bacs must be an array'
+    )
+  })
+})
+
+describe('mapPlaidInstitution', () => {
+  it('requires consumed schema fields while accepting additive ones', () => {
+    expect(
+      mapPlaidInstitution({
+        institution_id: 'ins_1',
+        name: 'Bank',
+        products: ['auth'],
+        country_codes: ['US'],
+        routing_numbers: [],
+        oauth: false,
+        future_field: true,
+      })
+    ).toEqual({
+      institution_id: 'ins_1',
+      name: 'Bank',
+      products: ['auth'],
+      country_codes: ['US'],
+      routing_numbers: [],
+      oauth: false,
+    })
+    expect(() =>
+      mapPlaidInstitution({
+        institution_id: 'ins_1',
+        name: 'Bank',
+        products: [],
+        country_codes: [],
+        routing_numbers: [],
+      })
+    ).toThrow('institution.oauth must be a boolean')
+  })
+})
+
+describe('mapPlaidItem', () => {
+  const item = {
+    item_id: 'item_1',
+    webhook: null,
+    error: null,
+    available_products: [],
+    billed_products: ['transactions'],
+    consent_expiration_time: null,
+    update_type: 'background',
+  }
+
+  it('accepts a null Item error and validates a populated Plaid error envelope', () => {
+    expect(mapPlaidItem(item).error).toBeNull()
+    expect(
+      mapPlaidItem({
+        ...item,
+        error: {
+          error_type: 'ITEM_ERROR',
+          error_code: 'ITEM_LOGIN_REQUIRED',
+          error_message: 'Login required',
+          display_message: null,
+          future_field: true,
+        },
+      }).error
+    ).toMatchObject({
+      error_type: 'ITEM_ERROR',
+      error_code: 'ITEM_LOGIN_REQUIRED',
+      future_field: true,
+    })
+  })
+
+  it.each(['error_type', 'error_code', 'error_message', 'display_message'])(
+    'rejects a populated Item error missing required %s',
+    (missingField) => {
+      const error: Record<string, unknown> = {
+        error_type: 'ITEM_ERROR',
+        error_code: 'ITEM_LOGIN_REQUIRED',
+        error_message: 'Login required',
+        display_message: null,
+      }
+      delete error[missingField]
+      expect(() => mapPlaidItem({ ...item, error })).toThrow(`item.error.${missingField}`)
+    }
+  )
 })
 
 describe('plaid error extractor', () => {

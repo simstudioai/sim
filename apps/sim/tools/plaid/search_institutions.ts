@@ -6,12 +6,15 @@ import type {
 import {
   buildPlaidHeaders,
   mapPlaidInstitution,
+  parsePlaidCountryCodes,
+  parsePlaidProducts,
   plaidBaseParamFields,
   plaidBody,
   plaidInstitutionOutputProperties,
   plaidRecord,
   plaidUrl,
-  splitPlaidList,
+  requirePlaidArrayField,
+  requirePlaidInputString,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -21,7 +24,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
 > = {
   id: 'plaid_search_institutions',
   name: 'Plaid Search Institutions',
-  description: 'Search financial institutions supported by Plaid by name',
+  description: 'Search financial institutions supported by Plaid by name, returning at most 10',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PLAID_ERRORS,
 
@@ -54,17 +57,25 @@ export const plaidSearchInstitutionsTool: ToolConfig<
     headers: (params) => buildPlaidHeaders(params),
     body: (params) =>
       plaidBody({
-        query: params.query.trim(),
-        country_codes: splitPlaidList(params.countryCodes) ?? ['US'],
-        products: splitPlaidList(params.products),
+        query: requirePlaidInputString(params.query, 'query'),
+        country_codes: parsePlaidCountryCodes(params.countryCodes),
+        products: parsePlaidProducts(params.products, 'products', {
+          allowIncomeVerification: true,
+        }),
         options: { include_optional_metadata: true },
       }),
   },
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'institution search')
-    const institutions = Array.isArray(data.institutions) ? data.institutions : []
-    const mapped = institutions.map(mapPlaidInstitution)
+    const institutions = requirePlaidArrayField(
+      data,
+      'institutions',
+      'institution search.institutions'
+    )
+    const mapped = institutions.map((institution, index) =>
+      mapPlaidInstitution(institution, `institution search.institutions[${index}]`)
+    )
     return {
       success: true,
       output: {
@@ -78,7 +89,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
     institutions: {
       type: 'array',
       description: 'Institutions matching the search',
-      items: { type: 'json', properties: plaidInstitutionOutputProperties },
+      items: { type: 'object', properties: plaidInstitutionOutputProperties },
     },
     count: { type: 'number', description: 'Number of institutions returned' },
   },

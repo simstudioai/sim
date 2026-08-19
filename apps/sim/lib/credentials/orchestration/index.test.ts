@@ -226,6 +226,44 @@ describe('performUpdateCredential — service-account secret rotation', () => {
     expect(updatePayload().displayName).toBe('New Team')
   })
 
+  it('re-labels a Plaid credential when reconnect points it at a different Item', async () => {
+    mockCredential({
+      providerId: 'plaid-service-account',
+      displayName: 'Plaid ins_old (item-old)',
+    })
+    mockStoredBlob({
+      type: 'plaid_service_account',
+      itemId: 'item-old',
+      institutionId: 'ins_old',
+    })
+    mockVerifyAndBuildServiceAccountSecret.mockResolvedValue({
+      providerId: 'plaid-service-account',
+      encryptedServiceAccountKey: 'new-cipher',
+      displayName: 'Plaid ins_new (item-new)',
+      auditMetadata: { plaidItemId: 'item-new' },
+    })
+
+    await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      clientId: 'client-id',
+      clientSecret: 'new-secret',
+      environment: 'production',
+      accessToken: 'access-production-new',
+    })
+
+    expect(mockVerifyAndBuildServiceAccountSecret).toHaveBeenCalledWith(
+      'plaid-service-account',
+      expect.objectContaining({
+        clientId: 'client-id',
+        clientSecret: 'new-secret',
+        environment: 'production',
+        accessToken: 'access-production-new',
+      })
+    )
+    expect(updatePayload().displayName).toBe('Plaid ins_new (item-new)')
+  })
+
   it('merges the rebuilt secret audit metadata into the CREDENTIAL_UPDATED entry', async () => {
     mockCredential()
     mockStoredBlob({ type: 'service_account', client_email: OLD_EMAIL })

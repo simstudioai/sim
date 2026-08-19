@@ -9,7 +9,10 @@ import {
   plaidBody,
   plaidRecord,
   plaidUrl,
+  requirePlaidArrayField,
+  requirePlaidInputString,
   splitPlaidList,
+  toPlaidOptionalDateTime,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,7 +20,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
   id: 'plaid_get_balances',
   name: 'Plaid Get Balances',
   description:
-    'Get real-time balances for the accounts linked to an Item. Forces a live fetch from the institution, so it can take up to 30 seconds',
+    'Get real-time balances for the accounts linked to an Item. The live institution fetch is usually under 10 seconds but can take 30 seconds or more',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PLAID_ERRORS,
 
@@ -28,7 +31,8 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated account IDs to filter to (defaults to all accounts)',
+      description:
+        'Comma-separated account IDs to filter to (defaults to all accounts; Sim safety limit 500)',
     },
     minLastUpdatedDatetime: {
       type: 'string',
@@ -45,11 +49,14 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
     headers: (params) => buildPlaidHeaders(params),
     body: (params) => {
       const options = plaidBody({
-        account_ids: splitPlaidList(params.accountIds),
-        min_last_updated_datetime: params.minLastUpdatedDatetime?.trim() || undefined,
+        account_ids: splitPlaidList(params.accountIds, 'accountIds'),
+        min_last_updated_datetime: toPlaidOptionalDateTime(
+          params.minLastUpdatedDatetime,
+          'minLastUpdatedDatetime'
+        ),
       })
       return plaidBody({
-        access_token: params.accessToken.trim(),
+        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
         options: Object.keys(options).length > 0 ? options : undefined,
       })
     },
@@ -57,8 +64,10 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'balances')
-    const accounts = Array.isArray(data.accounts) ? data.accounts : []
-    const mapped = accounts.map(mapPlaidAccount)
+    const accounts = requirePlaidArrayField(data, 'accounts', 'balances.accounts')
+    const mapped = accounts.map((account, index) =>
+      mapPlaidAccount(account, `balances.accounts[${index}]`)
+    )
     return {
       success: true,
       output: {
@@ -72,7 +81,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
     accounts: {
       type: 'array',
       description: 'Accounts with refreshed real-time balances',
-      items: { type: 'json', properties: plaidAccountOutputProperties },
+      items: { type: 'object', properties: plaidAccountOutputProperties },
     },
     count: { type: 'number', description: 'Number of accounts returned' },
   },

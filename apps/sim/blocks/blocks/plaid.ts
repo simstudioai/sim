@@ -1,17 +1,8 @@
 import { PlaidIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { toOptionalBoolean, toOptionalFiniteNumber } from '@/blocks/utils'
 import type { PlaidResponse } from '@/tools/plaid/types'
-
-const ACCESS_TOKEN_OPERATIONS = [
-  'sync_transactions',
-  'get_accounts',
-  'get_balances',
-  'get_identity',
-  'get_auth',
-  'get_item',
-]
+import { toPlaidOptionalBoolean, toPlaidOptionalNumber } from '@/tools/plaid/utils'
 
 const ACCOUNT_FILTER_OPERATIONS = ['get_accounts', 'get_balances', 'get_identity', 'get_auth']
 
@@ -21,7 +12,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
   description: 'Read bank accounts, balances, transactions, and identity data via Plaid',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrates Plaid into the workflow. Sync categorized transactions, list linked bank accounts with real-time balances, fetch verified account and routing numbers, retrieve account-holder identity, look up supported institutions, and manage Item tokens across the sandbox and production environments.',
+    'Connect a reusable Plaid Item credential to sync categorized transactions, list linked bank accounts, fetch balances and account numbers, retrieve account-holder identity, inspect Item health, and look up supported institutions.',
   docsLink: 'https://docs.sim.ai/integrations/plaid',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
@@ -53,15 +44,30 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
           { text: ', in', field: 'countryCodes' },
         ],
         get_institution: [{ text: 'Fetch institution', field: 'institutionId', core: true }],
-        exchange_public_token: ['Exchange a public token for an access token'],
-        create_sandbox_public_token: [
-          { text: 'Create a sandbox token for institution', field: 'institutionId', core: true },
-          { text: ', with products', field: 'initialProducts' },
-        ],
       },
     },
   },
   subBlocks: [
+    {
+      id: 'credential',
+      title: 'Plaid Item',
+      type: 'oauth-input',
+      serviceId: 'plaid',
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      placeholder: 'Select Plaid Item credential',
+      required: true,
+    },
+    {
+      id: 'manualCredential',
+      title: 'Plaid Item',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      required: true,
+    },
     {
       id: 'operation',
       title: 'Operation',
@@ -75,84 +81,22 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
         { label: 'Get Item', id: 'get_item' },
         { label: 'Search Institutions', id: 'search_institutions' },
         { label: 'Get Institution', id: 'get_institution' },
-        { label: 'Exchange Public Token', id: 'exchange_public_token' },
-        { label: 'Create Sandbox Token', id: 'create_sandbox_public_token' },
       ],
       value: () => 'sync_transactions',
-    },
-    {
-      id: 'environment',
-      title: 'Environment',
-      type: 'dropdown',
-      options: [
-        { label: 'Production', id: 'production' },
-        { label: 'Sandbox', id: 'sandbox' },
-      ],
-      value: () => 'production',
-      condition: { field: 'operation', value: 'create_sandbox_public_token', not: true },
-    },
-    {
-      id: 'clientId',
-      title: 'Client ID',
-      type: 'short-input',
-      placeholder: 'Plaid client ID from the Dashboard',
-      required: true,
-    },
-    {
-      id: 'secret',
-      title: 'Secret',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Plaid secret for the selected environment',
-      required: true,
-    },
-    {
-      id: 'accessToken',
-      title: 'Access Token',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Access token for the linked Item',
-      condition: { field: 'operation', value: ACCESS_TOKEN_OPERATIONS },
-      required: { field: 'operation', value: ACCESS_TOKEN_OPERATIONS },
-    },
-    {
-      id: 'publicToken',
-      title: 'Public Token',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Public token from Plaid Link',
-      condition: { field: 'operation', value: 'exchange_public_token' },
-      required: { field: 'operation', value: 'exchange_public_token' },
     },
     {
       id: 'institutionId',
       title: 'Institution ID',
       type: 'short-input',
-      placeholder: 'e.g. ins_109508',
+      placeholder: 'Use Search Institutions, then paste the matching ID',
       condition: {
         field: 'operation',
-        value: ['get_institution', 'create_sandbox_public_token'],
+        value: 'get_institution',
       },
       required: {
         field: 'operation',
-        value: ['get_institution', 'create_sandbox_public_token'],
+        value: 'get_institution',
       },
-    },
-    {
-      id: 'initialProducts',
-      title: 'Initial Products',
-      type: 'short-input',
-      placeholder: 'e.g. transactions,auth',
-      condition: { field: 'operation', value: 'create_sandbox_public_token' },
-      required: { field: 'operation', value: 'create_sandbox_public_token' },
-    },
-    {
-      id: 'webhook',
-      title: 'Webhook URL',
-      type: 'short-input',
-      placeholder: 'Webhook URL to set on the Item',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'create_sandbox_public_token' },
     },
     {
       id: 'query',
@@ -250,46 +194,48 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       'plaid_get_item',
       'plaid_search_institutions',
       'plaid_get_institution',
-      'plaid_exchange_public_token',
-      'plaid_create_sandbox_public_token',
     ],
     config: {
       tool: (params) => `plaid_${params.operation}`,
       params: (params) => {
-        const { operation, clientId, secret } = params
-        const result: Record<string, unknown> = { clientId, secret }
-        if (operation !== 'create_sandbox_public_token') {
-          result.environment = params.environment
-        }
+        const { operation } = params
+        const result: Record<string, unknown> = { oauthCredential: params.oauthCredential }
 
         switch (operation) {
           case 'sync_transactions': {
-            result.accessToken = params.accessToken
             if (params.cursor) result.cursor = params.cursor
             if (params.accountId) result.accountId = params.accountId
-            const count = toOptionalFiniteNumber(params.count, 'Page Size')
+            const count = toPlaidOptionalNumber(params.count, 'Page Size', {
+              integer: true,
+              min: 1,
+              max: 500,
+            })
             if (count !== undefined) result.count = count
-            const includeOriginal = toOptionalBoolean(params.includeOriginalDescription)
+            const includeOriginal = toPlaidOptionalBoolean(
+              params.includeOriginalDescription,
+              'Include Original Description'
+            )
             if (includeOriginal !== undefined) result.includeOriginalDescription = includeOriginal
-            const daysRequested = toOptionalFiniteNumber(params.daysRequested, 'Days Requested')
+            const daysRequested = toPlaidOptionalNumber(params.daysRequested, 'Days Requested', {
+              integer: true,
+              min: 1,
+              max: 730,
+            })
             if (daysRequested !== undefined) result.daysRequested = daysRequested
             break
           }
           case 'get_accounts':
           case 'get_identity':
           case 'get_auth':
-            result.accessToken = params.accessToken
             if (params.accountIds) result.accountIds = params.accountIds
             break
           case 'get_balances':
-            result.accessToken = params.accessToken
             if (params.accountIds) result.accountIds = params.accountIds
             if (params.minLastUpdatedDatetime) {
               result.minLastUpdatedDatetime = params.minLastUpdatedDatetime
             }
             break
           case 'get_item':
-            result.accessToken = params.accessToken
             break
           case 'search_institutions':
             result.query = params.query
@@ -300,14 +246,6 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
             result.institutionId = params.institutionId
             if (params.countryCodes) result.countryCodes = params.countryCodes
             break
-          case 'exchange_public_token':
-            result.publicToken = params.publicToken
-            break
-          case 'create_sandbox_public_token':
-            result.institutionId = params.institutionId
-            result.initialProducts = params.initialProducts
-            if (params.webhook) result.webhook = params.webhook
-            break
         }
 
         return result
@@ -316,17 +254,11 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
-    environment: { type: 'string', description: 'Plaid environment (production or sandbox)' },
-    clientId: { type: 'string', description: 'Plaid client ID' },
-    secret: { type: 'string', description: 'Plaid API secret' },
-    accessToken: { type: 'string', description: 'Access token for the linked Item' },
-    publicToken: { type: 'string', description: 'Public token from Plaid Link to exchange' },
-    institutionId: { type: 'string', description: 'Plaid institution ID' },
-    initialProducts: {
+    oauthCredential: {
       type: 'string',
-      description: 'Comma-separated products to enable on the sandbox Item',
+      description: 'Reusable Plaid Item credential',
     },
-    webhook: { type: 'string', description: 'Webhook URL to set on the sandbox Item' },
+    institutionId: { type: 'string', description: 'Plaid institution ID' },
     query: { type: 'string', description: 'Institution name to search for' },
     countryCodes: { type: 'string', description: 'Comma-separated ISO country codes' },
     products: { type: 'string', description: 'Comma-separated products institutions must support' },
@@ -361,16 +293,13 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
     count: { type: 'number', description: 'Number of records returned' },
     numbers: {
       type: 'json',
-      description:
-        'Verified account and routing numbers grouped by scheme (ach, eft, international, bacs)',
+      description: 'Account and routing numbers grouped by scheme (ach, eft, international, bacs)',
+      hiddenFromDisplay: true,
     },
     item: { type: 'json', description: 'Item metadata including institution and enabled products' },
     status: { type: 'json', description: 'Item health status and last webhook' },
     institutions: { type: 'json', description: 'Institutions matching the search' },
     institution: { type: 'json', description: 'Institution details' },
-    accessToken: { type: 'string', description: 'Access token from the public token exchange' },
-    itemId: { type: 'string', description: 'Item ID from the public token exchange' },
-    publicToken: { type: 'string', description: 'Sandbox public token' },
   },
 }
 
@@ -409,19 +338,10 @@ export const PlaidBlockMeta = {
     },
     {
       icon: PlaidIcon,
-      title: 'Plaid account onboarding',
-      prompt:
-        'Build a workflow that takes a public token from Plaid Link, exchanges it for an access token, fetches the linked accounts and holder identity, and stores the new connection details in a table.',
-      modules: ['workflows', 'tables'],
-      category: 'operations',
-      tags: ['automation'],
-    },
-    {
-      icon: PlaidIcon,
       title: 'Plaid ACH payment setup',
       prompt:
-        'Build a workflow that fetches verified account and routing numbers for a linked Plaid Item and passes them directly to the payment step, storing only the account name and mask for reference.',
-      modules: ['workflows', 'tables'],
+        'Build a workflow that checks account verification status, fetches account and routing numbers for an eligible linked Plaid Item, and passes them directly to the payment step without storing the numbers.',
+      modules: ['workflows'],
       category: 'operations',
       tags: ['automation'],
     },
@@ -465,13 +385,7 @@ export const PlaidBlockMeta = {
       name: 'balance-check',
       description: 'Check real-time balances across linked Plaid accounts and flag low ones.',
       content:
-        '# Balance Check\n\nGive a quick read on cash across linked bank accounts.\n\n## Steps\n1. Use Get Balances for a live fetch (it can take up to 30 seconds); fall back to Get Accounts for cached values when speed matters.\n2. For each account capture name, mask, type, subtype, and the available and current balances.\n3. Flag accounts whose available balance is below the requested threshold, and note accounts where available is null (institution does not report it).\n\n## Output\nReturn each account with its balances and currency, plus a flagged list of low-balance accounts.',
-    },
-    {
-      name: 'link-bank-account',
-      description: 'Exchange a Plaid Link public token and summarize the newly linked accounts.',
-      content:
-        '# Link a Bank Account\n\nTurn a Plaid Link handoff into a usable connection.\n\n## Steps\n1. Exchange the public token for an access token and item ID with Exchange Public Token.\n2. Use Get Item to confirm the institution and enabled products, then Get Accounts to list the linked accounts.\n3. Store the access token as a workspace environment secret — never in a table or plain text — since it grants ongoing access to the bank connection.\n\n## Output\nReturn the item ID, institution name, and each linked account with its name, mask, type, and balances. Remind the user the access token must be stored as a secret.',
+        '# Balance Check\n\nGive a quick read on cash across linked bank accounts.\n\n## Steps\n1. Use Get Balances for a live fetch (it is usually under 10 seconds but can take 30 seconds or more); fall back to Get Accounts for cached values when speed matters.\n2. For each account capture name, mask, type, subtype, and the available and current balances.\n3. Flag accounts whose available balance is below the requested threshold, and note accounts where available is null (institution does not report it).\n\n## Output\nReturn each account with its balances and currency, plus a flagged list of low-balance accounts.',
     },
     {
       name: 'verify-account-holder',
@@ -481,9 +395,9 @@ export const PlaidBlockMeta = {
     },
     {
       name: 'ach-detail-collection',
-      description: 'Fetch verified account and routing numbers for ACH payment setup.',
+      description: 'Fetch account and routing numbers for ACH setup after checking verification.',
       content:
-        '# ACH Detail Collection\n\nCollect verified bank details for payment initiation.\n\n## Steps\n1. Use Get Auth Numbers for the Item, optionally filtered to the chosen account ID.\n2. Check the verification_status on each account first: skip accounts with a failed or expired status, and surface pending ones for follow-up (null means the institution verified instantly).\n3. Read the numbers.ach entries for US accounts (account, routing, wire_routing, and is_tokenized_account_number for tokenized institutions like Chase); use eft, bacs, or international entries for non-US accounts.\n4. Pair each entry with its account name and mask from the accounts list so the right account is selected.\n\n## Output\nPass the verified numbers directly to the payment step and persist only the account name and mask for reference — do not store full account or routing numbers in tables, files, or logs.',
+        '# ACH Detail Collection\n\nCollect eligible bank details for payment initiation.\n\n## Steps\n1. Use Get Auth Numbers for the Item, optionally filtered to the chosen account ID.\n2. Check verification_status on each account first: skip failed or expired states and surface pending states for follow-up. Null or empty means neither micro-deposit nor database verification applies.\n3. Read the numbers.ach entries for US accounts (account, routing, wire_routing, and is_tokenized_account_number for tokenized institutions like Chase); use eft, bacs, or international entries for non-US accounts.\n4. Pair each entry with its account name and mask from the accounts list so the right account is selected.\n\n## Output\nPass the eligible numbers directly to the payment step and persist only the account name and mask for reference — do not store full account or routing numbers in tables, files, or logs.',
     },
     {
       name: 'connection-health-review',

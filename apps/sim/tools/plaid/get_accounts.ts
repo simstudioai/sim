@@ -9,6 +9,8 @@ import {
   plaidBody,
   plaidRecord,
   plaidUrl,
+  requirePlaidArrayField,
+  requirePlaidInputString,
   splitPlaidList,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -28,7 +30,8 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated account IDs to filter to (defaults to all accounts)',
+      description:
+        'Comma-separated account IDs to filter to (defaults to all accounts; Sim safety limit 500)',
     },
   },
 
@@ -37,9 +40,9 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
     method: 'POST',
     headers: (params) => buildPlaidHeaders(params),
     body: (params) => {
-      const accountIds = splitPlaidList(params.accountIds)
+      const accountIds = splitPlaidList(params.accountIds, 'accountIds')
       return plaidBody({
-        access_token: params.accessToken.trim(),
+        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
         options: accountIds ? { account_ids: accountIds } : undefined,
       })
     },
@@ -47,8 +50,10 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'accounts')
-    const accounts = Array.isArray(data.accounts) ? data.accounts : []
-    const mapped = accounts.map(mapPlaidAccount)
+    const accounts = requirePlaidArrayField(data, 'accounts', 'accounts.accounts')
+    const mapped = accounts.map((account, index) =>
+      mapPlaidAccount(account, `accounts.accounts[${index}]`)
+    )
     return {
       success: true,
       output: {
@@ -62,7 +67,7 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
     accounts: {
       type: 'array',
       description: 'Accounts linked to the Item',
-      items: { type: 'json', properties: plaidAccountOutputProperties },
+      items: { type: 'object', properties: plaidAccountOutputProperties },
     },
     count: { type: 'number', description: 'Number of accounts returned' },
   },

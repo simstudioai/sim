@@ -1,5 +1,3 @@
-export { plaidCreateSandboxPublicTokenTool } from '@/tools/plaid/create_sandbox_public_token'
-export { plaidExchangePublicTokenTool } from '@/tools/plaid/exchange_public_token'
 export { plaidGetAccountsTool } from '@/tools/plaid/get_accounts'
 export { plaidGetAuthTool } from '@/tools/plaid/get_auth'
 export { plaidGetBalancesTool } from '@/tools/plaid/get_balances'

@@ -144,6 +144,8 @@ export const createCredentialBodySchema = z
     botToken: z.string().trim().min(1).optional(),
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    accessToken: z.string().trim().min(1).max(8192).optional(),
+    environment: z.enum(['production', 'sandbox']).optional(),
     certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     /** Optional provider region selector (Zoho Desk data center). */
@@ -232,6 +234,8 @@ export const updateCredentialByIdBodySchema = z
     /** Client-credential service-account secret rotation (reconnect). */
     clientId: z.string().trim().min(1).max(512).optional(),
     clientSecret: z.string().trim().min(1).max(1024).optional(),
+    accessToken: z.string().trim().min(1).max(8192).optional(),
+    environment: z.enum(['production', 'sandbox']).optional(),
     certificateId: z.string().trim().min(1).max(512).optional(),
     orgId: z.string().trim().min(1).max(255).optional(),
     dataCenter: z.string().trim().min(1).max(32).optional(),
@@ -251,6 +255,8 @@ export const updateCredentialByIdBodySchema = z
       data.domain !== undefined ||
       data.clientId !== undefined ||
       data.clientSecret !== undefined ||
+      data.accessToken !== undefined ||
+      data.environment !== undefined ||
       data.certificateId !== undefined ||
       data.orgId !== undefined ||
       data.dataCenter !== undefined ||

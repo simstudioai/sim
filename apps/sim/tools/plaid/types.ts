@@ -2,29 +2,21 @@ import type { ToolResponse } from '@/tools/types'
 
 /** Credential params shared by every Plaid tool. */
 export interface PlaidBaseParams {
-  clientId: string
-  secret: string
+  oauthCredential: string
+  /** Runtime-injected from the encrypted Plaid credential. */
+  clientId?: string
+  /** Runtime-injected from the encrypted Plaid credential. */
+  secret?: string
   environment?: string
 }
 
 /** Params for tools that operate on a linked Item. */
 export interface PlaidAccessTokenParams extends PlaidBaseParams {
-  accessToken: string
-}
-
-export interface PlaidExchangePublicTokenParams extends PlaidBaseParams {
-  publicToken: string
+  /** Runtime-injected from the encrypted Plaid credential. */
+  accessToken?: string
 }
 
 export type PlaidGetItemParams = PlaidAccessTokenParams
-
-export interface PlaidCreateSandboxPublicTokenParams {
-  clientId: string
-  secret: string
-  institutionId: string
-  initialProducts: string
-  webhook?: string
-}
 
 export interface PlaidSyncTransactionsParams extends PlaidAccessTokenParams {
   cursor?: string
@@ -60,36 +52,37 @@ export type PlaidGetIdentityParams = PlaidGetAccountsParams
 /** Item metadata returned by /item/get. Field names mirror the Plaid API. */
 export interface PlaidItem {
   item_id: string
-  institution_id: string | null
-  institution_name: string | null
+  institution_id?: string | null
+  institution_name?: string | null
   webhook: string | null
   error: Record<string, unknown> | null
   available_products: string[]
   billed_products: string[]
-  products: string[]
+  products?: string[]
   consent_expiration_time: string | null
   update_type: string
-  created_at: string
+  created_at?: string
 }
 
 export interface PlaidItemProductStatus {
-  last_successful_update: string | null
-  last_failed_update: string | null
+  last_successful_update?: string | null
+  last_failed_update?: string | null
 }
 
 export interface PlaidItemStatus {
-  transactions: PlaidItemProductStatus | null
-  investments: PlaidItemProductStatus | null
-  last_webhook: {
-    sent_at: string | null
-    code_sent: string | null
+  transactions?: PlaidItemProductStatus | null
+  investments?: PlaidItemProductStatus | null
+  last_webhook?: {
+    sent_at?: string | null
+    code_sent?: string
   } | null
 }
 
 export interface PlaidTransactionCategory {
-  primary: string | null
-  detailed: string | null
-  confidence_level: string | null
+  primary: string
+  detailed: string
+  confidence_level?: string | null
+  version?: string
 }
 
 export interface PlaidTransactionLocation {
@@ -104,12 +97,12 @@ export interface PlaidTransactionLocation {
 }
 
 export interface PlaidCounterparty {
-  name: string | null
-  type: string | null
-  entity_id: string | null
+  name: string
+  type: string
+  entity_id?: string | null
   website: string | null
   logo_url: string | null
-  confidence_level: string | null
+  confidence_level?: string | null
 }
 
 /** Transaction returned by /transactions/sync. Field names mirror the Plaid API. */
@@ -122,19 +115,20 @@ export interface PlaidTransaction {
   date: string
   datetime: string | null
   authorized_date: string | null
+  authorized_datetime: string | null
   name: string
-  merchant_name: string | null
-  merchant_entity_id: string | null
-  logo_url: string | null
-  website: string | null
+  merchant_name?: string | null
+  merchant_entity_id?: string | null
+  logo_url?: string | null
+  website?: string | null
   payment_channel: string
   pending: boolean
   pending_transaction_id: string | null
-  personal_finance_category: PlaidTransactionCategory | null
-  location: PlaidTransactionLocation | null
-  counterparties: PlaidCounterparty[]
+  personal_finance_category?: PlaidTransactionCategory | null
+  location: PlaidTransactionLocation
+  counterparties?: PlaidCounterparty[]
   transaction_code: string | null
-  original_description: string | null
+  original_description?: string | null
 }
 
 export interface PlaidRemovedTransaction {
@@ -148,8 +142,8 @@ export interface PlaidInstitution {
   name: string
   products: string[]
   country_codes: string[]
-  url: string | null
-  primary_color: string | null
+  url?: string | null
+  primary_color?: string | null
   routing_numbers: string[]
   oauth: boolean
 }
@@ -160,6 +154,7 @@ export interface PlaidAccountBalances {
   limit: number | null
   iso_currency_code: string | null
   unofficial_currency_code: string | null
+  last_updated_datetime?: string | null
 }
 
 /** Account returned by /accounts/get, /accounts/balance/get, /auth/get, and /identity/get. */
@@ -171,9 +166,9 @@ export interface PlaidAccount {
   type: string
   subtype: string | null
   balances: PlaidAccountBalances
-  verification_status: string | null
-  persistent_account_id: string | null
-  holder_category: string | null
+  verification_status?: string | null
+  persistent_account_id?: string
+  holder_category?: string | null
 }
 
 export interface PlaidOwnerContact {
@@ -183,7 +178,7 @@ export interface PlaidOwnerContact {
 }
 
 export interface PlaidOwnerAddress {
-  primary: boolean
+  primary?: boolean
   data: {
     street: string
     city: string | null
@@ -209,7 +204,7 @@ export interface PlaidAchNumbers {
   account: string
   routing: string
   wire_routing: string | null
-  is_tokenized_account_number: boolean | null
+  is_tokenized_account_number?: boolean
 }
 
 export interface PlaidEftNumbers {
@@ -239,23 +234,10 @@ export interface PlaidNumbers {
   bacs: PlaidBacsNumbers[]
 }
 
-export interface PlaidExchangePublicTokenResponse extends ToolResponse {
-  output: {
-    accessToken: string
-    itemId: string
-  }
-}
-
 export interface PlaidGetItemResponse extends ToolResponse {
   output: {
     item: PlaidItem
-    status: PlaidItemStatus | null
-  }
-}
-
-export interface PlaidCreateSandboxPublicTokenResponse extends ToolResponse {
-  output: {
-    publicToken: string
+    status?: PlaidItemStatus | null
   }
 }
 
@@ -307,9 +289,7 @@ export interface PlaidGetIdentityResponse extends ToolResponse {
 }
 
 export type PlaidResponse =
-  | PlaidExchangePublicTokenResponse
   | PlaidGetItemResponse
-  | PlaidCreateSandboxPublicTokenResponse
   | PlaidSyncTransactionsResponse
   | PlaidSearchInstitutionsResponse
   | PlaidGetInstitutionResponse

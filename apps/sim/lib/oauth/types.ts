@@ -31,6 +31,12 @@ export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
 /** Discriminator stored inside the encrypted Slack custom bot secret blob. */
 export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
+/** Stable provider id for a reusable Plaid Item credential. */
+export const PLAID_SERVICE_ACCOUNT_PROVIDER_ID = 'plaid-service-account' as const
+
+/** Discriminator stored inside an encrypted Plaid Item credential blob. */
+export const PLAID_SERVICE_ACCOUNT_SECRET_TYPE = 'plaid_service_account' as const
+
 export type OAuthProvider =
   | 'google'
   | 'google-email'
@@ -77,6 +83,7 @@ export type OAuthProvider =
   | 'asana'
   | 'attio'
   | 'pipedrive'
+  | 'plaid'
   | 'hubspot'
   | 'harmonic'
   | 'salesforce'
@@ -135,6 +142,7 @@ export type OAuthService =
   | 'asana'
   | 'attio'
   | 'pipedrive'
+  | 'plaid'
   | 'hubspot'
   | 'harmonic'
   | 'salesforce'

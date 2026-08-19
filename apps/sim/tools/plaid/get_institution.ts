@@ -3,12 +3,13 @@ import type { PlaidGetInstitutionParams, PlaidGetInstitutionResponse } from '@/t
 import {
   buildPlaidHeaders,
   mapPlaidInstitution,
+  parsePlaidCountryCodes,
   plaidBaseParamFields,
   plaidBody,
   plaidInstitutionOutputProperties,
   plaidRecord,
   plaidUrl,
-  splitPlaidList,
+  requirePlaidInputString,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -44,8 +45,8 @@ export const plaidGetInstitutionTool: ToolConfig<
     headers: (params) => buildPlaidHeaders(params),
     body: (params) =>
       plaidBody({
-        institution_id: params.institutionId.trim(),
-        country_codes: splitPlaidList(params.countryCodes) ?? ['US'],
+        institution_id: requirePlaidInputString(params.institutionId, 'institutionId'),
+        country_codes: parsePlaidCountryCodes(params.countryCodes),
         options: { include_optional_metadata: true },
       }),
   },
@@ -62,7 +63,7 @@ export const plaidGetInstitutionTool: ToolConfig<
 
   outputs: {
     institution: {
-      type: 'json',
+      type: 'object',
       description: 'Institution details',
       properties: plaidInstitutionOutputProperties,
     },

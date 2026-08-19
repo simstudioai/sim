@@ -254,6 +254,164 @@ describe('OAuth Token API Routes', () => {
     })
 
     describe('service account path', () => {
+      it('does not return Plaid compound credentials to session-authenticated callers', async () => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'plaid-credential-id',
+          credentialType: 'service_account',
+          providerId: 'plaid-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+          success: true,
+          authType: 'session',
+          userId: 'test-user-id',
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: true,
+          authType: 'session',
+          requesterUserId: 'test-user-id',
+          workspaceId: 'workspace-id',
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'plaid-credential-id',
+            toolId: 'plaid_get_item',
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(403)
+        expect(data).toEqual({
+          code: 'PLAID_CREDENTIAL_EXECUTOR_ONLY',
+          error: 'Plaid Item credentials can only be used by server-side workflow execution',
+        })
+        expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+      })
+
+      it('does not reveal the Plaid-only policy before credential authorization', async () => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'plaid-credential-id',
+          credentialType: 'service_account',
+          providerId: 'plaid-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+          success: true,
+          authType: 'session',
+          userId: 'other-user-id',
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: false,
+          error: 'You do not have access to this credential.',
+        })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'plaid-credential-id',
+            toolId: 'plaid_get_item',
+          })
+        )
+
+        expect(response.status).toBe(403)
+        await expect(response.json()).resolves.toEqual({
+          error: 'You do not have access to this credential.',
+        })
+        expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+      })
+
+      it('returns Plaid compound credentials to a verified internal executor JWT', async () => {
+        authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+          accountId: '',
+          credentialId: 'plaid-credential-id',
+          credentialType: 'service_account',
+          providerId: 'plaid-service-account',
+          workspaceId: 'workspace-id',
+          usedCredentialTable: true,
+        })
+        hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+          success: true,
+          authType: 'internal_jwt',
+          userId: 'test-user-id',
+        })
+        mockAuthorizeCredentialUse.mockResolvedValueOnce({
+          ok: true,
+          authType: 'internal_jwt',
+          requesterUserId: 'test-user-id',
+          workspaceId: 'workspace-id',
+        })
+        mockResolveServiceAccountToken.mockResolvedValueOnce({
+          accessToken: 'access-production-item',
+          plaid: {
+            clientId: 'client-id',
+            secret: 'environment-secret',
+            environment: 'production',
+          },
+        })
+        mockGetToolMetadata.mockReturnValueOnce({ id: 'plaid_get_item', params: {} })
+
+        const response = await POST(
+          createMockRequest('POST', {
+            credentialId: 'plaid-credential-id',
+            toolId: 'plaid_get_item',
+          })
+        )
+        const data = await response.json()
+
+        expect(response.status).toBe(200)
+        expect(data).toEqual({
+          accessToken: 'access-production-item',
+          plaid: {
+            clientId: 'client-id',
+            secret: 'environment-secret',
+            environment: 'production',
+          },
+        })
+      })
+
+      it.each(['gmail_read', 'plaid_fake'])(
+        'rejects a Plaid credential selected for untrusted tool %s before resolving secrets',
+        async (toolId) => {
+          authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({
+            accountId: '',
+            credentialId: 'plaid-credential-id',
+            credentialType: 'service_account',
+            providerId: 'plaid-service-account',
+            workspaceId: 'workspace-id',
+            usedCredentialTable: true,
+          })
+          hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+            success: true,
+            authType: 'internal_jwt',
+            userId: 'test-user-id',
+          })
+          mockAuthorizeCredentialUse.mockResolvedValueOnce({
+            ok: true,
+            authType: 'internal_jwt',
+            requesterUserId: 'test-user-id',
+            workspaceId: 'workspace-id',
+          })
+
+          const response = await POST(
+            createMockRequest('POST', {
+              credentialId: 'plaid-credential-id',
+              toolId,
+            })
+          )
+
+          expect(response.status).toBe(403)
+          await expect(response.json()).resolves.toEqual({
+            code: 'PLAID_CREDENTIAL_TOOL_MISMATCH',
+            error: 'Plaid Item credentials can only be used with Plaid tools',
+          })
+          expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+        }
+      )
+
       it('threads the NetSuite SuiteTalk instance URL into the token response', async () => {
         const instanceUrl = 'https://1234567.suitetalk.api.netsuite.com'
         authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValueOnce({

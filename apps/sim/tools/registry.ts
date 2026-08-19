@@ -3471,8 +3471,6 @@ import {
   pitchbookUsageReportTool,
 } from '@/tools/pitchbook'
 import {
-  plaidCreateSandboxPublicTokenTool,
-  plaidExchangePublicTokenTool,
   plaidGetAccountsTool,
   plaidGetAuthTool,
   plaidGetBalancesTool,
@@ -7323,8 +7321,6 @@ export const tools: Record<string, ToolConfig> = {
   pitchbook_serviced_limited_partners: pitchbookServicedLimitedPartnersTool,
   pitchbook_shared_search: pitchbookSharedSearchTool,
   pitchbook_usage_report: pitchbookUsageReportTool,
-  plaid_create_sandbox_public_token: plaidCreateSandboxPublicTokenTool,
-  plaid_exchange_public_token: plaidExchangePublicTokenTool,
   plaid_get_accounts: plaidGetAccountsTool,
   plaid_get_auth: plaidGetAuthTool,
   plaid_get_balances: plaidGetBalancesTool,

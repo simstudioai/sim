@@ -34,6 +34,7 @@ import {
   deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+import { plaidServiceAccountDisplayName } from '@/lib/credentials/plaid-service-account'
 import {
   ServiceAccountSecretError,
   verifyAndBuildServiceAccountSecret,
@@ -41,6 +42,8 @@ import {
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_SECRET_TYPE,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_SECRET_TYPE,
 } from '@/lib/oauth/types'
@@ -76,6 +79,7 @@ const GOOGLE_SERVICE_ACCOUNT_KEY_TYPE = 'service_account'
  */
 const IDENTITY_DERIVED_DISPLAY_NAME_PROVIDERS: ReadonlySet<string> = new Set([
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
   '',
 ])
@@ -130,6 +134,12 @@ function deriveStoredDisplayName(blob: Record<string, unknown> | null): string |
   if (blob.type === GOOGLE_SERVICE_ACCOUNT_KEY_TYPE && typeof blob.client_email === 'string') {
     return blob.client_email || undefined
   }
+  if (blob.type === PLAID_SERVICE_ACCOUNT_SECRET_TYPE && typeof blob.itemId === 'string') {
+    return plaidServiceAccountDisplayName(
+      blob.itemId,
+      typeof blob.institutionId === 'string' ? blob.institutionId : undefined
+    )
+  }
   return undefined
 }
 
@@ -163,6 +173,8 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   /** Client-credential service-account secret rotation (reconnect). */
   clientId?: string
   clientSecret?: string
+  accessToken?: string
+  environment?: 'production' | 'sandbox'
   certificateId?: string
   orgId?: string
   dataCenter?: string
@@ -230,6 +242,8 @@ export async function updateCredentialRecord(
       params.domain !== undefined ||
       params.clientId !== undefined ||
       params.clientSecret !== undefined ||
+      params.accessToken !== undefined ||
+      params.environment !== undefined ||
       params.certificateId !== undefined ||
       params.orgId !== undefined ||
       params.dataCenter !== undefined ||
@@ -316,6 +330,8 @@ export async function updateCredentialRecord(
           serviceAccountJson: params.serviceAccountJson,
           clientId: params.clientId,
           clientSecret: params.clientSecret,
+          accessToken: params.accessToken,
+          environment: params.environment,
           certificateId: params.certificateId,
           orgId: params.orgId,
           dataCenter: needsStoredDataCenter

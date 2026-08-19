@@ -13,8 +13,13 @@ import {
   plaidRecord,
   plaidTransactionOutputProperties,
   plaidUrl,
+  requirePlaidArrayField,
+  requirePlaidBooleanField,
+  requirePlaidInputString,
+  requirePlaidStringField,
   toPlaidOptionalBoolean,
   toPlaidOptionalNumber,
+  toPlaidOptionalString,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -71,14 +76,25 @@ export const plaidSyncTransactionsTool: ToolConfig<
     headers: (params) => buildPlaidHeaders(params),
     body: (params) => {
       const options = plaidBody({
-        account_id: params.accountId?.trim() || undefined,
-        include_original_description: toPlaidOptionalBoolean(params.includeOriginalDescription),
-        days_requested: toPlaidOptionalNumber(params.daysRequested, 'daysRequested'),
+        account_id: toPlaidOptionalString(params.accountId, 'accountId'),
+        include_original_description: toPlaidOptionalBoolean(
+          params.includeOriginalDescription,
+          'includeOriginalDescription'
+        ),
+        days_requested: toPlaidOptionalNumber(params.daysRequested, 'daysRequested', {
+          integer: true,
+          min: 1,
+          max: 730,
+        }),
       })
       return plaidBody({
-        access_token: params.accessToken.trim(),
-        cursor: params.cursor?.trim() || undefined,
-        count: toPlaidOptionalNumber(params.count, 'count'),
+        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
+        cursor: toPlaidOptionalString(params.cursor, 'cursor', { maxLength: 256 }),
+        count: toPlaidOptionalNumber(params.count, 'count', {
+          integer: true,
+          min: 1,
+          max: 500,
+        }),
         options: Object.keys(options).length > 0 ? options : undefined,
       })
     },
@@ -86,21 +102,28 @@ export const plaidSyncTransactionsTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'transaction sync')
-    const added = Array.isArray(data.added) ? data.added : []
-    const modified = Array.isArray(data.modified) ? data.modified : []
-    const removed = Array.isArray(data.removed) ? data.removed : []
+    const added = requirePlaidArrayField(data, 'added', 'transaction sync.added')
+    const modified = requirePlaidArrayField(data, 'modified', 'transaction sync.modified')
+    const removed = requirePlaidArrayField(data, 'removed', 'transaction sync.removed')
     return {
       success: true,
       output: {
-        added: added.map(mapPlaidTransaction),
-        modified: modified.map(mapPlaidTransaction),
-        removed: removed.map(mapPlaidRemovedTransaction),
-        nextCursor: typeof data.next_cursor === 'string' ? data.next_cursor : '',
-        hasMore: data.has_more === true,
-        updateStatus:
-          typeof data.transactions_update_status === 'string'
-            ? data.transactions_update_status
-            : '',
+        added: added.map((entry, index) =>
+          mapPlaidTransaction(entry, `transaction sync.added[${index}]`)
+        ),
+        modified: modified.map((entry, index) =>
+          mapPlaidTransaction(entry, `transaction sync.modified[${index}]`)
+        ),
+        removed: removed.map((entry, index) =>
+          mapPlaidRemovedTransaction(entry, `transaction sync.removed[${index}]`)
+        ),
+        nextCursor: requirePlaidStringField(data, 'next_cursor', 'transaction sync.next_cursor'),
+        hasMore: requirePlaidBooleanField(data, 'has_more', 'transaction sync.has_more'),
+        updateStatus: requirePlaidStringField(
+          data,
+          'transactions_update_status',
+          'transaction sync.transactions_update_status'
+        ),
       },
     }
   },
@@ -109,18 +132,18 @@ export const plaidSyncTransactionsTool: ToolConfig<
     added: {
       type: 'array',
       description: 'Transactions added since the cursor',
-      items: { type: 'json', properties: plaidTransactionOutputProperties },
+      items: { type: 'object', properties: plaidTransactionOutputProperties },
     },
     modified: {
       type: 'array',
       description: 'Transactions modified since the cursor',
-      items: { type: 'json', properties: plaidTransactionOutputProperties },
+      items: { type: 'object', properties: plaidTransactionOutputProperties },
     },
     removed: {
       type: 'array',
       description: 'Transactions removed since the cursor',
       items: {
-        type: 'json',
+        type: 'object',
         properties: {
           transaction_id: { type: 'string', description: 'ID of the removed transaction' },
           account_id: { type: 'string', description: 'Account the transaction belonged to' },
@@ -138,7 +161,7 @@ export const plaidSyncTransactionsTool: ToolConfig<
     updateStatus: {
       type: 'string',
       description:
-        'Sync readiness: NOT_READY, INITIAL_UPDATE_COMPLETE, or HISTORICAL_UPDATE_COMPLETE',
+        'Sync readiness, including TRANSACTIONS_UPDATE_STATUS_UNKNOWN, NOT_READY, INITIAL_UPDATE_COMPLETE, or HISTORICAL_UPDATE_COMPLETE',
     },
   },
 }

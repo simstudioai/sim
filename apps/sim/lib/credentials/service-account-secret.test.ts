@@ -9,6 +9,7 @@ const {
   mockValidateAtlassian,
   mockNormalizeDomain,
   mockClientCredentialMinter,
+  mockValidatePlaid,
 } = vi.hoisted(() => ({
   // Identity encryption so tests can read back the JSON blob.
   mockEncryptSecret: vi.fn(async (value: string) => ({ encrypted: value })),
@@ -16,6 +17,7 @@ const {
   mockValidateAtlassian: vi.fn(),
   mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
   mockClientCredentialMinter: vi.fn(),
+  mockValidatePlaid: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: mockEncryptSecret }))
@@ -47,6 +49,13 @@ vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
       ? mockClientCredentialMinter
       : undefined,
 }))
+vi.mock('@/lib/credentials/plaid-service-account', () => ({
+  normalizePlaidEnvironment: (value: string) => {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'production' || normalized === 'sandbox' ? normalized : undefined
+  },
+  validatePlaidServiceAccount: mockValidatePlaid,
+}))
 
 import {
   ServiceAccountSecretError,
@@ -54,6 +63,7 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
@@ -161,6 +171,77 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
     const result = await verifyAndBuildServiceAccountSecret('', { serviceAccountJson: json })
     expect(result.providerId).toBe('google-service-account')
+  })
+
+  it('verifies and encrypts a Plaid Item credential with semantic secret fields', async () => {
+    mockValidatePlaid.mockResolvedValue({
+      itemId: 'item-1',
+      institutionId: 'ins_123',
+      displayName: 'Plaid ins_123 (item-1)',
+      principal: { kind: 'tenant', id: 'item-1', label: 'ins_123' },
+      auditMetadata: {
+        plaidItemId: 'item-1',
+        plaidEnvironment: 'sandbox',
+        plaidInstitutionId: 'ins_123',
+      },
+    })
+
+    const result = await verifyAndBuildServiceAccountSecret(PLAID_SERVICE_ACCOUNT_PROVIDER_ID, {
+      clientId: ' client-id ',
+      clientSecret: ' secret ',
+      environment: ' SANDBOX ',
+      accessToken: ' access-sandbox-item ',
+    })
+
+    expect(mockValidatePlaid).toHaveBeenCalledWith({
+      clientId: 'client-id',
+      clientSecret: 'secret',
+      environment: 'sandbox',
+      accessToken: 'access-sandbox-item',
+    })
+    expect(result).toMatchObject({
+      providerId: PLAID_SERVICE_ACCOUNT_PROVIDER_ID,
+      displayName: 'Plaid ins_123 (item-1)',
+      principal: { kind: 'tenant', id: 'item-1', label: 'ins_123' },
+      auditMetadata: {
+        plaidItemId: 'item-1',
+        plaidEnvironment: 'sandbox',
+        plaidInstitutionId: 'ins_123',
+        principalKind: 'tenant',
+        principalId: 'item-1',
+        principalLabel: 'ins_123',
+      },
+    })
+    expect(JSON.parse(result.encryptedServiceAccountKey)).toEqual({
+      type: 'plaid_service_account',
+      providerId: 'plaid-service-account',
+      clientId: 'client-id',
+      clientSecret: 'secret',
+      accessToken: 'access-sandbox-item',
+      environment: 'sandbox',
+      itemId: 'item-1',
+      institutionId: 'ins_123',
+      metadata: {
+        plaidItemId: 'item-1',
+        plaidEnvironment: 'sandbox',
+        plaidInstitutionId: 'ins_123',
+        principalKind: 'tenant',
+        principalId: 'item-1',
+        principalLabel: 'ins_123',
+      },
+    })
+  })
+
+  it('rejects incomplete or unknown-environment Plaid credentials without validation', async () => {
+    await expect(
+      verifyAndBuildServiceAccountSecret(PLAID_SERVICE_ACCOUNT_PROVIDER_ID, {
+        clientId: 'client-id',
+        clientSecret: 'secret',
+        environment: 'development',
+        accessToken: 'access-token',
+      })
+    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
+    expect(mockValidatePlaid).not.toHaveBeenCalled()
   })
 
   it('rejects an unknown non-empty providerId instead of persisting it as Google', async () => {

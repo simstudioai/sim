@@ -6,8 +6,11 @@ import {
   mapPlaidItemStatus,
   plaidAccessTokenParamField,
   plaidBaseParamFields,
+  plaidItemOutputProperties,
+  plaidItemStatusOutputProperties,
   plaidRecord,
   plaidUrl,
+  requirePlaidInputString,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -28,65 +31,36 @@ export const plaidGetItemTool: ToolConfig<PlaidGetItemParams, PlaidGetItemRespon
     url: (params) => plaidUrl(params, '/item/get'),
     method: 'POST',
     headers: (params) => buildPlaidHeaders(params),
-    body: (params) => ({ access_token: params.accessToken.trim() }),
+    body: (params) => ({
+      access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
+    }),
   },
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'item')
+    const status = mapPlaidItemStatus(data.status)
     return {
       success: true,
       output: {
         item: mapPlaidItem(data.item),
-        status: mapPlaidItemStatus(data.status),
+        ...(status !== undefined ? { status } : {}),
       },
     }
   },
 
   outputs: {
     item: {
-      type: 'json',
+      type: 'object',
       description: 'Item metadata',
-      properties: {
-        item_id: { type: 'string', description: 'Unique ID of the Item' },
-        institution_id: {
-          type: 'string',
-          description: 'Plaid institution ID the Item is linked to',
-          optional: true,
-        },
-        institution_name: {
-          type: 'string',
-          description: 'Name of the linked institution',
-          optional: true,
-        },
-        webhook: { type: 'string', description: 'Webhook URL set on the Item', optional: true },
-        error: {
-          type: 'json',
-          description: 'Error state of the Item, null when healthy',
-          optional: true,
-        },
-        available_products: {
-          type: 'json',
-          description: 'Products available but not yet billed for the Item',
-        },
-        billed_products: { type: 'json', description: 'Products the Item has been billed for' },
-        products: { type: 'json', description: 'All products enabled on the Item' },
-        consent_expiration_time: {
-          type: 'string',
-          description: 'When access consent expires, if the institution enforces expiration',
-          optional: true,
-        },
-        update_type: {
-          type: 'string',
-          description: 'Item update type (background or user_present_required)',
-        },
-        created_at: { type: 'string', description: 'When the Item was created' },
-      },
+      properties: plaidItemOutputProperties,
     },
     status: {
-      type: 'json',
+      type: 'object',
       description:
         'Item health: last successful/failed transaction and investment updates and the last webhook fired',
       optional: true,
+      nullable: true,
+      properties: plaidItemStatusOutputProperties,
     },
   },
 }

@@ -8,8 +8,11 @@ import {
   plaidAccountOutputProperties,
   plaidBaseParamFields,
   plaidBody,
+  plaidNumbersOutputProperties,
   plaidRecord,
   plaidUrl,
+  requirePlaidArrayField,
+  requirePlaidInputString,
   splitPlaidList,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -18,7 +21,7 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
   id: 'plaid_get_auth',
   name: 'Plaid Get Auth',
   description:
-    'Get account and routing numbers for the depository accounts linked to an Item (ACH for US, EFT for Canada, BACS for UK, IBAN/BIC internationally). Check each account verification_status before relying on micro-deposit-verified accounts; null means the institution authenticated instantly',
+    'Get account and routing numbers for depository accounts linked to an Item (ACH for US, EFT for Canada, BACS for UK, IBAN/BIC internationally). Check verification_status before use; null or empty means neither micro-deposit nor database verification applies',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PLAID_ERRORS,
 
@@ -29,7 +32,8 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated account IDs to filter to (defaults to all accounts)',
+      description:
+        'Comma-separated account IDs to filter to (defaults to all accounts; Sim safety limit 500)',
     },
   },
 
@@ -38,9 +42,9 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
     method: 'POST',
     headers: (params) => buildPlaidHeaders(params),
     body: (params) => {
-      const accountIds = splitPlaidList(params.accountIds)
+      const accountIds = splitPlaidList(params.accountIds, 'accountIds')
       return plaidBody({
-        access_token: params.accessToken.trim(),
+        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
         options: accountIds ? { account_ids: accountIds } : undefined,
       })
     },
@@ -48,11 +52,13 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'auth')
-    const accounts = Array.isArray(data.accounts) ? data.accounts : []
+    const accounts = requirePlaidArrayField(data, 'accounts', 'auth.accounts')
     return {
       success: true,
       output: {
-        accounts: accounts.map(mapPlaidAccount),
+        accounts: accounts.map((account, index) =>
+          mapPlaidAccount(account, `auth.accounts[${index}]`)
+        ),
         numbers: mapPlaidNumbers(data.numbers),
       },
     }
@@ -62,30 +68,12 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
     accounts: {
       type: 'array',
       description: 'Depository accounts on the Item',
-      items: { type: 'json', properties: plaidAccountOutputProperties },
+      items: { type: 'object', properties: plaidAccountOutputProperties },
     },
     numbers: {
-      type: 'json',
+      type: 'object',
       description: 'Account and routing numbers grouped by scheme',
-      properties: {
-        ach: {
-          type: 'json',
-          description:
-            'US accounts: account_id, account, routing, wire_routing, and is_tokenized_account_number entries (tokenized numbers come from institutions like Chase and stop working if the Item is deleted)',
-        },
-        eft: {
-          type: 'json',
-          description: 'Canadian accounts: account_id, account, institution, and branch entries',
-        },
-        international: {
-          type: 'json',
-          description: 'International accounts: account_id, iban, and bic entries',
-        },
-        bacs: {
-          type: 'json',
-          description: 'UK accounts: account_id, account, and sort_code entries',
-        },
-      },
+      properties: plaidNumbersOutputProperties,
     },
   },
 }

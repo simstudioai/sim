@@ -101,6 +101,47 @@ const INTERNAL_DATABASE_ERROR_MESSAGE =
 const PERMISSION_PREFLIGHT_MAX_ATTEMPTS = 3
 const PERMISSION_PREFLIGHT_RETRY_BACKOFF = { baseMs: 25, maxMs: 100 } as const
 
+const PLAID_CREDENTIAL_ERROR =
+  'Selected credential is not a valid Plaid Item credential. Reconnect it from Integrations.'
+
+/**
+ * Applies resolved credential material at the last server-side boundary before a
+ * tool request is built. Plaid's compound credential is deliberately projected
+ * only into Plaid tools, and always overwrites caller-supplied auth fields.
+ */
+export function applyCredentialTokenPayload(
+  normalizedToolId: string,
+  contextParams: Record<string, unknown>,
+  data: CredentialTokenPayload
+): void {
+  if (!normalizedToolId.startsWith('plaid_')) {
+    if (data.plaid) {
+      throw new Error('A Plaid Item credential cannot be used with a non-Plaid tool')
+    }
+    contextParams.accessToken = data.accessToken
+    return
+  }
+
+  const plaid = data.plaid
+  if (
+    typeof data.accessToken !== 'string' ||
+    !data.accessToken.trim() ||
+    !plaid ||
+    typeof plaid.clientId !== 'string' ||
+    !plaid.clientId.trim() ||
+    typeof plaid.secret !== 'string' ||
+    !plaid.secret.trim() ||
+    (plaid.environment !== 'production' && plaid.environment !== 'sandbox')
+  ) {
+    throw new Error(PLAID_CREDENTIAL_ERROR)
+  }
+
+  contextParams.accessToken = data.accessToken
+  contextParams.clientId = plaid.clientId
+  contextParams.secret = plaid.secret
+  contextParams.environment = plaid.environment
+}
+
 function projectToolLogMetadata(
   metadata: Record<string, unknown>,
   registry: ResolvedSecretTraceRegistry | undefined,
@@ -1844,7 +1885,7 @@ async function executeToolImplementation(
 
         const data = (await response.json()) as CredentialTokenPayload
 
-        contextParams.accessToken = data.accessToken
+        applyCredentialTokenPayload(normalizedToolId, contextParams, data)
         if (data.idToken) {
           contextParams.idToken = data.idToken
         }

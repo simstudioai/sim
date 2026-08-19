@@ -10,9 +10,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#111111"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Plaid](https://plaid.com/) connects applications to financial accounts through a consent-based Item created with Plaid Link. Sim reads an existing Item; it does not run Link or return long-lived Item access tokens from workflow actions.
+
+## Before you connect
+
+1. In the [Plaid Dashboard](https://dashboard.plaid.com/), copy the application **client ID** and the secret for the environment you will use.
+2. Create the Item through Plaid Link in your application and exchange its public token on your server. Plaid public tokens expire after 30 minutes. The resulting Item access token is long-lived until it is revoked or rotated and must not be embedded in client-side application code or stored in workflow state. Enter it only in Sim's credential form, which sends it to the authenticated credential API for validation and encryption and does not return it. For Sandbox testing, create and exchange a Sandbox public token through Plaid's server-side Sandbox API.
+3. Add a Plaid block, open **Plaid Item**, and create a credential with the environment, client ID, matching secret, and Item access token. Sim verifies the values with Plaid `/item/get`, encrypts them, and never returns them from a Plaid action. Create one credential per Item.
+
+## Usage notes
+
+- Select the stored Plaid Item once per block. Reconnect the credential after rotating the Plaid access token or environment secret; the opaque credential ID stays the same for existing workflows. Deleting the Sim credential removes only the local encrypted copy and does not revoke or remove the Item at Plaid.
+- Transaction Sync returns one page per call. Preserve `nextCursor` and continue while `hasMore` is true. If Plaid returns `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`, discard that batch and restart from the cursor where the batch began. A cursor belongs to its account-filter stream; start with no cursor after changing the account filter.
+- Institution search returns at most ten matches. Use Search Institutions, then paste the selected `institution_id` into Get Institution. Account filters are optional and default to all accounts on the Item.
+- Get Balances usually completes in under ten seconds but can take 30 seconds or more. `minLastUpdatedDatetime` is an RFC 3339 date-time and is required by Plaid only for certain Capital One non-depository requests.
+- Get Auth returns full account and routing identifiers for downstream payment steps. Sim hides the `numbers` field from execution-log display; do not write it to tables, files, messages, or other durable outputs.
+- Plaid Sandbox is useful for contract testing but does not reproduce all Production institution behavior. Product access, optional fields, consent, and institution-specific errors still need Production validation.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
-Integrates Plaid into the workflow. Sync categorized transactions, list linked bank accounts with real-time balances, fetch verified account and routing numbers, retrieve account-holder identity, look up supported institutions, and manage Item tokens across the sandbox and production environments.
+Connect a reusable Plaid Item credential to sync categorized transactions, list linked bank accounts, fetch balances and account numbers, retrieve account-holder identity, inspect Item health, and look up supported institutions.
 
 
 
@@ -26,9 +46,10 @@ Incrementally sync transactions for a linked Item. Omit the cursor on the first 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `cursor` | string | No | Cursor from a previous sync \(nextCursor\); omit to start from the beginning |
 | `count` | number | No | Number of updates to fetch per page \(1-500, default 100\) |
 | `accountId` | string | No | Scope the sync \(and cursor\) to a single account ID |
@@ -46,7 +67,7 @@ Incrementally sync transactions for a linked Item. Omit the cursor on the first 
 |   ↳ `account_id` | string | Account the transaction belonged to |
 | `nextCursor` | string | Cursor to pass to the next sync call to fetch only new changes |
 | `hasMore` | boolean | Whether more updates are available; if true, call again with nextCursor |
-| `updateStatus` | string | Sync readiness: NOT_READY, INITIAL_UPDATE_COMPLETE, or HISTORICAL_UPDATE_COMPLETE |
+| `updateStatus` | string | Sync readiness, including TRANSACTIONS_UPDATE_STATUS_UNKNOWN, NOT_READY, INITIAL_UPDATE_COMPLETE, or HISTORICAL_UPDATE_COMPLETE |
 
 ### Plaid Get Accounts
 
@@ -56,10 +77,11 @@ List the accounts linked to an Item with their names, types, and balances. Balan
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts\) |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 
 #### Output
 
@@ -70,16 +92,17 @@ List the accounts linked to an Item with their names, types, and balances. Balan
 
 ### Plaid Get Balances
 
-Get real-time balances for the accounts linked to an Item. Forces a live fetch from the institution, so it can take up to 30 seconds
+Get real-time balances for the accounts linked to an Item. The live institution fetch is usually under 10 seconds but can take 30 seconds or more
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts\) |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 | `minLastUpdatedDatetime` | string | No | Oldest acceptable balance timestamp \(ISO 8601\). Only required for Capital One non-depository accounts |
 
 #### Output
@@ -97,42 +120,40 @@ Get account-holder identity information (names, emails, phone numbers, and addre
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts\) |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Accounts with their owners identity data |
-|   ↳ `owners` | json | Account owners, each with names, phone_numbers, emails, and addresses arrays |
+|   ↳ `owners` | array | Account owners with names, phone numbers, emails, and addresses |
 | `count` | number | Number of accounts returned |
 
 ### Plaid Get Auth
 
-Get account and routing numbers for the depository accounts linked to an Item (ACH for US, EFT for Canada, BACS for UK, IBAN/BIC internationally). Check each account verification_status before relying on micro-deposit-verified accounts; null means the institution authenticated instantly
+Get account and routing numbers for depository accounts linked to an Item (ACH for US, EFT for Canada, BACS for UK, IBAN/BIC internationally). Check verification_status before use; null or empty means neither micro-deposit nor database verification applies
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
-| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts\) |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
+| `accountIds` | string | No | Comma-separated account IDs to filter to \(defaults to all accounts; Sim safety limit 500\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Depository accounts on the Item |
-| `numbers` | json | Account and routing numbers grouped by scheme |
-|   ↳ `ach` | json | US accounts: account_id, account, routing, wire_routing, and is_tokenized_account_number entries \(tokenized numbers come from institutions like Chase and stop working if the Item is deleted\) |
-|   ↳ `eft` | json | Canadian accounts: account_id, account, institution, and branch entries |
-|   ↳ `international` | json | International accounts: account_id, iban, and bic entries |
-|   ↳ `bacs` | json | UK accounts: account_id, account, and sort_code entries |
+| `numbers` | object | Account and routing numbers grouped by scheme |
 
 ### Plaid Get Item
 
@@ -142,39 +163,30 @@ Get metadata and health status for a linked Item, including its institution, ena
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `item` | json | Item metadata |
-|   ↳ `item_id` | string | Unique ID of the Item |
-|   ↳ `institution_id` | string | Plaid institution ID the Item is linked to |
-|   ↳ `institution_name` | string | Name of the linked institution |
-|   ↳ `webhook` | string | Webhook URL set on the Item |
-|   ↳ `error` | json | Error state of the Item, null when healthy |
-|   ↳ `available_products` | json | Products available but not yet billed for the Item |
-|   ↳ `billed_products` | json | Products the Item has been billed for |
-|   ↳ `products` | json | All products enabled on the Item |
-|   ↳ `consent_expiration_time` | string | When access consent expires, if the institution enforces expiration |
-|   ↳ `update_type` | string | Item update type \(background or user_present_required\) |
-|   ↳ `created_at` | string | When the Item was created |
-| `status` | json | Item health: last successful/failed transaction and investment updates and the last webhook fired |
+| `item` | object | Item metadata |
+| `status` | object | Item health: last successful/failed transaction and investment updates and the last webhook fired |
 
 ### Plaid Search Institutions
 
-Search financial institutions supported by Plaid by name
+Search financial institutions supported by Plaid by name, returning at most 10
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `query` | string | Yes | Institution name to search for, e.g. 'Chase' |
 | `countryCodes` | string | No | Comma-separated ISO country codes to search in \(defaults to 'US'\) |
 | `products` | string | No | Comma-separated products the institutions must support, e.g. 'transactions,auth' |
@@ -194,9 +206,10 @@ Get details for a financial institution by its Plaid institution ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
+| `oauthCredential` | string | Yes | Reusable encrypted Plaid Item credential |
+| `clientId` | string | No | Plaid client ID injected from the selected credential at execution time |
+| `secret` | string | No | Plaid API secret injected from the selected credential at execution time |
+| `environment` | string | No | Plaid environment injected from the selected credential at execution time |
 | `institutionId` | string | Yes | Plaid institution ID, e.g. 'ins_109508' |
 | `countryCodes` | string | No | Comma-separated ISO country codes \(defaults to 'US'\) |
 
@@ -204,46 +217,6 @@ Get details for a financial institution by its Plaid institution ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `institution` | json | Institution details |
-
-### Plaid Exchange Public Token
-
-Exchange a public token from Plaid Link (or the sandbox) for a permanent access token and Item ID
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `environment` | string | No | Plaid environment: 'production' \(default\) or 'sandbox' |
-| `publicToken` | string | Yes | Public token returned by Plaid Link onSuccess \(or the sandbox token creator\) |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `accessToken` | string | Access token for the linked Item; store it securely and pass it to the other Plaid operations |
-| `itemId` | string | ID of the Item the token belongs to |
-
-### Plaid Create Sandbox Public Token
-
-Create a sandbox public token for a test institution without going through Plaid Link. Sandbox only — exchange the result for an access token to test other operations
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `clientId` | string | Yes | Plaid client ID \(from the Plaid Dashboard under Team Settings → Keys\) |
-| `secret` | string | Yes | Plaid API secret for the selected environment |
-| `institutionId` | string | Yes | Sandbox institution ID, e.g. 'ins_109508' \(First Platypus Bank\) |
-| `initialProducts` | string | Yes | Comma-separated products to enable, e.g. 'transactions' or 'auth,identity' |
-| `webhook` | string | No | Webhook URL to associate with the Item |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `publicToken` | string | Sandbox public token to exchange for an access token |
+| `institution` | object | Institution details |
 
 

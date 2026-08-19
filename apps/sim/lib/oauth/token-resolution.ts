@@ -4,7 +4,10 @@ import {
   impersonateEmailSchema,
   type OAuthTokenResponse,
 } from '@/lib/api/contracts/oauth-connections'
-import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
+import {
+  authorizeCredentialUseForAuth,
+  type CredentialAccessResult,
+} from '@/lib/auth/credential-access'
 import type { AuthResult } from '@/lib/auth/hybrid'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
@@ -48,6 +51,8 @@ export interface ResolveCredentialTokenInput {
   auditRequest?: CredentialAuditRequest
   /** Reuses a credential lookup already performed by the route's managed-OAuth dispatch. */
   resolvedCredential?: ResolvedCredential | null
+  /** Reuses an authorization decision already made by a route-level secret-boundary policy. */
+  preauthorizedCredentialAccess?: CredentialAccessResult
 }
 
 export type ResolveCredentialTokenResult =
@@ -193,7 +198,8 @@ export async function resolveCredentialToken(
       input.resolvedCredential === undefined
         ? resolveOAuthAccountId(credentialId)
         : input.resolvedCredential,
-      authorizeCredentialUseForAuth(auth, { credentialId, workflowId, callerUserId }),
+      input.preauthorizedCredentialAccess ??
+        authorizeCredentialUseForAuth(auth, { credentialId, workflowId, callerUserId }),
     ])
 
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
@@ -232,6 +238,7 @@ export async function resolveCredentialToken(
             instanceUrl: result.instanceUrl,
             apiDomain: result.apiDomain,
             authStyle: result.authStyle,
+            plaid: result.plaid,
           },
         }
       } catch (error) {

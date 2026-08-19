@@ -48,6 +48,7 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  PlaidIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -1118,6 +1119,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'pipedrive',
+  },
+  plaid: {
+    name: 'Plaid',
+    icon: PlaidIcon,
+    services: {
+      plaid: {
+        name: 'Plaid',
+        description: 'Read bank accounts, balances, transactions, and identity data via Plaid.',
+        providerId: 'plaid',
+        serviceAccountProviderId: 'plaid-service-account',
+        icon: PlaidIcon,
+        baseProviderIcon: PlaidIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'plaid',
   },
   hubspot: {
     name: 'HubSpot',

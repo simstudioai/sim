@@ -7,8 +7,11 @@ import {
   plaidAccountOutputProperties,
   plaidBaseParamFields,
   plaidBody,
+  plaidIdentityOwnerOutputProperties,
   plaidRecord,
   plaidUrl,
+  requirePlaidArrayField,
+  requirePlaidInputString,
   splitPlaidList,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -28,7 +31,8 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Comma-separated account IDs to filter to (defaults to all accounts)',
+      description:
+        'Comma-separated account IDs to filter to (defaults to all accounts; Sim safety limit 500)',
     },
   },
 
@@ -37,9 +41,9 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
     method: 'POST',
     headers: (params) => buildPlaidHeaders(params),
     body: (params) => {
-      const accountIds = splitPlaidList(params.accountIds)
+      const accountIds = splitPlaidList(params.accountIds, 'accountIds')
       return plaidBody({
-        access_token: params.accessToken.trim(),
+        access_token: requirePlaidInputString(params.accessToken, 'accessToken'),
         options: accountIds ? { account_ids: accountIds } : undefined,
       })
     },
@@ -47,8 +51,10 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'identity')
-    const accounts = Array.isArray(data.accounts) ? data.accounts : []
-    const mapped = accounts.map(mapPlaidIdentityAccount)
+    const accounts = requirePlaidArrayField(data, 'accounts', 'identity.accounts')
+    const mapped = accounts.map((account, index) =>
+      mapPlaidIdentityAccount(account, `identity.accounts[${index}]`)
+    )
     return {
       success: true,
       output: {
@@ -63,13 +69,13 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
       type: 'array',
       description: 'Accounts with their owners identity data',
       items: {
-        type: 'json',
+        type: 'object',
         properties: {
           ...plaidAccountOutputProperties,
           owners: {
-            type: 'json',
-            description:
-              'Account owners, each with names, phone_numbers, emails, and addresses arrays',
+            type: 'array',
+            description: 'Account owners with names, phone numbers, emails, and addresses',
+            items: { type: 'object', properties: plaidIdentityOwnerOutputProperties },
           },
         },
       },
