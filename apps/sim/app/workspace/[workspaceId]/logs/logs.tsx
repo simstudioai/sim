@@ -59,6 +59,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import { Resource, type ResourceTableHandle } from '@/app/workspace/[workspaceId]/components'
 import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -901,24 +902,15 @@ export default function Logs() {
     setTimeRange,
   ])
 
-  /**
-   * The zero-data graphic means "this workspace has never run anything" — a
-   * search or filter that matched nothing is a different message, so neither gets
-   * the graphic. Held back while the first page is in flight so it cannot flash
-   * before the runs arrive, and while the query is serving the previous key's
-   * result: the filters are part of the query key, so clearing a search that
-   * matched nothing keeps `isLoading` false while `rows` is still the stale empty
-   * set, and only the placeholder gate suppresses the graphic across that refetch.
-   * `error` is gated too: a failed load also leaves `rows` empty, and telling
-   * someone they have never run anything is the wrong answer to a failed request.
-   */
-  const showEmptyState =
-    rows.length === 0 &&
-    !logsQuery.isLoading &&
-    !logsQuery.isPlaceholderData &&
-    !logsQuery.error &&
-    !debouncedSearchQuery &&
-    filterTags.length === 0
+  /** Logs has no folder navigation, so the graphic means "nothing has ever run here". */
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading: logsQuery.isLoading,
+    isPlaceholderData: logsQuery.isPlaceholderData,
+    error: logsQuery.error,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+  })
 
   const workflowsData = useMemo<WorkflowData[]>(
     () =>

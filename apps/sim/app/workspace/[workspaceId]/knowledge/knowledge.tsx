@@ -55,6 +55,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   CreateBaseModal,
@@ -1339,26 +1340,15 @@ export function Knowledge() {
     return tags
   }, [connectorFilter, contentFilter, ownerFilter, members])
 
-  /**
-   * Only for a workspace that genuinely holds nothing — a search or filter that
-   * matched nothing, or an empty subfolder, would make the copy wrong. Reads the
-   * debounced query because `rows` is filtered by it: gating on the instant URL
-   * value flashes the graphic for one debounce window after a search is cleared.
-   * The loading and placeholder gates cover the paints where `rows` is empty only
-   * because the list has not arrived — a cold cache when the server prefetch
-   * declined to seed, and the retained previous result during a workspace switch.
-   * `error` is gated too: a failed load also leaves `rows` empty, and inviting
-   * someone to create their first item is the wrong answer to a request that
-   * did not complete.
-   */
-  const showEmptyState =
-    rows.length === 0 &&
-    !isLoading &&
-    !isPlaceholderData &&
-    !error &&
-    currentFolderId === null &&
-    !debouncedSearchQuery.trim() &&
-    filterTags.length === 0
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading,
+    isPlaceholderData,
+    error,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+    folderId: currentFolderId,
+  })
 
   return (
     <>

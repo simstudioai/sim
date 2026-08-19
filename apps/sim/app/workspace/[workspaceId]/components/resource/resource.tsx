@@ -230,6 +230,9 @@ interface ResourceTableProps {
    * empty, filling the otherwise blank scroll area. It never replaces the table
    * region or the headers — the chrome guarantee holds — so a consumer can show
    * a zero-data graphic without the list losing its structure.
+   *
+   * The table owns the growth box the slot is centred in, so any node centres —
+   * the slot does not have to carry its own `flex-1` to sit in the middle.
    */
   emptyState?: ReactNode
 }
@@ -453,7 +456,7 @@ const ResourceTable = memo(function ResourceTable({
                 ))}
           </div>
         </div>
-        {showEmptyState ? emptyState : null}
+        {showEmptyState ? <div className='flex min-h-0 flex-1 flex-col'>{emptyState}</div> : null}
         {hasMore && (
           <div ref={loadMoreRef} className='flex items-center justify-center py-3'>
             {isLoadingMore && (

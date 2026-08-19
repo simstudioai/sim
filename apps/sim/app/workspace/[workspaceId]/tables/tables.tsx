@@ -54,6 +54,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { TablesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -737,26 +738,15 @@ export function Tables() {
     return tags
   }, [rowCountFilter, ownerFilter, membersById, setRowCountFilter, setOwnerFilter])
 
-  /**
-   * Only for a workspace that genuinely holds nothing — a search or filter that
-   * matched nothing, or an empty subfolder, would make the copy wrong. Reads the
-   * debounced query because `rows` is filtered by it: gating on the instant URL
-   * value flashes the graphic for one debounce window after a search is cleared.
-   * The loading and placeholder gates cover the paints where `rows` is empty only
-   * because the list has not arrived — a cold cache when the server prefetch
-   * declined to seed, and the retained previous result during a workspace switch.
-   * `error` is gated too: a failed load also leaves `rows` empty, and inviting
-   * someone to create their first item is the wrong answer to a request that
-   * did not complete.
-   */
-  const showEmptyState =
-    rows.length === 0 &&
-    !isLoading &&
-    !isPlaceholderData &&
-    !error &&
-    currentFolderId === null &&
-    !debouncedSearchTerm.trim() &&
-    filterTags.length === 0
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading,
+    isPlaceholderData,
+    error,
+    search: debouncedSearchTerm,
+    filterCount: filterTags.length,
+    folderId: currentFolderId,
+  })
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
