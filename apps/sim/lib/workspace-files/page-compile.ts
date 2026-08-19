@@ -43,7 +43,44 @@ const frontmatterSchema = z.object({
   /** Docs-style footer pagination: a markdown link — `[Title](sim:file/<id>)`. */
   prev: z.string().optional(),
   next: z.string().optional(),
+  /**
+   * The SET's sidebar, docs-style: groups of pages under muted labels. Each
+   * page entry is a markdown link; every page of a set carries the same nav.
+   */
+  nav: z
+    .array(
+      z.object({
+        label: z.string().optional(),
+        pages: z.array(z.string()).min(1),
+      })
+    )
+    .optional(),
 })
+
+/**
+ * The set navigation as real (hidden) markup, so sim: hrefs resolve through
+ * the normal link pass and the shell can lift it into the left rail —
+ * grouped page links with the current page's sections nested beneath it.
+ */
+function setNavHtml(nav: NonNullable<z.infer<typeof frontmatterSchema>['nav']>): string {
+  const groups = nav
+    .map((group) => {
+      const links = group.pages
+        .map((entry) => {
+          const match = entry.match(MD_LINK)
+          if (!match) return ''
+          return `<a href="${escapeHtml(match[2])}">${escapeHtml(match[1])}</a>`
+        })
+        .filter(Boolean)
+        .join('')
+      if (!links) return ''
+      const label = group.label ? `<h6>${escapeHtml(group.label)}</h6>` : ''
+      return `<section>${label}${links}</section>`
+    })
+    .filter(Boolean)
+    .join('')
+  return groups ? `<nav class="set-nav" hidden aria-label="Pages">${groups}</nav>` : ''
+}
 
 const MD_LINK = /^\s*\[([^\]]+)\]\(([^)]+)\)\s*$/
 
@@ -363,6 +400,7 @@ function compileSimPageDocument(source: string, lenient = false): string {
     '</head>',
     '<body>',
     `<div class="page" data-layout="${meta.layout ?? 'docs'}">`,
+    ...(meta.nav ? [setNavHtml(meta.nav)] : []),
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
     compileBody(rest, lenient),

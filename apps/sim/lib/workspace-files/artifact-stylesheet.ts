@@ -561,18 +561,13 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 }
 .toc-items a:first-of-type { padding-top: 0; }
 .toc-items a:last-of-type { padding-bottom: 0; }
-/* Hidden ghost at the ACTIVE weight: each link always occupies its bold
-   width, so the weight flip on highlight cannot jitter the fit-content
-   column side to side while scrolling. */
-.toc-items a::after {
-  content: attr(data-text);
-  display: block; height: 0; visibility: hidden; overflow: hidden;
-  font-weight: 500; pointer-events: none;
-}
 .toc-items a[data-depth="2"] { padding-left: 20px; }
 .toc-items a[data-depth="3"] { padding-left: 32px; }
 .toc-items a:hover { color: var(--text-body); }
-.toc-items a.is-active { color: var(--text-primary); font-weight: 500; }
+/* Color-only active state: a weight flip re-measures the fit-content
+   column (widen or wrap) — primary-vs-muted is the docs' real signal
+   anyway, the clerk thumb carries the emphasis. */
+.toc-items a.is-active { color: var(--text-primary); }
 /* The track: the full outline path in foreground at 10%, and the same path in
    full foreground clipped to the active range — fumadocs animates the clip
    window, which is the "black segment" that slides as you scroll. */
@@ -711,9 +706,6 @@ export const SIM_ARTIFACT_SHELL = `<script>
       a.href = '#' + h.id
       a.textContent = h.textContent
       a.dataset.depth = h.tagName === 'H2' ? '2' : '3'
-      // Reserves the active (bolder) width so the fit-content column never
-      // resizes as the highlight moves — see the ::after ghost in the sheet.
-      a.dataset.text = h.textContent || ''
       tocItems.appendChild(a)
       tocLinks.push(a)
     }
@@ -727,7 +719,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
     title.textContent = document.title
     const search = document.createElement('input')
     search.className = 'art-search'
-    search.type = 'search'
+    search.type = 'text'
     search.placeholder = 'Filter sections'
     search.setAttribute('aria-label', 'Filter sections on this page')
 
