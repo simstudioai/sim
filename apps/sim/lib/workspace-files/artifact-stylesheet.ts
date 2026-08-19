@@ -388,12 +388,12 @@ figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top:
    iframe's own width drives the queries, so the chat panel gets the sidebar
    treatment while the Files page and standalone views get the full frame. */
 .art-cols > .rail { display: none; }
-@media (min-width: 640px) {
-  .art-cols { grid-template-columns: 240px minmax(0, 1fr); }
+@media (min-width: 560px) {
+  .art-cols { grid-template-columns: fit-content(240px) minmax(0, 1fr); }
   .art-cols > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 @media (min-width: 1060px) {
-  .art-cols { grid-template-columns: 300px minmax(0, 1fr) 268px; }
+  .art-cols { grid-template-columns: fit-content(300px) minmax(0, 1fr) 268px; }
   .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 .rail ol, .rail ul { list-style: none; margin: 0; padding: 0; }
@@ -402,7 +402,7 @@ figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top:
 /* Left rail: the docs sidebar's 30px pill items — 14px/20px type, 5px 8px
    padding, rounded-lg, weight 400, hover/active surfaces, no underline. The
    group label mirrors the sidebar separators: 12px, normal weight, muted. */
-.rail[data-rail="nav"] { padding-top: 20px; }
+.rail[data-rail="nav"] { padding-top: 20px; min-width: 150px; }
 .rail[data-rail="nav"] .rail-title { font-size: var(--text-caption); font-weight: 400; color: var(--text-muted); margin: 0 0 0.4rem; padding: 0 0.5rem; }
 .rail[data-rail="nav"] li { margin-bottom: 1px; }
 .rail[data-rail="nav"] li:last-child { margin-bottom: 0; }
