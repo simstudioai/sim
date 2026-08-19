@@ -22,8 +22,10 @@ function runShell(source: string) {
 }
 
 describe('shell layout decisions', () => {
-  it('keeps both rails on a many-section page', () => {
-    runShell('---\ntitle: T\n---\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz')
+  it('keeps both rails on a doc-set page', () => {
+    runShell(
+      '---\ntitle: T\nnav:\n  - label: Guide\n    pages:\n      - "[T](sim:file/a)"\n      - "[Other](sim:file/b)"\n---\n## A\n\nx\n\n## B\n\ny'
+    )
     const cols = document.querySelector('.art-cols')
     expect(cols).toBeTruthy()
     expect(cols?.classList.contains('no-side-nav')).toBe(false)
@@ -31,8 +33,8 @@ describe('shell layout decisions', () => {
     expect(document.querySelector('.rail[data-rail="toc"] .toc-items a')).toBeTruthy()
   })
 
-  it('drops only the LEFT rail on a one-section page', () => {
-    runShell('---\ntitle: T\n---\n## Only\n\nx')
+  it('drops the LEFT rail on a lone page, even with many sections', () => {
+    runShell('---\ntitle: T\n---\n## A\n\nx\n\n## B\n\ny\n\n## C\n\nz')
     const cols = document.querySelector('.art-cols')
     expect(cols?.classList.contains('no-side-nav')).toBe(true)
     expect(document.querySelector('.rail[data-rail="toc"] .toc-items a')).toBeTruthy()

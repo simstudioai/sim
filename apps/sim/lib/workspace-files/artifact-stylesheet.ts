@@ -499,11 +499,15 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
    treatment while the Files page and standalone views get the full frame. */
 .art-cols > .rail { display: none; }
 @media (min-width: 560px) {
-  /* Medium panes keep the TOC (the sections list the reader actually uses)
-     and hold the page-nav sidebar for wide — the sidebar is the redundant
-     one at this width. */
-  .art-cols { grid-template-columns: minmax(0, 1fr) fit-content(268px); }
-  .art-cols > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+  /* Medium panes get one rail. A doc set opens its sidebar first (the docs
+     stagger); a lone page has no sidebar, so its TOC takes the slot — but
+     only once the pane has a bit more room to give. */
+  .art-cols:not(.no-side-nav) { grid-template-columns: fit-content(240px) minmax(0, 1fr); }
+  .art-cols:not(.no-side-nav) > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+}
+@media (min-width: 700px) {
+  .art-cols.no-side-nav { grid-template-columns: minmax(0, 1fr) fit-content(268px); }
+  .art-cols.no-side-nav > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 @media (min-width: 860px) {
   /* The docs' geometry: the content column is a fixed measure DEAD-CENTERED
@@ -535,12 +539,14 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
    group label mirrors the sidebar separators: 12px, normal weight, muted. */
 .rail[data-rail="nav"] { padding-top: 20px; min-width: 150px; }
 /* Set navigation: docs-style groups with the current page's sections nested. */
-.rail[data-rail="nav"] .rail-title:not(:first-child) { margin-top: 1.25rem; }
+.rail[data-rail="nav"] .rail-title:not(:first-child) { margin-top: 1rem; }
 .rail[data-rail="nav"] li.is-current > a { color: var(--text-primary); }
-.rail-sections { margin: 2px 0 4px 12px; }
+.rail-sections { margin: 1px 0 3px 8px; padding-left: 8px; border-left: 1px solid var(--border); }
+.rail-sections a { font-size: var(--text-caption); line-height: 18px; padding: 3px 0.5rem; color: var(--text-muted); border-radius: 0.375rem; }
+.rail-sections a:hover { color: var(--text-body); }
 .rail[data-rail="toc"] { min-width: 150px; }
 .art-cols.no-side-nav > .rail[data-rail="nav"] { display: none !important; }
-.rail[data-rail="nav"] .rail-title { font-size: var(--text-caption); font-weight: 400; color: var(--text-muted); margin: 0 0 0.4rem; padding: 0 0.5rem; }
+.rail[data-rail="nav"] .rail-title { font-size: var(--text-caption); font-weight: 400; color: var(--text-muted); margin: 0 0 0.25rem; padding: 0 0.5rem; }
 .rail[data-rail="nav"] li { margin-bottom: 1px; }
 .rail[data-rail="nav"] li:last-child { margin-bottom: 0; }
 .rail[data-rail="nav"] a {
@@ -857,7 +863,9 @@ export const SIM_ARTIFACT_SHELL = `<script>
     // page reads as a clean document with the TOC on the right, and the
     // reserved left gutter goes away entirely. A set always keeps its rail
     // (pages, not sections).
-    const showSideNav = Boolean(setNav) || sections.length >= 2
+    // The sidebar exists only for multi-page sets — on a lone page it would
+    // just repeat the TOC, however many sections there are.
+    const showSideNav = Boolean(setNav)
     if (showSideNav) bar.append(title, search, themeButton)
     else bar.append(title, themeButton)
 
