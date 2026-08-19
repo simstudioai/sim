@@ -3081,6 +3081,7 @@ export class WorkspaceVFS {
         serializeCredentials([
           ...visibleEnvCredentials.map((c) => ({
             providerId: c.envKey,
+            description: c.description,
             scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
             createdAt: c.updatedAt,
           })),

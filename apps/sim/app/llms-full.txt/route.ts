@@ -169,6 +169,7 @@ Built-in table creation and management:
 
 - [Terms of Service](${baseUrl}/terms): Legal terms
 - [Privacy Policy](${baseUrl}/privacy): Data handling practices
+- [Cookie Policy](${baseUrl}/cookie-policy): Cookies Sim sets, why, and how to change your choice
 - [Security](${baseUrl}/.well-known/security.txt): Vulnerability disclosure policy
 `
 

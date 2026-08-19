@@ -738,6 +738,8 @@ export function serializeCredentials(
     id?: string
     providerId: string
     displayName?: string | null
+    /** What a workspace secret is for, when one has been recorded. */
+    description?: string | null
     role?: string | null
     scope: string | null
     /** 'service_account' for a shared app credential; omitted/undefined for a personal OAuth connection. */
@@ -750,6 +752,7 @@ export function serializeCredentials(
       id: a.id || undefined,
       provider: a.providerId,
       displayName: a.displayName || undefined,
+      description: a.description || undefined,
       role: a.role || undefined,
       scope: a.scope || undefined,
       // 'oauth' (personal connection) vs 'service_account' (shared app

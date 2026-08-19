@@ -171,26 +171,32 @@ const CONNECTOR_TEXT_EXTENSIONS = [
  * `rtf` is deliberately absent: no bundled library extracts it, and `DocParser`
  * would pass its control words through as if they were prose. See
  * {@link CONNECTOR_INDEXABLE_EXTENSIONS} for how an unsupported format surfaces.
+ *
+ * Mapping each to its MIME type rather than listing extensions alone lets the
+ * stored object declare what it is, which is what the pipeline's OCR routing
+ * reads. Derived from the extension rather than trusting the source's own
+ * declaration, so a provider that omits or mislabels it cannot strand a PDF on
+ * the non-OCR path.
  */
-const CONNECTOR_PARSED_EXTENSIONS = [
-  'pdf',
-  'doc',
-  'docx',
-  'docm',
-  'dotx',
-  'xls',
-  'xlsx',
-  'xlsm',
-  'xlsb',
-  'xltx',
-  'ppt',
-  'pptx',
-  'pptm',
-  'potx',
-  'odt',
-  'ods',
-  'odp',
-] as const
+const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
+  ['pdf', 'application/pdf'],
+  ['doc', 'application/msword'],
+  ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ['docm', 'application/vnd.ms-word.document.macroEnabled.12'],
+  ['dotx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.template'],
+  ['xls', 'application/vnd.ms-excel'],
+  ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  ['xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+  ['xlsb', 'application/vnd.ms-excel.sheet.binary.macroEnabled.12'],
+  ['xltx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.template'],
+  ['ppt', 'application/vnd.ms-powerpoint'],
+  ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  ['pptm', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12'],
+  ['potx', 'application/vnd.openxmlformats-officedocument.presentationml.template'],
+  ['odt', 'application/vnd.oasis.opendocument.text'],
+  ['ods', 'application/vnd.oasis.opendocument.spreadsheet'],
+  ['odp', 'application/vnd.oasis.opendocument.presentation'],
+])
 
 /**
  * Every extension a file-based connector will download and index.
@@ -202,7 +208,7 @@ const CONNECTOR_PARSED_EXTENSIONS = [
  */
 export const CONNECTOR_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set<string>([
   ...CONNECTOR_TEXT_EXTENSIONS,
-  ...CONNECTOR_PARSED_EXTENSIONS,
+  ...PIPELINE_PARSED_MIME_TYPES.keys(),
 ])
 
 /** Extracts a lowercased, dotless extension from a file name. */
@@ -221,70 +227,30 @@ export function isIndexableConnectorFile(fileName: string): boolean {
 }
 
 /**
- * Raised when a binary document yielded no text a search index should hold —
- * either the parser produced nothing, or it reported a degraded extraction whose
- * "content" is scraped bytes or a placeholder message. Callers surface it as a
- * skipped document, the same way {@link ConnectorFileTooLargeError} is handled,
- * so the file stays visible with an actionable reason instead of polluting the
- * index or vanishing.
+ * MIME type to store a file under when the shared pipeline should parse it, or
+ * `undefined` when the connector should decode it as text itself.
+ *
+ * A format the knowledge base can parse is handed over untouched: the pipeline
+ * routes PDFs to OCR and owns every other parser, so extracting here would strand
+ * the document on a weaker one and discard the original.
  */
-export class ConnectorTextExtractionError extends Error {
-  constructor(
-    readonly fileName: string,
-    readonly extension: string
-  ) {
-    super(`No text could be extracted from "${fileName}"`)
-    this.name = 'ConnectorTextExtractionError'
-  }
-}
-
-/**
- * Human-readable skip reason for a document whose text could not be extracted.
- * Legacy formats get the concrete remedy — re-saving genuinely fixes them, because
- * the modern container is one the bundled parsers read.
- */
-export function extractionFailedSkipReason(extension: string): string {
-  const legacyFormats: Record<string, string> = { doc: 'DOCX', ppt: 'PPTX', xls: 'XLSX' }
-  const modernFormat = legacyFormats[extension]
-  return modernFormat
-    ? `No text could be extracted from this ${extension.toUpperCase()} file. Re-save it as ${modernFormat} to index it.`
-    : 'No text could be extracted from this file — it may be scanned, image-only, or password-protected.'
+export function pipelineParsedMimeType(fileName: string): string | undefined {
+  const extension = connectorFileExtension(fileName)
+  return extension ? PIPELINE_PARSED_MIME_TYPES.get(extension) : undefined
 }
 
 /**
  * Converts a downloaded file body to indexable text.
  *
- * Text formats are decoded as UTF-8 (with HTML additionally reduced to plain text),
- * and binary document formats go through `parseBuffer`, which applies the OOXML
- * zip-bomb guard and each parser's own extraction limits. An extension with no
- * parser falls back to a UTF-8 decode rather than failing the file.
- *
- * A parsed format that yields no usable text throws {@link ConnectorTextExtractionError}
- * rather than returning what the parser handed back. The `doc` and `ppt` parsers
- * never throw by design — on a legacy binary or an image-only deck they return a
- * placeholder sentence or raw ZIP internals, which an interactive upload can show
- * a user but an automated sync must never embed.
+ * Only for formats that are already text — anything the shared parsers handle is
+ * delivered to them verbatim instead, via {@link pipelineParsedMimeType}. HTML is
+ * additionally reduced to plain text; everything else is a UTF-8 decode.
  */
-export async function extractConnectorText(buffer: Buffer, fileName: string): Promise<string> {
+export function extractConnectorText(buffer: Buffer, fileName: string): string {
   const extension = connectorFileExtension(fileName)
 
   if (extension === 'html' || extension === 'htm') {
     return htmlToPlainText(buffer.toString('utf8'))
-  }
-
-  if (extension && (CONNECTOR_PARSED_EXTENSIONS as readonly string[]).includes(extension)) {
-    /**
-     * Imported here rather than at module scope: every connector imports this
-     * file, but only the file-based ones ever reach a binary document, and the
-     * parser registry pulls in SheetJS and friends. Mirrors how the parsers
-     * themselves defer `officeparser`/`mammoth`/`unpdf`.
-     */
-    const { parseBuffer } = await import('@/lib/file-parsers')
-    const result = await parseBuffer(buffer, extension)
-    if (result.metadata?.degraded || !result.content.trim()) {
-      throw new ConnectorTextExtractionError(fileName, extension)
-    }
-    return result.content
   }
 
   return buffer.toString('utf8')

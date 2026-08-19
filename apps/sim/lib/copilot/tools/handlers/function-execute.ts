@@ -19,6 +19,7 @@ import {
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { formatCsvCell, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
@@ -669,9 +670,15 @@ export async function executeFunctionExecute(
   let mountedRegistry: ResolvedSecretTraceRegistry | undefined
   let crossingValue: unknown
 
+  /**
+   * Hoisted so the usage trail in `finally` attributes the run to the same identity the mount
+   * authorized against. Deriving it a second time down there let the two disagree whenever
+   * `secretActorUserId` was explicitly null.
+   */
+  const secretActorUserId =
+    context.secretActorUserId === undefined ? context.userId : context.secretActorUserId
+
   try {
-    const secretActorUserId =
-      context.secretActorUserId === undefined ? context.userId : context.secretActorUserId
     let mounted: MaterializedCopilotCodeSecrets = { envVars: {}, catalogEntries: [] }
     if (requestedNames.length > 0) {
       if (!secretActorUserId) {
@@ -781,6 +788,21 @@ export async function executeFunctionExecute(
         context.resolvedSecretTraceRegistry,
         crossingValue
       )
+    }
+    /**
+     * Copilot-run code is a real read of a workspace secret and has to appear in the trail;
+     * without this an admin reviewing a secret sees "never used" for one someone read through
+     * Mothership. Read from the registry rather than `requestedNames` so only names the code
+     * actually resolved are counted. The headless inbox runner reaches the same handler, so
+     * it is covered here too.
+     */
+    if (mountedRegistry && context.workspaceId) {
+      recordSecretUsage(mountedRegistry.getResolvedSecretUsage(), {
+        workspaceId: context.workspaceId,
+        source: 'copilot',
+        actorUserId: secretActorUserId ?? null,
+        trigger: 'copilot',
+      })
     }
     completePendingActivation?.()
   }

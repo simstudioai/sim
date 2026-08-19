@@ -814,10 +814,10 @@ export const CLI_CONTRACT: CliContract = {
         describe:
           'Return blockName.field values (e.g. agent_1.content); missing fields are omitted',
       },
-      // SSE, not JSON — the generic client cannot consume it. A `sim workflows
-      // run --follow` that renders the stream is a separate, hand-written
-      // command; advertising a flag that breaks the response is worse than
-      // not offering it yet.
+      // SSE, not JSON — the generic client cannot consume it, so the response
+      // encoding is chosen by `--follow`, which `workflow-run-follow.ts` adds to
+      // this same leaf and renders by hand. These stay omitted because sending
+      // them down the generated path would still break it.
       stream: { omit: true },
       includeThinking: { omit: true },
       includeToolCalls: { omit: true },

@@ -3,9 +3,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchQuery, mockGetSubBlockValue } = vi.hoisted(() => ({
+const { mockFetchQuery, mockGetSubBlockValue, mockTriggerOptions } = vi.hoisted(() => ({
   mockFetchQuery: vi.fn(),
   mockGetSubBlockValue: vi.fn(),
+  mockTriggerOptions: vi.fn(),
 }))
 
 vi.mock('@/app/_shell/providers/get-query-client', () => ({
@@ -24,6 +25,10 @@ vi.mock('@/stores/workflows/registry/store', () => ({
   },
 }))
 
+vi.mock('@/lib/logs/get-trigger-options', () => ({
+  getTriggerOptions: () => mockTriggerOptions(),
+}))
+
 vi.mock('@/stores/workflows/subblock/store', () => ({
   useSubBlockStore: {
     getState: () => ({ getValue: mockGetSubBlockValue }),
@@ -31,6 +36,7 @@ vi.mock('@/stores/workflows/subblock/store', () => ({
 }))
 
 import {
+  fetchTriggerTypeOptions,
   fetchWorkspaceSandboxOption,
   fetchWorkspaceSandboxOptions,
 } from '@/lib/workflows/subblocks/options'
@@ -99,5 +105,40 @@ describe('workspace sandbox options', () => {
       id: 'sandbox-javascript',
       label: 'Node tools · wrong language for this block',
     })
+  })
+})
+
+describe('fetchTriggerTypeOptions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('merges values that share a label into one comma-joined option', async () => {
+    mockTriggerOptions.mockReturnValue([
+      { value: 'api', label: 'API', color: '#2563eb' },
+      { value: 'copilot', label: 'Sim agent', color: '#ec4899' },
+      { value: 'mothership', label: 'Sim agent', color: '#ec4899' },
+      { value: 'slack', label: 'Slack', color: '#611f69' },
+    ])
+
+    await expect(fetchTriggerTypeOptions()).resolves.toEqual([
+      { id: 'api', label: 'API' },
+      { id: 'copilot,mothership', label: 'Sim agent' },
+      { id: 'slack', label: 'Slack' },
+    ])
+  })
+
+  it('preserves registry order so core trigger types lead the list', async () => {
+    mockTriggerOptions.mockReturnValue([
+      { value: 'manual', label: 'Manual', color: '#6b7280' },
+      { value: 'api', label: 'API', color: '#2563eb' },
+      { value: 'airtable', label: 'Airtable', color: '#181d1f' },
+    ])
+
+    await expect(fetchTriggerTypeOptions()).resolves.toEqual([
+      { id: 'manual', label: 'Manual' },
+      { id: 'api', label: 'API' },
+      { id: 'airtable', label: 'Airtable' },
+    ])
   })
 })

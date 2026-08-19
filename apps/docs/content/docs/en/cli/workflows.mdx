@@ -117,6 +117,33 @@ Resume a paused run (output is included in JSON or YAML output)
 
 </CommandTable>
 
+## Wait for a run to reach a terminal state, then show it
+
+```bash
+sim workflows runs wait <runId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `runId` | Yes | Unique workflow run identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <workflowId>` | Yes | Workflow ID. |
+| `--wait-timeout <seconds>` | No | Give up after this many seconds, or 0 to wait indefinitely (default: 3600). Bounds the whole wait; SIM_TIMEOUT_SECONDS bounds one request. |
+
+</CommandTable>
+
 ## Create workflow
 
 ```bash
@@ -300,6 +327,9 @@ sim workflows run <id> [options]
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64. Rejected when `async` is true. |
+| `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
+| `--include-thinking` | No | Show model reasoning while following (requires --follow). |
+| `--include-tool-calls` | No | Show tool calls while following (requires --follow). |
 
 </CommandTable>
 

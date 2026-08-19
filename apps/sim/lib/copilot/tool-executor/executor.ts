@@ -3,6 +3,7 @@ import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/wo
 import { toError } from '@sim/utils/errors'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
+import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
 import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
@@ -76,9 +77,13 @@ export async function executeTool(
           }
         : {}),
     }
-    return Object.keys(options).length > 0
-      ? executeAppTool(toolId, appParams, options)
-      : executeAppTool(toolId, appParams)
+    try {
+      return await (Object.keys(options).length > 0
+        ? executeAppTool(toolId, appParams, options)
+        : executeAppTool(toolId, appParams))
+    } finally {
+      recordAppToolSecretUsage(context)
+    }
   }
 
   if (context.abortSignal?.aborted) {
@@ -133,6 +138,29 @@ function normalizeToolParams(
       DEFAULT_EXECUTION_TIMEOUT_MS
     ),
   }
+}
+
+/**
+ * Records the secrets an integration tool call resolved.
+ *
+ * `resolveCopilotEnvReferences` in `@/tools` substitutes `{{SECRET}}` into a tool's
+ * `user-only` params — an API key reaching Slack or Stripe is as real a use as one read in
+ * sandboxed code, and without this the trail reports "never used" for it. Every tool call
+ * gets its own registry (`forkForInputPaths([])` returns one with no active entries), so this
+ * counts only what THIS call resolved rather than everything earlier in the turn.
+ *
+ * Only the `executeAppTool` branch reaches here. `function_execute` takes the registered-handler
+ * branch and records its own mounted secrets, so the two never count the same resolution twice.
+ */
+function recordAppToolSecretUsage(context: ToolExecutionContext): void {
+  const registry = context.resolvedSecretTraceRegistry
+  if (!registry || !context.workspaceId) return
+  recordSecretUsage(registry.getResolvedSecretUsage(), {
+    workspaceId: context.workspaceId,
+    source: 'copilot',
+    actorUserId: context.userId,
+    trigger: 'copilot',
+  })
 }
 
 function buildAppToolParams(

@@ -97,6 +97,7 @@ export interface SettingsNavigationItem<Section extends string = string> {
 
 export type UnifiedSettingsSection =
   | 'general'
+  | 'privacy'
   | 'desktop'
   | 'browser'
   | 'terminal'
@@ -369,6 +370,17 @@ export const SETTINGS_SECTION_REGISTRY: readonly SettingsSectionRegistryEntry[] 
     planes: {
       account: { id: 'general', group: 'account', order: 0 },
       selfhost: { id: 'general', group: 'account', order: 0 },
+    },
+  },
+  {
+    label: 'Privacy',
+    icon: Lock,
+    unified: {
+      id: 'privacy',
+      description: 'Choose which cookies Sim may use in this browser.',
+      group: 'account',
+      order: 5,
+      requiresHosted: true,
     },
   },
   {

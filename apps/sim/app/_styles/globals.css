@@ -58,6 +58,13 @@
   --z-modal: 200;
   --z-popover: 300;
   --z-tooltip: 400;
+  /* Full-screen takeovers replace the app entirely, so they sit above every
+     other layer including poppers. The desktop shell gate is the outermost of
+     them: an incompatible shell invalidates everything the web app renders
+     inside it, so it outranks in-app takeovers rather than tying with them and
+     letting document order decide. */
+  --z-takeover: 500;
+  --z-shell-gate: 600;
 
   /* Shadow scale */
   --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);

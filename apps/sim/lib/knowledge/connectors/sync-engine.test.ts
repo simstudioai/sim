@@ -7,8 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   classifySuspectListing,
   evaluateListingSafety,
+  mergeHydratedDocument,
   type PreviousListingObservation,
 } from '@/lib/knowledge/connectors/sync-engine'
+import type { ExternalDocument } from '@/connectors/types'
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
@@ -625,5 +627,78 @@ describe('evaluateListingSafety', () => {
       blocked: false,
       corroborated: false,
     })
+  })
+})
+
+describe('mergeHydratedDocument', () => {
+  const stub = (): ExternalDocument => ({
+    externalId: 'file-1',
+    title: 'Report.pdf',
+    content: '',
+    mimeType: 'text/plain',
+    contentHash: 'sharepoint:file-1:v1',
+    contentDeferred: true,
+    metadata: { fileSize: 2_400_000 },
+  })
+
+  /**
+   * A stub is built during listing, before the file is fetched, so it declares
+   * `text/plain` for everything. Leaving that behind makes a hydrated PDF keep
+   * claiming plain text — invisible while storage reads `sourceFile.mimeType`,
+   * and a trap for anything that reaches for the obvious field instead.
+   */
+  it('carries the hydrated MIME type over the stub placeholder', () => {
+    const merged = mergeHydratedDocument(
+      stub(),
+      {
+        ...stub(),
+        content: '',
+        mimeType: 'application/pdf',
+        sourceFile: {
+          bytes: Buffer.from('%PDF'),
+          fileName: 'Report.pdf',
+          mimeType: 'application/pdf',
+        },
+      },
+      'sharepoint:file-1:v2'
+    )
+
+    expect(merged.mimeType).toBe('application/pdf')
+    expect(merged.sourceFile?.mimeType).toBe('application/pdf')
+  })
+
+  it('carries the source file and clears the deferred flag', () => {
+    const merged = mergeHydratedDocument(
+      stub(),
+      { ...stub(), sourceFile: { bytes: Buffer.from('x'), fileName: 'a.pdf', mimeType: 'a/b' } },
+      'h'
+    )
+
+    expect(merged.sourceFile?.bytes.toString()).toBe('x')
+    expect(merged.contentDeferred).toBe(false)
+    expect(merged.contentHash).toBe('h')
+  })
+
+  it('keeps text-path content and merges metadata over the stub', () => {
+    const merged = mergeHydratedDocument(
+      stub(),
+      { ...stub(), content: 'plain notes', metadata: { createdBy: 'A' } },
+      'h'
+    )
+
+    expect(merged.content).toBe('plain notes')
+    expect(merged.sourceFile).toBeUndefined()
+    expect(merged.metadata).toEqual({ fileSize: 2_400_000, createdBy: 'A' })
+  })
+
+  it('falls back to the stub title and sourceUrl when hydration omits them', () => {
+    const merged = mergeHydratedDocument(
+      { ...stub(), sourceUrl: 'https://example.com/a' },
+      { ...stub(), title: '', content: 'x' },
+      'h'
+    )
+
+    expect(merged.title).toBe('Report.pdf')
+    expect(merged.sourceUrl).toBe('https://example.com/a')
   })
 })

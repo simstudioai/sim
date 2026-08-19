@@ -25,7 +25,11 @@ import {
   WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
-import { ScheduleDisabledEmail } from '@/components/emails/notifications'
+import {
+  ScheduleDisabledEmail,
+  type SubprocessorChange,
+  SubprocessorChangeEmail,
+} from '@/components/emails/notifications'
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import type { UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -157,6 +161,18 @@ export async function renderScheduleDisabledEmail(params: {
   manageLink?: string
 }): Promise<string> {
   return await render(ScheduleDisabledEmail(params))
+}
+
+export async function renderSubprocessorChangeEmail(params: {
+  recipientName?: string
+  changes: SubprocessorChange[]
+  effectiveDate: Date
+  objectionDeadline: Date
+  objectionEmail: string
+  subprocessorListUrl: string
+  subscriptionUrl?: string
+}): Promise<string> {
+  return await render(SubprocessorChangeEmail(params))
 }
 
 export async function renderFreeTierUpgradeEmail(params: {
