@@ -1196,18 +1196,21 @@ export function Table({
     [persistActiveViewConfig]
   )
 
-  const handleHiddenColumnsChange = (next: string[]) => {
-    setHiddenColumns(next)
-    persistActiveViewConfig({ hiddenColumns: next })
-  }
+  const handleHiddenColumnsChange = useCallback(
+    (next: string[]) => {
+      setHiddenColumns(next)
+      persistActiveViewConfig({ hiddenColumns: next })
+    },
+    [persistActiveViewConfig]
+  )
 
   /**
    * "Filter by cell value" from the grid's cell context menu. Narrows the
    * PRUNED filter, so a condition the current schema already invalidated is not
    * resurrected, and opens the panel — a silently narrowed table would leave the
    * user no way to see what was applied. Persists explicitly: the reseeded
-   * panel starts signature-matched to this filter, so its debounce alone would
-   * never save it.
+   * panel starts signature-matched to this filter, so its gesture handlers will
+   * not emit it again.
    */
   const handleFilterByCellValue = (conditions: readonly Predicate[]) => {
     const next = withCellValueFilter(effectiveFilter, conditions)

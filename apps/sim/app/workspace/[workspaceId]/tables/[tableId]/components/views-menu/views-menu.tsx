@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import {
+  Button,
   ChipChevronDown,
   chipContentLabelClass,
   chipVariants,
@@ -252,9 +253,11 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
       {actionCount > 0 && (
         <div className='absolute right-1.5 flex items-center gap-0.5'>
           {actions?.map((action) => (
-            <button
+            <Button
               key={action.label}
               type='button'
+              variant='quiet'
+              size='icon'
               aria-label={action.label}
               title={action.label}
               onClick={(event) => {
@@ -262,14 +265,16 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
                 event.stopPropagation()
                 action.onClick()
               }}
-              className='pointer-events-none rounded-md p-1 text-[var(--text-icon)] opacity-0 transition-[background-color,color,opacity] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-body)] group-focus-within/view:pointer-events-auto group-focus-within/view:opacity-100 group-hover/view:pointer-events-auto group-hover/view:opacity-100'
+              className='pointer-events-none opacity-0 transition-[background-color,color,opacity] group-focus-within/view:pointer-events-auto group-focus-within/view:opacity-100 group-hover/view:pointer-events-auto group-hover/view:opacity-100'
             >
               <action.icon className='size-3' />
-            </button>
+            </Button>
           ))}
           {defaultState && (
-            <button
+            <Button
               type='button'
+              variant='quiet'
+              size='icon'
               aria-label={defaultState.isDefault ? 'Current default view' : 'Set as default'}
               title={defaultState.isDefault ? 'Current default view' : 'Set as default'}
               disabled={!defaultState.onSetDefault}
@@ -278,10 +283,9 @@ function ViewRow({ label, isActive, onSelect, defaultState, actions }: ViewRowPr
                 event.stopPropagation()
                 defaultState.onSetDefault?.()
               }}
-              className='rounded-md p-1 text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-body)]'
             >
               <Pin className={cn('size-3', defaultState.isDefault && 'fill-current')} />
-            </button>
+            </Button>
           )}
         </div>
       )}

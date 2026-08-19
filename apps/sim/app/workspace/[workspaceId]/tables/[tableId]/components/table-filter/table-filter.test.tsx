@@ -144,6 +144,18 @@ describe('TableFilter', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('does not autosave when columns refresh without a user edit', () => {
+    const onChange = vi.fn()
+    act(() => {
+      root.render(<TableFilter columns={COLUMNS} filter={null} onChange={onChange} />)
+    })
+    act(() => {
+      root.render(<TableFilter columns={[...COLUMNS]} filter={null} onChange={onChange} />)
+    })
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('merges the OR groups as soon as the conjunction is toggled back to and', () => {
     const onChange = vi.fn()
     renderFilter(onChange, {

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Button, ChipDropdown, ChipInput } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
@@ -28,7 +28,6 @@ function selectFilterOperators(column: ColumnDefinition | undefined): Set<string
   return column?.multiple ? MULTI_SELECT_FILTER_OPERATORS : SINGLE_SELECT_FILTER_OPERATORS
 }
 
-/** The predicate the panel's current rows amount to — blank rows contribute nothing. */
 function toAppliedPredicate(
   rules: FilterRule[],
   columns: ColumnDefinition[]
@@ -47,11 +46,12 @@ interface TableFilterProps {
 
 export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   const lastAppliedFilterRef = useRef<string | undefined>(undefined)
-  const onChangeRef = useRef(onChange)
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = predicateToFilterRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
   })
+  const rulesRef = useRef(rules)
+  rulesRef.current = rules
   // Seed the "already applied" signature from the rules the panel actually
   // renders, not the raw prop: a saved tree the flat builder cannot express
   // (deeply nested groups, wire key order) round-trips differently, and seeding
@@ -59,7 +59,21 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   // moment the panel opens. The normalized form persists only once the user
   // really edits a rule.
   lastAppliedFilterRef.current ??= JSON.stringify(toAppliedPredicate(rules, columns))
-  onChangeRef.current = onChange
+
+  const applyRules = useCallback(
+    (update: (current: FilterRule[]) => FilterRule[]) => {
+      const nextRules = update(rulesRef.current)
+      rulesRef.current = nextRules
+      setRules(nextRules)
+
+      const nextFilter = toAppliedPredicate(nextRules, columns)
+      const signature = JSON.stringify(nextFilter)
+      if (signature === lastAppliedFilterRef.current) return
+      lastAppliedFilterRef.current = signature
+      onChange(nextFilter)
+    },
+    [columns, onChange]
+  )
 
   // `value` is the filter field key (column id); `label` is what the user sees.
   const columnOptions = useMemo(
@@ -73,30 +87,40 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   )
 
   const handleAdd = useCallback(() => {
-    setRules((prev) => [...prev, createRule(columns)])
-  }, [columns])
+    applyRules((current) => [...current, createRule(columns)])
+  }, [applyRules, columns])
 
   const handleRemove = useCallback(
     (id: string) => {
-      setRules((prev) => {
-        const next = prev.filter((rule) => rule.id !== id)
+      applyRules((current) => {
+        const next = current.filter((rule) => rule.id !== id)
         return next.length > 0 ? next : [createRule(columns)]
       })
     },
-    [columns]
+    [applyRules, columns]
   )
 
-  const handleUpdate = useCallback((id: string, field: keyof FilterRule, value: string) => {
-    setRules((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
-  }, [])
-
-  const handleToggleLogical = useCallback((id: string) => {
-    setRules((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, logicalOperator: r.logicalOperator === 'and' ? 'or' : 'and' } : r
+  const handleUpdate = useCallback(
+    (id: string, field: keyof FilterRule, value: string) => {
+      applyRules((current) =>
+        current.map((rule) => (rule.id === id ? { ...rule, [field]: value } : rule))
       )
-    )
-  }, [])
+    },
+    [applyRules]
+  )
+
+  const handleToggleLogical = useCallback(
+    (id: string) => {
+      applyRules((current) =>
+        current.map((rule) =>
+          rule.id === id
+            ? { ...rule, logicalOperator: rule.logicalOperator === 'and' ? 'or' : 'and' }
+            : rule
+        )
+      )
+    },
+    [applyRules]
+  )
 
   // Switching a rule's column across the select boundary changes what values and
   // operators are valid, so clear the value and coerce an unsupported operator
@@ -104,39 +128,25 @@ export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   // apply against a select column and be rejected server-side.
   const handleColumnChange = useCallback(
     (id: string, columnId: string) => {
-      setRules((prev) =>
-        prev.map((r) => {
-          if (r.id !== id) return r
-          const previous = columnById.get(r.column)
+      applyRules((current) =>
+        current.map((rule) => {
+          if (rule.id !== id) return rule
+          const previous = columnById.get(rule.column)
           const next = columnById.get(columnId)
           const wasSelect = previous?.type === 'select'
           const isSelect = next?.type === 'select'
-          if (!wasSelect && !isSelect) return { ...r, column: columnId }
+          if (!wasSelect && !isSelect) return { ...rule, column: columnId }
           // Single- and multi-select take different operators, so a switch
           // between them has to fall back too, not just select ↔ non-select.
           const allowed = selectFilterOperators(next)
           const fallback = next?.multiple ? 'contains' : 'eq'
-          const operator = isSelect && !allowed.has(r.operator) ? fallback : r.operator
-          return { ...r, column: columnId, operator, value: '' }
+          const operator = isSelect && !allowed.has(rule.operator) ? fallback : rule.operator
+          return { ...rule, column: columnId, operator, value: '' }
         })
       )
     },
-    [columnById]
+    [applyRules, columnById]
   )
-
-  // Applies on every rules change. Rules only change on completed gestures —
-  // dropdown picks, row add/remove, conjunction toggles, and the value field's
-  // Enter/blur commit ({@link FilterValueInput} buffers keystrokes locally) —
-  // so nothing is ever pending and there is nothing to lose on unmount. The
-  // signature guard keeps no-op changes (a blank row added, an untouched
-  // reseed) from writing.
-  useEffect(() => {
-    const nextFilter = toAppliedPredicate(rules, columns)
-    const signature = JSON.stringify(nextFilter)
-    if (signature === lastAppliedFilterRef.current) return
-    lastAppliedFilterRef.current = signature
-    onChangeRef.current(nextFilter)
-  }, [rules, columns])
 
   return (
     <div className='border-[var(--border)] border-b bg-[var(--bg)] px-4 py-2'>
