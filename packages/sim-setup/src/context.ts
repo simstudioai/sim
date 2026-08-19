@@ -67,6 +67,23 @@ function directoryOverride(args: readonly string[]): string | null {
   return value
 }
 
+/** Classifies one exact filesystem root without walking through its ancestors. */
+export function resolveSetupContextAtRoot(root: string): SetupContext {
+  const resolvedRoot = path.resolve(root)
+  const source = inspectSourceRoot(resolvedRoot)
+  if (source === 'valid') return { kind: 'source', root: resolvedRoot }
+  if (source === 'partial') {
+    throw new Error(
+      `Incomplete Sim source checkout at ${resolvedRoot}; expected package.json plus apps/sim, apps/realtime, and packages/db package manifests.`
+    )
+  }
+  return {
+    kind: 'standalone',
+    root: resolvedRoot,
+    existing: isStandaloneInstall(resolvedRoot),
+  }
+}
+
 /** Resolves the filesystem context before setup reads or writes any installation state. */
 export function resolveSetupContext(
   start: string = process.cwd(),
@@ -76,18 +93,7 @@ export function resolveSetupContext(
   const searchStart = path.resolve(start, override ?? '.')
 
   if (override) {
-    const source = inspectSourceRoot(searchStart)
-    if (source === 'valid') return { kind: 'source', root: searchStart }
-    if (source === 'partial') {
-      throw new Error(
-        `Incomplete Sim source checkout at ${searchStart}; expected package.json plus apps/sim, apps/realtime, and packages/db package manifests.`
-      )
-    }
-    return {
-      kind: 'standalone',
-      root: searchStart,
-      existing: isStandaloneInstall(searchStart),
-    }
+    return resolveSetupContextAtRoot(searchStart)
   }
 
   for (const candidate of parentDirectories(searchStart)) {

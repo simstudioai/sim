@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { ensureProductionComposeFile } from './compose-asset'
-import { SETUP_CONTEXT } from './context'
+import { resolveSetupContextAtRoot } from './context'
 import { DB_CONTAINER, type Detection, REDIS_CONTAINER, runDetection } from './detect'
 import { archiveEnvFile, archiveFile, ROOT } from './env-files'
 import { SetupError } from './errors'
@@ -348,6 +348,12 @@ export function getComposeUpdateMode(file: string): ComposeUpdateMode {
   throw new Error(`Unsupported Sim Compose file: ${file}`)
 }
 
+/** Refreshes a published install's managed Compose file before applying an update. */
+export function refreshComposeFileForUpdate(file: string, dir: string): string {
+  if (getComposeUpdateMode(file) === 'build') return file
+  return ensureProductionComposeFile(resolveSetupContextAtRoot(dir))
+}
+
 function update(install: Install): void {
   if (install.kind === 'dev') {
     throw new SetupError('update is only available for Docker Compose installs.', [
@@ -363,12 +369,7 @@ function update(install: Install): void {
   const mode = getComposeUpdateMode(install.file)
   const spin = p.spinner()
   if (mode === 'pull') {
-    if (
-      SETUP_CONTEXT.kind === 'standalone' &&
-      path.resolve(SETUP_CONTEXT.root) === path.resolve(install.dir)
-    ) {
-      install.file = ensureProductionComposeFile(SETUP_CONTEXT)
-    }
+    install.file = refreshComposeFileForUpdate(install.file, install.dir)
     spin.start('Pulling configured Sim images…')
     dockerRun(composeArgs(install, 'pull'), 'docker compose pull failed', install.dir)
   } else {
