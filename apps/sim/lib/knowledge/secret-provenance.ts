@@ -431,8 +431,6 @@ export async function loadKnowledgeDocumentDurableSecretProvenance(documentId: s
   }
 }
 
-const MAX_KNOWLEDGE_RESPONSE_PROVENANCE_ROWS = 100
-
 /**
  * Imports provenance for one bounded, exact persisted response snapshot. The supplied values are
  * compared with a fresh joined row before import, so a concurrent write cannot pair stale response
@@ -454,14 +452,6 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
 }): Promise<boolean> {
   const documents = options.documents ?? []
   const chunks = options.chunks ?? []
-  if (
-    documents.length > MAX_KNOWLEDGE_RESPONSE_PROVENANCE_ROWS ||
-    chunks.length > MAX_KNOWLEDGE_RESPONSE_PROVENANCE_ROWS
-  ) {
-    options.registry.markIncomplete('knowledge-response-capacity-exceeded')
-    return false
-  }
-
   const documentIds = [...new Set(documents.map((item) => item.id))]
   const chunkIds = [...new Set(chunks.map((item) => item.id))]
   const [documentRows, chunkRows] = await Promise.all([

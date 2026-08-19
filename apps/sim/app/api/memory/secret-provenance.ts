@@ -1,4 +1,3 @@
-import { Buffer } from 'buffer'
 import { db } from '@sim/db'
 import { memorySecretProvenance } from '@sim/db/schema'
 import { inArray } from 'drizzle-orm'
@@ -10,6 +9,7 @@ import {
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
   importDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import { reportUnrecordedDurableProvenance } from '@/lib/execution/durable-secret-provenance-enforcement'
 import {
   inspectPrivateSecretProvenanceRequest,
   isPrivateSecretProvenanceBundleV1,
@@ -22,10 +22,15 @@ import {
 import { readBoundMemorySecretProvenance } from '@/lib/memory/secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const MAX_PRIVATE_MEMORY_CROSSINGS = 10_000
-const PRIVATE_MEMORY_QUERY_CHUNK_SIZE = 8
-const MAX_PRIVATE_MEMORY_PROVENANCE_ENTRIES = 10_000
-const MAX_PRIVATE_MEMORY_PROVENANCE_BYTES = 8 * 1024 * 1024
+/**
+ * Ids per sidecar lookup, matching how the rest of the codebase chunks an `inArray`.
+ *
+ * It was 8, which only worked because a cap refused any read over ten thousand memories — at that
+ * width the page loop would otherwise have issued more than a thousand sequential statements. The
+ * cap is gone because refusing on a record count told us nothing about the data, so the page size
+ * now has to be the thing that keeps the read bounded.
+ */
+const PRIVATE_MEMORY_QUERY_CHUNK_SIZE = 1_000
 
 interface MemoryCrossing {
   id: string
@@ -97,50 +102,66 @@ export async function createMemoryResponse(options: {
     userId: options.userId,
     workspaceId: options.workspaceId,
   })
-  if (options.memories.length > MAX_PRIVATE_MEMORY_CROSSINGS) {
-    registry.markIncomplete('memory-crossing-capacity-exceeded')
-  } else {
-    const ids = [...new Set(options.memories.map((record) => record.id))]
-    const memoriesById = new Map<string, MemoryCrossing[]>()
-    for (const memory of options.memories) {
-      const matching = memoriesById.get(memory.id) ?? []
-      matching.push(memory)
-      memoriesById.set(memory.id, matching)
-    }
-    let provenanceEntryCount = 0
-    let provenanceBytes = 0
-    for (let index = 0; index < ids.length; index += PRIVATE_MEMORY_QUERY_CHUNK_SIZE) {
-      const pageIds = ids.slice(index, index + PRIVATE_MEMORY_QUERY_CHUNK_SIZE)
-      const sidecars = await db
-        .select()
-        .from(memorySecretProvenance)
-        .where(inArray(memorySecretProvenance.memoryId, pageIds))
-      for (const sidecar of sidecars) {
-        provenanceEntryCount += Array.isArray(sidecar.entries) ? sidecar.entries.length : 0
-        provenanceBytes += Buffer.byteLength(JSON.stringify(sidecar.entries ?? []), 'utf8')
-      }
-      if (
-        provenanceEntryCount > MAX_PRIVATE_MEMORY_PROVENANCE_ENTRIES ||
-        provenanceBytes > MAX_PRIVATE_MEMORY_PROVENANCE_BYTES
-      ) {
-        registry.markIncomplete('memory-crossing-capacity-exceeded')
-        break
-      }
-      const sidecarById = new Map(sidecars.map((sidecar) => [sidecar.memoryId, sidecar]))
-      for (const memoryId of pageIds) {
-        for (const record of memoriesById.get(memoryId) ?? []) {
-          const sidecar = sidecarById.get(record.id)
-          const provenance = readBoundMemorySecretProvenance({
-            secretProvenanceVersion: record.secretProvenanceVersion,
-            data: record.data,
-            provenanceContentHash: sidecar?.contentHash ?? null,
-            status: sidecar?.status ?? null,
-            entries: sidecar?.entries,
-          })
-          await importDurableSecretProvenance(registry, provenance, record.data, 'memory')
-        }
+  /**
+   * No cap on how many memories may cross, and no separate accounting of what they carry.
+   *
+   * There was both: a refusal past ten thousand records, and a running total of every sidecar's
+   * entries. The first said nothing about the data. The second summed entries *before* they were
+   * folded, so a page of memories sharing a handful of secrets counted once per mention and could
+   * refuse a read whose envelope would have held a dozen entries.
+   *
+   * Neither is needed, because the registry already bounds the only thing that has a real limit —
+   * the serialized envelope — as each entry is added, at the granularity it actually dedupes on.
+   * A second estimate in front of it could only ever be wrong in one of two directions.
+   */
+  const ids = [...new Set(options.memories.map((record) => record.id))]
+  const memoriesById = new Map<string, MemoryCrossing[]>()
+  for (const memory of options.memories) {
+    const matching = memoriesById.get(memory.id) ?? []
+    matching.push(memory)
+    memoriesById.set(memory.id, matching)
+  }
+  let unrecordedMemoryCount = 0
+  for (let index = 0; index < ids.length; index += PRIVATE_MEMORY_QUERY_CHUNK_SIZE) {
+    const pageIds = ids.slice(index, index + PRIVATE_MEMORY_QUERY_CHUNK_SIZE)
+    const sidecars = await db
+      .select()
+      .from(memorySecretProvenance)
+      .where(inArray(memorySecretProvenance.memoryId, pageIds))
+    const sidecarById = new Map(sidecars.map((sidecar) => [sidecar.memoryId, sidecar]))
+    for (const memoryId of pageIds) {
+      for (const record of memoriesById.get(memoryId) ?? []) {
+        const sidecar = sidecarById.get(record.id)
+        const provenance = readBoundMemorySecretProvenance({
+          secretProvenanceVersion: record.secretProvenanceVersion,
+          data: record.data,
+          provenanceContentHash: sidecar?.contentHash ?? null,
+          status: sidecar?.status ?? null,
+          entries: sidecar?.entries,
+        })
+        if (provenance.status === 'unknown') unrecordedMemoryCount += 1
+        await importDurableSecretProvenance(registry, provenance, record.data, 'memory')
       }
     }
+  }
+
+  /**
+   * Counted here and reported once, rather than left to the per-record import.
+   *
+   * That import reports without a workspace, so the workspace-visible half of the trail never
+   * reached the people it concerns — the audit entry is skipped when it cannot name one. Passing
+   * the workspace down instead would have written one row per record, which on a wide read is
+   * thousands of fire-and-forget inserts for a single event. One read is one thing that happened,
+   * so it is one entry carrying how many records it covered — the shape the table surface uses.
+   */
+  if (unrecordedMemoryCount > 0) {
+    reportUnrecordedDurableProvenance({
+      surface: 'memory',
+      cause: 'durable-provenance-unknown',
+      affectedCount: unrecordedMemoryCount,
+      workspaceId: options.workspaceId,
+      actorUserId: options.userId,
+    })
   }
 
   const envelope = serializePrivateToolMetadataResponseEnvelope(

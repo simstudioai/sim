@@ -200,7 +200,12 @@ describe('memory write secret provenance', () => {
     if (!result.success) expect(result.response.status).toBe(400)
   })
 
-  it('bounds only requested private response provenance without querying sidecars', async () => {
+  /**
+   * A read of this width used to be refused outright on the record count alone. How many memories
+   * crossed said nothing about whether their provenance could be established, so the read now
+   * vouches for them and the page size is what keeps the statement count bounded.
+   */
+  it('vouches for a very wide crossing instead of refusing on the record count', async () => {
     const request = new NextRequest('http://localhost/api/memory', {
       headers: {
         [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -220,12 +225,18 @@ describe('memory write secret provenance', () => {
     })
 
     await expect(response.json()).resolves.toMatchObject({
-      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: false, entries: [] },
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
     })
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    /** Eleven pages of a thousand, not one statement per handful of memories. */
+    expect(dbChainMockFns.select.mock.calls.length).toBeLessThanOrEqual(11)
   })
 
-  it('marks oversized aggregate sidecar provenance incomplete before importing it', async () => {
+  /**
+   * A sidecar too large to carry reads as unrecorded, not as a reason to fail the read. The run
+   * keeps its other provenance and proceeds without this memory's — best effort, with the risk
+   * recorded — rather than refusing every projection for the rest of the run.
+   */
+  it('treats a sidecar too large to carry as unrecorded rather than failing the read', async () => {
     queueTableRows(memorySecretProvenance, [
       {
         memoryId: 'memory-1',
@@ -253,7 +264,7 @@ describe('memory write secret provenance', () => {
     })
 
     await expect(response.json()).resolves.toMatchObject({
-      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: false, entries: [] },
+      [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
     })
   })
 })
