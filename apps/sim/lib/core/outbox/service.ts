@@ -103,7 +103,7 @@ export function deferOutboxHandler(
 export type OutboxHandler<T = unknown> = (
   payload: T,
   context: OutboxEventContext
-) => Promise<undefined | DeferredOutboxHandlerResult>
+) => Promise<undefined | DeferredOutboxHandlerResult> | Promise<void>
 
 /**
  * Map of `eventType` → handler. Register all handlers in one place
@@ -784,7 +784,7 @@ function runHandlerWithTimeout(
     handler(event.payload, context)
       .then((value) => {
         clearTimeout(timeout)
-        resolve(value)
+        resolve(value ?? undefined)
       })
       .catch((err) => {
         clearTimeout(timeout)
