@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Chip,
   ChipCombobox,
+  ChipModalField,
   ChipSwitch,
   CollapsibleCard,
   cn,
@@ -89,6 +90,9 @@ const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
  * picker shows, and clipping them is what makes two same-prefixed keys indistinguishable.
  */
 const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] flex-shrink-0'
+
+/** Custom-block input types whose value is JSON, so the field needs a textarea, not a line. */
+const CUSTOM_BLOCK_JSON_FIELD_TYPES = new Set(['object', 'array'])
 
 interface DependentBlock {
   targetBlockId: string
@@ -205,12 +209,38 @@ function DependentSelector({
   reconfig,
   setReconfig,
 }: DependentSelectorProps) {
+  // A custom block's inputs exist BECAUSE its type was repointed, so `parentChanged` is
+  // always true for them — but unlike a re-picked selector their stored value is the user's
+  // own configuration for the target and must pre-fill, not blank out.
+  const isCustomBlockInput = field.parentKind === 'custom-block'
   const effectiveValueIn = (f: ForkDependentReconfig, state: DependentReconfigState) =>
-    copying
-      ? effectiveCopyDependentValue(f, state)
-      : effectiveDependentValue(f, state, parentChanged)
+    isCustomBlockInput
+      ? effectiveDependentValue(f, state, false)
+      : copying
+        ? effectiveCopyDependentValue(f, state)
+        : effectiveDependentValue(f, state, parentChanged)
   const baselineValueFor = (f: ForkDependentReconfig) => effectiveValueIn(f, {})
   const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
+  if (isCustomBlockInput) {
+    // Not a selector: there is no parent resource to browse and no options to fetch, just the
+    // target block's own declared input. Rendered as a plain field so the user types the value
+    // the repointed block should run with. Structured types get a textarea because their value
+    // is JSON, matching how `subBlockTypeForField` renders them on the canvas.
+    const setValue = (value: string) =>
+      setReconfig((current) => ({ ...current, [dependentKey(field)]: value }))
+    const shared = {
+      title: field.title,
+      required: field.required,
+      value: effectiveValue(field),
+      onChange: setValue,
+    }
+    return CUSTOM_BLOCK_JSON_FIELD_TYPES.has(field.fieldType ?? '') ? (
+      <ChipModalField {...shared} type='textarea' />
+    ) : (
+      <ChipModalField {...shared} type='input' />
+    )
+  }
+
   const { providedValues, providedContextKeys } = blockChainState(block, field, effectiveValue)
   // Disabled until every in-block parent it depends on has a value, so a child never queries
   // a stale upstream value.
@@ -228,7 +258,7 @@ function DependentSelector({
         ...providedValues,
         // Owning workspace, for workspace-scoped selectors like table.columns.
         workspaceId: copying ? sourceWorkspaceId : workspaceId,
-        [field.parentContextKey]: parentValue,
+        ...(field.parentContextKey ? { [field.parentContextKey]: parentValue } : {}),
       }}
       enabled={parentValue !== '' && ready}
       value={effectiveValue(field)}

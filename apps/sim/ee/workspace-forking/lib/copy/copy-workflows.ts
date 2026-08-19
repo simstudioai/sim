@@ -373,14 +373,6 @@ export interface CopyWorkflowStateParams {
    */
   transformBlockType?: (blockType: string, block: { id: string; name: string }) => string
   /**
-   * Per TARGET block id, the inputs the user configured for a custom block whose type this
-   * sync repoints. Applied ONLY when the type actually changes: the source's inputs are keyed
-   * by the source block's field ids and mean nothing against the new config, so they are
-   * dropped and these written in their place. Already allowlisted to the target block's
-   * declared field ids by the planner, which is the only side that can resolve that config.
-   */
-  customBlockInputsByBlockId?: ReadonlyMap<string, ReadonlyMap<string, string>>
-  /**
    * The target workflow's current draft subBlocks (block id -> subBlocks), for
    * `replace` mode only. When present, required dependents that the sync left empty
    * (the parent change cleared and the stored mapping didn't fill) are reported in
@@ -441,7 +433,6 @@ export async function copyWorkflowStateIntoTarget(
     folderIdMap,
     transformSubBlocks,
     transformBlockType,
-    customBlockInputsByBlockId,
     targetCurrentBlocks,
     dependentOverrides,
     nameRegistry,
@@ -566,9 +557,12 @@ export async function copyWorkflowStateIntoTarget(
       : block.type
     if (nextBlockType !== block.type) {
       // Only a custom block can change type, and once it does its stored inputs describe the
-      // OLD block's fields. Replace them with what the user configured for the target rather
-      // than leaving the serializer to drop them silently.
-      subBlocks = replaceCustomBlockInputs(subBlocks, customBlockInputsByBlockId?.get(newBlockId))
+      // OLD block's fields. Replace them with what the user configured for the target — the
+      // same stored dependent values every other reconfigurable field uses, just applied
+      // wholesale because ALL of a custom block's inputs are reconfigurable, not a `dependsOn`
+      // subset. `applyDependentOverrides` above is a no-op for them: it allowlists on
+      // `dependsOn` + `selectorKey`, which no custom-block input has.
+      subBlocks = replaceCustomBlockInputs(subBlocks, blockOverrides)
     }
 
     newBlocks[newBlockId] = {

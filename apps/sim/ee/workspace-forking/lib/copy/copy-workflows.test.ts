@@ -580,9 +580,7 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
       ...baseParams,
       tx: stubTx(),
       transformBlockType: (type) => (type === UAT ? PROD : type),
-      customBlockInputsByBlockId: new Map([
-        ['tgt-blk-cb', new Map([['field-prod-x', 'prod value X']])],
-      ]),
+      dependentOverrides: new Map([['tgt-blk-cb', new Map([['field-prod-x', 'prod value X']])]]),
     })
 
     const subBlocks = writtenBlock().subBlocks ?? {}
@@ -600,7 +598,7 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
       ...baseParams,
       tx: stubTx(),
       transformBlockType: (type) => (type === UAT ? PROD : type),
-      customBlockInputsByBlockId: new Map([
+      dependentOverrides: new Map([
         [
           'tgt-blk-cb',
           new Map([
@@ -625,9 +623,7 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
       ...baseParams,
       tx: stubTx(),
       transformBlockType: (type) => type,
-      customBlockInputsByBlockId: new Map([
-        ['tgt-blk-cb', new Map([['field-prod-x', 'must not apply']])],
-      ]),
+      dependentOverrides: new Map([['tgt-blk-cb', new Map([['field-prod-x', 'must not apply']])]]),
     })
 
     const subBlocks = writtenBlock().subBlocks ?? {}
