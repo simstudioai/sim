@@ -231,8 +231,9 @@ interface ResourceTableProps {
    * region or the headers — the chrome guarantee holds — so a consumer can show
    * a zero-data graphic without the list losing its structure.
    *
-   * The table owns the growth box the slot is centred in, so any node centres —
-   * the slot does not have to carry its own `flex-1` to sit in the middle.
+   * The table gives the slot a flex column that fills the remaining scroll area, so
+   * the node decides how to sit in it rather than depending on the scroll container's
+   * own layout.
    */
   emptyState?: ReactNode
 }

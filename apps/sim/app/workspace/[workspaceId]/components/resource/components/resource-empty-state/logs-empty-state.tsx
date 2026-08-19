@@ -1,6 +1,7 @@
 import { cn } from '@sim/emcn'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
+import { MASK_NO_REPEAT } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/mask'
 
 const LOGS_DOCS_URL = 'https://docs.sim.ai/logs-debugging'
 
@@ -33,14 +34,14 @@ const FEED_FADE =
 /** Four rows, sized to the ~148px the other resource graphics occupy so the frame centres the set alike. */
 function LogsGraphic() {
   return (
-    <div aria-hidden='true' className={cn('w-[286px]', FEED_FADE)}>
+    <div aria-hidden='true' className={cn('w-[286px]', FEED_FADE, MASK_NO_REPEAT)}>
       {ROWS.map((row, index) => (
         <div
           key={row.stamp}
           className={cn(
             'flex items-center gap-2.5 px-2.5 py-2',
             index === 0 &&
-              'rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-card'
+              'rounded-[8px] border border-[var(--border)] bg-[var(--surface-2)] shadow-card'
           )}
         >
           <span className='size-[22px] shrink-0 rounded-full bg-[var(--surface-6)]' />

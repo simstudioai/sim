@@ -18,7 +18,7 @@ export interface IsoIngestIllustrationProps {
 
 const STROKE_PAINT = ISO_STROKE
 
-const LINE_PROPS = createIsoLineProps('iso-ingest-line', STROKE_PAINT)
+const LINE_PROPS = createIsoLineProps(STROKE_PAINT, undefined, 'iso-ingest-line')
 
 /**
  * Inline supplied illustration for the Context area - a central store
