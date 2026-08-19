@@ -111,6 +111,38 @@ describe('compileSimPage', () => {
     expect(html).toContain('was skipped')
   })
 
+  it('renders inline markdown in table cells and resolves sim links', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n```sim:table\ncolumns: [Name]\nrows:\n  - ["[gateway](sim:workflow/wf1)"]\n```',
+      { workspaceId: 'ws1' }
+    )
+    expect(html).toContain('<a href="/workspace/ws1/w/wf1" data-sim-link="">gateway</a>')
+  })
+
+  it('resolves workspace image refs to the authed byte route', () => {
+    const html = compileSimPage('---\ntitle: T\n---\n![diagram](sim:file/img9)')
+    expect(html).toContain('src="/api/files/view/img9"')
+  })
+
+  it('renders frontmatter prev/next as footer pagination cards', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\nprev: "[Getting Started](sim:file/a)"\nnext: "[API Reference](sim:file/b)"\n---\nBody.',
+      { workspaceId: 'ws1' }
+    )
+    expect(html).toContain('<footer class="page-nav">')
+    expect(html).toContain('class="page-nav-card prev"')
+    expect(html).toContain('<span class="page-nav-title">API Reference</span>')
+    expect(html).toContain('href="/workspace/ws1/files/b/view"')
+  })
+
+  it('renders sim:accordion like sim:faq with title keys', () => {
+    const html = compileSimPage(
+      '---\ntitle: T\n---\n```sim:accordion\n- title: Advanced options\n  markdown: The details.\n```'
+    )
+    expect(html).toContain('<div class="faq">')
+    expect(html).toContain('<summary>Advanced options</summary>')
+  })
+
   it('escapes html in yaml-derived values', () => {
     const html = compileSimPage(
       '---\ntitle: T\n---\n```sim:kv\n- { key: "<script>", value: "<img src=x>" }\n```'

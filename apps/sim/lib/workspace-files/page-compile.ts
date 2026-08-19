@@ -30,7 +30,21 @@ const frontmatterSchema = z.object({
   eyebrow: z.string().optional(),
   lede: z.string().optional(),
   layout: z.enum(['docs', 'report']).optional(),
+  /** Docs-style footer pagination: a markdown link — `[Title](sim:file/<id>)`. */
+  prev: z.string().optional(),
+  next: z.string().optional(),
 })
+
+const MD_LINK = /^\s*\[([^\]]+)\]\(([^)]+)\)\s*$/
+
+/** Renders one footer pagination card from a frontmatter `[Title](href)` link. */
+function paginationCard(value: string, direction: 'prev' | 'next'): string {
+  const match = value.match(MD_LINK)
+  if (!match) return ''
+  const [, title, href] = match
+  const label = direction === 'prev' ? '← Previous' : 'Next →'
+  return `<a class="page-nav-card ${direction}" href="${escapeHtml(href)}"><span class="page-nav-dir">${label}</span><span class="page-nav-title">${escapeHtml(title)}</span></a>`
+}
 
 /** YAML leaves unquoted scalars typed; reject null/objects rather than stringify them. */
 const textCell = z.union([z.string(), z.number(), z.boolean()]).transform((value) => String(value))
@@ -51,7 +65,15 @@ const tablePayloadSchema = z.object({
   rows: z.array(z.array(textCell)).min(1),
 })
 const kvItemsSchema = z.array(z.object({ key: textCell, value: textCell })).min(1)
-const faqItemsSchema = z.array(z.object({ q: textCell, markdown: textCell })).min(1)
+const accordionItemsSchema = z
+  .array(
+    z
+      .object({ q: textCell.optional(), title: textCell.optional(), markdown: textCell })
+      .refine((item) => item.q !== undefined || item.title !== undefined, {
+        message: 'each item needs a q or title',
+      })
+  )
+  .min(1)
 
 const FENCE_OPEN = /^```(\S*)[ \t]*(.*)$/
 
@@ -141,17 +163,21 @@ const FENCE_RENDERERS: Record<string, FenceRenderer> = {
       .join('')
     return `<ul class="rows">${rows}</ul>`
   },
-  faq: (payload) => {
-    const parsed = faqItemsSchema.safeParse(payload)
-    if (!parsed.success) return null
-    const items = parsed.data
-      .map(
-        (item) =>
-          `<details><summary>${escapeHtml(item.q)}</summary>${renderMarkdown(item.markdown)}</details>`
-      )
-      .join('')
-    return `<div class="faq">${items}</div>`
-  },
+  faq: renderAccordion,
+  accordion: renderAccordion,
+}
+
+/** `sim:faq` and `sim:accordion` share the docs' expandable-rows treatment. */
+function renderAccordion(payload: unknown): string | null {
+  const parsed = accordionItemsSchema.safeParse(payload)
+  if (!parsed.success) return null
+  const items = parsed.data
+    .map(
+      (item) =>
+        `<details><summary>${renderInlineMarkdown(item.q ?? item.title ?? '')}</summary>${renderMarkdown(item.markdown)}</details>`
+    )
+    .join('')
+  return `<div class="faq">${items}</div>`
 }
 
 export const HAND_WRITTEN_PAGE_MESSAGE =
@@ -260,7 +286,12 @@ function compileBody(source: string): string {
  * knows its workspace, `sim:` resource links resolve to real routes.
  */
 export function compileSimPage(source: string, options?: { workspaceId?: string }): string {
-  const compiled = compileSimPageDocument(source)
+  // Workspace images (`![alt](sim:file/<id>)`) resolve to the authed byte
+  // route regardless of surface; deep links additionally need the workspace.
+  const compiled = compileSimPageDocument(source).replace(
+    /src="sim:file\/([^"]+)"/g,
+    'src="/api/files/view/$1"'
+  )
   return options?.workspaceId ? resolveSimResourceLinks(compiled, options.workspaceId) : compiled
 }
 
@@ -292,6 +323,15 @@ function compileSimPageDocument(source: string): string {
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
     compileBody(rest),
+    ...(() => {
+      const cards = [
+        meta.prev ? paginationCard(meta.prev, 'prev') : '',
+        meta.next ? paginationCard(meta.next, 'next') : '',
+      ]
+        .filter(Boolean)
+        .join('')
+      return cards ? [`<footer class="page-nav">${cards}</footer>`] : []
+    })(),
     '</div>',
     '</body>',
     '</html>',

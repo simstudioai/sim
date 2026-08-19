@@ -230,6 +230,49 @@ function useStreamBatchedValue(value: string, streaming: boolean, intervalMs: nu
   return streaming ? batched : value
 }
 
+/**
+ * The sandboxed frame carries no cookies, so a workspace image
+ * (`/api/files/view/<id>`, what `![alt](sim:file/<id>)` compiles to) would
+ * 401 inside it. The host fetches the bytes with its own session and hands
+ * the frame blob: URLs, which the preview CSP already allows.
+ */
+function useInlinedWorkspaceImages(content: string): string {
+  const [resolved, setResolved] = useState<Record<string, string>>({})
+  const cacheRef = useRef<Map<string, string> | null>(null)
+  cacheRef.current ??= new Map()
+  useEffect(() => {
+    const cache = cacheRef.current
+    if (!cache) return
+    const urls = [...content.matchAll(/src="(\/api\/files\/view\/[^"]+)"/g)].map((m) => m[1])
+    const missing = [...new Set(urls)].filter((url) => !cache.has(url))
+    if (missing.length === 0) return
+    let cancelled = false
+    for (const url of missing) {
+      // boundary-raw-fetch: binary image bytes, converted to blob: URLs for the cookie-less sandboxed preview
+      fetch(url)
+        .then((response) => (response.ok ? response.blob() : null))
+        .then((blob) => {
+          if (!blob || cancelled) return
+          const blobUrl = URL.createObjectURL(blob)
+          cache.set(url, blobUrl)
+          setResolved((prev) => ({ ...prev, [url]: blobUrl }))
+        })
+        .catch(() => {})
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [content])
+  return useMemo(
+    () =>
+      content.replace(/src="(\/api\/files\/view\/[^"]+)"/g, (match, url: string) => {
+        const blobUrl = cacheRef.current?.get(url) ?? resolved[url]
+        return blobUrl ? `src="${blobUrl}"` : match
+      }),
+    [content, resolved]
+  )
+}
+
 const HtmlPreview = memo(function HtmlPreview({
   content,
   isStreaming,
@@ -241,7 +284,8 @@ const HtmlPreview = memo(function HtmlPreview({
 }) {
   const { resolvedTheme } = useTheme()
   const router = useRouter()
-  const displayContent = useStreamBatchedValue(content, isStreaming === true, 2000)
+  const batchedContent = useStreamBatchedValue(content, isStreaming === true, 2000)
+  const displayContent = useInlinedWorkspaceImages(batchedContent)
   const wrappedContent = buildHtmlPreviewDocument(
     displayContent,
     resolvedTheme === 'dark' ? 'dark' : 'light',

@@ -372,6 +372,14 @@ figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top:
   border-radius: 0.5rem;
 }
 .art-search::placeholder { color: var(--text-muted); }
+/* The docs' theme toggle: 30px, rounded-lg, --text-icon, --surface-active hover. */
+.art-theme {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; margin-left: 0.5rem; flex-shrink: 0;
+  color: var(--text-icon); background: none; border: none; border-radius: 0.5rem;
+  cursor: pointer; transition: background-color 0.15s;
+}
+.art-theme:hover { background: var(--surface-active); }
 .art-cols { display: grid; gap: 2.25rem; grid-template-columns: 1fr; }
 .art-cols > .art-main { padding-top: 1.5rem; min-width: 0; }
 /* Rails stagger with the viewport the way the docs do on a laptop: the
@@ -455,6 +463,40 @@ figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top:
   clip-path: polygon(0 var(--track-top, 0), 100% var(--track-top, 0), 100% var(--track-bottom, 0), 0 var(--track-bottom, 0));
   transition: clip-path 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Images — content-width, docs card radius; figures already carry captions. */
+.page img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+
+/* Code blocks — the docs' framed treatment: the shell wraps each pre in a
+   .codeblock with a header bar carrying the language label and a copy
+   button, so the bare pre border above only applies to unwrapped blocks. */
+.codeblock { border: 1px solid var(--border); border-radius: 0.75rem; margin: 1rem 0; overflow: hidden; background: var(--surface-1); }
+.codeblock-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-caption); color: var(--text-muted);
+}
+.codeblock-copy {
+  font: inherit; color: var(--text-muted);
+  background: none; border: none; border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem; cursor: pointer;
+}
+.codeblock-copy:hover { background: var(--surface-hover); color: var(--text-body); }
+.codeblock pre { border: none; border-radius: 0; margin: 0; background: transparent; }
+
+/* Footer pagination — the docs' previous/next cards. */
+.page-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 3rem; }
+.page-nav-card {
+  display: flex; flex-direction: column; gap: 0.15rem;
+  border: 1px solid var(--border); border-radius: 0.75rem;
+  padding: 0.75rem 1rem; text-decoration: none;
+}
+.page-nav-card:hover { background: var(--surface-hover); }
+.page-nav-card.prev { grid-column: 1; }
+.page-nav-card.next { grid-column: 2; text-align: right; }
+.page-nav-dir { font-size: var(--text-caption); color: var(--text-muted); }
+.page-nav-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
 `.trim()
 
 /**
@@ -557,7 +599,64 @@ export const SIM_ARTIFACT_SHELL = `<script>
     search.type = 'search'
     search.placeholder = 'Filter sections'
     search.setAttribute('aria-label', 'Filter sections on this page')
-    bar.append(title, search)
+
+    // Theme toggle, top right — the docs' exact control (components/ui/
+    // theme-toggle.tsx): a 30px rounded-lg ghost button, --surface-active on
+    // hover, showing the emcn Sun icon in light and Moon in dark at 14px.
+    // data-theme wins over the prefers-color-scheme fallback in every
+    // stylesheet block, so flipping the attribute is the whole mechanism.
+    // Storage is unavailable in the sandboxed preview, so the choice lives
+    // for the page view.
+    const ICON_ATTRS = 'viewBox="-1 -2 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+    const SUN = '<svg ' + ICON_ATTRS + '><circle cx="10.25" cy="9.75" r="4"/><path d="M10.25 3.75V1.25M16.25 9.75H18.75M10.25 15.75V18.25M4.25 9.75H1.75"/><path d="M14.49 5.51L16.26 3.74M14.49 13.99L16.26 15.76M6.01 13.99L4.24 15.76M6.01 5.51L4.24 3.74"/></svg>'
+    const MOON = '<svg ' + ICON_ATTRS + '><path d="M10.25 1.5A5.84 5.84 0 0 0 18.5 9.75A8.25 8.25 0 1 1 10.25 1.5Z"/></svg>'
+    const themeButton = document.createElement('button')
+    themeButton.className = 'art-theme'
+    themeButton.type = 'button'
+    themeButton.setAttribute('aria-label', 'Toggle theme')
+    const resolvedTheme = () =>
+      document.documentElement.dataset.theme ||
+      (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    const paintThemeButton = () => {
+      themeButton.innerHTML = resolvedTheme() === 'dark' ? MOON : SUN
+    }
+    themeButton.addEventListener('click', () => {
+      document.documentElement.dataset.theme = resolvedTheme() === 'dark' ? 'light' : 'dark'
+      paintThemeButton()
+    })
+    paintThemeButton()
+    bar.append(title, search, themeButton)
+
+    // Code blocks get the docs frame: a header with the language label and a
+    // copy button above each fenced block.
+    for (const pre of [...main.querySelectorAll('pre')]) {
+      if (pre.closest('.codeblock')) continue
+      const codeEl = pre.querySelector('code')
+      const langMatch = codeEl && codeEl.className.match(/language-([\\w-]+)/)
+      const frame = document.createElement('figure')
+      frame.className = 'codeblock'
+      const head = document.createElement('div')
+      head.className = 'codeblock-head'
+      const lang = document.createElement('span')
+      lang.textContent = langMatch ? langMatch[1] : 'code'
+      const copy = document.createElement('button')
+      copy.className = 'codeblock-copy'
+      copy.type = 'button'
+      copy.textContent = 'Copy'
+      copy.addEventListener('click', async () => {
+        const text = (codeEl || pre).textContent || ''
+        try {
+          await navigator.clipboard.writeText(text)
+          copy.textContent = 'Copied'
+        } catch {
+          copy.textContent = 'Select + copy'
+        }
+        setTimeout(() => { copy.textContent = 'Copy' }, 1500)
+      })
+      head.append(lang, copy)
+      pre.replaceWith(frame)
+      frame.append(head, pre)
+    }
 
     const cols = document.createElement('div')
     cols.className = 'art-cols'
@@ -659,6 +758,25 @@ export const SIM_ARTIFACT_SHELL = `<script>
     window.addEventListener('resize', refresh)
     refresh()
   }
+
+  // In-page anchors must scroll, never navigate. Under the preview's
+  // about:srcdoc base a default '#' click is a real navigation in Electron —
+  // it escapes the document and lands on the app's sign-in page (the
+  // sandboxed frame carries no cookies). Intercepting also covers the
+  // search box, whose Enter key clicks the first matching section link.
+  document.addEventListener(
+    'click',
+    (event) => {
+      const origin = event.target
+      const anchor = origin && origin.closest ? origin.closest('a[href^="#"]') : null
+      if (!anchor) return
+      event.preventDefault()
+      const id = decodeURIComponent((anchor.getAttribute('href') || '').slice(1))
+      const target = id ? document.getElementById(id) : null
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    },
+    true
+  )
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build)
   else build()
