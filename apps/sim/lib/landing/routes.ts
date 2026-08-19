@@ -1,0 +1,44 @@
+/**
+ * Top-level path segments served by the `app/(landing)` route group, plus the
+ * root. The single source of truth for "is this the marketing surface", because
+ * a route group is not a path prefix and nothing else can derive the answer.
+ *
+ * Two consumers depend on this list being complete, and both fail silently when
+ * it is not:
+ *
+ * - `next.config.ts` exempts these paths from COEP. The header is a *document*
+ *   header inherited across client-side navigations, so an unlisted landing page
+ *   stays cross-origin isolated when it soft-navigates into `/demo`, where the
+ *   Cal.com booker then loads uncredentialed and hangs forever.
+ * - `ThemeProvider` forces the light theme on these paths, matching the `light`
+ *   token layer `LandingShell` renders. Leave one out and `<html>` keeps the
+ *   visitor's dark theme under a light page: root-level chrome (scrollbars,
+ *   `color-scheme`, anything portalled to `<body>`) renders dark against it.
+ *
+ * Imported by `next.config.ts` before the `@/` alias resolves, so this module
+ * must stay dependency-free.
+ *
+ * Add every new `app/(landing)` route here.
+ */
+export const LANDING_ROUTES = [
+  'blog',
+  'careers',
+  'changelog',
+  'comparisons',
+  'contact',
+  'cookie-policy',
+  'demo',
+  'enterprise',
+  'files',
+  'integrations',
+  'knowledge',
+  'library',
+  'logs',
+  'models',
+  'pricing',
+  'privacy',
+  'solutions',
+  'tables',
+  'terms',
+  'workflows',
+] as const
