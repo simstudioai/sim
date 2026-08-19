@@ -281,6 +281,8 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       // The internal page type: the record advertises what the .html holds so
       // surfaces can force the rendered view before content loads. The file
       // itself stays .html (serve/download emit text/html).
+      // create_empty_file stamps copilot .html as a page by default; the
+      // first real content confirms or corrects that from what was written.
       const storedContentType =
         isHtmlTarget && isSimPageSource(finalContent) ? SIM_PAGE_CONTENT_TYPE : compiled.sourceMime
 

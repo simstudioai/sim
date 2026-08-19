@@ -8,6 +8,8 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'application/x-yaml',
   'text/csv',
   'text/html',
+  // Sim pages: internal record type; the file itself is .html.
+  'text/x-sim-page',
   'text/xml',
   'application/xml',
   'text/css',

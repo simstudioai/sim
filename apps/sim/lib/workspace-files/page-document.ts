@@ -3,6 +3,7 @@ import {
   SIM_ARTIFACT_STYLESHEET,
 } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage } from '@/lib/workspace-files/page-compile'
+import { SIM_PAGE_FONT_URL, simPageFontFace } from '@/lib/workspace-files/page-font'
 
 /**
  * Renders page source as a fully self-contained styled document for the
@@ -16,6 +17,6 @@ export function renderSimPageDocument(source: string, options?: { workspaceId?: 
   const compiled = compileSimPage(source, options)
   return compiled.replace(
     '</head>',
-    `<style>${SIM_ARTIFACT_STYLESHEET}</style>${SIM_ARTIFACT_SHELL}</head>`
+    `<style>${simPageFontFace(SIM_PAGE_FONT_URL)}${SIM_ARTIFACT_STYLESHEET}</style>${SIM_ARTIFACT_SHELL}</head>`
   )
 }

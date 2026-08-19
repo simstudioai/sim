@@ -10,10 +10,9 @@
  * A page opting in renders as a page of the Sim docs, not a third design
  * system.
  *
- * Injected only into the preview document, never written into the stored
- * file, so restyling every existing page is a change to this constant. The
- * preview is also what the share page renders through, so shared links pick
- * it up too; a raw download is the one path that sees unstyled markup.
+ * Never written into the stored file: the preview injects it live and
+ * page-document.ts bakes it into standalone/share/download documents, so
+ * restyling every existing page is a change to this constant.
  */
 
 /** Marker a page carries to request {@link SIM_ARTIFACT_STYLESHEET}. */
@@ -100,9 +99,11 @@ export function simTokenOverrides(): string {
  *   2px color bar down the start edge) with the docs' shadow removal.
  * - layout: global.css --spacing-fd-container 1400px, --fd-sidebar-width
  *   300px, TOC column 268px, --content-gap 2.25rem.
- * The docs' webfont (Inter under --font-geist-sans) cannot cross the sandbox
- * (font CDNs and app-origin fetches are blocked), so the system stack stands
- * in for it.
+ * The docs' webfont (Inter under --font-geist-sans) leads --font-sans; each
+ * surface injects the matching @font-face (see lib/workspace-files/page-font
+ * — the app-served URL for standalone documents, a host-fetched data: URI
+ * for the sandboxed preview), falling back to the system stack until it
+ * loads.
  */
 export const SIM_ARTIFACT_STYLESHEET = `
 :root {
@@ -692,35 +693,39 @@ export const SIM_ARTIFACT_SHELL = `<script>
     paintThemeButton()
     bar.append(title, search, themeButton)
 
-    // Code blocks get the docs frame: a header with the language label and a
-    // copy button above each fenced block.
+    // Code blocks get the docs frame: like the docs' prose fences, an
+    // untitled block has no header row — just the floating copy control,
+    // emcn's Duplicate icon flipping to a brand-accent Check while copied.
+    const COPY_ICON = '<svg ' + ICON_ATTRS + '><path d="M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25"/><rect x="5.25" y="5.25" width="14" height="14" rx="2"/></svg>'
+    const COPIED_ICON = '<svg ' + ICON_ATTRS + '><path d="M18.25 2.75L7.25 15.75L1.75 10.25"/></svg>'
     for (const pre of [...main.querySelectorAll('pre')]) {
       if (pre.closest('.codeblock')) continue
       const codeEl = pre.querySelector('code')
-      const langMatch = codeEl && codeEl.className.match(/language-([\\w-]+)/)
       const frame = document.createElement('figure')
       frame.className = 'codeblock'
-      const head = document.createElement('div')
-      head.className = 'codeblock-head'
-      const lang = document.createElement('span')
-      lang.textContent = langMatch ? langMatch[1] : 'code'
       const copy = document.createElement('button')
       copy.className = 'codeblock-copy'
       copy.type = 'button'
-      copy.textContent = 'Copy'
+      copy.setAttribute('aria-label', 'Copy Text')
+      copy.innerHTML = COPY_ICON
+      let copyResetTimer
       copy.addEventListener('click', async () => {
         const text = (codeEl || pre).textContent || ''
         try {
           await navigator.clipboard.writeText(text)
-          copy.textContent = 'Copied'
-        } catch {
-          copy.textContent = 'Select + copy'
-        }
-        setTimeout(() => { copy.textContent = 'Copy' }, 1500)
+          copy.innerHTML = COPIED_ICON
+          copy.classList.add('is-copied')
+          copy.setAttribute('aria-label', 'Copied Text')
+          clearTimeout(copyResetTimer)
+          copyResetTimer = setTimeout(() => {
+            copy.innerHTML = COPY_ICON
+            copy.classList.remove('is-copied')
+            copy.setAttribute('aria-label', 'Copy Text')
+          }, 1500)
+        } catch {}
       })
-      head.append(lang, copy)
       pre.replaceWith(frame)
-      frame.append(head, pre)
+      frame.append(copy, pre)
     }
 
     const cols = document.createElement('div')

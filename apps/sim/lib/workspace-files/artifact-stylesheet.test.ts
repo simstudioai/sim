@@ -141,6 +141,46 @@ describe('docs fidelity', () => {
     expect(SIM_ARTIFACT_STYLESHEET).toContain('padding: 5px 0.5rem')
     expect(SIM_ARTIFACT_STYLESHEET).toContain('line-height: 20px')
   })
+
+  // Inter leads the stack; each surface injects the matching @font-face.
+  it('leads the sans stack with the docs font', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('--font-sans: "Inter",')
+  })
+
+  // The docs' prose anchor: 500 weight, 1.5px underline offset 3.5px, hover
+  // fades to 80% — with chrome links reset back to plain navigation.
+  it('styles content links as the docs prose anchors', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('text-decoration-thickness: 1.5px')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('text-underline-offset: 3.5px')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('a:hover { opacity: 0.8; }')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('.rail a, .page-nav-card { font-weight: 400')
+  })
+
+  // The docs' figure.shiki shell and Code.Viewer metrics.
+  it('frames fenced code like the docs', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('background: var(--code-surface)')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('line-height: 21px')
+    expect(SIM_ARTIFACT_STYLESHEET).toContain(
+      '.codeblock-copy.is-copied { color: var(--brand-accent); }'
+    )
+    expect(SIM_ARTIFACT_SHELL).toContain('M14.25 0.75H2.75') // emcn Duplicate
+    expect(SIM_ARTIFACT_SHELL).toContain('M18.25 2.75L7.25 15.75') // emcn Check
+  })
+
+  // The docs' inline chip: no border, color unset so linked code keeps the
+  // link color.
+  it('keeps the inline code chip borderless and color-neutral', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain('padding: 0.125rem 0.375rem')
+    expect(SIM_ARTIFACT_STYLESHEET).not.toContain(
+      'code {\n  font-family: var(--font-mono);\n  font-size: 0.84em'
+    )
+  })
+
+  it('carries the platform selection color', () => {
+    expect(SIM_ARTIFACT_STYLESHEET).toContain(
+      '::selection { background-color: var(--selection-bg); }'
+    )
+  })
 })
 
 describe('simTokenOverrides', () => {
