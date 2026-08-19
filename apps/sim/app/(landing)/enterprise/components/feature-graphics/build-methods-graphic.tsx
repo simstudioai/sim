@@ -13,7 +13,7 @@ interface CodeSegment {
 }
 
 /** The `support-agent.ts` contents, split into tone-colored typewriter segments. */
-const CODE_LINES: CodeSegment[][] = [
+const RAW_CODE_LINES: CodeSegment[][] = [
   [
     { text: 'import', tone: 'muted' },
     { text: ' ' },
@@ -52,8 +52,24 @@ const CODE_LINES: CodeSegment[][] = [
   [{ text: '  })' }],
 ]
 
+const codeLineOccurrences = new Map<string, number>()
+const CODE_LINES = RAW_CODE_LINES.map((segments) => {
+  const text = segments.map((segment) => segment.text).join('')
+  const occurrence = codeLineOccurrences.get(text) ?? 0
+  codeLineOccurrences.set(text, occurrence + 1)
+  let sourceOffset = 0
+  return {
+    id: `${text}:${occurrence}`,
+    segments: segments.map((segment) => {
+      const id = `${sourceOffset}:${segment.text.length}`
+      sourceOffset += segment.text.length
+      return { ...segment, id }
+    }),
+  }
+})
+
 const CODE_LINE_LENGTHS = CODE_LINES.map((line) =>
-  line.reduce((total, segment) => total + segment.text.length, 0)
+  line.segments.reduce((total, segment) => total + segment.text.length, 0)
 )
 const CODE_LINE_STARTS = CODE_LINE_LENGTHS.map((_, index) =>
   CODE_LINE_LENGTHS.slice(0, index).reduce((total, length) => total + length, 0)
@@ -93,13 +109,13 @@ const SEGMENT_TONE_CLASS = {
 } as const
 
 /** Renders one code line clipped to the number of characters typed so far. */
-function renderCodeLine(segments: CodeSegment[], visibleChars: number) {
+function renderCodeLine(segments: Array<CodeSegment & { id: string }>, visibleChars: number) {
   const rendered = []
   let remaining = visibleChars
   for (let index = 0; index < segments.length && remaining > 0; index++) {
     const segment = segments[index]
     rendered.push(
-      <span key={index} className={segment.tone && SEGMENT_TONE_CLASS[segment.tone]}>
+      <span key={segment.id} className={segment.tone && SEGMENT_TONE_CLASS[segment.tone]}>
         {segment.text.slice(0, remaining)}
       </span>
     )
@@ -255,12 +271,12 @@ export function BuildMethodsGraphic() {
           <div className='min-h-[190px] space-y-2 p-4 font-mono text-caption leading-[1.7]'>
             {CODE_LINES.map((line, index) =>
               typedCodeChars > CODE_LINE_STARTS[index] ? (
-                <div key={index} className='flex gap-3'>
+                <div key={line.id} className='flex gap-3'>
                   <span className='w-3 select-none text-right text-[var(--text-muted)]'>
                     {index + 1}
                   </span>
                   <code>
-                    {renderCodeLine(line, typedCodeChars - CODE_LINE_STARTS[index])}
+                    {renderCodeLine(line.segments, typedCodeChars - CODE_LINE_STARTS[index])}
                     {codeTypingActive && index === lastStartedLine && (
                       <span className='ml-px inline-block h-[1.1em] w-px translate-y-[2px] animate-pulse bg-[var(--text-primary)] align-text-bottom' />
                     )}

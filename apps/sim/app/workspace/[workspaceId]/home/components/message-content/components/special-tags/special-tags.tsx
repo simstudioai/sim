@@ -2695,14 +2695,16 @@ export function CredentialDisplay({
     )
   }
 
+  const itemOccurrences = new Map<string, number>()
+
   return (
     <div className={cn(data.length > 1 && 'space-y-3')}>
-      {data.map((item, index) => (
-        <CredentialItemDisplay
-          key={`${item.type}-${item.provider ?? item.name ?? index}`}
-          data={item}
-        />
-      ))}
+      {data.map((item) => {
+        const signature = JSON.stringify(item)
+        const occurrence = itemOccurrences.get(signature) ?? 0
+        itemOccurrences.set(signature, occurrence + 1)
+        return <CredentialItemDisplay key={`${signature}:${occurrence}`} data={item} />
+      })}
     </div>
   )
 }

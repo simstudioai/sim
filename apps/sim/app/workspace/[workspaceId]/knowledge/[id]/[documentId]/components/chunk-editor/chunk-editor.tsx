@@ -234,6 +234,8 @@ export function ChunkEditor({
     return getTokenStrings(editedContent)
   }, [editedContent, tokenizerOn])
 
+  let tokenOffset = 0
+
   const tokenCount = useMemo(() => {
     if (!editedContent) return 0
     if (tokenizerOn) return tokenStrings.length
@@ -257,16 +259,20 @@ export function ChunkEditor({
       >
         {tokenizerOn ? (
           <div className='mx-auto min-h-full w-full max-w-[48rem] cursor-default whitespace-pre-wrap break-words px-8 py-6 font-sans text-[var(--text-body)] text-sm'>
-            {tokenStrings.map((token, index) => (
-              <span
-                key={index}
-                style={{ backgroundColor: TOKEN_BG_COLORS[index % TOKEN_BG_COLORS.length] }}
-                onMouseEnter={() => setHoveredTokenIndex(index)}
-                onMouseLeave={() => setHoveredTokenIndex(null)}
-              >
-                {token}
-              </span>
-            ))}
+            {tokenStrings.map((token, index) => {
+              const sourceOffset = tokenOffset
+              tokenOffset += token.length
+              return (
+                <span
+                  key={`${sourceOffset}-${token.length}`}
+                  style={{ backgroundColor: TOKEN_BG_COLORS[index % TOKEN_BG_COLORS.length] }}
+                  onMouseEnter={() => setHoveredTokenIndex(index)}
+                  onMouseLeave={() => setHoveredTokenIndex(null)}
+                >
+                  {token}
+                </span>
+              )
+            })}
           </div>
         ) : (
           <textarea

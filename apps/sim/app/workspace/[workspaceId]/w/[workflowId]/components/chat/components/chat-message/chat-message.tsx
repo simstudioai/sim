@@ -27,23 +27,30 @@ const WordWrap = ({ text }: { text: string }) => {
   if (!text) return null
 
   const parts = text.split(/(\s+)/g)
+  let sourceOffset = 0
 
   return (
     <>
-      {parts.map((part, index) => {
+      {parts.map((part) => {
+        const partOffset = sourceOffset
+        sourceOffset += part.length
+        if (!part) return null
         if (part.match(/\s+/) || part.length <= MAX_WORD_LENGTH) {
-          return <span key={index}>{part}</span>
+          return <span key={partOffset}>{part}</span>
         }
 
-        const chunks = []
+        const chunks: Array<{ sourceOffset: number; text: string }> = []
         for (let i = 0; i < part.length; i += MAX_WORD_LENGTH) {
-          chunks.push(part.substring(i, i + MAX_WORD_LENGTH))
+          chunks.push({
+            sourceOffset: partOffset + i,
+            text: part.substring(i, i + MAX_WORD_LENGTH),
+          })
         }
 
         return (
-          <span key={index} className='break-all'>
-            {chunks.map((chunk, chunkIndex) => (
-              <span key={chunkIndex}>{chunk}</span>
+          <span key={partOffset} className='break-all'>
+            {chunks.map((chunk) => (
+              <span key={chunk.sourceOffset}>{chunk.text}</span>
             ))}
           </span>
         )

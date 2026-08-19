@@ -142,18 +142,18 @@ export function UserMessageContent({
 
     if (range.start > lastIndex) {
       const before = content.slice(lastIndex, range.start)
-      elements.push(<span key={`text-${i}-${lastIndex}`}>{before}</span>)
+      elements.push(<span key={`text-${lastIndex}-${range.start}`}>{before}</span>)
     }
 
     if (plainMentions) {
       elements.push(
-        <span key={`mention-${i}-${range.start}`} className='text-[var(--text-primary)]'>
+        <span key={`mention-${range.start}-${range.end}`} className='text-[var(--text-primary)]'>
           {content.slice(range.start, range.end)}
         </span>
       )
     } else {
       elements.push(
-        <MentionHighlight key={`mention-${i}-${range.start}`} context={range.context} />
+        <MentionHighlight key={`mention-${range.start}-${range.end}`} context={range.context} />
       )
     }
     lastIndex = range.end

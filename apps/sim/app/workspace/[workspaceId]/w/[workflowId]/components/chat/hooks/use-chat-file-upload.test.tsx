@@ -61,7 +61,7 @@ describe('useChatFileUpload execution errors', () => {
       )
     })
 
-    expect(result().uploadErrors).toEqual([
+    expect(result().uploadErrors.map((error) => error.message)).toEqual([
       'Failed to upload report.pdf: Workspace file storage limit exceeded',
     ])
     expect(result().chatFiles).toHaveLength(1)
@@ -98,7 +98,33 @@ describe('useChatFileUpload execution errors', () => {
     })
 
     expect(result().chatFiles).toHaveLength(0)
-    expect(result().uploadErrors).toEqual(['oversized.pdf is too large (max 10MB)'])
+    expect(result().uploadErrors.map((error) => error.message)).toEqual([
+      'oversized.pdf is too large (max 10MB)',
+    ])
+
+    unmount()
+  })
+
+  it('gives duplicate error messages distinct stable identities', () => {
+    const { result, unmount } = renderChatFileUploadHook()
+    const files = [
+      new File(['first'], 'oversized.pdf', { type: 'application/pdf' }),
+      new File(['second'], 'oversized.pdf', { type: 'application/pdf' }),
+    ]
+    for (const file of files) {
+      Object.defineProperty(file, 'size', { value: MAX_CHAT_FILE_SIZE_BYTES + 1 })
+    }
+
+    act(() => {
+      result().addFiles(files)
+      vi.runAllTimers()
+    })
+
+    expect(result().uploadErrors.map((error) => error.message)).toEqual([
+      'oversized.pdf is too large (max 10MB)',
+      'oversized.pdf is too large (max 10MB)',
+    ])
+    expect(new Set(result().uploadErrors.map((error) => error.id)).size).toBe(2)
 
     unmount()
   })

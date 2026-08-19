@@ -287,22 +287,27 @@ export const PreviewBlockNode = memo(function PreviewBlockNode({
  * Supports ### headings, **bold**, _italic_, --- rules, and blank-line spacing.
  */
 function NoteMarkdown({ content }: { content: string }) {
-  const lines = content.split('\n')
+  let sourceOffset = 0
+  const lines = content.split('\n').map((text) => {
+    const line = { sourceOffset, text }
+    sourceOffset += text.length + 1
+    return line
+  })
 
   return (
     <div className='flex flex-col gap-1'>
-      {lines.map((line, i) => {
-        const trimmed = line.trim()
-        if (!trimmed) return <div key={`${line}-${i}`} className='h-[4px]' />
+      {lines.map((line) => {
+        const trimmed = line.text.trim()
+        if (!trimmed) return <div key={line.sourceOffset} className='h-[4px]' />
 
         if (trimmed === '---') {
-          return <hr key={`${line}-${i}`} className='my-1 border-[var(--border)] border-t' />
+          return <hr key={line.sourceOffset} className='my-1 border-[var(--border)] border-t' />
         }
 
         if (trimmed.startsWith('### ')) {
           return (
             <p
-              key={`${line}-${i}`}
+              key={line.sourceOffset}
               className='font-semibold text-[16px] text-[var(--text-primary)] leading-[1.3]'
             >
               {trimmed.slice(4)}
@@ -312,7 +317,7 @@ function NoteMarkdown({ content }: { content: string }) {
 
         return (
           <p
-            key={`${line}-${i}`}
+            key={line.sourceOffset}
             className='font-medium text-[13px] text-[var(--text-primary)] leading-[1.5]'
             dangerouslySetInnerHTML={{
               __html: trimmed

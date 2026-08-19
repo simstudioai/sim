@@ -26,23 +26,26 @@ export function SearchHighlight({ text, searchQuery, className = '' }: SearchHig
 
   const regex = new RegExp(`(${searchTerms.join('|')})`, 'gi')
   const parts = text.split(regex)
+  let sourceOffset = 0
 
   return (
     <span className={className}>
-      {parts.map((part, index) => {
+      {parts.map((part) => {
+        const partOffset = sourceOffset
+        sourceOffset += part.length
         if (!part) return null
 
         const isMatch = searchTerms.some((term) => new RegExp(term, 'gi').test(part))
 
         return isMatch ? (
           <span
-            key={index}
+            key={partOffset}
             className='bg-[var(--highlight-match-bg)] text-[var(--highlight-match-text)]'
           >
             {part}
           </span>
         ) : (
-          <span key={index}>{part}</span>
+          <span key={partOffset}>{part}</span>
         )
       })}
     </span>

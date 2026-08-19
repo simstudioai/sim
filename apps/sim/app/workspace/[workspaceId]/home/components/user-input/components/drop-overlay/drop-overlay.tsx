@@ -14,15 +14,15 @@ import {
 } from '@/components/icons/document-icons'
 
 const DROP_OVERLAY_ICONS = [
-  PdfIcon,
-  DocxIcon,
-  XlsxIcon,
-  CsvIcon,
-  TxtIcon,
-  MarkdownIcon,
-  JsonIcon,
-  AudioIcon,
-  VideoIcon,
+  { id: 'pdf', Icon: PdfIcon },
+  { id: 'docx', Icon: DocxIcon },
+  { id: 'xlsx', Icon: XlsxIcon },
+  { id: 'csv', Icon: CsvIcon },
+  { id: 'txt', Icon: TxtIcon },
+  { id: 'markdown', Icon: MarkdownIcon },
+  { id: 'json', Icon: JsonIcon },
+  { id: 'audio', Icon: AudioIcon },
+  { id: 'video', Icon: VideoIcon },
 ] as const
 
 export const DropOverlay = memo(function DropOverlay() {
@@ -31,8 +31,8 @@ export const DropOverlay = memo(function DropOverlay() {
       <div className='flex flex-col items-center gap-2'>
         <span className='text-[13px] text-[var(--text-secondary)]'>Drop files</span>
         <div className='flex items-center gap-2 text-[var(--text-icon)]'>
-          {DROP_OVERLAY_ICONS.map((Icon, i) => (
-            <Icon key={i} className='size-[14px]' />
+          {DROP_OVERLAY_ICONS.map(({ id, Icon }) => (
+            <Icon key={id} className='size-[14px]' />
           ))}
         </div>
       </div>

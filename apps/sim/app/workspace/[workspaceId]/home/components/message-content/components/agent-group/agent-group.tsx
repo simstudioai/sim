@@ -154,6 +154,8 @@ export function AgentGroup({
     setManualExpanded(!expanded)
   }
 
+  let previousItemKey = `group:${agentName}:${agentLabel}`
+
   return (
     <div className='flex flex-col gap-1.5'>
       {hasItems ? (
@@ -195,10 +197,17 @@ export function AgentGroup({
             <BoundedViewport isStreaming={isStreaming} unbounded={nestedBrowserTakeover}>
               <div className='flex flex-col gap-1.5 py-0.5'>
                 {items.map((item, idx) => {
+                  const itemKey =
+                    item.type === 'tool'
+                      ? `tool:${item.data.id}`
+                      : item.type === 'agent_group'
+                        ? `agent:${item.group.id}`
+                        : `text-after:${previousItemKey}`
+                  previousItemKey = itemKey
                   if (item.type === 'tool') {
                     return (
                       <ToolCallItem
-                        key={item.data.id}
+                        key={itemKey}
                         toolCallId={item.data.id}
                         toolName={item.data.toolName}
                         displayTitle={item.data.displayTitle}
@@ -212,7 +221,7 @@ export function AgentGroup({
                   }
                   if (item.type === 'agent_group') {
                     return (
-                      <div key={item.group.id} className='pl-6'>
+                      <div key={itemKey} className='pl-6'>
                         <AgentGroup
                           agentName={item.group.agentName}
                           agentLabel={item.group.agentLabel}
@@ -227,7 +236,7 @@ export function AgentGroup({
                   }
                   return (
                     <NarrationText
-                      key={`text-${idx}`}
+                      key={itemKey}
                       content={item.content}
                       isStreaming={isStreaming && idx === items.length - 1}
                     />

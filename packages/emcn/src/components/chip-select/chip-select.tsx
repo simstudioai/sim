@@ -181,6 +181,14 @@ export function ChipSelect({
       .filter((g) => g.items.length > 0)
   }, [searchable, query, sections])
 
+  const sectionOccurrences = new Map<string, number>()
+  const keyedSections = filteredSections.map((group) => {
+    const signature = group.section ?? group.items.map((item) => item.value).join('\u0000')
+    const occurrence = sectionOccurrences.get(signature) ?? 0
+    sectionOccurrences.set(signature, occurrence + 1)
+    return { group, key: `${signature}\u0000${occurrence}` }
+  })
+
   const hasResults = filteredSections.some((g) => g.items.length > 0)
 
   const toggleValue = (val: string) => {
@@ -293,8 +301,8 @@ export function ChipSelect({
         ) : null}
 
         {hasResults ? (
-          filteredSections.map((group, index) => (
-            <React.Fragment key={group.section ?? `group-${index}`}>
+          keyedSections.map(({ group, key }) => (
+            <React.Fragment key={key}>
               {group.section ? <DropdownMenuLabel>{group.section}</DropdownMenuLabel> : null}
               {group.items.map(renderOption)}
             </React.Fragment>

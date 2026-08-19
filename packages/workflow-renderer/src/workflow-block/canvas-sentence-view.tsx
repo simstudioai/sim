@@ -41,13 +41,21 @@ export interface CanvasSentenceViewProps {
  * clauses differently in one of them reads as a rendering bug.
  */
 export function CanvasSentenceView({ segments, renderChip }: CanvasSentenceViewProps) {
+  const occurrences = new Map<string, number>()
   return (
     <p className='min-w-0 break-words text-[var(--text-muted)] text-sm leading-6'>
       {segments.map((segment, index) => {
+        const signature =
+          typeof segment === 'string'
+            ? `text:${segment}`
+            : `value:${segment.subBlockId}:${segment.noun ?? ''}`
+        const occurrence = occurrences.get(signature) ?? 0
+        occurrences.set(signature, occurrence + 1)
+        const key = `${signature}:${occurrence}`
         if (typeof segment === 'string') {
           const hugsPrevious = segment.startsWith(',') || segment.startsWith('.')
           const glue = index > 0 && !hugsPrevious ? ' ' : ''
-          return <Fragment key={`text-${index}`}>{`${glue}${segment}`}</Fragment>
+          return <Fragment key={key}>{`${glue}${segment}`}</Fragment>
         }
 
         /* A core slot keeps its place with the field's noun; an optional one
@@ -64,7 +72,7 @@ export function CanvasSentenceView({ segments, renderChip }: CanvasSentenceViewP
         /* The space before `{chip}` is significant — JSX keeps whitespace
            between text and an expression on the same line. It is what
            separates a chip from the copy in front of it. */
-        return <Fragment key={`value-${index}`}> {chip}</Fragment>
+        return <Fragment key={key}> {chip}</Fragment>
       })}
     </p>
   )

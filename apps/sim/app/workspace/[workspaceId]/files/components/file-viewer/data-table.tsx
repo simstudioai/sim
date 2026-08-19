@@ -103,20 +103,27 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
   const isEditing = (row: number, col: number) =>
     editingCell?.row === row && editingCell?.col === col
 
+  const columnOccurrences = new Map<string, number>()
+  const columns = headers.map((header, columnIndex) => {
+    const occurrence = columnOccurrences.get(header) ?? 0
+    columnOccurrences.set(header, occurrence + 1)
+    return { id: JSON.stringify([header, occurrence]), header, columnIndex }
+  })
+
   return (
     <div className='document-table'>
       <table>
         <thead>
           <tr>
-            {headers.map((header, i) => (
+            {columns.map(({ id, header, columnIndex }) => (
               <th
-                key={i}
+                key={id}
                 className={cn(
                   editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-active)]'
                 )}
-                onClick={() => editConfig && startEdit(-1, i, String(header ?? ''))}
+                onClick={() => editConfig && startEdit(-1, columnIndex, String(header ?? ''))}
               >
-                {isEditing(-1, i) ? (
+                {isEditing(-1, columnIndex) ? (
                   <input
                     ref={setInputRef}
                     value={editValue}
@@ -135,15 +142,17 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
         <tbody>
           {rows.map((row, ri) => (
             <tr key={ri}>
-              {headers.map((_, ci) => (
+              {columns.map(({ id, columnIndex }) => (
                 <td
-                  key={ci}
+                  key={id}
                   className={cn(
                     editConfig && 'cursor-pointer select-none hover:bg-[var(--surface-active)]'
                   )}
-                  onClick={() => editConfig && startEdit(ri, ci, String(row[ci] ?? ''))}
+                  onClick={() =>
+                    editConfig && startEdit(ri, columnIndex, String(row[columnIndex] ?? ''))
+                  }
                 >
-                  {isEditing(ri, ci) ? (
+                  {isEditing(ri, columnIndex) ? (
                     <input
                       ref={setInputRef}
                       value={editValue}
@@ -153,7 +162,7 @@ const DataTableBase = forwardRef<DataTableHandle, DataTableProps>(function DataT
                       className='w-full min-w-[60px] bg-transparent outline-none ring-1 ring-[var(--brand-secondary)] ring-inset'
                     />
                   ) : (
-                    String(row[ci] ?? '')
+                    String(row[columnIndex] ?? '')
                   )}
                 </td>
               ))}

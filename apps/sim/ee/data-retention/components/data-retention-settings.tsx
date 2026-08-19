@@ -17,7 +17,7 @@ import {
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
@@ -102,6 +102,7 @@ interface EditingPolicy {
   draft: PolicyDraft
   original: PolicyDraft
   isNew: boolean
+  editorKey: string
 }
 
 /** Day bounds the retention contract accepts (1 day … 5 years). */
@@ -364,6 +365,7 @@ function PiiLanguageSelect({ value, onChange }: PiiLanguageSelectProps) {
 }
 
 interface PiiStagePanelProps {
+  editorKey: string
   stageKey: PiiStageKey
   description: string
   value: PiiStagePolicy
@@ -375,7 +377,7 @@ interface PiiStagePanelProps {
  * stage is "on" purely by virtue of having entity types selected — `enabled` is
  * kept in sync with that, so there is no separate toggle.
  */
-function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanelProps) {
+function PiiStagePanel({ editorKey, stageKey, description, value, onChange }: PiiStagePanelProps) {
   // Block outputs run in-flight on large payloads, so they are restricted to the
   // regex/checksum recognizers (no spaCy NER) — see the server fast path.
   const groups = getEntityGroupsForLanguage(value.language, {
@@ -432,6 +434,7 @@ function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanel
           </Info>
         </div>
         <CustomPatternsEditor
+          key={`${editorKey}:${stageKey}`}
           patterns={value.customPatterns ?? []}
           onChange={(customPatterns) => update({ customPatterns })}
         />
@@ -441,6 +444,7 @@ function PiiStagePanel({ stageKey, description, value, onChange }: PiiStagePanel
 }
 
 interface PolicyDetailProps {
+  editorKey: string
   draft: PolicyDraft
   isNew: boolean
   changed: boolean
@@ -457,6 +461,7 @@ interface PolicyDetailProps {
 }
 
 function PolicyDetail({
+  editorKey,
   draft,
   isNew,
   changed,
@@ -641,6 +646,7 @@ function PolicyDetail({
                     />
                   )}
                   <PiiStagePanel
+                    editorKey={editorKey}
                     stageKey={effectiveStage}
                     description={activeStageMeta.description}
                     value={draft.piiStages[effectiveStage]}
@@ -843,7 +849,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
       piiOverride: true,
       piiStages: defaultPii?.stages ?? emptyPiiStages(),
     }
-    setEditing({ draft, original: draft, isNew: false })
+    setEditing({ draft, original: draft, isNew: false, editorKey: generateShortId() })
   }
 
   function openAddOverride() {
@@ -857,7 +863,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
       piiOverride: false,
       piiStages: emptyPiiStages(),
     }
-    setEditing({ draft, original: draft, isNew: true })
+    setEditing({ draft, original: draft, isNew: true, editorKey: generateShortId() })
   }
 
   function openEditOverride(workspaceId: string) {
@@ -872,7 +878,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
       piiOverride: Boolean(pii),
       piiStages: pii?.stages ?? emptyPiiStages(),
     }
-    setEditing({ draft, original: draft, isNew: false })
+    setEditing({ draft, original: draft, isNew: false, editorKey: generateShortId() })
   }
 
   function closeEditing() {
@@ -880,7 +886,9 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
   }
 
   function handleDiscard() {
-    if (editing) setEditing({ ...editing, draft: editing.original })
+    if (editing) {
+      setEditing({ ...editing, draft: editing.original, editorKey: generateShortId() })
+    }
   }
 
   async function savePolicy() {
@@ -970,6 +978,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     <>
       {editing ? (
         <PolicyDetail
+          editorKey={editing.editorKey}
           draft={editing.draft}
           isNew={editing.isNew}
           changed={editingChanged}
