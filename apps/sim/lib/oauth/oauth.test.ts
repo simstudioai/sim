@@ -63,8 +63,9 @@ beforeAll(() => {
 
 afterAll(resetEnvMock)
 
+import { GoogleIcon, GoogleVaultIcon } from '@/components/icons'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
-import { refreshOAuthToken } from '@/lib/oauth'
+import { OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
 import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 
 /**
@@ -89,6 +90,15 @@ function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise
     global.fetch = originalFetch
   })
 }
+
+describe('OAuth Provider Branding', () => {
+  it('should use the Google Vault product icon and Google base-provider icon', () => {
+    const googleVault = OAUTH_PROVIDERS.google.services['google-vault']
+
+    expect(googleVault.icon).toBe(GoogleVaultIcon)
+    expect(googleVault.baseProviderIcon).toBe(GoogleIcon)
+  })
+})
 
 describe('OAuth Token Refresh', () => {
   describe('Basic Auth Providers', () => {
