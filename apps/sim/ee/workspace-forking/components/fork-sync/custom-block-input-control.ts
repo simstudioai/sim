@@ -31,8 +31,30 @@ export function customBlockInputControl(fieldType: string | undefined): CustomBl
 export const CUSTOM_BLOCK_BOOLEAN_TRUE = 'true'
 export const CUSTOM_BLOCK_BOOLEAN_FALSE = 'false'
 
-/** Segments for a boolean input, in the order a switch reads them. */
-export const CUSTOM_BLOCK_BOOLEAN_OPTIONS = [
+/**
+ * The unset value. Distinct from `false`: it means the sync writes no value at all, so the
+ * target workflow's Start field keeps whatever default it declares.
+ */
+export const CUSTOM_BLOCK_BOOLEAN_UNSET = ''
+
+const BOOLEAN_VALUE_OPTIONS = [
   { value: CUSTOM_BLOCK_BOOLEAN_TRUE, label: 'True' },
   { value: CUSTOM_BLOCK_BOOLEAN_FALSE, label: 'False' },
 ] as const
+
+const BOOLEAN_OPTIONAL_OPTIONS = [
+  ...BOOLEAN_VALUE_OPTIONS,
+  // Trails the two real values: choosing one is the common action, returning to the default
+  // is the escape hatch. Without it a single click would permanently pin an optional flag,
+  // since a two-segment switch has no transition back to "nothing selected".
+  { value: CUSTOM_BLOCK_BOOLEAN_UNSET, label: 'Default' },
+] as const
+
+/**
+ * Segments for a boolean input. An OPTIONAL field gets a third `Default` segment so the user
+ * can stop overriding the child workflow's declared default; a REQUIRED one does not, because
+ * the Sync gate demands a value and "unset" is not a state it can end in.
+ */
+export function customBlockBooleanOptions(required: boolean) {
+  return required ? BOOLEAN_VALUE_OPTIONS : BOOLEAN_OPTIONAL_OPTIONS
+}

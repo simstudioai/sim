@@ -34,7 +34,7 @@ import {
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import {
-  CUSTOM_BLOCK_BOOLEAN_OPTIONS,
+  customBlockBooleanOptions,
   customBlockInputControl,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
@@ -233,7 +233,7 @@ function DependentSelector({
         return (
           <ChipModalField {...shared} type='custom'>
             <ChipSwitch
-              options={CUSTOM_BLOCK_BOOLEAN_OPTIONS}
+              options={customBlockBooleanOptions(field.required)}
               // Passed through unmapped: an unset field is `''`, which matches neither
               // segment, so the switch renders with nothing selected. Coercing it to False
               // would show a required flag as configured while the Sync gate still reads it
