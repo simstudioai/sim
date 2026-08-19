@@ -170,6 +170,12 @@ const NO_VIEWS: TableViewWire[] = []
 /** New views are named before configuration; rename targets an existing view. */
 type ViewModalState = { mode: 'new' } | { mode: 'rename'; viewId: string } | null
 
+interface ViewConfigKeep {
+  sort?: boolean
+  filter?: boolean
+  hiddenColumns?: boolean
+}
+
 /**
  * Page-level wrapper for the table detail view. Mirrors the shape of
  * `logs/logs.tsx`: a thin orchestrator that composes the data grid (`<TableGrid>`)
@@ -395,6 +401,16 @@ export function Table({
    */
   const pendingCreatedViewIdRef = useRef<string | null>(null)
 
+  /** View config gestures made before the views query identifies their owner. */
+  const pendingViewConfigRef = useRef<TableViewConfig | null>(null)
+
+  /**
+   * State deliberately kept over the first view seed. Deep-linked sort remains
+   * authoritative until the user changes it; early filter/column gestures stay
+   * protected until their queued patch succeeds.
+   */
+  const preservedViewStateRef = useRef<{ viewId: string; keep: ViewConfigKeep } | null>(null)
+
   /**
    * Replaces the filter from OUTSIDE the filter panel — a view switch, or
    * "Filter by cell value". Bumps {@link filterSeed} so the panel re-seeds: it
@@ -411,17 +427,13 @@ export function Table({
 
   /**
    * Applies a view's config to the live state. `keep` marks slices the user has
-   * already set by hand, which win over the view's stored values on the FIRST
-   * resolve only — a deep-linked `?sort=` is more specific than the view's default,
-   * and a filter typed while the views query was still in flight shouldn't be
-   * thrown away when it lands. Switching views later passes no `keep`, so the
-   * incoming view fully replaces the outgoing one.
+   * already set by hand. A deep-linked `?sort=` is more specific than the view's
+   * default, and a filter typed while the views query was still in flight should
+   * not be thrown away when it lands. Switching views later passes no `keep`, so
+   * the incoming view fully replaces the outgoing one.
    */
   const applyViewConfig = useCallback(
-    (
-      config: TableViewConfig | null,
-      keep?: { sort?: boolean; filter?: boolean; hiddenColumns?: boolean }
-    ) => {
+    (config: TableViewConfig | null, keep?: ViewConfigKeep) => {
       if (!keep?.filter) replaceFilter(config?.filter ?? null)
       if (!keep?.hiddenColumns) setHiddenColumns(config?.hiddenColumns ?? [])
       if (keep?.sort) return
@@ -484,12 +496,51 @@ export function Table({
     [userPermissions.canEdit, readLayout]
   )
 
-  /** What the user has already set by hand, for the first-resolve `keep`. */
-  const localWork = () => ({
-    sort: sortColumn !== null,
-    filter: filterRef.current !== null,
-    hiddenColumns: hiddenColumnsRef.current.length > 0,
-  })
+  /** What the user has already set by hand when the first view resolves. */
+  const localWork = () => {
+    const pending = pendingViewConfigRef.current
+    return {
+      sort: sortColumn !== null || Boolean(pending && 'sort' in pending),
+      filter: filterRef.current !== null || Boolean(pending && 'filter' in pending),
+      hiddenColumns:
+        hiddenColumnsRef.current.length > 0 || Boolean(pending && 'hiddenColumns' in pending),
+    }
+  }
+
+  const preserveViewState = useCallback((viewId: string, keep: ViewConfigKeep | undefined) => {
+    if (!keep || (!keep.sort && !keep.filter && !keep.hiddenColumns)) {
+      preservedViewStateRef.current = null
+      return
+    }
+    preservedViewStateRef.current = { viewId, keep }
+  }, [])
+
+  const releasePersistedViewState = useCallback((viewId: string, patch: TableViewConfig) => {
+    const preserved = preservedViewStateRef.current
+    if (!preserved || preserved.viewId !== viewId) return
+    const keep = { ...preserved.keep }
+    if ('sort' in patch) keep.sort = undefined
+    if ('filter' in patch) keep.filter = undefined
+    if ('hiddenColumns' in patch) keep.hiddenColumns = undefined
+    preservedViewStateRef.current =
+      keep.sort || keep.filter || keep.hiddenColumns ? { viewId, keep } : null
+  }, [])
+
+  const flushPendingViewConfig = useCallback(
+    (viewId: string) => {
+      const configPatch = pendingViewConfigRef.current
+      if (!configPatch || !userPermissions.canEdit) return
+      pendingViewConfigRef.current = null
+      updateViewMutation.mutate(
+        { viewId, configPatch },
+        {
+          onSuccess: () => releasePersistedViewState(viewId, configPatch),
+          onError: (error) => toast.error(getErrorMessage(error, 'Failed to save view')),
+        }
+      )
+    },
+    [userPermissions.canEdit, releasePersistedViewState]
+  )
 
   /**
    * Resolves the active view and seeds the local filter/sort/hidden-column state
@@ -534,9 +585,6 @@ export function Table({
       const legacyAllWithDefault = activeViewId === ALL_VIEW_PARAM && defaultView !== null
 
       if (activeViewId === null || inheritedParams || legacyAllWithDefault) {
-        const pinnedView =
-          embedded && initialViewId ? views.find((view) => view.id === initialViewId) : undefined
-        const viewToAdopt = pinnedView ?? defaultView
         // `sort` rides the same host URL, so when the view id is inherited the
         // sort beside it is too — not local work, and it must not suppress the
         // default view's own sort.
@@ -545,11 +593,13 @@ export function Table({
           : legacyAllWithDefault
             ? undefined
             : localWork()
-        if (viewToAdopt) {
-          appliedViewRevisionRef.current = getTableViewRevision(viewToAdopt)
-          setTableParams({ view: viewToAdopt.id })
-          applyViewConfig(viewToAdopt.config, keep)
+        if (defaultView) {
+          appliedViewRevisionRef.current = getTableViewRevision(defaultView)
+          setTableParams({ view: defaultView.id })
+          preserveViewState(defaultView.id, keep)
+          applyViewConfig(defaultView.config, keep)
           resolvePendingLayout(true)
+          flushPendingViewConfig(defaultView.id)
           return
         }
         // No view to adopt. Deliberately does NOT apply an empty config — that
@@ -567,13 +617,19 @@ export function Table({
       }
       // A `?view=` that resolves to nothing adopts the persisted default when
       // one exists; tables awaiting backfill retain the legacy All fallback.
-      appliedViewRevisionRef.current = getTableViewRevision(activeView)
-      resolvePendingLayout(activeView !== null)
+      const viewToAdopt = selectedView ?? defaultView
+      const keep = localWork()
+      appliedViewRevisionRef.current = getTableViewRevision(viewToAdopt)
+      resolvePendingLayout(viewToAdopt !== null)
       if (selectedView) {
-        applyViewConfig(selectedView.config, localWork())
+        preserveViewState(selectedView.id, keep)
+        applyViewConfig(selectedView.config, keep)
+        flushPendingViewConfig(selectedView.id)
       } else if (defaultView) {
         setTableParams({ view: defaultView.id })
-        applyViewConfig(defaultView.config)
+        preserveViewState(defaultView.id, keep)
+        applyViewConfig(defaultView.config, keep)
+        flushPendingViewConfig(defaultView.id)
       } else {
         // Nothing to apply, but the URL still names a view that no longer exists.
         // Rewrite it so a stale bookmark can't be copied on, and so the param
@@ -595,6 +651,7 @@ export function Table({
     // wrong label because the menu resolves the same missing view to null.
     if (activeViewId !== null && activeViewId !== ALL_VIEW_PARAM && !selectedView) {
       if (pendingCreatedViewIdRef.current === activeViewId) return
+      preservedViewStateRef.current = null
       appliedViewRevisionRef.current = getTableViewRevision(defaultView)
       setTableParams({ view: defaultView?.id ?? ALL_VIEW_PARAM })
       applyViewConfig(defaultView?.config ?? null)
@@ -613,6 +670,10 @@ export function Table({
     }
     appliedViewRevisionRef.current = nextViewRevision
     const nextViewId = nextViewRevision.id
+    const preserved = preservedViewStateRef.current
+    if (preserved && preserved.viewId !== nextViewId) {
+      preservedViewStateRef.current = null
+    }
     if (activeView && (activeViewId === null || activeViewId === ALL_VIEW_PARAM)) {
       setTableParams({ view: activeView.id })
     }
@@ -621,7 +682,9 @@ export function Table({
     if (pendingCreatedViewIdRef.current && pendingCreatedViewIdRef.current !== nextViewId) {
       pendingCreatedViewIdRef.current = null
     }
-    applyViewConfig(activeView?.config ?? null)
+    const keep = preserved?.viewId === nextViewId ? preserved.keep : undefined
+    applyViewConfig(activeView?.config ?? null, keep)
+    if (activeView) flushPendingViewConfig(activeView.id)
   }, [
     viewsEnabled,
     viewsAvailable,
@@ -637,6 +700,8 @@ export function Table({
     applyViewConfig,
     setTableParams,
     resolvePendingLayout,
+    preserveViewState,
+    flushPendingViewConfig,
   ])
 
   /**
@@ -672,6 +737,7 @@ export function Table({
 
   const handleSelectView = useCallback(
     (viewId: string | null) => {
+      preservedViewStateRef.current = null
       setTableParams({ view: viewId ?? ALL_VIEW_PARAM })
     },
     [setTableParams]
@@ -694,17 +760,27 @@ export function Table({
    */
   const persistActiveViewConfig = useCallback(
     (configPatch: TableViewConfig) => {
-      const viewId = activeView?.id
-      if (!viewId || !userPermissions.canEdit) return
+      if (!userPermissions.canEdit) return
+      const viewId = activeView?.id ?? pendingCreatedViewIdRef.current
+      if (!viewId) {
+        if (!ownerResolvedRef.current) {
+          pendingViewConfigRef.current = {
+            ...pendingViewConfigRef.current,
+            ...configPatch,
+          }
+        }
+        return
+      }
 
       updateViewMutation.mutate(
         { viewId, configPatch },
         {
+          onSuccess: () => releasePersistedViewState(viewId, configPatch),
           onError: (error) => toast.error(getErrorMessage(error, 'Failed to save view')),
         }
       )
     },
-    [activeView?.id, userPermissions.canEdit]
+    [activeView?.id, userPermissions.canEdit, releasePersistedViewState]
   )
 
   /** Column order/width/pinning auto-saves into the active view as the user drags.
