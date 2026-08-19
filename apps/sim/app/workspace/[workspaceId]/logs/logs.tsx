@@ -909,11 +909,14 @@ export default function Logs() {
    * result: the filters are part of the query key, so clearing a search that
    * matched nothing keeps `isLoading` false while `rows` is still the stale empty
    * set, and only the placeholder gate suppresses the graphic across that refetch.
+   * `error` is gated too: a failed load also leaves `rows` empty, and telling
+   * someone they have never run anything is the wrong answer to a failed request.
    */
   const showEmptyState =
     rows.length === 0 &&
     !logsQuery.isLoading &&
     !logsQuery.isPlaceholderData &&
+    !logsQuery.error &&
     !debouncedSearchQuery &&
     filterTags.length === 0
 

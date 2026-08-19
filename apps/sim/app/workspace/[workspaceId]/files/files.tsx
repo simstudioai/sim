@@ -1818,11 +1818,15 @@ export function Files() {
    * The loading and placeholder gates cover the paints where `rows` is empty only
    * because the list has not arrived — a cold cache when the server prefetch
    * declined to seed, and the retained previous result during a workspace switch.
+   * `error` is gated too: a failed load also leaves `rows` empty, and inviting
+   * someone to create their first item is the wrong answer to a request that
+   * did not complete.
    */
   const showEmptyState =
     rows.length === 0 &&
     !isLoading &&
     !isPlaceholderData &&
+    !error &&
     currentFolderId === null &&
     !debouncedSearchTerm.trim() &&
     filterTags.length === 0

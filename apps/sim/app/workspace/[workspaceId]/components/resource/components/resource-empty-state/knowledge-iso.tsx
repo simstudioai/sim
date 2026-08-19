@@ -1,11 +1,12 @@
 import { cn } from '@sim/emcn'
 import {
+  createIsoLineProps,
   ISO_FILL_HIGH,
   ISO_FILL_LOW,
   ISO_FILL_MID,
   ISO_FILL_PULSE_LOW,
   ISO_STROKE as ISO_STROKE_BASE,
-} from '@/app/(landing)/components/mothership/components/iso-marks/iso-illustration-style'
+} from '@/components/iso/iso-illustration-style'
 
 const COS_30 = Math.cos(Math.PI / 6)
 
@@ -70,7 +71,10 @@ const SLABS: Box[] = [0, 90, 180].map((offset) => ({
 const ISO_STROKE = `color-mix(in srgb, ${ISO_STROKE_BASE} 55%, var(--border-1))`
 /** Darker than any outer face — the bore's wall turns away from the light. */
 const ISO_FILL_BORE = ISO_FILL_PULSE_LOW
-const ISO_LINE_STROKE_WIDTH = 1.9
+const KNOWLEDGE_STROKE_WIDTH = 1.9
+
+/** Matches the other three resource graphics, so the set centres as one collection. */
+const MARK_HEIGHT = 148
 
 /**
  * Maps flat artwork into the plane of the front volume's cover.
@@ -140,13 +144,12 @@ const VIEW_BOX = `${MIN_X.toFixed(2)} ${MIN_Y.toFixed(2)} ${(MAX_X - MIN_X).toFi
 const STACK_FADE =
   '[-webkit-mask-image:linear-gradient(to_right,#000_56%,transparent_100%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [mask-image:linear-gradient(to_right,#000_56%,transparent_100%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [-webkit-mask-composite:source-in] [mask-composite:intersect]'
 
-const LINE_PROPS = {
-  fill: 'none' as const,
-  stroke: ISO_STROKE,
-  strokeWidth: ISO_LINE_STROKE_WIDTH,
-  strokeLinecap: 'round' as const,
-  strokeLinejoin: 'round' as const,
-}
+/** Shared iso contour recipe at this mark's own weight; spread onto both paths and circles. */
+const LINE_PROPS = createIsoLineProps<SVGPathElement & SVGCircleElement>(
+  undefined,
+  ISO_STROKE,
+  KNOWLEDGE_STROKE_WIDTH
+)
 
 /**
  * Down the hole: the near mouth is floored with the wall tone, then the far mouth
@@ -178,10 +181,6 @@ function BoreInterior() {
   )
 }
 
-interface KnowledgeIsoMarkProps {
-  height?: number
-}
-
 /**
  * Isometric knowledge-base mark on the landing page's iso-illustration recipe.
  *
@@ -189,13 +188,13 @@ interface KnowledgeIsoMarkProps {
  * as a hairline once the mark is scaled to empty-state size — as it does on the
  * landing marks, which draw 3.2 into a ~526-unit viewBox.
  */
-export function KnowledgeIsoMark({ height = 148 }: KnowledgeIsoMarkProps) {
-  const width = height * ((MAX_X - MIN_X) / (MAX_Y - MIN_Y))
+export function KnowledgeIsoMark() {
+  const width = MARK_HEIGHT * ((MAX_X - MIN_X) / (MAX_Y - MIN_Y))
   return (
     <svg
       viewBox={VIEW_BOX}
       width={width}
-      height={height}
+      height={MARK_HEIGHT}
       fill='none'
       aria-hidden='true'
       focusable='false'

@@ -20,16 +20,16 @@ export function KnowledgeEmptyState({
 }: KnowledgeEmptyStateProps) {
   return (
     <EmptyState
-      graphic={<KnowledgeIsoMark height={148} />}
+      graphic={<KnowledgeIsoMark />}
       title='Knowledge bases'
       description='Upload documents to give your agents a memory they can search.'
       action={
-        <div className='flex items-center gap-2'>
+        <>
           <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
             New base
           </Chip>
           <EmptyStateDocsLink href={KNOWLEDGE_DOCS_URL} />
-        </div>
+        </>
       }
     />
   )

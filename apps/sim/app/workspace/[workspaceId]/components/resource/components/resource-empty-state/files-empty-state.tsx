@@ -20,7 +20,6 @@ const HAIRLINE = {
   strokeLinejoin: 'round' as const,
 } as const
 
-const CORNER = 10
 const FOLDER_BACK = [
   'M 22 34',
   'H 66',
@@ -53,8 +52,8 @@ const FOLDER_FADE =
  * darkest tier, the sheets the lightest, the front panel between them. Shadows
  * would need separate light and dark recipes; the ramp inverts on its own.
  *
- * Every outer corner shares one radius so the silhouette reads as a single drawn
- * shape — mixing radii makes the corners fight each other at this size.
+ * Every outer corner shares the same 10-unit radius so the silhouette reads as a
+ * single drawn shape — mixing radii makes the corners fight each other at this size.
  */
 function FilesGraphic() {
   return (
@@ -72,15 +71,7 @@ function FilesGraphic() {
       <rect x='34' y='56' width='132' height='84' rx='5' fill='var(--surface-2)' {...HAIRLINE} />
       <rect x='26' y='64' width='148' height='76' rx='5' fill='var(--surface-2)' {...HAIRLINE} />
 
-      <rect
-        x='12'
-        y='74'
-        width='176'
-        height='76'
-        rx={CORNER}
-        fill='var(--surface-2)'
-        {...HAIRLINE}
-      />
+      <rect x='12' y='74' width='176' height='76' rx='10' fill='var(--surface-2)' {...HAIRLINE} />
     </svg>
   )
 }
@@ -100,12 +91,12 @@ export function FilesEmptyState({ onUpload, uploadDisabled = false }: FilesEmpty
       title='Files'
       description='Upload files to share them across your team and every agent.'
       action={
-        <div className='flex items-center gap-2'>
+        <>
           <Chip variant='primary' onClick={onUpload} disabled={uploadDisabled} leftIcon={Upload}>
             Upload
           </Chip>
           <EmptyStateDocsLink href={FILES_DOCS_URL} />
-        </div>
+        </>
       }
     />
   )

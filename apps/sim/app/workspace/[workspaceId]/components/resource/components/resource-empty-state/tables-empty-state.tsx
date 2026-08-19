@@ -116,12 +116,12 @@ export function TablesEmptyState({ onCreate, createDisabled = false }: TablesEmp
       title='Tables'
       description='Create a table to store structured data your agents can read and write.'
       action={
-        <div className='flex items-center gap-2'>
+        <>
           <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
             New table
           </Chip>
           <EmptyStateDocsLink href={TABLES_DOCS_URL} />
-        </div>
+        </>
       }
     />
   )
