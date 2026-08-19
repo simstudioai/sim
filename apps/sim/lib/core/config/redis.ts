@@ -245,8 +245,25 @@ export async function acquireLock(
     return true // No-op when Redis unavailable; idempotency layer handles duplicates
   }
 
-  const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
-  return result === 'OK'
+  try {
+    const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
+    return result === 'OK'
+  } catch (error) {
+    /*
+     * A rejected SET does not mean the server declined it. `commandTimeout`
+     * gives up client-side while the command may still reach Redis and take the
+     * lock, leaving it held by a caller that never learned it won and so never
+     * releases it — every contender then skips until the TTL expires.
+     *
+     * Reclaiming it is safe because this is the same compare-and-delete
+     * `releaseLock` uses on the success path: it deletes only while `value`
+     * still owns the key, so a lock a different holder won in the meantime is
+     * left alone. Best effort — if Redis is still unreachable the TTL remains
+     * the backstop, which is exactly the behavior without this cleanup.
+     */
+    await releaseLock(lockKey, value).catch(() => {})
+    throw error
+  }
 }
 
 /**
