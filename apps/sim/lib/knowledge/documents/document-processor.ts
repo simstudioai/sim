@@ -833,9 +833,9 @@ async function processChunk(
  * than being restated per provider, where they had already drifted into one
  * provider chunking and the other refusing anything over the cap.
  *
- * A chunk that fails yields `null` and is dropped: losing one section of a long
- * document is better than losing all of it. Every chunk failing is a genuine
- * failure and throws.
+ * A document is indexed whole or not at all: if any chunk fails, the document
+ * fails, because a partial result reports success while page ranges are missing
+ * and nothing downstream can tell.
  */
 async function ocrPdfInChunks(
   pdfBuffer: Buffer,
@@ -903,16 +903,18 @@ async function ocrPdfInChunks(
     .map((r) => r.content)
     .filter((content): content is string => content !== null && content.trim().length > 0)
 
-  if (recovered.length === 0) {
-    throw new Error(`OCR failed for all ${pdfChunks.length} chunks of the document`)
-  }
-
+  /**
+   * Each chunk has already exhausted its own retries, so a missing one is a real
+   * failure rather than a blip. Failing the document leaves it visible with a
+   * reason and eligible for the stuck-document sweep, which can retry it and
+   * produce a complete result — whereas indexing what came back would be
+   * indistinguishable from a document that never had those pages.
+   */
   if (recovered.length < pdfChunks.length) {
-    logger.warn('OCR recovered only part of the document', {
-      provider,
-      recovered: recovered.length,
-      chunks: pdfChunks.length,
-    })
+    throw new Error(
+      `OCR recovered ${recovered.length} of ${pdfChunks.length} chunks; ` +
+        'indexing the document would omit the rest'
+    )
   }
 
   return recovered.join('\n\n')

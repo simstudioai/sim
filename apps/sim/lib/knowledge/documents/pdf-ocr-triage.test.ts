@@ -165,11 +165,13 @@ describe('Azure OCR chunking', () => {
     })
     mockParseBuffer.mockResolvedValue({ content: '', metadata: { pageCount: 2500 } })
     mockDownload.mockResolvedValue(await pdfOfPages(1001))
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised page' }] }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    // A fresh Response per call: a body can only be read once.
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ pages: [{ markdown: 'Recognised page' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -232,6 +234,39 @@ describe('Azure OCR chunking', () => {
     )
 
     // Counted as a failed chunk rather than stitched in as recovered text.
-    await expect(parse()).rejects.toThrow(/OCR failed for all 1 chunks/)
+    await expect(parse()).rejects.toThrow(/OCR recovered 0 of 1 chunks/)
+  })
+
+  /**
+   * A document is indexed whole or not at all. Returning the chunks that did come
+   * back would mark the document complete with whole page ranges missing from
+   * search, and nothing downstream could tell it apart from a complete one.
+   */
+  it('fails the document when one chunk of several fails', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-ocr',
+    })
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    mockDownload.mockResolvedValue(await pdfOfPages(1001))
+
+    let call = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => {
+        call++
+        if (call === 1) {
+          return new Response(JSON.stringify({ pages: [{ markdown: 'First half' }] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response('upstream failure', { status: 500 })
+      })
+    )
+
+    await expect(parse()).rejects.toThrow(/OCR recovered 1 of 2 chunks/)
   })
 })
