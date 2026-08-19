@@ -226,7 +226,7 @@ export function collectForkClearedRefCandidates(
         blockId: targetBlockId,
         blockName: blockLabel,
       })
-      if (blockTypeRef.reference && !blockTypeRef.remapped) {
+      if (blockTypeRef.reference && !blockTypeRef.resolved) {
         out.push({
           targetWorkflowId: item.targetWorkflowId,
           workflowName: item.sourceMeta.name,

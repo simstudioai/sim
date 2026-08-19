@@ -20,7 +20,7 @@ const emptyResolver: ForkReferenceResolver = () => null
 describe('remapForkBlockType', () => {
   it('leaves a non-custom block entirely alone', () => {
     const result = remapForkBlockType('agent', mappedResolver)
-    expect(result).toEqual({ type: 'agent', remapped: false })
+    expect(result).toEqual({ type: 'agent', resolved: false })
     expect(result.reference).toBeUndefined()
   })
 
@@ -30,7 +30,7 @@ describe('remapForkBlockType', () => {
       blockName: 'Invoice Parser',
     })
     expect(result.type).toBe(UAT_BLOCK)
-    expect(result.remapped).toBe(true)
+    expect(result.resolved).toBe(true)
     expect(result.reference).toEqual({
       kind: 'custom-block',
       sourceId: PROD_BLOCK,
@@ -46,15 +46,18 @@ describe('remapForkBlockType', () => {
     // so an unmapped custom block stays put and is reported instead.
     const result = remapForkBlockType(PROD_BLOCK, emptyResolver)
     expect(result.type).toBe(PROD_BLOCK)
-    expect(result.remapped).toBe(false)
+    expect(result.resolved).toBe(false)
     expect(result.reference?.sourceId).toBe(PROD_BLOCK)
   })
 
-  it('treats a self-mapping as not remapped, so it never reports a spurious rewrite', () => {
+  it('counts an explicit identity mapping as RESOLVED, so it never blocks the promote', () => {
+    // The org-wide candidate list includes the source block, so binding an environment to
+    // the shared block is a normal pick. Reporting it as unresolved would raise
+    // `unmapped-custom-block` and refuse the sync over a choice the user explicitly made.
     const selfResolver: ForkReferenceResolver = () => PROD_BLOCK
     const result = remapForkBlockType(PROD_BLOCK, selfResolver)
     expect(result.type).toBe(PROD_BLOCK)
-    expect(result.remapped).toBe(false)
+    expect(result.resolved).toBe(true)
   })
 })
 
@@ -87,6 +90,17 @@ describe('scanWorkflowReferences with custom blocks', () => {
     const scan = scanWorkflowReferences(
       [{ id: 'blk-1', name: 'Invoice Parser', type: PROD_BLOCK, subBlocks: {} }],
       mappedResolver
+    )
+    expect(scan.references).toHaveLength(1)
+    expect(scan.unmapped).toHaveLength(0)
+  })
+
+  it('does not report an identity-mapped block as unmapped', () => {
+    const selfResolver: ForkReferenceResolver = (kind, sourceId) =>
+      kind === 'custom-block' ? sourceId : null
+    const scan = scanWorkflowReferences(
+      [{ id: 'blk-1', name: 'Shared Utility', type: PROD_BLOCK, subBlocks: {} }],
+      selfResolver
     )
     expect(scan.references).toHaveLength(1)
     expect(scan.unmapped).toHaveLength(0)

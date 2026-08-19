@@ -223,11 +223,19 @@ export const CUSTOM_BLOCK_REFERENCE_KEY = 'type'
 
 /** Outcome of remapping a placed block's own `type` across a fork edge. */
 export interface RemapForkBlockTypeResult {
-  /** The type to persist. Unchanged unless a mapping resolved to a different block. */
+  /** The type to persist. Equal to the input unless a mapping pointed elsewhere. */
   type: string
   /** Set when the block IS a custom block, so callers can aggregate/report it. */
   reference?: ForkReference
-  remapped: boolean
+  /**
+   * Whether a mapping EXISTS for this reference — deliberately not "the type changed".
+   * The two diverge on an identity mapping: the org-wide candidate list includes the
+   * source block, so binding an environment to the shared block is a normal pick, and
+   * treating it as unresolved would raise `unmapped-custom-block` and block the promote
+   * on a choice the user explicitly made. Callers use this to decide whether the
+   * reference is a blocker; whether the type actually moved is visible from `type`.
+   */
+  resolved: boolean
 }
 
 /**
@@ -249,6 +257,10 @@ export interface RemapForkBlockTypeResult {
  * step from the workflow. The reference is reported as unmapped instead, so the mapping UI
  * surfaces it and `sync-blockers` refuses the promote. That is what stops a uat
  * orchestrator from quietly invoking prod.
+ *
+ * An UNMAPPED reference and one mapped back to itself look identical in the output `type`
+ * but are opposite states, which is why {@link RemapForkBlockTypeResult.resolved} reports
+ * mapping existence rather than whether the type moved.
  */
 export function remapForkBlockType(
   blockType: string | undefined,
@@ -256,7 +268,7 @@ export function remapForkBlockType(
   context?: { blockId?: string; blockName?: string }
 ): RemapForkBlockTypeResult {
   const type = blockType ?? ''
-  if (!isCustomBlockType(type)) return { type, remapped: false }
+  if (!isCustomBlockType(type)) return { type, resolved: false }
 
   const reference: ForkReference = {
     kind: 'custom-block',
@@ -268,9 +280,9 @@ export function remapForkBlockType(
   }
 
   const targetType = resolve('custom-block', type)
-  if (!targetType || targetType === type) return { type, reference, remapped: false }
+  if (!targetType) return { type, reference, resolved: false }
 
-  return { type: targetType, reference, remapped: true }
+  return { type: targetType, reference, resolved: true }
 }
 
 /**
@@ -1628,7 +1640,7 @@ export function scanWorkflowReferences(
     if (blockTypeResult.reference) {
       const key = `${blockTypeResult.reference.kind}:${blockTypeResult.reference.sourceId}`
       if (!references.has(key)) references.set(key, blockTypeResult.reference)
-      if (!blockTypeResult.remapped && !unmapped.has(key)) {
+      if (!blockTypeResult.resolved && !unmapped.has(key)) {
         unmapped.set(key, blockTypeResult.reference)
       }
     }
