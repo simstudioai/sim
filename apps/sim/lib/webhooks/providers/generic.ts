@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getClientIp } from '@/lib/core/utils/request'
 import type {
@@ -14,6 +15,8 @@ import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 const logger = createLogger('WebhookProvider:Generic')
 
 export const genericHandler: WebhookProviderHandler = {
+  acceptsGetDelivery: true,
+
   verifyAuth({ request, requestId, providerConfig }: AuthContext) {
     if (providerConfig.requireAuth) {
       const configToken = providerConfig.token as string | undefined
@@ -84,8 +87,31 @@ export const genericHandler: WebhookProviderHandler = {
     return null
   },
 
-  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    return { input: body }
+  /**
+   * Expose query parameters under a reserved `query` key alongside the body fields.
+   * The body keeps precedence so payloads that already carry their own `query` field
+   * resolve exactly as they did before.
+   */
+  async formatInput({ body, query, requestId }: FormatInputContext): Promise<FormatInputResult> {
+    if (Object.keys(query).length === 0) {
+      return { input: body }
+    }
+
+    if (!isRecordLike(body)) {
+      logger.warn(
+        `[${requestId}] Dropping query parameters: webhook body is not an object, so there is no field to merge them into`
+      )
+      return { input: body }
+    }
+
+    if ('query' in body) {
+      logger.warn(
+        `[${requestId}] Dropping query parameters: webhook body already defines a "query" field`
+      )
+      return { input: body }
+    }
+
+    return { input: { ...body, query } }
   },
 
   async processInputFiles({

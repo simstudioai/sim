@@ -683,6 +683,54 @@ describe('Webhook Trigger API Route', () => {
     })
   })
 
+  describe('GET deliveries', () => {
+    it('dispatches a GET delivery to a generic webhook', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'get-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/get-path?srcId=123'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'get-path' }) })
+
+      expect(response.status).toBe(200)
+      expect(dispatchResolvedWebhookTargetMock).toHaveBeenCalledOnce()
+    })
+
+    it('rejects a GET delivery to a provider that only accepts POST', async () => {
+      testData.webhooks.push({
+        id: 'stripe-webhook-id',
+        provider: 'stripe',
+        path: 'post-only-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/post-only-path'
+      )
+
+      const response = await GET(req, { params: Promise.resolve({ path: 'post-only-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+  })
+
   describe('Reservation-free filtering', () => {
     it('skips filtered webhook events before preprocessing reserves a slot', async () => {
       testData.webhooks.push({

@@ -681,6 +681,7 @@ async function queueWebhookExecutionWithResult(
     }
 
     const credentialId = getCredentialId(providerConfig)
+    const query = Object.fromEntries(new URL(request.url).searchParams)
 
     const actorUserId = options.actorUserId
     const billingAttribution = options.billingAttribution
@@ -722,6 +723,7 @@ async function queueWebhookExecutionWithResult(
       provider: foundWebhook.provider,
       body,
       headers,
+      ...(Object.keys(query).length > 0 ? { query } : {}),
       path: options.path || foundWebhook.path || '',
       blockId: foundWebhook.blockId ?? undefined,
       ...(foundWebhook.deploymentVersionId

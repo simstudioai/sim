@@ -28,3 +28,15 @@ export function acceptsPathWebhookDelivery(provider: string | null): boolean {
   if (isInternalTriggerProvider(provider) || isPollingWebhookProvider(provider)) return false
   return getProviderHandler(provider).ingressMode !== 'provider'
 }
+
+/**
+ * Whether a provider accepts a delivery arriving with this HTTP method.
+ *
+ * Every provider accepts `POST`; `GET` is opt-in per provider because a GET delivery has no body
+ * and is not idempotent-safe against link prefetchers. Other methods are never accepted.
+ */
+export function acceptsWebhookDeliveryMethod(provider: string | null, method: string): boolean {
+  if (method === 'POST') return true
+  if (method !== 'GET' || !provider) return false
+  return getProviderHandler(provider).acceptsGetDelivery === true
+}

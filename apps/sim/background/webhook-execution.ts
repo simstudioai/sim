@@ -269,6 +269,8 @@ export type WebhookExecutionPayload = {
   provider: string
   body: unknown
   headers: Record<string, string>
+  /** Request URL query parameters; absent when the request had none or on legacy queued jobs. */
+  query?: Record<string, string>
   path: string
   blockId?: string
   /** Immutable deployment admitted by webhook ingress; absent on legacy queued jobs. */
@@ -622,6 +624,7 @@ async function executeWebhookJobInternal(
         workflow: { id: payload.workflowId, userId: payload.userId },
         body: payload.body,
         headers: payload.headers,
+        query: payload.query ?? {},
         requestId,
       })
       input = result.input as Record<string, unknown> | null

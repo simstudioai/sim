@@ -477,6 +477,44 @@ describe('webhook processor execution identity', () => {
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
+  it('carries request query parameters into the queued payload', async () => {
+    await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/hook', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      {},
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/incoming/hook?srcId=123&title=Hello%20World'
+      ) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/hook' }
+    )
+
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'webhook-execution',
+      expect.objectContaining({ query: { srcId: '123', title: 'Hello World' } }),
+      expect.anything()
+    )
+  })
+
+  it('omits query from the queued payload when the request has none', async () => {
+    await dispatchResolvedWebhookTarget(
+      makeWebhookRecord({ path: 'incoming/hook', provider: 'generic' }),
+      makeWorkflowRecord({}),
+      { event: 'test' },
+      createMockRequest(
+        'POST',
+        { event: 'test' },
+        {},
+        'http://localhost:3000/api/webhooks/trigger/incoming/hook'
+      ) as NextRequest,
+      { requestId: 'request-1', path: 'incoming/hook' }
+    )
+
+    expect(mockEnqueue.mock.calls[0]?.[1]).not.toHaveProperty('query')
+  })
+
   it('runs database-inline webhook jobs through the queue cancellation signal', async () => {
     mockShouldExecuteInline.mockReturnValue(true)
     const result = await dispatchResolvedWebhookTarget(

@@ -14,7 +14,7 @@ import {
   parseWebhookBody,
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
-import { acceptsPathWebhookDelivery } from '@/lib/webhooks/providers'
+import { acceptsPathWebhookDelivery, acceptsWebhookDeliveryMethod } from '@/lib/webhooks/providers'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -35,10 +35,26 @@ export const GET = withRouteHandler(
       return challengeResponse
     }
 
-    return (
-      (await handlePreLookupWebhookVerification(request.method, undefined, requestId, path)) ||
-      new NextResponse('Method not allowed', { status: 405 })
+    const verificationResponse = await handlePreLookupWebhookVerification(
+      request.method,
+      undefined,
+      requestId,
+      path
     )
+    if (verificationResponse) {
+      return verificationResponse
+    }
+
+    const ticket = tryAdmit()
+    if (!ticket) {
+      return admissionRejectedResponse()
+    }
+
+    try {
+      return await handleWebhookDelivery(request, context, webhookTriggerGetContract)
+    } finally {
+      ticket.release()
+    }
   }
 )
 
@@ -50,16 +66,17 @@ export const POST = withRouteHandler(
     }
 
     try {
-      return await handleWebhookPost(request, context)
+      return await handleWebhookDelivery(request, context, webhookTriggerPostContract)
     } finally {
       ticket.release()
     }
   }
 )
 
-async function handleWebhookPost(
+async function handleWebhookDelivery(
   request: NextRequest,
-  context: { params: Promise<{ path: string }> }
+  context: { params: Promise<{ path: string }> },
+  contract: typeof webhookTriggerGetContract | typeof webhookTriggerPostContract
 ): Promise<NextResponse> {
   const receivedAt = Date.now()
   /**
@@ -73,7 +90,7 @@ async function handleWebhookPost(
     : undefined
 
   const requestId = generateRequestId()
-  const parsed = await parseRequest(webhookTriggerPostContract, request, context)
+  const parsed = await parseRequest(contract, request, context)
   if (!parsed.success) return parsed.response
   const { path } = parsed.data.params
 
@@ -99,13 +116,24 @@ async function handleWebhookPost(
   // Find all webhooks for this path (multiple webhooks in one workflow may share a path)
   const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
 
-  const webhooksForPath = allWebhooksForPath.filter(({ webhook: foundWebhook }) =>
+  const pathWebhooks = allWebhooksForPath.filter(({ webhook: foundWebhook }) =>
     acceptsPathWebhookDelivery(foundWebhook.provider)
   )
 
-  if (allWebhooksForPath.length > 0 && webhooksForPath.length === 0) {
+  if (allWebhooksForPath.length > 0 && pathWebhooks.length === 0) {
     logger.warn(`[${requestId}] Rejected HTTP delivery to non-path trigger: ${path}`)
     return new NextResponse('Not Found', { status: 404 })
+  }
+
+  const webhooksForPath = pathWebhooks.filter(({ webhook: foundWebhook }) =>
+    acceptsWebhookDeliveryMethod(foundWebhook.provider, request.method)
+  )
+
+  if (pathWebhooks.length > 0 && webhooksForPath.length === 0) {
+    logger.warn(
+      `[${requestId}] Rejected ${request.method} delivery to path ${path}: no trigger on this path accepts that method`
+    )
+    return new NextResponse('Method not allowed', { status: 405 })
   }
 
   if (webhooksForPath.length === 0) {
@@ -120,7 +148,11 @@ async function handleWebhookPost(
     }
 
     logger.warn(`[${requestId}] Webhook or workflow not found for path: ${path}`)
-    return new NextResponse('Not Found', { status: 404 })
+    // Unknown paths keep answering 405 on GET so probes cannot tell an unknown path
+    // from one whose trigger only accepts POST.
+    return request.method === 'POST'
+      ? new NextResponse('Not Found', { status: 404 })
+      : new NextResponse('Method not allowed', { status: 405 })
   }
 
   // Process each webhook matched on this path
