@@ -9,6 +9,16 @@ export const revalidate = 0
 const DEFAULT_SEARCH_LIMIT = 10
 const MAX_SEARCH_LIMIT = 20
 
+/** Uses PostgreSQL's simple text-search configuration for unsupported Japanese and Chinese. */
+const LOCALE_MAP: Record<string, string> = {
+  en: 'english',
+  es: 'spanish',
+  fr: 'french',
+  de: 'german',
+  ja: 'simple',
+  zh: 'simple',
+}
+
 function getSearchLimit(value: unknown): number {
   const limit = Number.parseInt(String(value ?? DEFAULT_SEARCH_LIMIT), 10)
 
@@ -44,15 +54,7 @@ export async function GET(request: NextRequest) {
     const candidateLimit = limit * 3
     const similarityThreshold = 0.6
 
-    const localeMap: Record<string, string> = {
-      en: 'english',
-      es: 'spanish',
-      fr: 'french',
-      de: 'german',
-      ja: 'simple', // PostgreSQL doesn't have Japanese support, use simple
-      zh: 'simple', // PostgreSQL doesn't have Chinese support, use simple
-    }
-    const tsConfig = localeMap[locale] || 'simple'
+    const tsConfig = LOCALE_MAP[locale] || 'simple'
 
     const useVectorSearch = locale === 'en'
     let vectorResults: Array<{

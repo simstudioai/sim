@@ -3,6 +3,8 @@ import { Button, cn } from '@sim/emcn'
 import { generateShortId } from '@sim/utils/id'
 import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 
+const CHART_PADDING = { top: 16, right: 28, bottom: 26, left: 26 } as const
+
 export interface LineChartPoint {
   timestamp: string
   value: number
@@ -34,7 +36,7 @@ function LineChartComponent({
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const width = containerWidth ?? 0
   const height = 166
-  const padding = { top: 16, right: 28, bottom: 26, left: 26 }
+  const padding = CHART_PADDING
   useEffect(() => {
     if (!containerRef.current) return
     const element = containerRef.current

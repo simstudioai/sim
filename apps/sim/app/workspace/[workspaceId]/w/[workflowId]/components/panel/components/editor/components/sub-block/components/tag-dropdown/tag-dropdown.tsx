@@ -40,6 +40,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const EMPTY_VARIABLES: Variable[] = []
+const EMPTY_VARIABLE_INFO_MAP: Record<string, { type: string; id: string }> = {}
 
 /**
  * Context for sharing nested navigation state between components.
@@ -1001,8 +1002,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     [inputValue, cursorPosition]
   )
 
-  const emptyVariableInfoMap: Record<string, { type: string; id: string }> = {}
-
   /**
    * Computes tags, variable info, and block tag groups
    */
@@ -1010,7 +1009,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     if (activeSourceBlockId) {
       const sourceBlock = blocks[activeSourceBlockId]
       if (!sourceBlock) {
-        return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
+        return { tags: [], variableInfoMap: EMPTY_VARIABLE_INFO_MAP, blockTagGroups: [] }
       }
 
       const blockConfig = getBlock(sourceBlock.type)
@@ -1034,9 +1033,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             },
           ]
 
-          return { tags: blockTags, variableInfoMap: emptyVariableInfoMap, blockTagGroups }
+          return { tags: blockTags, variableInfoMap: EMPTY_VARIABLE_INFO_MAP, blockTagGroups }
         }
-        return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
+        return { tags: [], variableInfoMap: EMPTY_VARIABLE_INFO_MAP, blockTagGroups: [] }
       }
 
       const mergedSubBlocks = getMergedSubBlocks(activeSourceBlockId)
@@ -1063,12 +1062,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         },
       ]
 
-      return { tags: blockTags, variableInfoMap: emptyVariableInfoMap, blockTagGroups }
+      return { tags: blockTags, variableInfoMap: EMPTY_VARIABLE_INFO_MAP, blockTagGroups }
     }
 
     const hasInvalidBlocks = Object.values(blocks).some((block) => !block || !block.type)
     if (hasInvalidBlocks) {
-      return { tags: [], variableInfoMap: emptyVariableInfoMap, blockTagGroups: [] }
+      return { tags: [], variableInfoMap: EMPTY_VARIABLE_INFO_MAP, blockTagGroups: [] }
     }
 
     const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
