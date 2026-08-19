@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   pricesRetrieve: vi.fn(),
   enqueue: vi.fn(),
   patchPayload: vi.fn(),
+  reapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -31,6 +32,7 @@ vi.mock('@sim/audit', () => ({
 vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
+  reapplyPaidOrgJoinBillingForExistingMemberTx: mocks.reapplyPaidOrgJoinBillingForExistingMemberTx,
 }))
 vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
   acquireUserBillingIdentityLock: vi.fn(),
@@ -72,6 +74,7 @@ import {
   getEnterpriseIssuancePreflight,
   getLatestEnterpriseProvisionings,
   provisionEnterpriseInStripe,
+  reconcileEnterpriseMembers,
   syncEnterpriseMetadataInStripe,
 } from '@/lib/billing/enterprise-provisioning'
 
@@ -202,6 +205,26 @@ describe('Enterprise issuance preflight', () => {
       effectiveUsageLimitDollars: 1_225,
       exceedsLimit: false,
     })
+  })
+
+  it('returns a product error for an invalid reporting anchor', async () => {
+    queueTableRows(schemaMock.user, [{ id: 'owner-1', name: 'Owner', email: 'owner@example.com' }])
+    queueTableRows(schemaMock.member, [])
+    queueTableRows(schemaMock.workspace, [{ value: 0 }])
+    queueTableRows(schemaMock.workspace, [])
+    queueTableRows(schemaMock.workspace, [])
+
+    await expect(
+      getEnterpriseIssuancePreflight({
+        ownerUserId: 'owner-1',
+        search: '',
+        limit: 1,
+        offset: 0,
+        invoiceAmountUsd: 1_200,
+        billingInterval: 'year',
+        reportingPeriodAnchorDate: '2026-02-30',
+      })
+    ).rejects.toThrow('Reporting period anchor must be a valid UTC date on or before today')
   })
 })
 
@@ -439,6 +462,44 @@ describe('Enterprise workspace-move progress', () => {
       failedCount: 1,
       failed: [],
     })
+  })
+})
+
+describe('Enterprise member reconciliation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.reapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue(undefined)
+  })
+
+  it('processes at most one bounded member page and checkpoints the cursor', async () => {
+    queueTableRows(
+      schemaMock.member,
+      Array.from({ length: 51 }, (_, index) => ({
+        userId: `user-${String(index).padStart(3, '0')}`,
+      }))
+    )
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      reconcileEnterpriseMembers(
+        { organizationId: 'org-1', afterUserId: null },
+        {
+          eventId: 'reconcile-1',
+          eventType: 'enterprise.reconcile-members',
+          attempts: 0,
+          checkpointPayload,
+        }
+      )
+    ).resolves.toEqual({
+      outcome: 'deferred',
+      reason: 'Continuing bounded Enterprise member reconciliation',
+      consumeAttempt: false,
+    })
+
+    expect(mocks.reapplyPaidOrgJoinBillingForExistingMemberTx).toHaveBeenCalledTimes(50)
+    expect(checkpointPayload).toHaveBeenCalledWith({ afterUserId: 'user-049' })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(51)
   })
 })
 
@@ -817,6 +878,12 @@ describe('Enterprise metadata outbox handler', () => {
         startedAt: '2026-08-13T00:00:00.000Z',
         deadlineAt: '2099-08-13T00:30:00.000Z',
       },
+      deliveryState: {
+        priorPause: null,
+        billingIntervalChanged: false,
+        providerAcceptedAt: '2026-08-13T00:00:00.000Z',
+        verifiedAt: '2026-08-13T00:00:01.000Z',
+      },
       metadata: { plan: 'enterprise', referenceId: 'org-1', seats: 15 },
     }
     queueTableRows(schemaMock.subscription, [
@@ -851,6 +918,88 @@ describe('Enterprise metadata outbox handler', () => {
     })
 
     expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+  })
+
+  it('repairs a paused cadence-change invoice before waiting for the webhook', async () => {
+    const payload = {
+      subscriptionId: 'local-sub-1',
+      revision: 7,
+      deliveryRevision: 1,
+      acknowledgement: {
+        startedAt: '2026-08-13T00:00:00.000Z',
+        deadlineAt: '2099-08-13T00:30:00.000Z',
+      },
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: 15,
+        invoiceAmountCents: 120000,
+      },
+      terms: { invoiceAmountCents: 120000, billingInterval: 'year' as const },
+      stripeProgress: { priceId: 'price_year' },
+      deliveryState: {
+        priorPause: { behavior: 'keep_as_draft' as const, resumesAt: null },
+        billingIntervalChanged: true,
+      },
+    }
+    queueTableRows(schemaMock.subscription, [
+      { stripeSubscriptionId: 'sub_1', referenceId: 'org-1', metadata: {} },
+    ])
+    queueTableRows(schemaMock.subscription, [{ metadata: {} }])
+    queueTableRows(schemaMock.outboxEvent, [{ id: 'metadata-event-recovery', payload }])
+    queueTableRows(schemaMock.member, [{ value: 10 }])
+    mocks.subscriptionsRetrieve.mockResolvedValue({
+      id: 'sub_1',
+      metadata: {
+        plan: 'enterprise',
+        referenceId: 'org-1',
+        seats: '15',
+        invoiceAmountCents: '120000',
+        simConfigOperationId: 'metadata-event-recovery',
+        simConfigRevision: '7',
+        simConfigDeliveryRevision: '1',
+      },
+      schedule: null,
+      collection_method: 'send_invoice',
+      days_until_due: 30,
+      pause_collection: { behavior: 'keep_as_draft', resumes_at: null },
+      latest_invoice: { id: 'in_change', status: 'draft', auto_advance: true },
+      items: {
+        data: [
+          {
+            quantity: 1,
+            price: {
+              currency: 'usd',
+              unit_amount: 120000,
+              recurring: { interval: 'year', interval_count: 1 },
+            },
+          },
+        ],
+      },
+    })
+    const checkpointPayload = vi.fn()
+
+    await expect(
+      syncEnterpriseMetadataInStripe(payload, {
+        eventId: 'metadata-event-recovery',
+        eventType: 'stripe.sync-enterprise-metadata',
+        attempts: 2,
+        checkpointPayload,
+      })
+    ).resolves.toMatchObject({ outcome: 'deferred', consumeAttempt: false })
+
+    expect(mocks.subscriptionsUpdate).not.toHaveBeenCalled()
+    expect(mocks.invoicesUpdate).toHaveBeenCalledWith(
+      'in_change',
+      { auto_advance: false },
+      { idempotencyKey: 'enterprise:metadata-event-recovery:initial-invoice-draft' }
+    )
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      deliveryState: expect.objectContaining({ providerAcceptedAt: expect.any(String) }),
+    })
+    expect(checkpointPayload).toHaveBeenCalledWith({
+      deliveryState: expect.objectContaining({ verifiedAt: expect.any(String) }),
+    })
   })
 
   it('consumes the finite missing-ack budget only after the durable grace deadline', async () => {

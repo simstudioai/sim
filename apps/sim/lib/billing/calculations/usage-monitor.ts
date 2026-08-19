@@ -57,9 +57,6 @@ async function computePooledOrgUsage(
   sub: UsageLimitSubscription,
   preloadedBillingPeriod?: UsageQueryPeriod
 ): Promise<number> {
-  const { memberIds, currentPeriodCost } = await getPooledOrgCurrentPeriodCost(organizationId)
-  if (memberIds.length === 0) return 0
-
   const billingPeriod = preloadedBillingPeriod ??
     resolveSubscriptionUsagePeriod(sub) ?? {
       ...defaultBillingPeriod(),
@@ -72,12 +69,14 @@ async function computePooledOrgUsage(
     billingPeriod
   )
 
-  return applyOrgRefresh(
-    organizationId,
-    sub,
-    (billingPeriod.source === 'reporting' ? 0 : currentPeriodCost) + ledgerUsage,
-    memberIds
-  )
+  if (billingPeriod.source === 'reporting') {
+    return ledgerUsage
+  }
+
+  const { memberIds, currentPeriodCost } = await getPooledOrgCurrentPeriodCost(organizationId)
+  if (memberIds.length === 0) return ledgerUsage
+
+  return applyOrgRefresh(organizationId, sub, currentPeriodCost + ledgerUsage, memberIds)
 }
 
 /**

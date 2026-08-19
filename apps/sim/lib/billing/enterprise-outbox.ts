@@ -10,6 +10,7 @@ import type { DbOrTx } from '@/lib/db/types'
 export const ENTERPRISE_PROVISION_EVENT_TYPE = 'stripe.provision-enterprise'
 export const ENTERPRISE_METADATA_SYNC_EVENT_TYPE = 'stripe.sync-enterprise-metadata'
 export const ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE = 'enterprise.move-workspace'
+export const ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE = 'enterprise.reconcile-members'
 
 const nonnegativeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 
@@ -80,9 +81,28 @@ export const enterpriseMetadataSyncPayloadSchema = z.object({
     })
     .optional(),
   stripeProgress: z.object({ priceId: z.string().min(1).optional() }).default({}),
+  deliveryState: z
+    .object({
+      priorPause: z
+        .object({
+          behavior: z.enum(['keep_as_draft', 'mark_uncollectible', 'void']),
+          resumesAt: z.number().int().nullable(),
+        })
+        .nullable(),
+      billingIntervalChanged: z.boolean(),
+      providerAcceptedAt: z.string().datetime().optional(),
+      verifiedAt: z.string().datetime().optional(),
+    })
+    .optional(),
 })
 
 export type EnterpriseMetadataSyncPayload = z.infer<typeof enterpriseMetadataSyncPayloadSchema>
+
+export function enterpriseMetadataDeliveryIsVerified(
+  payload: EnterpriseMetadataSyncPayload
+): boolean {
+  return payload.deliveryState?.verifiedAt !== undefined
+}
 
 function stripeMetadataValueMatches(
   metadata: Stripe.Metadata,
@@ -138,6 +158,11 @@ export const enterpriseWorkspaceMovePayloadSchema = z.object({
 })
 
 export type EnterpriseWorkspaceMovePayload = z.infer<typeof enterpriseWorkspaceMovePayloadSchema>
+
+export const enterpriseMemberReconciliationPayloadSchema = z.object({
+  organizationId: z.string().min(1),
+  afterUserId: z.string().min(1).nullable().default(null),
+})
 
 export type EnterpriseOperationStatus =
   | 'pending'
@@ -359,7 +384,9 @@ export async function resolveEnterpriseMetadataIntent(
 
   const appliedOperationId = appliedMetadata.simConfigOperationId
   const operationApplied = appliedOperationId === latest.id
-  const providerAccepted = parsed.data.acknowledgement !== undefined
+  const providerAccepted =
+    parsed.data.deliveryState?.providerAcceptedAt !== undefined ||
+    parsed.data.acknowledgement !== undefined
   const hasUnappliedIntent =
     !operationApplied && (latest.status !== 'dead_letter' || providerAccepted)
   const desiredMetadata = hasUnappliedIntent ? parsed.data.metadata : appliedMetadata

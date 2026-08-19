@@ -28,6 +28,7 @@ import {
   deferOutboxHandler,
   enqueueOrReschedulePendingOutboxEvent,
   enqueueOutboxEvent,
+  enqueueOutboxEvents,
   processOutboxEvents,
 } from './service'
 
@@ -92,6 +93,31 @@ describe('enqueueOutboxEvent', () => {
     expect((dbChainMockFns.values.mock.calls[0][0] as { availableAt: Date }).availableAt).toBe(
       future
     )
+  })
+
+  it('inserts a bounded event batch in one statement', async () => {
+    const ids = await enqueueOutboxEvents(dbChainMock.db, 'test.event', [
+      { sequence: 0 },
+      { sequence: 1 },
+    ])
+
+    expect(ids).toHaveLength(2)
+    expect(dbChainMockFns.values).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.values.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ eventType: 'test.event', payload: { sequence: 0 } }),
+      expect.objectContaining({ eventType: 'test.event', payload: { sequence: 1 } }),
+    ])
+  })
+
+  it('rejects an oversized event batch before inserting', async () => {
+    await expect(
+      enqueueOutboxEvents(
+        dbChainMock.db,
+        'test.event',
+        Array.from({ length: 1_001 }, (_, sequence) => ({ sequence }))
+      )
+    ).rejects.toThrow('Cannot enqueue more than 1000')
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 })
 

@@ -206,7 +206,6 @@ describe('getDashboardOrganization', () => {
     queueTableRows(workspace, [{ value: 3 }])
 
     const result = await getDashboardOrganization('org-1', {
-      paginated: true,
       limit: 2,
       memberOffset: 0,
       externalCollaboratorOffset: 0,

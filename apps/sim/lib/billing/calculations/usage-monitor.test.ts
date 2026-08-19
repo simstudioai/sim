@@ -5,12 +5,18 @@ import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockGetBillingPeriodUsageCost,
   mockGetOrgMemberUsageForBillingPeriod,
   mockGetOrgMemberUsageLimit,
+  mockGetPooledOrgCurrentPeriodCost,
+  mockGetUserUsageLimit,
   mockIsOrganizationBillingBlocked,
 } = vi.hoisted(() => ({
+  mockGetBillingPeriodUsageCost: vi.fn(),
   mockGetOrgMemberUsageForBillingPeriod: vi.fn(),
   mockGetOrgMemberUsageLimit: vi.fn(),
+  mockGetPooledOrgCurrentPeriodCost: vi.fn(),
+  mockGetUserUsageLimit: vi.fn(),
   mockIsOrganizationBillingBlocked: vi.fn(),
 }))
 
@@ -26,14 +32,19 @@ vi.mock('@/lib/billing/core/access', () => ({
 // core/usage pulls in the email-rendering chain at import; stub the two symbols
 // usage-monitor imports from it so the module loads in a node test env.
 vi.mock('@/lib/billing/core/usage', () => ({
-  getPooledOrgCurrentPeriodCost: vi.fn(),
-  getUserUsageLimit: vi.fn(),
+  getPooledOrgCurrentPeriodCost: mockGetPooledOrgCurrentPeriodCost,
+  getUserUsageLimit: mockGetUserUsageLimit,
+}))
+
+vi.mock('@/lib/billing/core/usage-log', () => ({
+  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
 }))
 
 import {
   checkBillingBlocked,
   checkBillingEntityBlocked,
   checkOrganizationMemberUsageLimit,
+  checkUsageStatus,
 } from '@/lib/billing/calculations/usage-monitor'
 
 afterAll(() => {
@@ -41,6 +52,52 @@ afterAll(() => {
 })
 
 afterAll(resetEnvFlagsMock)
+
+describe('checkUsageStatus', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    mockGetUserUsageLimit.mockResolvedValue(500)
+    mockGetBillingPeriodUsageCost.mockResolvedValue(125)
+  })
+
+  it('reads reporting-period organization usage without loading the member roster', async () => {
+    const billingPeriod = {
+      start: new Date('2026-01-01T00:00:00.000Z'),
+      end: new Date('2027-01-01T00:00:00.000Z'),
+      source: 'reporting' as const,
+      anchorDate: '2026-01-01',
+      interval: 'year' as const,
+    }
+    const subscription = {
+      referenceId: 'org-1',
+      plan: 'enterprise',
+      status: 'active',
+      seats: 1,
+      periodStart: billingPeriod.start,
+      periodEnd: billingPeriod.end,
+    }
+
+    await expect(
+      checkUsageStatus('user-1', subscription, {
+        billingEntity: { type: 'organization', id: 'org-1' },
+        billingPeriod,
+      })
+    ).resolves.toMatchObject({
+      currentUsage: 125,
+      limit: 500,
+      scope: 'organization',
+      organizationId: 'org-1',
+    })
+
+    expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledWith(
+      { type: 'organization', id: 'org-1' },
+      billingPeriod
+    )
+    expect(mockGetPooledOrgCurrentPeriodCost).not.toHaveBeenCalled()
+  })
+})
 
 describe('checkBillingBlocked', () => {
   beforeEach(() => {

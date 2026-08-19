@@ -9,6 +9,7 @@ import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
+const MAX_BULK_ENQUEUE_EVENTS = 1_000
 const MAX_PERSISTED_ERROR_LENGTH = 500
 
 /**
@@ -169,6 +170,30 @@ export async function enqueueOutboxEvent<T>(
   })
   logger.info('Enqueued outbox event', { id, eventType })
   return id
+}
+
+export async function enqueueOutboxEvents<T>(
+  executor: Pick<typeof db, 'insert'>,
+  eventType: string,
+  payloads: readonly T[],
+  options: EnqueueOptions = {}
+): Promise<string[]> {
+  if (payloads.length === 0) return []
+  if (payloads.length > MAX_BULK_ENQUEUE_EVENTS) {
+    throw new Error(`Cannot enqueue more than ${MAX_BULK_ENQUEUE_EVENTS} outbox events at once`)
+  }
+
+  const availableAt = options.availableAt ?? new Date()
+  const rows = payloads.map((payload) => ({
+    id: generateId(),
+    eventType,
+    payload: payload as never,
+    maxAttempts: options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+    availableAt,
+  }))
+  await executor.insert(outboxEvent).values(rows)
+  logger.info('Enqueued outbox event batch', { eventType, count: rows.length })
+  return rows.map((row) => row.id)
 }
 
 export interface CoalescedOutboxEnqueueOptions extends EnqueueOptions {

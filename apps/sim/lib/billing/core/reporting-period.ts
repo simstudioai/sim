@@ -14,6 +14,12 @@ export interface ResolvedUsagePeriod {
   interval: BillingInterval | null
 }
 
+export interface ResolvedEnterpriseReportingPeriod extends ResolvedUsagePeriod {
+  source: 'reporting'
+  anchorDate: string
+  interval: BillingInterval
+}
+
 interface SubscriptionPeriodInput {
   plan?: string | null
   billingInterval?: string | null
@@ -46,7 +52,7 @@ export function resolveEnterpriseReportingPeriod(
   anchorDate: string,
   interval: BillingInterval,
   now: Date = new Date()
-): ResolvedUsagePeriod | null {
+): ResolvedEnterpriseReportingPeriod | null {
   const parsed = parseDateOnly(anchorDate)
   if (!parsed || parsed.date.getTime() > now.getTime()) return null
 

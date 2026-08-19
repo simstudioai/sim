@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { member, organization, outboxEvent, subscription, user, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { and, count, desc, eq, ilike, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gt, ilike, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
@@ -12,12 +12,15 @@ import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   deriveEnterpriseOperationStatus,
+  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
   ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
+  type EnterpriseMetadataSyncPayload,
   type EnterpriseOperationStatus,
   type EnterpriseProvisionPayload,
   type EnterpriseProvisionRequest,
+  enterpriseMemberReconciliationPayloadSchema,
   enterpriseMetadataIntentMatchesStripeSubscription,
   enterpriseMetadataSyncPayloadSchema,
   enterpriseProvisionPayloadSchema,
@@ -29,7 +32,10 @@ import {
   resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds,
 } from '@/lib/billing/execution-timeout-defaults'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
-import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
+import {
+  acquireOrganizationMutationLock,
+  reapplyPaidOrgJoinBillingForExistingMemberTx,
+} from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
@@ -47,6 +53,7 @@ const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_GRACE_MS = 30 * 60 * 1000
 const ENTERPRISE_WEBHOOK_ACKNOWLEDGEMENT_POLL_MS = 30 * 1000
 const MAX_ENTERPRISE_WORKSPACE_SELECTION = 1_000
+const ENTERPRISE_MEMBER_RECONCILIATION_BATCH_SIZE = 50
 
 async function waitForEnterpriseWebhookAcknowledgement(
   acknowledgement: { startedAt: string; deadlineAt: string } | undefined,
@@ -522,6 +529,11 @@ export async function getEnterpriseIssuancePreflight({
       reportingPeriodAnchorDate,
       billingInterval
     )
+    if (!reportingPeriod) {
+      throw new EnterpriseProvisioningError(
+        'Reporting period anchor must be a valid UTC date on or before today'
+      )
+    }
     const configuredUsageLimitDollars =
       usageLimitDollars === undefined
         ? invoiceAmountUsd
@@ -1343,6 +1355,68 @@ async function keepInitialEnterpriseInvoiceAsDraft(params: {
   )
 }
 
+type EnterpriseMetadataDeliveryState = NonNullable<EnterpriseMetadataSyncPayload['deliveryState']>
+
+function stripePauseState(
+  pause: Stripe.Subscription.PauseCollection | null
+): EnterpriseMetadataDeliveryState['priorPause'] {
+  return pause
+    ? {
+        behavior: pause.behavior,
+        resumesAt: pause.resumes_at ?? null,
+      }
+    : null
+}
+
+function stripePauseMatchesDeliveryState(
+  pause: Stripe.Subscription.PauseCollection | null,
+  expected: EnterpriseMetadataDeliveryState['priorPause']
+): boolean {
+  const actual = stripePauseState(pause)
+  return actual === null
+    ? expected === null
+    : expected !== null &&
+        actual.behavior === expected.behavior &&
+        actual.resumesAt === expected.resumesAt
+}
+
+async function verifyEnterpriseMetadataDelivery(params: {
+  stripe: Stripe
+  subscription: Stripe.Subscription
+  operationId: string
+  deliveryState: EnterpriseMetadataDeliveryState
+  context: OutboxEventContext
+}): Promise<void> {
+  const providerAcceptedAt = params.deliveryState.providerAcceptedAt ?? new Date().toISOString()
+  const acceptedState = { ...params.deliveryState, providerAcceptedAt }
+  if (!params.deliveryState.providerAcceptedAt) {
+    await params.context.checkpointPayload({ deliveryState: acceptedState })
+  }
+
+  if (
+    !stripePauseMatchesDeliveryState(params.subscription.pause_collection, acceptedState.priorPause)
+  ) {
+    throw new Error('Stripe did not preserve Enterprise payment-collection pause settings')
+  }
+
+  if (
+    acceptedState.billingIntervalChanged &&
+    acceptedState.priorPause?.behavior === 'keep_as_draft'
+  ) {
+    await keepInitialEnterpriseInvoiceAsDraft({
+      stripe: params.stripe,
+      subscription: params.subscription,
+      operationId: params.operationId,
+    })
+  }
+
+  if (!acceptedState.verifiedAt) {
+    await params.context.checkpointPayload({
+      deliveryState: { ...acceptedState, verifiedAt: new Date().toISOString() },
+    })
+  }
+}
+
 export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPayload, context) => {
   const parsed = enterpriseProvisionPayloadSchema.safeParse(rawPayload)
   if (!parsed.success) throw new Error('Invalid Enterprise issuance outbox payload')
@@ -1673,6 +1747,17 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
       stripeSubscription
     )
     if (deliveryAlreadyWritten) {
+      const deliveryState = latestPayload.data.deliveryState
+      if (!deliveryState) {
+        throw new Error('Enterprise configuration delivery state was not checkpointed')
+      }
+      await verifyEnterpriseMetadataDelivery({
+        stripe,
+        subscription: stripeSubscription,
+        operationId: context.eventId,
+        deliveryState,
+        context,
+      })
       return waitForEnterpriseWebhookAcknowledgement(latestPayload.data.acknowledgement, context)
     }
     let priceId = latestPayload.data.stripeProgress.priceId ?? null
@@ -1735,6 +1820,12 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
       updateItems = [{ id: currentItem.id, price: priceId, quantity: 1 }]
     }
 
+    const deliveryState: EnterpriseMetadataDeliveryState = {
+      priorPause: stripePauseState(stripeSubscription.pause_collection),
+      billingIntervalChanged,
+    }
+    await context.checkpointPayload({ deliveryState })
+
     const updatedSubscription = await stripe.subscriptions.update(
       stripeSubscriptionId,
       {
@@ -1752,33 +1843,13 @@ export const syncEnterpriseMetadataInStripe: OutboxHandler<unknown> = async (
         idempotencyKey: `enterprise-config:${payload.subscriptionId}:${context.eventId}:delivery:${latestPayload.data.deliveryRevision}:attempt:${context.attempts}`,
       }
     )
-
-    const priorPause = stripeSubscription.pause_collection
-    const updatedPause = updatedSubscription.pause_collection
-    const pausePreserved =
-      priorPause === null
-        ? updatedPause === null
-        : priorPause?.behavior === updatedPause?.behavior &&
-          (priorPause?.resumes_at ?? null) === (updatedPause?.resumes_at ?? null)
-    if (!pausePreserved) {
-      throw new Error('Stripe did not preserve Enterprise payment-collection pause settings')
-    }
-
-    // Stripe's keep_as_draft contract handles future invoices itself. Only an
-    // interval switch creates an immediate full-period invoice; inspect that
-    // invoice rather than mistaking an older paid invoice for a failed update
-    // during an amount-only Price replacement.
-    if (
-      terms &&
-      billingIntervalChanged &&
-      updatedSubscription.pause_collection?.behavior === 'keep_as_draft'
-    ) {
-      await keepInitialEnterpriseInvoiceAsDraft({
-        stripe,
-        subscription: updatedSubscription,
-        operationId: context.eventId,
-      })
-    }
+    await verifyEnterpriseMetadataDelivery({
+      stripe,
+      subscription: updatedSubscription,
+      operationId: context.eventId,
+      deliveryState,
+      context,
+    })
 
     // Stripe's verified webhook is the only path that applies metadata to the
     // canonical subscription row. Normal delivery latency has a durable grace
@@ -1821,10 +1892,45 @@ export const moveEnterpriseWorkspace: OutboxHandler<unknown> = async (rawPayload
   })
 }
 
+export const reconcileEnterpriseMembers: OutboxHandler<unknown> = async (rawPayload, context) => {
+  const parsed = enterpriseMemberReconciliationPayloadSchema.safeParse(rawPayload)
+  if (!parsed.success) throw new Error('Invalid Enterprise member-reconciliation payload')
+  const payload = parsed.data
+
+  const nextCursor = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, payload.organizationId)
+    const rows = await tx
+      .select({ userId: member.userId })
+      .from(member)
+      .where(
+        and(
+          eq(member.organizationId, payload.organizationId),
+          payload.afterUserId ? gt(member.userId, payload.afterUserId) : undefined
+        )
+      )
+      .orderBy(member.userId)
+      .limit(ENTERPRISE_MEMBER_RECONCILIATION_BATCH_SIZE + 1)
+
+    const batch = rows.slice(0, ENTERPRISE_MEMBER_RECONCILIATION_BATCH_SIZE)
+    for (const row of batch) {
+      await reapplyPaidOrgJoinBillingForExistingMemberTx(tx, row.userId, payload.organizationId)
+    }
+
+    return rows.length > ENTERPRISE_MEMBER_RECONCILIATION_BATCH_SIZE
+      ? (batch.at(-1)?.userId ?? null)
+      : null
+  })
+
+  if (!nextCursor) return
+  await context.checkpointPayload({ afterUserId: nextCursor })
+  return deferOutboxHandler('Continuing bounded Enterprise member reconciliation', undefined, false)
+}
+
 export const enterpriseIssuanceOutboxHandlers = {
   [ENTERPRISE_PROVISION_EVENT_TYPE]: provisionEnterpriseInStripe,
   [ENTERPRISE_METADATA_SYNC_EVENT_TYPE]: syncEnterpriseMetadataInStripe,
   [ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE]: moveEnterpriseWorkspace,
+  [ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE]: reconcileEnterpriseMembers,
 } as const
 
 export async function getLatestEnterpriseProvisionings(

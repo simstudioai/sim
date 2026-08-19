@@ -67,7 +67,6 @@ describe('admin dashboard credit grant contract', () => {
         effectiveUsageLimitDollars: 0.001,
         prepaidBalanceDollars: 0.001,
         invoiceAmountUsd: null,
-        monthlyInvoiceAmountUsd: null,
         billingInterval: null,
         reportingPeriod: {
           anchorDate: null,
@@ -114,37 +113,11 @@ describe('admin dashboard credit grant contract', () => {
     expect(monthly.billingInterval).toBe('month')
   })
 
-  it('keeps the legacy monthly issuance request monthly during a rolling deployment', () => {
-    const legacy = adminDashboardIssueEnterpriseBodySchema.parse({
-      ownerUserId: 'owner-1',
-      monthlyInvoiceAmountUsd: 100,
-      seats: 10,
-    })
-
-    expect(legacy).toMatchObject({
-      billingInterval: 'month',
-      invoiceAmountUsd: 100,
-    })
-    expect(legacy).not.toHaveProperty('monthlyInvoiceAmountUsd')
-  })
-
-  it('rejects conflicting legacy and interval invoice amounts', () => {
-    expect(
-      adminDashboardIssueEnterpriseBodySchema.safeParse({
-        ownerUserId: 'owner-1',
-        invoiceAmountUsd: 1_200,
-        monthlyInvoiceAmountUsd: 100,
-        seats: 10,
-      }).success
-    ).toBe(false)
-  })
-
-  it('rejects a monthly-named legacy amount with an explicit annual cadence', () => {
+  it('rejects the removed monthly-named invoice field', () => {
     expect(
       adminDashboardIssueEnterpriseBodySchema.safeParse({
         ownerUserId: 'owner-1',
         monthlyInvoiceAmountUsd: 100,
-        billingInterval: 'year',
         seats: 10,
       }).success
     ).toBe(false)
@@ -183,7 +156,6 @@ describe('admin dashboard credit grant contract', () => {
 
   it('keeps organization detail unbounded for legacy callers and supports bounded collection pages', () => {
     expect(adminDashboardOrganizationDetailQuerySchema.parse({})).toEqual({
-      paginated: false,
       limit: 50,
       memberOffset: 0,
       externalCollaboratorOffset: 0,
@@ -191,14 +163,12 @@ describe('admin dashboard credit grant contract', () => {
     })
     expect(
       adminDashboardOrganizationDetailQuerySchema.parse({
-        paginated: 'true',
         limit: '25',
         memberOffset: '50',
         externalCollaboratorOffset: '75',
         workspaceOffset: '100',
       })
     ).toEqual({
-      paginated: true,
       limit: 25,
       memberOffset: 50,
       externalCollaboratorOffset: 75,

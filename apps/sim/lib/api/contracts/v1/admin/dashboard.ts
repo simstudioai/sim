@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import {
-  adminV1BooleanQuerySchema,
   adminV1IdParamsSchema,
   adminV1ListResponseSchema,
   adminV1PaginationMetaSchema,
@@ -67,7 +66,6 @@ export const adminDashboardProvisioningSchema = z.object({
   organizationId: z.string(),
   status: z.enum(['pending', 'processing', 'dead_letter', 'awaiting_webhook', 'applied']),
   invoiceAmountUsd: z.number(),
-  monthlyInvoiceAmountUsd: z.number().nullable(),
   billingInterval: adminDashboardBillingIntervalSchema,
   reportingPeriodAnchorDate: z.string().nullable(),
   usageLimitDollars: creditAlignedDollarAmountSchema,
@@ -109,7 +107,6 @@ export const adminDashboardOrganizationSummarySchema = z.object({
   effectiveUsageLimitDollars: dollarAmountSchema,
   prepaidBalanceDollars: dollarAmountSchema,
   invoiceAmountUsd: z.number().nullable(),
-  monthlyInvoiceAmountUsd: z.number().nullable(),
   billingInterval: adminDashboardBillingIntervalSchema.nullable(),
   reportingPeriod: adminDashboardReportingPeriodSchema,
   usage: adminDashboardUsageSchema,
@@ -190,7 +187,6 @@ export const adminDashboardSearchQuerySchema = adminV1PaginationQuerySchema.exte
 })
 
 export const adminDashboardOrganizationDetailQuerySchema = z.object({
-  paginated: adminV1BooleanQuerySchema,
   limit: adminV1PaginationQuerySchema.shape.limit.default(50),
   memberOffset: adminV1PaginationQuerySchema.shape.offset.default(0),
   externalCollaboratorOffset: adminV1PaginationQuerySchema.shape.offset.default(0),
@@ -201,9 +197,8 @@ export const adminDashboardIssueEnterpriseBodySchema = z
   .object({
     ownerUserId: z.string().min(1),
     organizationName: z.string().trim().min(1).max(120).optional(),
-    invoiceAmountUsd: adminDashboardInvoiceAmountSchema.optional(),
-    monthlyInvoiceAmountUsd: adminDashboardInvoiceAmountSchema.optional(),
-    billingInterval: adminDashboardBillingIntervalSchema.optional(),
+    invoiceAmountUsd: adminDashboardInvoiceAmountSchema,
+    billingInterval: adminDashboardBillingIntervalSchema.default('year'),
     reportingPeriodAnchorDate: adminDashboardDateOnlySchema.optional(),
     workspaceIds: z.array(z.string().min(1)).max(1_000).default([]),
     usageLimitDollars: creditAlignedDollarAmountSchema.optional(),
@@ -217,43 +212,7 @@ export const adminDashboardIssueEnterpriseBodySchema = z
       .optional(),
     pausePaymentCollection: z.boolean().optional(),
   })
-  .superRefine((body, context) => {
-    if (body.invoiceAmountUsd === undefined && body.monthlyInvoiceAmountUsd === undefined) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Invoice amount is required',
-        path: ['invoiceAmountUsd'],
-      })
-    }
-    if (
-      body.invoiceAmountUsd !== undefined &&
-      body.monthlyInvoiceAmountUsd !== undefined &&
-      body.invoiceAmountUsd !== body.monthlyInvoiceAmountUsd
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Legacy and interval invoice amounts must match when both are provided',
-        path: ['monthlyInvoiceAmountUsd'],
-      })
-    }
-    if (
-      body.invoiceAmountUsd === undefined &&
-      body.monthlyInvoiceAmountUsd !== undefined &&
-      body.billingInterval === 'year'
-    ) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Annual cadence requires the interval-neutral invoiceAmountUsd field',
-        path: ['invoiceAmountUsd'],
-      })
-    }
-  })
-  .transform(({ monthlyInvoiceAmountUsd, ...body }) => ({
-    ...body,
-    invoiceAmountUsd: body.invoiceAmountUsd ?? (monthlyInvoiceAmountUsd as number),
-    billingInterval:
-      body.billingInterval ?? (body.invoiceAmountUsd === undefined ? ('month' as const) : 'year'),
-  }))
+  .strict()
 
 export const adminDashboardSeatsBodySchema = z.object({
   seats: z.number().int().positive().max(100_000),

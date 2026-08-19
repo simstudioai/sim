@@ -3,32 +3,39 @@ import { db } from '@sim/db'
 import { member, organization, outboxEvent, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, count, eq, inArray, sql } from 'drizzle-orm'
+import { isRecordLike } from '@sim/utils/object'
+import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
 import { deriveEnterpriseCreditLimits } from '@/lib/billing/enterprise-credit-limits'
 import {
+  ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE,
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
   ENTERPRISE_PROVISION_EVENT_TYPE,
   ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
   type EnterpriseProvisionPayload,
+  enterpriseMetadataDeliveryIsVerified,
   enterpriseMetadataIntentMatchesStripeSubscription,
   enterpriseMetadataSyncPayloadSchema,
   enterpriseOperationMatchesStripeSubscription,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
-import {
-  acquireOrganizationMutationLock,
-  reapplyPaidOrgJoinBillingForExistingMemberTx,
-} from '@/lib/billing/organizations/membership'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
-import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  hasPaidSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
 import {
   assertEnterpriseReconciliationLeaseHeld,
   type EnterpriseReconciliationLease,
   withEnterpriseReconciliationLease,
 } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
-import { enqueueOutboxEvent, patchOutboxEventPayload } from '@/lib/core/outbox/service'
+import {
+  enqueueOutboxEvent,
+  enqueueOutboxEvents,
+  patchOutboxEventPayload,
+} from '@/lib/core/outbox/service'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -42,14 +49,23 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
 
 async function processManualEnterpriseSubscription(event: Stripe.Event) {
   const eventSubscription = event.data.object as Stripe.Subscription
+  const rawPreviousAttributes: unknown = event.data.previous_attributes
+  const previousAttributes: Record<string, unknown> = isRecordLike(rawPreviousAttributes)
+    ? rawPreviousAttributes
+    : {}
   return withEnterpriseReconciliationLease(eventSubscription.id, (lease) =>
-    reconcileManualEnterpriseSubscription(eventSubscription, lease)
+    reconcileManualEnterpriseSubscription(eventSubscription, lease, {
+      created: event.type === 'customer.subscription.created',
+      previousStatus:
+        typeof previousAttributes.status === 'string' ? previousAttributes.status : null,
+    })
   )
 }
 
 async function reconcileManualEnterpriseSubscription(
   eventSubscription: Stripe.Subscription,
-  reconciliationLease: EnterpriseReconciliationLease
+  reconciliationLease: EnterpriseReconciliationLease,
+  trigger: { created: boolean; previousStatus: string | null }
 ) {
   // Stripe does not promise webhook ordering. Read the current object before
   // taking DB locks so a delayed created/updated event cannot overwrite newer
@@ -268,7 +284,12 @@ async function reconcileManualEnterpriseSubscription(
     }
 
     const [existing] = await tx
-      .select({ id: subscription.id, referenceId: subscription.referenceId })
+      .select({
+        id: subscription.id,
+        referenceId: subscription.referenceId,
+        status: subscription.status,
+        metadata: subscription.metadata,
+      })
       .from(subscription)
       .where(eq(subscription.stripeSubscriptionId, stripeSubscription.id))
       .limit(1)
@@ -280,7 +301,16 @@ async function reconcileManualEnterpriseSubscription(
     }
 
     const configOperationId = metadata.simConfigOperationId
-    if (typeof configOperationId === 'string' && configOperationId.length > 0) {
+    const existingMetadata = isRecordLike(existing?.metadata) ? existing.metadata : {}
+    const configurationAlreadyApplied =
+      typeof configOperationId === 'string' &&
+      configOperationId.length > 0 &&
+      existingMetadata.simConfigOperationId === configOperationId
+    if (
+      typeof configOperationId === 'string' &&
+      configOperationId.length > 0 &&
+      !configurationAlreadyApplied
+    ) {
       const [configurationRow] = await tx
         .select({ eventType: outboxEvent.eventType, payload: outboxEvent.payload })
         .from(outboxEvent)
@@ -295,6 +325,7 @@ async function reconcileManualEnterpriseSubscription(
           configurationRow?.eventType === ENTERPRISE_METADATA_SYNC_EVENT_TYPE &&
           configurationPayload.success &&
           configurationPayload.data.subscriptionId === existing.id &&
+          enterpriseMetadataDeliveryIsVerified(configurationPayload.data) &&
           enterpriseMetadataIntentMatchesStripeSubscription(
             configurationPayload.data,
             configOperationId,
@@ -347,28 +378,37 @@ async function reconcileManualEnterpriseSubscription(
       .where(eq(organization.id, referenceId))
 
     if (operationNewlyApplied && correlatedOperation) {
-      for (const [sequence, workspaceId] of correlatedOperation.request.workspaceIds.entries()) {
-        await enqueueOutboxEvent(tx, ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE, {
+      await enqueueOutboxEvents(
+        tx,
+        ENTERPRISE_WORKSPACE_MOVE_EVENT_TYPE,
+        correlatedOperation.request.workspaceIds.map((workspaceId, sequence) => ({
           provisioningOperationId: operationId,
           workspaceId,
           destinationOrganizationId: referenceId,
           expectedOwnerId: correlatedOperation.request.ownerUserId,
           adminEmail: correlatedOperation.request.requestedByEmail,
           sequence,
-        })
-      }
+        }))
+      )
     }
 
-    // The organization lock is held across the census and all member billing
-    // transitions. Add/remove/accept paths take the same lock, so a departing
-    // member cannot be re-paused after their removal restores personal Pro.
-    const existingMembers = await tx
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, referenceId))
-      .orderBy(asc(member.userId))
-    for (const existingMember of existingMembers) {
-      await reapplyPaidOrgJoinBillingForExistingMemberTx(tx, existingMember.userId, referenceId)
+    const wasEntitled = hasPaidSubscriptionStatus(existing?.status)
+    const isEntitled = hasPaidSubscriptionStatus(subscriptionRow.status)
+    const triggerRestoredEntitlement = Boolean(
+      trigger.previousStatus && !hasPaidSubscriptionStatus(trigger.previousStatus)
+    )
+    if (
+      isEntitled &&
+      (operationNewlyApplied ||
+        !existing ||
+        !wasEntitled ||
+        trigger.created ||
+        triggerRestoredEntitlement)
+    ) {
+      await enqueueOutboxEvent(tx, ENTERPRISE_MEMBER_RECONCILIATION_EVENT_TYPE, {
+        organizationId: referenceId,
+        afterUserId: null,
+      })
     }
 
     if (correlatedOperation && typeof operationId === 'string') {

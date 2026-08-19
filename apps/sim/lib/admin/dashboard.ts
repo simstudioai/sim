@@ -390,7 +390,6 @@ export function toDashboardProvisioning(view: EnterpriseProvisioningView) {
   const { usageLimitCredits, ...rest } = view
   return {
     ...rest,
-    monthlyInvoiceAmountUsd: view.billingInterval === 'month' ? view.invoiceAmountUsd : null,
     usageLimitDollars: creditsToDollars(usageLimitCredits),
   }
 }
@@ -453,14 +452,6 @@ function buildDashboardOrganizationSummary({
         ? invoiceAmountCents !== null
           ? invoiceAmountCents / 100
           : (monthlyPrice ?? null)
-        : (teamEconomics?.monthlyInvoiceAmountUsd ?? null),
-    monthlyInvoiceAmountUsd:
-      latestSubscription?.plan === 'enterprise'
-        ? latestSubscription.billingInterval === 'year'
-          ? null
-          : invoiceAmountCents !== null
-            ? invoiceAmountCents / 100
-            : (monthlyPrice ?? null)
         : (teamEconomics?.monthlyInvoiceAmountUsd ?? null),
     billingInterval:
       latestSubscription?.billingInterval === 'year' ||
@@ -855,13 +846,11 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
 export async function getDashboardOrganization(
   organizationId: string,
   pagination: {
-    paginated: boolean
     limit: number
     memberOffset: number
     externalCollaboratorOffset: number
     workspaceOffset: number
   } = {
-    paginated: false,
     limit: 50,
     memberOffset: 0,
     externalCollaboratorOffset: 0,
@@ -918,23 +907,15 @@ export async function getDashboardOrganization(
 
   const [memberRows, externalRows, workspaceRows, workspaceCountRows, configurationIntent] =
     await Promise.all([
-      pagination.paginated
-        ? memberQuery().limit(pagination.limit).offset(pagination.memberOffset)
-        : memberQuery(),
-      pagination.paginated
-        ? externalCollaboratorQuery()
-            .limit(pagination.limit)
-            .offset(pagination.externalCollaboratorOffset)
-        : externalCollaboratorQuery(),
-      pagination.paginated
-        ? workspaceQuery().limit(pagination.limit).offset(pagination.workspaceOffset)
-        : workspaceQuery(),
-      pagination.paginated
-        ? db
-            .select({ value: count() })
-            .from(workspace)
-            .where(eq(workspace.organizationId, organizationId))
-        : Promise.resolve([]),
+      memberQuery().limit(pagination.limit).offset(pagination.memberOffset),
+      externalCollaboratorQuery()
+        .limit(pagination.limit)
+        .offset(pagination.externalCollaboratorOffset),
+      workspaceQuery().limit(pagination.limit).offset(pagination.workspaceOffset),
+      db
+        .select({ value: count() })
+        .from(workspace)
+        .where(eq(workspace.organizationId, organizationId)),
       subscriptionRow?.plan === 'enterprise'
         ? resolveEnterpriseMetadataIntent(db, subscriptionRow.id, subscriptionRow.metadata)
         : Promise.resolve(null),
@@ -964,9 +945,7 @@ export async function getDashboardOrganization(
   ])
   const limits = new Map(limitRows.map((row) => [row.userId, Number(row.limit)]))
   const usageByUser = usageByOrganization.get(organizationId)?.byUser ?? new Map<string, number>()
-  const workspaceTotal = pagination.paginated
-    ? (workspaceCountRows[0]?.value ?? 0)
-    : workspaceRows.length
+  const workspaceTotal = workspaceCountRows[0]?.value ?? 0
   return {
     ...base,
     configurationUpdate: toDashboardConfigurationUpdate(
@@ -988,26 +967,23 @@ export async function getDashboardOrganization(
     workspaces: workspaceRows,
     memberPagination: {
       total: base.memberCount,
-      limit: pagination.paginated ? pagination.limit : memberRows.length,
-      offset: pagination.paginated ? pagination.memberOffset : 0,
-      hasMore:
-        pagination.paginated && pagination.memberOffset + memberRows.length < base.memberCount,
+      limit: pagination.limit,
+      offset: pagination.memberOffset,
+      hasMore: pagination.memberOffset + memberRows.length < base.memberCount,
     },
     externalCollaboratorPagination: {
       total: base.externalCollaboratorCount,
-      limit: pagination.paginated ? pagination.limit : externalRows.length,
-      offset: pagination.paginated ? pagination.externalCollaboratorOffset : 0,
+      limit: pagination.limit,
+      offset: pagination.externalCollaboratorOffset,
       hasMore:
-        pagination.paginated &&
         pagination.externalCollaboratorOffset + externalRows.length <
-          base.externalCollaboratorCount,
+        base.externalCollaboratorCount,
     },
     workspacePagination: {
       total: workspaceTotal,
-      limit: pagination.paginated ? pagination.limit : workspaceRows.length,
-      offset: pagination.paginated ? pagination.workspaceOffset : 0,
-      hasMore:
-        pagination.paginated && pagination.workspaceOffset + workspaceRows.length < workspaceTotal,
+      limit: pagination.limit,
+      offset: pagination.workspaceOffset,
+      hasMore: pagination.workspaceOffset + workspaceRows.length < workspaceTotal,
     },
     subscription: subscriptionRow
       ? {
