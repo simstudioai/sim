@@ -244,14 +244,28 @@ function useInlinedWorkspaceImages(content: string): string {
     if (missing.length === 0) return
     let cancelled = false
     for (const url of missing) {
-      // boundary-raw-fetch: binary image bytes, converted to blob: URLs for the cookie-less sandboxed preview
+      // boundary-raw-fetch: binary image bytes for the cookie-less sandboxed preview
       fetch(url)
         .then((response) => (response.ok ? response.blob() : null))
-        .then((blob) => {
-          if (!blob || cancelled) return
-          const blobUrl = URL.createObjectURL(blob)
-          cache.set(url, blobUrl)
-          setResolved((prev) => ({ ...prev, [url]: blobUrl }))
+        .then(
+          (blob) =>
+            new Promise<string | null>((resolve) => {
+              if (!blob) return resolve(null)
+              // data: URIs, NOT blob: URLs — blob URLs are origin-bound and
+              // the sandboxed frame's origin is opaque, so Chromium refuses
+              // to render a parent-origin blob inside it. data: is
+              // origin-independent and already allowed by the preview CSP.
+              const reader = new FileReader()
+              reader.onload = () =>
+                resolve(typeof reader.result === 'string' ? reader.result : null)
+              reader.onerror = () => resolve(null)
+              reader.readAsDataURL(blob)
+            })
+        )
+        .then((dataUri) => {
+          if (!dataUri || cancelled) return
+          cache.set(url, dataUri)
+          setResolved((prev) => ({ ...prev, [url]: dataUri }))
         })
         .catch(() => {})
     }

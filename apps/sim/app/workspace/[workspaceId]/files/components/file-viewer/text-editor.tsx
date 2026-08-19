@@ -21,6 +21,9 @@ import { PreviewLoadingFrame } from './preview-shared'
 import { useEditableFileContent } from './use-editable-file-content'
 import { useSelectionCopyBridge } from './use-selection-copy-bridge'
 
+/** File ids observed rendering as Sim pages this session (see the sticky lock). */
+const KNOWN_PAGE_FILE_IDS = new Set<string>()
+
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
   { token: 'string', foreground: '3ab872' },
@@ -595,11 +598,17 @@ export const TextEditor = memo(function TextEditor({
   // the raw-header flash at stream start and the raw flips between an
   // agent's tool calls. Bespoke raw HTML keeps the old behavior.
   const trimmedContent = content.trimStart()
-  const isSimPageFile =
+  const detectedSimPage =
     file.type === SIM_PAGE_CONTENT_TYPE ||
     (previewType === 'html' &&
       (isSimPageSource(content) ||
         (isStreaming && (trimmedContent === '' || trimmedContent.startsWith('-')))))
+  // Sticky per file: a PATCH stream carries only the replacement snippet,
+  // which is not frontmatter-shaped — without memory the lock would drop
+  // mid-edit and flash raw source. Once a file is known to be a page, it
+  // stays one for the session.
+  if (detectedSimPage) KNOWN_PAGE_FILE_IDS.add(file.id)
+  const isSimPageFile = detectedSimPage || KNOWN_PAGE_FILE_IDS.has(file.id)
   const effectiveMode = isSimPageFile
     ? 'preview'
     : isStreaming && isIframeRendered

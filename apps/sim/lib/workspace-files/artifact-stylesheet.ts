@@ -57,6 +57,10 @@ const ARTIFACT_TOKENS = [
   '--badge-error-text',
   '--badge-gray-bg',
   '--badge-gray-text',
+  '--badge-blue-bg',
+  '--badge-blue-text',
+  '--badge-purple-bg',
+  '--badge-purple-text',
   '--text-icon-muted',
   '--code-bg',
   '--selection-bg',
@@ -134,6 +138,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --badge-error-text: #dc2626;
   --badge-gray-bg: #e7e5e4;
   --badge-gray-text: #57534e;
+  --badge-blue-bg: #bfdbfe;
+  --badge-blue-text: #1d4ed8;
+  --badge-purple-bg: #e9d5ff;
+  --badge-purple-text: #7c3aed;
   --text-icon-muted: #5c5c5c;
   --code-bg: #f5f5f5;
   --code-surface: var(--surface-5);
@@ -188,6 +196,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --badge-error-text: #fca5a5;
   --badge-gray-bg: #3a3a3a;
   --badge-gray-text: #a8a8a8;
+  --badge-blue-bg: rgba(59, 130, 246, 0.2);
+  --badge-blue-text: #93c5fd;
+  --badge-purple-bg: rgba(168, 85, 247, 0.2);
+  --badge-purple-text: #d8b4fe;
   --bg: #1b1b1b;
   --surface-1: #1e1e1e;
   --surface-2: #232323;
@@ -609,6 +621,49 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .codeblock-copy.is-copied { color: var(--brand-accent); }
 .codeblock pre { border: none; border-radius: 0; margin: 0; background: transparent; }
 
+/* Steps — the docs' numbered timeline: a muted numbered circle per step,
+   a hairline connector between them, title + content beside. */
+.steps { list-style: none; margin: 1.25rem 0; padding: 0; }
+.step { position: relative; display: flex; gap: 1rem; padding-bottom: 1.9rem; }
+.step:last-child { padding-bottom: 0.25rem; }
+.step::before {
+  content: ''; position: absolute; left: 13.5px; top: 32px; bottom: 4px;
+  width: 1px; background: var(--border);
+}
+.step:last-child::before { display: none; }
+.step-marker {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-5); color: var(--text-muted);
+  font-size: var(--text-small); font-weight: 500;
+}
+.step-body { min-width: 0; padding-top: 3px; }
+.step-title { font-weight: 500; color: var(--text-primary); margin-bottom: 0.4rem; }
+
+/* Code tabs — the docs' grouped code block: mono tab chips in the header,
+   one pane visible at a time. */
+.codetabs-head { display: flex; align-items: center; gap: 2px; padding: 0.3rem 0.4rem; }
+.codetab {
+  font-family: var(--font-mono); font-size: var(--text-small);
+  color: var(--text-muted); background: none; border: none;
+  border-radius: 0.375rem; padding: 0.2rem 0.6rem; cursor: pointer;
+}
+.codetab:hover { background: var(--surface-hover); color: var(--text-body); }
+.codetab.is-active { background: var(--surface-active); color: var(--text-primary); }
+.codetabs-head .codetabs-copy { position: static; margin-left: auto; }
+
+/* API method chips — sidebar entries only, the docs' reference nav. */
+.rail .method {
+  display: inline-block; margin-right: 8px; padding: 1px 6px;
+  border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+.rail .method-get { background: var(--badge-success-bg); color: var(--badge-success-text); }
+.rail .method-post { background: var(--badge-blue-bg); color: var(--badge-blue-text); }
+.rail .method-put { background: var(--badge-purple-bg); color: var(--badge-purple-text); }
+.rail .method-patch { background: var(--badge-orange-bg); color: var(--badge-orange-text); }
+.rail .method-delete { background: var(--badge-error-bg); color: var(--badge-error-text); }
+
 /* Footer pagination — the docs' PageFooter verbatim: name + chevron on a
    hover pill (mt-12 flex gap-2 py-3; cards flex-1 gap-1.5 rounded-lg px-3
    py-3 text-sm --text-body, hover --surface-active; chevrons 14px
@@ -825,6 +880,43 @@ export const SIM_ARTIFACT_SHELL = `<script>
       })
       pre.replaceWith(frame)
       frame.append(copy, pre)
+    }
+
+    // Code-tab groups: switch panes; the docs' icon copy control targets the
+    // visible pane.
+    for (const group of [...main.querySelectorAll('.codetabs')]) {
+      const head = group.querySelector('.codetabs-head')
+      if (!head) continue
+      const groupCopy = document.createElement('button')
+      groupCopy.className = 'codeblock-copy codetabs-copy'
+      groupCopy.type = 'button'
+      groupCopy.setAttribute('aria-label', 'Copy Text')
+      groupCopy.innerHTML = COPY_ICON
+      let groupResetTimer
+      groupCopy.addEventListener('click', async () => {
+        const pane = group.querySelector('pre:not([hidden])')
+        try {
+          await navigator.clipboard.writeText((pane && pane.textContent) || '')
+          groupCopy.innerHTML = COPIED_ICON
+          groupCopy.classList.add('is-copied')
+          clearTimeout(groupResetTimer)
+          groupResetTimer = setTimeout(() => {
+            groupCopy.innerHTML = COPY_ICON
+            groupCopy.classList.remove('is-copied')
+          }, 1500)
+        } catch {}
+      })
+      head.appendChild(groupCopy)
+      head.addEventListener('click', (event) => {
+        const origin = event.target
+        const btn = origin && origin.closest ? origin.closest('.codetab') : null
+        if (!btn) return
+        const tabs = [...head.querySelectorAll('.codetab')]
+        const panes = [...group.querySelectorAll('pre')]
+        const index = tabs.indexOf(btn)
+        tabs.forEach((tab, i) => tab.classList.toggle('is-active', i === index))
+        panes.forEach((pane, i) => { pane.hidden = i !== index })
+      })
     }
 
     const cols = document.createElement('div')

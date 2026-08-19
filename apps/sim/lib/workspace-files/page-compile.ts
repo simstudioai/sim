@@ -67,9 +67,16 @@ function setNavHtml(nav: NonNullable<z.infer<typeof frontmatterSchema>['nav']>):
     .map((group) => {
       const links = group.pages
         .map((entry) => {
-          const match = entry.match(MD_LINK)
+          // An optional METHOD prefix ("GET [List Workflows](sim:file/x)")
+          // renders the docs' API-reference chip — sidebar entries only.
+          const methodMatch = entry.match(/^\s*(GET|POST|PUT|PATCH|DELETE)\s+(.*)$/)
+          const method = methodMatch?.[1]
+          const match = (methodMatch?.[2] ?? entry).match(MD_LINK)
           if (!match) return ''
-          return `<a href="${escapeHtml(match[2])}">${escapeHtml(match[1])}</a>`
+          const chip = method
+            ? `<span class="method method-${method.toLowerCase()}">${method}</span>`
+            : ''
+          return `<a href="${escapeHtml(match[2])}">${chip}${escapeHtml(match[1])}</a>`
         })
         .filter(Boolean)
         .join('')
@@ -125,6 +132,12 @@ const tablePayloadSchema = z.object({
   rows: z.array(z.array(textCell)).min(1),
 })
 const kvItemsSchema = z.array(z.object({ key: textCell, value: textCell })).min(1)
+const stepsItemsSchema = z
+  .array(z.object({ title: textCell, markdown: textCell.optional() }))
+  .min(1)
+const tabsItemsSchema = z
+  .array(z.object({ label: textCell, lang: textCell.optional(), code: textCell }))
+  .min(1)
 const accordionItemsSchema = z
   .array(
     z
@@ -228,6 +241,34 @@ const FENCE_RENDERERS: Record<string, FenceRenderer> = {
   },
   faq: renderAccordion,
   accordion: renderAccordion,
+  steps: (payload) => {
+    const parsed = stepsItemsSchema.safeParse(payload)
+    if (!parsed.success) return null
+    const items = parsed.data
+      .map(
+        (step, index) =>
+          `<li class="step"><div class="step-marker">${index + 1}</div><div class="step-body"><div class="step-title">${renderInlineMarkdown(step.title)}</div>${step.markdown ? renderMarkdown(step.markdown) : ''}</div></li>`
+      )
+      .join('')
+    return `<ol class="steps">${items}</ol>`
+  },
+  tabs: (payload) => {
+    const parsed = tabsItemsSchema.safeParse(payload)
+    if (!parsed.success) return null
+    const buttons = parsed.data
+      .map(
+        (tab, index) =>
+          `<button type="button" class="codetab${index === 0 ? ' is-active' : ''}">${escapeHtml(tab.label)}</button>`
+      )
+      .join('')
+    const panes = parsed.data
+      .map(
+        (tab, index) =>
+          `<pre${index === 0 ? '' : ' hidden'}><code${tab.lang ? ` class="language-${escapeHtml(tab.lang)}"` : ''}>${escapeHtml(tab.code)}</code></pre>`
+      )
+      .join('')
+    return `<figure class="codeblock codetabs"><div class="codeblock-head codetabs-head">${buttons}</div>${panes}</figure>`
+  },
 }
 
 /** `sim:faq` and `sim:accordion` share the docs' expandable-rows treatment. */
