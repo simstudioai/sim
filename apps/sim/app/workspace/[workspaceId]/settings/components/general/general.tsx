@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Button,
+  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -26,6 +27,7 @@ import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { DeleteAccountModal } from '@/app/workspace/[workspaceId]/settings/components/general/components/delete-account-modal'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -92,6 +94,8 @@ export function General() {
 
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const resetPassword = useResetPassword()
+
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false)
 
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -572,6 +576,21 @@ export function General() {
             </p>
           </div>
         </SettingsSection>
+
+        {!isAuthDisabled && (
+          <SettingsSection label='Account'>
+            <div className='flex flex-col gap-3'>
+              <div className='flex items-center justify-between'>
+                <Label>Delete account</Label>
+                <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
+              </div>
+              <p className='text-[var(--text-muted)] text-small'>
+                Permanently deletes your account and everything only you can reach — workflows,
+                chats, files, knowledge bases and credentials. This cannot be undone.
+              </p>
+            </div>
+          </SettingsSection>
+        )}
       </SettingsPanel>
 
       <ChipModal
@@ -604,6 +623,12 @@ export function General() {
           }}
         />
       </ChipModal>
+
+      <DeleteAccountModal
+        open={showDeleteAccountModal}
+        onOpenChange={setShowDeleteAccountModal}
+        email={profile?.email || ''}
+      />
     </>
   )
 }

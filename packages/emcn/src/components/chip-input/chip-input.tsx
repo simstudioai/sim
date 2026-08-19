@@ -9,10 +9,11 @@
  *
  * The chrome lives on the wrapper so a leading `icon` and a trailing
  * `endAdornment` (reveal / copy buttons) sit flush next to a transparent inner
- * `<input>`. The leading icon uses the same 1.5 gap as `Chip`. It shares the
- * chip-field chrome with {@link ChipTextarea}, shows no focus ring — keep the
- * surface calm and rely on the caret for focus. Pass `error` to swap the border
- * to the error token.
+ * `<input>`. Matching negative margin and text indent give leading glyphs paint
+ * clearance without moving their visual alignment. The leading icon uses the
+ * same 1.5 gap as `Chip`. It shares the chip-field chrome with
+ * {@link ChipTextarea}, shows no focus ring — keep the surface calm and rely on
+ * the caret for focus. Pass `error` to swap the border to the error token.
  *
  * @example
  * ```tsx
@@ -77,7 +78,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
         type={type}
         disabled={disabled}
         className={cn(
-          'h-full w-full bg-transparent disabled:cursor-not-allowed',
+          '-ml-1 h-full w-full bg-transparent indent-1 disabled:cursor-not-allowed',
           chipFieldTextClass,
           inputClassName
         )}

@@ -37,6 +37,16 @@ export const PROSE_SPACING = {
 } as const
 
 /**
+ * Column widths for the cookie-inventory tables. Sibling tables sharing a header
+ * must be given a fixed layout or each sizes itself to its own content and the
+ * group reads as unaligned grids — so the widths are chrome, and live here
+ * rather than as class strings in a content config.
+ */
+export const PROSE_TABLE_WIDTHS = {
+  cookieInventory: ['w-[24%]', 'w-[16%]', 'w-[45%]', 'w-[15%]'],
+} as const
+
+/**
  * Prose type tokens - the single source of truth for every heading size, body
  * color, list, callout, and inline-link treatment. Centralized alongside the
  * spacing fortress so chrome is described once and never re-derived per page.
@@ -53,4 +63,11 @@ export const PROSE_TYPE = {
   callout:
     'rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-[14px] text-[var(--text-body)] leading-[1.6]',
   link: 'text-[var(--text-primary)] underline underline-offset-2 transition-colors hover:text-[var(--text-body)]',
+  tableWrap: 'w-full overflow-x-auto',
+  tableCaption: 'pb-2 text-left text-[15px] text-[var(--text-primary)]',
+  table: 'w-full min-w-[560px] table-fixed border-collapse text-left',
+  tableHeadCell:
+    'border-[var(--border)] border-b px-3 py-2 align-bottom font-medium text-[13px] text-[var(--text-primary)] first:pl-0 last:pr-0',
+  tableCell:
+    'border-[var(--border)] border-b px-3 py-2.5 align-top text-[14px] text-[var(--text-body)] leading-[1.55] first:pl-0 last:pr-0 [&_code]:font-mono [&_code]:text-[13px]',
 } as const

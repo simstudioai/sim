@@ -2,6 +2,9 @@
  * All auditable actions in the platform, grouped by resource type.
  */
 export const AuditAction = {
+  // Accounts
+  ACCOUNT_DELETED: 'account.deleted',
+
   // API Keys
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
@@ -220,6 +223,7 @@ export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]
  * All resource types that can appear in audit log entries.
  */
 export const AuditResourceType = {
+  ACCOUNT: 'account',
   API_KEY: 'api_key',
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
