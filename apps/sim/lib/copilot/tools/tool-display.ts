@@ -1039,6 +1039,10 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
         (stringArg(args, 'url') ? displayUrl(stringArg(args, 'url')) : '')
       return target ? `Downloading ${target}` : 'Downloading file'
     }
+    case 'extract_doc_assets': {
+      const target = stringArg(args, 'path') ? pathLeaf(stringArg(args, 'path')) : ''
+      return target ? `Extracting assets from ${target}` : 'Extracting document assets'
+    }
     case 'search_library_docs': {
       const library = firstStringArg(args, 'library_name', 'libraryName', 'library')
       const query = stringArg(args, 'query')

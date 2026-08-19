@@ -2264,6 +2264,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  extract_doc_assets: {
+    parameters: {
+      type: 'object',
+      properties: {
+        destination: {
+          type: 'string',
+          description:
+            'Folder to write the extracted set into. Defaults to a "files/<Source Name> assets" folder next to the source.',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Workspace VFS path of the source document, e.g. files/Brand%20Deck.pptx. Must be an existing .pptx or .docx file.',
+        },
+      },
+      required: ['path'],
+    },
+    resultSchema: undefined,
+  },
   ffmpeg: {
     parameters: {
       type: 'object',

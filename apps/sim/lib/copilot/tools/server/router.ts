@@ -30,6 +30,7 @@ import { enrichmentRunServerTool } from '@/lib/copilot/tools/server/enrichment/e
 import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
+import { extractDocAssetsServerTool } from '@/lib/copilot/tools/server/files/extract-doc-assets'
 import {
   createFileFolderServerTool,
   listFileFoldersServerTool,
@@ -196,6 +197,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [renameFileFolderServerTool.name]: renameFileFolderServerTool,
   [moveFileFolderServerTool.name]: moveFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
+  [extractDocAssetsServerTool.name]: extractDocAssetsServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
   [generateVideoServerTool.name]: generateVideoServerTool,
   [generateAudioServerTool.name]: generateAudioServerTool,

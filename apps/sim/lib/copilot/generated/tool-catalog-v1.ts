@@ -48,6 +48,7 @@ export interface ToolCatalogEntry {
     | 'download_file'
     | 'edit_workflow'
     | 'extensions'
+    | 'extract_doc_assets'
     | 'ffmpeg'
     | 'file'
     | 'generate_api_key'
@@ -175,6 +176,7 @@ export interface ToolCatalogEntry {
     | 'download_file'
     | 'edit_workflow'
     | 'extensions'
+    | 'extract_doc_assets'
     | 'ffmpeg'
     | 'file'
     | 'generate_api_key'
@@ -2302,6 +2304,31 @@ export const Extensions: ToolCatalogEntry = {
   subagentId: 'agent',
   internal: true,
   requiredPermission: 'write',
+}
+
+export const ExtractDocAssets: ToolCatalogEntry = {
+  id: 'extract_doc_assets',
+  name: 'extract_doc_assets',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      destination: {
+        type: 'string',
+        description:
+          'Folder to write the extracted set into. Defaults to a "files/<Source Name> assets" folder next to the source.',
+      },
+      path: {
+        type: 'string',
+        description:
+          'Workspace VFS path of the source document, e.g. files/Brand%20Deck.pptx. Must be an existing .pptx or .docx file.',
+      },
+    },
+    required: ['path'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_output'],
 }
 
 export const Ffmpeg: ToolCatalogEntry = {
@@ -7190,6 +7217,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [DownloadFile.id]: DownloadFile,
   [EditWorkflow.id]: EditWorkflow,
   [Extensions.id]: Extensions,
+  [ExtractDocAssets.id]: ExtractDocAssets,
   [Ffmpeg.id]: Ffmpeg,
   [File.id]: File,
   [GenerateApiKey.id]: GenerateApiKey,
