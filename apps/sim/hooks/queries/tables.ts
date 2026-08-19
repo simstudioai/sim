@@ -1589,7 +1589,16 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
         // strip isDefault from a newer default, leaving none) until the
         // refetch lands.
         const cached = prev.find((existing) => existing.id === view.id)
-        if (cached && new Date(view.updatedAt) < new Date(cached.updatedAt)) return prev
+        const currentDefault = view.isDefault
+          ? prev.find((existing) => existing.id !== view.id && existing.isDefault)
+          : undefined
+        const responseTime = new Date(view.updatedAt)
+        if (
+          (cached && responseTime < new Date(cached.updatedAt)) ||
+          (currentDefault && responseTime < new Date(currentDefault.updatedAt))
+        ) {
+          return prev
+        }
         return prev.map((existing) => {
           if (view.isDefault && existing.id !== view.id && existing.isDefault) {
             return { ...existing, isDefault: false }

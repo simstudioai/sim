@@ -153,12 +153,12 @@ describe('useUpdateTableView autosave ordering', () => {
       ...newerDefault,
       id: 'view-stale',
       name: 'Stale view',
-      updatedAt: new Date('2026-08-15T01:00:00.000Z'),
+      updatedAt: new Date('2026-08-15T02:00:00.000Z'),
     }
     const cachedStaleRow: TableViewWire = {
       ...stalePromotion,
       isDefault: false,
-      updatedAt: new Date('2026-08-15T02:00:00.000Z'),
+      updatedAt: new Date('2026-08-15T01:00:00.000Z'),
     }
     setCache(tableKeys.views(TABLE_ID), [newerDefault, cachedStaleRow])
 
