@@ -13,6 +13,15 @@ describe('assessPdfTextLayer', () => {
     expect(assessPdfTextLayer(page(60), 2)).toEqual({ usable: true })
   })
 
+  /**
+   * A parser limit stops extraction partway, so the text that came back is plenty
+   * by volume but is only part of the document. Accepting it would index a
+   * fragment and drop the rest from search without saying so.
+   */
+  it('rejects an extraction that stopped at a parser limit', () => {
+    expect(assessPdfTextLayer(page(200), 3, true)).toEqual({ usable: false, reason: 'truncated' })
+  })
+
   it('rejects a scan, which carries no text at all', () => {
     expect(assessPdfTextLayer('', 12)).toEqual({ usable: false, reason: 'no-text' })
     expect(assessPdfTextLayer('   \n  ', 12)).toEqual({ usable: false, reason: 'no-text' })

@@ -326,7 +326,7 @@ async function readEmbeddedPdfText(
       getPdfPageCount(buffer),
     ])
 
-    const verdict = assessPdfTextLayer(parsed.content, pageCount)
+    const verdict = assessPdfTextLayer(parsed.content, pageCount, parsed.metadata?.truncated)
     if (!verdict.usable) {
       logger.info('PDF text layer not usable, routing to OCR', {
         filename,

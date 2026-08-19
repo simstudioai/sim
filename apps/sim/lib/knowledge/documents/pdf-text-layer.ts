@@ -1,14 +1,12 @@
-import { envNumber } from '@/lib/core/config/env'
-
 /**
  * Minimum average characters per page for an embedded text layer to be trusted.
  *
- * A typeset page carries roughly 1,500–3,000 characters, a scanned image carries
- * none, so the gap is wide and the threshold does not need to be precise — it only
- * has to sit far below real prose and far above the handful of characters a scan
- * contributes from headers or stamps.
+ * A typeset page carries roughly 1,500–3,000 characters and a scanned image
+ * carries none, so this sits an order of magnitude below real prose and well above
+ * the handful of characters a scan contributes from a header or a stamp. The gap
+ * either side is wide enough that the exact value does not matter.
  */
-const DEFAULT_MIN_CHARS_PER_PAGE = 100
+const MIN_CHARS_PER_PAGE = 100
 
 /**
  * Share of characters that must be ordinary printable text.
@@ -37,7 +35,10 @@ const PRINTABLE_PATTERN = /[\p{L}\p{N}\p{P}\p{Zs}\n\r\t]/gu
 
 export type PdfTextLayerVerdict =
   | { usable: true }
-  | { usable: false; reason: 'no-text' | 'sparse-text' | 'unreadable-encoding' | 'cid-escapes' }
+  | {
+      usable: false
+      reason: 'no-text' | 'truncated' | 'sparse-text' | 'unreadable-encoding' | 'cid-escapes'
+    }
 
 function countMatches(text: string, pattern: RegExp): number {
   let total = 0
@@ -54,24 +55,32 @@ function countMatches(text: string, pattern: RegExp): number {
  * means only the documents that actually need OCR pay for it, and it removes the
  * dependency on that service for everything else.
  *
- * Three ways a text layer fails, all observed in the wild and none caught by the
- * others: there is no text (a scan), the text is too sparse to be the document's
- * real content, or there is plenty of text but it is not language — a broken
- * encoding, or raw CID codes from a font with no Unicode mapping.
+ * Four ways a text layer fails, none caught by the others: there is no text (a
+ * scan), extraction stopped at a parser limit so what came back is only part of
+ * the document, the text is too sparse to be the document's real content, or
+ * there is plenty of text but it is not language — a broken encoding, or raw CID
+ * codes from a font with no Unicode mapping.
  *
  * Known limitation: this judges the document as a whole, so a file that mixes
  * typeset pages with scanned inserts can average out above the threshold and keep
  * its partial text. Routing per page would catch that, and needs per-page
  * extraction this does not currently have.
  */
-export function assessPdfTextLayer(text: string, pageCount: number): PdfTextLayerVerdict {
+export function assessPdfTextLayer(
+  text: string,
+  pageCount: number,
+  truncated = false
+): PdfTextLayerVerdict {
   const trimmed = text.trim()
   if (trimmed.length === 0) return { usable: false, reason: 'no-text' }
 
-  const minCharsPerPage = envNumber(
-    process.env.KB_PDF_MIN_CHARS_PER_PAGE,
-    DEFAULT_MIN_CHARS_PER_PAGE
-  )
+  /**
+   * Checked before anything measuring volume, because a truncated extraction has
+   * plenty of text by definition and would otherwise read as healthy. Accepting it
+   * would index part of a document and silently drop the rest from search, so the
+   * document goes to OCR, which reads it whole.
+   */
+  if (truncated) return { usable: false, reason: 'truncated' }
 
   /**
    * An unknown page count (a PDF whose header would not parse) is treated as a
@@ -79,7 +88,7 @@ export function assessPdfTextLayer(text: string, pageCount: number): PdfTextLaye
    * would scale the threshold arbitrarily.
    */
   const pages = pageCount > 0 ? pageCount : 1
-  if (trimmed.length / pages < minCharsPerPage) return { usable: false, reason: 'sparse-text' }
+  if (trimmed.length / pages < MIN_CHARS_PER_PAGE) return { usable: false, reason: 'sparse-text' }
 
   const cidChars = countMatches(trimmed, CID_ESCAPE_PATTERN)
   if (cidChars / trimmed.length > MAX_CID_ESCAPE_RATIO) {

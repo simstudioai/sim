@@ -74,14 +74,12 @@ describe('PDF OCR triage', () => {
 
   it('falls through to OCR when the PDF is a scan', async () => {
     mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ pages: [{ markdown: 'Recognised text' }], usage_info: {} }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      )
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised text' }], usage_info: {} }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await parse()
