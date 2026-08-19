@@ -19,7 +19,7 @@ export function Duplicate(props: SVGProps<SVGSVGElement>) {
       aria-hidden='true'
       {...props}
     >
-      <path d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25' />
+      <path d='M14.25 0.75H2.75C1.65 0.75 0.75 1.65 0.75 2.75V14.25' />
       <rect x='5.25' y='5.25' width='14' height='14' rx='2' />
     </svg>
   )
