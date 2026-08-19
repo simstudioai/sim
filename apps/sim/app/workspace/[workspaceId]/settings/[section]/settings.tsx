@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
-import { isHosted } from '@/lib/core/config/env-flags'
 import { captureEvent } from '@/lib/posthog/client'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
@@ -105,9 +104,6 @@ const DataRetentionSettings = dynamic(() =>
 const DataDrainsSettings = dynamic(() =>
   import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings)
 )
-const Privacy = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/privacy/privacy').then((m) => m.Privacy)
-)
 const Desktop = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop').then((m) => m.Desktop)
 )
@@ -146,9 +142,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         ? 'general'
         : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
           ? 'general'
-          : normalizedSection === 'privacy' && !isHosted
-            ? 'general'
-            : normalizedSection
+          : normalizedSection
   const organizationId = hostContext.hostOrganizationId
   const meta = getSettingsSectionMeta(effectiveSection)
 
@@ -163,7 +157,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
   return (
     <SettingsSectionProvider section={effectiveSection} meta={meta ?? undefined}>
       {effectiveSection === 'general' && <General />}
-      {effectiveSection === 'privacy' && <Privacy />}
       {effectiveSection === 'desktop' && <Desktop />}
       {effectiveSection === 'browser' && <Browser />}
       {effectiveSection === 'terminal' && <Terminal />}

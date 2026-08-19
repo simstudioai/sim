@@ -21,7 +21,6 @@ describe('unified settings navigation', () => {
   it('keeps account, workspace, organization, and platform settings in one catalog', () => {
     expect(allNavigationItems.map(({ id, label, section }) => ({ id, label, section }))).toEqual([
       { id: 'general', label: 'General', section: 'account' },
-      { id: 'privacy', label: 'Privacy', section: 'account' },
       { id: 'desktop', label: 'Desktop', section: 'account' },
       { id: 'browser', label: 'Browser', section: 'account' },
       { id: 'terminal', label: 'Terminal', section: 'account' },
@@ -66,7 +65,6 @@ describe('unified settings navigation', () => {
       'desktop',
       'browser',
       'terminal',
-      'privacy',
     ])
     expect(idsForSection('workspace')).toEqual([
       'teammates',
