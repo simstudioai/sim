@@ -823,11 +823,8 @@ describe('knowledge embedding transport fallback', () => {
   })
 
   /**
-   * OpenAI returns 429 for an exhausted balance as well as for a rate limit, but
-   * only one of them reopens. Retrying a spent account cannot succeed, and since
-   * the sweep re-queues failed documents every sync it turns into permanent load
-   * — this was observed burning every attempt on thousands of documents for
-   * weeks against an account with no credit.
+   * A spent account never reopens, and the sweep re-queues failed documents every
+   * sync — so retrying one burns the budget per document, indefinitely.
    */
   it('does not retry a 429 that reports an exhausted balance', async () => {
     vi.useFakeTimers()
