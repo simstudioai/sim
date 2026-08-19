@@ -458,14 +458,6 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   display: flex; justify-content: flex-end; align-items: center; gap: 2px;
   margin-bottom: -2.4rem; position: relative; z-index: 2;
 }
-.pa-copy {
-  display: inline-flex; align-items: center; gap: 6px;
-  font: inherit; font-size: var(--text-sm); color: var(--text-body);
-  background: none; border: none; border-radius: 0.5rem;
-  padding: 6px 8px; cursor: pointer; transition: background-color 0.15s;
-}
-.pa-copy:hover { background: var(--surface-active); }
-.pa-copy svg { color: var(--text-icon); }
 .pa-nav {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 0.5rem;
@@ -797,28 +789,12 @@ export const SIM_ARTIFACT_SHELL = `<script>
     }
     cols.append(left, mid, right)
 
-    // Top-of-page controls, like the docs: Copy page plus prev/next
-    // chevrons on the title row, wired to the same targets as the footer.
-    const DUPLICATE_ICON = '<svg ' + ICON_ATTRS + '><path d="M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25"/><rect x="5.25" y="5.25" width="14" height="14" rx="2"/></svg>'
+    // Top-of-page controls: prev/next chevrons on the title row, wired to
+    // the same targets as the footer cards.
     const CHEV_L = '<svg ' + ICON_ATTRS + '><path d="M13.25 3L6.25 10.25L13.25 17.5"/></svg>'
     const CHEV_R = '<svg ' + ICON_ATTRS + '><path d="M6.25 3L13.25 10.25L6.25 17.5"/></svg>'
     const actions = document.createElement('div')
     actions.className = 'page-actions'
-    const copyBtn = document.createElement('button')
-    copyBtn.className = 'pa-copy'
-    copyBtn.type = 'button'
-    copyBtn.innerHTML = DUPLICATE_ICON + '<span>Copy page</span>'
-    copyBtn.addEventListener('click', async () => {
-      const label = copyBtn.querySelector('span')
-      try {
-        await navigator.clipboard.writeText(mid.innerText || '')
-        if (label) label.textContent = 'Copied'
-      } catch {
-        if (label) label.textContent = 'Select + copy'
-      }
-      setTimeout(() => { const l = copyBtn.querySelector('span'); if (l) l.textContent = 'Copy page' }, 1500)
-    })
-    actions.appendChild(copyBtn)
     const prevCard = page.querySelector('.page-nav-card.prev')
     const nextCard = page.querySelector('.page-nav-card.next')
     if (prevCard || nextCard) {
@@ -834,7 +810,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
       }
       actions.append(mkNav(prevCard, CHEV_L, 'Previous page'), mkNav(nextCard, CHEV_R, 'Next page'))
     }
-    mid.insertBefore(actions, mid.firstChild)
+    if (actions.childElementCount > 0) mid.insertBefore(actions, mid.firstChild)
 
     const navLinks = [...leftList.querySelectorAll('a')]
     search.addEventListener('input', () => {
