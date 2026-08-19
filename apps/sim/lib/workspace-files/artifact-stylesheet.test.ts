@@ -93,8 +93,9 @@ describe('docs shell', () => {
 
   // The sandbox blocks the network; a box implying it searched the workspace
   // would be lying about what it does.
-  it('scopes search to the page', () => {
-    expect(SIM_ARTIFACT_SHELL).toContain('Filter sections')
+  it('has no left sidebar or filter chrome', () => {
+    expect(SIM_ARTIFACT_SHELL).not.toContain('Filter sections')
+    expect(SIM_ARTIFACT_SHELL).not.toContain("dataset.rail = 'nav'")
   })
 
   // The clerk TOC: a track threaded through the items and a full-strength copy
@@ -128,15 +129,13 @@ describe('docs fidelity', () => {
     const templates = SIM_ARTIFACT_STYLESHEET.split('\n').filter((line) =>
       line.includes('grid-template-columns:')
     )
-    expect(templates.length).toBeGreaterThanOrEqual(4)
+    expect(templates.length).toBeGreaterThanOrEqual(2)
     for (const line of templates) {
       const selector = (line.trim().split('{')[0] ?? '').trim()
       if (!selector.startsWith('.art-cols')) continue
-      if (selector === '.art-cols') {
-        expect(line).toContain('grid-template-columns: 1fr')
-      } else {
-        expect(selector).toMatch(/^\.art-cols(:not\(\.no-side-nav\)|\.no-side-nav)$/)
-      }
+      // Every template rule uses the same bare selector, so the widest
+      // media query always wins the cascade.
+      expect(selector).toBe('.art-cols')
     }
   })
 

@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  collectSimPageDiagnostics,
   compileSimPage,
   isHandWrittenCompiledPage,
   isSimPageSource,
@@ -99,16 +100,28 @@ describe('compileSimPage', () => {
   })
 
   // Authoring mistakes surface on the page the author reads, not in a log.
-  it('renders a visible notice for a malformed structured fence', () => {
-    const html = compileSimPage('---\ntitle: T\n---\n```sim:kv\n- { key: }\n```')
-    expect(html).toContain('was skipped')
+  // A malformed block renders NOTHING for the reader; the skip is reported
+  // only through diagnostics, which apply_file_edit hands back to the agent.
+  it('omits a malformed structured fence and reports it as a diagnostic', () => {
+    const source = '---\ntitle: T\n---\n```sim:kv\n- { key: }\n```'
+    expect(compileSimPage(source)).not.toContain('was skipped')
+    expect(collectSimPageDiagnostics(source)).toEqual([
+      'sim:kv block skipped: its payload did not match the expected shape',
+    ])
   })
 
-  // Cards and stats left the vocabulary; their fences degrade to notices.
-  it('renders retired fence kinds as skipped notices', () => {
-    const html = compileSimPage('---\ntitle: T\n---\n```sim:cards\n- title: X\n```')
-    expect(html).toContain('sim:cards')
-    expect(html).toContain('was skipped')
+  it('omits retired fence kinds and reports them as diagnostics', () => {
+    const source = '---\ntitle: T\n---\n```sim:cards\n- title: X\n```'
+    expect(compileSimPage(source)).not.toContain('sim:cards')
+    expect(collectSimPageDiagnostics(source)).toEqual([
+      'sim:cards block skipped: its payload did not match the expected shape',
+    ])
+  })
+
+  it('reports nothing for a fully valid page', () => {
+    expect(
+      collectSimPageDiagnostics('---\ntitle: T\n---\n```sim:kv\n- key: A\n  value: B\n```')
+    ).toEqual([])
   })
 
   it('renders inline markdown in table cells and resolves sim links', () => {
@@ -152,14 +165,13 @@ describe('compileSimPage', () => {
     expect(html).not.toContain('Previous')
   })
 
-  it('emits the set navigation for nav frontmatter', () => {
+  it('tolerates nav frontmatter without rendering a sidebar', () => {
     const html = compileSimPage(
       '---\ntitle: Overview\nnav:\n  - label: Get Started\n    pages:\n      - "[Overview](sim:file/a)"\n      - "[API Reference](sim:file/b)"\n---\nBody.',
       { workspaceId: 'ws1' }
     )
-    expect(html).toContain('<nav class="set-nav" hidden aria-label="Pages">')
-    expect(html).toContain('<h6>Get Started</h6>')
-    expect(html).toContain('<a href="/workspace/ws1/files/a" data-sim-link="">Overview</a>')
+    expect(html).not.toContain('set-nav')
+    expect(html).toContain('Body.')
   })
 
   it('renders sim:accordion like sim:faq with title keys', () => {

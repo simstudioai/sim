@@ -14,6 +14,7 @@ import {
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import {
+  collectSimPageDiagnostics,
   HAND_WRITTEN_PAGE_MESSAGE,
   isHandWrittenCompiledPage,
   isSimPageSource,
@@ -319,9 +320,20 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       // (non-workspace or missing), so it can self-correct on the next step.
       const embedWarning = await buildEmbeddedImageRefWarning(content, workspaceId)
 
+      // Page-source lint: a malformed sim: block renders as NOTHING for the
+      // reader — the only place the failure surfaces is right here, so the
+      // agent can fix the fence instead of shipping a silent hole.
+      let pageLint = ''
+      if (storedContentType === SIM_PAGE_CONTENT_TYPE) {
+        const diagnostics = collectSimPageDiagnostics(finalContent)
+        if (diagnostics.length > 0) {
+          pageLint = ` WARNING — ${diagnostics.length} block(s) failed to compile and are OMITTED from the rendered page; fix them: ${diagnostics.join('; ')}`
+        }
+      }
+
       return {
         success: true,
-        message: `File "${fileRecord.name}" ${verb} successfully (${fileBuffer.length} bytes)${embedWarning}`,
+        message: `File "${fileRecord.name}" ${verb} successfully (${fileBuffer.length} bytes)${embedWarning}${pageLint}`,
         data: {
           id: intent.fileId,
           name: fileRecord.name,

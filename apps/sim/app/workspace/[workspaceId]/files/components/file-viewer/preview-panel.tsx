@@ -156,15 +156,14 @@ function stampTheme(html: string, theme: 'dark' | 'light'): string {
 export function buildHtmlPreviewDocument(
   content: string,
   theme: 'dark' | 'light' = 'light',
-  workspaceId?: string,
-  lenient?: boolean
+  workspaceId?: string
 ): string {
   // The pdf model: a page file STORES its source (frontmatter + markdown +
   // sim: fences) and every rendering surface compiles on demand. Partial
   // source mid-stream compiles too, so the page builds up live as the agent
   // appends. Raw HTML (bespoke and legacy stored-compiled pages) skips this.
   if (isSimPageSource(content)) {
-    content = compileSimPage(content, { workspaceId, lenient })
+    content = compileSimPage(content, { workspaceId })
   }
   const headInjection = [
     '<meta charset="utf-8">',
@@ -298,10 +297,7 @@ const HtmlPreview = memo(function HtmlPreview({
   const builtContent = buildHtmlPreviewDocument(
     batchedContent,
     resolvedTheme === 'dark' ? 'dark' : 'light',
-    workspaceId,
-    // Mid-stream, a fence still being written is malformed by definition —
-    // suppress the skip notices until the stream settles.
-    isStreaming === true
+    workspaceId
   )
   // AFTER the build: workspace image srcs (/api/files/view/…) only exist in
   // the COMPILED document — the raw source says sim:file/… — so substituting

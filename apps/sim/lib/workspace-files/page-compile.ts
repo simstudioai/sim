@@ -47,6 +47,7 @@ const frontmatterSchema = z.object({
    * The SET's sidebar, docs-style: groups of pages under muted labels. Each
    * page entry is a markdown link; every page of a set carries the same nav.
    */
+  /** Tolerated for old sources; no longer rendered — there is no sidebar. */
   nav: z
     .array(
       z.object({
@@ -62,32 +63,6 @@ const frontmatterSchema = z.object({
  * the normal link pass and the shell can lift it into the left rail —
  * grouped page links with the current page's sections nested beneath it.
  */
-function setNavHtml(nav: NonNullable<z.infer<typeof frontmatterSchema>['nav']>): string {
-  const groups = nav
-    .map((group) => {
-      const links = group.pages
-        .map((entry) => {
-          // An optional METHOD prefix ("GET [List Workflows](sim:file/x)")
-          // renders the docs' API-reference chip — sidebar entries only.
-          const methodMatch = entry.match(/^\s*(GET|POST|PUT|PATCH|DELETE)\s+(.*)$/)
-          const method = methodMatch?.[1]
-          const match = (methodMatch?.[2] ?? entry).match(MD_LINK)
-          if (!match) return ''
-          const chip = method
-            ? `<span class="method method-${method.toLowerCase()}">${method}</span>`
-            : ''
-          return `<a href="${escapeHtml(match[2])}">${chip}${escapeHtml(match[1])}</a>`
-        })
-        .filter(Boolean)
-        .join('')
-      if (!links) return ''
-      const label = group.label ? `<h6>${escapeHtml(group.label)}</h6>` : ''
-      return `<section>${label}${links}</section>`
-    })
-    .filter(Boolean)
-    .join('')
-  return groups ? `<nav class="set-nav" hidden aria-label="Pages">${groups}</nav>` : ''
-}
 
 const MD_LINK = /^\s*\[([^\]]+)\]\(([^)]+)\)\s*$/
 
@@ -319,8 +294,13 @@ export function isSimPageSource(content: string): boolean {
   }
 }
 
-/** Compiles the body portion — prose, fences — of the source. */
-function compileBody(source: string, lenient = false): string {
+/**
+ * Compiles the body portion — prose, fences — of the source. A malformed
+ * sim: block renders NOTHING for the reader (an error card in a finished
+ * page helps nobody); the skip is reported through `diagnostics` instead,
+ * which the file-editing tool surfaces back to the authoring agent.
+ */
+function compileBody(source: string, diagnostics?: string[]): string {
   const lines = source.split('\n')
   const html: string[] = []
   let prose: string[] = []
@@ -349,10 +329,8 @@ function compileBody(source: string, lenient = false): string {
         if (/^\s*<svg[\s>]/i.test(body)) {
           const figcaption = caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''
           html.push(`<figure>${body.trim()}${figcaption}</figure>`)
-        } else if (!lenient) {
-          html.push(
-            `<div class="callout"><p>A diagram block was skipped: its body must be a complete <code>&lt;svg&gt;</code> element.</p></div>`
-          )
+        } else {
+          diagnostics?.push('sim:diagram block skipped: its body must be a complete <svg> element')
         }
       } else {
         const renderer = FENCE_RENDERERS[kind]
@@ -366,15 +344,11 @@ function compileBody(source: string, lenient = false): string {
             rendered = null
           }
         }
-        // A malformed block becomes a visible notice rather than vanishing —
-        // the author reads the page, not a log. Lenient (streaming) renders
-        // suppress the notice: a fence still being streamed is malformed by
-        // definition until its last line lands.
         if (rendered !== null) {
           html.push(rendered)
-        } else if (!lenient) {
-          html.push(
-            `<div class="callout"><p>A <code>sim:${escapeHtml(kind)}</code> block was skipped: its payload did not match the expected shape.</p></div>`
+        } else {
+          diagnostics?.push(
+            `sim:${kind} block skipped: its payload did not match the expected shape`
           )
         }
       }
@@ -396,7 +370,7 @@ function compileBody(source: string, lenient = false): string {
  */
 export function compileSimPage(
   source: string,
-  options?: { workspaceId?: string; lenient?: boolean; baseUrl?: string }
+  options?: { workspaceId?: string; baseUrl?: string; diagnostics?: string[] }
 ): string {
   // Workspace images (`![alt](sim:file/<id>)`) resolve to the authed byte
   // route regardless of surface; deep links additionally need the workspace.
@@ -404,7 +378,7 @@ export function compileSimPage(
   // must reach Sim the way an absolute link in a downloaded .md does,
   // instead of resolving dead against file:// or a foreign host.
   const origin = options?.baseUrl?.replace(/\/$/, '') ?? ''
-  const compiled = compileSimPageDocument(source, options?.lenient === true)
+  const compiled = compileSimPageDocument(source, options?.diagnostics)
     .replace(/src="sim:file\/([^"]+)"/g, `src="${origin}/api/files/view/$1"`)
     // External links leave the page in a new tab on every surface; in the
     // sandboxed preview the bootstrap bridges the click to the host instead.
@@ -417,7 +391,18 @@ export function compileSimPage(
     : compiled
 }
 
-function compileSimPageDocument(source: string, lenient = false): string {
+/**
+ * Compiles the source solely to collect authoring diagnostics — one line per
+ * skipped sim: block. Empty means every block rendered. The reader-facing
+ * render never shows these; the file agent gets them in its tool result.
+ */
+export function collectSimPageDiagnostics(source: string): string[] {
+  const diagnostics: string[] = []
+  compileSimPageDocument(source, diagnostics)
+  return diagnostics
+}
+
+function compileSimPageDocument(source: string, diagnostics?: string[]): string {
   const trimmed = source.trimStart()
   const end = trimmed.indexOf('\n---', 3)
   const frontmatterText = trimmed.slice(4, end)
@@ -427,7 +412,7 @@ function compileSimPageDocument(source: string, lenient = false): string {
     meta = frontmatterSchema.parse(loadYaml(frontmatterText) ?? {})
   } catch {
     // isSimPageSource gates on parseable frontmatter; this is a safety net.
-    return compileBody(source, lenient)
+    return compileBody(source, diagnostics)
   }
 
   return [
@@ -441,10 +426,9 @@ function compileSimPageDocument(source: string, lenient = false): string {
     '</head>',
     '<body>',
     `<div class="page" data-layout="${meta.layout ?? 'docs'}">`,
-    ...(meta.nav ? [setNavHtml(meta.nav)] : []),
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
-    compileBody(rest, lenient),
+    compileBody(rest, diagnostics),
     ...(meta.prev || meta.next
       ? [
           `<footer class="page-nav">${paginationCard(meta.prev, 'prev')}${paginationCard(meta.next, 'next')}</footer>`,

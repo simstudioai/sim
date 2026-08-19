@@ -445,26 +445,6 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   border-bottom: 1px solid var(--border);
 }
 .art-bar-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-right: auto; }
-.art-search {
-  /* emcn ChipInput chrome verbatim (chip-chrome.ts): h-30px rounded-lg,
-     --surface-5 fill (--surface-4 dark via token), --border-1 border, 14px
-     text, px-2, no focus ring. */
-  height: 30px;
-  padding: 0 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--chip-fill, var(--surface-5));
-  font: inherit;
-  font-size: var(--text-sm);
-  color: var(--text-body);
-  outline: none;
-  transition: background-color 0.15s, border-color 0.15s;
-  width: 200px;
-}
-/* emcn's chip fill flips to --surface-4 in dark. */
-:root[data-theme="dark"] { --chip-fill: var(--surface-4); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --chip-fill: var(--surface-4); } }
-.art-search::placeholder { color: var(--text-muted); }
 /* Top-of-page controls: Copy page + prev/next chevrons on the title row. */
 .page-actions {
   display: flex; justify-content: flex-end; align-items: center; gap: 2px;
@@ -492,34 +472,13 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   min-width: 0;
   width: 100%;
 }
-/* Rails stagger with the viewport the way the docs do on a laptop: the
-   section sidebar survives down to resource-panel widths, the TOC joins on
-   wide surfaces, and a truly narrow pane collapses to a single column. The
-   iframe's own width drives the queries, so the chat panel gets the sidebar
-   treatment while the Files page and standalone views get the full frame. */
+/* One layout: the content column at reading width with the TOC beside it,
+   the pair centered. A narrow pane collapses to a single column; there is no
+   left sidebar — the TOC is the page's only navigation rail. */
 .art-cols > .rail { display: none; }
-@media (min-width: 560px) {
-  /* Medium panes get one rail. A doc set opens its sidebar first (the docs
-     stagger); a lone page has no sidebar, so its TOC takes the slot — but
-     only once the pane has a bit more room to give. */
-  .art-cols:not(.no-side-nav) { grid-template-columns: fit-content(240px) minmax(0, 1fr); }
-  .art-cols:not(.no-side-nav) > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
-}
 @media (min-width: 800px) {
-  /* Lone page: content capped at reading width with the TOC snug beside it,
-     the pair centered in the pane — not content-left, TOC-flung-right. */
-  .art-cols.no-side-nav { grid-template-columns: minmax(0, 760px) fit-content(268px); justify-content: center; }
-  .art-cols.no-side-nav > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; justify-self: start; }
-}
-@media (min-width: 860px) {
-  /* The docs' geometry: the content column is a fixed measure DEAD-CENTERED
-     in the container, with equal flexible gutters either side. The rails
-     live inside the gutters (sidebar hugging the left edge, TOC the right),
-     so their unequal content widths can never skew the middle column. */
-  .art-cols:not(.no-side-nav) { grid-template-columns: minmax(min-content, 1fr) minmax(0, 760px) minmax(min-content, 1fr); }
-  .art-cols > .rail[data-rail="nav"] { justify-self: start; }
-  .art-cols > .rail[data-rail="toc"] { justify-self: end; }
-  .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+  .art-cols { grid-template-columns: minmax(0, 760px) fit-content(268px); justify-content: center; }
+  .art-cols > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 /* Rails scroll invisibly, like the docs — no scrollbar chrome beside the
    TOC; the absolutely-positioned clerk track SVGs also can't tip the box
@@ -536,20 +495,8 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 /* Left rail: the docs sidebar's 30px pill items — 14px/20px type, 5px 8px
    padding, rounded-lg, weight 400, hover/active surfaces, no underline. The
    group label mirrors the sidebar separators: 12px, normal weight, muted. */
-.rail[data-rail="nav"] { padding-top: 20px; min-width: 150px; }
 /* Set navigation: docs-style groups with the current page's sections nested. */
-.rail[data-rail="nav"] .rail-title:not(:first-child) { margin-top: 1rem; }
-.rail[data-rail="nav"] li.is-current > a { color: var(--text-primary); }
-.rail-sections { margin: 1px 0 3px 8px; padding-left: 8px; border-left: 1px solid var(--border); }
-.rail-sections a { font-size: var(--text-caption); line-height: 18px; padding: 3px 0.5rem; color: var(--text-muted); border-radius: 0.375rem; }
-.rail-sections a:hover { color: var(--text-body); }
 .rail[data-rail="toc"] { min-width: 150px; }
-.art-cols.no-side-nav > .rail[data-rail="nav"] { display: none !important; }
-.rail[data-rail="nav"] .rail-title { font-size: var(--text-caption); font-weight: 400; color: var(--text-muted); margin: 0 0 0.25rem; padding: 0 0.5rem; }
-.rail[data-rail="nav"] li { margin-bottom: 1px; }
-.rail[data-rail="nav"] li:last-child { margin-bottom: 0; }
-.rail[data-rail="nav"] a {
-  display: block;
   font-size: var(--text-sm);
   line-height: 20px;
   padding: 5px 0.5rem;
@@ -558,8 +505,6 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   color: var(--text-body);
   text-decoration: none;
 }
-.rail[data-rail="nav"] a:hover { background: var(--surface-hover); }
-.rail[data-rail="nav"] a.is-active { background: var(--surface-active); }
 
 /* Right rail: the clerk TOC. Title at 13px/480 with the text glyph; links at
    13px/430 muted, hover body, active primary at 470 — the docs' #nd-toc
@@ -637,15 +582,18 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 /* Steps — the docs' numbered timeline: a muted numbered circle per step,
    a hairline connector between them, title + content beside. */
 .steps { list-style: none; margin: 1.25rem 0; padding: 0; }
-.step { position: relative; display: flex; gap: 1rem; padding-bottom: 1.9rem; }
+.step { --step-marker: 28px; position: relative; display: flex; gap: 1rem; padding-bottom: 1.9rem; }
 .step:last-child { padding-bottom: 0.25rem; }
+/* The connector derives from the marker size, so it stays dead-centered
+   under the circle no matter what the marker measures. */
 .step::before {
-  content: ''; position: absolute; left: 13.5px; top: 32px; bottom: 4px;
+  content: ''; position: absolute; left: calc(var(--step-marker) / 2 - 0.5px);
+  top: calc(var(--step-marker) + 4px); bottom: 4px;
   width: 1px; background: var(--border);
 }
 .step:last-child::before { display: none; }
 .step-marker {
-  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  flex-shrink: 0; width: var(--step-marker); height: var(--step-marker); border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   background: var(--surface-5); color: var(--text-muted);
   font-size: var(--text-small); font-weight: 500;
@@ -666,16 +614,6 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .codetabs-head .codetabs-copy { position: static; margin-left: auto; }
 
 /* API method chips — sidebar entries only, the docs' reference nav. */
-.rail .method {
-  display: inline-block; margin-right: 8px; padding: 1px 6px;
-  border-radius: 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
-  vertical-align: 1px;
-}
-.rail .method-get { background: var(--badge-success-bg); color: var(--badge-success-text); }
-.rail .method-post { background: var(--badge-blue-bg); color: var(--badge-blue-text); }
-.rail .method-put { background: var(--badge-purple-bg); color: var(--badge-purple-text); }
-.rail .method-patch { background: var(--badge-orange-bg); color: var(--badge-orange-text); }
-.rail .method-delete { background: var(--badge-error-bg); color: var(--badge-error-text); }
 
 /* Footer pagination — the docs' PageFooter verbatim: name + chevron on a
    hover pill (mt-12 flex gap-2 py-3; cards flex-1 gap-1.5 rounded-lg px-3
@@ -728,64 +666,6 @@ export const SIM_ARTIFACT_SHELL = `<script>
       (text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section') + '-' + i
     headings.forEach((h, i) => { if (!h.id) h.id = slug(h.textContent || '', i) })
 
-    // Left rail — the docs sidebar, listing the page's sections.
-    const left = document.createElement('nav')
-    left.className = 'rail'
-    left.dataset.rail = 'nav'
-    left.setAttribute('aria-label', 'Sections')
-    const leftTitle = document.createElement('div')
-    leftTitle.className = 'rail-title'
-    leftTitle.textContent = 'Sections'
-    const leftList = document.createElement('ol')
-    const sections = headings.filter((h) => h.tagName === 'H2')
-    for (const h of sections) {
-      const li = document.createElement('li')
-      const a = document.createElement('a')
-      a.href = '#' + h.id
-      a.textContent = h.textContent
-      li.appendChild(a)
-      leftList.appendChild(li)
-    }
-    // A multi-page set carries its whole sidebar (compiler-emitted set-nav):
-    // groups of page links, the current page recognised by title and its
-    // sections nested beneath it — the docs' sidebar shape. A lone page
-    // keeps the plain section list.
-    const setNav = page.querySelector('nav.set-nav')
-    if (setNav) {
-      let currentEntry = null
-      for (const group of setNav.querySelectorAll('section')) {
-        const label = group.querySelector('h6')
-        if (label) {
-          const t = document.createElement('div')
-          t.className = 'rail-title'
-          t.textContent = label.textContent
-          left.appendChild(t)
-        }
-        const ol = document.createElement('ol')
-        for (const src of group.querySelectorAll('a')) {
-          const li = document.createElement('li')
-          const a = src.cloneNode(true)
-          if ((a.textContent || '').trim() === document.title.trim()) {
-            li.classList.add('is-current')
-            currentEntry = li
-          }
-          li.appendChild(a)
-          ol.appendChild(li)
-        }
-        left.appendChild(ol)
-      }
-      if (currentEntry) {
-        leftList.classList.add('rail-sections')
-        currentEntry.appendChild(leftList)
-      } else {
-        leftTitle.textContent = 'On this page'
-        left.append(leftTitle, leftList)
-      }
-      setNav.remove()
-    } else {
-      left.append(leftTitle, leftList)
-    }
-
     // Right rail — the clerk TOC.
     const right = document.createElement('nav')
     right.className = 'rail'
@@ -822,17 +702,12 @@ export const SIM_ARTIFACT_SHELL = `<script>
     }
     right.append(rightTitle, tocItems)
 
-    // Top bar with the page title and the section filter.
+    // Top bar with the page title and the theme toggle.
     const bar = document.createElement('div')
     bar.className = 'art-bar'
     const title = document.createElement('span')
     title.className = 'art-bar-title'
     title.textContent = document.title
-    const search = document.createElement('input')
-    search.className = 'art-search'
-    search.type = 'text'
-    search.placeholder = 'Filter sections'
-    search.setAttribute('aria-label', 'Filter sections on this page')
 
     // Theme toggle, top right — the docs' exact control (components/ui/
     // theme-toggle.tsx): a 30px rounded-lg ghost button, --surface-active on
@@ -858,15 +733,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
       paintThemeButton()
     })
     paintThemeButton()
-    // One (or zero) sections: nothing worth a sidebar or a filter — the
-    // page reads as a clean document with the TOC on the right, and the
-    // reserved left gutter goes away entirely. A set always keeps its rail
-    // (pages, not sections).
-    // The sidebar exists only for multi-page sets — on a lone page it would
-    // just repeat the TOC, however many sections there are.
-    const showSideNav = Boolean(setNav)
-    if (showSideNav) bar.append(title, search, themeButton)
-    else bar.append(title, themeButton)
+    bar.append(title, themeButton)
 
     // Code blocks get the docs frame: like the docs' prose fences, an
     // untitled block has no header row — just the floating copy control,
@@ -951,8 +818,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
     } else {
       mid.appendChild(main)
     }
-    if (!showSideNav) cols.classList.add('no-side-nav')
-    cols.append(left, mid, right)
+    cols.append(mid, right)
 
     // Top-of-page controls: prev/next chevrons on the title row, wired to
     // the same targets as the footer cards.
@@ -976,17 +842,6 @@ export const SIM_ARTIFACT_SHELL = `<script>
       actions.append(mkNav(prevCard, CHEV_L, 'Previous page'), mkNav(nextCard, CHEV_R, 'Next page'))
     }
     if (actions.childElementCount > 0) mid.insertBefore(actions, mid.firstChild)
-
-    const navLinks = [...left.querySelectorAll('a')]
-    search.addEventListener('input', () => {
-      const q = search.value.trim().toLowerCase()
-      for (const a of navLinks) a.hidden = q !== '' && !(a.textContent || '').toLowerCase().includes(q)
-    })
-    search.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return
-      const first = navLinks.find((a) => !a.hidden)
-      if (first) { event.preventDefault(); first.click() }
-    })
 
     // Clerk track geometry (fumadocs clerk.js): one path threading every item,
     // vertical through each and a cubic easing across depth changes.
@@ -1022,10 +877,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
     }
 
     // Scroll-spy. The TOC marks the RANGE of headings whose sections touch the
-    // viewport (fumadocs behavior) and slides the clip window over it; the
-    // left rail marks the single current section.
-    const byId = new Map()
-    for (const a of navLinks) byId.set(a.getAttribute('href').slice(1), a)
+    // viewport (fumadocs behavior) and slides the clip window over it.
     const spy = () => {
       const viewTop = 96
       const viewBottom = window.innerHeight
@@ -1041,7 +893,6 @@ export const SIM_ARTIFACT_SHELL = `<script>
         }
       }
       for (const a of tocLinks) a.classList.remove('is-active')
-      for (const a of navLinks) a.classList.remove('is-active')
       if (first === -1 || positions.length === 0) {
         thumb.style.setProperty('--track-top', '0')
         thumb.style.setProperty('--track-bottom', '0')
@@ -1050,23 +901,6 @@ export const SIM_ARTIFACT_SHELL = `<script>
       for (let i = first; i <= last; i++) tocLinks[i].classList.add('is-active')
       thumb.style.setProperty('--track-top', positions[first][0] + 'px')
       thumb.style.setProperty('--track-bottom', positions[last][1] + 'px')
-      // The left rail highlights the section CONTAINING the reading position
-      // (the last h2 at or above the top line, matching the 72px
-      // scroll-padding a clicked anchor lands at) — not the furthest section
-      // merely visible below, which mis-highlighted after every click.
-      let section = null
-      for (let i = 0; i < headings.length; i++) {
-        if (headings[i].tagName === 'H2' && rects[i] <= viewTop + 1) section = headings[i]
-      }
-      if (!section) {
-        for (let i = first; i <= last; i++) {
-          if (headings[i].tagName === 'H2') { section = headings[i]; break }
-        }
-      }
-      if (section) {
-        const link = byId.get(section.id)
-        if (link) link.classList.add('is-active')
-      }
     }
 
     const refresh = () => { measure(); spy() }
@@ -1079,8 +913,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
   // In-page anchors must scroll, never navigate. Under the preview's
   // about:srcdoc base a default '#' click is a real navigation in Electron —
   // it escapes the document and lands on the app's sign-in page (the
-  // sandboxed frame carries no cookies). Intercepting also covers the
-  // search box, whose Enter key clicks the first matching section link.
+  // sandboxed frame carries no cookies).
   document.addEventListener(
     'click',
     (event) => {
