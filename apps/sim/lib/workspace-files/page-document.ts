@@ -1,3 +1,4 @@
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   SIM_ARTIFACT_SHELL,
   SIM_ARTIFACT_STYLESHEET,
@@ -14,7 +15,10 @@ import { SIM_PAGE_FONT_URL, simPageFontFace } from '@/lib/workspace-files/page-f
  * the document also stands alone in a plain browser tab.
  */
 export function renderSimPageDocument(source: string, options?: { workspaceId?: string }): string {
-  const compiled = compileSimPage(source, options)
+  // Absolute app URLs: the standalone document is also what a user
+  // downloads, and a downloaded page's links and images must reach Sim
+  // the way an absolute link in a downloaded .md does.
+  const compiled = compileSimPage(source, { ...options, baseUrl: getBaseUrl() })
   return compiled.replace(
     '</head>',
     `<style>${simPageFontFace(SIM_PAGE_FONT_URL)}${SIM_ARTIFACT_STYLESHEET}</style>${SIM_ARTIFACT_SHELL}</head>`

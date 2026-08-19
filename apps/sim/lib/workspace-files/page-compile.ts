@@ -137,12 +137,12 @@ const SIM_RESOURCE_ROUTES: Record<string, (workspaceId: string, id: string) => s
  * `data-sim-link` marks them so the preview sandbox can bridge clicks to the
  * app router instead of cancelling them.
  */
-export function resolveSimResourceLinks(html: string, workspaceId: string): string {
+export function resolveSimResourceLinks(html: string, workspaceId: string, baseUrl = ''): string {
   return html.replace(
     /href="sim:(workflow|table|knowledge|file)\/([^"]+)"/g,
     (match, type: string, id: string) => {
       const route = SIM_RESOURCE_ROUTES[type]
-      return route ? `href="${route(workspaceId, id)}" data-sim-link=""` : match
+      return route ? `href="${baseUrl}${route(workspaceId, id)}" data-sim-link=""` : match
     }
   )
 }
@@ -317,19 +317,25 @@ function compileBody(source: string, lenient = false): string {
  */
 export function compileSimPage(
   source: string,
-  options?: { workspaceId?: string; lenient?: boolean }
+  options?: { workspaceId?: string; lenient?: boolean; baseUrl?: string }
 ): string {
   // Workspace images (`![alt](sim:file/<id>)`) resolve to the authed byte
   // route regardless of surface; deep links additionally need the workspace.
+  // A baseUrl absolutizes both — a DOWNLOADED page opened outside the app
+  // must reach Sim the way an absolute link in a downloaded .md does,
+  // instead of resolving dead against file:// or a foreign host.
+  const origin = options?.baseUrl?.replace(/\/$/, '') ?? ''
   const compiled = compileSimPageDocument(source, options?.lenient === true)
-    .replace(/src="sim:file\/([^"]+)"/g, 'src="/api/files/view/$1"')
+    .replace(/src="sim:file\/([^"]+)"/g, `src="${origin}/api/files/view/$1"`)
     // External links leave the page in a new tab on every surface; in the
     // sandboxed preview the bootstrap bridges the click to the host instead.
     .replace(
       /<a href="(https?:\/\/[^"]+)"/g,
       '<a href="$1" target="_blank" rel="noopener noreferrer"'
     )
-  return options?.workspaceId ? resolveSimResourceLinks(compiled, options.workspaceId) : compiled
+  return options?.workspaceId
+    ? resolveSimResourceLinks(compiled, options.workspaceId, origin)
+    : compiled
 }
 
 function compileSimPageDocument(source: string, lenient = false): string {
