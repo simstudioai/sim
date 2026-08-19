@@ -24,6 +24,7 @@ type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   'text/markdown': 'markdown',
   'text/html': 'html',
+  'text/x-sim-page': 'html',
   'text/csv': 'csv',
   'image/svg+xml': 'svg',
   'text/x-mermaid': 'mermaid',
@@ -162,14 +163,15 @@ function stampTheme(html: string, theme: 'dark' | 'light'): string {
 export function buildHtmlPreviewDocument(
   content: string,
   theme: 'dark' | 'light' = 'light',
-  workspaceId?: string
+  workspaceId?: string,
+  lenient?: boolean
 ): string {
   // The pdf model: a page file STORES its source (frontmatter + markdown +
   // sim: fences) and every rendering surface compiles on demand. Partial
   // source mid-stream compiles too, so the page builds up live as the agent
   // appends. Raw HTML (bespoke and legacy stored-compiled pages) skips this.
   if (isSimPageSource(content)) {
-    content = compileSimPage(content, { workspaceId })
+    content = compileSimPage(content, { workspaceId, lenient })
   }
   const headInjection = [
     '<meta charset="utf-8">',
@@ -290,7 +292,10 @@ const HtmlPreview = memo(function HtmlPreview({
   const wrappedContent = buildHtmlPreviewDocument(
     displayContent,
     resolvedTheme === 'dark' ? 'dark' : 'light',
-    workspaceId
+    workspaceId,
+    // Mid-stream, a fence still being written is malformed by definition —
+    // suppress the skip notices until the stream settles.
+    isStreaming === true
   )
 
   // Receives sim-resource link clicks bridged out of the sandboxed page and

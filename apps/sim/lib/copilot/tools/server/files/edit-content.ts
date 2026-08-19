@@ -16,6 +16,8 @@ import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/up
 import {
   HAND_WRITTEN_PAGE_MESSAGE,
   isHandWrittenCompiledPage,
+  isSimPageSource,
+  SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
@@ -276,6 +278,12 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         return { success: false, message: compiled.message }
       }
 
+      // The internal page type: the record advertises what the .html holds so
+      // surfaces can force the rendered view before content loads. The file
+      // itself stays .html (serve/download emit text/html).
+      const storedContentType =
+        isHtmlTarget && isSimPageSource(finalContent) ? SIM_PAGE_CONTENT_TYPE : compiled.sourceMime
+
       const fileBuffer = Buffer.from(finalContent, 'utf-8')
       assertServerToolNotAborted(context)
       // `updateWorkspaceFileContent` also streams this edit into any open collaborative editor as a live
@@ -289,7 +297,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           assertedWorkspaceId: workspaceId,
           content: finalContent,
           encoding: 'utf-8',
-          contentType: compiled.sourceMime,
+          contentType: storedContentType,
           provenanceMode: operation === 'update' ? 'replace_empty' : 'preserve',
         },
         { fileId: intent.fileId }
@@ -316,7 +324,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           id: intent.fileId,
           name: fileRecord.name,
           size: fileBuffer.length,
-          contentType: compiled.sourceMime,
+          contentType: storedContentType,
         },
       }
     } catch (error) {

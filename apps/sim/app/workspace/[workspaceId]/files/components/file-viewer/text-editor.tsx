@@ -11,7 +11,7 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { isSimPageSource } from '@/lib/workspace-files/page-compile'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { ChatContext } from '@/stores/panel'
 import { EditorContextMenu } from './editor-context-menu'
@@ -585,14 +585,26 @@ export const TextEditor = memo(function TextEditor({
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
-  // A streaming page-source .html hides its source the way a generating pdf
-  // hides its script: the preview compiles the partial source live, so the
-  // reader watches the docs-styled page grow instead of raw frontmatter and
-  // markdown. Bespoke raw HTML keeps the editor fallback — its half-written
-  // markup would render broken mid-stream.
-  const isPageSourceStream = previewType === 'html' && isSimPageSource(content)
-  const effectiveMode =
-    isStreaming && isIframeRendered ? (isPageSourceStream ? 'preview' : 'editor') : previewMode
+  // A Sim page NEVER shows its source here — the pdf model: the rendered
+  // document is the file's face on every surface, at every moment. The
+  // record's internal type decides instantly (stamped at write, known before
+  // content loads); content detection is the fallback for files written
+  // before the stamp existed. During the very first streamed chunk even the
+  // frontmatter is partial, so an html stream that has not yet contradicted
+  // the page shape (empty, or an opening '---') already counts — that kills
+  // the raw-header flash at stream start and the raw flips between an
+  // agent's tool calls. Bespoke raw HTML keeps the old behavior.
+  const trimmedContent = content.trimStart()
+  const isSimPageFile =
+    file.type === SIM_PAGE_CONTENT_TYPE ||
+    (previewType === 'html' &&
+      (isSimPageSource(content) ||
+        (isStreaming && (trimmedContent === '' || trimmedContent.startsWith('-')))))
+  const effectiveMode = isSimPageFile
+    ? 'preview'
+    : isStreaming && isIframeRendered
+      ? 'editor'
+      : previewMode
   const showEditor = effectiveMode !== 'preview'
   const showPreviewPane = effectiveMode !== 'editor'
 

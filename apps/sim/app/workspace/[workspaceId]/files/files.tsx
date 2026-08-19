@@ -47,6 +47,7 @@ import {
   SUPPORTED_IMAGE_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import type {
   BreadcrumbItem,
   FilterTag,
@@ -1508,8 +1509,10 @@ export function Files() {
     const canPreview = isPreviewable(selectedFile) && !streamOnly
     // Markdown renders in the single-surface inline editor, which has no raw/split/preview modes.
     const isInlineMarkdown = isMarkdownFile(selectedFile)
-    const hasSplitView = canEditText && canPreview && !isInlineMarkdown
-    const showPreviewToggle = canPreview && !isInlineMarkdown
+    // A Sim page is locked to its rendered view — no code view to toggle to.
+    const isSimPage = selectedFile.type === SIM_PAGE_CONTENT_TYPE
+    const hasSplitView = canEditText && canPreview && !isInlineMarkdown && !isSimPage
+    const showPreviewToggle = canPreview && !isInlineMarkdown && !isSimPage
 
     const nextModeLabel =
       previewMode === 'editor' ? 'Split' : previewMode === 'split' ? 'Preview' : 'Edit'

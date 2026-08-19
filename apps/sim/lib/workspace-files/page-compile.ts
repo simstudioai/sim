@@ -25,6 +25,15 @@ import { z } from 'zod'
  */
 export const SIM_PAGE_MARKER = '<!--sim-page-->'
 
+/**
+ * The INTERNAL content type stamped onto a page file's record when the write
+ * path detects page source. The file stays `.html` to the user (serving and
+ * downloads emit text/html); the record type is how surfaces know the file's
+ * nature before any content loads — force the rendered view, hide the code
+ * toggle, expect source.
+ */
+export const SIM_PAGE_CONTENT_TYPE = 'text/x-sim-page'
+
 const frontmatterSchema = z.object({
   title: z.string().min(1),
   eyebrow: z.string().optional(),
@@ -216,7 +225,7 @@ export function isSimPageSource(content: string): boolean {
 }
 
 /** Compiles the body portion — prose, fences — of the source. */
-function compileBody(source: string): string {
+function compileBody(source: string, lenient = false): string {
   const lines = source.split('\n')
   const html: string[] = []
   let prose: string[] = []
@@ -245,7 +254,7 @@ function compileBody(source: string): string {
         if (/^\s*<svg[\s>]/i.test(body)) {
           const figcaption = caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''
           html.push(`<figure>${body.trim()}${figcaption}</figure>`)
-        } else {
+        } else if (!lenient) {
           html.push(
             `<div class="callout"><p>A diagram block was skipped: its body must be a complete <code>&lt;svg&gt;</code> element.</p></div>`
           )
@@ -263,11 +272,16 @@ function compileBody(source: string): string {
           }
         }
         // A malformed block becomes a visible notice rather than vanishing —
-        // the author reads the page, not a log.
-        html.push(
-          rendered ??
+        // the author reads the page, not a log. Lenient (streaming) renders
+        // suppress the notice: a fence still being streamed is malformed by
+        // definition until its last line lands.
+        if (rendered !== null) {
+          html.push(rendered)
+        } else if (!lenient) {
+          html.push(
             `<div class="callout"><p>A <code>sim:${escapeHtml(kind)}</code> block was skipped: its payload did not match the expected shape.</p></div>`
-        )
+          )
+        }
       }
       index = bodyEnd + 1
       continue
@@ -285,10 +299,13 @@ function compileBody(source: string): string {
  * share view, and download, so all three always agree. When the surface
  * knows its workspace, `sim:` resource links resolve to real routes.
  */
-export function compileSimPage(source: string, options?: { workspaceId?: string }): string {
+export function compileSimPage(
+  source: string,
+  options?: { workspaceId?: string; lenient?: boolean }
+): string {
   // Workspace images (`![alt](sim:file/<id>)`) resolve to the authed byte
   // route regardless of surface; deep links additionally need the workspace.
-  const compiled = compileSimPageDocument(source)
+  const compiled = compileSimPageDocument(source, options?.lenient === true)
     .replace(/src="sim:file\/([^"]+)"/g, 'src="/api/files/view/$1"')
     // External links leave the page in a new tab on every surface; in the
     // sandboxed preview the bootstrap bridges the click to the host instead.
@@ -299,7 +316,7 @@ export function compileSimPage(source: string, options?: { workspaceId?: string 
   return options?.workspaceId ? resolveSimResourceLinks(compiled, options.workspaceId) : compiled
 }
 
-function compileSimPageDocument(source: string): string {
+function compileSimPageDocument(source: string, lenient = false): string {
   const trimmed = source.trimStart()
   const end = trimmed.indexOf('\n---', 3)
   const frontmatterText = trimmed.slice(4, end)
@@ -309,7 +326,7 @@ function compileSimPageDocument(source: string): string {
     meta = frontmatterSchema.parse(loadYaml(frontmatterText) ?? {})
   } catch {
     // isSimPageSource gates on parseable frontmatter; this is a safety net.
-    return compileBody(source)
+    return compileBody(source, lenient)
   }
 
   return [
@@ -326,7 +343,7 @@ function compileSimPageDocument(source: string): string {
     ...(meta.eyebrow ? [`<p class="eyebrow">${escapeHtml(meta.eyebrow)}</p>`] : []),
     `<h1>${escapeHtml(meta.title)}</h1>`,
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
-    compileBody(rest),
+    compileBody(rest, lenient),
     ...(() => {
       const cards = [
         meta.prev ? paginationCard(meta.prev, 'prev') : '',

@@ -57,6 +57,9 @@ const ARTIFACT_TOKENS = [
   '--badge-error-text',
   '--badge-gray-bg',
   '--badge-gray-text',
+  '--text-icon-muted',
+  '--code-bg',
+  '--selection-bg',
 ] as const
 
 /**
@@ -128,7 +131,11 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --badge-error-text: #dc2626;
   --badge-gray-bg: #e7e5e4;
   --badge-gray-text: #57534e;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --text-icon-muted: #5c5c5c;
+  --code-bg: #f5f5f5;
+  --code-surface: var(--surface-5);
+  --selection-bg: #add6ff;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --text-caption: 12px;
   --text-small: 13px;
@@ -159,6 +166,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
     --badge-error-text: #fca5a5;
     --badge-gray-bg: #3a3a3a;
     --badge-gray-text: #a8a8a8;
+    --text-icon-muted: #949494;
+    --code-bg: #1f1f1f;
+    --code-surface: var(--code-bg);
+    --selection-bg: #264f78;
   }
 }
 :root[data-theme="dark"] {
@@ -184,6 +195,10 @@ export const SIM_ARTIFACT_STYLESHEET = `
   --text-muted: #6e6e6e;
   --text-icon: #969696;
   --warning: #ff6600;
+  --text-icon-muted: #949494;
+  --code-bg: #1f1f1f;
+  --code-surface: var(--code-bg);
+  --selection-bg: #264f78;
 }
 
 * { box-sizing: border-box; scrollbar-width: thin; }
@@ -207,29 +222,71 @@ h2 { font-size: 1.25rem; font-weight: 500; letter-spacing: -0.015em; color: var(
 h3, h4 { font-size: var(--text-md); font-weight: 470; letter-spacing: -0.01em; color: var(--text-body); margin: 1.75rem 0 0.5rem; }
 p, li { max-width: 70ch; }
 p { margin: 0 0 1rem; }
-a { color: var(--text-primary); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
-a:hover { text-decoration-color: var(--text-muted); }
+/* Content links — the docs' prose anchor (fumadocs prose, compiled): 500
+   weight, 1.5px underline offset 3.5px in the text color, 80% opacity on
+   hover. Chrome links (rails, TOC, pagination, copy) reset this below. */
+a {
+  color: var(--text-primary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--text-primary);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3.5px;
+  transition: opacity 0.2s;
+}
+a:hover { opacity: 0.8; }
 strong { color: var(--text-primary); font-weight: 550; }
-hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
-blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: 2px solid var(--border); color: var(--text-muted); }
+hr { border: 0; border-top: 1px solid var(--border); margin: 3em 0; }
+hr + * { margin-top: 0; }
+/* Lists — the docs' prose metrics: 1rem/1.625em indents, muted markers. */
+ul { padding-inline-start: 1rem; list-style-type: disc; margin: 1.25em 0; }
+ol { padding-inline-start: 1.625em; list-style-type: decimal; margin: 1.25em 0; }
+li { margin: 0.5em 0; }
+ol > li { padding-inline-start: 0.375em; }
+ul ul, ul ol, ol ul, ol ol { margin: 0.75em 0; }
+ol > li::marker { font-weight: 400; color: var(--text-muted); }
+ul > li::marker { color: var(--text-muted); }
+/* Blockquote — the docs' prose quote: 500 italic in the heading color over a
+   4px border, with real quote marks. */
+blockquote {
+  margin: 1.6em 0;
+  padding-inline-start: 1em;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--text-primary);
+  border-inline-start: 0.25rem solid var(--border);
+}
+blockquote p:first-of-type::before { content: open-quote; }
+blockquote p:last-of-type::after { content: close-quote; }
+blockquote code { color: inherit; }
+/* Inline code chip — the docs' exact chip: no border, color unset so code
+   inside a link keeps the link color instead of sitting on it. */
 code {
   font-family: var(--font-mono);
-  font-size: 0.84em;
-  background: var(--surface-5);
-  border-radius: 6px;
-  padding: 0.15em 0.4em;
-  color: var(--text-primary);
+  font-size: 0.875em;
+  font-weight: 400;
+  background-color: var(--surface-5);
+  border-radius: 4px;
+  padding: 0.125rem 0.375rem;
 }
+/* Fenced code — the docs' figure.shiki shell and Code.Viewer metrics: 13px
+   on a 21px line box over --code-surface, no shadow. The shell upgrades
+   these into .codeblock frames with a copy control; bare pre (report
+   layout) carries the same shell itself. */
 pre {
-  background: transparent;
+  background: var(--code-surface);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
-  padding: 1rem;
-  overflow-x: auto;
+  padding: 0.875rem 1rem;
+  overflow: auto;
+  max-height: 600px;
   font-size: var(--text-small);
-  line-height: 1.6;
+  line-height: 21px;
+  tab-size: 2;
+  -webkit-overflow-scrolling: touch;
 }
-pre code { background: none; padding: 0; }
+pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; display: block; width: fit-content; min-width: 100%; }
+::selection { background-color: var(--selection-bg); }
 
 /* Tables — the docs' divider-based treatment: no outer chrome, a --border
    rule under the header, --surface-active rules between rows, bare last row. */
@@ -241,7 +298,7 @@ tbody tr:last-child td { border-bottom: none; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 figure { margin: 2rem 0; }
 figure svg { display: block; width: 100%; height: auto; color: var(--text-body); }
-figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top: 0.8rem; max-width: 70ch; }
+figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-primary); margin-top: 0.8571429em; max-width: 70ch; }
 :focus-visible { outline: 2px solid var(--brand-secondary); outline-offset: 2px; }
 
 /* Layout — the docs frame: a 1400px container, 300px sidebar, 268px TOC. */
@@ -398,6 +455,9 @@ figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top:
 }
 .rail ol, .rail ul { list-style: none; margin: 0; padding: 0; }
 .rail a[hidden] { display: none; }
+/* Chrome links are navigation, not prose: no underline weight or hover fade. */
+.rail a, .page-nav-card { font-weight: 400; transition: none; }
+.rail a:hover, .page-nav-card:hover { opacity: 1; }
 
 /* Left rail: the docs sidebar's 30px pill items — 14px/20px type, 5px 8px
    padding, rounded-lg, weight 400, hover/active surfaces, no underline. The
@@ -471,19 +531,23 @@ figcaption { font-size: var(--text-small); color: var(--text-muted); margin-top:
 /* Code blocks — the docs' framed treatment: the shell wraps each pre in a
    .codeblock with a header bar carrying the language label and a copy
    button, so the bare pre border above only applies to unwrapped blocks. */
-.codeblock { border: 1px solid var(--border); border-radius: 0.75rem; margin: 1rem 0; overflow: hidden; background: var(--surface-1); }
-.codeblock-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0.35rem 0.5rem 0.35rem 0.85rem;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--text-caption); color: var(--text-muted);
-}
+/* Fenced code frame — the docs' figure.shiki shell (global.css: 0.5rem
+   radius, --border hairline, --code-surface fill, no shadow) with the docs'
+   copy control: emcn's quiet icon Button (20px, rounded, --text-icon-muted,
+   --surface-active hover) floating top-right, Duplicate flipping to a
+   brand-accent Check while copied. Untitled fences carry no header row,
+   exactly like the docs' prose fences. */
+.codeblock { position: relative; border: 1px solid var(--border); border-radius: 0.5rem; margin: 1rem 0; overflow: hidden; background: var(--code-surface); box-shadow: none; }
 .codeblock-copy {
-  font: inherit; color: var(--text-muted);
-  background: none; border: none; border-radius: 0.375rem;
-  padding: 0.25rem 0.5rem; cursor: pointer;
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0;
+  color: var(--text-icon-muted); background: none; border: none; border-radius: 0.25rem;
+  cursor: pointer;
 }
-.codeblock-copy:hover { background: var(--surface-hover); color: var(--text-body); }
+.codeblock-copy:hover { background: var(--surface-active); }
+.codeblock-copy svg { stroke-width: 1.25; }
+.codeblock-copy.is-copied { color: var(--brand-accent); }
 .codeblock pre { border: none; border-radius: 0; margin: 0; background: transparent; }
 
 /* Footer pagination — the docs' previous/next cards. */
