@@ -505,9 +505,11 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   .art-cols:not(.no-side-nav) { grid-template-columns: fit-content(240px) minmax(0, 1fr); }
   .art-cols:not(.no-side-nav) > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
-@media (min-width: 700px) {
-  .art-cols.no-side-nav { grid-template-columns: minmax(0, 1fr) fit-content(268px); }
-  .art-cols.no-side-nav > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+@media (min-width: 800px) {
+  /* Lone page: content capped at reading width with the TOC snug beside it,
+     the pair centered in the pane — not content-left, TOC-flung-right. */
+  .art-cols.no-side-nav { grid-template-columns: minmax(0, 760px) fit-content(268px); justify-content: center; }
+  .art-cols.no-side-nav > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; justify-self: start; }
 }
 @media (min-width: 860px) {
   /* The docs' geometry: the content column is a fixed measure DEAD-CENTERED
@@ -519,7 +521,8 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   .art-cols > .rail[data-rail="toc"] { justify-self: end; }
   /* No sidebar: no reserved left gutter — content leads, TOC trails. The
      hidden rail leaves the grid, so the two remaining children auto-place. */
-  .art-cols.no-side-nav { grid-template-columns: minmax(0, 760px) minmax(min-content, 1fr); }
+  .art-cols.no-side-nav { grid-template-columns: minmax(0, 760px) fit-content(268px); justify-content: center; }
+  .art-cols.no-side-nav > .rail[data-rail="toc"] { justify-self: start; }
   .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 /* Rails scroll invisibly, like the docs — no scrollbar chrome beside the
