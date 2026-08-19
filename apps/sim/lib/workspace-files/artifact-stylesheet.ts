@@ -499,8 +499,8 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
    treatment while the Files page and standalone views get the full frame. */
 .art-cols > .rail { display: none; }
 @media (min-width: 560px) {
-  .art-cols { grid-template-columns: fit-content(240px) minmax(0, 1fr); }
-  .art-cols > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+  .art-cols:not(.no-side-nav) { grid-template-columns: fit-content(240px) minmax(0, 1fr); }
+  .art-cols:not(.no-side-nav) > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 @media (min-width: 860px) {
   /* The docs' geometry: the content column is a fixed measure DEAD-CENTERED
@@ -510,6 +510,9 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   .art-cols { grid-template-columns: minmax(min-content, 1fr) minmax(0, 760px) minmax(min-content, 1fr); }
   .art-cols > .rail[data-rail="nav"] { justify-self: start; }
   .art-cols > .rail[data-rail="toc"] { justify-self: end; }
+  /* No sidebar: no reserved left gutter — content leads, TOC trails. The
+     hidden rail leaves the grid, so the two remaining children auto-place. */
+  .art-cols.no-side-nav { grid-template-columns: minmax(0, 760px) minmax(min-content, 1fr); }
   .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 /* Rails scroll invisibly, like the docs — no scrollbar chrome beside the
@@ -533,6 +536,7 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .rail[data-rail="nav"] li.is-current > a { color: var(--text-primary); }
 .rail-sections { margin: 2px 0 4px 12px; }
 .rail[data-rail="toc"] { min-width: 150px; }
+.art-cols.no-side-nav > .rail[data-rail="nav"] { display: none !important; }
 .rail[data-rail="nav"] .rail-title { font-size: var(--text-caption); font-weight: 400; color: var(--text-muted); margin: 0 0 0.4rem; padding: 0 0.5rem; }
 .rail[data-rail="nav"] li { margin-bottom: 1px; }
 .rail[data-rail="nav"] li:last-child { margin-bottom: 0; }
@@ -846,7 +850,13 @@ export const SIM_ARTIFACT_SHELL = `<script>
       paintThemeButton()
     })
     paintThemeButton()
-    bar.append(title, search, themeButton)
+    // One (or zero) sections: nothing worth a sidebar or a filter — the
+    // page reads as a clean document with the TOC on the right, and the
+    // reserved left gutter goes away entirely. A set always keeps its rail
+    // (pages, not sections).
+    const showSideNav = Boolean(setNav) || sections.length >= 2
+    if (showSideNav) bar.append(title, search, themeButton)
+    else bar.append(title, themeButton)
 
     // Code blocks get the docs frame: like the docs' prose fences, an
     // untitled block has no header row — just the floating copy control,
@@ -931,6 +941,7 @@ export const SIM_ARTIFACT_SHELL = `<script>
     } else {
       mid.appendChild(main)
     }
+    if (!showSideNav) cols.classList.add('no-side-nav')
     cols.append(left, mid, right)
 
     // Top-of-page controls: prev/next chevrons on the title row, wired to
