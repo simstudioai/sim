@@ -6,10 +6,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { mockConsentManagerProvider, mockConsentBanner } = vi.hoisted(() => ({
-  mockConsentManagerProvider: vi.fn(),
-  mockConsentBanner: vi.fn(),
-}))
+const { mockConsentManagerProvider } = vi.hoisted(() => ({ mockConsentManagerProvider: vi.fn() }))
 
 vi.mock('@c15t/nextjs/headless', () => ({
   ConsentManagerProvider: (props: { children: ReactNode; options: unknown }) => {
@@ -18,14 +15,7 @@ vi.mock('@c15t/nextjs/headless', () => ({
   },
 }))
 
-vi.mock('@/app/_shell/consent/consent-banner', () => ({
-  ConsentBanner: () => {
-    mockConsentBanner()
-    return <span data-testid='banner' />
-  },
-}))
-
-import { ConsentRuntime } from '@/app/_shell/consent/consent-runtime'
+import { ConsentStoreProvider } from '@/app/_shell/consent/consent-store-provider'
 
 let root: Root | null = null
 
@@ -35,16 +25,21 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('ConsentRuntime', () => {
-  it('mounts the banner against the hosted consent backend', () => {
+describe('ConsentStoreProvider', () => {
+  it('configures the hosted consent backend with the iframe blocker off', () => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    act(() => root?.render(<ConsentRuntime />))
+    act(() =>
+      root?.render(
+        <ConsentStoreProvider>
+          <span data-testid='child' />
+        </ConsentStoreProvider>
+      )
+    )
 
-    expect(container.querySelector('[data-testid="banner"]')).not.toBeNull()
-    expect(mockConsentBanner).toHaveBeenCalled()
+    expect(container.querySelector('[data-testid="child"]')).not.toBeNull()
     // `toMatchObject`, not exact equality: `DEV_CONSENT_COUNTRY` adds an
     // `overrides` key whenever a developer has NEXT_PUBLIC_CONSENT_COUNTRY set
     // locally, and the assertion is about the shipped configuration.
@@ -52,6 +47,7 @@ describe('ConsentRuntime', () => {
       mode: 'hosted',
       backendURL: 'https://sim-sim.inth.app',
       consentCategories: ['necessary', 'measurement', 'marketing'],
+      store: { iframeBlockerConfig: { disableAutomaticBlocking: true } },
     })
   })
 })
