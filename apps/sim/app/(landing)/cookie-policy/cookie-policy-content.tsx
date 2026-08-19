@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { isHosted } from '@/lib/core/config/env-flags'
 import {
   type LegalBlock,
   type LegalPageConfig,
@@ -11,6 +12,17 @@ import { ConsentPreferencesLink } from '@/app/(landing)/cookie-policy/consent-pr
  * One cookie-inventory table per consent category. The three share a header and
  * a column layout, so they are built from one shape rather than repeated.
  */
+/**
+ * The withdrawal control, or the bare phrase on a self-hosted deployment. The
+ * consent runtime is hosted-only, so there the button would have no listener
+ * and clicking it would do nothing.
+ */
+const CHANGE_CHOICES: ReactNode = isHosted ? (
+  <ConsentPreferencesLink>change your cookie choices</ConsentPreferencesLink>
+) : (
+  'change your cookie choices'
+)
+
 function cookieTable(caption: string, rows: ReactNode[][]): LegalBlock {
   return {
     kind: 'table',
@@ -55,8 +67,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
       content: (
         <>
           If you are in the EU, the UK, or another region where consent is required, we ask before
-          setting anything that is not strictly necessary. You can{' '}
-          <ConsentPreferencesLink>change your cookie choices</ConsentPreferencesLink> at any time.
+          setting anything that is not strictly necessary. You can {CHANGE_CHOICES} at any time.
         </>
       ),
     },
@@ -203,9 +214,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               Where consent is required, the banner appears on your first visit with accept and
               reject offered equally, and "Customize" lets you turn each category on or off
               individually. To revisit that decision later — including withdrawing consent you
-              already gave —{' '}
-              <ConsentPreferencesLink>change your cookie choices</ConsentPreferencesLink>. We ask
-              again after 365 days.
+              already gave — {CHANGE_CHOICES}. We ask again after 365 days.
             </>
           ),
         },
