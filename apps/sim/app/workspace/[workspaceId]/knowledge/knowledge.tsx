@@ -1348,6 +1348,7 @@ export function Knowledge() {
     search: debouncedSearchQuery,
     filterCount: filterTags.length,
     folderId: currentFolderId,
+    foldersResolved,
   })
 
   return (

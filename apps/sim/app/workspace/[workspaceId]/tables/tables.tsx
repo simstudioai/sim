@@ -746,6 +746,7 @@ export function Tables() {
     search: debouncedSearchTerm,
     filterCount: filterTags.length,
     folderId: currentFolderId,
+    foldersResolved,
   })
 
   const handleContentContextMenu = useCallback(

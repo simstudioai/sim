@@ -271,7 +271,13 @@ export function Files() {
     isPlaceholderData,
     error,
   } = useWorkspaceFiles(workspaceId)
-  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
+  const {
+    data: folders = EMPTY_WORKSPACE_FILE_FOLDERS,
+    isSuccess: foldersLoaded,
+    isPlaceholderData: foldersArePlaceholder,
+  } = useWorkspaceFileFolders(workspaceId)
+  /** Matches `FolderNavigation.foldersResolved`, which the other resource pages read. */
+  const foldersResolved = foldersLoaded && !foldersArePlaceholder
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const pinnedFileIds = usePinnedIds(workspaceId, 'file')
   // Folders pin under their own resource type, so their pinned set is a separate query.
@@ -1819,6 +1825,7 @@ export function Files() {
     search: debouncedSearchTerm,
     filterCount: filterTags.length,
     folderId: currentFolderId,
+    foldersResolved,
   })
 
   if (fileIdFromRoute && !selectedFile && isLoading) {
