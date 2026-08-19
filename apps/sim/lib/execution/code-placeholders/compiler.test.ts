@@ -1383,6 +1383,40 @@ describe('a shadowing local does not suppress reads', () => {
   })
 })
 
+describe('destructured environment reads are reads', () => {
+  /**
+   * `const { API_KEY } = environmentVariables` delivers the value by name with no property-
+   * or element-access node in the AST, so the member-access walk alone missed it — and a
+   * missed read leaves an emitted value unmasked.
+   */
+  it.each([
+    ['shorthand', 'const { API_KEY } = environmentVariables\nreturn API_KEY'],
+    ['renamed', 'const { API_KEY: key } = environmentVariables\nreturn key'],
+    ['with a default', "const { API_KEY = 'x' } = environmentVariables\nreturn API_KEY"],
+    ['string-literal key', "const { 'API_KEY': key } = environmentVariables\nreturn key"],
+    ['assignment form', 'let key\n;({ API_KEY: key } = environmentVariables)\nreturn key'],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  it('reports every configured name for a rest grab', async () => {
+    const compiled = await compileCodePlaceholders({
+      code: 'const { ...all } = environmentVariables\nreturn all',
+      language: CodeLanguage.JavaScript,
+      environmentVariables: { API_KEY: 'a-value-123456', OTHER_KEY: 'b-value-123456' },
+    })
+    expect(compiled.resolvedSecretNames).toEqual(['API_KEY', 'OTHER_KEY'])
+  })
+
+  it.each([
+    ['different receiver', 'const { API_KEY } = other\nreturn API_KEY'],
+    ['computed key', 'const { [k]: v } = environmentVariables\nreturn v'],
+    ['unconfigured name', 'const { NOT_CONFIGURED } = environmentVariables\nreturn NOT_CONFIGURED'],
+  ])('does not attribute: %s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual([])
+  })
+})
+
 describe('shell backslash escaping is parity, not presence', () => {
   /**
    * `\\$KEY` is an escaped backslash followed by a LIVE expansion — bash prints `\` plus the

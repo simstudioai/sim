@@ -24,6 +24,8 @@ interface DecodedJavaScriptSyntax {
   identifierNames: string[]
   values: string[]
   environmentReads: DirectEnvironmentRead[]
+  /** Offset of a `...rest` grab off the environment object, which takes every value at once. */
+  environmentRestReadOffset?: number
 }
 
 export interface DirectEnvironmentRead {
@@ -56,6 +58,73 @@ function directEnvironmentRead(node: ts.Node): DirectEnvironmentRead | undefined
   return undefined
 }
 
+interface DestructuredEnvironmentReads {
+  reads: DirectEnvironmentRead[]
+  restOffset?: number
+}
+
+/**
+ * Names read off the environment object through destructuring, which the member-access walk
+ * cannot see: `const { API_KEY } = environmentVariables` contains no property- or
+ * element-access node, yet delivers the value by name exactly like a subscript.
+ *
+ * Covers the declaration form (renames, defaults, string-literal keys) and the assignment
+ * form `({ API_KEY } = environmentVariables)`. A `...rest` element is returned separately:
+ * it names no key but takes every value, so the caller reports every configured name — the
+ * alternative leaves `const { ...all } = environmentVariables; return all` entirely unmasked.
+ * A computed key (`{ [k]: v }`) stays unrecognized, the same runtime-name boundary as a
+ * computed subscript, and an initializer that is not the bare identifier (`other.env…`,
+ * `environmentVariables ?? {}`) is not attributed.
+ */
+function destructuredEnvironmentReads(node: ts.Node): DestructuredEnvironmentReads | undefined {
+  let pattern: ts.ObjectBindingPattern | ts.ObjectLiteralExpression | undefined
+  if (
+    ts.isVariableDeclaration(node) &&
+    node.initializer !== undefined &&
+    ts.isIdentifier(node.initializer) &&
+    node.initializer.text === ENVIRONMENT_VARIABLES_IDENTIFIER &&
+    ts.isObjectBindingPattern(node.name)
+  ) {
+    pattern = node.name
+  } else if (
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    ts.isIdentifier(node.right) &&
+    node.right.text === ENVIRONMENT_VARIABLES_IDENTIFIER &&
+    ts.isObjectLiteralExpression(node.left)
+  ) {
+    pattern = node.left
+  }
+  if (!pattern) return undefined
+
+  const result: DestructuredEnvironmentReads = { reads: [] }
+  const record = (name: ts.PropertyName | ts.Identifier, offset: number): void => {
+    if (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) {
+      if (name.text) result.reads.push({ name: name.text, offset })
+    }
+  }
+  if (ts.isObjectBindingPattern(pattern)) {
+    for (const element of pattern.elements) {
+      if (element.dotDotDotToken) {
+        result.restOffset = element.getStart()
+        continue
+      }
+      record(element.propertyName ?? (element.name as ts.Identifier), element.getStart())
+    }
+  } else {
+    for (const property of pattern.properties) {
+      if (ts.isSpreadAssignment(property)) {
+        result.restOffset = property.getStart()
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        record(property.name, property.getStart())
+      } else if (ts.isPropertyAssignment(property)) {
+        record(property.name, property.getStart())
+      }
+    }
+  }
+  return result
+}
+
 interface AnnexBHtmlCommentRange {
   start: number
   end: number
@@ -73,6 +142,7 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
   const identifierNames: string[] = []
   const values: string[] = []
   const environmentReads: DirectEnvironmentRead[] = []
+  let environmentRestReadOffset: number | undefined
   const visit = (node: ts.Node): void => {
     const isTemplateToken =
       node.kind === ts.SyntaxKind.TemplateHead ||
@@ -93,6 +163,17 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
     ) {
       const environmentRead = directEnvironmentRead(node)
       if (environmentRead) environmentReads.push(environmentRead)
+    } else if (
+      node.kind === ts.SyntaxKind.VariableDeclaration ||
+      node.kind === ts.SyntaxKind.BinaryExpression
+    ) {
+      const destructured = destructuredEnvironmentReads(node)
+      if (destructured) {
+        environmentReads.push(...destructured.reads)
+        if (destructured.restOffset !== undefined) {
+          environmentRestReadOffset ??= destructured.restOffset
+        }
+      }
     }
     ts.forEachChild(node, visit)
   }
@@ -107,7 +188,7 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
    * off a shadowing local costs far less: the matcher is given that secret's exact value, the
    * code never emits it, and nothing matches.
    */
-  return { identifierNames, values, environmentReads }
+  return { identifierNames, values, environmentReads, environmentRestReadOffset }
 }
 
 function collectForbiddenSentinels(
@@ -561,6 +642,12 @@ export async function compileJavaScriptPlaceholders(
    */
   for (const read of decodedSyntax.environmentReads) {
     context.recordDirectEnvironmentRead(read.name, read.offset)
+  }
+  if (decodedSyntax.environmentRestReadOffset !== undefined) {
+    /** `...rest` delivers every configured value at once, so every configured name is a read. */
+    for (const name of Object.keys(input.environmentVariables ?? {})) {
+      context.recordDirectEnvironmentRead(name, decodedSyntax.environmentRestReadOffset)
+    }
   }
   if (context.occurrences.length === 0) {
     const sourceFile = ts.createSourceFile(
