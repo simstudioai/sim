@@ -13,7 +13,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  hasWorkspaceAdminAccess,
+  isOrganizationAdminOrOwner,
+} from '@/lib/workspaces/permissions/utils'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
   transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
@@ -51,9 +54,48 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
 
+      const organizationId = workspaceRow[0].organizationId
+
+      /**
+       * Authority is settled before anything is answered about the target, so
+       * the standing-specific replies below only ever describe someone the
+       * caller can already see in the members list.
+       */
+      const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+      const isSelf = userId === session.user.id
+
+      if (!hasAdminAccess && !isSelf) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
+
       if (workspaceRow[0].billedAccountUserId === userId) {
         return NextResponse.json(
           { error: 'Cannot remove the workspace billing account. Please reassign billing first.' },
+          { status: 400 }
+        )
+      }
+
+      /**
+       * Organization admins hold workspace admin across the whole organization
+       * through `member.role`, not through a `permissions` row, so removal has
+       * nothing to revoke. Left to fall through, the two shapes failed in two
+       * different ways: with no row it answered "user not found in workspace"
+       * about someone listed as an Admin on the very screen the caller clicked
+       * from, and with a row it deleted a grant the derived one immediately
+       * replaced — while the seat reconciliation below counts rows only, so
+       * that no-op could still drop the admin's organization membership.
+       *
+       * Mirrored by `workspaceMemberRemovalLockReason` on the client, and by the
+       * same guard on `PATCH /api/workspaces/[id]/permissions`, which refuses to
+       * re-role an organization admin for the same reason.
+       */
+      if (organizationId && (await isOrganizationAdminOrOwner(userId, organizationId))) {
+        return NextResponse.json(
+          {
+            error: isSelf
+              ? 'Organization admins are automatically workspace admins. Change your organization role to leave this workspace.'
+              : 'Organization admins are automatically workspace admins. Change their organization role to remove them from this workspace.',
+          },
           { status: 400 }
         )
       }
@@ -76,14 +118,6 @@ export const DELETE = withRouteHandler(
 
       if (!userPermission && !isOwnerOnlyRemoval) {
         return NextResponse.json({ error: 'User not found in workspace' }, { status: 404 })
-      }
-
-      // Check if current user has admin access to this workspace
-      const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      const isSelf = userId === session.user.id
-
-      if (!hasAdminAccess && !isSelf) {
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
       // Removing the workspace owner is allowed for any admin: ownership transfers
@@ -112,8 +146,6 @@ export const DELETE = withRouteHandler(
           )
         }
       }
-
-      const organizationId = workspaceRow[0].organizationId
 
       const { ownershipTransferred, workflowOwnershipReassignment } = await db.transaction(
         async (tx) => {
