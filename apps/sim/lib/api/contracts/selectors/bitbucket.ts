@@ -19,6 +19,14 @@ const bitbucketSlugSchema = z
   .min(1, 'Bitbucket slug is required')
   .max(255, 'Bitbucket slug must be 255 characters or fewer')
 
+const bitbucketWorkspaceUuidPattern =
+  /^(?:\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+
+const bitbucketWorkspaceSlugSchema = bitbucketSlugSchema.refine(
+  (slug) => !slug.includes('/') && !bitbucketWorkspaceUuidPattern.test(slug),
+  'Bitbucket workspace must be identified by its slug, not a UUID or path'
+)
+
 const bitbucketRepositorySlugSchema = bitbucketSlugSchema.refine(
   (slug) => slug.length <= 62,
   'Bitbucket repository slug must be 62 characters or fewer'
@@ -74,7 +82,7 @@ export const bitbucketWorkspacesBodySchema = credentialWorkflowBodySchema.extend
 
 export const bitbucketRepositoriesBodySchema = credentialWorkflowBodySchema
   .extend({
-    workspaceSlug: bitbucketSlugSchema,
+    workspaceSlug: bitbucketWorkspaceSlugSchema,
     cursor: bitbucketCursorSchema.optional(),
   })
   .superRefine((body, ctx) => {

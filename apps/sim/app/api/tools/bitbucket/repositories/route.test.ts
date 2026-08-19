@@ -103,6 +103,18 @@ describe('POST /api/tools/bitbucket/repositories', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
+  it.each(['{0f6f9d4d-70cf-4831-aaa2-d196fc5eebcb}', '0f6f9d4d-70cf-4831-aaa2-d196fc5eebcb'])(
+    'rejects workspace UUID %s because repository discovery is slug-scoped',
+    async (uuid) => {
+      const response = await POST(request({ ...REQUEST_BODY, workspaceSlug: uuid }), {})
+
+      expect(response.status).toBe(400)
+      expect(mockAuthorizeCredentialUse).not.toHaveBeenCalled()
+      expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
+      expect(mockFetch).not.toHaveBeenCalled()
+    }
+  )
+
   it('authorizes the exact credential before resolving or refreshing it', async () => {
     const response = await POST(request(REQUEST_BODY), {})
 
