@@ -76,6 +76,7 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
     input: log.input,
     output,
     ...(childIds ?? {}),
+    ...(log.childExecution ? { childExecutionId: log.childExecution.executionId } : {}),
     ...(log.errorHandled && { errorHandled: true }),
     ...(log.tries !== undefined && { tries: log.tries }),
     ...(log.loopId && { loopId: log.loopId }),
@@ -93,7 +94,16 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
  * the block-level error into output so the UI renders it alongside data.
  */
 function extractDisplayOutput(log: ValidBlockLog): Record<string, unknown> {
-  const { childWorkflowSnapshotId, childWorkflowId, ...rest } = log.output ?? {}
+  // `childTraceSpans` is dropped defensively as well as by `filterOutputForLog`: the spans
+  // ride a block's output to reach the live stream, and a producer whose block config does
+  // not declare them hidden would otherwise persist another workspace's spans here, where
+  // no per-viewer authorization ever runs again.
+  const {
+    childWorkflowSnapshotId,
+    childWorkflowId,
+    childTraceSpans: _childTraceSpans,
+    ...rest
+  } = log.output ?? {}
   return log.error ? { ...rest, error: log.error } : rest
 }
 
@@ -368,8 +378,13 @@ function stripChildTraceSpansFromOutput(
   return rest
 }
 
-/** Recursively flattens synthetic workflow wrappers, preserving real block spans. */
-function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
+/**
+ * Recursively flattens synthetic workflow wrappers, preserving real block spans.
+ *
+ * Shared with read-time custom-block hydration so a cross-workspace child nests
+ * under its boundary span exactly the way an in-process child workflow does.
+ */
+export function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
   const flattened: TraceSpan[] = []
 
   for (const span of spans) {

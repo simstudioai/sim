@@ -14,6 +14,11 @@ export const forkRemapKindSchema = z.enum([
   'file',
   'mcp-server',
   'custom-tool',
+  /**
+   * A published custom block, referenced by the placed block's `type` rather than by any
+   * sub-block value — the only remap kind that rewrites the block itself.
+   */
+  'custom-block',
   'skill',
 ])
 
@@ -33,6 +38,12 @@ export const forkResourceTypeSchema = z.enum([
    * never user-mapped (nothing in a workflow references these servers).
    */
   'workflow_mcp_server',
+  /**
+   * Published custom block (deploy-as-block). Mapped, never copied: a custom block is
+   * org-scoped and binds a workflow in the PUBLISHER's workspace, so an environment fork
+   * repoints its placed blocks at the environment's own block rather than duplicating one.
+   */
+  'custom_block',
   'custom_tool',
   'skill',
 ])
@@ -471,11 +482,17 @@ export type ForkClearedRef = z.output<typeof forkClearedRefSchema>
  *    dead id to an existing live target resource, or by fixing/archiving the source workflow.
  *  - `workflow-missing`: a cross-workflow reference to a workflow not carried into the target -
  *    resolve by deploying the referenced workflow in the source, or removing the reference.
+ *  - `unmapped-custom-block`: a placed custom block with no target mapping. Unlike every other
+ *    unmapped reference this one does NOT clear - a block's type cannot be emptied without
+ *    deleting the node - so the target would silently keep invoking the SOURCE environment's
+ *    block. Blocking is what makes that visible; resolve by mapping it to the target
+ *    environment's own published block.
  */
 export const forkSyncBlockerReasonSchema = z.enum([
   'unmapped-copyable',
   'source-deleted',
   'workflow-missing',
+  'unmapped-custom-block',
 ])
 export type ForkSyncBlockerReason = z.output<typeof forkSyncBlockerReasonSchema>
 

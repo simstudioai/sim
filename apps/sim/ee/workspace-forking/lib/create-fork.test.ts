@@ -77,6 +77,7 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
+  createForkBlockTypeTransform: vi.fn(() => (blockType: string) => blockType),
 }))
 vi.mock('@/ee/workspace-forking/lib/remap/reference-scan', () => ({
   collectReferencedDocumentIds: vi.fn(() => new Set<string>()),

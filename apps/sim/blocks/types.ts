@@ -639,6 +639,13 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
    */
   sourceWorkflowId?: string
   /**
+   * For published custom blocks only: the name of the workspace the bound source
+   * workflow lives in. Display-only, and the sole way to tell two blocks apart when
+   * an org runs the same block per environment — prod/uat/sandbox copies share a
+   * name and differ only by an opaque `custom_block_<slug>` type.
+   */
+  sourceWorkspaceName?: string
+  /**
    * Marks an unreleased block. Preview blocks are hidden from every discovery
    * surface (toolbar, search, mentions, copilot/VFS, docs) in every environment —
    * hosted, self-hosted, dev, and SSR — until revealed via the hosted
