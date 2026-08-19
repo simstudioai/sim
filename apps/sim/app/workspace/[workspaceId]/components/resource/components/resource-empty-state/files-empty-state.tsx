@@ -2,24 +2,10 @@ import { Chip, cn } from '@sim/emcn'
 import { Upload } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
+import { HAIRLINE } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/hairline'
 import { MASK_NO_REPEAT } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/mask'
 
 const FILES_DOCS_URL = 'https://docs.sim.ai/files'
-
-/**
- * Hairline contours, matching the tables grid's 1px `--border` rules and the
- * knowledge mark's thinned strokes — the graphics sit one nav item apart, so a
- * heavier outline here would read as a different illustration system.
- *
- * Fills stay near the top of the surface ramp for the same reason: the border
- * draws the folder and the fill only has to separate one layer from the next. A
- * solid mid-grey body made this the heaviest thing on the page.
- */
-const HAIRLINE = {
-  stroke: 'var(--border)',
-  strokeWidth: 1.1,
-  strokeLinejoin: 'round' as const,
-} as const
 
 const FOLDER_BACK = [
   'M 22 34',
