@@ -13,7 +13,7 @@ import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { isSimPageSource } from '@/lib/workspace-files/page-compile'
-import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import {
   createErrorResponse,
   createFileResponse,
@@ -100,7 +100,7 @@ export const GET = withRouteHandler(
         // routes. sim: links resolve to workspace routes (a viewer without
         // workspace access simply lands on the sign-in gate).
         buffer = Buffer.from(
-          renderSimPageDocument(raw.toString('utf8'), {
+          await renderSimPageDocumentWithAssets(raw.toString('utf8'), {
             workspaceId: file.workspaceId ?? undefined,
           }),
           'utf8'

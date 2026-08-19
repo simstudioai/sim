@@ -34,7 +34,7 @@ import {
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 import { isSimPageSource } from '@/lib/workspace-files/page-compile'
-import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 
@@ -430,7 +430,7 @@ export async function downloadServableFileFromStorage(
         ? (parseWorkspaceFileKey(userFile.key) ?? undefined)
         : undefined
       return {
-        buffer: Buffer.from(renderSimPageDocument(text, { workspaceId }), 'utf8'),
+        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
         contentType: 'text/html',
       }
     }

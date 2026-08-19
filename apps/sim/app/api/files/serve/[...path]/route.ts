@@ -23,7 +23,7 @@ import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import { isSimPageSource } from '@/lib/workspace-files/page-compile'
-import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
+import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
   createErrorResponse,
@@ -93,7 +93,7 @@ async function resolveServableBytes(params: {
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       return {
-        buffer: Buffer.from(renderSimPageDocument(text, { workspaceId }), 'utf8'),
+        buffer: Buffer.from(await renderSimPageDocumentWithAssets(text, { workspaceId }), 'utf8'),
         contentType: 'text/html',
       }
     }
