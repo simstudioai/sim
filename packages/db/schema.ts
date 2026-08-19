@@ -3815,6 +3815,16 @@ export const usageLog = pgTable(
         table.cost
       )
       .where(sql`${table.billingEntityType} IS NOT NULL`),
+    billingEntityCreatedAtCostIdx: index('usage_log_billing_entity_created_at_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.createdAt,
+        table.userId,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
     billingScopeAllOrNone: check(
       'usage_log_billing_scope_all_or_none',
       sql`(
