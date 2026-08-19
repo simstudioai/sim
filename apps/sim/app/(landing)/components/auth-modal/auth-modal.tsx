@@ -202,7 +202,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     disabled={!!socialLoading}
                     className={SOCIAL_BTN}
                   >
-                    <GoogleIcon className='absolute left-4 size-[20px] shrink-0' />
+                    <GoogleIcon className='absolute left-4 size-[18px] shrink-0' />
                     <span>
                       {socialLoading === 'google' ? 'Connecting...' : 'Continue with Google'}
                     </span>
