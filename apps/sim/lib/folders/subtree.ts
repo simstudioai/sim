@@ -15,7 +15,7 @@ export type FolderChildrenIndex = ReadonlyMap<string, string[]>
  * it on every call, which is O(rows) each time, and a workspace's tree is
  * bounded only by `MAX_FOLDERS_PER_WORKSPACE`.
  */
-export function indexFolderChildren(folders: readonly FolderNode[]): FolderChildrenIndex {
+export function indexFolderChildren(folders: Iterable<FolderNode>): FolderChildrenIndex {
   const childrenByParent = new Map<string, string[]>()
 
   for (const folder of folders) {

@@ -24,11 +24,11 @@ import type {
 import {
   EMPTY_CELL_PLACEHOLDER,
   FILTER_SECTION_LABEL_CLASS,
-  isResourceListEmpty,
   OwnerAvatar,
   ownerCell,
   Resource,
   reportBulkOutcome,
+  resourceListState,
   selectionLabel,
   timeCell,
   useResourceRowSelection,
@@ -41,21 +41,29 @@ import {
   buildDescendantIndex,
   buildMoveOptions,
   buildMoveOptionsExcludingSubtrees,
+  EMPTY_LOCATION_CELL,
+  FOLDER_LOCATION_COLUMN,
   FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
+  folderLocationLabel,
   folderRow,
   folderRowId,
+  isSearchingResources,
   nextUntitledFolderName,
   parseFolderedRowId,
   parseMoveOptionValue,
+  scopeFolderedItems,
   sortResources,
   splitFolderedRowIds,
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import {
+  KnowledgeEmptyState,
+  ResourceNoResults,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   CreateBaseModal,
@@ -69,7 +77,6 @@ import {
   knowledgeSortParams,
   knowledgeUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
-import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/filter'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -84,10 +91,10 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
-import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -111,6 +118,8 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'owner', header: 'Owner' },
   { id: 'updated', header: 'Last Updated' },
 ]
+
+const SEARCH_COLUMNS: ResourceColumn[] = [...COLUMNS, FOLDER_LOCATION_COLUMN]
 
 const KNOWLEDGE_BASE_ICON = <Database className='size-[14px]' />
 
@@ -230,6 +239,7 @@ export function Knowledge() {
   const {
     currentFolderId,
     setCurrentFolderId,
+    openFolder,
     ancestors: breadcrumbs,
     folders,
     folderById,
@@ -237,6 +247,8 @@ export function Knowledge() {
   } = useFolderNavigation({
     resourceType: FOLDER_RESOURCE_TYPE,
     workspaceId,
+    /** Declared below; only ever called from a click, long after this render initializes it. */
+    onBeforeOpenFolder: () => setSearchQuery(''),
   })
 
   const createFolder = useCreateFolder()
@@ -261,7 +273,7 @@ export function Knowledge() {
   const setSearchQuery = useDebouncedSearchSetter((value, options) =>
     setKnowledgeFilters({ search: value }, options)
   )
-  const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS)
+  const debouncedSearchQuery = useSearchFilterValue(urlSearchQuery, SEARCH_DEBOUNCE_MS)
 
   const {
     sort: sortColumn,
@@ -454,29 +466,39 @@ export function Knowledge() {
    * Files page. The resource filters (connectors/content/owner) describe properties a folder
    * does not have, so folders answer only to the search term.
    */
-  const visibleFolders = useMemo(() => {
-    const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
-    const needle = debouncedSearchQuery.trim().toLowerCase()
-    return needle
-      ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
-      : siblings
-  }, [folders, currentFolderId, debouncedSearchQuery])
+  /** A query stops scoping the list to the open folder — see {@link scopeFolderedItems}. */
+  const isSearching = isSearchingResources(debouncedSearchQuery)
+
+  const visibleFolders = useMemo(
+    () =>
+      scopeFolderedItems(folders, {
+        currentFolderId,
+        search: debouncedSearchQuery,
+        getParentId: (folder) => folder.parentId ?? null,
+        getSearchText: (folder) => [folder.name],
+      }),
+    [folders, currentFolderId, debouncedSearchQuery]
+  )
 
   const processedKBs = useMemo(() => {
-    /**
-     * A `folderId` that no longer names an active folder — a base restored on its own out of
-     * Recently Deleted while its folder stayed archived, or a cascade that failed partway —
-     * would otherwise match no level at all and leave the base unreachable from every view.
-     * Fall it back to the root instead — but only once `foldersResolved` says the index is the
-     * complete set for THIS workspace. Gating on a loading flag instead would treat an errored
-     * fetch, a disabled query, or the previous workspace's cached folders as "no such folder"
-     * and drag every foldered base to the root.
-     */
-    let result = filterKnowledgeBases(knowledgeBases, debouncedSearchQuery).filter((kb) => {
-      const folderId = kb.folderId ?? null
-      const effectiveFolderId =
-        !foldersResolved || !folderId || folderById.has(folderId) ? folderId : null
-      return effectiveFolderId === currentFolderId
+    let result = scopeFolderedItems(knowledgeBases, {
+      currentFolderId,
+      search: debouncedSearchQuery,
+      /**
+       * A `folderId` that no longer names an active folder — a base restored on its own out of
+       * Recently Deleted while its folder stayed archived, or a cascade that failed partway —
+       * would otherwise match no level at all and leave the base unreachable from every view.
+       * Fall it back to the root instead — but only once `foldersResolved` says the index is the
+       * complete set for THIS workspace. Gating on a loading flag instead would treat an errored
+       * fetch, a disabled query, or the previous workspace's cached folders as "no such folder"
+       * and drag every foldered base to the root.
+       */
+      getParentId: (kb) => {
+        const folderId = kb.folderId ?? null
+        return !foldersResolved || !folderId || folderById.has(folderId) ? folderId : null
+      },
+      /** A base is findable by its description as well as its name. */
+      getSearchText: (kb) => [kb.name, kb.description],
     })
 
     if (connectorFilter.length > 0) {
@@ -589,6 +611,16 @@ export function Knowledge() {
               created: timeCell(item.folder.createdAt),
               owner: ownerCell(item.folder.userId, membersById),
               updated: timeCell(item.folder.updatedAt),
+              /** A folder's location is its parent's path, not its own. */
+              location: isSearching
+                ? {
+                    label: folderLocationLabel(
+                      item.folder.parentId,
+                      folderById,
+                      ROOT_BREADCRUMB_LABEL
+                    ),
+                  }
+                : EMPTY_LOCATION_CELL,
             },
           })
         }
@@ -612,10 +644,13 @@ export function Knowledge() {
             created: timeCell(base.createdAt),
             owner: ownerCell(base.userId, membersById),
             updated: timeCell(base.updatedAt),
+            location: isSearching
+              ? { label: folderLocationLabel(base.folderId, folderById, ROOT_BREADCRUMB_LABEL) }
+              : EMPTY_LOCATION_CELL,
           },
         }
       }),
-    [sortedEntries, membersById]
+    [sortedEntries, membersById, folderById, isSearching]
   )
 
   /**
@@ -710,7 +745,7 @@ export function Knowledge() {
 
       const parsed = parseFolderedRowId(rowId)
       if (parsed.kind === 'folder') {
-        setCurrentFolderId(parsed.id)
+        openFolder(parsed.id)
         return
       }
 
@@ -719,7 +754,7 @@ export function Knowledge() {
       const urlParams = new URLSearchParams({ kbName: kb.name })
       router.push(`/workspace/${workspaceId}/knowledge/${parsed.id}?${urlParams.toString()}`)
     },
-    [router, workspaceId, setCurrentFolderId]
+    [router, workspaceId, openFolder]
   )
 
   const handleRowContextMenu = useCallback(
@@ -830,8 +865,8 @@ export function Knowledge() {
 
   const handleOpenFolder = useCallback(() => {
     const folder = activeFolderRef.current
-    if (folder) setCurrentFolderId(folder.id)
-  }, [setCurrentFolderId])
+    if (folder) openFolder(folder.id)
+  }, [openFolder])
 
   const handleCopyFolderId = useCallback(() => {
     const folder = activeFolderRef.current
@@ -858,16 +893,17 @@ export function Knowledge() {
       setActiveFolder(null)
       // Deleting the folder you are standing in leaves the list pointed at an archived
       // folder, which renders as an empty page with a dead breadcrumb — step out to its
-      // parent instead.
+      // parent instead. Not `openFolder`: this is a forced correction, so it must neither
+      // clear an active search nor push a back-stack entry aimed at the deleted folder.
       if (currentFolderIdRef.current === folder.id) {
-        setCurrentFolderId(folder.parentId)
+        setCurrentFolderId(folder.parentId, { history: 'replace' })
       }
     } catch (deleteError) {
       logger.error('Failed to delete folder', deleteError)
       toast.error(getErrorMessage(deleteError, 'Failed to delete folder'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, setCurrentFolderId])
+  }, [workspaceId, openFolder])
 
   const descendantsByFolderId = useMemo(() => buildDescendantIndex(folders), [folders])
 
@@ -1100,6 +1136,7 @@ export function Knowledge() {
     selection: { selectedRowIds, visibleRowIds, replaceSelection },
     onSpringOpenFolder: setCurrentFolderId,
     currentFolderId,
+    bodyDropFolderId: isSearching ? undefined : currentFolderId,
   })
 
   const headerActions: ResourceAction[] = useMemo(
@@ -1127,7 +1164,7 @@ export function Knowledge() {
         rootLabel: ROOT_BREADCRUMB_LABEL,
         rootIcon: FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon,
         breadcrumbs,
-        onNavigate: setCurrentFolderId,
+        onNavigate: openFolder,
         currentFolderEditing:
           breadcrumbRename.editingId && breadcrumbRename.editingId === currentFolderId
             ? {
@@ -1161,7 +1198,7 @@ export function Knowledge() {
     [
       breadcrumbs,
       currentFolderId,
-      setCurrentFolderId,
+      openFolder,
       canEdit,
       breadcrumbRename.editingId,
       breadcrumbRename.editValue,
@@ -1340,7 +1377,7 @@ export function Knowledge() {
     return tags
   }, [connectorFilter, contentFilter, ownerFilter, members])
 
-  const showEmptyState = isResourceListEmpty({
+  const listState = resourceListState({
     rowCount: rows.length,
     isLoading,
     isPlaceholderData,
@@ -1350,6 +1387,11 @@ export function Knowledge() {
     folderId: currentFolderId,
     foldersResolved,
   })
+
+  const clearSearchAndFilters = () => {
+    setSearchQuery('')
+    void setKnowledgeFilters({ connector: null, content: null, owner: null })
+  }
 
   return (
     <>
@@ -1368,11 +1410,17 @@ export function Knowledge() {
           filter={filterConfig}
         />
         <Resource.Table
-          columns={COLUMNS}
+          columns={isSearching ? SEARCH_COLUMNS : COLUMNS}
           rows={rows}
           emptyState={
-            showEmptyState ? (
+            listState === 'empty' ? (
               <KnowledgeEmptyState onCreate={handleOpenCreateModal} createDisabled={!canEdit} />
+            ) : listState === 'no-results' ? (
+              <ResourceNoResults
+                search={debouncedSearchQuery}
+                filterCount={filterTags.length}
+                onClear={clearSearchAndFilters}
+              />
             ) : undefined
           }
           selectable={canEdit ? selectableConfig : undefined}

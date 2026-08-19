@@ -42,7 +42,24 @@ interface ResourceListEmptyInput {
  * - The folder tree still resolving, for the same reason as the rows themselves: a
  *   workspace whose only contents are folders reads as empty until they land.
  */
-export function isResourceListEmpty({
+export function isResourceListEmpty(input: ResourceListEmptyInput): boolean {
+  return resourceListState(input) === 'empty'
+}
+
+/**
+ * What a resource list should render in place of rows.
+ *
+ * - `rows` — rows are showing, or none have settled yet, so the table renders itself.
+ * - `empty` — the workspace genuinely holds nothing; the zero-data graphic is the true answer.
+ * - `no-results` — a search or filter matched nothing. Distinct from `empty`, because the
+ *   copy that invites you to create your first item would be a lie, and distinct from `rows`,
+ *   because rendering neither leaves an unexplained blank table.
+ *
+ * One function rather than two predicates: the two states share every "the rows have actually
+ * arrived" condition, and when those lived in both places a new condition could be added to
+ * one and silently left off the other.
+ */
+export function resourceListState({
   rowCount,
   isLoading,
   isPlaceholderData,
@@ -51,15 +68,11 @@ export function isResourceListEmpty({
   filterCount,
   folderId = null,
   foldersResolved = true,
-}: ResourceListEmptyInput): boolean {
-  return (
-    rowCount === 0 &&
-    !isLoading &&
-    !isPlaceholderData &&
-    !error &&
-    foldersResolved &&
-    folderId === null &&
-    !search.trim() &&
-    filterCount === 0
-  )
+}: ResourceListEmptyInput): 'rows' | 'empty' | 'no-results' {
+  const settled = rowCount === 0 && !isLoading && !isPlaceholderData && !error && foldersResolved
+  if (!settled) return 'rows'
+  const narrowed = Boolean(search.trim()) || filterCount > 0
+  if (narrowed) return 'no-results'
+  /** An empty subfolder is not an empty workspace, so it gets neither state. */
+  return folderId === null ? 'empty' : 'rows'
 }
