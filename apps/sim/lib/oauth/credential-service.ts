@@ -257,9 +257,11 @@ export async function getServiceAccountToken(
 }
 
 export interface SlackBotCredentialSecrets {
-  signingSecret: string
+  /** Required only when the bot receives Slack events; action-only bots may omit it. */
+  signingSecret?: string
   botToken: string
-  teamId: string
+  /** Present on newly connected bots; legacy backfills resolve it only when needed. */
+  teamId?: string
   botUserId?: string
   teamName?: string
   /** Owning workspace — callers with a user/workflow context must verify it. */
@@ -269,8 +271,10 @@ export interface SlackBotCredentialSecrets {
 /**
  * Decrypt a reusable custom Slack bot credential — a `service_account` credential
  * with `providerId='slack-custom-bot'` whose encrypted blob holds the bring-your-own
- * app's signing secret + bot token + derived team_id/bot_user_id. Returns null if
- * the id is not such a credential (or its blob is incomplete).
+ * app's bot token and, when configured for event ingestion, its signing secret.
+ * Newly connected bots also hold derived team identity; legacy backfills may not.
+ * Returns null if the id is not such a credential or the action-capable portion
+ * of its blob is incomplete.
  *
  * @remarks Server-internal. The native custom ingest route authenticates each
  * request via the app's signing secret (not a user session), so this reader does
@@ -301,15 +305,17 @@ export async function getSlackBotCredential(
 
   const { decrypted } = await decryptSecret(row.encryptedServiceAccountKey)
   const blob = JSON.parse(decrypted) as Partial<SlackBotCredentialSecrets>
-  if (!blob.signingSecret || !blob.botToken || !blob.teamId) {
+  if (!blob.botToken) {
     return null
   }
   return {
-    signingSecret: blob.signingSecret,
+    ...(typeof blob.signingSecret === 'string' && blob.signingSecret
+      ? { signingSecret: blob.signingSecret }
+      : {}),
     botToken: blob.botToken,
-    teamId: blob.teamId,
-    botUserId: blob.botUserId,
-    teamName: blob.teamName,
+    ...(typeof blob.teamId === 'string' && blob.teamId ? { teamId: blob.teamId } : {}),
+    ...(typeof blob.botUserId === 'string' && blob.botUserId ? { botUserId: blob.botUserId } : {}),
+    ...(typeof blob.teamName === 'string' && blob.teamName ? { teamName: blob.teamName } : {}),
     workspaceId: row.workspaceId ?? null,
   }
 }

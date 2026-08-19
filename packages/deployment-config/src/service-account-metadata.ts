@@ -10,7 +10,6 @@ export interface ServiceAccountMetadata {
 
 /** Handwritten deployment policy layered over generated OAuth registry facts. */
 const DEPLOYMENT_REQUIREMENT_BY_OAUTH_SERVICE_ID = {
-  slack: 'preview-gated',
   trello: 'oauth-client',
 } as const satisfies Partial<Record<ServiceAccountOAuthServiceId, DeploymentRequirement>>
 

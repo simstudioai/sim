@@ -1,5 +1,7 @@
 import { SlackIcon } from '@/components/icons'
+import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import type { SubBlockConfig } from '@/blocks/types'
 import {
   SLACK_ALL_EVENT_OPTIONS,
   SLACK_SOURCE_OPTIONS,
@@ -35,9 +37,52 @@ const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reactio
  *   that (`SIM_SUBSCRIBED_EVENTS`), so the event picker offers every event
  *   rather than mutating its option set with the selected credential.
  *
- * The trigger is only reachable through the preview-gated `slack_v2` block, so
- * the native Sim-app mode inherits that gate — no separate env flag.
+ * Native Sim-app mode is a deployment capability controlled by the existing
+ * Slack extended-scopes env pair. Custom bots stay available independently.
  */
+export function getSlackTriggerCredentialSubBlock(extendedScopesEnabled: boolean): SubBlockConfig {
+  if (!extendedScopesEnabled) {
+    return {
+      id: 'customBotCredential',
+      title: 'Custom Bot',
+      type: 'oauth-input',
+      canonicalParamId: 'botCredential',
+      serviceId: 'slack',
+      credentialKind: 'service-account',
+      credentialLabels: {
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
+      requiredScopes: getScopesForService('slack'),
+      placeholder: 'Select custom bot',
+      description: 'Choose a custom Slack bot you set up once and reuse across triggers.',
+      required: true,
+      mode: 'trigger',
+    }
+  }
+
+  return {
+    id: 'customBotCredential',
+    title: 'Slack Account',
+    type: 'oauth-input',
+    canonicalParamId: 'botCredential',
+    serviceId: 'slack',
+    credentialKind: 'any',
+    credentialLabels: {
+      oauthGroup: 'Sim app',
+      oauthConnect: 'Connect the Sim app',
+      serviceAccountGroup: 'Custom bots',
+      serviceAccountConnect: 'Set up a custom bot',
+    },
+    requiredScopes: getScopesForService('slack'),
+    placeholder: 'Select Slack account or bot',
+    description:
+      'Connect the native Sim Slack app, or choose a custom Slack bot you set up once and reuse across triggers and actions.',
+    required: true,
+    mode: 'trigger',
+  }
+}
+
 export const slackOAuthTrigger: TriggerConfig = {
   id: 'slack_oauth',
   name: 'Slack',
@@ -58,26 +103,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    {
-      id: 'customBotCredential',
-      title: 'Slack Account',
-      type: 'oauth-input',
-      canonicalParamId: 'botCredential',
-      serviceId: 'slack',
-      credentialKind: 'any',
-      credentialLabels: {
-        oauthGroup: 'Sim app',
-        oauthConnect: 'Connect the Sim app',
-        serviceAccountGroup: 'Custom bots',
-        serviceAccountConnect: 'Set up a custom bot',
-      },
-      requiredScopes: getScopesForService('slack'),
-      placeholder: 'Select Slack account or bot',
-      description:
-        'Connect the native Sim Slack app, or choose a custom Slack bot you set up once and reuse across triggers and actions.',
-      required: true,
-      mode: 'trigger',
-    },
+    getSlackTriggerCredentialSubBlock(isSlackExtendedScopesEnabled),
     {
       id: 'manualBotCredential',
       title: 'Bot Credential ID',

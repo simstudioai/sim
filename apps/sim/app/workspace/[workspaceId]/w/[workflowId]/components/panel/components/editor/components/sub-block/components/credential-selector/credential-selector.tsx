@@ -131,11 +131,11 @@ export function CredentialSelector({
     [credentialKind, isMergedKinds, serviceId]
   )
 
-  // Canonical resolver for the service-account connect control: the vendor-
-  // accurate label and — critically — the per-viewer preview gate (a custom
-  // Slack bot rides `slack_v2`). Shared with the integrations page and chat so
-  // the gate can't be bypassed here. When `hidden`, the setup action is
-  // suppressed; existing service-account credentials stay selectable.
+  /**
+   * Canonical resolver for the service-account connect control: the vendor-
+   * accurate label and the owning block's per-viewer visibility. When hidden,
+   * the setup action is suppressed while existing credentials stay selectable.
+   */
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId: serviceAccountService?.serviceAccountProviderId as
       | ServiceAccountProviderId
