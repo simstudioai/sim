@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  AccountDeletionBlockedError,
   type AccountDeletionFacts,
   classifyAccountDeletion,
   type WorkspaceCompany,
@@ -161,5 +162,20 @@ describe('classifyAccountDeletion', () => {
     )
 
     expect(plan.blockers[0].message).toContain('"One", "Two", "Three" and 1 more')
+  })
+})
+
+describe('AccountDeletionBlockedError', () => {
+  it('classifies itself as a conflict so the route renders a refusal as 409, not 500', () => {
+    const error = new AccountDeletionBlockedError([
+      { code: 'active_subscription', message: 'Your pro plan is still active.' },
+    ])
+
+    expect(error.code).toBe('conflict')
+    expect(error.message).toBe('Your pro plan is still active.')
+  })
+
+  it('still carries a message when constructed with no blockers', () => {
+    expect(new AccountDeletionBlockedError([]).message).toMatch(/cannot be deleted/i)
   })
 })

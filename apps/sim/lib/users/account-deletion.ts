@@ -13,7 +13,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { formatQuotedNameList } from '@sim/utils/string'
-import { and, eq, gt, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
   AccountDeletionBlocker,
   AccountDeletionPlan,
@@ -37,6 +37,13 @@ const logger = createLogger('AccountDeletion')
  * just under-fills that call and multiplies round trips.
  */
 const STORAGE_PAGE_SIZE = 1000
+
+/**
+ * Upper bound on stored-object keys held in memory between the pre-commit
+ * collection and the post-commit purge. Beyond this the remainder is left
+ * orphaned and logged — leaking objects beats exhausting the process mid-erasure.
+ */
+const MAX_PURGE_KEYS = 100_000
 
 /** Names listed inline in a blocker sentence before it summarizes the rest. */
 const MAX_NAMES_LISTED = 3
@@ -321,67 +328,58 @@ interface StorageKeyRow {
   context?: string | null
 }
 
+/** One page of keys destined for a single storage context. */
+interface StorageKeyBatch {
+  context: StorageContext
+  keys: string[]
+}
+
 /**
- * Walks a table in id order, handing each page to `handle`.
+ * Walks a table in id order, collecting each page's keys.
  *
- * Keyset paging rather than `OFFSET`: the caller deletes stored objects but
- * leaves the rows in place for the cascade, so an offset would make Postgres
- * re-scan and discard everything already visited on every page.
+ * Keyset paging rather than `OFFSET`, so Postgres never re-scans and discards
+ * everything already visited on every subsequent page.
  */
-async function forEachPage(
+async function collectPages(
   page: (afterId: string) => Promise<StorageKeyRow[]>,
-  handle: (rows: StorageKeyRow[]) => Promise<void>
+  into: StorageKeyBatch[],
+  contextFor: (row: StorageKeyRow) => StorageContext
 ): Promise<void> {
   let afterId = ''
   for (;;) {
     const rows = await page(afterId)
     if (rows.length === 0) return
-    await handle(rows)
+
+    const keysByContext = new Map<StorageContext, string[]>()
+    for (const row of rows) {
+      if (!row.key) continue
+      const context = contextFor(row)
+      const bucket = keysByContext.get(context)
+      if (bucket) bucket.push(row.key)
+      else keysByContext.set(context, [row.key])
+    }
+    for (const [context, keys] of keysByContext) into.push({ context, keys })
+
     if (rows.length < STORAGE_PAGE_SIZE) return
     afterId = rows[rows.length - 1].id
   }
 }
 
 /**
- * Erases one batch of stored objects. A storage failure is logged but never
- * aborts the deletion: the account holder asked to be erased, and leaving their
- * identity in place because an object store hiccuped would be the worse outcome.
- * An orphaned object is recoverable from the log; a half-deleted account is not.
- */
-async function eraseStorageKeys(context: StorageContext, keys: string[]): Promise<void> {
-  if (keys.length === 0) return
-  try {
-    const { failed } = await StorageService.deleteFiles(keys, context)
-    for (const { key, error } of failed) {
-      logger.error('Failed to erase stored object during account deletion', { key, context, error })
-    }
-  } catch (error) {
-    logger.error('Storage batch deletion failed during account deletion', { context, error })
-  }
-}
-
-function collectKeys(rows: StorageKeyRow[]): string[] {
-  const keys: string[] = []
-  for (const row of rows) if (row.key) keys.push(row.key)
-  return keys
-}
-
-/**
- * Erases the stored objects held by workspaces that go with the account.
+ * Collects every stored object held by workspaces that go with the account.
  *
- * This has to happen before the rows do. The rows disappear with the workspace
- * through `ON DELETE CASCADE`, and the retention sweep that normally reclaims
- * storage is driven entirely by those rows — once they are gone it has no way to
- * find the objects. Each table is paged and erased a page at a time so an account
- * with a very large library never materializes its whole key set.
- *
- * The tables are drained in sequence rather than concurrently to keep in-flight
- * object-store deletions bounded to one page.
+ * This has to run *before* the rows are deleted: they disappear with the
+ * workspace through `ON DELETE CASCADE`, and the retention sweep that normally
+ * reclaims storage is driven entirely by those rows — once they are gone it has
+ * no way to find the objects. The keys are held in memory only between this call
+ * and the purge that follows the commit; `MAX_PURGE_KEYS` bounds that, and
+ * exceeding it leaks objects rather than the process.
  */
-async function purgeWorkspaceStorageObjects(workspaceIds: string[]): Promise<void> {
-  if (workspaceIds.length === 0 || !isUsingCloudStorage()) return
+async function collectWorkspaceStorageKeys(workspaceIds: string[]): Promise<StorageKeyBatch[]> {
+  const batches: StorageKeyBatch[] = []
+  if (workspaceIds.length === 0 || !isUsingCloudStorage()) return batches
 
-  await forEachPage(
+  await collectPages(
     (afterId) =>
       db
         .select({ id: workspaceFile.id, key: workspaceFile.key })
@@ -389,37 +387,25 @@ async function purgeWorkspaceStorageObjects(workspaceIds: string[]): Promise<voi
         .where(and(inArray(workspaceFile.workspaceId, workspaceIds), gt(workspaceFile.id, afterId)))
         .orderBy(workspaceFile.id)
         .limit(STORAGE_PAGE_SIZE),
-    (rows) => eraseStorageKeys('workspace', collectKeys(rows))
+    batches,
+    () => 'workspace'
   )
 
-  await forEachPage(
+  await collectPages(
     (afterId) =>
       db
-        .select({
-          id: workspaceFiles.id,
-          key: workspaceFiles.key,
-          context: workspaceFiles.context,
-        })
+        .select({ id: workspaceFiles.id, key: workspaceFiles.key, context: workspaceFiles.context })
         .from(workspaceFiles)
         .where(
           and(inArray(workspaceFiles.workspaceId, workspaceIds), gt(workspaceFiles.id, afterId))
         )
         .orderBy(workspaceFiles.id)
         .limit(STORAGE_PAGE_SIZE),
-    async (rows) => {
-      const keysByContext = new Map<StorageContext, string[]>()
-      for (const row of rows) {
-        if (!row.key) continue
-        const context = (row.context as StorageContext | null) ?? 'workspace'
-        const bucket = keysByContext.get(context)
-        if (bucket) bucket.push(row.key)
-        else keysByContext.set(context, [row.key])
-      }
-      for (const [context, keys] of keysByContext) await eraseStorageKeys(context, keys)
-    }
+    batches,
+    (row) => (row.context as StorageContext | null) ?? 'workspace'
   )
 
-  await forEachPage(
+  await collectPages(
     (afterId) =>
       db
         .select({ id: document.id, key: document.storageKey })
@@ -434,18 +420,74 @@ async function purgeWorkspaceStorageObjects(workspaceIds: string[]): Promise<voi
         )
         .orderBy(document.id)
         .limit(STORAGE_PAGE_SIZE),
-    (rows) => eraseStorageKeys('knowledge-base', collectKeys(rows))
+    batches,
+    () => 'knowledge-base'
   )
+
+  const total = batches.reduce((sum, batch) => sum + batch.keys.length, 0)
+  if (total > MAX_PURGE_KEYS) {
+    logger.error('Account deletion exceeded the storage purge cap; the remainder is orphaned', {
+      total,
+      cap: MAX_PURGE_KEYS,
+    })
+    let kept = 0
+    const capped: StorageKeyBatch[] = []
+    for (const batch of batches) {
+      if (kept >= MAX_PURGE_KEYS) break
+      capped.push({ context: batch.context, keys: batch.keys.slice(0, MAX_PURGE_KEYS - kept) })
+      kept += capped[capped.length - 1].keys.length
+    }
+    return capped
+  }
+
+  return batches
+}
+
+/**
+ * Erases stored objects. A storage failure is logged but never rethrown: by the
+ * time this runs the account is already gone, and the request must not report a
+ * failure for work that cannot be undone. An orphaned object is recoverable from
+ * the log; a deletion the caller believes failed is not.
+ */
+async function purgeStorageObjects(batches: StorageKeyBatch[]): Promise<void> {
+  for (const { context, keys } of batches) {
+    if (keys.length === 0) continue
+    try {
+      const { failed } = await StorageService.deleteFiles(keys, context)
+      for (const { key, error } of failed) {
+        logger.error('Failed to erase stored object during account deletion', {
+          key,
+          context,
+          error,
+        })
+      }
+    } catch (error) {
+      logger.error('Storage batch deletion failed during account deletion', { context, error })
+    }
+  }
 }
 
 /**
  * Erases an account and everything only it can reach.
  *
- * The order is load-bearing. Postgres evaluates the `NO ACTION` check on
- * `workspace.billed_account_user_id` *before* the `owner_id` cascade that would
- * have removed the very same workspace, so a workspace the account bills for must
- * be gone — or handed to someone else — before the `user` row is touched. Every
- * remaining reference either cascades or is set to null by the schema.
+ * Sequenced so that nothing irreversible happens until the deletion is certain:
+ *
+ * 1. **Hand over the anchors first.** Reassignment is the fallible step — it can
+ *    report a workspace nobody can inherit — so it runs while everything is still
+ *    recoverable. Its own writes only move a billing or ownership pointer to an
+ *    admin who was going to receive it anyway, so a later abort leaves nothing
+ *    damaged. Workspaces on their way out are expected to come back unresolved
+ *    and are not treated as failures.
+ * 2. **Commit the teardown atomically.** The workspace and `user` deletes share
+ *    one transaction, so a failure in either rolls both back rather than leaving
+ *    an account whose workspaces are already gone.
+ * 3. **Purge storage last**, once the rows are committed away. Object deletion
+ *    cannot be rolled back, so it must not precede the point of no return.
+ *
+ * The ordering inside step 2 is load-bearing too: Postgres evaluates the
+ * `NO ACTION` check on `workspace.billed_account_user_id` *before* the `owner_id`
+ * cascade that would have removed the very same workspace, so a workspace the
+ * account bills for must be gone before the `user` row is touched.
  *
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
@@ -455,12 +497,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   if (plan.blockers.length > 0) throw new AccountDeletionBlockedError(plan.blockers)
 
   const doomedWorkspaceIds = plan.workspacesToDelete.map((workspace) => workspace.id)
-
-  await purgeWorkspaceStorageObjects(doomedWorkspaceIds)
-
-  if (doomedWorkspaceIds.length > 0) {
-    await db.delete(workspaceTable).where(inArray(workspaceTable.id, doomedWorkspaceIds))
-  }
+  const doomed = new Set(doomedWorkspaceIds)
 
   /**
    * Sequential by necessity, not oversight: the billing pass reads `owner_id`
@@ -469,7 +506,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
    */
   const { unresolved: billingUnresolved } = await reassignBilledAccountForUser(userId)
   const { unresolved: ownershipUnresolved } = await reassignOwnedWorkspacesForUser(userId)
-  if (billingUnresolved.length > 0 || ownershipUnresolved.length > 0) {
+  const stranded = [...billingUnresolved, ...ownershipUnresolved].filter((id) => !doomed.has(id))
+  if (stranded.length > 0) {
     throw new AccountDeletionBlockedError([
       {
         code: 'shared_workspace',
@@ -479,7 +517,53 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
     ])
   }
 
-  await db.delete(user).where(eq(user.id, userId))
+  const storageKeys = await collectWorkspaceStorageKeys(doomedWorkspaceIds)
+
+  await db.transaction(async (tx) => {
+    if (doomedWorkspaceIds.length > 0) {
+      /**
+       * Re-checked inside the transaction rather than trusted from the plan: a
+       * workspace that gained a member since the preview is no longer private,
+       * and deleting it would destroy somebody else's work. The guard makes the
+       * delete a no-op for that row, and the short count aborts the whole
+       * transaction so the account survives to be re-previewed.
+       */
+      const deleted = await tx
+        .delete(workspaceTable)
+        .where(
+          and(
+            inArray(workspaceTable.id, doomedWorkspaceIds),
+            notExists(
+              tx
+                .select({ one: sql`1` })
+                .from(permissions)
+                .where(
+                  and(
+                    eq(permissions.entityType, 'workspace'),
+                    eq(permissions.entityId, workspaceTable.id),
+                    ne(permissions.userId, userId)
+                  )
+                )
+            )
+          )
+        )
+        .returning({ id: workspaceTable.id })
+
+      if (deleted.length !== doomedWorkspaceIds.length) {
+        throw new AccountDeletionBlockedError([
+          {
+            code: 'shared_workspace',
+            message:
+              'Someone was given access to one of your workspaces while your account was being deleted. Nothing was deleted — reopen this dialog to see the change.',
+          },
+        ])
+      }
+    }
+
+    await tx.delete(user).where(eq(user.id, userId))
+  })
+
+  await purgeStorageObjects(storageKeys)
 
   logger.info('Deleted account', {
     userId,
