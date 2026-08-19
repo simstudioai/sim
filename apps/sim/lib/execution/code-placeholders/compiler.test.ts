@@ -1383,6 +1383,51 @@ describe('a shadowing local does not suppress reads', () => {
   })
 })
 
+describe('a dot in prose is not a qualifier', () => {
+  /**
+   * The receiver walk crosses whitespace so a parenthesized `other.` on a previous line is
+   * seen — but a comment or string can also end in a period, and landing on THAT dot must not
+   * discard the read below it. The lexer decides which dots are code.
+   */
+  /** The read sits at line start, so the walk reaches the previous line's final character. */
+  it.each([
+    ['comment ending in a period', "# Load the value.\nenvironmentVariables['API_KEY']"],
+    ['docstring ending in a period', '"""Reads the key."""\nenvironmentVariables[\'API_KEY\']'],
+    ['string ending in a period', "s = 'done.'\nenvironmentVariables['API_KEY']"],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.Python)).toEqual(['API_KEY'])
+  })
+
+  it('still discards a real cross-line attribute access', async () => {
+    expect(
+      await directReadNames(
+        "k = (other.\n     environmentVariables['API_KEY'])",
+        CodeLanguage.Python
+      )
+    ).toEqual([])
+  })
+})
+
+describe('literal computed pattern keys resolve like subscripts', () => {
+  it.each([
+    ['string literal', "const { ['API_KEY']: key } = environmentVariables\nreturn key"],
+    ['template literal', 'const { [`API_KEY`]: key } = environmentVariables\nreturn key'],
+    ['parenthesized literal', "const { [('API_KEY')]: key } = environmentVariables\nreturn key"],
+  ])('%s', async (_label, code) => {
+    expect(await directReadNames(code, CodeLanguage.JavaScript)).toEqual(['API_KEY'])
+  })
+
+  /** A non-literal computed key stays the runtime-name boundary a computed subscript has. */
+  it('does not attribute an identifier computed key', async () => {
+    expect(
+      await directReadNames(
+        'const { [k]: v } = environmentVariables\nreturn v',
+        CodeLanguage.JavaScript
+      )
+    ).toEqual([])
+  })
+})
+
 describe('destructured environment reads are reads', () => {
   /**
    * `const { API_KEY } = environmentVariables` delivers the value by name with no property-

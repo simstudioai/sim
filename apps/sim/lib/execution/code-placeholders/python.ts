@@ -592,18 +592,6 @@ function recordPythonDirectEnvironmentReads(
   let match: RegExpExecArray | null
   while ((match = PYTHON_DIRECT_ENVIRONMENT_READ.exec(code)) !== null) {
     if (isIdentifierCharacter(code[match.index - 1])) continue
-    /**
-     * `other.environmentVariables['K']` reads a different object that merely shares the name,
-     * so it is not the mounted binding at all. This is the receiver check the JavaScript side
-     * gets from the AST, and unlike a scope or rebinding rule it cannot suppress a genuine
-     * read: it only rejects an access whose receiver is demonstrably something else.
-     *
-     * Whitespace and line continuations are skipped, so a `.` left on a previous line inside
-     * parentheses reads the same as one written adjacently.
-     */
-    let previous = match.index - 1
-    while (previous >= 0 && /[\s\\]/.test(code[previous])) previous -= 1
-    if (code[previous] === '.') continue
     if (!context.tracksDirectEnvironmentRead(match[2] ?? match[4] ?? '')) continue
     matches.push(match)
   }
@@ -630,6 +618,22 @@ function recordPythonDirectEnvironmentReads(
    */
   for (const candidate of matches) {
     if (isOffsetInRanges(candidate.index, ignoredRanges)) continue
+    /**
+     * `other.environmentVariables['K']` reads a different object that merely shares the name,
+     * so it is not the mounted binding at all. This is the receiver check the JavaScript side
+     * gets from the AST, and unlike a scope or rebinding rule it cannot suppress a genuine
+     * read: it only rejects an access whose receiver is demonstrably something else.
+     *
+     * Whitespace and line continuations are skipped, so a `.` left on a previous line inside
+     * parentheses reads the same as one written adjacently — but the dot counts as a
+     * qualifier only when it is code. A comment or string on the previous line can end in a
+     * period (`# Load the value.`), and discarding on that would drop a genuine read, so the
+     * landing position is checked against the same lexer ranges that filter the candidates.
+     * This is why the receiver check runs after lexing rather than in the collection loop.
+     */
+    let previous = candidate.index - 1
+    while (previous >= 0 && /[\s\\]/.test(code[previous])) previous -= 1
+    if (code[previous] === '.' && !isOffsetInRanges(previous, ignoredRanges)) continue
     const name = candidate[2] ?? candidate[4]
     if (name) context.recordDirectEnvironmentRead(name, candidate.index)
   }

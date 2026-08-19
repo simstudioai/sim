@@ -115,6 +115,16 @@ function destructuredEnvironmentReads(node: ts.Node): DestructuredEnvironmentRea
 
   const result: DestructuredEnvironmentReads = { reads: [] }
   const record = (name: ts.PropertyName | ts.Identifier, offset: number): void => {
+    /**
+     * A computed key holding a string literal — `{ ['API_KEY']: key }` — is the element-access
+     * rule in pattern position, so it resolves like a literal subscript; a computed key
+     * holding anything else stays the runtime-name boundary a computed subscript already has.
+     */
+    if (ts.isComputedPropertyName(name)) {
+      const key = unwrapParentheses(name.expression)
+      if (ts.isStringLiteralLike(key) && key.text) result.reads.push({ name: key.text, offset })
+      return
+    }
     if (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) {
       if (name.text) result.reads.push({ name: name.text, offset })
     }
