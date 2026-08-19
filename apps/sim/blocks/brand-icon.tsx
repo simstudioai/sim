@@ -62,18 +62,23 @@ export function BrandIcon({ icon: Icon, className }: BrandIconProps) {
  * renders hand the same component reference back and React never remounts the
  * slot it fills.
  */
-const brandIconComponents = new WeakMap<StyleableIcon, ComponentType<{ className?: string }>>()
+const brandIconComponents = new WeakMap<StyleableIcon, ComponentType<BrandIconSlotProps>>()
+
+export interface BrandIconSlotProps {
+  /** Supplied by the host slot; sizing and layout only. */
+  className?: string
+}
 
 /**
  * Adapts a brand glyph for the `icon` prop slots that take a component rather
  * than an element — `ChipModalHeader`, dropdown options, command rows — so
  * those surfaces get the same treatment as a direct {@link BrandIcon}.
  */
-export function withBrandIcon(icon: StyleableIcon): ComponentType<{ className?: string }> {
+export function withBrandIcon(icon: StyleableIcon): ComponentType<BrandIconSlotProps> {
   const cached = brandIconComponents.get(icon)
   if (cached) return cached
 
-  function BrandIconSlot({ className }: { className?: string }) {
+  function BrandIconSlot({ className }: BrandIconSlotProps) {
     return <BrandIcon icon={icon} className={className} />
   }
   BrandIconSlot.displayName = `BrandIcon(${icon.displayName ?? icon.name ?? 'Icon'})`

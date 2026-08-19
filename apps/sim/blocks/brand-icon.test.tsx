@@ -12,7 +12,11 @@ vi.mocked(getAllBlocks).mockReturnValue([
   { icon: DropboxIcon, iconColor: '#0061FF' },
 ] as unknown as ReturnType<typeof getAllBlocks>)
 
-function PlainIcon({ className }: { className?: string }) {
+interface PlainIconProps {
+  className?: string
+}
+
+function PlainIcon({ className }: PlainIconProps) {
   return <svg className={className} />
 }
 
