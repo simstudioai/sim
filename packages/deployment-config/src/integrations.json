@@ -20419,7 +20419,7 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
-      "type": "slack",
+      "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
       "description": "Send, update, delete messages, manage views and modals, add or remove reactions, manage canvases, get channel info and user presence in Slack",
@@ -20600,9 +20600,9 @@
       "operationCount": 42,
       "triggers": [
         {
-          "id": "slack_webhook",
-          "name": "Slack Webhook",
-          "description": "Trigger workflow from Slack events like mentions, messages, and reactions"
+          "id": "slack_oauth",
+          "name": "Slack",
+          "description": "Trigger from Slack events (mentions, messages, reactions)"
         }
       ],
       "triggerCount": 1,

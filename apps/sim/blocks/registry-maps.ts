@@ -298,7 +298,7 @@ import { ShopifyBlock, ShopifyBlockMeta } from '@/blocks/blocks/shopify'
 import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
-import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackBlockMeta, SlackV2Block, SlackV2BlockMeta } from '@/blocks/blocks/slack'
 import { SmartleadBlock, SmartleadBlockMeta } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
@@ -943,6 +943,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   similarweb: SimilarwebBlockMeta,
   sixtyfour: SixtyfourBlockMeta,
   slack: SlackBlockMeta,
+  slack_v2: SlackV2BlockMeta,
   smartlead: SmartleadBlockMeta,
   smtp: SmtpBlockMeta,
   snowflake: SnowflakeBlockMeta,

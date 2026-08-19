@@ -21,8 +21,14 @@ import {
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
 import { acceptsPathWebhookDelivery, acceptsWebhookDeliveryMethod } from '@/lib/webhooks/providers'
+import {
+  dispatchSlackCustomBotCredential,
+  getLegacySlackCustomBotCredentialId,
+  verifySlackCustomBotCredentialRequest,
+} from '@/lib/webhooks/slack-custom-ingress'
 
 const logger = createLogger('WebhookTriggerAPI')
+const MAX_LEGACY_SLACK_CREDENTIALS_PER_PATH = 25
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -197,18 +203,69 @@ async function handleWebhookDelivery(
     return notDeliverableResponse(request.method)
   }
 
-  // Process each webhook matched on this path
-  const responses: NextResponse[] = []
-  const failures: NextResponse[] = []
+  const legacySlackCredentialIds = new Set<string>()
+  const directWebhooksForPath = webhooksForPath.filter(({ webhook: foundWebhook }) => {
+    const credentialId = getLegacySlackCustomBotCredentialId(foundWebhook)
+    if (!credentialId) return true
+    legacySlackCredentialIds.add(credentialId)
+    return false
+  })
+  if (legacySlackCredentialIds.size > MAX_LEGACY_SLACK_CREDENTIALS_PER_PATH) {
+    throw new Error(
+      `Webhook path resolves more than ${MAX_LEGACY_SLACK_CREDENTIALS_PER_PATH} legacy Slack credentials`
+    )
+  }
 
-  for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
+  let dispatchedLegacySlackAlias = false
+  let firstLegacySlackAuthError: NextResponse | null = null
+  for (const credentialId of legacySlackCredentialIds) {
+    const authError = await verifySlackCustomBotCredentialRequest({
+      credentialId,
+      request,
+      rawBody,
+      requestId,
+    })
+    if (authError) {
+      if (authError.status === 404) return authError
+      firstLegacySlackAuthError ??= authError
+      continue
+    }
+
+    await dispatchSlackCustomBotCredential({
+      credentialId,
+      body,
+      request,
+      requestId,
+      receivedAt,
+    })
+    dispatchedLegacySlackAlias = true
+  }
+
+  if (legacySlackCredentialIds.size > 0 && !dispatchedLegacySlackAlias) {
+    return (
+      firstLegacySlackAuthError ??
+      new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
+    )
+  }
+
+  /**
+   * Process each unmarked webhook matched on this path. Marked Slack rows were
+   * already included in the routing-key fan-out and must not run twice.
+   */
+  const responses: NextResponse[] = dispatchedLegacySlackAlias
+    ? [new NextResponse(null, { status: 200 })]
+    : []
+  const failures: NextResponse[] = []
+  const dispatchTargetCount = directWebhooksForPath.length + (dispatchedLegacySlackAlias ? 1 : 0)
+
+  for (const { webhook: foundWebhook, workflow: foundWorkflow } of directWebhooksForPath) {
     const provider = foundWebhook.provider
     if (!provider) {
       const missingProviderResponse = NextResponse.json(
         { error: 'Webhook provider is missing' },
         { status: 500 }
       )
-      if (webhooksForPath.length > 1) {
+      if (dispatchTargetCount > 1) {
         logger.error(
           `[${requestId}] Webhook ${foundWebhook.id} has no provider, continuing to next`
         )
@@ -225,7 +282,7 @@ async function handleWebhookDelivery(
       requestId
     )
     if (authError) {
-      if (webhooksForPath.length > 1) {
+      if (dispatchTargetCount > 1) {
         logger.warn(`[${requestId}] Auth failed for webhook ${foundWebhook.id}, continuing to next`)
         continue
       }
@@ -255,7 +312,7 @@ async function handleWebhookDelivery(
     }
 
     if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
-      if (webhooksForPath.length > 1) {
+      if (dispatchTargetCount > 1) {
         logger.warn(
           `[${requestId}] Webhook dispatch failed for ${foundWebhook.id}, continuing to next`,
           { reason: dispatchResult.reason, status: dispatchResult.response.status }

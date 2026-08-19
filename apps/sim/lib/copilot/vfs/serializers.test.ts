@@ -498,11 +498,6 @@ describe('serializeIntegrationSchema — service-account auth', () => {
     expect(schema.auth.serviceAccount).toEqual({ connectNoun: 'integration secret' })
     expect(schema.oauth).toBeUndefined()
   })
-
-  // The preview-gate behavior (slack custom bot ↔ slack_v2) is covered in
-  // service-account-gate.test.ts, which mocks getBlock — the block registry is
-  // globally stubbed here, so slack_v2's real `preview: true` isn't observable
-  // through serializeIntegrationSchema.
 })
 
 describe('serializeCredentials — type distinguishes reconnect flow', () => {
