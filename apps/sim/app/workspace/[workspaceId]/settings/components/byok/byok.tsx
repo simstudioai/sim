@@ -435,7 +435,7 @@ export function BYOK() {
   }, [activeKeys])
 
   const providers = useMemo(() => {
-    if (isOrganizationScope) return PROVIDERS
+    if (isOrganizationScope || inheritedStatus.isError) return PROVIDERS
 
     const inheritedProviderIds = new Set(inheritedStatus.data?.inheritedProviderIds ?? [])
     if (inheritedProviderIds.size === 0) return PROVIDERS
@@ -445,7 +445,7 @@ export function BYOK() {
         ? { ...provider, badge: <ChipTag variant='gray'>Inherited from organization</ChipTag> }
         : provider
     )
-  }, [inheritedStatus.data?.inheritedProviderIds, isOrganizationScope])
+  }, [inheritedStatus.data?.inheritedProviderIds, inheritedStatus.isError, isOrganizationScope])
 
   const description = isOrganizationScope
     ? organizationKeys.data?.entitled === false

@@ -162,7 +162,7 @@ vi.mock('@/hooks/queries/byok-keys', () => ({
     return mocks.organizationResult.current
   },
   useInheritedBYOKStatus: () => ({
-    data: mocks.inheritedStatusError.current ? undefined : { inheritedProviderIds: ['anthropic'] },
+    data: { inheritedProviderIds: ['anthropic'] },
     isError: mocks.inheritedStatusError.current,
   }),
   useUpsertBYOKKey: mocks.mutation,
@@ -258,6 +258,7 @@ describe('BYOK scope access', () => {
     expect(container.textContent).toContain(
       'Inherited key status unavailable. Refresh to try again.'
     )
+    expect(container.textContent).not.toContain('Inherited from organization')
     expect(container.querySelector('[aria-label="BYOK manager"]')).toHaveAttribute(
       'data-capabilities',
       'true:true:true'
