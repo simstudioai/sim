@@ -1,5 +1,5 @@
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { notFound } from 'next/navigation'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import type { AuthType, Integration } from '@/lib/integrations/types'
 import { createLandingOgImage } from '@/app/(landing)/og-utils'
 

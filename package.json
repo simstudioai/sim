@@ -8,9 +8,6 @@
     "apps/*",
     "packages/*"
   ],
-  "bin": {
-    "sim": "./scripts/setup/launcher.ts"
-  },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -18,7 +15,7 @@
     "dev:full": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev\" \"cd apps/realtime && bun run dev\"",
     "dev:full:capped": "bunx concurrently -n \"App,Realtime\" -c \"cyan,magenta\" \"cd apps/sim && bun run dev:capped\" \"cd apps/realtime && bun run dev\"",
     "test": "bun run test:setup && turbo run test",
-    "test:setup": "bun test scripts/setup",
+    "test:setup": "bun run --cwd packages/sim-setup test",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "lint": "turbo run lint",
@@ -64,6 +61,8 @@
     "billing-protocol-contract:check": "bun run scripts/sync-billing-protocol-contract.ts --check",
     "tool-metadata:generate": "bun run scripts/sync-tool-metadata.ts",
     "tool-metadata:check": "bun run scripts/sync-tool-metadata.ts --check",
+    "deployment-config:generate": "bun run scripts/generate-deployment-config.ts",
+    "deployment-config:check": "bun run scripts/generate-deployment-config.ts --check",
     "integration-catalog:check": "bun run scripts/check-integration-catalog.ts",
     "docs:check": "bun run scripts/generate-docs.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
@@ -85,9 +84,9 @@
     "library:covers": "bun run scripts/generate-library-covers.tsx",
     "library:covers:check": "bun run scripts/generate-library-covers.tsx --check",
     "skills:sync": "bun run scripts/sync-skills.ts",
-    "setup": "bun run scripts/setup/launcher.ts setup",
-    "sim": "bun run scripts/setup/launcher.ts",
-    "doctor": "bun run scripts/setup/launcher.ts doctor",
+    "setup": "bun run packages/sim-setup/src/index.ts setup",
+    "sim": "bun run packages/sim-setup/src/index.ts",
+    "doctor": "bun run packages/sim-setup/src/index.ts doctor",
     "agent-stream-docs:generate": "bun run scripts/sync-agent-stream-docs.ts",
     "agent-stream-docs:check": "bun run scripts/sync-agent-stream-docs.ts --check",
     "prepare": "bun husky",

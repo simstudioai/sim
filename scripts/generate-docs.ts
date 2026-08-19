@@ -35,6 +35,7 @@ export function defaultIntegrationDocsUrl(blockType: string): string {
 const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 const DOCS_ICONS_PATH = path.join(rootDir, 'apps/docs/components/icons.tsx')
 const INTEGRATIONS_DATA_PATH = path.join(rootDir, 'apps/sim/lib/integrations')
+const INTEGRATIONS_CATALOG_PATH = path.join(rootDir, 'packages/deployment-config/src')
 const LANDING_INTEGRATIONS_DATA_PATH = path.join(
   rootDir,
   'apps/sim/app/(landing)/integrations/data'
@@ -1156,7 +1157,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 
     integrations.sort((a, b) => a.name.localeCompare(b.name))
 
-    const jsonPath = path.join(INTEGRATIONS_DATA_PATH, 'integrations.json')
+    const jsonPath = path.join(INTEGRATIONS_CATALOG_PATH, 'integrations.json')
     // `JSON.stringify` always expands every array across multiple lines, but Biome's
     // JSON formatter inlines short arrays of primitive strings. Pre-collapse those
     // arrays here so the emitted file is already in Biome's canonical shape and

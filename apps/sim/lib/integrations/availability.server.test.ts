@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () => ({ env: {} }))
 
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import {
   OAUTH_CLIENT_CAPABILITIES,
   resolveOAuthClientCapabilityId,
@@ -20,7 +21,6 @@ import {
   isIntegrationDeploymentAvailable,
   isIntegrationDeploymentAvailableForVisibility,
 } from '@/lib/integrations/availability.server'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import { SERVICE_ACCOUNT_METADATA_BY_OAUTH_SERVICE_ID } from '@/lib/integrations/service-account-metadata'
 import type { Integration } from '@/lib/integrations/types'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
@@ -50,7 +50,7 @@ describe('integration availability', () => {
       oauthAvailable: true,
       serviceAccountAvailable: false,
       missingFields: [],
-      setupCommand: 'bun run setup integration slack',
+      setupCommand: 'npx @sim/setup add integration slack',
     })
   })
 
@@ -60,7 +60,7 @@ describe('integration availability', () => {
       oauthAvailable: false,
       serviceAccountAvailable: true,
       missingFields: ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET'],
-      setupCommand: 'bun run setup integration notion',
+      setupCommand: 'npx @sim/setup add integration notion',
     })
   })
 
@@ -77,7 +77,7 @@ describe('integration availability', () => {
     expect(availabilityFor('x')).toMatchObject({
       state: 'unavailable',
       oauthAvailable: false,
-      setupCommand: 'bun run setup integration x',
+      setupCommand: 'npx @sim/setup add integration x',
     })
   })
 
@@ -87,7 +87,7 @@ describe('integration availability', () => {
       oauthAvailable: false,
       serviceAccountAvailable: false,
       missingFields: ['SLACK_CLIENT_SECRET'],
-      setupCommand: 'bun run setup integration slack',
+      setupCommand: 'npx @sim/setup add integration slack',
     })
   })
 
@@ -158,7 +158,7 @@ describe('integration availability', () => {
       state: 'unavailable',
       serviceAccountAvailable: false,
       missingFields: ['TRELLO_API_KEY'],
-      setupCommand: 'bun run setup integration trello',
+      setupCommand: 'npx @sim/setup add integration trello',
     })
     expect(availabilityFor('trello', { TRELLO_API_KEY: 'trello-key' })).toMatchObject({
       state: 'ready',
@@ -181,7 +181,7 @@ describe('integration availability', () => {
 
     for (const integration of availability) {
       if (!integration.setupCommand) continue
-      const capabilityId = integration.setupCommand.replace('bun run setup integration ', '')
+      const capabilityId = integration.setupCommand.replace('npx @sim/setup add integration ', '')
       expect(Object.hasOwn(OAUTH_CLIENT_CAPABILITIES, capabilityId)).toBe(true)
     }
   })
