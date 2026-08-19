@@ -756,11 +756,9 @@ async function dispatchViaBatchTrigger(
   }
 
   /**
-   * Only a total dispatch failure raises, so a chunk that failed on its own used
-   * to leave its documents sitting at `pending` with nothing recording why —
-   * invisible until the stuck-document sweep happened to pick them up, and never
-   * if they aged out of its window first. Running them here costs the caller time
-   * it hoped to hand to the queue, which is the point: the work still happens.
+   * Only a total dispatch failure raises, so a chunk failing alone would leave its
+   * documents at `pending` with nothing recording why. Processing them here is
+   * slower than the queue but does not drop the work.
    */
   if (undispatched.length > 0) {
     logger.warn(

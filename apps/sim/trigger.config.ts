@@ -76,17 +76,11 @@ export default defineConfig({
       syncEnvVars(() => [
         { name: 'DB_APP_NAME', value: 'sim-trigger' },
         /**
-         * Workers run Trigger.dev by definition, but the flag that says so is
-         * read from the environment and was only ever set on the app container.
-         * `isTriggerAvailable()` therefore returned false inside every worker, so
-         * anything a task dispatched — document processing above all — silently
-         * took the in-process path instead of the queue it was written for. A
-         * connector sync ended up chunking and embedding thousands of documents
-         * itself, five at a time, and running until it hit its max duration.
-         *
-         * Safe to assert here because the check also requires TRIGGER_SECRET_KEY,
-         * which only the Trigger.dev runtime provides: where dispatching is not
-         * actually possible this stays false and nothing changes.
+         * Workers run Trigger.dev by definition, but the flag saying so was only
+         * set on the app container, so `isTriggerAvailable()` was false in every
+         * task run and dispatched work silently took the in-process fallback.
+         * Ineffective where dispatching is impossible: the check also requires
+         * TRIGGER_SECRET_KEY, which only the Trigger.dev runtime provides.
          */
         { name: 'TRIGGER_DEV_ENABLED', value: 'TRUE' },
       ]),

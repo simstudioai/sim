@@ -79,10 +79,7 @@ const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DE
 export class EmbeddingAPIError extends Error {
   public status: number
 
-  /**
-   * The provider rejected this for an exhausted balance rather than a rate that
-   * will recover. Both arrive as 429.
-   */
+  /** Rejected for an exhausted balance rather than a recoverable rate. Both are 429. */
   public quotaExhausted?: boolean
 
   /**
@@ -100,13 +97,8 @@ export class EmbeddingAPIError extends Error {
 
 /**
  * True when a rejection body reports an exhausted balance rather than a rate
- * limit.
- *
- * OpenAI returns 429 for both, but only one of them reopens. `insufficient_quota`
- * stands until somebody adds credit, so retrying it cannot succeed no matter how
- * long the loop waits — and because a failed document is re-queued by the sweep
- * on every sync, an account that has run out turns into a permanent load: the
- * budget is spent per document, per attempt, forever.
+ * limit. OpenAI returns 429 for both, but only a rate limit reopens: a spent
+ * account stands until someone adds credit, so retrying it cannot succeed.
  */
 function isQuotaExhaustionBody(errorText: string): boolean {
   try {
@@ -148,13 +140,10 @@ function statedWaitOutlastsBudget(error: unknown): boolean {
 }
 
 /**
- * Whether another attempt against the same provider could plausibly succeed.
- *
- * Deliberately narrower than {@link isTransientEmbeddingError}, which also
- * decides whether the fallback chain should try a *different* provider. Those
- * two questions differ: an exhausted balance rules out the key we just used, but
- * says nothing about the next one in the chain, so a quota rejection stops the
- * retries here while remaining eligible for failover.
+ * Whether another attempt against the *same* provider could succeed. Narrower
+ * than {@link isTransientEmbeddingError}, which decides whether to fail over to a
+ * different one: an exhausted balance rules out the key just used but says
+ * nothing about the next in the chain.
  */
 function isWorthRetrying(error: unknown): boolean {
   if (!isTransientEmbeddingError(error)) return false
