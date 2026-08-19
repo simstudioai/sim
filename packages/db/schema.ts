@@ -1772,6 +1772,12 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'mcp_server',
   /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
   'workflow_mcp_server',
+  /**
+   * Published custom block (deploy-as-block). Mapped, never copied: a custom block is
+   * org-scoped and binds a workflow in the PUBLISHER's workspace, so an environment fork
+   * repoints its placed blocks at the environment's own block rather than duplicating one.
+   */
+  'custom_block',
   'custom_tool',
   'skill',
 ])

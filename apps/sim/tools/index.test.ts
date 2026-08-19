@@ -2323,6 +2323,53 @@ describe('executeTool Function', () => {
     tools.function_execute = originalFunctionTool
   })
 
+  it('gives an internal route transport headroom past its requested execution budget', async () => {
+    const originalFunctionTool = { ...tools.function_execute }
+    tools.function_execute = {
+      ...tools.function_execute,
+      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
+    }
+
+    let observedSignal: AbortSignal | undefined
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(
+        async (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            observedSignal = init.signal as AbortSignal
+            observedSignal.addEventListener('abort', () => {
+              const err = new Error('aborted')
+              err.name = 'AbortError'
+              reject(err)
+            })
+          })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    vi.useFakeTimers()
+    try {
+      const resultPromise = executeTool(
+        'function_execute',
+        { code: 'return 1', timeout: 5000 },
+        { skipPostProcess: true }
+      )
+
+      // The route owns the 5s execution budget and needs to outlive it to report
+      // its own timeout, so the transport must still be waiting at that instant.
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(observedSignal?.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      const result = await resultPromise
+
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/timed out after 35000ms/)
+    } finally {
+      vi.useRealTimers()
+      tools.function_execute = originalFunctionTool
+    }
+  })
+
   it('should add timing information to results', async () => {
     const result = await executeTool(
       'http_request',

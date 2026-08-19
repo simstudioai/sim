@@ -38,6 +38,7 @@ import {
   resolveToolParamRequired,
 } from '@/lib/workflows/tool-input/param-visibility'
 import type { ParsedStoredTool } from '@/lib/workflows/tool-input/types'
+import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import {
@@ -213,6 +214,76 @@ export type SubBlockTransform = (
   canonicalModes?: CanonicalModeOverrides,
   onCanonicalModesChanged?: (next: CanonicalModeOverrides) => void
 ) => SubBlockRecord
+
+/**
+ * The sub-block key reported for a custom-block reference. It names the block's own
+ * identity rather than one of its fields, because a custom block has no field to name.
+ */
+export const CUSTOM_BLOCK_REFERENCE_KEY = 'type'
+
+/** Outcome of remapping a placed block's own `type` across a fork edge. */
+export interface RemapForkBlockTypeResult {
+  /** The type to persist. Equal to the input unless a mapping pointed elsewhere. */
+  type: string
+  /** Set when the block IS a custom block, so callers can aggregate/report it. */
+  reference?: ForkReference
+  /**
+   * Whether a mapping EXISTS for this reference — deliberately not "the type changed".
+   * The two diverge on an identity mapping: the org-wide candidate list includes the
+   * source block, so binding an environment to the shared block is a normal pick, and
+   * treating it as unresolved would raise `unmapped-custom-block` and block the promote
+   * on a choice the user explicitly made. Callers use this to decide whether the
+   * reference is a blocker; whether the type actually moved is visible from `type`.
+   */
+  resolved: boolean
+}
+
+/**
+ * Repoint a placed custom block at the fork's own published block.
+ *
+ * Custom blocks are the one remappable resource NOT referenced by a sub-block value:
+ * the reference IS the canvas block's `type` (`custom_block_<slug>`), and its bound
+ * workflow lives in a hidden, recomputed sub-block the serializer never carries
+ * forward. `remapForkSubBlocks` therefore cannot express this rewrite, so it gets its
+ * own channel.
+ *
+ * Mapping rows are keyed by the block TYPE, not `custom_block.id` — the same rule every
+ * other kind follows (`file` keys by storage key, `env-var` by name): key by whatever the
+ * workflow actually references, so a resolver lookup needs no extra translation table.
+ *
+ * Unresolved references are deliberately LEFT POINTING AT THE SOURCE rather than cleared,
+ * in both modes. Every other unresolved reference clears to an empty field; there is no
+ * such thing for a block's type — clearing it would delete the node and silently drop a
+ * step from the workflow. The reference is reported as unmapped instead, so the mapping UI
+ * surfaces it and `sync-blockers` refuses the promote. That is what stops a uat
+ * orchestrator from quietly invoking prod.
+ *
+ * An UNMAPPED reference and one mapped back to itself look identical in the output `type`
+ * but are opposite states, which is why {@link RemapForkBlockTypeResult.resolved} reports
+ * mapping existence rather than whether the type moved.
+ */
+export function remapForkBlockType(
+  blockType: string | undefined,
+  resolve: ForkReferenceResolver,
+  context?: { blockId?: string; blockName?: string }
+): RemapForkBlockTypeResult {
+  const type = blockType ?? ''
+  if (!isCustomBlockType(type)) return { type, resolved: false }
+
+  const reference: ForkReference = {
+    kind: 'custom-block',
+    sourceId: type,
+    blockId: context?.blockId,
+    blockName: context?.blockName,
+    subBlockKey: CUSTOM_BLOCK_REFERENCE_KEY,
+    required: true,
+  }
+
+  const targetType = resolve('custom-block', type)
+  if (!targetType) return { type, reference, resolved: false }
+
+  return { type: targetType, reference, resolved: true }
+}
 
 /**
  * The canonical-pair mode questions every fork/promote surface asks of a subblock key.
@@ -1559,6 +1630,21 @@ export function scanWorkflowReferences(
   const unmapped = new Map<string, ForkReference>()
 
   for (const block of blocks) {
+    // A custom block's reference is the block's own TYPE, not a sub-block value, so it is
+    // detected here rather than inside the sub-block walk — and before the `subBlocks`
+    // guard below, since a custom block with no sub-blocks is still a live reference.
+    const blockTypeResult = remapForkBlockType(block.type, resolve, {
+      blockId: block.id,
+      blockName: block.name,
+    })
+    if (blockTypeResult.reference) {
+      const key = `${blockTypeResult.reference.kind}:${blockTypeResult.reference.sourceId}`
+      if (!references.has(key)) references.set(key, blockTypeResult.reference)
+      if (!blockTypeResult.resolved && !unmapped.has(key)) {
+        unmapped.set(key, blockTypeResult.reference)
+      }
+    }
+
     if (!block.subBlocks || typeof block.subBlocks !== 'object' || Array.isArray(block.subBlocks)) {
       continue
     }

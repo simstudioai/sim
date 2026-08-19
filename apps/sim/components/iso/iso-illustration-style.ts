@@ -1,4 +1,4 @@
-import type { SVGProps } from 'react'
+import type { SVGAttributes, SVGProps } from 'react'
 
 export const ISO_LINE_STROKE_WIDTH = 3.2
 export const ISO_STROKE = 'color-mix(in srgb, var(--text-subtle) 76%, var(--text-muted))'
@@ -15,7 +15,19 @@ export const ISO_FILL_PROPS = {
   pointerEvents: 'none',
 } satisfies SVGProps<SVGPathElement>
 
-export function createIsoLineProps(className: string, stroke: string): SVGProps<SVGPathElement> {
+/**
+ * Contour props for an iso face. `strokeWidth` defaults to the shared weight; a mark
+ * drawn at a different scale passes its own so the recipe stays single-sourced.
+ *
+ * Typed as attributes rather than `SVGProps<Element>` because it never returns a `ref` —
+ * that is the only member that would pin it to one element, and these spread onto
+ * `<path>` and `<circle>` alike.
+ */
+export function createIsoLineProps(
+  stroke: string,
+  strokeWidth: number = ISO_LINE_STROKE_WIDTH,
+  className?: string
+): SVGAttributes<SVGElement> {
   return {
     className,
     fill: 'none',
@@ -23,7 +35,7 @@ export function createIsoLineProps(className: string, stroke: string): SVGProps<
     pointerEvents: 'none',
     opacity: 1,
     stroke,
-    strokeWidth: ISO_LINE_STROKE_WIDTH,
+    strokeWidth,
     strokeLinecap: 'round',
     strokeLinejoin: 'round',
   }

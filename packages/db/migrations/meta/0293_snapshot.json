@@ -1,5 +1,5 @@
 {
-  "id": "9fa30926-6a41-411f-9d19-503e404ff75c",
+  "id": "50aa663e-bf52-4092-8779-3d318e29b3c1",
   "prevId": "a2a76094-681f-4205-a40a-f647f2f5ca7b",
   "version": "7",
   "dialect": "postgresql",
@@ -13574,52 +13574,6 @@
           "method": "btree",
           "with": {}
         },
-        "usage_log_billing_entity_created_at_cost_idx": {
-          "name": "usage_log_billing_entity_created_at_cost_idx",
-          "columns": [
-            {
-              "expression": "billing_entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "billing_entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "source",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "cost",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"usage_log\".\"billing_entity_type\" IS NOT NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "usage_log_workspace_created_at_idx": {
           "name": "usage_log_workspace_created_at_idx",
           "columns": [
@@ -19885,6 +19839,7 @@
         "file",
         "mcp_server",
         "workflow_mcp_server",
+        "custom_block",
         "custom_tool",
         "skill"
       ]

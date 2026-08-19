@@ -1,6 +1,7 @@
 import type { ForkRemapKind } from '@/ee/workspace-forking/lib/remap/remap-references'
 import {
   clearDependentsOnRemap,
+  remapForkBlockType,
   remapForkSubBlocks,
   type SubBlockTransform,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
@@ -40,4 +41,18 @@ export function createForkBootstrapTransform(resolveCopied: ForkCopyResolver): S
       result.copyRemappedKeys
     )
   }
+}
+
+/**
+ * A `copyWorkflowStateIntoTarget` block-type transform, for both fork-create and promote.
+ *
+ * Repoints a placed custom block at the target environment's own published block. Unmapped
+ * blocks keep the source's type (there is no empty type to clear to) and are surfaced as
+ * unmapped references by `scanWorkflowReferences`, which is what blocks the promote.
+ */
+export function createForkBlockTypeTransform(
+  resolve: ForkCopyResolver
+): (blockType: string, block: { id: string; name: string }) => string {
+  return (blockType, block) =>
+    remapForkBlockType(blockType, resolve, { blockId: block.id, blockName: block.name }).type
 }

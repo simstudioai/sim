@@ -57,7 +57,12 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource, type ResourceTableHandle } from '@/app/workspace/[workspaceId]/components'
+import {
+  isResourceListEmpty,
+  Resource,
+  type ResourceTableHandle,
+} from '@/app/workspace/[workspaceId]/components'
+import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import {
@@ -900,6 +905,16 @@ export default function Logs() {
     setTimeRange,
   ])
 
+  /** Logs has no folder navigation, so the graphic means "nothing has ever run here". */
+  const showEmptyState = isResourceListEmpty({
+    rowCount: rows.length,
+    isLoading: logsQuery.isLoading,
+    isPlaceholderData: logsQuery.isPlaceholderData,
+    error: logsQuery.error,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+  })
+
   const workflowsData = useMemo<WorkflowData[]>(
     () =>
       Object.values(allWorkflows).map((w) => ({
@@ -1194,6 +1209,7 @@ export default function Logs() {
             virtualized
             columns={LOG_COLUMNS}
             rows={rows}
+            emptyState={showEmptyState ? <LogsEmptyState /> : undefined}
             selectedRowId={selectedLogId}
             onRowClick={handleLogClick}
             onRowHover={handleLogHover}

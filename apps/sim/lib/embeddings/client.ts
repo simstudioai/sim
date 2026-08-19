@@ -20,6 +20,7 @@ import {
 import { resolveProviderKey } from '@/lib/embeddings/keys'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
 import { getAdapterFactory } from '@/lib/embeddings/providers'
+import { resolveEmbeddingRetryDelayMs } from '@/lib/embeddings/rate-limit'
 import type {
   EmbeddingProviderAdapter,
   EmbeddingTaskType,
@@ -27,12 +28,26 @@ import type {
   EmbedResult,
   OpenRouterEmbedOptions,
 } from '@/lib/embeddings/types'
-import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
+import {
+  attachRetryHeaders,
+  isRetryableError,
+  retryWithExponentialBackoff,
+} from '@/lib/knowledge/documents/utils'
 import { batchByTokenLimit, estimateTokenCount, truncateToTokenLimit } from '@/lib/tokenization'
 
 const logger = createLogger('EmbeddingClient')
 
-const MAX_CONCURRENT_BATCHES = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 50)
+/**
+ * Embedding requests issued concurrently within a single embed call.
+ *
+ * A provider's rate limit is per API key, so this multiplies with however many
+ * documents are being processed at once: the document-processing queue admits
+ * {@link env.KB_CONFIG_CONCURRENCY_LIMIT} task runs, each reaching here. It was
+ * previously read from that same variable, so one knob set both factors and the
+ * product reached four figures of in-flight requests against one key — enough to
+ * hold a provider at its limit indefinitely, which no retry policy can absorb.
+ */
+const MAX_CONCURRENT_BATCHES = envNumber(env.KB_CONFIG_EMBEDDING_CONCURRENCY, 8)
 const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
 
 /**
@@ -47,14 +62,58 @@ const EMBEDDING_REQUEST_TIMEOUT_MS = 60_000
  */
 const BATCH_TOKEN_TARGET = 8192
 
+/** Retries after the initial attempt, per embedding request. */
+export const EMBEDDING_MAX_RETRIES = 5
+
+/** Ceiling on a single wait between embedding attempts, including a provider-stated one. */
+export const EMBEDDING_MAX_RETRY_DELAY_MS = 30_000
+
+/**
+ * Longest a request can stay in the retry loop: every attempt waits at most the
+ * ceiling, so the budget is what the attempts span in total. A provider window
+ * that reopens inside this is still reachable even though each individual wait
+ * is clamped below it.
+ */
+const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DELAY_MS
+
 export class EmbeddingAPIError extends Error {
   public status: number
+
+  /**
+   * Wait the provider asked for, read from the rejected response. Consumed by
+   * {@link retryWithExponentialBackoff}, which prefers it over its own backoff.
+   */
+  public retryAfterMs?: number
 
   constructor(message: string, status: number) {
     super(message)
     this.name = 'EmbeddingAPIError'
     this.status = status
   }
+}
+
+/**
+ * True when the provider's stated wait outlasts the entire retry budget.
+ *
+ * The comparison is against {@link EMBEDDING_RETRY_BUDGET_MS} rather than the
+ * per-attempt ceiling, because a window longer than one wait is still reachable:
+ * the attempts are clamped individually but accumulate, so a 35s window reopens
+ * before the second one lands. Only a window outlasting every attempt is
+ * genuinely unreachable, and retrying into it spends the budget waiting on
+ * something that cannot happen.
+ *
+ * The error stays transient — it just is not worth retrying here — so refusing
+ * the retry surfaces it immediately and the fallback chain, which classifies
+ * separately via `shouldFallback`, reaches the next provider at once. Where no
+ * fallback is configured the request fails either way; this only decides whether
+ * it fails now or after the budget burns down for nothing.
+ */
+function statedWaitOutlastsBudget(error: unknown): boolean {
+  return (
+    error instanceof EmbeddingAPIError &&
+    error.retryAfterMs !== undefined &&
+    error.retryAfterMs > EMBEDDING_RETRY_BUDGET_MS
+  )
 }
 
 export function isTransientEmbeddingError(error: unknown): boolean {
@@ -188,10 +247,27 @@ async function callEmbeddingAPI(
 
       if (!response.ok) {
         const errorText = await response.text()
-        throw new EmbeddingAPIError(
+        const error = new EmbeddingAPIError(
           `Embedding API failed: ${response.status} ${response.statusText} - ${errorText}`,
           response.status
         )
+
+        /**
+         * Carry the provider's own answer to "when may I retry" onto the error,
+         * the way `fetchWithRetry` does for connectors. Without it the retry
+         * loop had nothing but blind exponential backoff and would exhaust every
+         * attempt inside a rate-limit window that had not yet reopened.
+         *
+         * The headers travel non-enumerably so the retry condition can re-read
+         * them without the bag reaching a log line.
+         */
+        attachRetryHeaders(error, response.headers)
+        const waitMs = resolveEmbeddingRetryDelayMs(response.headers)
+        if (waitMs !== null) {
+          error.retryAfterMs = waitMs
+        }
+
+        throw error
       }
 
       const json = await response.json()
@@ -208,10 +284,22 @@ async function callEmbeddingAPI(
       return { embeddings, totalTokens }
     },
     {
-      maxRetries: 3,
+      /**
+       * Sized against a rate-limit window rather than a transient blip. The
+       * provider states its reset in tens of seconds, and the loop clamps that
+       * stated wait to `maxDelayMs` — at the previous 10s ceiling every attempt
+       * fired before the window reopened, so the budget was spent without one
+       * retry landing in the reopened window.
+       *
+       * Bounded so a fully saturated provider cannot outlive the task: five
+       * attempts at the ceiling is well inside `KB_CONFIG_MAX_DURATION`, and
+       * batches wait concurrently rather than one after another.
+       */
+      maxRetries: EMBEDDING_MAX_RETRIES,
       initialDelayMs: 1000,
-      maxDelayMs: 10000,
-      retryCondition: isTransientEmbeddingError,
+      maxDelayMs: EMBEDDING_MAX_RETRY_DELAY_MS,
+      retryCondition: (error) =>
+        isTransientEmbeddingError(error) && !statedWaitOutlastsBudget(error),
     }
   )
 }

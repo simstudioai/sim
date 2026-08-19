@@ -5,6 +5,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/work
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import type { V2ErrorCode } from '@/lib/api/contracts/v2/error-codes'
 import {
   V2_WORKFLOW_RUN_ID_HEADER,
   v2ExecuteWorkflowContract,
@@ -45,7 +46,7 @@ import {
   hasAgentStreamPolicy,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
-import { type V2ErrorCode, v2Data, v2Error } from '@/app/api/v2/lib/response'
+import { v2Data, v2Error } from '@/app/api/v2/lib/response'
 import {
   PublicApiNotAllowedError,
   validatePublicApiAllowed,

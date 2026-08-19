@@ -365,6 +365,13 @@ export interface CopyWorkflowStateParams {
   /** Optional resource-reference remap applied to every block's subBlocks. */
   transformSubBlocks?: SubBlockTransform
   /**
+   * Optional remap of a block's own `type`. Only custom blocks use it: their reference IS
+   * the type, so unlike every other resource there is no sub-block value to rewrite. Returns
+   * the type unchanged when nothing is mapped, which deliberately leaves the copy pointing at
+   * the source block rather than deleting the node — see {@link remapForkBlockType}.
+   */
+  transformBlockType?: (blockType: string, block: { id: string; name: string }) => string
+  /**
    * The target workflow's current draft subBlocks (block id -> subBlocks), for
    * `replace` mode only. When present, required dependents that the sync left empty
    * (the parent change cleared and the stored mapping didn't fill) are reported in
@@ -424,6 +431,7 @@ export async function copyWorkflowStateIntoTarget(
     workflowIdMap,
     folderIdMap,
     transformSubBlocks,
+    transformBlockType,
     targetCurrentBlocks,
     dependentOverrides,
     nameRegistry,
@@ -546,6 +554,9 @@ export async function copyWorkflowStateIntoTarget(
     newBlocks[newBlockId] = {
       ...block,
       id: newBlockId,
+      type: transformBlockType
+        ? transformBlockType(block.type, { id: oldBlockId, name: block.name })
+        : block.type,
       // double-cast-allowed: remap helpers return SubBlockRecord; the entries retain the SubBlockState shape this block requires
       subBlocks: subBlocks as unknown as Record<string, SubBlockState>,
       data: updatedData,

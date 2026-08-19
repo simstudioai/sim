@@ -435,6 +435,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "BAD_REQUEST",
+                "message": "Invalid request"
+              }
             }
           }
         }
@@ -445,16 +451,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UsageLimitExceeded": {
-        "description": "The workspace has exceeded its usage or billing limits.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "UNAUTHORIZED",
+                "message": "API key required"
+              }
             }
           }
         }
@@ -465,6 +467,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "FORBIDDEN",
+                "message": "Insufficient workspace permissions",
+                "details": {
+                  "code": "INSUFFICIENT_WORKSPACE_ROLE"
+                }
+              }
             }
           }
         }
@@ -475,61 +486,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Conflict": {
-        "description": "The request conflicts with current resource state.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "RunIdConflict": {
-        "description": "The run cannot be started, for one of two causes named by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already claimed, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has reached the maximum workflow-to-workflow call depth.",
-        "headers": {
-          "X-Run-Id": {
-            "$ref": "#/components/headers/X-Run-Id"
-          }
-        },
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "PayloadTooLarge": {
-        "description": "The request, or a resource collection it must materialize, exceeds the allowed size: an oversized request body, a generated artifact past the download ceiling, or a workspace folder tree too large to load in full.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "UnsupportedMediaType": {
-        "description": "The request uses an unsupported media type.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "Locked": {
-        "description": "The resource is locked and cannot be modified.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "NOT_FOUND",
+                "message": "Not found"
+              }
             }
           }
         }
@@ -545,16 +507,15 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
-            }
-          }
-        }
-      },
-      "ClientClosedRequest": {
-        "description": "The client closed the connection before the response was produced. An abort can leave the run going, so `error.details.runId` carries the run id — reconcile against the runs resource rather than starting another run.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "RATE_LIMITED",
+                "message": "API rate limit exceeded",
+                "details": {
+                  "retryAfter": "2026-01-01T00:00:30.000Z"
+                }
+              }
             }
           }
         }
@@ -565,6 +526,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error"
+              }
             }
           }
         }
@@ -580,6 +547,12 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Service temporarily unavailable"
+              }
             }
           }
         }
