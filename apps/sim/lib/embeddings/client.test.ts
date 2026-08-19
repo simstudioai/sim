@@ -787,6 +787,41 @@ describe('knowledge embedding transport fallback', () => {
     expect(result.embeddings).toEqual([[9, 9]])
   })
 
+  /**
+   * A window shorter than the whole budget is still reachable: the individual
+   * waits are clamped below it but they accumulate, so a later attempt lands
+   * after it reopens. Refusing these would strand a single-provider caller that
+   * had only to wait a little longer than one clamped delay.
+   */
+  it('keeps retrying a wait the budget can outlast, and recovers', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test' })
+    let call = 0
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      call++
+      if (call === 1) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: '429',
+          // Above the per-attempt ceiling, well inside the total budget.
+          headers: new Headers({ 'retry-after': '35' }),
+          json: async () => ({ error: 'rate limited' }),
+          text: async () => 'rate limited',
+        } as Response
+      }
+      return jsonResponse(openAIBody([[4, 4]], 2))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = embed(['hello'], { ...options, apiKey: 'openai-test' })
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.embeddings).toEqual([[4, 4]])
+  })
+
   it('classifies only transient embedding failures for failover', () => {
     expect(isTransientEmbeddingError(new EmbeddingAPIError('unavailable', 503))).toBe(true)
     expect(isTransientEmbeddingError(new EmbeddingAPIError('rate limited', 429))).toBe(true)

@@ -68,6 +68,14 @@ export const EMBEDDING_MAX_RETRIES = 5
 /** Ceiling on a single wait between embedding attempts, including a provider-stated one. */
 export const EMBEDDING_MAX_RETRY_DELAY_MS = 30_000
 
+/**
+ * Longest a request can stay in the retry loop: every attempt waits at most the
+ * ceiling, so the budget is what the attempts span in total. A provider window
+ * that reopens inside this is still reachable even though each individual wait
+ * is clamped below it.
+ */
+const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DELAY_MS
+
 export class EmbeddingAPIError extends Error {
   public status: number
 
@@ -85,21 +93,26 @@ export class EmbeddingAPIError extends Error {
 }
 
 /**
- * True when the provider asked us to wait longer than we are willing to hold a
- * request for.
+ * True when the provider's stated wait outlasts the entire retry budget.
  *
- * Retrying in that case cannot succeed: the loop clamps every attempt to
- * {@link EMBEDDING_MAX_RETRY_DELAY_MS}, so the whole budget is spent inside a
- * window that has not reopened. The error is still transient — it just is not
- * worth retrying here — so refusing the retry surfaces it immediately and the
- * fallback chain, which classifies separately via `shouldFallback`, reaches the
- * next provider at once instead of after the budget burns down.
+ * The comparison is against {@link EMBEDDING_RETRY_BUDGET_MS} rather than the
+ * per-attempt ceiling, because a window longer than one wait is still reachable:
+ * the attempts are clamped individually but accumulate, so a 35s window reopens
+ * before the second one lands. Only a window outlasting every attempt is
+ * genuinely unreachable, and retrying into it spends the budget waiting on
+ * something that cannot happen.
+ *
+ * The error stays transient — it just is not worth retrying here — so refusing
+ * the retry surfaces it immediately and the fallback chain, which classifies
+ * separately via `shouldFallback`, reaches the next provider at once. Where no
+ * fallback is configured the request fails either way; this only decides whether
+ * it fails now or after the budget burns down for nothing.
  */
-function statedWaitExceedsCeiling(error: unknown): boolean {
+function statedWaitOutlastsBudget(error: unknown): boolean {
   return (
     error instanceof EmbeddingAPIError &&
     error.retryAfterMs !== undefined &&
-    error.retryAfterMs > EMBEDDING_MAX_RETRY_DELAY_MS
+    error.retryAfterMs > EMBEDDING_RETRY_BUDGET_MS
   )
 }
 
@@ -286,7 +299,7 @@ async function callEmbeddingAPI(
       initialDelayMs: 1000,
       maxDelayMs: EMBEDDING_MAX_RETRY_DELAY_MS,
       retryCondition: (error) =>
-        isTransientEmbeddingError(error) && !statedWaitExceedsCeiling(error),
+        isTransientEmbeddingError(error) && !statedWaitOutlastsBudget(error),
     }
   )
 }
