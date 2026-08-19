@@ -3,25 +3,29 @@ import { sha256Base64Url } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
 import { sleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
+import { truncate } from '@sim/utils/string'
 import * as p from './prompter'
 import { link, theme } from './theme'
+import { SETUP_USER_AGENT } from './version'
 
-// Generous enough for a first-time user to create an account, wait for the email
-// OTP, land back on /cli/auth, and approve — a few minutes is routine. The
-// server-side approval record has its own short TTL, so a long client wait only
-// costs cheap, rate-limited polls.
 const WAIT_MS = 900_000
 const POLL_INTERVAL_MS = 2000
+const POLL_REQUEST_TIMEOUT_MS = 15_000
+const APPROVAL_PATH = '/cli/auth'
+const POLL_PATH = '/api/cli/auth/poll'
+const RETRYABLE_POLL_STATUSES = new Set([409, 429, 500, 502, 503, 504])
+const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
+export type AuthPollResult =
+  | { status: 'pending'; retryAfterMs?: number }
+  | { status: 'complete'; apiKey: string }
+
+/** Opens a safely encoded URL across platforms, including Windows' cmd-backed `start`. */
 function openBrowser(url: string): void {
   if (process.env.SIM_SETUP_NO_BROWSER) return
   if (process.platform === 'win32') {
-    // `start` is a cmd builtin, not an executable — spawning it directly ENOENTs.
-    // cmd re-parses the command line and would treat `&` in the query string as a
-    // command separator, truncating the URL; quote it (the query is URL-encoded, so
-    // it never contains a `"`) and pass args verbatim so Node doesn't re-quote them.
-    // `""` is start's window-title placeholder, required before the URL.
     spawnSync('cmd', ['/c', 'start', '""', `"${url}"`], {
       stdio: 'ignore',
       windowsVerbatimArguments: true,
@@ -32,95 +36,212 @@ function openBrowser(url: string): void {
   spawnSync(command, [url], { stdio: 'ignore' })
 }
 
-/** No O/0 or I/1 — this exists to be compared by eye against a browser tab. */
-const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-
-/**
- * Short human-comparable code, shown in this terminal and on the approval page.
- *
- * The poll secret binds the *key* to this process, but nothing cryptographic
- * tells the user whether the page they're approving belongs to their terminal
- * or to a link someone sent them — an attacker supplies the request id and
- * challenge. Comparing this code is the only thing that distinguishes the two.
- */
+/** Short human-comparable code with no look-alike characters. */
 function createPairingCode(): string {
   const chars = generateShortId(8, PAIRING_ALPHABET)
   return `${chars.slice(0, 4)}-${chars.slice(4)}`
 }
 
-interface PollResponse {
-  status: 'pending' | 'complete'
-  key?: { apiKey?: string }
+/** Validates the auth service root and preserves any path prefix it carries. */
+export function normalizeAuthOrigin(origin: string): string {
+  const value = origin.trim()
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    throw new Error(
+      `Invalid Chat authorization origin "${origin}"; expected an absolute HTTP(S) URL.`
+    )
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(
+      `Unsupported Chat authorization origin scheme "${parsed.protocol.replace(/:$/, '')}"; expected HTTP or HTTPS.`
+    )
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error('Chat authorization origin cannot contain credentials, a query, or a fragment.')
+  }
+  const prefix = parsed.pathname.replace(/\/+$/, '')
+  return `${parsed.origin}${prefix}`
+}
+
+function authUrl(origin: string, path: string): string {
+  return `${normalizeAuthOrigin(origin)}${path}`
+}
+
+/** Builds the browser URL without ever including the redeemable poll secret. */
+export function buildApprovalUrl(
+  origin: string,
+  request: string,
+  challenge: string,
+  pairing: string
+): string {
+  const query = new URLSearchParams({ request, challenge, pairing })
+  return `${authUrl(origin, APPROVAL_PATH)}?${query}`
+}
+
+function isRetryableTransportError(error: unknown): boolean {
+  if (error instanceof TypeError) return true
+  return (
+    typeof DOMException !== 'undefined' &&
+    error instanceof DOMException &&
+    error.name === 'TimeoutError'
+  )
+}
+
+async function responseError(response: Response): Promise<string> {
+  const fallback = `Chat authorization failed with HTTP ${response.status}`
+  const raw = await response.text()
+  if (!raw) return fallback
+
+  let body: unknown
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    return fallback
+  }
+  if (!isRecordLike(body)) return fallback
+  if (typeof body.error === 'string' && body.error) return truncate(body.error, 500)
+  if (isRecordLike(body.error) && typeof body.error.message === 'string' && body.error.message) {
+    return truncate(body.error.message, 500)
+  }
+  if (typeof body.message === 'string' && body.message) return truncate(body.message, 500)
+  return fallback
+}
+
+function redirectError(origin: string, response: Response): Error {
+  const location = response.headers.get('location')?.trim()
+  if (!location) {
+    return new Error(
+      `Chat authorization origin ${normalizeAuthOrigin(origin)} returned HTTP ${response.status} without a redirect target.`
+    )
+  }
+
+  let target: URL
+  try {
+    target = new URL(location, `${normalizeAuthOrigin(origin)}/`)
+  } catch {
+    return new Error(
+      `Chat authorization origin ${normalizeAuthOrigin(origin)} returned HTTP ${response.status} with an invalid redirect target.`
+    )
+  }
+  return new Error(
+    `Chat authorization origin redirected the key poll to ${target.href}. Set SIM_CLI_AUTH_ORIGIN to the final service URL; setup will not forward the poll secret across a redirect.`
+  )
+}
+
+function parsePollResponse(raw: string): AuthPollResult {
+  let body: unknown
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    throw new Error('Chat authorization service returned a non-JSON response.')
+  }
+  if (!isRecordLike(body) || (body.status !== 'pending' && body.status !== 'complete')) {
+    throw new Error('Chat authorization service returned an invalid poll response.')
+  }
+  if (body.status === 'pending') return { status: 'pending' }
+  if (!isRecordLike(body.key) || typeof body.key.apiKey !== 'string' || !body.key.apiKey) {
+    throw new Error('Chat authorization completed without a valid API key.')
+  }
+  return { status: 'complete', apiKey: body.key.apiKey }
+}
+
+/** Performs one bounded poll, retrying only known transient transport and service failures. */
+export async function pollOnce(
+  origin: string,
+  request: string,
+  verifier: string,
+  timeoutMs: number = POLL_REQUEST_TIMEOUT_MS
+): Promise<AuthPollResult> {
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(
+      `Poll timeout must be a positive whole number of milliseconds, got ${timeoutMs}.`
+    )
+  }
+  let response: Response
+  try {
+    response = await fetch(authUrl(origin, POLL_PATH), {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'user-agent': SETUP_USER_AGENT,
+      },
+      body: JSON.stringify({ request, verifier }),
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: 'manual',
+    })
+  } catch (error) {
+    if (isRetryableTransportError(error)) return { status: 'pending' }
+    throw error
+  }
+
+  if (response.status >= 300 && response.status <= 399) throw redirectError(origin, response)
+  if (RETRYABLE_POLL_STATUSES.has(response.status)) {
+    const retryAfterMs =
+      response.status === 429 ? parseRetryAfter(response.headers.get('retry-after')) : null
+    return {
+      status: 'pending',
+      ...(retryAfterMs && retryAfterMs > 0 ? { retryAfterMs } : {}),
+    }
+  }
+  if (!response.ok) throw new Error(await responseError(response))
+  return parsePollResponse(await response.text())
 }
 
 /**
- * Device-flow handoff: open the approval page and poll for the key over TLS.
+ * Opens the approval page and polls for the Chat key without a loopback listener.
  *
- * No loopback listener — the terminal and browser need not share a machine, so
- * this works over SSH and inside containers. The poll secret never leaves this
- * process; only its digest reaches the server, so an observer of the request id
- * cannot mint. Returns the key, or null on timeout / failed poll (re-run to
- * retry). Ctrl-C exits setup via the SIGINT handler.
+ * The poll secret never enters the browser URL. Fatal protocol and authorization
+ * responses stop immediately; only known transient failures remain pending.
  */
 export async function browserKeyFlow(origin: string): Promise<string | null> {
+  const normalizedOrigin = normalizeAuthOrigin(origin)
   const request = generateSecureToken(32)
   const pollSecret = generateSecureToken(32)
   const challenge = sha256Base64Url(pollSecret)
   const pairingCode = createPairingCode()
-
-  const query = new URLSearchParams({ request, challenge, pairing: pairingCode })
-  const authUrl = `${origin}/cli/auth?${query}`
+  const approvalUrl = buildApprovalUrl(normalizedOrigin, request, challenge, pairingCode)
 
   p.note(
     `${theme.heading(pairingCode)}\n\n${theme.muted('The page should show this code. If it shows a different one,\nthe request is not from this terminal — close the tab.')}`,
     'Confirm this code in your browser'
   )
   p.log.info(
-    `Opening your browser — create your account (or sign in) and approve; the key comes back automatically.\n   If it doesn't open: ${link(authUrl, authUrl)}`
+    `Opening your browser — create your account (or sign in) and approve; the key comes back automatically.\n   If it doesn't open: ${link(approvalUrl, approvalUrl)}`
   )
-  openBrowser(authUrl)
+  openBrowser(approvalUrl)
 
   const spin = p.spinner()
   spin.start('Waiting for approval in your browser')
 
   const deadline = Date.now() + WAIT_MS
-  while (Date.now() < deadline) {
-    await sleep(POLL_INTERVAL_MS)
-    // null means still pending or a transient error — either way, keep waiting.
-    const key = await pollOnce(origin, request, pollSecret)
-    if (key) {
-      spin.stop('Approved')
-      return key
+  let delayMs = POLL_INTERVAL_MS
+  try {
+    while (Date.now() < deadline) {
+      const beforePollMs = deadline - Date.now()
+      await sleep(Math.min(delayMs, beforePollMs))
+      const remainingMs = deadline - Date.now()
+      if (remainingMs <= 0) break
+
+      const result = await pollOnce(
+        normalizedOrigin,
+        request,
+        pollSecret,
+        Math.min(POLL_REQUEST_TIMEOUT_MS, remainingMs)
+      )
+      if (result.status === 'complete') {
+        spin.stop('Approved')
+        return result.apiKey
+      }
+      delayMs = result.retryAfterMs ?? POLL_INTERVAL_MS
     }
+  } catch (error) {
+    spin.stop('Browser handoff failed')
+    throw error
   }
 
   spin.stop('Browser handoff timed out')
   return null
-}
-
-/**
- * One poll. Returns the key when the approval completes, `null` while pending or
- * on a transient error (the caller keeps waiting until the deadline).
- */
-async function pollOnce(origin: string, request: string, verifier: string): Promise<string | null> {
-  try {
-    const response = await fetch(`${origin}/api/cli/auth/poll`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ request, verifier }),
-    })
-    // Behind a shared NAT the per-IP bucket can be hit — honor Retry-After and
-    // back off instead of hammering the endpoint every interval.
-    if (response.status === 429) {
-      const retryMs = parseRetryAfter(response.headers.get('retry-after'))
-      if (retryMs) await sleep(retryMs)
-      return null
-    }
-    if (!response.ok) return null
-
-    const data = (await response.json()) as PollResponse
-    return data.status === 'complete' ? (data.key?.apiKey ?? null) : null
-  } catch {
-    return null
-  }
 }

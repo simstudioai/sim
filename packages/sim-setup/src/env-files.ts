@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, renameSync } from 'node:fs'
 import path from 'node:path'
 import { generateRandomHex } from '@sim/utils/random'
+import { writeTextFileAtomic } from './atomic-file'
 import { SETUP_CONTEXT } from './context'
 
 export const ROOT = SETUP_CONTEXT.root
@@ -147,8 +148,12 @@ export function reconcileEnvValues(
     const example = EXAMPLE_PATHS[target]
     content = example && existsSync(example) ? readFileSync(example, 'utf8') : ''
   }
-  mkdirSync(path.dirname(filePath), { recursive: true })
-  writeFileSync(filePath, reconcileEnvContent(content, remove, values))
+  writeEnvFile(filePath, reconcileEnvContent(content, remove, values))
+}
+
+/** Atomically replaces a secret-bearing env file with owner-only permissions. */
+export function writeEnvFile(filePath: string, contents: string): void {
+  writeTextFileAtomic(filePath, contents, { mode: 0o600 })
 }
 
 /** Writes values into an env file, seeding a missing file from its .env.example. */

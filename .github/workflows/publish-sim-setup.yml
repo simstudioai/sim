@@ -137,21 +137,30 @@ jobs:
           cd "$SMOKE_DIR"
           node package/dist/index.js --version
           node package/dist/index.js --help
+          for command in config add doctor start stop restart update status logs down reset; do
+            node package/dist/index.js "$command" --help > /dev/null
+          done
+          node package/dist/index.js add integration --help > /dev/null
+          if node package/dist/index.js --quik > /dev/null 2>&1; then
+            echo 'Packed setup CLI accepted an unknown option.' >&2
+            exit 1
+          fi
+          if node package/dist/index.js start extra > /dev/null 2>&1; then
+            echo 'Packed setup CLI accepted an extra lifecycle operand.' >&2
+            exit 1
+          fi
 
-      - name: Check if version already exists
-        id: version_check
+      - name: Verify version is unpublished
         working-directory: packages/sim-setup
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           if bun pm view "@sim/setup@$VERSION" version > /dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "@sim/setup@$VERSION is already published. Bump packages/sim-setup/package.json before releasing another build." >&2
+            exit 1
           fi
 
       - name: Publish to npm
-        if: steps.version_check.outputs.exists == 'false'
         working-directory: packages/sim-setup
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -159,14 +168,7 @@ jobs:
         run: bun publish --access public --tag "$NPM_TAG" --no-save
 
       - name: Summarize release
-        if: steps.version_check.outputs.exists == 'false'
         env:
           VERSION: ${{ steps.release.outputs.version }}
           NPM_TAG: ${{ steps.release.outputs.tag }}
         run: echo "Published @sim/setup@$VERSION with the '$NPM_TAG' tag."
-
-      - name: Summarize skipped release
-        if: steps.version_check.outputs.exists == 'true'
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-        run: echo "Skipped @sim/setup@$VERSION because that version is already published."

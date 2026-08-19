@@ -1,11 +1,21 @@
-import { describe, expect, it } from 'vitest'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   isPlaceholder,
   isUsableSecret,
   parseEnv,
   reconcileEnvContent,
   upsertEnv,
+  writeEnvFile,
 } from './env-files'
+
+const roots: string[] = []
+
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
 
 describe('placeholder detection', () => {
   it('recognizes underscore and hyphen template prefixes', () => {
@@ -54,5 +64,20 @@ describe('reconcileEnvContent', () => {
       reconcileEnvContent(content, ['SMTP_HOST'], { RESEND_API_KEY: 'replacement' })
     ).toThrow('Duplicate active RESEND_API_KEY entries')
     expect(parseEnv(content).get('SMTP_HOST')).toBe('old-host')
+  })
+})
+
+describe('writeEnvFile', () => {
+  it('replaces existing contents with owner-only permissions', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'sim-setup-env-file-'))
+    roots.push(root)
+    const file = path.join(root, '.env')
+    writeFileSync(file, 'OLD=value\n')
+    chmodSync(file, 0o644)
+
+    writeEnvFile(file, 'SECRET=current\n')
+
+    expect(readFileSync(file, 'utf8')).toBe('SECRET=current\n')
+    expect(statSync(file).mode & 0o777).toBe(0o600)
   })
 })

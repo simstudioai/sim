@@ -1,29 +1,13 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs'
 import { getErrorMessage } from '@sim/utils/errors'
+import { parseSetupArguments, SetupArgumentError } from './arguments'
 import { SetupError } from './errors'
 import { exitWith, restoreTerminal } from './terminal'
 import { theme } from './theme'
+import { SETUP_VERSION } from './version'
 
-type WizardMode = 'compose' | 'dev' | 'k8s'
-
-const LIFECYCLE_COMMANDS = [
-  'start',
-  'stop',
-  'restart',
-  'update',
-  'status',
-  'logs',
-  'down',
-  'reset',
-] as const
-type LifecycleCommand = (typeof LIFECYCLE_COMMANDS)[number]
 const SETUP_FEATURES =
   'email | storage | sandbox | jobs | cache | knowledge | knowledge-embeddings | llm | integration <slug>'
-
-function isLifecycleCommand(value: string | undefined): value is LifecycleCommand {
-  return Boolean(value && (LIFECYCLE_COMMANDS as readonly string[]).includes(value))
-}
 
 const USAGE = `Usage:
   npx @sim/setup                             run the setup wizard
@@ -50,99 +34,47 @@ Inside a Sim source checkout, use the repository command:
   bun run sim-setup down                         remove containers (data kept)
   bun run sim-setup reset                        archive .env + wipe managed data`
 
-function readPackageVersion(): string {
-  const metadata: unknown = JSON.parse(
-    readFileSync(new URL('../package.json', import.meta.url), 'utf8')
-  )
-  if (
-    typeof metadata !== 'object' ||
-    metadata === null ||
-    !('version' in metadata) ||
-    typeof metadata.version !== 'string'
-  ) {
-    throw new Error('@sim/setup package metadata is missing a valid version')
-  }
-  return metadata.version
-}
-
-function withoutDirectoryOption(args: readonly string[]): string[] {
-  const filtered: string[] = []
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index]
-    if (arg.startsWith('--dir=')) continue
-    if (arg === '--dir') {
-      index += 1
-      continue
-    }
-    filtered.push(arg)
-  }
-  return filtered
-}
-
-function parseMode(value: string | undefined): WizardMode {
-  if (value === 'compose' || value === 'dev' || value === 'k8s') return value
-  throw new Error(`invalid --mode "${value}" — expected compose, dev, or k8s`)
-}
-
 async function main(): Promise<void> {
-  const rawArgs = process.argv.slice(2)
-  if (rawArgs.includes('--version') || rawArgs.includes('-V')) {
-    console.log(readPackageVersion())
+  const invocation = parseSetupArguments(process.argv.slice(2))
+  if (invocation.kind === 'version') {
+    console.log(SETUP_VERSION)
     return
   }
-  const args = withoutDirectoryOption(rawArgs)
-  if (args.includes('--help') || args.includes('-h')) {
+  if (invocation.kind === 'help') {
     console.log(USAGE)
     return
   }
   process.on('SIGINT', () => exitWith(130))
 
-  const command = args[0]
-
-  if (command === 'config') {
+  if (invocation.kind === 'config') {
     const { runSetupStatus } = await import('./setup-status')
     process.exitCode = await runSetupStatus()
     return
   }
 
-  if (command === 'add') {
-    const feature = args[1]
-    if (!feature || feature.startsWith('-')) {
-      throw new Error(`Missing feature. Expected: ${SETUP_FEATURES}`)
-    }
+  if (invocation.kind === 'add') {
     const { runFeatureSetup } = await import('./feature-setup')
-    await runFeatureSetup(feature, args.slice(2))
+    await runFeatureSetup(invocation.feature, invocation.args)
     return
   }
 
-  if (command === 'doctor') {
+  if (invocation.kind === 'doctor') {
     const { runDoctor } = await import('./doctor')
-    process.exitCode = await runDoctor({
-      fix: args.includes('--fix'),
-      json: args.includes('--json'),
-    })
+    process.exitCode = await runDoctor({ fix: invocation.fix, json: invocation.json })
     return
   }
 
-  if (isLifecycleCommand(command)) {
+  if (invocation.kind === 'lifecycle') {
     const { runLifecycle } = await import('./lifecycle')
-    await runLifecycle(command)
+    await runLifecycle(invocation.command)
     return
   }
 
-  if (!command || command.startsWith('-')) {
-    const modeIdx = args.indexOf('--mode')
+  if (invocation.kind === 'wizard') {
     const { runWizard } = await import('./wizard')
-    await runWizard({
-      quick: args.includes('--quick'),
-      mode: modeIdx === -1 ? undefined : parseMode(args[modeIdx + 1]),
-    })
+    await runWizard({ quick: invocation.quick, mode: invocation.mode })
     return
   }
-
-  console.error(`Unknown command: ${command}\n`)
-  console.log(USAGE)
-  process.exitCode = 1
 }
 
 function renderFailure(error: unknown): void {
@@ -163,7 +95,12 @@ function renderFailure(error: unknown): void {
 
 main()
   .catch((error) => {
-    renderFailure(error)
+    if (error instanceof SetupArgumentError) {
+      console.error(`Error: ${error.message}\n`)
+      console.error(USAGE)
+    } else {
+      renderFailure(error)
+    }
     process.exitCode = 1
   })
   .finally(restoreTerminal)
