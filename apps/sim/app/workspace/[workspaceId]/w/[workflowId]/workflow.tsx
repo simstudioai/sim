@@ -42,6 +42,10 @@ import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-to
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { OPERATION_SUBBLOCK_ID } from '@/lib/permission-groups/operation-access'
+import {
+  DEFAULT_HORIZONTAL_SPACING,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
 import { getDefaultBlockName } from '@/lib/workflows/blocks/canvas-presentation'
 import { requestNoteImage, requestNoteRename } from '@/lib/workflows/notes/canvas-requests'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -258,6 +262,13 @@ function syncPanelWithSelection(selectedIds: string[]) {
       setCurrentBlockId(lastSelectedId)
     }
   }
+}
+
+/** Footprint estimate for a new, not-yet-measured block of the given type. */
+function estimateNewBlockDimensions(blockType: string): { width: number; height: number } {
+  return blockType === 'loop' || blockType === 'parallel'
+    ? { width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH, height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT }
+    : estimateBlockDimensions(blockType)
 }
 
 /**
@@ -1851,6 +1862,130 @@ const WorkflowContent = React.memo(
     )
 
     /**
+     * Drops a proposed spot below any root-level block already occupying it,
+     * cascading in top-to-bottom order so repeated adds stack instead of pile.
+     */
+    const nudgeBelowOccupiedSpots = useCallback(
+      (
+        start: { x: number; y: number },
+        dimensions: { width: number; height: number }
+      ): { x: number; y: number } => {
+        const occupants = Object.values(blocks)
+          .filter((block) => !block.data?.parentId)
+          .map((block) => {
+            const blockDimensions = getBlockDimensions(block.id)
+            return {
+              left: block.position.x,
+              right: block.position.x + blockDimensions.width,
+              top: block.position.y,
+              bottom: block.position.y + blockDimensions.height,
+            }
+          })
+          .sort((a, b) => a.top - b.top)
+
+        let y = start.y
+        for (const rect of occupants) {
+          const overlapsX = start.x < rect.right && start.x + dimensions.width > rect.left
+          const overlapsY = y < rect.bottom && y + dimensions.height > rect.top
+          if (overlapsX && overlapsY) {
+            y = rect.bottom + DEFAULT_VERTICAL_SPACING
+          }
+        }
+
+        return { x: start.x, y }
+      },
+      [blocks, getBlockDimensions]
+    )
+
+    /**
+     * Positions a block added without an explicit drop point after its
+     * auto-connect source: one layout column to the right, vertically centred
+     * on the source, then nudged below any root-level block already occupying
+     * that spot (a fan-out from a source that already has a next block).
+     */
+    const getPositionAfterSourceBlock = useCallback(
+      (sourceBlockId: string, blockType: string): { x: number; y: number } => {
+        const sourcePosition = getNodeAbsolutePosition(sourceBlockId)
+        const sourceDimensions = getBlockDimensions(sourceBlockId)
+        const newBlockDimensions = estimateNewBlockDimensions(blockType)
+
+        return nudgeBelowOccupiedSpots(
+          {
+            x: sourcePosition.x + sourceDimensions.width + DEFAULT_HORIZONTAL_SPACING,
+            y: sourcePosition.y + sourceDimensions.height / 2 - newBlockDimensions.height / 2,
+          },
+          newBlockDimensions
+        )
+      },
+      [getBlockDimensions, getNodeAbsolutePosition, nudgeBelowOccupiedSpots]
+    )
+
+    /**
+     * Edge for a positionless add (cmdk, toolbar click). The source is the
+     * currently selected block — or, with nothing selected, the canvas's
+     * only block (a fresh workflow's trigger; notes don't count), since
+     * attachment is unambiguous there. Otherwise no edge: there is no
+     * meaningful point to run proximity against — the placement point is the
+     * synthetic viewport centre — and guessing a source produced edges the
+     * user never implied. A source inside a container also yields no edge,
+     * since the new block lands at root level and the edge would cross the
+     * container boundary.
+     */
+    const tryCreateEdgeForPositionlessAdd = useCallback(
+      (targetBlockId: string): Edge | undefined => {
+        if (!autoConnectRef.current) return undefined
+
+        const selectedNodes = getNodes().filter((node) => node.selected)
+        let sourceId = selectedNodes[selectedNodes.length - 1]?.id
+        if (!sourceId) {
+          const flowBlocks = Object.values(blocks).filter(
+            (block) => !isAnnotationOnlyBlock(block.type)
+          )
+          if (flowBlocks.length === 1) sourceId = flowBlocks[0].id
+        }
+        if (!sourceId) return undefined
+
+        const source = blocks[sourceId]
+        if (!source || !isAutoConnectSourceCandidate(source)) return undefined
+        if (source.data?.parentId) return undefined
+
+        const sourceHandle = determineSourceHandle({ id: sourceId, type: source.type })
+        return createEdgeObject(sourceId, targetBlockId, sourceHandle)
+      },
+      [blocks, getNodes, isAutoConnectSourceCandidate, determineSourceHandle, createEdgeObject]
+    )
+
+    /**
+     * Position for a block added with nothing selected: parked in the trigger
+     * column, below the blocks already there. Mirrors auto-layout, which
+     * assigns blocks with no incoming edges to layer 0 (the Start column), so
+     * hand-added unattached blocks stack exactly where a layout pass would
+     * put them. Returns null when no root-level block anchors the column.
+     */
+    const getUnattachedBlockPosition = useCallback(
+      (blockType: string): { x: number; y: number } | null => {
+        const targetedIds = new Set(edges.map((edge) => edge.target))
+        const layerZeroBlocks = Object.values(blocks).filter(
+          (block) => !block.data?.parentId && !targetedIds.has(block.id)
+        )
+        if (layerZeroBlocks.length === 0) return null
+
+        const anchor = layerZeroBlocks.reduce((topmost, block) =>
+          block.position.y < topmost.position.y ? block : topmost
+        )
+
+        return nudgeBelowOccupiedSpots(
+          {
+            x: anchor.position.x,
+            y: anchor.position.y + getBlockDimensions(anchor.id).height + DEFAULT_VERTICAL_SPACING,
+          },
+          estimateNewBlockDimensions(blockType)
+        )
+      },
+      [blocks, edges, getBlockDimensions, nudgeBelowOccupiedSpots]
+    )
+
+    /**
      * Checks if adding a block would violate constraints (triggers or single-instance blocks)
      * and shows notification if so.
      * @returns true if validation failed (caller should return early), false if ok to proceed
@@ -2194,15 +2329,16 @@ const WorkflowContent = React.memo(
           const baseName = type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
-          const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-            targetParentId: null,
-          })
+          const autoConnectEdge = tryCreateEdgeForPositionlessAdd(id)
+          const position = autoConnectEdge
+            ? getPositionAfterSourceBlock(autoConnectEdge.source, type)
+            : (getUnattachedBlockPosition(type) ?? basePosition)
 
           addBlock(
             id,
             type,
             name,
-            basePosition,
+            position,
             {
               width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
               height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
@@ -2229,15 +2365,16 @@ const WorkflowContent = React.memo(
         const baseName = defaultTriggerName || getDefaultBlockName(blockConfig)
         const name = getUniqueBlockName(baseName, blocks)
 
-        const autoConnectEdge = tryCreateAutoConnectEdge(basePosition, id, {
-          targetParentId: null,
-        })
+        const autoConnectEdge = tryCreateEdgeForPositionlessAdd(id)
+        const position = autoConnectEdge
+          ? getPositionAfterSourceBlock(autoConnectEdge.source, type)
+          : (getUnattachedBlockPosition(type) ?? basePosition)
 
         addBlock(
           id,
           type,
           name,
-          basePosition,
+          position,
           undefined,
           undefined,
           undefined,
@@ -2263,9 +2400,10 @@ const WorkflowContent = React.memo(
       addBlock,
       effectivePermissions.canEdit,
       checkTriggerConstraints,
-      tryCreateAutoConnectEdge,
-      screenToFlowPosition,
       handleToolbarDrop,
+      tryCreateEdgeForPositionlessAdd,
+      getPositionAfterSourceBlock,
+      getUnattachedBlockPosition,
     ])
 
     /**
