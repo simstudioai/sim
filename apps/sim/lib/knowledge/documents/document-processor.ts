@@ -647,7 +647,14 @@ async function recognizeWithAzureOCR(buffer: Buffer, mimeType: string): Promise<
   )
 
   const ocrResult = (await response.json()) as AzureOCRResponse
-  return extractPageContent(ocrResult.pages || []) || JSON.stringify(ocrResult, null, 2)
+
+  /**
+   * A response carrying no pages is no content. Returning the raw payload instead
+   * would be indexed as though it were the document: stitched into a chunked run
+   * as recovered text, and in a single-document run it would satisfy the
+   * empty-content check that exists to catch exactly this.
+   */
+  return extractPageContent(ocrResult.pages || [])
 }
 
 async function parseWithMistralOCR(
@@ -840,7 +847,26 @@ async function ocrPdfInChunks(
   ) => Promise<string | null>
 ): Promise<string> {
   const totalPages = await getPdfPageCount(pdfBuffer)
-  const pdfChunks = await splitPdfIntoChunks(pdfBuffer, MISTRAL_MAX_PAGES)
+
+  /**
+   * Splitting has to load the document, which an encrypted or malformed PDF will
+   * refuse. That must not decide whether the file reaches OCR at all: those are
+   * exactly the documents with no readable text layer, so OCR is their only route,
+   * and the provider may well accept bytes that a local parser would not. When the
+   * split fails the document is sent whole and the page cap is left to the
+   * provider — the behaviour before it was chunked.
+   */
+  let pdfChunks: { buffer: Buffer; startPage: number; endPage: number }[]
+  try {
+    pdfChunks = await splitPdfIntoChunks(pdfBuffer, MISTRAL_MAX_PAGES)
+  } catch (error) {
+    logger.info('PDF could not be split for OCR, sending it whole', {
+      provider,
+      error: toError(error).message,
+    })
+    pdfChunks = [{ buffer: pdfBuffer, startPage: 0, endPage: Math.max(0, totalPages - 1) }]
+  }
+
   logger.info('Splitting PDF for OCR', {
     provider,
     totalPages,

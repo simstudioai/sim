@@ -179,4 +179,59 @@ describe('Azure OCR chunking', () => {
     // 1001 pages against a 1000-page request cap: two chunks, two requests.
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+  /**
+   * Splitting loads the document, which an encrypted or malformed PDF refuses.
+   * Those are precisely the files the triage sends here — no readable text layer —
+   * so a failed split must not decide whether they reach OCR at all.
+   */
+  it('sends a PDF that cannot be split whole rather than refusing it', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-ocr',
+    })
+    mockParseBuffer.mockRejectedValue(new Error('Invalid PDF structure.'))
+    mockDownload.mockResolvedValue(Buffer.from('not something pdf-lib can load'))
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await parse()
+
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A response with no pages is no content. Returning the raw payload would index
+   * the API envelope as the document and satisfy the empty-content check meant to
+   * catch it.
+   */
+  it('treats an Azure response carrying no pages as empty, not as content', async () => {
+    Object.assign(env, {
+      OCR_PROVIDER: 'azure-mistral',
+      OCR_AZURE_API_KEY: 'key',
+      OCR_AZURE_ENDPOINT: 'https://example.openai.azure.com',
+      OCR_AZURE_MODEL_NAME: 'mistral-ocr',
+    })
+    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
+    mockDownload.mockResolvedValue(await pdfOfPages(2))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ pages: [], usage_info: { pages_processed: 0 } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+
+    // Counted as a failed chunk rather than stitched in as recovered text.
+    await expect(parse()).rejects.toThrow(/OCR failed for all 1 chunks/)
+  })
 })
