@@ -63,7 +63,8 @@ describe('Teams subscription renewal route (fire-and-forget)', () => {
     expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
       'teams-subscription-renewal-lock',
       expect.any(String),
-      expect.any(Number)
+      expect.any(Number),
+      { reclaimOnFailure: true }
     )
 
     await flushMicrotasks()

@@ -62,7 +62,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const authError = verifyCronAuth(request, 'Time-pause resume poll')
   if (authError) return authError
 
-  const lockAcquired = await acquireLock(LOCK_KEY, requestId, LOCK_TTL_SECONDS)
+  const lockAcquired = await acquireLock(LOCK_KEY, requestId, LOCK_TTL_SECONDS, {
+    reclaimOnFailure: true,
+  })
   if (!lockAcquired) {
     return NextResponse.json(
       { success: true, message: 'Polling already in progress – skipped', requestId },
