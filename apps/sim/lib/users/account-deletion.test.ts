@@ -6,6 +6,7 @@ import {
   AccountDeletionBlockedError,
   type AccountDeletionFacts,
   classifyAccountDeletion,
+  extractProfilePictureKey,
   type WorkspaceCompany,
   type WorkspaceRow,
 } from '@/lib/users/account-deletion'
@@ -177,5 +178,32 @@ describe('AccountDeletionBlockedError', () => {
 
   it('still carries a message when constructed with no blockers', () => {
     expect(new AccountDeletionBlockedError([]).message).toMatch(/cannot be deleted/i)
+  })
+})
+
+describe('extractProfilePictureKey', () => {
+  it('extracts the storage key from an uploaded avatar path', () => {
+    expect(extractProfilePictureKey('/api/files/serve/profile-pictures%2Fu1%2Favatar.png')).toBe(
+      'profile-pictures/u1/avatar.png'
+    )
+  })
+
+  it('strips the storage-provider segment', () => {
+    expect(extractProfilePictureKey('/api/files/serve/s3/profile-pictures%2Fu1%2Fa.png')).toBe(
+      'profile-pictures/u1/a.png'
+    )
+  })
+
+  it('ignores an external avatar, which is the provider’s object and not ours to delete', () => {
+    expect(extractProfilePictureKey('https://lh3.googleusercontent.com/a/abc123')).toBeNull()
+  })
+
+  it('ignores a served key outside the profile-pictures prefix', () => {
+    expect(extractProfilePictureKey('/api/files/serve/workspace%2Fw1%2Freport.pdf')).toBeNull()
+  })
+
+  it('handles an account with no picture', () => {
+    expect(extractProfilePictureKey(null)).toBeNull()
+    expect(extractProfilePictureKey('')).toBeNull()
   })
 })

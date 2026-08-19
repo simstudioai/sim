@@ -301,7 +301,12 @@ export async function getAccountDeletionPlan(userId: string): Promise<AccountDel
       loadRelatedWorkspaces(userId),
       loadOrganizationNames(userId),
       isSoleOwnerOfPaidOrganization(userId),
-      getHighestPriorityPersonalSubscription(userId),
+      /**
+       * `onError: 'throw'` rather than the default `'return-null'`: a failed
+       * subscription read would otherwise read as "no plan", skipping the
+       * blocker and erasing an account Stripe is still billing.
+       */
+      getHighestPriorityPersonalSubscription(userId, { onError: 'throw' }),
       db
         .select({ id: dataDrains.id })
         .from(dataDrains)
@@ -347,6 +352,13 @@ async function collectPages(
 ): Promise<void> {
   let afterId = ''
   for (;;) {
+    if (countKeys(into) >= MAX_PURGE_KEYS) {
+      logger.error('Account deletion hit the storage purge cap; the remainder is orphaned', {
+        cap: MAX_PURGE_KEYS,
+      })
+      return
+    }
+
     const rows = await page(afterId)
     if (rows.length === 0) return
 
@@ -365,6 +377,37 @@ async function collectPages(
   }
 }
 
+function countKeys(batches: StorageKeyBatch[]): number {
+  let total = 0
+  for (const batch of batches) total += batch.keys.length
+  return total
+}
+
+/**
+ * The account's own uploaded avatar, as a storage key.
+ *
+ * `user.image` holds either a `/api/files/serve/...` path (an upload we own) or
+ * an absolute URL from an OAuth provider (which we must not try to delete). Only
+ * the former yields a key, and only under the `profile-pictures/` prefix — the
+ * image is personal data, so an erasure that leaves it in the bucket is not an
+ * erasure.
+ */
+export function extractProfilePictureKey(image: string | null): string | null {
+  if (!image) return null
+  try {
+    const parsed = new URL(image, 'http://placeholder')
+    if (parsed.origin !== 'http://placeholder') return null
+    const segments = parsed.pathname.split('/')
+    if (segments[1] !== 'api' || segments[2] !== 'files' || segments[3] !== 'serve') return null
+    let keySegments = segments.slice(4)
+    if (['s3', 'blob', 'gcs'].includes(keySegments[0])) keySegments = keySegments.slice(1)
+    const key = decodeURIComponent(keySegments.join('/'))
+    return key.startsWith('profile-pictures/') ? key : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Collects every stored object held by workspaces that go with the account.
  *
@@ -372,12 +415,27 @@ async function collectPages(
  * workspace through `ON DELETE CASCADE`, and the retention sweep that normally
  * reclaims storage is driven entirely by those rows — once they are gone it has
  * no way to find the objects. The keys are held in memory only between this call
- * and the purge that follows the commit; `MAX_PURGE_KEYS` bounds that, and
- * exceeding it leaks objects rather than the process.
+ * and the purge that follows the commit; collection stops at `MAX_PURGE_KEYS`, so
+ * an oversized account leaks objects rather than exhausting the process.
  */
-async function collectWorkspaceStorageKeys(workspaceIds: string[]): Promise<StorageKeyBatch[]> {
+async function collectAccountStorageKeys(
+  userId: string,
+  workspaceIds: string[]
+): Promise<StorageKeyBatch[]> {
   const batches: StorageKeyBatch[] = []
-  if (workspaceIds.length === 0 || !isUsingCloudStorage()) return batches
+  if (!isUsingCloudStorage()) return batches
+
+  const [profile] = await db
+    .select({ image: user.image })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  const profilePictureKey = extractProfilePictureKey(profile?.image ?? null)
+  if (profilePictureKey) {
+    batches.push({ context: 'profile-pictures', keys: [profilePictureKey] })
+  }
+
+  if (workspaceIds.length === 0) return batches
 
   await collectPages(
     (afterId) =>
@@ -424,22 +482,6 @@ async function collectWorkspaceStorageKeys(workspaceIds: string[]): Promise<Stor
     () => 'knowledge-base'
   )
 
-  const total = batches.reduce((sum, batch) => sum + batch.keys.length, 0)
-  if (total > MAX_PURGE_KEYS) {
-    logger.error('Account deletion exceeded the storage purge cap; the remainder is orphaned', {
-      total,
-      cap: MAX_PURGE_KEYS,
-    })
-    let kept = 0
-    const capped: StorageKeyBatch[] = []
-    for (const batch of batches) {
-      if (kept >= MAX_PURGE_KEYS) break
-      capped.push({ context: batch.context, keys: batch.keys.slice(0, MAX_PURGE_KEYS - kept) })
-      kept += capped[capped.length - 1].keys.length
-    }
-    return capped
-  }
-
   return batches
 }
 
@@ -472,22 +514,25 @@ async function purgeStorageObjects(batches: StorageKeyBatch[]): Promise<void> {
  *
  * Sequenced so that nothing irreversible happens until the deletion is certain:
  *
- * 1. **Hand over the anchors first.** Reassignment is the fallible step — it can
- *    report a workspace nobody can inherit — so it runs while everything is still
- *    recoverable. Its own writes only move a billing or ownership pointer to an
- *    admin who was going to receive it anyway, so a later abort leaves nothing
- *    damaged. Workspaces on their way out are expected to come back unresolved
- *    and are not treated as failures.
- * 2. **Commit the teardown atomically.** The workspace and `user` deletes share
- *    one transaction, so a failure in either rolls both back rather than leaving
- *    an account whose workspaces are already gone.
- * 3. **Purge storage last**, once the rows are committed away. Object deletion
- *    cannot be rolled back, so it must not precede the point of no return.
+ * 1. **Collect the storage keys.** The rows that name them cascade away with the
+ *    workspace, and the retention sweep that normally reclaims storage is driven
+ *    entirely by those rows — once they are gone it has no way to find the
+ *    objects, so the keys must be read while they still exist. Reading is
+ *    harmless if the deletion is later refused.
+ * 2. **Do the whole teardown in one transaction** — the billing and ownership
+ *    handovers, the workspace deletes, and the `user` delete. Any failure rolls
+ *    all of it back, so a refused deletion can never leave a workspace
+ *    reassigned or removed. Workspaces on their way out are expected to come
+ *    back unresolved from the handovers and are filtered against the doomed set
+ *    rather than treated as failures.
+ * 3. **Purge storage last**, once that transaction has committed. Object
+ *    deletion cannot be rolled back, so it must not precede the point of no
+ *    return.
  *
  * The ordering inside step 2 is load-bearing too: Postgres evaluates the
  * `NO ACTION` check on `workspace.billed_account_user_id` *before* the `owner_id`
  * cascade that would have removed the very same workspace, so a workspace the
- * account bills for must be gone before the `user` row is touched.
+ * account bills for must be handed over or gone before the `user` row is touched.
  *
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
@@ -498,35 +543,16 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
 
   const doomedWorkspaceIds = plan.workspacesToDelete.map((workspace) => workspace.id)
   const doomed = new Set(doomedWorkspaceIds)
-
-  /**
-   * Sequential by necessity, not oversight: the billing pass reads `owner_id`
-   * while it still names the departing account, and the ownership pass reads the
-   * `billed_account_user_id` the billing pass has just rewritten.
-   */
-  const { unresolved: billingUnresolved } = await reassignBilledAccountForUser(userId)
-  const { unresolved: ownershipUnresolved } = await reassignOwnedWorkspacesForUser(userId)
-  const stranded = [...billingUnresolved, ...ownershipUnresolved].filter((id) => !doomed.has(id))
-  if (stranded.length > 0) {
-    throw new AccountDeletionBlockedError([
-      {
-        code: 'shared_workspace',
-        message:
-          'A workspace changed while your account was being deleted and can no longer be handed over. Try again.',
-      },
-    ])
-  }
-
-  const storageKeys = await collectWorkspaceStorageKeys(doomedWorkspaceIds)
+  const storageKeys = await collectAccountStorageKeys(userId, doomedWorkspaceIds)
 
   await db.transaction(async (tx) => {
     if (doomedWorkspaceIds.length > 0) {
       /**
-       * Re-checked inside the transaction rather than trusted from the plan: a
-       * workspace that gained a member since the preview is no longer private,
-       * and deleting it would destroy somebody else's work. The guard makes the
-       * delete a no-op for that row, and the short count aborts the whole
-       * transaction so the account survives to be re-previewed.
+       * Re-checked here rather than trusted from the plan: a workspace that
+       * gained a member since the preview is no longer private, and deleting it
+       * would destroy somebody else's work. The guard makes the delete a no-op
+       * for that row, and the short count aborts the transaction — including the
+       * handovers below — so the account survives to be re-previewed.
        */
       const deleted = await tx
         .delete(workspaceTable)
@@ -554,10 +580,28 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
           {
             code: 'shared_workspace',
             message:
-              'Someone was given access to one of your workspaces while your account was being deleted. Nothing was deleted — reopen this dialog to see the change.',
+              'Someone was given access to one of your workspaces while your account was being deleted. Nothing was changed — reopen this dialog to see the difference.',
           },
         ])
       }
+    }
+
+    /**
+     * Sequential by necessity, not oversight: the billing pass reads `owner_id`
+     * while it still names the departing account, and the ownership pass reads
+     * the `billed_account_user_id` the billing pass has just rewritten.
+     */
+    const { unresolved: billingUnresolved } = await reassignBilledAccountForUser(userId, tx)
+    const { unresolved: ownershipUnresolved } = await reassignOwnedWorkspacesForUser(userId, tx)
+    const stranded = [...billingUnresolved, ...ownershipUnresolved].filter((id) => !doomed.has(id))
+    if (stranded.length > 0) {
+      throw new AccountDeletionBlockedError([
+        {
+          code: 'shared_workspace',
+          message:
+            'A workspace changed while your account was being deleted and can no longer be handed over. Nothing was changed — try again.',
+        },
+      ])
     }
 
     await tx.delete(user).where(eq(user.id, userId))
