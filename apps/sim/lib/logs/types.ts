@@ -272,6 +272,23 @@ export interface TraceSpan {
   output?: Record<string, unknown>
   childWorkflowSnapshotId?: string
   childWorkflowId?: string
+  /**
+   * For a custom-block span: the child run's own execution id, in the SOURCE
+   * workspace. Only this opaque handle is persisted — the child's spans are
+   * joined at read time by `hydrateChildTraces`, after the viewer has been
+   * authorized against that workspace.
+   */
+  childExecutionId?: string
+  /**
+   * Set by read-time hydration on a span carrying {@link childExecutionId}:
+   * whether the viewer was allowed to see the child run, whether it still exists,
+   * and — for `truncated` — whether hydration simply never attempted it (past the
+   * nesting/row cap, or the lookup failed). `truncated` must never be conflated
+   * with an empty child: a boundary span with no children and no marker is
+   * indistinguishable from a leaf block, which would render a partial trace as a
+   * complete one. Never persisted — it describes one viewer's read, not the run.
+   */
+  childTraceAccess?: 'granted' | 'denied' | 'missing' | 'truncated'
   model?: string
   cost?: {
     input?: number

@@ -252,7 +252,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   const lockValue = generateShortId()
-  const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
+  const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS, {
+    reclaimOnFailure: true,
+  })
   if (!locked) {
     return NextResponse.json(
       { success: true, message: 'Renewal already in progress – skipped', status: 'skip' },

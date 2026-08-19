@@ -280,6 +280,9 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
             billingPeriod: {
               start: new Date(accountDecision.billingPeriod.start),
               end: new Date(accountDecision.billingPeriod.end),
+              ...(accountDecision.billingPeriod.source
+                ? { source: accountDecision.billingPeriod.source }
+                : {}),
             },
           }
         : undefined

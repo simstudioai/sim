@@ -96,7 +96,7 @@ export function TeamManagement({
   ]
 
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
-  const usedSeats = organizationBillingData?.data?.members?.length ?? 0
+  const usedSeats = organizationBillingData?.data?.membersTotal ?? 0
   const reservedSeats = organizationBillingData?.data?.usedSeats ?? 0
   const pendingSeats = Math.max(0, reservedSeats - usedSeats)
 

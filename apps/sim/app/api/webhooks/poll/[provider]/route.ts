@@ -40,7 +40,9 @@ export const GET = withRouteHandler(
 
       const LOCK_KEY = `${provider}-polling-lock`
       const lockValue = requestId
-      const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
+      const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS, {
+        reclaimOnFailure: true,
+      })
       if (!locked) {
         return NextResponse.json(
           {

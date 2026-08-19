@@ -2,23 +2,10 @@ import { Chip, cn } from '@sim/emcn'
 import { Upload } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
+import { HAIRLINE } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/hairline'
+import { MASK_NO_REPEAT } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/mask'
 
 const FILES_DOCS_URL = 'https://docs.sim.ai/files'
-
-/**
- * Hairline contours, matching the tables grid's 1px `--border-1` rules and the
- * knowledge mark's thinned strokes — the graphics sit one nav item apart, so a
- * heavier outline here would read as a different illustration system.
- *
- * Fills stay near the top of the surface ramp for the same reason: the border
- * draws the folder and the fill only has to separate one layer from the next. A
- * solid mid-grey body made this the heaviest thing on the page.
- */
-const HAIRLINE = {
-  stroke: 'var(--border-1)',
-  strokeWidth: 1.1,
-  strokeLinejoin: 'round' as const,
-} as const
 
 const FOLDER_BACK = [
   'M 22 34',
@@ -48,12 +35,13 @@ const FOLDER_FADE =
 /**
  * A folder held open with sheets standing proud of its front panel.
  *
- * Depth is carried by the surface ramp rather than by shadow: the back panel is the
- * darkest tier, the sheets the lightest, the front panel between them. Shadows
+ * Depth is carried by the surface ramp rather than by shadow: the back panel sits a
+ * tier down on `--surface-4`, everything in front of it on `--surface-2`. Shadows
  * would need separate light and dark recipes; the ramp inverts on its own.
  *
- * Every outer corner shares the same 10-unit radius so the silhouette reads as a
- * single drawn shape — mixing radii makes the corners fight each other at this size.
+ * Unlike the tables grid — where a skeleton bar has no outline and so needs mid-grey
+ * ink to survive a light page — the hairline draws this shape, so the fills only have
+ * to separate one layer from the next and a near-white tier carries it.
  */
 function FilesGraphic() {
   return (
@@ -64,7 +52,7 @@ function FilesGraphic() {
       fill='none'
       aria-hidden='true'
       focusable='false'
-      className={cn('block max-w-none shrink-0', FOLDER_FADE)}
+      className={cn('block max-w-none shrink-0', FOLDER_FADE, MASK_NO_REPEAT)}
     >
       <path d={FOLDER_BACK} fill='var(--surface-4)' {...HAIRLINE} />
 

@@ -64,7 +64,9 @@ Results returning from tools and Function blocks are checked before they become 
 
 Storage is the boundary that is easiest to miss. Workspace files, table cells, knowledge documents, and agent memory can all survive the execution that created them. Without durable provenance, a secret written during one run would look like ordinary data when another run read it back. Sim stores an encrypted provenance record and version marker alongside that content, allowing a later read to distinguish data known to be clean from data whose history is unknown.
 
-When that history cannot be established, we do not treat `unknown` as `clean`. The payload is withheld, while safe parts of the record remain available: block identity, timing, status, and error type. A tool result can be kept out of model context without hiding the fact that the tool ran. The refusal also records where it happened and what made the registry incomplete, so failing closed does not mean debugging blind.
+When that history cannot be established, we do not treat `unknown` as `clean`. At a run's own boundaries the payload is withheld, while safe parts of the record remain available: block identity, timing, status, and error type. A tool result can be kept out of model context without hiding the fact that the tool ran. The refusal also records where it happened and what made the registry incomplete, so failing closed does not mean debugging blind.
+
+Stored data is different, because a record written months ago outlives the run that could explain it. Refusing to read it would strand a team on its own tables and memory to protect against a risk we cannot confirm is there. So for that content the read proceeds and the workspace gets an audit entry naming the surface and what could not be vouched for. The judgment is deliberate: withholding is right when a run is asking to send something out, and visibility is right when the alternative is a workspace that can no longer read what it stored.
 
 ## Exact Matching, With One Limit
 

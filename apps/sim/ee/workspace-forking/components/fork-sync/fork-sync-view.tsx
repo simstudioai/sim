@@ -959,9 +959,19 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
                   className='flex min-w-0 items-start justify-between gap-3 text-[var(--text-secondary)] text-small'
                 >
                   <span className='min-w-0'>
-                    <span className='text-[var(--text-body)]'>{ref.blockLabel}</span> would lose{' '}
-                    <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span> in{' '}
-                    {ref.workflowName} —{' '}
+                    <span className='text-[var(--text-body)]'>{ref.blockLabel}</span>
+                    {/* A custom block blocks for the opposite reason to everything else here:
+                        nothing is lost, the block keeps invoking the SOURCE environment. Saying
+                        "would lose" would contradict its own resolution line. */}
+                    {ref.kind === 'custom-block' ? (
+                      <> in {ref.workflowName} </>
+                    ) : (
+                      <>
+                        {' '}
+                        would lose <span className='text-[var(--text-body)]'>{ref.fieldLabel}</span>{' '}
+                        in {ref.workflowName} —{' '}
+                      </>
+                    )}
                     {forkBlockerResolution(ref, controller.targetWorkspaceName)}
                   </span>
                   {/* Only a source-deleted reference can be dropped: an unmapped copyable can still

@@ -262,6 +262,10 @@ export async function checkAndBillOverageThreshold(
       return noOp(options, 'no-subscription')
     }
 
+    if (isFree(userSubscription.plan) || isEnterprise(userSubscription.plan)) {
+      return noOp(options, 'plan-ineligible')
+    }
+
     assertExpectedBillingPeriod(
       { type: 'user', id: userId },
       userSubscription.periodStart,
@@ -272,10 +276,6 @@ export async function checkAndBillOverageThreshold(
     if (!hasUsableSubscriptionAccess(userSubscription.status, billingStatus.billingBlocked)) {
       logger.debug('Subscription is not eligible for threshold billing', { userId })
       return noOp(options, 'billing-ineligible')
-    }
-
-    if (isFree(userSubscription.plan) || isEnterprise(userSubscription.plan)) {
-      return noOp(options, 'plan-ineligible')
     }
 
     // Org-scoped subs are billed at the org level regardless of plan name.
@@ -538,6 +538,14 @@ async function checkAndBillOrganizationOverageThreshold(
       return noOp(options, 'no-subscription')
     }
 
+    if (isEnterprise(orgSubscription.plan) || isFree(orgSubscription.plan)) {
+      logger.debug('Organization plan not eligible for overage billing, skipping', {
+        organizationId,
+        plan: orgSubscription.plan,
+      })
+      return noOp(options, 'plan-ineligible')
+    }
+
     assertExpectedBillingPeriod(
       { type: 'organization', id: organizationId },
       orgSubscription.periodStart,
@@ -556,14 +564,6 @@ async function checkAndBillOrganizationOverageThreshold(
       seats: orgSubscription.seats,
       stripeSubscriptionId: orgSubscription.stripeSubscriptionId,
     })
-
-    if (isEnterprise(orgSubscription.plan) || isFree(orgSubscription.plan)) {
-      logger.debug('Organization plan not eligible for overage billing, skipping', {
-        organizationId,
-        plan: orgSubscription.plan,
-      })
-      return noOp(options, 'plan-ineligible')
-    }
 
     const memberUsageRows = await db
       .select({

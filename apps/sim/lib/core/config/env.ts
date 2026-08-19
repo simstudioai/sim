@@ -390,8 +390,11 @@ export const env = createEnv({
     KB_CONFIG_RETRY_FACTOR:                z.number().optional().default(2),       // Retry backoff factor
     KB_CONFIG_MIN_TIMEOUT:                 z.number().optional().default(1000),    // Min timeout in ms
     KB_CONFIG_MAX_TIMEOUT:                 z.number().optional().default(10000),   // Max timeout in ms
-    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(50),      // Concurrent embedding API calls
+    KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Concurrent document-processing task runs (Trigger.dev queue depth)
+    KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
+    KB_CONFIG_DOCUMENT_CONCURRENCY:        z.number().optional().default(4),       // Concurrent documents in the in-process (non-Trigger) path
     KB_CONFIG_BATCH_SIZE:                  z.number().optional().default(2000),    // Chunks to process per embedding batch
+    KB_CONFIG_DOCUMENT_BATCH_SIZE:         z.number().optional().default(10),      // Documents per batch in the in-process (non-Trigger) path
     KB_CONFIG_DELAY_BETWEEN_BATCHES:       z.number().optional().default(0),       // Delay between batches in ms (0 for max speed)
     KB_CONFIG_DELAY_BETWEEN_DOCUMENTS:     z.number().optional().default(50),      // Delay between documents in ms
     KB_CONFIG_CHUNK_CONCURRENCY:           z.number().optional().default(10),      // Concurrent PDF chunk OCR processing
@@ -727,6 +730,13 @@ export { getEnv }
  * `z.number()` arrive as raw strings when sourced from `process.env` or Helm.
  * Use this helper anywhere a numeric env override is consumed to normalize the
  * type at the boundary instead of relying on JS implicit coercion.
+ *
+ * Skipping validation also means the schema never runs, so a `.default(...)` in
+ * the declaration above never executes: **the fallback passed here is the real
+ * default**, and the declared one is documentation. Keep the two in agreement —
+ * a variable read in more than one place with a different fallback each time has
+ * no single default at all, which is how one knob came to set both the
+ * document-processing queue depth and the embedding request fan-out.
  */
 export function envNumber(
   value: number | string | undefined | null,

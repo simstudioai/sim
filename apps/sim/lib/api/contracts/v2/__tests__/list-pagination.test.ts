@@ -132,7 +132,16 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/billing/logs': ['source', 'workspaceId', 'period', 'startDate', 'endDate'],
   'GET /api/v2/credentials': ['workspaceId', 'type', 'providerId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/custom-tools': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
-  'GET /api/v2/files': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/files': [
+    'workspaceId',
+    'scope',
+    'folderPath',
+    'search',
+    'sortBy',
+    'sortOrder',
+    /** Decides whether `folderPath` covers one folder or its whole subtree. */
+    'recursive',
+  ],
   'GET /api/v2/knowledge': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/knowledge/[id]/documents': [
     'workspaceId',

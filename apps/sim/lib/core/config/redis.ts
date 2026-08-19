@@ -235,18 +235,51 @@ end
  * single-replica deployments to function without Redis. In multi-replica
  * deployments without Redis, the idempotency layer prevents duplicate processing.
  */
+export interface AcquireLockOptions {
+  /**
+   * Release the lock this call may have taken when the SET itself rejects.
+   *
+   * A rejected SET does not mean the server declined it: `commandTimeout` gives
+   * up client-side while the command can still reach Redis and take the lock,
+   * leaving it held by a caller that never learned it won and so never releases
+   * it. Every contender then skips until the TTL expires.
+   *
+   * Only opt in when BOTH hold, because the reclaim is unsafe otherwise:
+   *
+   * 1. `value` is unique to this holder. A value two holders can share — the
+   *    copilot chat lock keys on a client-supplied `userMessageId` — makes the
+   *    compare-and-delete match a lock another holder is actively using.
+   * 2. A throw means the caller does no work. One that falls open and runs
+   *    anyway (`withLeaderLock`, the MCP OAuth refresh mutex) would keep running
+   *    while this frees its lock, admitting a second concurrent runner.
+   */
+  reclaimOnFailure?: boolean
+}
+
 export async function acquireLock(
   lockKey: string,
   value: string,
-  expirySeconds: number
+  expirySeconds: number,
+  options?: AcquireLockOptions
 ): Promise<boolean> {
   const redis = getRedisClient()
   if (!redis) {
     return true // No-op when Redis unavailable; idempotency layer handles duplicates
   }
 
-  const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
-  return result === 'OK'
+  try {
+    const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
+    return result === 'OK'
+  } catch (error) {
+    // Best effort, and the same compare-and-delete `releaseLock` runs on the
+    // success path: it deletes only while `value` still owns the key. If Redis
+    // is still unreachable the TTL stays the backstop, which is the behavior
+    // without this cleanup.
+    if (options?.reclaimOnFailure) {
+      await releaseLock(lockKey, value).catch(() => {})
+    }
+    throw error
+  }
 }
 
 /**

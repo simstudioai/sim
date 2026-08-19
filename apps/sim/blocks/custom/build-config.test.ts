@@ -151,3 +151,30 @@ describe('buildCustomBlockConfig', () => {
     expect(JSON.parse(json as string)).toEqual({ title: 'Acme', count: 3 })
   })
 })
+
+describe('sourceWorkspaceName', () => {
+  const icon = () => null as never
+
+  it('carries the source workspace so same-named environment copies stay distinguishable', () => {
+    // prod/uat/sandbox copies of one block share a name and differ only by an opaque
+    // `custom_block_<slug>` type. Without the workspace, an allowlist decision in Access
+    // Control — or any other list of blocks — is a coin flip between three identical rows.
+    const prod = buildCustomBlockConfig({ ...row, workspaceName: 'Impl (prod)' }, [], { icon })
+    const uat = buildCustomBlockConfig(
+      { ...row, type: 'custom_block_uat999', workspaceName: 'Impl (uat)' },
+      [],
+      { icon }
+    )
+
+    expect(prod.name).toBe(uat.name)
+    expect(prod.sourceWorkspaceName).toBe('Impl (prod)')
+    expect(uat.sourceWorkspaceName).toBe('Impl (uat)')
+  })
+
+  it('is omitted when the workspace is unknown, so no empty suffix renders', () => {
+    expect(buildCustomBlockConfig(row, [], { icon }).sourceWorkspaceName).toBeUndefined()
+    expect(
+      buildCustomBlockConfig({ ...row, workspaceName: null }, [], { icon }).sourceWorkspaceName
+    ).toBeUndefined()
+  })
+})

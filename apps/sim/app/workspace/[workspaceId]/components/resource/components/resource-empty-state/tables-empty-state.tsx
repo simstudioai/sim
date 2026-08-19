@@ -2,6 +2,7 @@ import { Chip, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
+import { MASK_NO_REPEAT } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/mask'
 
 /**
  * Neutral ink at two strengths.
@@ -53,13 +54,16 @@ const SELECTED_CELL = { row: 1, column: 0 } as const
 /** Skeleton grid with one cell held in an edit ring, running off two edges. */
 function TablesGraphic() {
   return (
-    <div aria-hidden='true' className={cn('relative h-[148px] w-[320px]', CORNER_FADE)}>
-      <div className='absolute top-[14px] left-[54px] rounded-tl-[6px] border-[var(--border-1)] border-t border-l'>
+    <div
+      aria-hidden='true'
+      className={cn('relative h-[148px] w-[320px] overflow-hidden', CORNER_FADE, MASK_NO_REPEAT)}
+    >
+      <div className='absolute top-[14px] left-[54px] rounded-tl-[6px] border-[var(--border)] border-t border-l'>
         <div className='grid' style={{ gridTemplateColumns: COLUMN_TEMPLATE }}>
           {HEADER_WIDTHS.map((width, column) => (
             <div
               key={`header-${column}`}
-              className='flex h-[26px] items-center border-[var(--border-1)] border-r border-b px-3'
+              className='flex h-[26px] items-center border-[var(--border)] border-r border-b px-3'
             >
               <span
                 className='block h-[5px] rounded-full'
@@ -78,7 +82,7 @@ function TablesGraphic() {
             {row.map((width, column) => (
               <div
                 key={`cell-${rowIndex}-${column}`}
-                className='relative flex h-[24px] items-center border-[var(--border-1)] border-r border-b px-3'
+                className='relative flex h-[24px] items-center border-[var(--border)] border-r border-b px-3'
               >
                 <span
                   className='block h-[5px] rounded-full'

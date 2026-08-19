@@ -9,7 +9,9 @@ import {
 import { shareAuthTypeSchema, shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  V2_FALSE_VALUES,
   V2_FOLDER_FILTER_MISS,
+  V2_TRUE_VALUES,
   v2CreateFolderBodySchema,
   v2CursorListResponse,
   v2DataResponse,
@@ -306,7 +308,30 @@ export const v2ListFilesQuerySchema = z
     /** Restrict to one file folder. Omit to list the whole workspace. */
     folderPath: v2FolderPathInputSchema
       .optional()
-      .describe(`Restrict results to files directly inside this folder. ${V2_FOLDER_FILTER_MISS}`),
+      .describe(
+        `Restrict results to files inside this folder — its direct children, or its whole subtree when \`recursive\` is true. ${V2_FOLDER_FILTER_MISS}`
+      ),
+    /**
+     * Descend into subfolders. Meaningful only alongside `folderPath`: with no folder filter
+     * the listing already spans the workspace.
+     *
+     * Defaults to `true` when `search` is set and `false` otherwise, so the two verbs this
+     * endpoint serves each get the scope they imply — listing a folder shows that folder,
+     * searching one looks through everything in it. Send it explicitly to force either.
+     *
+     * `z.stringbool({ case: 'sensitive' })` rather than `z.coerce.boolean()`, which is
+     * `Boolean(input)` over a query string and so reads `recursive=false` as `true` — see
+     * `booleanQueryFlagSchema` in `contracts/primitives.ts`. Matches the sibling `recursive`
+     * on folder delete: the accepted spellings are closed, published as an enum, and
+     * case-sensitive, so an unpublished spelling is a `400` rather than a silent default.
+     */
+    recursive: z
+      .stringbool({ case: 'sensitive' })
+      .optional()
+      .describe(
+        'Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.'
+      )
+      .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
     scope: v2FileScopeSchema
       .default('active')
       .describe(
@@ -324,6 +349,18 @@ export const v2ListFilesQuerySchema = z
   .strict()
 
 export type V2ListFilesQuery = z.output<typeof v2ListFilesQuerySchema>
+
+/**
+ * Resolves the `recursive` default the schema above promises: true alongside a search, false
+ * otherwise, and whatever the caller sent when they sent one.
+ *
+ * Lives beside the `.describe()` that publishes the rule to every SDK and CLI rather than in
+ * the route that applies it. The promise and the implementation were two modules apart with
+ * nothing binding them, which is how a documented default drifts from the served one.
+ */
+export function listsSubfolders(query: { recursive?: boolean; search?: string }): boolean {
+  return query.recursive ?? query.search !== undefined
+}
 
 /** Download/delete both target a single file within a workspace-scoped query. */
 export const v2FileWorkspaceQuerySchema = z

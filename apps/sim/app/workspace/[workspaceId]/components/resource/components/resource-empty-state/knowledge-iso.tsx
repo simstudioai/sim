@@ -7,6 +7,7 @@ import {
   ISO_FILL_PULSE_LOW,
   ISO_STROKE as ISO_STROKE_BASE,
 } from '@/components/iso/iso-illustration-style'
+import { MASK_NO_REPEAT } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/mask'
 
 const COS_30 = Math.cos(Math.PI / 6)
 
@@ -61,14 +62,14 @@ const SLABS: Box[] = [0, 90, 180].map((offset) => ({
  * Lighter and thinner than the landing marks draw them.
  *
  * Those marks are the focal art of their section; here the mark sits beside a
- * ruled grid and a skeleton feed whose lines are 1px of `--border-1`. Carrying
+ * ruled grid and a skeleton feed whose lines are 1px of `--border`. Carrying
  * the landing's full-weight contour made the volumes read as ink next to those,
- * so the shared stroke is mixed toward `--border-1` and thinned to land near a
+ * so the shared stroke is mixed toward `--border` and thinned to land near a
  * hairline once the mark is scaled to empty-state size. Only the width diverges
  * from the shared recipe; the fills are imported so a change to the iso ramp
  * reaches this mark too.
  */
-const ISO_STROKE = `color-mix(in srgb, ${ISO_STROKE_BASE} 55%, var(--border-1))`
+const ISO_STROKE = `color-mix(in srgb, ${ISO_STROKE_BASE} 55%, var(--border))`
 /** Darker than any outer face — the bore's wall turns away from the light. */
 const ISO_FILL_BORE = ISO_FILL_PULSE_LOW
 const KNOWLEDGE_STROKE_WIDTH = 1.9
@@ -145,11 +146,7 @@ const STACK_FADE =
   '[-webkit-mask-image:linear-gradient(to_right,#000_56%,transparent_100%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [mask-image:linear-gradient(to_right,#000_56%,transparent_100%),linear-gradient(to_bottom,transparent_0%,#000_40%)] [-webkit-mask-composite:source-in] [mask-composite:intersect]'
 
 /** Shared iso contour recipe at this mark's own weight; spread onto both paths and circles. */
-const LINE_PROPS = createIsoLineProps<SVGPathElement & SVGCircleElement>(
-  undefined,
-  ISO_STROKE,
-  KNOWLEDGE_STROKE_WIDTH
-)
+const LINE_PROPS = createIsoLineProps(ISO_STROKE, KNOWLEDGE_STROKE_WIDTH)
 
 /**
  * Down the hole: the near mouth is floored with the wall tone, then the far mouth
@@ -198,7 +195,7 @@ export function KnowledgeIsoMark() {
       fill='none'
       aria-hidden='true'
       focusable='false'
-      className={cn('block max-w-none shrink-0', STACK_FADE)}
+      className={cn('block max-w-none shrink-0', STACK_FADE, MASK_NO_REPEAT)}
     >
       <defs>
         <mask id={BORE_MASK_ID}>

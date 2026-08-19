@@ -45,6 +45,8 @@ export interface CustomBlockRow {
   name: string
   description: string
   workflowId: string
+  /** Source workflow's home workspace name, to disambiguate same-named env copies. */
+  workspaceName?: string | null
   /** Curated exposed outputs; empty/absent exposes the child's whole `result`. */
   exposedOutputs?: CustomBlockOutput[]
 }
@@ -154,6 +156,7 @@ export function buildCustomBlockConfig(
     name: row.name,
     description: row.description,
     sourceWorkflowId: row.workflowId,
+    ...(row.workspaceName ? { sourceWorkspaceName: row.workspaceName } : {}),
     category: 'tools',
     longDescription:
       'A published workflow packaged as a reusable, self-contained block. Fill its input ' +
