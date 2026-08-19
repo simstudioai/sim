@@ -10,6 +10,14 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 
 const baseUrl = SITE_URL
+const BREADCRUMB_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+    { '@type': 'ListItem', position: 2, name: 'Comparisons', item: `${baseUrl}/comparisons` },
+  ],
+}
 
 export const revalidate = 3600
 
@@ -60,15 +68,6 @@ export const metadata: Metadata = buildLandingMetadata({
 })
 
 export default function ComparisonHubPage() {
-  const breadcrumbJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
-      { '@type': 'ListItem', position: 2, name: 'Comparisons', item: `${baseUrl}/comparisons` },
-    ],
-  }
-
   const itemListJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
@@ -96,7 +95,7 @@ export default function ComparisonHubPage() {
 
   return (
     <>
-      <JsonLd data={breadcrumbJsonLd} />
+      <JsonLd data={BREADCRUMB_JSON_LD} />
       <JsonLd data={itemListJsonLd} />
       <JsonLd data={faqJsonLd} />
 
