@@ -687,4 +687,31 @@ describe('copyWorkflowStateIntoTarget custom-block remap', () => {
     // A string field whose value happens to read "true" stays a string.
     expect(subBlocks.text?.value).toBe('true')
   })
+
+  it('leaves an unset boolean unset rather than writing false', async () => {
+    // The modal submits '' for an untouched optional flag. Coercing that to `false` writes a
+    // value the user never chose: `assembleCustomBlockInputMapping` skips '' but keeps
+    // `false`, so it would reach the child's inputMapping and override the Start field's own
+    // default. Only an explicit 'false' means false.
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      transformBlockType: (type) => (type === UAT ? PROD : type),
+      dependentOverrides: new Map([
+        [
+          'tgt-blk-cb',
+          new Map([
+            [`${PROD}::boolean::untouched`, ''],
+            [`${PROD}::boolean::explicit-false`, 'false'],
+          ]),
+        ],
+      ]),
+    })
+
+    const subBlocks = writtenBlock().subBlocks ?? {}
+    expect(subBlocks).not.toHaveProperty('untouched')
+    expect(subBlocks['explicit-false']?.value).toBe(false)
+  })
 })

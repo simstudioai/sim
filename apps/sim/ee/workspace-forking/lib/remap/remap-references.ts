@@ -313,12 +313,19 @@ export function replaceCustomBlockInputs(
     const parsed = parseCustomBlockInputStorageKey(key)
     if (!parsed || parsed.targetType !== targetType) continue
     if (RESERVED_PARAMS.has(parsed.fieldId)) continue
-    // A `boolean` field's sub-block is a `switch`, which the canvas stores as a real boolean.
+    if (parsed.fieldType === 'boolean') {
+      // A `boolean` field's sub-block is a `switch`, which the canvas stores as a real boolean
+      // — but only `'true'`/`'false'` mean anything. An untouched optional flag submits `''`,
+      // and coercing that to `false` would write a value the user never chose:
+      // `assembleCustomBlockInputMapping` skips `''` and keeps `false`, so it would reach the
+      // child's `inputMapping` and override the Start field's own default. Leave it unset.
+      if (value !== 'true' && value !== 'false') continue
+      next[parsed.fieldId] = { value: value === 'true' }
+      continue
+    }
     // Everything else is stored as text: `object`/`array` are authored as JSON and parsed by
     // the executor, and a number rides a `short-input` like it does on the canvas.
-    next[parsed.fieldId] = {
-      value: parsed.fieldType === 'boolean' ? value === 'true' : value,
-    }
+    next[parsed.fieldId] = { value }
   }
   return next
 }

@@ -34,9 +34,7 @@ import {
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import {
-  CUSTOM_BLOCK_BOOLEAN_FALSE,
   CUSTOM_BLOCK_BOOLEAN_OPTIONS,
-  CUSTOM_BLOCK_BOOLEAN_TRUE,
   customBlockInputControl,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
@@ -236,11 +234,11 @@ function DependentSelector({
           <ChipModalField {...shared} type='custom'>
             <ChipSwitch
               options={CUSTOM_BLOCK_BOOLEAN_OPTIONS}
-              value={
-                value === CUSTOM_BLOCK_BOOLEAN_TRUE
-                  ? CUSTOM_BLOCK_BOOLEAN_TRUE
-                  : CUSTOM_BLOCK_BOOLEAN_FALSE
-              }
+              // Passed through unmapped: an unset field is `''`, which matches neither
+              // segment, so the switch renders with nothing selected. Coercing it to False
+              // would show a required flag as configured while the Sync gate still reads it
+              // as empty — the display-versus-gate split this whole carve-out exists to avoid.
+              value={value}
               onChange={setValue}
               aria-label={field.title}
             />
