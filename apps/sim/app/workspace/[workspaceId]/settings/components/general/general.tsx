@@ -555,16 +555,9 @@ export function General() {
         </SettingsSection>
 
         <SettingsSection label='Privacy'>
-          <div className='flex flex-col gap-3'>
-            <div className='flex items-center justify-between'>
-              <Label>Privacy settings</Label>
-              <Chip onClick={() => setView('privacy')}>Manage</Chip>
-            </div>
-            <p className='text-[var(--text-muted)] text-small'>
-              {isHosted
-                ? 'Choose what Sim may collect about how you use it — anonymous telemetry, and which cookies this browser allows.'
-                : 'Choose what Sim may collect about how you use it.'}
-            </p>
+          <div className='flex items-center justify-between'>
+            <Label>Privacy settings</Label>
+            <Chip onClick={() => setView('privacy')}>Manage</Chip>
           </div>
         </SettingsSection>
 
