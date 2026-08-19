@@ -822,6 +822,87 @@ describe('knowledge embedding transport fallback', () => {
     expect(result.embeddings).toEqual([[4, 4]])
   })
 
+  /**
+   * OpenAI returns 429 for an exhausted balance as well as for a rate limit, but
+   * only one of them reopens. Retrying a spent account cannot succeed, and since
+   * the sweep re-queues failed documents every sync it turns into permanent load
+   * — this was observed burning every attempt on thousands of documents for
+   * weeks against an account with no credit.
+   */
+  it('does not retry a 429 that reports an exhausted balance', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test' })
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        ({
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Headers(),
+          json: async () => ({}),
+          text: async () =>
+            JSON.stringify({
+              error: {
+                message: 'You have no credits remaining.',
+                type: 'insufficient_quota',
+                code: 'credit_balance_exhausted',
+              },
+            }),
+        }) as Response
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = embed(['hello'], { ...options, apiKey: 'openai-test' }).catch((e) => e)
+    await vi.runAllTimersAsync()
+    const error = await pending
+
+    expect(error).toBeInstanceOf(EmbeddingAPIError)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A rate limit with the same status must keep its retries — the two are only
+   * distinguishable by the body.
+   */
+  it('still retries a 429 that reports a rate limit', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test' })
+    let call = 0
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      call++
+      if (call === 1) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          headers: new Headers(),
+          json: async () => ({}),
+          text: async () =>
+            JSON.stringify({ error: { message: 'slow down', type: 'rate_limit_exceeded' } }),
+        } as Response
+      }
+      return jsonResponse(openAIBody([[5, 5]], 2))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pending = embed(['hello'], { ...options, apiKey: 'openai-test' })
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.embeddings).toEqual([[5, 5]])
+  })
+
+  /**
+   * An exhausted key rules out the key just used, not the next one in the chain,
+   * so failover must still consider it.
+   */
+  it('keeps an exhausted-balance error eligible for failover', () => {
+    const error = new EmbeddingAPIError('Embedding API failed: 429', 429)
+    error.quotaExhausted = true
+    expect(isTransientEmbeddingError(error)).toBe(true)
+  })
+
   it('classifies only transient embedding failures for failover', () => {
     expect(isTransientEmbeddingError(new EmbeddingAPIError('unavailable', 503))).toBe(true)
     expect(isTransientEmbeddingError(new EmbeddingAPIError('rate limited', 429))).toBe(true)

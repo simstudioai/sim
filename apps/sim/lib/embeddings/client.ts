@@ -80,6 +80,12 @@ export class EmbeddingAPIError extends Error {
   public status: number
 
   /**
+   * The provider rejected this for an exhausted balance rather than a rate that
+   * will recover. Both arrive as 429.
+   */
+  public quotaExhausted?: boolean
+
+  /**
    * Wait the provider asked for, read from the rejected response. Consumed by
    * {@link retryWithExponentialBackoff}, which prefers it over its own backoff.
    */
@@ -89,6 +95,31 @@ export class EmbeddingAPIError extends Error {
     super(message)
     this.name = 'EmbeddingAPIError'
     this.status = status
+  }
+}
+
+/**
+ * True when a rejection body reports an exhausted balance rather than a rate
+ * limit.
+ *
+ * OpenAI returns 429 for both, but only one of them reopens. `insufficient_quota`
+ * stands until somebody adds credit, so retrying it cannot succeed no matter how
+ * long the loop waits — and because a failed document is re-queued by the sweep
+ * on every sync, an account that has run out turns into a permanent load: the
+ * budget is spent per document, per attempt, forever.
+ */
+function isQuotaExhaustionBody(errorText: string): boolean {
+  try {
+    const body = JSON.parse(errorText) as { error?: { type?: string; code?: string } }
+    const type = body.error?.type
+    const code = body.error?.code
+    return (
+      type === 'insufficient_quota' ||
+      code === 'insufficient_quota' ||
+      code === 'credit_balance_exhausted'
+    )
+  } catch {
+    return false
   }
 }
 
@@ -114,6 +145,21 @@ function statedWaitOutlastsBudget(error: unknown): boolean {
     error.retryAfterMs !== undefined &&
     error.retryAfterMs > EMBEDDING_RETRY_BUDGET_MS
   )
+}
+
+/**
+ * Whether another attempt against the same provider could plausibly succeed.
+ *
+ * Deliberately narrower than {@link isTransientEmbeddingError}, which also
+ * decides whether the fallback chain should try a *different* provider. Those
+ * two questions differ: an exhausted balance rules out the key we just used, but
+ * says nothing about the next one in the chain, so a quota rejection stops the
+ * retries here while remaining eligible for failover.
+ */
+function isWorthRetrying(error: unknown): boolean {
+  if (!isTransientEmbeddingError(error)) return false
+  if (error instanceof EmbeddingAPIError && error.quotaExhausted) return false
+  return !statedWaitOutlastsBudget(error)
 }
 
 export function isTransientEmbeddingError(error: unknown): boolean {
@@ -251,6 +297,7 @@ async function callEmbeddingAPI(
           `Embedding API failed: ${response.status} ${response.statusText} - ${errorText}`,
           response.status
         )
+        error.quotaExhausted = isQuotaExhaustionBody(errorText)
 
         /**
          * Carry the provider's own answer to "when may I retry" onto the error,
@@ -298,8 +345,7 @@ async function callEmbeddingAPI(
       maxRetries: EMBEDDING_MAX_RETRIES,
       initialDelayMs: 1000,
       maxDelayMs: EMBEDDING_MAX_RETRY_DELAY_MS,
-      retryCondition: (error) =>
-        isTransientEmbeddingError(error) && !statedWaitOutlastsBudget(error),
+      retryCondition: isWorthRetrying,
     }
   )
 }
