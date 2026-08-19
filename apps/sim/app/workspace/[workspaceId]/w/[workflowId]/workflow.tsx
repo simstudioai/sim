@@ -1929,35 +1929,51 @@ const WorkflowContent = React.memo(
 
     /**
      * Edge for a positionless add (cmdk, toolbar click). The source is the
-     * currently selected block, falling back to the last block the user
-     * touched this session, then to the canvas's only block (a fresh
-     * workflow's trigger; notes don't count), since attachment is
-     * unambiguous there. Otherwise no edge:
-     * there is no meaningful point to run proximity against — the placement
-     * point is the synthetic viewport centre — and guessing a source
-     * produced edges the user never implied. A source inside a container
-     * also yields no edge, since the new block lands at root level and the
-     * edge would cross the container boundary.
+     * rightmost eligible selected block — multi-selects carry no click
+     * order, so the visual end of the selection is the deterministic pick —
+     * falling back to the last block the user touched this session, then to
+     * the canvas's only flow block (a fresh workflow's trigger), where
+     * attachment is unambiguous. Ineligible candidates (notes, disabled and
+     * response blocks, container children — the new block lands at root
+     * level, so that edge would cross the container boundary) fall through
+     * to the next signal rather than blocking attachment, and annotations
+     * never take an edge as target. With no eligible source there is no
+     * edge: guessing one produced edges the user never implied.
      */
     const tryCreateEdgeForPositionlessAdd = useCallback(
-      (targetBlockId: string): Edge | undefined => {
+      (targetBlockId: string, targetBlockType: string): Edge | undefined => {
         if (!autoConnectRef.current) return undefined
+        if (isAnnotationOnlyBlock(targetBlockType)) return undefined
 
-        const selectedNodes = getNodes().filter((node) => node.selected)
-        let sourceId = selectedNodes[selectedNodes.length - 1]?.id ?? lastInteractedNodeId
+        const isEligibleSource = (blockId: string): boolean => {
+          const block = blocks[blockId]
+          return !!block && isAutoConnectSourceCandidate(block) && !block.data?.parentId
+        }
+
+        let sourceId: string | null = null
+        for (const node of getNodes()) {
+          if (!node.selected || !isEligibleSource(node.id)) continue
+          if (!sourceId || blocks[node.id].position.x > blocks[sourceId].position.x) {
+            sourceId = node.id
+          }
+        }
+
+        if (!sourceId && lastInteractedNodeId && isEligibleSource(lastInteractedNodeId)) {
+          sourceId = lastInteractedNodeId
+        }
+
         if (!sourceId) {
           const flowBlocks = Object.values(blocks).filter(
             (block) => !isAnnotationOnlyBlock(block.type)
           )
-          if (flowBlocks.length === 1) sourceId = flowBlocks[0].id
+          if (flowBlocks.length === 1 && isEligibleSource(flowBlocks[0].id)) {
+            sourceId = flowBlocks[0].id
+          }
         }
+
         if (!sourceId) return undefined
 
-        const source = blocks[sourceId]
-        if (!source || !isAutoConnectSourceCandidate(source)) return undefined
-        if (source.data?.parentId) return undefined
-
-        const sourceHandle = determineSourceHandle({ id: sourceId, type: source.type })
+        const sourceHandle = determineSourceHandle({ id: sourceId, type: blocks[sourceId].type })
         return createEdgeObject(sourceId, targetBlockId, sourceHandle)
       },
       [
@@ -2343,7 +2359,7 @@ const WorkflowContent = React.memo(
           const baseName = type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
-          const autoConnectEdge = tryCreateEdgeForPositionlessAdd(id)
+          const autoConnectEdge = tryCreateEdgeForPositionlessAdd(id, type)
           const position = autoConnectEdge
             ? getPositionAfterSourceBlock(autoConnectEdge.source, type)
             : (getUnattachedBlockPosition(type) ?? basePosition)
@@ -2379,7 +2395,7 @@ const WorkflowContent = React.memo(
         const baseName = defaultTriggerName || getDefaultBlockName(blockConfig)
         const name = getUniqueBlockName(baseName, blocks)
 
-        const autoConnectEdge = tryCreateEdgeForPositionlessAdd(id)
+        const autoConnectEdge = tryCreateEdgeForPositionlessAdd(id, type)
         const position = autoConnectEdge
           ? getPositionAfterSourceBlock(autoConnectEdge.source, type)
           : (getUnattachedBlockPosition(type) ?? basePosition)
