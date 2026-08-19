@@ -321,11 +321,16 @@ async function readEmbeddedPdfText(
 > {
   try {
     const buffer = await downloadFileWithTimeout(fileUrl, userId)
-    const [parsed, pageCount] = await Promise.all([
-      parseBuffer(buffer, 'pdf'),
-      getPdfPageCount(buffer),
-    ])
+    const parsed = await parseBuffer(buffer, 'pdf')
 
+    /**
+     * The page count comes from the same parse as the text, rather than a second
+     * independent read of the file. Counting separately lets the two disagree: a
+     * count that failed would report no pages, the density check would fall back to
+     * treating the document as a single page, and a long scan carrying only a header
+     * would look dense enough to skip OCR and be indexed as that header.
+     */
+    const pageCount = parsed.metadata?.pageCount ?? 0
     const verdict = assessPdfTextLayer(parsed.content, pageCount, parsed.metadata?.truncated)
     if (!verdict.usable) {
       logger.info('PDF text layer not usable, routing to OCR', {

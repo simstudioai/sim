@@ -72,6 +72,28 @@ describe('PDF OCR triage', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  /**
+   * The density check reads its page count from the same parse as the text. A long
+   * scan that yields only a header must stay sparse against its real page count —
+   * counting separately allowed a failed count to present it as a single dense page.
+   */
+  it('takes the page count from the parse, so a header-only scan stays sparse', async () => {
+    // Enough to clear the floor as a single page, nowhere near enough for 80.
+    const headerOnly = 'CONFIDENTIAL - Vendor Master Agreement - Page header. '.repeat(6)
+    mockParseBuffer.mockResolvedValue({ content: headerOnly, metadata: { pageCount: 80 } })
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ pages: [{ markdown: 'Recognised' }], usage_info: {} }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await parse()
+
+    expect(result.metadata.processingMethod).toBe('mistral-ocr')
+  })
+
   it('falls through to OCR when the PDF is a scan', async () => {
     mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
     const fetchMock = vi.fn().mockResolvedValue(
