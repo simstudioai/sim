@@ -490,12 +490,7 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 .art-cols > .art-main {
   padding-top: 1.5rem;
   min-width: 0;
-  /* The docs' content measure, CENTERED in its cell: 1400px container minus
-     the rails leaves ~760px of prose column; without the cap the content
-     hugged the left rail and left dead space before the TOC on wide panes. */
   width: 100%;
-  max-width: 760px;
-  margin: 0 auto;
 }
 /* Rails stagger with the viewport the way the docs do on a laptop: the
    section sidebar survives down to resource-panel widths, the TOC joins on
@@ -508,7 +503,13 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   .art-cols > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 @media (min-width: 860px) {
-  .art-cols { grid-template-columns: fit-content(300px) minmax(0, 1fr) fit-content(268px); }
+  /* The docs' geometry: the content column is a fixed measure DEAD-CENTERED
+     in the container, with equal flexible gutters either side. The rails
+     live inside the gutters (sidebar hugging the left edge, TOC the right),
+     so their unequal content widths can never skew the middle column. */
+  .art-cols { grid-template-columns: minmax(min-content, 1fr) minmax(0, 760px) minmax(min-content, 1fr); }
+  .art-cols > .rail[data-rail="nav"] { justify-self: start; }
+  .art-cols > .rail[data-rail="toc"] { justify-self: end; }
   .art-cols > .rail { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 /* Rails scroll invisibly, like the docs — no scrollbar chrome beside the
