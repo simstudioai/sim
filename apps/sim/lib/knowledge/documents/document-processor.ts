@@ -22,6 +22,7 @@ import {
   resolveParserExtension,
   resolveStoredArtifactExtension,
 } from '@/lib/knowledge/documents/parser-extension'
+import { assessPdfTextLayer } from '@/lib/knowledge/documents/pdf-text-layer'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   assertKnowledgeOpaqueModelInputSafe,
@@ -295,6 +296,63 @@ async function getMistralApiKey(workspaceId?: string | null): Promise<string | n
   return env.MISTRAL_API_KEY || null
 }
 
+/**
+ * Reads a PDF's embedded text layer, returning it only when it is good enough to
+ * index — otherwise `undefined`, leaving the caller to fall through to OCR.
+ *
+ * A failure to parse is not an error here: an encrypted or malformed PDF simply
+ * has no usable layer, which is precisely a case for OCR. The document is fetched
+ * again on that path, a second read from our own storage, which is a cheap price
+ * for keeping the two extraction routes independent.
+ */
+async function readEmbeddedPdfText(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  userId?: string
+): Promise<
+  | {
+      content: string
+      processingMethod: 'file-parser'
+      cloudUrl?: string
+      metadata?: FileParseMetadata
+    }
+  | undefined
+> {
+  try {
+    const buffer = await downloadFileWithTimeout(fileUrl, userId)
+    const [parsed, pageCount] = await Promise.all([
+      parseBuffer(buffer, 'pdf'),
+      getPdfPageCount(buffer),
+    ])
+
+    const verdict = assessPdfTextLayer(parsed.content, pageCount)
+    if (!verdict.usable) {
+      logger.info('PDF text layer not usable, routing to OCR', {
+        filename,
+        pageCount,
+        reason: verdict.reason,
+      })
+      return undefined
+    }
+
+    logger.info('Using embedded PDF text layer', { filename, pageCount })
+    return {
+      content: parsed.content,
+      processingMethod: 'file-parser',
+      cloudUrl: undefined,
+      metadata: parsed.metadata,
+    }
+  } catch (error) {
+    logger.info('Could not read PDF text layer, routing to OCR', {
+      filename,
+      mimeType,
+      error: toError(error).message,
+    })
+    return undefined
+  }
+}
+
 async function parseDocument(
   fileUrl: string,
   filename: string,
@@ -319,14 +377,23 @@ async function parseDocument(
       MISTRAL_API_KEY: mistralApiKey,
     }).providerId
 
-    if (ocrProvider === 'azure-mistral') {
-      assertKnowledgeOpaqueModelInputSafe()
-      logger.info('Using Azure Mistral OCR')
-      return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
-    }
+    if (ocrProvider === 'azure-mistral' || ocrProvider === 'mistral') {
+      /**
+       * Most PDFs carry a usable text layer, and reading it costs nothing. OCR is
+       * a per-document call to an external service, so it is reserved for the
+       * documents that actually need it — which also means everything else stops
+       * depending on that service being reachable.
+       */
+      const embedded = await readEmbeddedPdfText(fileUrl, filename, mimeType, userId)
+      if (embedded) return embedded
 
-    if (ocrProvider === 'mistral') {
       assertKnowledgeOpaqueModelInputSafe()
+
+      if (ocrProvider === 'azure-mistral') {
+        logger.info('Using Azure Mistral OCR')
+        return parseWithAzureMistralOCR(fileUrl, filename, mimeType, userId)
+      }
+
       logger.info('Using Mistral OCR')
       return parseWithMistralOCR(fileUrl, filename, mimeType, userId, workspaceId, mistralApiKey)
     }
