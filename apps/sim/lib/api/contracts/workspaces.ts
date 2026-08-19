@@ -94,6 +94,7 @@ export const workspaceUserSchema = z.object({
   isExternal: z.boolean(),
   joinedAt: z.string(),
   roleSource: z.enum(['owner', 'explicit', 'org-admin']),
+  isOrgAdmin: z.boolean(),
   isBilledAccount: z.boolean(),
 })
 
