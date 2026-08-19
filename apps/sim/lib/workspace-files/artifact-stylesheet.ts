@@ -499,8 +499,11 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
    treatment while the Files page and standalone views get the full frame. */
 .art-cols > .rail { display: none; }
 @media (min-width: 560px) {
-  .art-cols:not(.no-side-nav) { grid-template-columns: fit-content(240px) minmax(0, 1fr); }
-  .art-cols:not(.no-side-nav) > .rail[data-rail="nav"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+  /* Medium panes keep the TOC (the sections list the reader actually uses)
+     and hold the page-nav sidebar for wide — the sidebar is the redundant
+     one at this width. */
+  .art-cols { grid-template-columns: minmax(0, 1fr) fit-content(268px); }
+  .art-cols > .rail[data-rail="toc"] { display: block; position: sticky; top: 68px; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
 }
 @media (min-width: 860px) {
   /* The docs' geometry: the content column is a fixed measure DEAD-CENTERED
