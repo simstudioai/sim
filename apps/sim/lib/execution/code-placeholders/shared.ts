@@ -120,6 +120,40 @@ export function createCodePlaceholderCompilationContext(
     }
   }
 
+  /**
+   * The gate {@link recordDirectEnvironmentRead} applies, exposed so a scanner can drop
+   * candidates before classifying them. Deciding whether an expansion really runs costs a
+   * lex or a quote-frame pass over the whole document, and the overwhelming majority of
+   * `$VAR` / `environmentVariables[...]` reads in real code name something that is not a
+   * configured secret — so answering "would this even be recorded" first keeps those passes
+   * off the common path entirely.
+   */
+  const tracksDirectEnvironmentRead = (name: string): boolean =>
+    !input.analysisOnly && Object.hasOwn(environmentVariables, name)
+
+  /**
+   * Records a secret the code reads straight off the runtime environment —
+   * `environmentVariables.NAME` / `environmentVariables['NAME']` in JavaScript and Python,
+   * `$NAME` in shell — rather than through a `{{NAME}}` placeholder.
+   *
+   * Those reads reach the same value but were invisible to this compiler, so nothing
+   * downstream knew the secret was live: it never entered the run's active provenance, and
+   * execution-log masking is activated by that entry. A direct read was therefore a secret
+   * the logs would not redact. Reporting it here fixes that at the source, because
+   * `resolvedSecretNames` is already the channel the runtime boundary reads back.
+   *
+   * Deliberately inert under `analysisOnly`. That mode drives Copilot's secret mount, whose
+   * policy is that code receives a value only for an explicit `{{NAME}}` reference; widening
+   * it here would mount secrets on the strength of an identifier appearing in a string.
+   */
+  const recordDirectEnvironmentRead = (name: string, offset: number): void => {
+    if (!tracksDirectEnvironmentRead(name)) return
+    const currentOffset = resolvedSecretNameOffsets.get(name)
+    if (currentOffset === undefined || offset < currentOffset) {
+      resolvedSecretNameOffsets.set(name, offset)
+    }
+  }
+
   const resolveValue = (
     occurrence: CodePlaceholderOccurrence
   ): ResolvedCodePlaceholderValueOccurrence | undefined => {
@@ -147,6 +181,8 @@ export function createCodePlaceholderCompilationContext(
     occurrences,
     hasValue,
     resolveValue,
+    recordDirectEnvironmentRead,
+    tracksDirectEnvironmentRead,
     runtimeBindingFor(kind) {
       const existing = runtimeBindingByKind.get(kind)
       if (existing) return existing

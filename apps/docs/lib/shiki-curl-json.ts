@@ -14,10 +14,18 @@ import type { LanguageRegistration } from 'shiki'
  *   when it owns the opening brace. Entering mid-string, keys keep `string.quoted.double.json`
  *   and stay string-colored, which is the entire difference this exists to remove. Hence the
  *   hand-written patterns below, which name that scope directly.
- * - **A Shiki transformer.** A transformer can re-tokenize the body correctly, but it is a
- *   function, and the API reference's request tabs highlight in the browser off a `shikiOptions`
- *   object passed through RSC — where "Functions cannot be passed directly to Client
- *   Components". A grammar is plain data, so it reaches the client path too.
+ * - **A Shiki transformer.** A transformer re-tokenizes the body correctly, but it is a function,
+ *   and `shikiOptions` is forwarded into a client component — "Functions cannot be passed
+ *   directly to Client Components" takes down every API reference page. A grammar is plain data,
+ *   so it survives that boundary.
+ *
+ * Applies to prose fences only, via `langs` on the MDX pipeline. Not the API reference:
+ * fumadocs-openapi calls `renderCodeBlock` with a hard-coded `"json"` for request and response
+ * samples, so a shell injection can never fire there, and its cURL usage tabs highlight in the
+ * browser off fumadocs' own factory — `ClientCodeBlockProvider` sits in a `"use client"` module
+ * the package does not expose through its `exports` map, so reaching it means importing
+ * `fumadocs-openapi/ui/base` from client code and dragging `remark` and
+ * `@fumari/json-schema-ts` into the browser bundle. That broke the deployment once.
  *
  * The opening brace requires a `}`, a quoted key, or end-of-line after it. That is what keeps
  * `awk '{print $1}'` out, while still matching a body whose brace ends the line — Oniguruma

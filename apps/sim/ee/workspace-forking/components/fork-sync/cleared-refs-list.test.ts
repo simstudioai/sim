@@ -149,21 +149,36 @@ describe('splitForkClearedRefs', () => {
 
 describe('forkBlockerResolution', () => {
   it('phrases each blocker reason with its actionable resolution', () => {
-    expect(forkBlockerResolution(referenceRef('table', 'tbl-1'))).toBe(
+    expect(forkBlockerResolution(referenceRef('table', 'tbl-1'), 'Acme Prod')).toBe(
       'map it to a target or select it for copy'
     )
-    expect(forkBlockerResolution(referenceRef('mcp-server', 'srv-1'))).toBe(
+    expect(forkBlockerResolution(referenceRef('mcp-server', 'srv-1'), 'Acme Prod')).toBe(
       'map it to a target or select it for copy'
     )
-    expect(forkBlockerResolution(referenceRef('knowledge-base', 'kb-gone', 'KB', true))).toBe(
-      'deleted in the source — map it to an existing knowledge base in the target'
-    )
-    expect(forkBlockerResolution(workflowRef('wf-other', 'Workflow'))).toBe(
+    expect(
+      forkBlockerResolution(referenceRef('knowledge-base', 'kb-gone', 'KB', true), 'Acme Prod')
+    ).toBe('deleted in the source — map it to an existing knowledge base in Acme Prod')
+    expect(forkBlockerResolution(workflowRef('wf-other', 'Workflow'), 'Acme Prod')).toBe(
       'deploy "Source" in the source or remove the reference'
     )
   })
 
+  /**
+   * The source-deleted line phrases the same resolution as the mapping row's hint, so it must
+   * name the workspace the sync writes - "the target" is what this copy set out to remove.
+   */
+  it('names the target workspace in the source-deleted resolution', () => {
+    const resolution = forkBlockerResolution(
+      referenceRef('knowledge-base', 'kb-gone', 'KB', true),
+      'this workspace'
+    )
+    expect(resolution).toBe(
+      'deleted in the source — map it to an existing knowledge base in this workspace'
+    )
+    expect(resolution).not.toContain('in the target')
+  })
+
   it('returns null for non-blocking dependent entries', () => {
-    expect(forkBlockerResolution(dependentRef('credential', 'cred-1'))).toBeNull()
+    expect(forkBlockerResolution(dependentRef('credential', 'cred-1'), 'Acme Prod')).toBeNull()
   })
 })

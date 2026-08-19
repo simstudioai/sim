@@ -6,14 +6,13 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
-  ConnectorTextExtractionError,
   connectorFileExtension,
   extractConnectorText,
-  extractionFailedSkipReason,
   isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
@@ -214,14 +213,20 @@ async function downloadFileContent(
  * Fetches a file and extracts its indexable text — a UTF-8 decode for text
  * formats, and the shared knowledge-base parsers for Office documents and PDFs.
  */
-async function fetchFileContent(
+async function fetchFilePayload(
   accessToken: string,
   driveId: string,
   itemId: string,
   fileName: string
-): Promise<string> {
+): Promise<Pick<ExternalDocument, 'content' | 'sourceFile' | 'mimeType'>> {
   const buffer = await downloadFileContent(accessToken, driveId, itemId, fileName)
-  return extractConnectorText(buffer, fileName)
+
+  const mimeType = pipelineParsedMimeType(fileName)
+  if (mimeType) {
+    return { content: '', mimeType, sourceFile: { bytes: buffer, fileName, mimeType } }
+  }
+
+  return { content: extractConnectorText(buffer, fileName), mimeType: 'text/plain' }
 }
 
 /**
@@ -925,27 +930,17 @@ export const sharepointConnector: ConnectorConfig = {
     }
 
     try {
-      const content = await fetchFileContent(accessToken, driveId, item.id, item.name)
-      if (!content.trim()) return null
+      const payload = await fetchFilePayload(accessToken, driveId, item.id, item.name)
+      if (!payload.sourceFile && !payload.content.trim()) return null
 
       const stub = itemToStub(item, siteName ?? siteUrl)
-      return { ...stub, content, contentDeferred: false }
+      return { ...stub, ...payload, contentDeferred: false }
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
         logger.info('Skipping oversized SharePoint file', { fileId: item.id, name: item.name })
         return markSkipped(
           itemToStub(item, siteName ?? siteUrl),
           sizeLimitSkipReason(error.limitBytes)
-        )
-      }
-      if (error instanceof ConnectorTextExtractionError) {
-        logger.info('Skipping SharePoint file with no extractable text', {
-          fileId: item.id,
-          name: item.name,
-        })
-        return markSkipped(
-          itemToStub(item, siteName ?? siteUrl),
-          extractionFailedSkipReason(error.extension)
         )
       }
       /**

@@ -21,6 +21,16 @@ export const secretOperations = {
     workspaceApiKey: 'deny',
     principalKinds: HUMAN_API_PRINCIPAL_KINDS,
   }),
+  /**
+   * Reading a secret's usage trail names who ran what with it. The use case narrows this to
+   * the same people who may read the value itself; the operation only sets the floor.
+   */
+  usage: defineWorkspaceOperation({
+    id: 'secrets.usage',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_API_PRINCIPAL_KINDS,
+  }),
 } as const
 
 export type SecretOperation = (typeof secretOperations)[keyof typeof secretOperations]

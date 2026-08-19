@@ -1,10 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ExternalDocument } from '@/connectors/types'
-
-const { mockParseBuffer } = vi.hoisted(() => ({ mockParseBuffer: vi.fn() }))
 
 vi.mock('@/components/icons', () => ({
   JiraIcon: () => null,
@@ -31,7 +29,6 @@ vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: vi.fn(),
   VALIDATE_RETRY_OPTIONS: {},
 }))
-vi.mock('@/lib/file-parsers', () => ({ parseBuffer: mockParseBuffer }))
 vi.mock('@/tools/jira/utils', () => ({ extractAdfText: vi.fn(), getJiraCloudId: vi.fn() }))
 vi.mock('@/tools/confluence/utils', () => ({ getConfluenceCloudId: vi.fn() }))
 vi.mock('@/tools/jsm/utils', () => ({
@@ -65,13 +62,12 @@ import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
-  ConnectorTextExtractionError,
   extractConnectorText,
-  extractionFailedSkipReason,
   htmlToPlainText,
   isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   takeIndexableWithinCap,
@@ -1442,114 +1438,47 @@ describe('isIndexableConnectorFile', () => {
 })
 
 describe('extractConnectorText', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  it('decodes a text format as UTF-8', () => {
+    expect(extractConnectorText(Buffer.from('a,b'), 'data.csv')).toBe('a,b')
   })
 
-  it('routes a binary document format through the shared parsers', async () => {
-    mockParseBuffer.mockResolvedValue({ content: 'extracted docx text' })
-    const buffer = Buffer.from('PK binary')
-
-    const content = await extractConnectorText(buffer, 'Market Data SOP.docx')
-
-    expect(content).toBe('extracted docx text')
-    expect(mockParseBuffer).toHaveBeenCalledWith(buffer, 'docx')
-  })
-
-  it('passes each parsed variant to the parser under its own extension', async () => {
-    mockParseBuffer.mockResolvedValue({ content: 'text' })
-
-    for (const extension of ['docm', 'xlsm', 'xlsb', 'pptm', 'odt', 'ods', 'odp']) {
-      await extractConnectorText(Buffer.from('PK'), `file.${extension}`)
-      expect(mockParseBuffer).toHaveBeenLastCalledWith(expect.any(Buffer), extension)
-    }
-  })
-
-  /**
-   * The formats that synced before this change must keep taking the byte-for-byte
-   * identical path. Sending `.csv` through `CsvParser` would silently reformat
-   * every already-indexed connector document on its next re-index.
-   */
-  it('decodes already-supported text formats as UTF-8 without invoking a parser', async () => {
-    for (const name of ['notes.txt', 'data.csv', 'config.yaml', 'rows.tsv', 'feed.xml']) {
-      const content = await extractConnectorText(Buffer.from('a,b'), name)
-      expect(content).toBe('a,b')
-    }
-    expect(mockParseBuffer).not.toHaveBeenCalled()
-  })
-
-  it('reduces HTML to plain text rather than parsing it', async () => {
-    const content = await extractConnectorText(Buffer.from('<p>Hello&nbsp;world</p>'), 'page.htm')
-
-    expect(content).toBe('Hello world')
-    expect(mockParseBuffer).not.toHaveBeenCalled()
-  })
-
-  it('falls back to a UTF-8 decode for an extension with no parser', async () => {
-    const content = await extractConnectorText(Buffer.from('plain'), 'notes.unknownext')
-
-    expect(content).toBe('plain')
-    expect(mockParseBuffer).not.toHaveBeenCalled()
-  })
-
-  it('propagates a parser failure so the sync records a failed document', async () => {
-    mockParseBuffer.mockRejectedValue(new Error('corrupt archive'))
-
-    await expect(extractConnectorText(Buffer.from('bad'), 'broken.docx')).rejects.toThrow(
-      'corrupt archive'
+  it('reduces HTML to plain text', () => {
+    expect(extractConnectorText(Buffer.from('<p>Hello&nbsp;world</p>'), 'page.htm')).toBe(
+      'Hello world'
     )
   })
 
-  /**
-   * `DocParser` and `PptxParser` never throw by design: on a legacy binary or an
-   * image-only deck they return scraped ZIP internals or an English placeholder
-   * sentence so an interactive upload still shows the user something. Indexing
-   * that would embed junk, so a degraded result must not become content.
-   */
-  it('rejects a degraded extraction instead of indexing placeholder text', async () => {
-    mockParseBuffer.mockResolvedValue({
-      content: 'Unable to extract text from PowerPoint file. Please ensure the file contains text.',
-      metadata: { extractionMethod: 'fallback', degraded: true },
-    })
-
-    await expect(extractConnectorText(Buffer.from('ole2'), 'Deck.ppt')).rejects.toThrow(
-      ConnectorTextExtractionError
-    )
-  })
-
-  it('rejects an extraction that produced only whitespace', async () => {
-    mockParseBuffer.mockResolvedValue({ content: '   \n  ', metadata: {} })
-
-    await expect(extractConnectorText(Buffer.from('pdf'), 'scanned.pdf')).rejects.toThrow(
-      ConnectorTextExtractionError
-    )
-  })
-
-  it('carries the extension so the caller can name the format in its skip reason', async () => {
-    mockParseBuffer.mockResolvedValue({ content: '', metadata: {} })
-
-    await expect(extractConnectorText(Buffer.from('x'), 'Deck.PPT')).rejects.toMatchObject({
-      extension: 'ppt',
-      fileName: 'Deck.PPT',
-    })
-  })
-
-  it('does not apply the degraded check to text formats', async () => {
-    const content = await extractConnectorText(Buffer.from('   '), 'blank.txt')
-
-    expect(content).toBe('   ')
-    expect(mockParseBuffer).not.toHaveBeenCalled()
+  it('leaves whitespace-only content alone for the caller to reject', () => {
+    expect(extractConnectorText(Buffer.from('   '), 'blank.txt')).toBe('   ')
   })
 })
 
-describe('extractionFailedSkipReason', () => {
-  it('tells the user which modern format to re-save a legacy file as', () => {
-    expect(extractionFailedSkipReason('doc')).toContain('DOCX')
-    expect(extractionFailedSkipReason('ppt')).toContain('PPTX')
-    expect(extractionFailedSkipReason('xls')).toContain('XLSX')
+describe('pipelineParsedMimeType', () => {
+  /**
+   * A format the shared parsers handle is delivered to them verbatim. Extracting
+   * it here would strand the document on a weaker parser — notably skipping the
+   * OCR the pipeline routes PDFs through — and discard the original bytes.
+   */
+  it.each([
+    ['Report.pdf', 'application/pdf'],
+    ['Deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ['Book.xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+    ['Notes.odt', 'application/vnd.oasis.opendocument.text'],
+    ['Legacy.doc', 'application/msword'],
+  ])('hands %s to the pipeline as %s', (fileName, mimeType) => {
+    expect(pipelineParsedMimeType(fileName)).toBe(mimeType)
   })
 
-  it('explains the likely cause for a modern format', () => {
-    expect(extractionFailedSkipReason('pdf')).toMatch(/scanned, image-only, or password-protected/)
+  it('leaves text formats to the connector', () => {
+    for (const name of ['notes.txt', 'data.csv', 'page.htm', 'feed.xml', 'rows.tsv']) {
+      expect(pipelineParsedMimeType(name)).toBeUndefined()
+    }
+  })
+
+  /** Derived from the extension, so a mislabelled source cannot misroute a PDF. */
+  it('is case-insensitive and ignores unknown formats', () => {
+    expect(pipelineParsedMimeType('REPORT.PDF')).toBe('application/pdf')
+    expect(pipelineParsedMimeType('archive.zip')).toBeUndefined()
+    expect(pipelineParsedMimeType('README')).toBeUndefined()
   })
 })

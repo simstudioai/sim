@@ -7,6 +7,7 @@ import {
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
+  CodePlaceholderCompilationContext,
   CodePlaceholderOccurrence,
   CompiledCodePlaceholders,
   InternalCompileCodePlaceholdersInput,
@@ -563,13 +564,92 @@ function classifyPythonBarePlaceholder(
   return 'value'
 }
 
+/**
+ * Matches the two ways Python code reaches the runtime environment by a literal name:
+ * `environmentVariables['NAME']` and `environmentVariables.get('NAME')`. Attribute access is
+ * absent because the binding is a plain dict, where `environmentVariables.NAME` raises.
+ */
+const PYTHON_DIRECT_ENVIRONMENT_READ =
+  /environmentVariables\s*(?:\[\s*(['"])([A-Za-z0-9_]+)\1\s*\]|\.\s*get\s*\(\s*(['"])([A-Za-z0-9_]+)\3)/g
+
+/**
+ * Reports environment reads that bypass `{{NAME}}`, skipping any match that the lexer places
+ * inside a string or comment — the same authority the placeholder rewriter uses to decide
+ * what is real code.
+ *
+ * `lex` is a thunk, not a result: code with no placeholders returned without lexing at all
+ * before this existed, and the overwhelmingly common case is code that never mentions
+ * `environmentVariables`. Scanning for that with a regex first keeps the lexer off the path
+ * entirely unless there is something to classify.
+ */
+function recordPythonDirectEnvironmentReads(
+  code: string,
+  lex: () => PythonLexResult,
+  context: CodePlaceholderCompilationContext
+): void {
+  const matches: RegExpExecArray[] = []
+  PYTHON_DIRECT_ENVIRONMENT_READ.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = PYTHON_DIRECT_ENVIRONMENT_READ.exec(code)) !== null) {
+    if (isIdentifierCharacter(code[match.index - 1])) continue
+    if (!context.tracksDirectEnvironmentRead(match[2] ?? match[4] ?? '')) continue
+    matches.push(match)
+  }
+  if (matches.length === 0) return
+
+  const lexed = lex()
+  const ignoredRanges: Array<[number, number]> = [
+    ...lexed.comments,
+    ...lexed.strings.map((token): [number, number] => [token.start, token.end]),
+  ]
+
+  /**
+   * A write or `del` target is reported like any other access, deliberately.
+   *
+   * `resolvedSecretNames` feeds an exact-value matcher over the output. Naming a secret the
+   * code never read costs nothing there — the matcher scans for a value that does not appear
+   * — while failing to name one that was read leaves it unmasked. Telling the two apart in
+   * Python means textual heuristics, and every one of them has so far leaked in the second,
+   * dangerous direction: a nested read inside a `del`, a parenthesized target. So this stops
+   * trying, and errs toward reporting.
+   *
+   * JavaScript keeps its own write/delete exclusion because a real AST answers the question
+   * per node, with no text to misread.
+   */
+  for (const candidate of matches) {
+    if (isOffsetInRanges(candidate.index, ignoredRanges)) continue
+    /**
+     * `other.environmentVariables['K']` reads a different object that merely shares the name,
+     * so it is not the mounted binding at all. This is the receiver check the JavaScript side
+     * gets from the AST, and unlike a scope or rebinding rule it cannot suppress a genuine
+     * read: it only rejects an access whose receiver is demonstrably something else.
+     *
+     * Whitespace and line continuations are skipped, so a `.` left on a previous line inside
+     * parentheses reads the same as one written adjacently — but the dot counts as a
+     * qualifier only when it is code. A comment or string on the previous line can end in a
+     * period (`# Load the value.`), and discarding on that would drop a genuine read, so the
+     * landing position is checked against the same lexer ranges that filter the candidates.
+     * This is why the receiver check runs after lexing rather than in the collection loop.
+     */
+    let previous = candidate.index - 1
+    while (previous >= 0 && /[\s\\]/.test(code[previous])) previous -= 1
+    if (code[previous] === '.' && !isOffsetInRanges(previous, ignoredRanges)) continue
+    const name = candidate[2] ?? candidate[4]
+    if (name) context.recordDirectEnvironmentRead(name, candidate.index)
+  }
+}
+
 export async function compilePythonPlaceholders(
   input: InternalCompileCodePlaceholdersInput
 ): Promise<CompiledCodePlaceholders> {
   const context = createCodePlaceholderCompilationContext(input, { identifierSuffix: '__' })
-  if (context.occurrences.length === 0) return context.finish(input.code)
+  if (context.occurrences.length === 0) {
+    recordPythonDirectEnvironmentReads(input.code, () => lexPython(input.code), context)
+    return context.finish(input.code)
+  }
 
   const lexed = lexPython(input.code)
+  recordPythonDirectEnvironmentReads(input.code, () => lexed, context)
   const edits: SourceEdit[] = []
   const consumed = new Set<CodePlaceholderOccurrence>()
   let compilationSentinel: string | undefined

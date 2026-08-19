@@ -185,10 +185,36 @@ const PROVENANCE_PROPERTY_NAMES = new Set(['version', 'complete', 'entries', 'sc
 const PROVENANCE_ENTRY_PROPERTY_NAMES = new Set(['encryptedValue', 'name'])
 const PROVENANCE_SCOPE_PROPERTY_NAMES = new Set(['userId', 'workspaceId'])
 
+/** Which environment a catalog entry's value came from, when that is known. */
+export type ResolvedSecretScope = 'workspace' | 'personal'
+
+/** One secret a run resolved, identified the way the usage trail is keyed. */
+export interface ResolvedSecretUsageEntry {
+  name: string
+  scope: ResolvedSecretScope
+  /** The owning user for a personal secret; null for a workspace one. */
+  ownerUserId: string | null
+}
+
 export interface ResolvedSecretTraceCatalogEntry {
   name: string
   plaintext: string
   encryptedValue: string
+  /**
+   * Optional because only a run's own effective catalog knows it. Entries adopted from an
+   * imported provenance envelope carry a name but no scope, and are deliberately left
+   * unattributed — the sub-run or tool call they crossed from records its own usage, so
+   * attributing them here would double-count.
+   */
+  scope?: ResolvedSecretScope
+  /**
+   * Whose personal environment a `personal` entry came from. Required to tell two people's
+   * same-named personal secrets apart, and NOT the same as the run's actor: a personal
+   * secret shared with the workspace resolves for a caller who does not own it, and a
+   * scheduled run resolves the workflow owner's personal slice under a different actor.
+   * Unset for workspace entries, which the workspace itself owns.
+   */
+  ownerUserId?: string
 }
 
 export interface ResolvedSecretTraceMatch {
@@ -302,6 +328,8 @@ export interface CreateResolvedSecretTraceRegistryOptions {
   personalDecrypted: Record<string, string>
   workspaceDecrypted: Record<string, string>
   decryptionFailures?: readonly string[]
+  /** `envKey` → owning user, from the environment snapshot; only personal keys appear. */
+  personalOwners?: Record<string, string>
   restoredProvenance?: unknown
   restoredCheckpointVersion?: unknown
   restoreTrusted?: boolean
@@ -537,13 +565,28 @@ function buildEffectiveCatalogEntry(
   name: string,
   encryptedValue: string
 ): ResolvedSecretTraceCatalogEntry | undefined {
-  const plaintext = hasOwn(options.workspaceDecrypted, name)
+  const fromWorkspace = hasOwn(options.workspaceDecrypted, name)
+  const plaintext = fromWorkspace
     ? options.workspaceDecrypted[name]
     : options.personalDecrypted[name]
   if (plaintext === undefined || (plaintext.length === 0 && failedNames.has(name))) {
     return undefined
   }
-  return { name, plaintext, encryptedValue }
+  /**
+   * Scope follows the value that actually won, matching the workspace-shadows-personal
+   * precedence the merged environment applies. A name present in both must not be
+   * attributed to the personal secret it shadowed.
+   */
+  if (fromWorkspace) return { name, plaintext, encryptedValue, scope: 'workspace' }
+
+  const ownerUserId = options.personalOwners?.[name]
+  return {
+    name,
+    plaintext,
+    encryptedValue,
+    scope: 'personal',
+    ...(ownerUserId ? { ownerUserId } : {}),
+  }
 }
 
 function* iterateEffectiveCatalogEntries(
@@ -1459,6 +1502,36 @@ export class ResolvedSecretTraceRegistry {
   /** Returns deterministic literal replacements for the terminal TraceSpan projection. */
   getActiveMatches(): readonly ResolvedSecretTraceMatch[] {
     return this.buildMatches(this.activeEntries.values())
+  }
+
+  /**
+   * Names the configured secrets this run actually resolved, for the usage trail.
+   *
+   * Only named entries from the run's own effective catalog qualify: an anonymous entry has
+   * no name to attribute, and a named entry adopted from an imported envelope has no scope
+   * because the sub-run it crossed from records its own usage. Deduplicated by name, scope,
+   * and owner, since one secret can be activated at many input paths.
+   *
+   * A personal entry with no known owner is dropped rather than recorded unattributed: the
+   * trail is read per owner, so an ownerless row would surface under someone else's
+   * same-named secret.
+   *
+   * Carries no plaintext or ciphertext — the caller persists this, and a usage trail must
+   * never become a second place a secret's value lives.
+   */
+  getResolvedSecretUsage(): ReadonlyArray<ResolvedSecretUsageEntry> {
+    const usage = new Map<string, ResolvedSecretUsageEntry>()
+    for (const entry of this.activeEntries.values()) {
+      if (entry.anonymous || !entry.scope) continue
+      if (entry.scope === 'personal' && !entry.ownerUserId) continue
+      const ownerUserId = entry.scope === 'personal' ? (entry.ownerUserId as string) : null
+      usage.set(`${entry.scope}\u0000${ownerUserId ?? ''}\u0000${entry.name}`, {
+        name: entry.name,
+        scope: entry.scope,
+        ownerUserId,
+      })
+    }
+    return [...usage.values()]
   }
 
   /**

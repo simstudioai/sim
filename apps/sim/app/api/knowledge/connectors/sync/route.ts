@@ -9,6 +9,7 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchSync } from '@/lib/knowledge/connectors/queue'
+import { CONNECTOR_SYNC_STALE_LOCK_TTL_MS } from '@/lib/knowledge/connectors/sync-limits'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,8 +40,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const now = new Date()
 
-    const STALE_SYNC_TTL_MS = 120 * 60 * 1000
-    const staleCutoff = new Date(now.getTime() - STALE_SYNC_TTL_MS)
+    const staleCutoff = new Date(now.getTime() - CONNECTOR_SYNC_STALE_LOCK_TTL_MS)
 
     const recoveredConnectors = await db
       .update(knowledgeConnector)

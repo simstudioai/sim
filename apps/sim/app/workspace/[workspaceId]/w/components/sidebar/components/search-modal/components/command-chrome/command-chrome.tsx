@@ -55,7 +55,12 @@ const LIST_FADE_CLASSNAME = {
     '[-webkit-mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)] [mask-image:linear-gradient(to_bottom,transparent_0px,transparent_36px,black_58px,black_calc(100%_-_13px),transparent_100%)]',
 } as const
 
-/** Borderless search field layered over a fading command-result list. */
+/**
+ * Borderless search field layered over a fading command-result list.
+ *
+ * The matching indent and negative margin give leading glyphs room inside
+ * Chrome's input clip edge without moving the text out of alignment.
+ */
 export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
   function CommandSearch(
     { surface, cycleResultsOnTab = false, endAdornment, onKeyDown, ...props },
@@ -85,7 +90,7 @@ export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
         <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
         <Command.Input
           ref={ref}
-          className='h-8 min-w-0 flex-1 cursor-text bg-transparent text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+          className='-ml-1 h-8 min-w-0 flex-1 cursor-text bg-transparent indent-1 text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
           onKeyDown={handleKeyDown}
           {...props}
         />
