@@ -517,6 +517,14 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
 }
 .toc-items a:first-of-type { padding-top: 0; }
 .toc-items a:last-of-type { padding-bottom: 0; }
+/* Hidden ghost at the ACTIVE weight: each link always occupies its bold
+   width, so the weight flip on highlight cannot jitter the fit-content
+   column side to side while scrolling. */
+.toc-items a::after {
+  content: attr(data-text);
+  display: block; height: 0; visibility: hidden; overflow: hidden;
+  font-weight: 470; pointer-events: none;
+}
 .toc-items a[data-depth="2"] { padding-left: 20px; }
 .toc-items a[data-depth="3"] { padding-left: 32px; }
 .toc-items a:hover { color: var(--text-body); }
@@ -658,6 +666,9 @@ export const SIM_ARTIFACT_SHELL = `<script>
       a.href = '#' + h.id
       a.textContent = h.textContent
       a.dataset.depth = h.tagName === 'H2' ? '2' : '3'
+      // Reserves the active (bolder) width so the fit-content column never
+      // resizes as the highlight moves — see the ::after ghost in the sheet.
+      a.dataset.text = h.textContent || ''
       tocItems.appendChild(a)
       tocLinks.push(a)
     }
