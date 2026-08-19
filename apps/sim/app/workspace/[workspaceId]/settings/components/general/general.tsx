@@ -561,8 +561,9 @@ export function General() {
               <Chip onClick={() => setView('privacy')}>Manage</Chip>
             </div>
             <p className='text-[var(--text-muted)] text-small'>
-              Choose what Sim may collect about how you use it — anonymous telemetry, and which
-              cookies this browser allows.
+              {isHosted
+                ? 'Choose what Sim may collect about how you use it — anonymous telemetry, and which cookies this browser allows.'
+                : 'Choose what Sim may collect about how you use it.'}
             </p>
           </div>
         </SettingsSection>

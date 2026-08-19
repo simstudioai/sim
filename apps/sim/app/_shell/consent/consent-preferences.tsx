@@ -42,12 +42,18 @@ const CONSENT_CATEGORY_COPY: Record<string, ConsentCategoryCopy | undefined> = {
   },
 } satisfies Record<ConsentCategory, ConsentCategoryCopy>
 
+/** The runtime's category union, without re-declaring it. */
+type ConsentCategoryName = Parameters<ReturnType<typeof useConsentManager>['setSelectedConsent']>[0]
+
 interface ConsentPreferencesProps {
   /**
    * Called after a switch stages its new value, for a surface that commits per
-   * toggle. The banner omits it and commits from its own footer instead.
+   * toggle. `revert` puts the category back, for a commit that then fails. The
+   * banner omits this and commits from its own footer instead.
    */
-  onChange?: () => void
+  onChange?: (change: { name: ConsentCategoryName; revert: () => void }) => void
+  /** Locks every switch, e.g. while a commit is in flight. */
+  disabled?: boolean
 }
 
 /**
@@ -58,7 +64,7 @@ interface ConsentPreferencesProps {
  *
  * Must be rendered inside a `ConsentStoreProvider`.
  */
-export function ConsentPreferences({ onChange }: ConsentPreferencesProps) {
+export function ConsentPreferences({ onChange, disabled = false }: ConsentPreferencesProps) {
   const { consents, selectedConsents, setSelectedConsent, getDisplayedConsents } =
     useConsentManager()
 
@@ -85,10 +91,13 @@ export function ConsentPreferences({ onChange }: ConsentPreferencesProps) {
             <Switch
               id={inputId}
               checked={selectedConsents[type.name] ?? consents[type.name] ?? false}
-              disabled={type.disabled}
+              disabled={type.disabled || disabled}
               onCheckedChange={(checked) => {
                 setSelectedConsent(type.name, checked)
-                onChange?.()
+                onChange?.({
+                  name: type.name,
+                  revert: () => setSelectedConsent(type.name, !checked),
+                })
               }}
             />
           </li>
