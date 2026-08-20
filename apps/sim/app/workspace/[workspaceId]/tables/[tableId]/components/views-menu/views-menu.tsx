@@ -15,8 +15,9 @@ import {
 } from '@sim/emcn'
 import { Check, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
+import { resolveTableViewSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 
-/** Label for the built-in unfiltered state. Not a stored row — `null` view id. */
+/** Legacy label for tables that do not yet have a persisted default view. */
 export const ALL_ROWS_VIEW_LABEL = 'All'
 
 /** Matches the breadcrumb location popover's hover-intent grace period. */
@@ -29,7 +30,7 @@ const VIEW_ACTION_SLOT_PX = 22
 
 interface ViewsMenuProps {
   views: TableViewWire[]
-  /** `null` selects the built-in "All" state. */
+  /** `null` selects the legacy "All" state while a table awaits backfill. */
   activeViewId: string | null
   onSelect: (viewId: string | null) => void
   onRename: (viewId: string) => void
@@ -41,8 +42,8 @@ interface ViewsMenuProps {
 }
 
 /**
- * View switcher for the table options bar. Reads "View" until one is selected,
- * then carries the active view's name.
+ * View switcher for the table options bar. Carries the active view's name, or
+ * resolves an absent selection to the persisted default while the URL catches up.
  *
  * Opens on hover-intent like the header's breadcrumb location popover, so the
  * list of views is discoverable without a click.
@@ -59,8 +60,9 @@ export const ViewsMenu = memo(function ViewsMenu({
   const [open, setOpen] = useState(false)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const activeView = activeViewId ? views.find((view) => view.id === activeViewId) : undefined
-  const label = activeView?.name ?? 'View'
+  const { activeView, defaultView } = resolveTableViewSelection(views, activeViewId)
+  const hasDefaultView = defaultView !== null
+  const label = activeView?.name ?? ALL_ROWS_VIEW_LABEL
 
   const cancelScheduledClose = () => {
     if (closeTimeoutRef.current) {
@@ -132,11 +134,13 @@ export const ViewsMenu = memo(function ViewsMenu({
           Views
         </PopoverSection>
         <div className='flex flex-col gap-0.5'>
-          <ViewRow
-            label={ALL_ROWS_VIEW_LABEL}
-            isActive={activeViewId === null}
-            onSelect={() => runAndClose(() => onSelect(null))}
-          />
+          {!hasDefaultView && (
+            <ViewRow
+              label={ALL_ROWS_VIEW_LABEL}
+              isActive={activeViewId === null}
+              onSelect={() => runAndClose(() => onSelect(null))}
+            />
+          )}
           {views.map((view) => (
             <ViewRow
               key={view.id}
@@ -152,11 +156,15 @@ export const ViewsMenu = memo(function ViewsMenu({
                         label: 'Rename',
                         onClick: () => runAndClose(() => onRename(view.id)),
                       },
-                      {
-                        icon: Trash,
-                        label: 'Delete',
-                        onClick: () => runAndClose(() => onDelete(view.id)),
-                      },
+                      ...(!view.isDefault
+                        ? [
+                            {
+                              icon: Trash,
+                              label: 'Delete',
+                              onClick: () => runAndClose(() => onDelete(view.id)),
+                            },
+                          ]
+                        : []),
                     ]
                   : undefined
               }

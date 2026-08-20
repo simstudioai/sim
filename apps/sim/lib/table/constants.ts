@@ -12,6 +12,8 @@ import { env, envNumber } from '@/lib/core/config/env'
  */
 export const MAX_TABLE_BATCH_ITEMS = 100
 
+export const DEFAULT_TABLE_VIEW_NAME = 'Default'
+
 export const TABLE_LIMITS = {
   MAX_TABLES_PER_WORKSPACE: 100,
   MAX_ROWS_PER_TABLE: 10000,

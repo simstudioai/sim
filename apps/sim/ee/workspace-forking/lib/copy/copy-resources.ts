@@ -10,6 +10,7 @@ import {
   permissions,
   skill,
   skillMember,
+  tableViews,
   userTableDefinitions,
   userTableRowSecretProvenance,
   userTableRows,
@@ -54,6 +55,7 @@ import {
   rebindKnowledgeDocumentSecretProvenance,
   replaceKnowledgeDocumentSecretProvenanceInTx,
 } from '@/lib/knowledge/secret-provenance'
+import { DEFAULT_TABLE_VIEW_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -635,6 +637,27 @@ export async function copyForkResourceContainers(
           isNull(userTableDefinitions.archivedAt)
         )
       )
+    const sourceViews =
+      definitions.length > 0
+        ? await tx
+            .select()
+            .from(tableViews)
+            .where(
+              and(
+                inArray(
+                  tableViews.tableId,
+                  definitions.map((definition) => definition.id)
+                ),
+                eq(tableViews.workspaceId, sourceWorkspaceId)
+              )
+            )
+        : []
+    const sourceViewsByTable = new Map<string, typeof sourceViews>()
+    for (const view of sourceViews) {
+      const views = sourceViewsByTable.get(view.tableId) ?? []
+      views.push(view)
+      sourceViewsByTable.set(view.tableId, views)
+    }
     const tableFolderIdMap = await resolveForkFolderMapping({
       tx,
       sourceWorkspaceId,
@@ -647,6 +670,7 @@ export async function copyForkResourceContainers(
     for (const [source, target] of tableFolderIdMap) folderIdMap.set(source, target)
 
     const inserts: (typeof userTableDefinitions.$inferInsert)[] = []
+    const viewInserts: (typeof tableViews.$inferInsert)[] = []
     for (const definition of definitions) {
       const childTableId = generateId()
       const remappedSchema = remapForkTableWorkflowGroups(
@@ -684,11 +708,37 @@ export async function copyForkResourceContainers(
         createdAt: now,
         updatedAt: now,
       })
+      const views = sourceViewsByTable.get(definition.id) ?? []
+      for (const view of views) {
+        viewInserts.push({
+          ...view,
+          id: generateId(),
+          tableId: childTableId,
+          workspaceId: childWorkspaceId,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      if (!views.some((view) => view.isDefault)) {
+        viewInserts.push({
+          id: generateId(),
+          tableId: childTableId,
+          workspaceId: childWorkspaceId,
+          name: DEFAULT_TABLE_VIEW_NAME,
+          config: definition.metadata ?? {},
+          isDefault: true,
+          createdBy: userId,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
       record('table', definition.id, childTableId)
       contentPlan.tables.push({ sourceId: definition.id, childId: childTableId })
       names.tables.push(definition.name)
     }
     if (inserts.length > 0) await tx.insert(userTableDefinitions).values(inserts)
+    if (viewInserts.length > 0) await tx.insert(tableViews).values(viewInserts)
   }
 
   if (selection.knowledgeBases.length > 0) {

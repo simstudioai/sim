@@ -63,6 +63,7 @@ import {
   useDeleteColumn,
   useRestoreTable,
   useUpdateColumn,
+  useUpdateTableView,
 } from '@/hooks/queries/tables'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 
@@ -87,6 +88,23 @@ function getCache<T>(key: readonly unknown[]): T | undefined {
 beforeEach(() => {
   cacheStore.clear()
   vi.clearAllMocks()
+})
+
+describe('useUpdateTableView autosave ordering', () => {
+  it('serializes config and layout patches for the same table', () => {
+    const hook = useUpdateTableView({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    expect(hook.scope).toEqual({ id: `table-view:${TABLE_ID}` })
+  })
+
+  it('does not hold the serial mutation queue open for list reconciliation', () => {
+    const hook = useUpdateTableView({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+
+    expect(hook.onSettled?.(undefined, null, { viewId: 'view-1' }, undefined)).toBeUndefined()
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: tableKeys.views(TABLE_ID),
+    })
+  })
 })
 
 describe('useDeleteColumn optimistic update', () => {

@@ -2189,7 +2189,7 @@ export const updateTableViewBodySchema = z
       .min(1, 'Workspace ID is required')
       .describe('Workspace that owns the table.'),
     name: viewNameSchema.optional().describe('Replacement saved-view display name.'),
-    /** Full replace. Use for an explicit Save, where dropping a removed filter is the point. */
+    /** Full replacement for callers that own the complete configuration snapshot. */
     config: tableViewConfigSchema
       .optional()
       .describe('Complete replacement saved-view configuration.'),

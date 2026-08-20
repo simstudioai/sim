@@ -93,14 +93,25 @@ describe('createTable schema invariants', () => {
     expect(dbChainMockFns.insert).toHaveBeenCalled()
   })
 
-  it('creates an ordinary group-free table unchanged', async () => {
+  it('creates an ordinary group-free table with a persisted default view', async () => {
     queueTableRows(schemaMock.userTableDefinitions, [{ count: 0 }])
 
     const table = await create({ columns: [{ name: 'email', type: 'string' }] } as TableSchema)
 
     expect(table.name).toBe('contacts')
     expect(table.schema.columns[0].id).toEqual(expect.any(String))
-    expect(dbChainMockFns.insert).toHaveBeenCalled()
+    expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.userTableDefinitions)
+    expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.tableViews)
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: table.id,
+        workspaceId: WORKSPACE_ID,
+        name: 'Default',
+        config: {},
+        isDefault: true,
+        createdBy: 'user-1',
+      })
+    )
   })
 })
 

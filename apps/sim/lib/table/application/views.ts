@@ -180,9 +180,13 @@ export const deleteTableViewUseCase = defineAuthorizedTableUseCase({
       context.workspaceId
     )
     if (!existing) throw new OrchestrationError('not_found', 'View not found')
-    const deleted = await deleteTableView(input.viewId, context.table.id, context.workspaceId)
-    if (!deleted) throw new OrchestrationError('not_found', 'View not found')
-    return { viewId: input.viewId, viewName: existing.name, table: context.table }
+    try {
+      const deleted = await deleteTableView(input.viewId, context.table.id, context.workspaceId)
+      if (!deleted) throw new OrchestrationError('not_found', 'View not found')
+      return { viewId: input.viewId, viewName: existing.name, table: context.table }
+    } catch (error) {
+      rethrowViewError(error)
+    }
   },
   projectAudit({ result }) {
     return {

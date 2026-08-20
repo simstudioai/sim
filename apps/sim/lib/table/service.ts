@@ -9,7 +9,7 @@
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
+import { tableJobs, tableViews, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -36,7 +36,12 @@ import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
 import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import {
+  COLUMN_TYPES,
+  DEFAULT_TABLE_VIEW_NAME,
+  NAME_PATTERN,
+  TABLE_LIMITS,
+} from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   EMPTY_JOB_FIELDS,
@@ -644,6 +649,17 @@ export async function createTable(
       }
 
       await trx.insert(userTableDefinitions).values(newTable)
+      await trx.insert(tableViews).values({
+        id: generateId(),
+        tableId,
+        workspaceId: data.workspaceId,
+        name: DEFAULT_TABLE_VIEW_NAME,
+        config: {},
+        isDefault: true,
+        createdBy: data.userId,
+        createdAt: now,
+        updatedAt: now,
+      })
 
       if (initialJob) {
         await trx.insert(tableJobs).values({
