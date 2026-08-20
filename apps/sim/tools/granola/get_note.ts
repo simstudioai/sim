@@ -1,4 +1,5 @@
 import type { GranolaGetNoteParams, GranolaGetNoteResponse } from '@/tools/granola/types'
+import { GRANOLA_API_BASE, granolaHeaders, throwGranolaError } from '@/tools/granola/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteResponse> = {
@@ -31,22 +32,16 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
 
   request: {
     url: (params) => {
-      const url = new URL(`https://public-api.granola.ai/v1/notes/${params.noteId.trim()}`)
+      const url = new URL(`${GRANOLA_API_BASE}/notes/${encodeURIComponent(params.noteId.trim())}`)
       if (params.includeTranscript === 'true') url.searchParams.append('include', 'transcript')
       return url.toString()
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => granolaHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Granola API error (${response.status}): ${error}`)
-    }
+    if (!response.ok) await throwGranolaError(response)
 
     const data = await response.json()
 
@@ -79,12 +74,18 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
         transcript: data.transcript
           ? data.transcript.map(
               (t: {
-                speaker: { source: string; diarization_label?: string; name?: string }
+                speaker: {
+                  source: string
+                  attribution?: string
+                  diarization_label?: string
+                  name?: string
+                }
                 text: string
                 start_time: string
                 end_time: string
               }) => ({
                 speaker: t.speaker?.source ?? 'unknown',
+                speakerAttribution: t.speaker?.attribution ?? null,
                 speakerLabel: t.speaker?.diarization_label ?? null,
                 speakerName: t.speaker?.name ?? null,
                 text: t.text ?? '',
@@ -151,6 +152,12 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
       optional: true,
       properties: {
         speaker: { type: 'string', description: 'Speaker source (microphone or speaker)' },
+        speakerAttribution: {
+          type: 'string',
+          description:
+            'Who spoke relative to the note owner: "me" for the note-taker, "them" for other participants. Null when attribution is unknown.',
+          optional: true,
+        },
         speakerLabel: {
           type: 'string',
           description: 'Diarization label for the speaker (e.g., Speaker A)',
