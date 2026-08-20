@@ -339,17 +339,32 @@ export const forkWorkflowChangeSchema = z.object({
  * so blocks aren't padded with every operation variant.
  */
 export const forkDependentReconfigSchema = z.object({
-  /** The remappable parent resource kind whose target swap clears this field. */
-  parentKind: z.enum(['credential', 'knowledge-base', 'table']),
+  /**
+   * The remappable parent whose target swap makes this field reconfigurable. For
+   * `custom-block` the "parent" IS the block itself: repointing it at another environment's
+   * block makes EVERY one of its inputs reconfigurable, not the `dependsOn` subset a
+   * credential/KB/table swap invalidates.
+   */
+  parentKind: z.enum(['credential', 'knowledge-base', 'table', 'custom-block']),
   /** Source id of that parent (matches a mapping entry's `sourceId`). */
   parentSourceId: z.string(),
-  /** SelectorContext key the new parent value is supplied under (`oauthCredential` | `knowledgeBaseId` | `tableId`). */
-  parentContextKey: z.string(),
+  /**
+   * SelectorContext key the new parent value is supplied under (`oauthCredential` |
+   * `knowledgeBaseId` | `tableId`). Absent for `custom-block`: its inputs are plain typed
+   * fields, not selectors, so there is no parent value to feed them.
+   */
+  parentContextKey: z.string().optional(),
   targetWorkflowId: z.string(),
   targetBlockId: z.string(),
   blockName: z.string(),
   subBlockKey: z.string(),
-  selectorKey: z.string(),
+  /** Absent for `custom-block` fields, which are typed inputs rather than selectors. */
+  selectorKey: z.string().optional(),
+  /**
+   * A `custom-block` input's declared field type (`string` | `number` | `boolean` | `object` |
+   * `array` | ...), so the modal renders the matching control instead of a selector.
+   */
+  fieldType: z.string().optional(),
   /** Plain field title (e.g. `Label`), never a `Tool: Field` composite. */
   title: z.string(),
   /**

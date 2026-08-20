@@ -24,6 +24,7 @@ import {
   applyDependentOverrides,
   collectClearedDependents,
   type NeedsConfigurationField,
+  replaceCustomBlockInputs,
   type SubBlockTransform,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type {
@@ -551,12 +552,23 @@ export async function copyWorkflowStateIntoTarget(
       )
     }
 
+    const nextBlockType = transformBlockType
+      ? transformBlockType(block.type, { id: oldBlockId, name: block.name })
+      : block.type
+    if (nextBlockType !== block.type) {
+      // Only a custom block can change type, and once it does its stored inputs describe the
+      // OLD block's fields. Replace them with what the user configured for the target — the
+      // same stored dependent values every other reconfigurable field uses, just applied
+      // wholesale because ALL of a custom block's inputs are reconfigurable, not a `dependsOn`
+      // subset. `applyDependentOverrides` above is a no-op for them: it allowlists on
+      // `dependsOn` + `selectorKey`, which no custom-block input has.
+      subBlocks = replaceCustomBlockInputs(subBlocks, blockOverrides, nextBlockType)
+    }
+
     newBlocks[newBlockId] = {
       ...block,
       id: newBlockId,
-      type: transformBlockType
-        ? transformBlockType(block.type, { id: oldBlockId, name: block.name })
-        : block.type,
+      type: nextBlockType,
       // double-cast-allowed: remap helpers return SubBlockRecord; the entries retain the SubBlockState shape this block requires
       subBlocks: subBlocks as unknown as Record<string, SubBlockState>,
       data: updatedData,

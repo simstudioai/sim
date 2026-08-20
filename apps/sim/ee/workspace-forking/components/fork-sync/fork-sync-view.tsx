@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Chip,
   ChipCombobox,
+  ChipModalField,
   ChipSwitch,
   CollapsibleCard,
   cn,
@@ -32,6 +33,10 @@ import {
   forkBlockerResolution,
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import {
+  customBlockBooleanOptions,
+  customBlockInputControl,
+} from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
   applyDependentRepick,
@@ -205,12 +210,47 @@ function DependentSelector({
   reconfig,
   setReconfig,
 }: DependentSelectorProps) {
+  // `effectiveDependentValue` owns the custom-block carve-out, so the value shown here is the
+  // same one the Sync gate and the submitted payload see.
+  const isCustomBlockInput = field.parentKind === 'custom-block'
   const effectiveValueIn = (f: ForkDependentReconfig, state: DependentReconfigState) =>
-    copying
+    copying && !isCustomBlockInput
       ? effectiveCopyDependentValue(f, state)
       : effectiveDependentValue(f, state, parentChanged)
   const baselineValueFor = (f: ForkDependentReconfig) => effectiveValueIn(f, {})
   const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
+  if (isCustomBlockInput) {
+    // Not a selector: there is no parent resource to browse and no options to fetch, just the
+    // target block's own declared input. Rendered as a plain field so the user types the value
+    // the repointed block should run with. Structured types get a textarea because their value
+    // is JSON, matching how `subBlockTypeForField` renders them on the canvas.
+    const setValue = (value: string) =>
+      setReconfig((current) => ({ ...current, [dependentKey(field)]: value }))
+    const value = effectiveValue(field)
+    const shared = { title: field.title, required: field.required }
+    switch (customBlockInputControl(field.fieldType)) {
+      case 'switch':
+        return (
+          <ChipModalField {...shared} type='custom'>
+            <ChipSwitch
+              options={customBlockBooleanOptions(field.required)}
+              // Passed through unmapped: an unset field is `''`, which matches neither
+              // segment, so the switch renders with nothing selected. Coercing it to False
+              // would show a required flag as configured while the Sync gate still reads it
+              // as empty — the display-versus-gate split this whole carve-out exists to avoid.
+              value={value}
+              onChange={setValue}
+              aria-label={field.title}
+            />
+          </ChipModalField>
+        )
+      case 'textarea':
+        return <ChipModalField {...shared} type='textarea' value={value} onChange={setValue} />
+      default:
+        return <ChipModalField {...shared} type='input' value={value} onChange={setValue} />
+    }
+  }
+
   const { providedValues, providedContextKeys } = blockChainState(block, field, effectiveValue)
   // Disabled until every in-block parent it depends on has a value, so a child never queries
   // a stale upstream value.
@@ -228,7 +268,7 @@ function DependentSelector({
         ...providedValues,
         // Owning workspace, for workspace-scoped selectors like table.columns.
         workspaceId: copying ? sourceWorkspaceId : workspaceId,
-        [field.parentContextKey]: parentValue,
+        ...(field.parentContextKey ? { [field.parentContextKey]: parentValue } : {}),
       }}
       enabled={parentValue !== '' && ready}
       value={effectiveValue(field)}

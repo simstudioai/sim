@@ -150,7 +150,13 @@ export function effectiveDependentValue(
   const repicked = reconfig[dependentKey(field)]
   if (repicked === null) return ''
   if (repicked !== undefined) return repicked
-  return parentChanged ? '' : field.currentValue
+  // A custom block's inputs exist BECAUSE its type was repointed, so `parentChanged` is always
+  // true for them — but their stored value IS the user's configuration for that exact target
+  // (the storage key namespaces it by target type), not a stale pick against an old parent, so
+  // it must survive. The rule lives here rather than at the render site so the displayed value,
+  // the Sync gate, and the submitted payload can never disagree about what a field holds.
+  if (parentChanged && field.parentKind !== 'custom-block') return ''
+  return field.currentValue
 }
 
 /**
