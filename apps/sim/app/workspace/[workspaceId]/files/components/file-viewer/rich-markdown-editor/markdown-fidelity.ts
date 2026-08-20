@@ -9,24 +9,17 @@ const FRONTMATTER_REGEX = /^---\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?:\r?\n)*/
 const ESCAPED_CALLOUT_REGEX = /^(\s*>(?:\s*>)*\s*)\\\[!([A-Za-z]+)\\\]/gm
 
 /**
- * A code region \u2014 fenced block or inline span. Never rewritten by the cleanups below, and always
- * the FIRST branch of the alternations that use it so a candidate sitting inside code is consumed
- * as code and left verbatim.
+ * Alternates a code region (fenced block or inline span \u2014 never rewritten) with an inline link whose
+ * destination has no title and isn't angle-bracketed. The code branch is listed first so a link inside
+ * code is consumed as code and left untouched. The destination stops at `)` / whitespace, so a link
+ * carrying a title (`[x](url "t")`) never matches and is preserved verbatim.
  */
-const CODE_REGION_SOURCE = '(```[\\s\\S]*?```|~~~[\\s\\S]*?~~~|`[^`\\n]+`)'
+const CODE_OR_PLAIN_LINK_REGEX =
+  /(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)|\[([^\]]+)]\(([^)\s<>]+)\)/g
+const HTTP_URL_REGEX = /^https?:\/\/\S+$/i
 
 /**
- * Alternates a code region with an inline link whose destination has no title and isn't
- * angle-bracketed. The destination stops at `)` / whitespace, so a link carrying a title
- * (`[x](url "t")`) never matches and is preserved verbatim.
- */
-const CODE_OR_PLAIN_LINK_REGEX = new RegExp(
-  `${CODE_REGION_SOURCE}|\\[([^\\]]+)]\\(([^)\\s<>]+)\\)`,
-  'g'
-)
-
-/**
- * Alternates a code region with a single underscore that has a letter or digit on both sides.
+ * Alternates an inline code span with a single underscore that has a letter or digit on both sides.
  *
  * CommonMark's intraword rule means such an underscore can neither open nor close emphasis, so the
  * serializer's backslash before it carries no meaning \u2014 it just writes `SB\_ACTION\_ROUTER\_SECRET`
@@ -34,25 +27,52 @@ const CODE_OR_PLAIN_LINK_REGEX = new RegExp(
  * against the stored markdown rather than the rendered text: searching `SB_ACTION` finds nothing in
  * a note whose stored form has a backslash the reader never sees.
  *
- * Code is excluded because the serializer emits it verbatim: a `\_` inside a fence is the author's
- * own backslash, not an escape this may drop.
+ * Code is excluded because the serializer emits it verbatim: a `\_` inside a span is the author's own
+ * backslash, not an escape this may drop. The span branch matches a backtick RUN and requires a run of
+ * the same length to close it, per CommonMark \u2014 a fixed single-backtick pattern would read ``` ``a`b`` ```
+ * as `` `a` `` plus loose text and rewrite the interior. Fenced blocks are handled a line at a time by
+ * {@link unescapeIntrawordUnderscores}, which is the only way to honour a fence of any length.
  *
- * Written with a capture group rather than a lookbehind: lookbehind only landed in Safari 16.4, and
- * an unsupported one throws when the pattern is constructed \u2014 taking the whole editor module with
- * it. The group is consumed and put back, and the lookahead is not, so runs like `A\_B\_C` still
- * match on every pair.
+ * The flanking character is a capture group rather than a lookbehind: lookbehind only landed in
+ * Safari 16.4, and an unsupported one throws when the pattern is constructed \u2014 taking the whole editor
+ * module with it. The group is consumed and put back, and the lookahead is not, so runs like `A\_B\_C`
+ * still match on every pair.
  */
-const CODE_OR_INTRAWORD_ESCAPED_UNDERSCORE = new RegExp(
-  `${CODE_REGION_SOURCE}|([\\p{L}\\p{N}])\\\\_(?=[\\p{L}\\p{N}])`,
-  'gu'
-)
-const HTTP_URL_REGEX = /^https?:\/\/\S+$/i
+const CODE_SPAN_OR_INTRAWORD_ESCAPED_UNDERSCORE =
+  /(`+)((?:[^`]|(?!\1)`)*?)\1(?!`)|([\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu
 
-/** Drops the meaningless backslash before an intraword underscore, outside code. */
+/**
+ * Drops the meaningless backslash before an intraword underscore, outside code.
+ *
+ * Fenced blocks are skipped a line at a time, tracking the opening delimiter the same way
+ * {@link stripEmptyListItemLines} does: a fence is three OR MORE backticks or tildes and is closed
+ * only by a run of the same character at least as long, so a `````` ```` `````-fenced block wrapping
+ * ``` ``` ``` stays code throughout. Matching a fixed ``` pair instead would end the region early and
+ * hand the rest of the author's code to the rewrite.
+ */
 function unescapeIntrawordUnderscores(markdown: string): string {
-  return markdown.replace(CODE_OR_INTRAWORD_ESCAPED_UNDERSCORE, (match, code, flank) =>
-    code ? code : `${flank}_`
-  )
+  const lines = markdown.split('\n')
+  let fence: string | null = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const delimiter = lines[i].match(FENCE_DELIMITER)?.[1]
+
+    if (fence) {
+      if (delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length) fence = null
+      continue
+    }
+    if (delimiter) {
+      fence = delimiter
+      continue
+    }
+
+    lines[i] = lines[i].replace(
+      CODE_SPAN_OR_INTRAWORD_ESCAPED_UNDERSCORE,
+      (match, ticks, _span, flank) => (ticks === undefined ? `${flank}_` : match)
+    )
+  }
+
+  return lines.join('\n')
 }
 
 /**

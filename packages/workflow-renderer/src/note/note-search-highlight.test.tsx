@@ -13,7 +13,7 @@
  */
 
 import { act } from 'react'
-import type { Root } from 'hast'
+import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { createRoot, type Root as ReactRoot } from 'react-dom/client'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
@@ -201,6 +201,117 @@ describe('note search rehype plugin', () => {
     const before = structuredClone(tree)
     noteSearchHighlightPlugin({ query: '' })(tree)
     expect(tree).toEqual(before)
+  })
+})
+
+/*
+ * The indexer folds every `\s` to a space before matching, so a phrase can match
+ * across a soft line break — which `remark-breaks` renders as a `<br>` splitting
+ * the phrase over two text nodes. A per-node scan saw neither half, leaving the
+ * hit counted in the panel and highlighted nowhere on the card.
+ */
+describe('note search across inline boundaries', () => {
+  function markedTextsOf(tree: Root): string[] {
+    const texts: string[] = []
+    const walk = (node: Root | Element) => {
+      /* `Root['children']` and `Element['children']` are different unions, so iterating the
+         parameter directly widens each child to their intersection and drops narrowing. */
+      const children: Array<RootContent | ElementContent> = node.children
+      for (const child of children) {
+        if (child.type !== 'element') continue
+        if (child.tagName === 'mark') {
+          const [first] = child.children
+          texts.push(first?.type === 'text' ? first.value : '')
+          continue
+        }
+        walk(child)
+      }
+    }
+    walk(tree)
+    return texts
+  }
+
+  function paragraphWithBreak(before: string, after: string): Root {
+    return {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'p',
+          properties: {},
+          children: [
+            { type: 'text', value: before },
+            { type: 'element', tagName: 'br', properties: {}, children: [] },
+            { type: 'text', value: after },
+          ],
+        },
+      ],
+    }
+  }
+
+  it('marks a phrase spanning a soft line break', () => {
+    const tree = paragraphWithBreak('the quick', 'brown fox')
+    noteSearchHighlightPlugin({ query: 'quick brown' })(tree)
+    expect(markedTextsOf(tree)).toEqual(['quick', 'brown'])
+  })
+
+  it('gives both halves of one hit the same ordinal', () => {
+    const tree = paragraphWithBreak('the quick', 'brown fox')
+    noteSearchHighlightPlugin({ query: 'quick brown' })(tree)
+
+    const ordinals: unknown[] = []
+    const walk = (node: Root | Element) => {
+      /* `Root['children']` and `Element['children']` are different unions, so iterating the
+         parameter directly widens each child to their intersection and drops narrowing. */
+      const children: Array<RootContent | ElementContent> = node.children
+      for (const child of children) {
+        if (child.type !== 'element') continue
+        if (child.tagName === 'mark') ordinals.push(child.properties.dataNoteSearchIndex)
+        else walk(child)
+      }
+    }
+    walk(tree)
+    expect(ordinals).toEqual(['0', '0'])
+  })
+
+  it('marks a phrase spanning a bold word', () => {
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'p',
+          properties: {},
+          children: [
+            { type: 'text', value: 'a ' },
+            {
+              type: 'element',
+              tagName: 'strong',
+              properties: {},
+              children: [{ type: 'text', value: 'bold' }],
+            },
+            { type: 'text', value: ' word' },
+          ],
+        },
+      ],
+    }
+    noteSearchHighlightPlugin({ query: 'a bold word' })(tree)
+    expect(markedTextsOf(tree)).toEqual(['a ', 'bold', ' word'])
+  })
+
+  /* Two paragraphs are not one phrase on screen. Joining them would invent a hit
+     the reader cannot see — and one the indexer never counted, since the source
+     carries a blank line there, not a single space. */
+  it('does not join text across a block boundary', () => {
+    const tree = paragraphTree('the quick', 'brown fox')
+    noteSearchHighlightPlugin({ query: 'quick brown' })(tree)
+    expect(markedTextsOf(tree)).toEqual([])
+  })
+
+  it('folds a non-breaking space the way the indexer does', () => {
+    const tree = paragraphTree('a b')
+    noteSearchHighlightPlugin({ query: 'a b' })(tree)
+    expect(markedTextsOf(tree)).toEqual(['a b'])
   })
 })
 

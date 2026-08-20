@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { foldSearchWhitespace } from '@sim/utils/string'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
@@ -10,7 +11,6 @@ import {
 } from '@/lib/workflows/search-replace/json-value-fields'
 import {
   buildBlockNamesByReferencePrefix,
-  foldSearchWhitespace,
   getResourceKindForSubBlock,
   matchesSearchText,
   parseInlineReferences,

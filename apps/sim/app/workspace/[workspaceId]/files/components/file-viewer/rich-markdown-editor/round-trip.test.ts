@@ -237,6 +237,22 @@ describe('editor markdown round-trip', () => {
     expect(roundTrip('call `a\\_b` here')).toContain('a\\_b')
   })
 
+  /* A fence is three OR MORE delimiters, closed only by a run at least as long, and an inline span
+     opens and closes on backtick runs of equal length. Recognising just the shortest form ends the
+     code region early and hands the rest of the author's code to the rewrite. */
+  it('leaves code alone in a longer fence', () => {
+    expect(roundTrip('````\nx = a\\_b\n```\nstill code y = c\\_d\n````')).toContain('a\\_b')
+    expect(roundTrip('````\nx = a\\_b\n```\nstill code y = c\\_d\n````')).toContain('c\\_d')
+  })
+
+  it('leaves code alone in a tilde fence', () => {
+    expect(roundTrip('~~~~\nx = a\\_b\n~~~~')).toContain('a\\_b')
+  })
+
+  it('leaves code alone in a multi-backtick inline span', () => {
+    expect(roundTrip('call ``a\\_b`c`` here')).toContain('a\\_b')
+  })
+
   it('preserves an image url (does not drop the src)', () => {
     const out = roundTrip('![alt](https://example.com/i.png)')
     expect(out).toContain('![alt](https://example.com/i.png)')

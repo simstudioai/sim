@@ -162,3 +162,22 @@ export function formatQuotedNameList(names: string[], maxListed: number): string
   const overflow = names.length - maxListed
   return overflow > 0 ? `${listed} and ${overflow} more` : listed
 }
+
+/**
+ * Maps every Unicode whitespace character to a plain space, one-to-one.
+ *
+ * Agent-authored block names and values routinely carry non-breaking or narrow
+ * spaces that render identically to " " but never equal a typed space, silently
+ * hiding matches. The replacement is length-preserving (every `\s` character is
+ * a single UTF-16 unit), so indexes into the folded string remain valid ranges
+ * into the original.
+ *
+ * Lives here rather than beside the workflow search index because the Note card
+ * on the canvas has to fold identically to find the same occurrences, and it
+ * renders from `@sim/workflow-renderer` — a package, which cannot import from
+ * `apps/*`. Two copies of this rule silently disagreeing is precisely the bug
+ * that made a match count in the panel and highlight nowhere on the card.
+ */
+export function foldSearchWhitespace(value: string): string {
+  return value.replace(/\s/g, ' ')
+}
