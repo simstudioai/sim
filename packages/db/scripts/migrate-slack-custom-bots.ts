@@ -482,7 +482,9 @@ export function resolveSlackSourceSecrets(
 ): SlackSourceSecretResolution {
   try {
     const botToken = resolveStoredSecret(source.rawBotToken, source, lookup, 'botToken')
-    if (!botToken) throw new Error(`Source ${source.sourceId} has no bot token`)
+    if (!botToken) {
+      return { status: 'unresolved', reason: `Source ${source.sourceId} has no bot token` }
+    }
 
     const signingSecret = resolveStoredSecret(
       source.rawSigningSecret,
@@ -491,7 +493,10 @@ export function resolveSlackSourceSecrets(
       'signingSecret'
     )
     if (source.kind === 'trigger' && !signingSecret) {
-      throw new Error(`Trigger source ${source.sourceId} has no signing secret`)
+      return {
+        status: 'unresolved',
+        reason: `Trigger source ${source.sourceId} has no signing secret`,
+      }
     }
 
     return { status: 'ready', botToken, signingSecret }
@@ -716,7 +721,7 @@ async function prepareWorkspaceCredentials(params: {
     const resolution = resolveSlackSourceSecrets(source, environmentLookup)
     if (resolution.status === 'unresolved') {
       params.stats.skippedUnresolved++
-      logger.warn('Skipping Slack bot credential source with an unresolved environment variable', {
+      logger.warn('Skipping Slack bot credential source with unresolved secrets', {
         workspaceId: params.workspaceId,
         workflowId: source.workflowId,
         workflowName: source.workflowName,

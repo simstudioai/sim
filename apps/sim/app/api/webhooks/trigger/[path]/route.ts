@@ -187,7 +187,6 @@ async function handleWebhookPost(
   const responses: NextResponse[] = []
   const failures: NextResponse[] = []
   for (const dispatchResult of legacySlackDispatchResults) {
-    if (dispatchResult.reason === 'filtered') continue
     if (dispatchResult.outcome === 'failed' || dispatchResult.reason === 'block-missing') {
       failures.push(dispatchResult.response)
       continue
