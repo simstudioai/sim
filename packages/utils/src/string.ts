@@ -183,6 +183,42 @@ export function foldSearchWhitespace(value: string): string {
 }
 
 /**
+ * Visits every occurrence of `query` in `text`, without overlaps.
+ *
+ * The single definition of what "an occurrence" means for search, shared by the
+ * workflow search index and by the Note card that has to mark the same hits on
+ * the canvas. They live in different packages and cannot see each other, so a
+ * second copy of this loop is a silent disagreement waiting to happen: the
+ * panel counts a match the card never paints, which is exactly the bug that
+ * arrived when only the whitespace fold was shared and the scan was not.
+ *
+ * Whitespace is folded first (see {@link foldSearchWhitespace}) and the fold is
+ * one-to-one, so both bounds index the caller's own unfolded string.
+ */
+export function forEachSearchOccurrence(
+  text: string,
+  query: string,
+  visit: (start: number, end: number) => void,
+  caseSensitive = false
+): void {
+  if (!query) return
+
+  const normalize = (value: string) => {
+    const folded = foldSearchWhitespace(value)
+    return caseSensitive ? folded : folded.toLowerCase()
+  }
+  const haystack = normalize(text)
+  const needle = normalize(query)
+  const step = Math.max(needle.length, 1)
+
+  let index = haystack.indexOf(needle)
+  while (index !== -1) {
+    visit(index, index + needle.length)
+    index = haystack.indexOf(needle, index + step)
+  }
+}
+
+/**
  * ASCII punctuation a backslash may escape in markdown, per CommonMark. A
  * backslash before anything else is a literal backslash.
  */

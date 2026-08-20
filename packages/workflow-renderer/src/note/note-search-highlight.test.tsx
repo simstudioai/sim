@@ -13,6 +13,7 @@
  */
 
 import { act } from 'react'
+import { forEachSearchOccurrence } from '@sim/utils/string'
 import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { createRoot, type Root as ReactRoot } from 'react-dom/client'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -24,7 +25,6 @@ import {
 } from '../index'
 import {
   countNoteSearchOccurrencesBefore,
-  forEachNoteSearchOccurrence,
   noteSearchHighlightPlugin,
 } from './note-search-highlight'
 
@@ -125,13 +125,13 @@ function paragraphTree(...values: string[]): Root {
 describe('note search occurrence scanning', () => {
   it('matches case-insensitively, like the workflow search index', () => {
     const starts: number[] = []
-    forEachNoteSearchOccurrence('Secret and secret', 'SECRET', (start) => starts.push(start))
+    forEachSearchOccurrence('Secret and secret', 'SECRET', (start) => starts.push(start))
     expect(starts).toEqual([0, 11])
   })
 
   it('does not overlap a self-overlapping query', () => {
     const starts: number[] = []
-    forEachNoteSearchOccurrence('aaaa', 'aa', (start) => starts.push(start))
+    forEachSearchOccurrence('aaaa', 'aa', (start) => starts.push(start))
     expect(starts).toEqual([0, 2])
   })
 

@@ -1,4 +1,4 @@
-import { foldSearchWhitespace, projectEscapedMarkdownForSearch } from '@sim/utils/string'
+import { forEachSearchOccurrence, projectEscapedMarkdownForSearch } from '@sim/utils/string'
 import type { Element, Root, Text } from 'hast'
 
 /**
@@ -42,46 +42,6 @@ export interface NoteSearchRange {
 export const NOTE_SEARCH_MARK_INDEX_PROPERTY = 'dataNoteSearchIndex'
 
 /**
- * Visits every occurrence of `query` in `text`, case-insensitively and without
- * overlaps.
- *
- * Deliberately the same scan the workflow search indexer runs over the raw
- * value (`findTextRanges`), down to folding whitespace with the shared
- * {@link foldSearchWhitespace}: counting and marking have to agree on what "the
- * third occurrence" means. An overlapping scan here against a non-overlapping
- * one there would silently offset every mark in a note whose query
- * self-overlaps (`aa` in `aaaa`), and an unfolded one would miss a phrase the
- * indexer matched across a line break.
- *
- * Case sensitivity is not plumbed through: the search panel is the only caller
- * of the indexer and never enables it. If it ever does, this is the second
- * place that has to change.
- */
-export function forEachNoteSearchOccurrence(
-  text: string,
-  query: string,
-  visit: (start: number, end: number) => void
-): void {
-  if (!query) return
-
-  /* Folding is length-preserving, so every index below is also a valid index
-     into the caller's unfolded string. */
-  const haystack = foldSearchWhitespace(text).toLowerCase()
-  const needle = foldSearchWhitespace(query).toLowerCase()
-  const step = Math.max(needle.length, 1)
-
-  let index = haystack.indexOf(needle)
-  while (index !== -1) {
-    visit(index, index + needle.length)
-    index = haystack.indexOf(needle, index + step)
-  }
-}
-
-/**
- * How many occurrences of `query` start before `offset` in `content` — the
- * ordinal of the occurrence that starts there.
- */
-/**
  * Visits every occurrence of `query` in a note's markdown SOURCE, reporting each
  * start in source coordinates.
  *
@@ -96,7 +56,7 @@ export function forEachNoteSourceOccurrence(
   visit: (sourceStart: number) => void
 ): void {
   const projection = projectEscapedMarkdownForSearch(content)
-  forEachNoteSearchOccurrence(projection.text, query, (start) => {
+  forEachSearchOccurrence(projection.text, query, (start) => {
     visit(projection.starts[start])
   })
 }
@@ -279,7 +239,7 @@ export function noteSearchHighlightPlugin({ query }: NoteSearchHighlightOptions)
 
     for (const run of builder.runs) {
       const text = run.map((entry) => entry.node.value).join('')
-      forEachNoteSearchOccurrence(text, query, (start, end) => {
+      forEachSearchOccurrence(text, query, (start, end) => {
         const current = ordinal
         ordinal += 1
         for (const entry of run) {

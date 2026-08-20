@@ -12,6 +12,7 @@ import {
   SEARCH_REPLACE_BLOCK_CONFIGS,
 } from '@/lib/workflows/search-replace/search-replace.fixtures'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import { NoteBlock } from '@/blocks/blocks/note'
 
 /**
  * Uses the real tool registry. Nothing here imports it directly — the dependency
@@ -165,6 +166,19 @@ describe('indexWorkflowSearchMatches', () => {
     })
 
     expect(matches.some((match) => match.target.kind === 'block-name')).toBe(false)
+  })
+
+  describe('the Note body declares the markdown format the card assumes', () => {
+    /*
+     * The canvas card projects markdown escapes unconditionally — it renders from a package that
+     * cannot read the block registry. The indexer projects only when the field says so. Dropping
+     * the declaration would leave the two disagreeing about what an occurrence is, and the failure
+     * is silent: the panel counts a hit the card marks somewhere else.
+     */
+    it('keeps searchTextFormat on the Note content field', () => {
+      const content = NoteBlock.subBlocks.find((subBlock) => subBlock.id === 'content')
+      expect(content?.searchTextFormat).toBe('markdown')
+    })
   })
 
   describe('a markdown field is searched as it renders', () => {

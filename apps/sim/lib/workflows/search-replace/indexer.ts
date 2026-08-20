@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { foldSearchWhitespace, projectEscapedMarkdownForSearch } from '@sim/utils/string'
+import { forEachSearchOccurrence, projectEscapedMarkdownForSearch } from '@sim/utils/string'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
 import type { SubBlockType } from '@sim/workflow-types/blocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
@@ -58,16 +58,6 @@ import {
 } from '@/tools/params'
 
 /**
- * Whitespace is folded before comparison (see {@link foldSearchWhitespace}):
- * the fold is one-to-one, so ranges found in the normalized string index the
- * original text correctly.
- */
-function normalizeForSearch(value: string, caseSensitive: boolean): string {
-  const folded = foldSearchWhitespace(value)
-  return caseSensitive ? folded : folded.toLowerCase()
-}
-
-/**
  * Ranges of `query` in `value`, always in `value`'s own coordinates.
  *
  * A field declaring `searchTextFormat: 'markdown'` is matched against the text
@@ -83,23 +73,21 @@ function findTextRanges(
   caseSensitive: boolean,
   searchTextFormat?: SubBlockConfig['searchTextFormat']
 ) {
-  if (!query) return []
-
   const projection = searchTextFormat === 'markdown' ? projectEscapedMarkdownForSearch(value) : null
-  const source = normalizeForSearch(projection ? projection.text : value, caseSensitive)
-  const target = normalizeForSearch(query, caseSensitive)
   const ranges: Array<{ start: number; end: number }> = []
 
-  let index = source.indexOf(target)
-  while (index !== -1) {
-    const end = index + target.length
-    ranges.push(
-      projection
-        ? { start: projection.starts[index], end: projection.starts[end] }
-        : { start: index, end }
-    )
-    index = source.indexOf(target, index + Math.max(target.length, 1))
-  }
+  forEachSearchOccurrence(
+    projection ? projection.text : value,
+    query,
+    (start, end) => {
+      ranges.push(
+        projection
+          ? { start: projection.starts[start], end: projection.starts[end] }
+          : { start, end }
+      )
+    },
+    caseSensitive
+  )
 
   return ranges
 }
