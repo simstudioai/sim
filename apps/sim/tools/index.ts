@@ -352,13 +352,15 @@ async function resolveCopilotEnvReferences(
     return
   }
 
-  // Models improvise reference syntax: after `{{NAME}}`, `$NAME` and the bare
-  // variable name are the common fallbacks — both previously went upstream as
-  // the literal credential and failed with an undiagnosable 401. `{{NAME}}`
-  // and `$NAME` are unambiguous references (a real key never starts with `$`),
-  // so a missing variable is a hard error. A bare name is a reference only
-  // when a variable by that exact name exists (`soft`): plenty of real API
-  // keys match the identifier pattern, and those must pass through verbatim.
+  // Models improvise reference syntax: after `{{NAME}}`, the bare variable
+  // name is the common fallback — it previously went upstream as the literal
+  // credential and failed with an undiagnosable 401. `{{NAME}}` is the one
+  // explicit reference form, so a missing variable is a hard error. A bare
+  // name is a reference only when a variable by that exact name exists
+  // (`soft`): plenty of real API keys match the identifier pattern, and
+  // those must pass through verbatim. `$NAME` is deliberately NOT a
+  // reference — real credentials can start with `$`, and a secret must never
+  // be reinterpreted as a lookup.
   const pending: Array<{ paramId: string; value: string; soft?: boolean }> = []
   for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
     if (paramDef?.visibility !== 'user-only') continue
@@ -366,11 +368,6 @@ async function resolveCopilotEnvReferences(
     if (typeof value !== 'string') continue
     if (value.startsWith('{{') && value.endsWith('}}')) {
       pending.push({ paramId, value })
-      continue
-    }
-    const dollar = value.match(/^\$([A-Za-z_][A-Za-z0-9_]*)$/)
-    if (dollar) {
-      pending.push({ paramId, value: `{{${dollar[1]}}}` })
       continue
     }
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
