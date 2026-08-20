@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
   Loader,
 } from '@sim/emcn'
-import { Folder, MoreHorizontal, Pencil, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
+import { Folder, MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
@@ -70,6 +70,17 @@ export function CollapsedResourceFlyout({
   return <CollapsedFlyoutRows entries={entries} icon={icon} currentItemId={currentItemId} />
 }
 
+/**
+ * Matches the glyph `Resource`'s label cell renders: pinned rows sort to the top of every
+ * list, and the ordering reads as arbitrary without it. Non-interactive here too — pinning
+ * is an action on the row's own menu, not something a jump list offers.
+ */
+function PinnedGlyph() {
+  return (
+    <Pin className='size-[12px] shrink-0 text-[var(--text-icon)]' role='img' aria-label='Pinned' />
+  )
+}
+
 function CollapsedFlyoutRows({
   entries,
   icon: Icon,
@@ -84,6 +95,7 @@ function CollapsedFlyoutRows({
               <Link href={entry.href}>
                 <Icon className='size-[14px]' />
                 <span className='truncate'>{entry.name}</span>
+                {entry.pinned && <PinnedGlyph />}
               </Link>
             </DropdownMenuItem>
           )
@@ -94,6 +106,7 @@ function CollapsedFlyoutRows({
             <DropdownMenuItem key={entry.id} disabled>
               <Folder className='size-[14px]' />
               <span className='truncate'>{entry.name}</span>
+              {entry.pinned && <PinnedGlyph />}
             </DropdownMenuItem>
           )
         }
@@ -103,6 +116,7 @@ function CollapsedFlyoutRows({
             <DropdownMenuSubTrigger>
               <Folder className='size-[14px]' />
               <span className='truncate'>{entry.name}</span>
+              {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <CollapsedFlyoutRows

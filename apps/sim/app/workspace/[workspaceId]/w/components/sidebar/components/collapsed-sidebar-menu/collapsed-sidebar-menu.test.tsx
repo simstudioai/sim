@@ -73,7 +73,22 @@ describe('CollapsedSidebarMenu nav-link trigger', () => {
           }}
         >
           <CollapsedResourceFlyout
-            entries={[{ kind: 'item', id: 't1', name: 'Leads', href: '/workspace/w1/tables/t1' }]}
+            entries={[
+              {
+                kind: 'item',
+                id: 't1',
+                name: 'Leads',
+                pinned: false,
+                href: '/workspace/w1/tables/t1',
+              },
+              {
+                kind: 'item',
+                id: 't2',
+                name: 'Pinned table',
+                pinned: true,
+                href: '/workspace/w1/tables/t2',
+              },
+            ]}
             icon={Table}
             emptyLabel='No tables yet'
           />
@@ -125,5 +140,14 @@ describe('CollapsedSidebarMenu nav-link trigger', () => {
 
     const row = document.querySelector('a[href="/workspace/w1/tables/t1"]')
     expect(row?.textContent).toContain('Leads')
+  })
+
+  it('marks a pinned row, so sorting it to the top does not read as arbitrary', () => {
+    renderMenu({ isOpen: true })
+
+    const pinnedRow = document.querySelector('a[href="/workspace/w1/tables/t2"]')
+    const plainRow = document.querySelector('a[href="/workspace/w1/tables/t1"]')
+    expect(pinnedRow?.querySelector('[aria-label="Pinned"]')).not.toBeNull()
+    expect(plainRow?.querySelector('[aria-label="Pinned"]')).toBeNull()
   })
 })

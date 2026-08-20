@@ -21,8 +21,8 @@ interface FlyoutItemSource {
 
 /** One row of a resource flyout: a folder that recurses, or a linked resource. */
 export type FlyoutEntry =
-  | { kind: 'folder'; id: string; name: string; children: FlyoutEntry[] }
-  | { kind: 'item'; id: string; name: string; href: string }
+  | { kind: 'folder'; id: string; name: string; pinned: boolean; children: FlyoutEntry[] }
+  | { kind: 'item'; id: string; name: string; pinned: boolean; href: string }
 
 export interface BuildFlyoutEntriesParams<Item extends FlyoutItemSource> {
   folders: FlyoutFolderSource[]
@@ -43,7 +43,9 @@ function flyoutSortTime(value: Date | string): number {
  * Each level is sorted by the shared {@link sortResources}, on the most-recently-updated
  * key its list page defaults to — so pinned rows float, folders interleave with the
  * resources beside them, and the flyout keeps reading in the same order as the page it
- * links into rather than carrying a second copy of that rule.
+ * links into rather than carrying a second copy of that rule. `pinned` rides along on each
+ * row because that ordering reads as arbitrary without the indicator the rows render from
+ * it — the same pairing `Resource`'s own cells make.
  *
  * A folder whose parent no longer exists, and a resource whose `folderId` names no live
  * folder, surface at the root — the same fallback the list pages apply when a folder is
@@ -80,17 +82,25 @@ export function buildFlyoutEntries<Item extends FlyoutItemSource>({
   const buildLevel = (parentId: string | null): FlyoutEntry[] => {
     const rows: SortableResource<FlyoutEntry>[] = []
     for (const folder of foldersByParent.get(parentId) ?? []) {
+      const pinned = pinnedFolderIds.has(folder.id)
       rows.push({
-        item: { kind: 'folder', id: folder.id, name: folder.name, children: buildLevel(folder.id) },
-        pinned: pinnedFolderIds.has(folder.id),
+        item: {
+          kind: 'folder',
+          id: folder.id,
+          name: folder.name,
+          pinned,
+          children: buildLevel(folder.id),
+        },
+        pinned,
         name: folder.name,
         key: flyoutSortTime(folder.updatedAt),
       })
     }
     for (const item of itemsByFolder.get(parentId) ?? []) {
+      const pinned = pinnedItemIds.has(item.id)
       rows.push({
-        item: { kind: 'item', id: item.id, name: item.name, href: hrefForItem(item) },
-        pinned: pinnedItemIds.has(item.id),
+        item: { kind: 'item', id: item.id, name: item.name, pinned, href: hrefForItem(item) },
+        pinned,
         name: item.name,
         key: flyoutSortTime(item.updatedAt),
       })
