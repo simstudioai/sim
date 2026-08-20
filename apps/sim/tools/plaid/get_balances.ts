@@ -1,9 +1,9 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetBalancesParams, PlaidGetBalancesResponse } from '@/tools/plaid/types'
+import { PLAID_ACCOUNT_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidAccount,
-  plaidAccountOutputProperties,
   plaidBaseParamFields,
   plaidRecord,
   requirePlaidArrayField,
@@ -55,7 +55,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'balances')
-    const accounts = requirePlaidArrayField(data, 'accounts', 'balances.accounts')
+    const accounts = requirePlaidArrayField(data, 'accounts', 'balances.accounts', 500)
     const mapped = accounts.map((account, index) =>
       mapPlaidAccount(account, `balances.accounts[${index}]`)
     )
@@ -72,7 +72,7 @@ export const plaidGetBalancesTool: ToolConfig<PlaidGetBalancesParams, PlaidGetBa
     accounts: {
       type: 'array',
       description: 'Accounts with refreshed real-time balances',
-      items: { type: 'object', properties: plaidAccountOutputProperties },
+      items: { type: 'object', properties: PLAID_ACCOUNT_OUTPUT_PROPERTIES },
     },
     count: { type: 'number', description: 'Number of accounts returned' },
   },

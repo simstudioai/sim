@@ -26,7 +26,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 - Account fields offer single- and multi-account selectors backed by the selected Item. Institution lookup offers searchable results and hydrates a saved selection by ID. Advanced manual fields remain available for account or institution IDs that cannot be loaded in the editor. Account filters are optional and default to all accounts on the Item.
 - Institution search returns at most ten matches. The Search Institutions action remains available when you need its full institution records or want to supply non-US country codes and product filters.
 - Get Balances usually completes in under ten seconds but can take 30 seconds or more. `minLastUpdatedDatetime` is an RFC 3339 date-time and is required by Plaid only for certain Capital One non-depository requests.
-- Get Auth returns full account and routing identifiers for downstream payment steps. Sim hides the `numbers` field from execution-log display; do not write it to tables, files, messages, or other durable outputs.
+- Get Auth returns full account and routing identifiers. Use them only with an approved non-Plaid-partner payment processor. Sim hides the `numbers` field from execution-log display; never write it to tables, files, messages, or other durable outputs.
 - Plaid Sandbox is useful for contract testing but does not reproduce all Production institution behavior. Product access, optional fields, consent, and institution-specific errors still need Production validation.
 {/* MANUAL-CONTENT-END */}
 
@@ -58,7 +58,87 @@ Incrementally sync transactions for a linked Item. Omit the cursor on the first 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `added` | array | Transactions added since the cursor |
+|   ↳ `transaction_id` | string | Unique ID of the transaction |
+|   ↳ `account_id` | string | ID of the account the transaction belongs to |
+|   ↳ `amount` | number | Settled value in account currency; positive values are debits \(money out\) |
+|   ↳ `iso_currency_code` | string | ISO 4217 currency code |
+|   ↳ `unofficial_currency_code` | string | Unofficial currency code when ISO 4217 does not apply |
+|   ↳ `date` | string | Posted date \(YYYY-MM-DD\) |
+|   ↳ `authorized_date` | string | Date the transaction was authorized \(YYYY-MM-DD\) |
+|   ↳ `authorized_datetime` | string | Date and time the transaction was authorized, when supplied by the institution |
+|   ↳ `datetime` | string | Posted date and time when supplied by the institution |
+|   ↳ `name` | string | Plaid transaction name; use original_description for the unmodified institution text |
+|   ↳ `merchant_name` | string | Cleaned merchant name |
+|   ↳ `merchant_entity_id` | string | Plaid merchant entity ID |
+|   ↳ `logo_url` | string | Merchant logo URL |
+|   ↳ `website` | string | Merchant website |
+|   ↳ `payment_channel` | string | Payment channel: 'online', 'in store', or 'other' |
+|   ↳ `pending` | boolean | Whether the transaction is pending |
+|   ↳ `pending_transaction_id` | string | Pending transaction replaced by this posted transaction |
+|   ↳ `personal_finance_category` | object | Categorization with primary, detailed, confidence_level, and version fields |
+|     ↳ `primary` | string | High-level personal finance category |
+|     ↳ `detailed` | string | Granular personal finance category |
+|     ↳ `confidence_level` | string | Plaid confidence level for the categorization |
+|     ↳ `version` | string | Personal finance category taxonomy version |
+|   ↳ `location` | object | Where the transaction occurred \(address, city, region, country, lat, lon\) |
+|     ↳ `address` | string | Street address |
+|     ↳ `city` | string | City |
+|     ↳ `region` | string | Region or state |
+|     ↳ `postal_code` | string | Postal code |
+|     ↳ `country` | string | ISO 3166-1 alpha-2 country code |
+|     ↳ `lat` | number | Latitude |
+|     ↳ `lon` | number | Longitude |
+|     ↳ `store_number` | string | Merchant store number |
+|   ↳ `counterparties` | array | Counterparties involved in the transaction, when supplied |
+|     ↳ `name` | string | Counterparty name |
+|     ↳ `type` | string | Counterparty type |
+|     ↳ `website` | string | Counterparty website |
+|     ↳ `logo_url` | string | Counterparty logo URL |
+|     ↳ `entity_id` | string | Stable Plaid counterparty entity ID |
+|     ↳ `confidence_level` | string | Plaid confidence level for the counterparty match |
+|   ↳ `transaction_code` | string | Institution transaction code |
+|   ↳ `original_description` | string | Unmodified description from the institution \(present when includeOriginalDescription is enabled\) |
 | `modified` | array | Transactions modified since the cursor |
+|   ↳ `transaction_id` | string | Unique ID of the transaction |
+|   ↳ `account_id` | string | ID of the account the transaction belongs to |
+|   ↳ `amount` | number | Settled value in account currency; positive values are debits \(money out\) |
+|   ↳ `iso_currency_code` | string | ISO 4217 currency code |
+|   ↳ `unofficial_currency_code` | string | Unofficial currency code when ISO 4217 does not apply |
+|   ↳ `date` | string | Posted date \(YYYY-MM-DD\) |
+|   ↳ `authorized_date` | string | Date the transaction was authorized \(YYYY-MM-DD\) |
+|   ↳ `authorized_datetime` | string | Date and time the transaction was authorized, when supplied by the institution |
+|   ↳ `datetime` | string | Posted date and time when supplied by the institution |
+|   ↳ `name` | string | Plaid transaction name; use original_description for the unmodified institution text |
+|   ↳ `merchant_name` | string | Cleaned merchant name |
+|   ↳ `merchant_entity_id` | string | Plaid merchant entity ID |
+|   ↳ `logo_url` | string | Merchant logo URL |
+|   ↳ `website` | string | Merchant website |
+|   ↳ `payment_channel` | string | Payment channel: 'online', 'in store', or 'other' |
+|   ↳ `pending` | boolean | Whether the transaction is pending |
+|   ↳ `pending_transaction_id` | string | Pending transaction replaced by this posted transaction |
+|   ↳ `personal_finance_category` | object | Categorization with primary, detailed, confidence_level, and version fields |
+|     ↳ `primary` | string | High-level personal finance category |
+|     ↳ `detailed` | string | Granular personal finance category |
+|     ↳ `confidence_level` | string | Plaid confidence level for the categorization |
+|     ↳ `version` | string | Personal finance category taxonomy version |
+|   ↳ `location` | object | Where the transaction occurred \(address, city, region, country, lat, lon\) |
+|     ↳ `address` | string | Street address |
+|     ↳ `city` | string | City |
+|     ↳ `region` | string | Region or state |
+|     ↳ `postal_code` | string | Postal code |
+|     ↳ `country` | string | ISO 3166-1 alpha-2 country code |
+|     ↳ `lat` | number | Latitude |
+|     ↳ `lon` | number | Longitude |
+|     ↳ `store_number` | string | Merchant store number |
+|   ↳ `counterparties` | array | Counterparties involved in the transaction, when supplied |
+|     ↳ `name` | string | Counterparty name |
+|     ↳ `type` | string | Counterparty type |
+|     ↳ `website` | string | Counterparty website |
+|     ↳ `logo_url` | string | Counterparty logo URL |
+|     ↳ `entity_id` | string | Stable Plaid counterparty entity ID |
+|     ↳ `confidence_level` | string | Plaid confidence level for the counterparty match |
+|   ↳ `transaction_code` | string | Institution transaction code |
+|   ↳ `original_description` | string | Unmodified description from the institution \(present when includeOriginalDescription is enabled\) |
 | `removed` | array | Transactions removed since the cursor |
 |   ↳ `transaction_id` | string | ID of the removed transaction |
 |   ↳ `account_id` | string | Account the transaction belonged to |
@@ -81,6 +161,22 @@ List the accounts linked to an Item with their names, types, and balances. Balan
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Accounts linked to the Item |
+|   ↳ `account_id` | string | Unique Plaid account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `official_name` | string | Official account name from the institution |
+|   ↳ `mask` | string | Last 2-4 characters of the account number |
+|   ↳ `type` | string | Account type, including depository, credit, loan, investment, or brokerage |
+|   ↳ `subtype` | string | Account subtype, e.g. checking, savings, credit card |
+|   ↳ `balances` | object | Balances with available, current, limit, and iso_currency_code fields \(null where the institution does not report them\) |
+|     ↳ `available` | number | Funds available to spend or withdraw |
+|     ↳ `current` | number | Current balance |
+|     ↳ `limit` | number | Credit limit |
+|     ↳ `iso_currency_code` | string | ISO 4217 currency code |
+|     ↳ `unofficial_currency_code` | string | Unofficial currency code when ISO 4217 does not apply |
+|     ↳ `last_updated_datetime` | string | When the balance was last refreshed, when supplied by the institution |
+|   ↳ `verification_status` | string | Micro-deposit/database verification state; null or empty when neither verification method applies |
+|   ↳ `persistent_account_id` | string | Persistent account identifier when Plaid can provide one |
+|   ↳ `holder_category` | string | Whether the account holder is personal or business, when known |
 | `count` | number | Number of accounts returned |
 
 ### Plaid Get Balances
@@ -99,6 +195,22 @@ Get real-time balances for the accounts linked to an Item. The live institution 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Accounts with refreshed real-time balances |
+|   ↳ `account_id` | string | Unique Plaid account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `official_name` | string | Official account name from the institution |
+|   ↳ `mask` | string | Last 2-4 characters of the account number |
+|   ↳ `type` | string | Account type, including depository, credit, loan, investment, or brokerage |
+|   ↳ `subtype` | string | Account subtype, e.g. checking, savings, credit card |
+|   ↳ `balances` | object | Balances with available, current, limit, and iso_currency_code fields \(null where the institution does not report them\) |
+|     ↳ `available` | number | Funds available to spend or withdraw |
+|     ↳ `current` | number | Current balance |
+|     ↳ `limit` | number | Credit limit |
+|     ↳ `iso_currency_code` | string | ISO 4217 currency code |
+|     ↳ `unofficial_currency_code` | string | Unofficial currency code when ISO 4217 does not apply |
+|     ↳ `last_updated_datetime` | string | When the balance was last refreshed, when supplied by the institution |
+|   ↳ `verification_status` | string | Micro-deposit/database verification state; null or empty when neither verification method applies |
+|   ↳ `persistent_account_id` | string | Persistent account identifier when Plaid can provide one |
+|   ↳ `holder_category` | string | Whether the account holder is personal or business, when known |
 | `count` | number | Number of accounts returned |
 
 ### Plaid Get Identity
@@ -116,7 +228,40 @@ Get account-holder identity information (names, emails, phone numbers, and addre
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Accounts with their owners identity data |
+|   ↳ `account_id` | string | Unique Plaid account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `official_name` | string | Official account name from the institution |
+|   ↳ `mask` | string | Last 2-4 characters of the account number |
+|   ↳ `type` | string | Account type, including depository, credit, loan, investment, or brokerage |
+|   ↳ `subtype` | string | Account subtype, e.g. checking, savings, credit card |
+|   ↳ `balances` | object | Balances with available, current, limit, and iso_currency_code fields \(null where the institution does not report them\) |
+|     ↳ `available` | number | Funds available to spend or withdraw |
+|     ↳ `current` | number | Current balance |
+|     ↳ `limit` | number | Credit limit |
+|     ↳ `iso_currency_code` | string | ISO 4217 currency code |
+|     ↳ `unofficial_currency_code` | string | Unofficial currency code when ISO 4217 does not apply |
+|     ↳ `last_updated_datetime` | string | When the balance was last refreshed, when supplied by the institution |
+|   ↳ `verification_status` | string | Micro-deposit/database verification state; null or empty when neither verification method applies |
+|   ↳ `persistent_account_id` | string | Persistent account identifier when Plaid can provide one |
+|   ↳ `holder_category` | string | Whether the account holder is personal or business, when known |
 |   ↳ `owners` | array | Account owners with names, phone numbers, emails, and addresses |
+|     ↳ `names` | array | Names associated with the account owner |
+|     ↳ `phone_numbers` | array | Phone numbers associated with the account owner |
+|       ↳ `data` | string | Phone number or email address |
+|       ↳ `primary` | boolean | Whether this is the primary contact value |
+|       ↳ `type` | string | Contact value type |
+|     ↳ `emails` | array | Email addresses associated with the account owner |
+|       ↳ `data` | string | Phone number or email address |
+|       ↳ `primary` | boolean | Whether this is the primary contact value |
+|       ↳ `type` | string | Contact value type |
+|     ↳ `addresses` | array | Postal addresses associated with the account owner |
+|       ↳ `primary` | boolean | Whether this is the primary address |
+|       ↳ `data` | object | Structured postal address |
+|         ↳ `street` | string | Full street address |
+|         ↳ `city` | string | City |
+|         ↳ `region` | string | Region or state |
+|         ↳ `postal_code` | string | Postal code |
+|         ↳ `country` | string | ISO 3166-1 alpha-2 country code |
 | `count` | number | Number of accounts returned |
 
 ### Plaid Get Auth
@@ -134,7 +279,42 @@ Get account and routing numbers for depository accounts linked to an Item (ACH f
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `accounts` | array | Depository accounts on the Item |
+|   ↳ `account_id` | string | Unique Plaid account ID |
+|   ↳ `name` | string | Account name |
+|   ↳ `official_name` | string | Official account name from the institution |
+|   ↳ `mask` | string | Last 2-4 characters of the account number |
+|   ↳ `type` | string | Account type, including depository, credit, loan, investment, or brokerage |
+|   ↳ `subtype` | string | Account subtype, e.g. checking, savings, credit card |
+|   ↳ `balances` | object | Balances with available, current, limit, and iso_currency_code fields \(null where the institution does not report them\) |
+|     ↳ `available` | number | Funds available to spend or withdraw |
+|     ↳ `current` | number | Current balance |
+|     ↳ `limit` | number | Credit limit |
+|     ↳ `iso_currency_code` | string | ISO 4217 currency code |
+|     ↳ `unofficial_currency_code` | string | Unofficial currency code when ISO 4217 does not apply |
+|     ↳ `last_updated_datetime` | string | When the balance was last refreshed, when supplied by the institution |
+|   ↳ `verification_status` | string | Micro-deposit/database verification state; null or empty when neither verification method applies |
+|   ↳ `persistent_account_id` | string | Persistent account identifier when Plaid can provide one |
+|   ↳ `holder_category` | string | Whether the account holder is personal or business, when known |
 | `numbers` | object | Account and routing numbers grouped by scheme |
+|   ↳ `ach` | array | US account and routing numbers \(tokenized numbers stop working if the Item is deleted\) |
+|     ↳ `account_id` | string | Plaid account ID |
+|     ↳ `account` | string | ACH account number |
+|     ↳ `routing` | string | ACH routing number |
+|     ↳ `wire_routing` | string | Wire transfer routing number |
+|     ↳ `is_tokenized_account_number` | boolean | Whether the institution supplied a tokenized account number |
+|   ↳ `eft` | array | Canadian account, institution, and branch numbers |
+|     ↳ `account_id` | string | Plaid account ID |
+|     ↳ `account` | string | EFT account number |
+|     ↳ `institution` | string | EFT institution number |
+|     ↳ `branch` | string | EFT branch number |
+|   ↳ `international` | array | International IBAN and BIC values |
+|     ↳ `account_id` | string | Plaid account ID |
+|     ↳ `iban` | string | International Bank Account Number \(IBAN\) |
+|     ↳ `bic` | string | Business Identifier Code \(BIC\) |
+|   ↳ `bacs` | array | UK account numbers and sort codes |
+|     ↳ `account_id` | string | Plaid account ID |
+|     ↳ `account` | string | Bacs account number |
+|     ↳ `sort_code` | string | Bacs sort code |
 
 ### Plaid Get Item
 
@@ -150,7 +330,38 @@ Get metadata and health status for a linked Item, including its institution, ena
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `item` | object | Item metadata |
+|   ↳ `item_id` | string | Unique ID of the Item |
+|   ↳ `institution_id` | string | Plaid institution ID the Item is linked to |
+|   ↳ `institution_name` | string | Name of the linked institution |
+|   ↳ `webhook` | string | Webhook URL set on the Item |
+|   ↳ `error` | object | Plaid error state for the Item, or null when healthy |
+|     ↳ `error_type` | string | Broad Plaid error category |
+|     ↳ `error_code` | string | Programmatic Plaid error code |
+|     ↳ `error_message` | string | Developer-facing error message |
+|     ↳ `display_message` | string | User-facing error message |
+|     ↳ `error_code_reason` | string | More specific OAuth error reason, when available |
+|     ↳ `request_id` | string | Plaid request ID for troubleshooting |
+|     ↳ `status` | number | HTTP status associated with an error delivered by webhook |
+|     ↳ `documentation_url` | string | Plaid documentation URL for this error |
+|     ↳ `suggested_action` | string | Suggested steps for resolving the error |
+|     ↳ `required_account_subtypes` | array | Account subtypes requested for the Item |
+|     ↳ `provided_account_subtypes` | array | Account subtypes found but not requested for the Item |
+|   ↳ `available_products` | array | Products available but not yet billed for the Item |
+|   ↳ `billed_products` | array | Products the Item has been billed for |
+|   ↳ `products` | array | All products added to the Item |
+|   ↳ `consent_expiration_time` | string | When access consent expires, if the institution enforces expiration |
+|   ↳ `update_type` | string | Item update type \(background or user_present_required\) |
+|   ↳ `created_at` | string | When the Item was created |
 | `status` | object | Item health: last successful/failed transaction and investment updates and the last webhook fired |
+|   ↳ `transactions` | object | Last successful and failed Transactions updates |
+|     ↳ `last_successful_update` | string | Timestamp of the last successful product update |
+|     ↳ `last_failed_update` | string | Timestamp of the last failed product update |
+|   ↳ `investments` | object | Last successful and failed Investments updates |
+|     ↳ `last_successful_update` | string | Timestamp of the last successful product update |
+|     ↳ `last_failed_update` | string | Timestamp of the last failed product update |
+|   ↳ `last_webhook` | object | The last webhook fired for the Item |
+|     ↳ `sent_at` | string | Timestamp when the webhook was fired |
+|     ↳ `code_sent` | string | The last webhook code sent |
 
 ### Plaid Search Institutions
 
@@ -169,6 +380,14 @@ Search financial institutions supported by Plaid by name, returning at most 10
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `institutions` | array | Institutions matching the search |
+|   ↳ `institution_id` | string | Unique Plaid institution ID |
+|   ↳ `name` | string | Institution name |
+|   ↳ `products` | array | Plaid products the institution supports |
+|   ↳ `country_codes` | array | Countries the institution operates in |
+|   ↳ `url` | string | Institution website URL |
+|   ↳ `primary_color` | string | Institution brand color \(hex\) |
+|   ↳ `routing_numbers` | array | Known routing numbers for the institution |
+|   ↳ `oauth` | boolean | Whether the institution uses an OAuth login flow |
 | `count` | number | Number of institutions returned |
 
 ### Plaid Get Institution
@@ -187,5 +406,13 @@ Get details for a financial institution by its Plaid institution ID
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `institution` | object | Institution details |
+|   ↳ `institution_id` | string | Unique Plaid institution ID |
+|   ↳ `name` | string | Institution name |
+|   ↳ `products` | array | Plaid products the institution supports |
+|   ↳ `country_codes` | array | Countries the institution operates in |
+|   ↳ `url` | string | Institution website URL |
+|   ↳ `primary_color` | string | Institution brand color \(hex\) |
+|   ↳ `routing_numbers` | array | Known routing numbers for the institution |
+|   ↳ `oauth` | boolean | Whether the institution uses an OAuth login flow |
 
 

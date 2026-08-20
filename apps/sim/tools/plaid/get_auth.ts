@@ -1,12 +1,14 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetAuthParams, PlaidGetAuthResponse } from '@/tools/plaid/types'
 import {
+  PLAID_ACCOUNT_OUTPUT_PROPERTIES,
+  PLAID_NUMBERS_OUTPUT_PROPERTIES,
+} from '@/tools/plaid/types'
+import {
   buildPlaidInternalBody,
   mapPlaidAccount,
   mapPlaidNumbers,
-  plaidAccountOutputProperties,
   plaidBaseParamFields,
-  plaidNumbersOutputProperties,
   plaidRecord,
   requirePlaidArrayField,
   splitPlaidList,
@@ -47,7 +49,7 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'auth')
-    const accounts = requirePlaidArrayField(data, 'accounts', 'auth.accounts')
+    const accounts = requirePlaidArrayField(data, 'accounts', 'auth.accounts', 500)
     return {
       success: true,
       output: {
@@ -63,12 +65,12 @@ export const plaidGetAuthTool: ToolConfig<PlaidGetAuthParams, PlaidGetAuthRespon
     accounts: {
       type: 'array',
       description: 'Depository accounts on the Item',
-      items: { type: 'object', properties: plaidAccountOutputProperties },
+      items: { type: 'object', properties: PLAID_ACCOUNT_OUTPUT_PROPERTIES },
     },
     numbers: {
       type: 'object',
       description: 'Account and routing numbers grouped by scheme',
-      properties: plaidNumbersOutputProperties,
+      properties: PLAID_NUMBERS_OUTPUT_PROPERTIES,
     },
   },
 }

@@ -8,6 +8,7 @@ import type {
   SelectorOption,
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
+import { parsePlaidCountryCodes } from '@/tools/plaid/utils'
 
 type PlaidSelectorKey = Extract<SelectorKey, 'plaid.accounts' | 'plaid.institutions'>
 
@@ -27,6 +28,15 @@ async function fetchAccountOptions(args: SelectorQueryArgs): Promise<SelectorOpt
     signal: args.signal,
   })
   return data.options
+}
+
+function plaidCountryQueryKey(value: string | undefined): string {
+  const normalized = value
+    ?.split(',')
+    .map((code) => code.trim().toUpperCase())
+    .filter(Boolean)
+    .join(',')
+  return normalized || 'US'
 }
 
 export const plaidSelectors = {
@@ -57,6 +67,7 @@ export const plaidSelectors = {
       'plaid.institutions',
       context.workspaceId ?? 'none',
       context.plaidCredentialId ?? 'none',
+      plaidCountryQueryKey(context.countryCodes),
       search ?? 'none',
       detailId ?? 'none',
     ],
@@ -73,7 +84,7 @@ export const plaidSelectors = {
           kind: 'institution_search',
           ...scope,
           query,
-          country_codes: ['US'],
+          country_codes: parsePlaidCountryCodes(context.countryCodes),
         },
         signal,
       })
@@ -87,7 +98,7 @@ export const plaidSelectors = {
           kind: 'institution_detail',
           ...scope,
           institution_id: detailId.trim(),
-          country_codes: ['US'],
+          country_codes: parsePlaidCountryCodes(context.countryCodes),
         },
         signal,
       })

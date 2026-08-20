@@ -16505,6 +16505,57 @@
       "tags": ["enrichment", "data-analytics"]
     },
     {
+      "type": "plaid",
+      "slug": "plaid",
+      "name": "Plaid",
+      "description": "Read bank accounts, balances, transactions, and identity data via Plaid",
+      "longDescription": "Connect a reusable Plaid Item credential to sync categorized transactions, list linked bank accounts, fetch balances and account numbers, retrieve account-holder identity, inspect Item health, and look up supported institutions.",
+      "bgColor": "#111111",
+      "iconName": "PlaidIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/plaid",
+      "operations": [
+        {
+          "name": "Sync Transactions",
+          "description": "Incrementally sync transactions for a linked Item. Omit the cursor on the first call to get full history, then pass the returned cursor to fetch only changes; loop while hasMore is true. If Plaid returns TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION, discard the pages from the current batch and restart the loop from the cursor the batch started with"
+        },
+        {
+          "name": "Get Accounts",
+          "description": "List the accounts linked to an Item with their names, types, and balances. Balances may be cached; use Get Balances for real-time values"
+        },
+        {
+          "name": "Get Balances",
+          "description": "Get real-time balances for the accounts linked to an Item. The live institution fetch is usually under 10 seconds but can take 30 seconds or more"
+        },
+        {
+          "name": "Get Identity",
+          "description": "Get account-holder identity information (names, emails, phone numbers, and addresses) for the accounts linked to an Item"
+        },
+        {
+          "name": "Get Auth Numbers",
+          "description": "Get account and routing numbers for depository accounts linked to an Item (ACH for US, EFT for Canada, BACS for UK, IBAN/BIC internationally). Check verification_status before use; null or empty means neither micro-deposit nor database verification applies"
+        },
+        {
+          "name": "Get Item",
+          "description": "Get metadata and health status for a linked Item, including its institution, enabled products, and any error state"
+        },
+        {
+          "name": "Search Institutions",
+          "description": "Search financial institutions supported by Plaid by name, returning at most 10"
+        },
+        {
+          "name": "Get Institution",
+          "description": "Get details for a financial institution by its Plaid institution ID"
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments"]
+    },
+    {
       "type": "polymarket",
       "slug": "polymarket",
       "name": "Polymarket",

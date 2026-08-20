@@ -91,6 +91,56 @@ describe('Plaid selectors', () => {
     })
   })
 
+  it('normalizes selected countries into requests and isolates them in the query key', async () => {
+    const countryArgs = args({
+      key: 'plaid.institutions',
+      search: 'bank',
+      context: {
+        workspaceId: 'workspace-1',
+        plaidCredentialId: 'credential-1',
+        countryCodes: ' ca, gb ',
+      },
+    })
+    mockRequestJson.mockResolvedValue({ options: [] })
+
+    expect(institutions.getQueryKey(countryArgs)).toContain('CA,GB')
+    await institutions.fetchList?.(countryArgs)
+    await institutions.fetchById?.({ ...countryArgs, search: undefined, detailId: 'ins-1' })
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ body: expect.objectContaining({ country_codes: ['CA', 'GB'] }) })
+    )
+    expect(mockRequestJson).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.objectContaining({
+          kind: 'institution_detail',
+          institution_id: 'ins-1',
+          country_codes: ['CA', 'GB'],
+        }),
+      })
+    )
+  })
+
+  it('defaults countries to US and rejects malformed country codes', async () => {
+    expect(institutions.getQueryKey(args({ key: 'plaid.institutions', search: 'bank' }))).toContain(
+      'US'
+    )
+    await expect(
+      institutions.fetchList?.(
+        args({
+          key: 'plaid.institutions',
+          search: 'bank',
+          context: {
+            workspaceId: 'workspace-1',
+            plaidCredentialId: 'credential-1',
+            countryCodes: 'ZZ',
+          },
+        })
+      )
+    ).rejects.toThrow('countryCodes contains unsupported Plaid country code: ZZ')
+  })
+
   it('does not issue an unbounded institution search', async () => {
     await expect(
       institutions.fetchList?.(args({ key: 'plaid.institutions', search: '   ' }))

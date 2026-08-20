@@ -1,9 +1,9 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetAccountsParams, PlaidGetAccountsResponse } from '@/tools/plaid/types'
+import { PLAID_ACCOUNT_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidAccount,
-  plaidAccountOutputProperties,
   plaidBaseParamFields,
   plaidRecord,
   requirePlaidArrayField,
@@ -45,7 +45,7 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'accounts')
-    const accounts = requirePlaidArrayField(data, 'accounts', 'accounts.accounts')
+    const accounts = requirePlaidArrayField(data, 'accounts', 'accounts.accounts', 500)
     const mapped = accounts.map((account, index) =>
       mapPlaidAccount(account, `accounts.accounts[${index}]`)
     )
@@ -62,7 +62,7 @@ export const plaidGetAccountsTool: ToolConfig<PlaidGetAccountsParams, PlaidGetAc
     accounts: {
       type: 'array',
       description: 'Accounts linked to the Item',
-      items: { type: 'object', properties: plaidAccountOutputProperties },
+      items: { type: 'object', properties: PLAID_ACCOUNT_OUTPUT_PROPERTIES },
     },
     count: { type: 'number', description: 'Number of accounts returned' },
   },

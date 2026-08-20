@@ -152,6 +152,15 @@ describe('buildSelectorContextFromBlock', () => {
     ).toBe('advanced-team')
   })
 
+  it('exposes Plaid country codes to the institution selector', () => {
+    const ctx = buildSelectorContextFromBlock('plaid', {
+      operation: { id: 'operation', type: 'dropdown', value: 'search_institutions' },
+      countryCodes: { id: 'countryCodes', type: 'short-input', value: 'US,CA' },
+    })
+
+    expect(ctx.countryCodes).toBe('US,CA')
+  })
+
   it('should ignore subblock keys not in SELECTOR_CONTEXT_FIELDS', () => {
     const ctx = buildSelectorContextFromBlock('knowledge', {
       operation: { id: 'operation', type: 'dropdown', value: 'search' },

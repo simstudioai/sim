@@ -1,12 +1,14 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetItemParams, PlaidGetItemResponse } from '@/tools/plaid/types'
 import {
+  PLAID_ITEM_OUTPUT_PROPERTIES,
+  PLAID_ITEM_STATUS_OUTPUT_PROPERTIES,
+} from '@/tools/plaid/types'
+import {
   buildPlaidInternalBody,
   mapPlaidItem,
   mapPlaidItemStatus,
   plaidBaseParamFields,
-  plaidItemOutputProperties,
-  plaidItemStatusOutputProperties,
   plaidRecord,
 } from '@/tools/plaid/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -47,7 +49,7 @@ export const plaidGetItemTool: ToolConfig<PlaidGetItemParams, PlaidGetItemRespon
     item: {
       type: 'object',
       description: 'Item metadata',
-      properties: plaidItemOutputProperties,
+      properties: PLAID_ITEM_OUTPUT_PROPERTIES,
     },
     status: {
       type: 'object',
@@ -55,7 +57,7 @@ export const plaidGetItemTool: ToolConfig<PlaidGetItemParams, PlaidGetItemRespon
         'Item health: last successful/failed transaction and investment updates and the last webhook fired',
       optional: true,
       nullable: true,
-      properties: plaidItemStatusOutputProperties,
+      properties: PLAID_ITEM_STATUS_OUTPUT_PROPERTIES,
     },
   },
 }

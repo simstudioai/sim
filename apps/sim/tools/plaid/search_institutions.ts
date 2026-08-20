@@ -3,13 +3,13 @@ import type {
   PlaidSearchInstitutionsParams,
   PlaidSearchInstitutionsResponse,
 } from '@/tools/plaid/types'
+import { PLAID_INSTITUTION_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidInstitution,
   parsePlaidCountryCodes,
   parsePlaidProducts,
   plaidBaseParamFields,
-  plaidInstitutionOutputProperties,
   plaidRecord,
   requirePlaidArrayField,
   requirePlaidInputString,
@@ -67,7 +67,8 @@ export const plaidSearchInstitutionsTool: ToolConfig<
     const institutions = requirePlaidArrayField(
       data,
       'institutions',
-      'institution search.institutions'
+      'institution search.institutions',
+      10
     )
     const mapped = institutions.map((institution, index) =>
       mapPlaidInstitution(institution, `institution search.institutions[${index}]`)
@@ -85,7 +86,7 @@ export const plaidSearchInstitutionsTool: ToolConfig<
     institutions: {
       type: 'array',
       description: 'Institutions matching the search',
-      items: { type: 'object', properties: plaidInstitutionOutputProperties },
+      items: { type: 'object', properties: PLAID_INSTITUTION_OUTPUT_PROPERTIES },
     },
     count: { type: 'number', description: 'Number of institutions returned' },
   },

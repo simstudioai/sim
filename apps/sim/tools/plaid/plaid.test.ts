@@ -111,7 +111,7 @@ describe('PlaidBlock tools.config.params', () => {
     ).toMatchObject({
       selectorKey: 'plaid.institutions',
       canonicalParamId: 'institutionId',
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'countryCodes'],
     })
     expect(
       PlaidBlock.subBlocks.find((subBlock) => subBlock.id === 'manualInstitutionId')
@@ -226,14 +226,14 @@ describe('plaid_sync_transactions request body', () => {
   if (!body) throw new Error('sync tool body builder missing')
 
   it('drops null and empty optionals arriving from LLM tool calls', () => {
-    const result = body({
+    const request = prepareToolRequest(plaidSyncTransactionsTool, {
       ...runtimeCreds,
       cursor: undefined,
       count: null as unknown as number,
       includeOriginalDescription: null as unknown as boolean,
       daysRequested: undefined,
     })
-    expect(JSON.parse(JSON.stringify(result))).toEqual({
+    expect(JSON.parse(request.body ?? '')).toEqual({
       operation: 'plaid_sync_transactions',
       credentialId: 'cred_plaid_item_1',
       input: {},
@@ -241,12 +241,12 @@ describe('plaid_sync_transactions request body', () => {
   })
 
   it('coerces string-typed count and boolean, nesting options only when needed', () => {
-    const result = body({
+    const request = prepareToolRequest(plaidSyncTransactionsTool, {
       ...runtimeCreds,
       count: '100' as unknown as number,
       includeOriginalDescription: 'true' as unknown as boolean,
     })
-    expect(JSON.parse(JSON.stringify(result))).toEqual({
+    expect(JSON.parse(request.body ?? '')).toEqual({
       operation: 'plaid_sync_transactions',
       credentialId: 'cred_plaid_item_1',
       input: { count: 100, include_original_description: true },
@@ -345,6 +345,50 @@ describe('Plaid endpoint success contracts', () => {
     await expect(transform(plaidGetIdentityTool, { accounts: [account] })).rejects.toThrow(
       'identity.accounts[0].owners must be an array'
     )
+  })
+
+  it.each([
+    ['accounts', plaidGetAccountsTool, { accounts: Array(501).fill(account) }, 'accounts.accounts'],
+    ['balances', plaidGetBalancesTool, { accounts: Array(501).fill(account) }, 'balances.accounts'],
+    [
+      'identity',
+      plaidGetIdentityTool,
+      { accounts: Array(501).fill({ ...account, owners: [] }) },
+      'identity.accounts',
+    ],
+    [
+      'auth',
+      plaidGetAuthTool,
+      {
+        accounts: Array(501).fill(account),
+        numbers: { ach: [], eft: [], international: [], bacs: [] },
+      },
+      'auth.accounts',
+    ],
+  ])('bounds %s responses before normalizing them', async (_label, tool, response, path) => {
+    await expect(transform(tool, response)).rejects.toThrow(
+      `${path} must contain at most 500 items`
+    )
+  })
+
+  it('bounds institution and combined transaction-sync collections', async () => {
+    await expect(
+      transform(plaidSearchInstitutionsTool, { institutions: Array(11).fill(institution) })
+    ).rejects.toThrow('institution search.institutions must contain at most 10 items')
+
+    await expect(
+      transform(plaidSyncTransactionsTool, {
+        added: [],
+        modified: [],
+        removed: Array.from({ length: 501 }, (_, index) => ({
+          transaction_id: `txn_${index}`,
+          account_id: 'acc_1',
+        })),
+        next_cursor: '',
+        has_more: false,
+        transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+      })
+    ).rejects.toThrow('transaction sync must contain at most 500 updates')
   })
 
   it('requires every Auth number scheme even when each is legitimately empty', async () => {

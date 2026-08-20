@@ -4,7 +4,22 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { PlaidResponse } from '@/tools/plaid/types'
 import { toPlaidOptionalBoolean, toPlaidOptionalNumber } from '@/tools/plaid/utils'
 
-const ACCOUNT_FILTER_OPERATIONS = ['get_accounts', 'get_balances', 'get_identity', 'get_auth']
+type PlaidOperation =
+  | 'sync_transactions'
+  | 'get_accounts'
+  | 'get_balances'
+  | 'get_identity'
+  | 'get_auth'
+  | 'get_item'
+  | 'search_institutions'
+  | 'get_institution'
+
+const ACCOUNT_FILTER_OPERATIONS = [
+  'get_accounts',
+  'get_balances',
+  'get_identity',
+  'get_auth',
+] satisfies PlaidOperation[]
 
 export const PlaidBlock: BlockConfig<PlaidResponse> = {
   type: 'plaid',
@@ -107,7 +122,7 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       serviceId: 'plaid',
       canonicalParamId: 'institutionId',
       placeholder: 'Search Plaid institutions',
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'countryCodes'],
       mode: 'basic',
       condition: {
         field: 'operation',
@@ -142,7 +157,10 @@ export const PlaidBlock: BlockConfig<PlaidResponse> = {
       type: 'short-input',
       placeholder: 'Comma-separated, defaults to US',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['search_institutions', 'get_institution'] },
+      condition: {
+        field: 'operation',
+        value: ['search_institutions', 'get_institution'] satisfies PlaidOperation[],
+      },
     },
     {
       id: 'products',
@@ -399,7 +417,7 @@ export const PlaidBlockMeta = {
       icon: PlaidIcon,
       title: 'Plaid ACH payment setup',
       prompt:
-        'Build a workflow that checks account verification status, fetches account and routing numbers for an eligible linked Plaid Item, and passes them directly to the payment step without storing the numbers.',
+        'Build a workflow that checks account verification status, fetches account and routing numbers only for an eligible linked Plaid Item, passes them directly to an approved non-Plaid-partner payment processor, and never logs or persists the numbers.',
       modules: ['workflows'],
       category: 'operations',
       tags: ['automation'],

@@ -110,6 +110,7 @@ export interface SelectorContext {
   workflowId?: string
   oauthCredential?: string
   plaidCredentialId?: string
+  countryCodes?: string
   serviceId?: string
   domain?: string
   teamId?: string

@@ -1,11 +1,13 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { PlaidGetIdentityParams, PlaidGetIdentityResponse } from '@/tools/plaid/types'
 import {
+  PLAID_ACCOUNT_OUTPUT_PROPERTIES,
+  PLAID_IDENTITY_OWNER_OUTPUT_PROPERTIES,
+} from '@/tools/plaid/types'
+import {
   buildPlaidInternalBody,
   mapPlaidIdentityAccount,
-  plaidAccountOutputProperties,
   plaidBaseParamFields,
-  plaidIdentityOwnerOutputProperties,
   plaidRecord,
   requirePlaidArrayField,
   splitPlaidList,
@@ -46,7 +48,7 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
 
   transformResponse: async (response) => {
     const data = await plaidRecord(response, 'identity')
-    const accounts = requirePlaidArrayField(data, 'accounts', 'identity.accounts')
+    const accounts = requirePlaidArrayField(data, 'accounts', 'identity.accounts', 500)
     const mapped = accounts.map((account, index) =>
       mapPlaidIdentityAccount(account, `identity.accounts[${index}]`)
     )
@@ -66,11 +68,11 @@ export const plaidGetIdentityTool: ToolConfig<PlaidGetIdentityParams, PlaidGetId
       items: {
         type: 'object',
         properties: {
-          ...plaidAccountOutputProperties,
+          ...PLAID_ACCOUNT_OUTPUT_PROPERTIES,
           owners: {
             type: 'array',
             description: 'Account owners with names, phone numbers, emails, and addresses',
-            items: { type: 'object', properties: plaidIdentityOwnerOutputProperties },
+            items: { type: 'object', properties: PLAID_IDENTITY_OWNER_OUTPUT_PROPERTIES },
           },
         },
       },

@@ -3,13 +3,13 @@ import type {
   PlaidSyncTransactionsParams,
   PlaidSyncTransactionsResponse,
 } from '@/tools/plaid/types'
+import { PLAID_TRANSACTION_OUTPUT_PROPERTIES } from '@/tools/plaid/types'
 import {
   buildPlaidInternalBody,
   mapPlaidRemovedTransaction,
   mapPlaidTransaction,
   plaidBaseParamFields,
   plaidRecord,
-  plaidTransactionOutputProperties,
   requirePlaidArrayField,
   requirePlaidBooleanField,
   requirePlaidStringField,
@@ -96,6 +96,9 @@ export const plaidSyncTransactionsTool: ToolConfig<
     const added = requirePlaidArrayField(data, 'added', 'transaction sync.added')
     const modified = requirePlaidArrayField(data, 'modified', 'transaction sync.modified')
     const removed = requirePlaidArrayField(data, 'removed', 'transaction sync.removed')
+    if (added.length + modified.length + removed.length > 500) {
+      throw new Error('transaction sync must contain at most 500 updates')
+    }
     return {
       success: true,
       output: {
@@ -123,12 +126,12 @@ export const plaidSyncTransactionsTool: ToolConfig<
     added: {
       type: 'array',
       description: 'Transactions added since the cursor',
-      items: { type: 'object', properties: plaidTransactionOutputProperties },
+      items: { type: 'object', properties: PLAID_TRANSACTION_OUTPUT_PROPERTIES },
     },
     modified: {
       type: 'array',
       description: 'Transactions modified since the cursor',
-      items: { type: 'object', properties: plaidTransactionOutputProperties },
+      items: { type: 'object', properties: PLAID_TRANSACTION_OUTPUT_PROPERTIES },
     },
     removed: {
       type: 'array',
