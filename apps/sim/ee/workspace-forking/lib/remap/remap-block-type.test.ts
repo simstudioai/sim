@@ -1,10 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 import {
+  applyDependentOverrides,
+  customBlockInputStorageKey,
   type ForkReferenceResolver,
+  reconfigurableDependentIds,
   remapForkBlockType,
+  replaceCustomBlockInputs,
   scanWorkflowReferences,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 
@@ -115,5 +120,155 @@ describe('scanWorkflowReferences with custom blocks', () => {
       emptyResolver
     )
     expect(scan.unmapped).toHaveLength(1)
+  })
+})
+
+describe('replaceCustomBlockInputs target carry-over', () => {
+  /** The source block's inputs, keyed by the SOURCE block's field ids. */
+  const sourceSubBlocks = {
+    workflowId: { value: 'wf-prod' },
+    invoice: { value: 'from prod' },
+  }
+  const key = (fieldType: string, fieldId: string) =>
+    customBlockInputStorageKey(UAT_BLOCK, fieldType, fieldId)
+
+  it('keeps an input the modal cannot configure when the target is already this block', () => {
+    // A `file[]` input is an upload on the canvas, so it never has a stored override. Before
+    // the carry-over every sync rebuilt the block without it and silently dropped the files.
+    const result = replaceCustomBlockInputs(
+      sourceSubBlocks,
+      new Map([[key('string', 'vendor'), 'Acme']]),
+      UAT_BLOCK,
+      {
+        type: UAT_BLOCK,
+        subBlocks: {
+          attachments: { value: ['uat-file-1'] },
+          vendor: { value: 'stale' },
+        },
+      }
+    )
+    expect(result.attachments).toEqual({ value: ['uat-file-1'] })
+    // A configured value still wins over the target's own.
+    expect(result.vendor).toEqual({ value: 'Acme' })
+  })
+
+  it('carries nothing over when the target currently holds a DIFFERENT custom block', () => {
+    // The target's field ids describe another workflow's Start fields; keeping them is exactly
+    // the orphaning this function exists to prevent.
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK, {
+      type: 'custom_block_someotherxyz',
+      subBlocks: { attachments: { value: ['other-file'] } },
+    })
+    expect(result.attachments).toBeUndefined()
+  })
+
+  it('carries nothing over for a non-custom target block', () => {
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK, {
+      type: 'agent',
+      subBlocks: { systemPrompt: { value: 'hello' } },
+    })
+    expect(result.systemPrompt).toBeUndefined()
+  })
+
+  it('lets an explicitly emptied field clear the target value', () => {
+    // `''` is a stored override, not an absent one — so clearing a field in the modal is a
+    // real edit rather than a silent no-op.
+    const result = replaceCustomBlockInputs(
+      sourceSubBlocks,
+      new Map([[key('string', 'vendor'), '']]),
+      UAT_BLOCK,
+      { type: UAT_BLOCK, subBlocks: { vendor: { value: 'previous' } } }
+    )
+    expect(result.vendor).toEqual({ value: '' })
+  })
+
+  it('takes reserved wiring from the source, never the target', () => {
+    // `workflowId`/`inputMapping` are recomputed by the serializer; the target's copy is stale
+    // the moment the mapping changes.
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK, {
+      type: UAT_BLOCK,
+      subBlocks: { workflowId: { value: 'wf-stale-uat' } },
+    })
+    expect(result.workflowId).toEqual({ value: 'wf-prod' })
+  })
+
+  it('still drops the source block-keyed inputs with no target to carry over', () => {
+    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK)
+    expect(result.invoice).toBeUndefined()
+    expect(result.workflowId).toEqual({ value: 'wf-prod' })
+  })
+})
+
+describe('reconfigurableDependentIds', () => {
+  const SUBS = [
+    { id: 'credential', type: 'oauth-input' },
+    { id: 'issueType', type: 'short-input', dependsOn: ['credential'] },
+    { id: 'notes', type: 'long-input', dependsOn: ['credential'] },
+    {
+      id: 'labelId',
+      type: 'file-selector',
+      dependsOn: ['credential'],
+      selectorKey: 'gmail.labels',
+    },
+    {
+      id: 'projectId',
+      type: 'project-selector',
+      dependsOn: ['credential'],
+      selectorKey: 'jira.projects',
+      canonicalParamId: 'projectId',
+    },
+    {
+      id: 'manualProjectId',
+      type: 'short-input',
+      dependsOn: ['credential'],
+      canonicalParamId: 'projectId',
+    },
+    { id: 'watchColumns', type: 'dropdown', dependsOn: ['credential'] },
+    { id: 'standalone', type: 'short-input' },
+  ]
+
+  it('offers selector-backed and plain text dependents', () => {
+    const allowed = reconfigurableDependentIds(SUBS)
+    expect([...allowed].sort()).toEqual(['issueType', 'labelId', 'notes', 'projectId'])
+  })
+
+  it('excludes the manual half of a selector-backed canonical pair', () => {
+    expect(reconfigurableDependentIds(SUBS).has('manualProjectId')).toBe(false)
+  })
+
+  it('excludes a dependent the modal can render no control for', () => {
+    // A `dropdown` with no selector has options to fetch and no way to fetch them here.
+    expect(reconfigurableDependentIds(SUBS).has('watchColumns')).toBe(false)
+  })
+
+  it('excludes a field that depends on nothing', () => {
+    expect(reconfigurableDependentIds(SUBS).has('standalone')).toBe(false)
+  })
+
+  it('is the SAME set the sync actually writes back', () => {
+    // The collector offers these and `applyDependentOverrides` writes them. Encoding the rule
+    // twice is what let text dependents be collected, stored, gated on — then silently dropped
+    // on apply, leaving the field wiped on every push with nowhere for the value to go.
+    vi.mocked(getBlock).mockReturnValue({ type: 'jira', subBlocks: SUBS } as never)
+    const applied = applyDependentOverrides(
+      {
+        issueType: { value: 'old' },
+        labelId: { value: 'old' },
+        manualProjectId: { value: 'keep-me' },
+        watchColumns: { value: 'keep-me' },
+      },
+      'jira',
+      new Map([
+        ['issueType', 'Bug'],
+        ['labelId', 'LABEL_1'],
+        ['manualProjectId', 'hacked'],
+        ['watchColumns', 'hacked'],
+      ])
+    )
+    expect(applied.issueType).toEqual({ value: 'Bug' })
+    expect(applied.labelId).toEqual({ value: 'LABEL_1' })
+    // Not offered, so not writable — an override naming one must not slip through.
+    expect(applied.manualProjectId).toEqual({ value: 'keep-me' })
+    expect(applied.watchColumns).toEqual({ value: 'keep-me' })
   })
 })

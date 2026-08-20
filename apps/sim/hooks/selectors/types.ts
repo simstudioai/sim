@@ -20,6 +20,15 @@ export type SelectorKey =
   | 'clickup.lists'
   | 'confluence.spaces'
   | 'google.tasks.lists'
+  | 'managedAgent.agents'
+  | 'managedAgent.environments'
+  | 'managedAgent.vaults'
+  | 'managedAgent.memoryStores'
+  | 'hubspot.lists'
+  | 'hubspot.owners'
+  | 'hubspot.pipelines'
+  | 'hubspot.pipelineStages'
+  | 'hubspot.properties'
   | 'jsm.requestTypes'
   | 'jsm.serviceDesks'
   | 'microsoft.planner.plans'
@@ -76,6 +85,15 @@ export type SelectorKey =
   | 'monday.groups'
   | 'sim.workflows'
   | 'table.columns'
+  | 'workspace.credentialProviders'
+  | 'workspace.credentialGroups'
+  | 'workspace.credentialGroupProviders'
+  | 'workspace.secretNames'
+  | 'workspace.rawSecretNames'
+  | 'workspace.sandboxes'
+  | 'workspace.triggerTypes'
+  | 'imap.mailboxes'
+  | 'providers.openrouterEmbeddingModels'
 
 export interface SelectorOption {
   id: string
@@ -125,6 +143,34 @@ export interface SelectorContext {
   orgId?: string
   /** Bitbucket Cloud workspace slug that scopes repository discovery. */
   workspaceSlug?: string
+  /**
+   * HubSpot CRM object the pickers are scoped to (`contact` | `deal` | … | `custom`). Left
+   * unset until the user picks one; the selectors apply HubSpot's own `contact` default so an
+   * untouched dropdown still lists properties for what it visibly shows.
+   */
+  objectType?: string
+  /** HubSpot custom object type id (e.g. `2-12345`), used when `objectType` is `custom`. */
+  customObjectTypeId?: string
+  /** HubSpot pipeline whose stages a stage picker enumerates. */
+  pipelineId?: string
+  /**
+   * Managed Agent deployment mode (`cloud` | `self_hosted`). The two expose different fields,
+   * so an environment list is filtered to the selected mode rather than mixing them.
+   */
+  environmentType?: string
+  /** Credential group whose per-provider filter a picker enumerates. */
+  credentialGroupId?: string
+  /** Function block runtime (`python` | `javascript` | `shell`), scoping the sandbox list. */
+  language?: string
+  /**
+   * IMAP connection parameters. `imapPassword` is a raw secret, so unlike `oauthCredential` —
+   * which is only an id — it must NEVER appear in a query key; see `imap.mailboxes`.
+   */
+  host?: string
+  port?: string
+  secure?: string
+  username?: string
+  password?: string
 }
 
 export interface SelectorQueryArgs {

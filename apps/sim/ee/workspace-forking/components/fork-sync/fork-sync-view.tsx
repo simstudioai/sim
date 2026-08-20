@@ -6,7 +6,7 @@ import {
   ChevronDown,
   Chip,
   ChipCombobox,
-  ChipModalField,
+  ChipInput,
   ChipSwitch,
   CollapsibleCard,
   cn,
@@ -34,9 +34,11 @@ import {
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
 import {
+  CUSTOM_BLOCK_UNSUPPORTED_HINT,
   customBlockBooleanOptions,
-  customBlockInputControl,
+  forkDependentControl,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
+import { CustomBlockInputField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-field'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
 import {
   applyDependentRepick,
@@ -219,35 +221,60 @@ function DependentSelector({
       : effectiveDependentValue(f, state, parentChanged)
   const baselineValueFor = (f: ForkDependentReconfig) => effectiveValueIn(f, {})
   const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
-  if (isCustomBlockInput) {
-    // Not a selector: there is no parent resource to browse and no options to fetch, just the
-    // target block's own declared input. Rendered as a plain field so the user types the value
-    // the repointed block should run with. Structured types get a textarea because their value
-    // is JSON, matching how `subBlockTypeForField` renders them on the canvas.
+  // A dependent with no selector has no parent resource to browse and no options to fetch —
+  // just a value to type. That is every custom-block input, and also a plain text field under
+  // a remapped credential (a Jira issue type, a Notion block id), which the sync clears on
+  // every push and so must be re-settable here.
+  if (!field.selectorKey) {
+    // Renders a BARE control, like `DependentFieldSelector` does — the row wrapper above
+    // already draws the field's label and required marker, so a labelled `ChipModalField`
+    // printed the title twice.
     const setValue = (value: string) =>
       setReconfig((current) => ({ ...current, [dependentKey(field)]: value }))
     const value = effectiveValue(field)
-    const shared = { title: field.title, required: field.required }
-    switch (customBlockInputControl(field.fieldType)) {
+    switch (forkDependentControl(field)) {
       case 'switch':
         return (
-          <ChipModalField {...shared} type='custom'>
-            <ChipSwitch
-              options={customBlockBooleanOptions(field.required)}
-              // Passed through unmapped: an unset field is `''`, which matches neither
-              // segment, so the switch renders with nothing selected. Coercing it to False
-              // would show a required flag as configured while the Sync gate still reads it
-              // as empty — the display-versus-gate split this whole carve-out exists to avoid.
-              value={value}
-              onChange={setValue}
-              aria-label={field.title}
-            />
-          </ChipModalField>
+          <ChipSwitch
+            options={customBlockBooleanOptions(field.required)}
+            // Passed through unmapped: an unset field is `''`, which matches neither segment,
+            // so the switch renders with nothing selected. Coercing it to False would show a
+            // required flag as configured while the Sync gate still reads it as empty.
+            value={value}
+            onChange={setValue}
+            aria-label={field.title}
+          />
         )
       case 'textarea':
-        return <ChipModalField {...shared} type='textarea' value={value} onChange={setValue} />
+        return (
+          <CustomBlockInputField
+            field={field}
+            value={value}
+            onChange={setValue}
+            targetWorkspaceId={workspaceId}
+            multiline
+          />
+        )
+      case 'unsupported':
+        return (
+          <ChipInput
+            className='w-full'
+            value=''
+            onChange={() => {}}
+            disabled
+            placeholder={CUSTOM_BLOCK_UNSUPPORTED_HINT}
+            aria-label={field.title}
+          />
+        )
       default:
-        return <ChipModalField {...shared} type='input' value={value} onChange={setValue} />
+        return (
+          <CustomBlockInputField
+            field={field}
+            value={value}
+            onChange={setValue}
+            targetWorkspaceId={workspaceId}
+          />
+        )
     }
   }
 

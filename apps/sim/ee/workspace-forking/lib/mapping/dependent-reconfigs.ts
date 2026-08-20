@@ -25,6 +25,7 @@ import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block
 import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
 import {
   createCanonicalModeGates,
+  reconfigurableDependentIds,
   scanWorkflowReferences,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -130,6 +131,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   const canonicalIndex = buildCanonicalIndex(config.subBlocks)
   const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
   const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
+  // Shared with `applyDependentOverrides`, so what the modal offers is exactly what the sync
+  // can write back — the two encoded this rule separately once and drifted.
+  const reconfigurableIds = reconfigurableDependentIds(config.subBlocks)
   // A field could hang off two anchors (or be reachable via two paths); emit it once.
   const seen = new Set<string>()
 
@@ -167,7 +171,16 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
 
       for (const clear of getTransitiveSubBlockDependents(config.subBlocks, [anchorCfg.id])) {
         const dependent = configById.get(clear.subBlockId)
-        if (!dependent?.id || !dependent.selectorKey) continue
+        // A dependent is offered when the modal can actually render a control for it: a
+        // registered selector, or a plain text field. Anything else is skipped and the
+        // fork-dependent-coverage check keeps that set empty — see
+        // `scripts/check-fork-dependent-coverage.ts`.
+        //
+        // Text fields matter as much as selectors here. `clearDependentsOnRemap` wipes every
+        // transitive dependent of a remapped parent on EVERY sync (a credential mapped across
+        // environments changes value each time), so a field the modal never offered was
+        // re-emptied on every push and could not be fixed by setting it in the target either.
+        if (!dependent?.id || !reconfigurableIds.has(dependent.id)) continue
         // Skip fields gated off by their `condition` - a selector under a now-inactive
         // operation (e.g. a move-only label while the block reads) isn't in play. We do
         // NOT require a source value: an active selector the source left empty is still
@@ -233,7 +246,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           targetBlockId: resolveTargetBlockId(),
           blockName,
           subBlockKey: makeSubBlockKey(dependent.id),
-          selectorKey: dependent.selectorKey,
+          ...(dependent.selectorKey
+            ? { selectorKey: dependent.selectorKey }
+            : { fieldType: dependent.type }),
           title: makeTitle(dependent),
           ...(toolName ? { toolName } : {}),
           ...(dependencyScope ? { dependencyScope } : {}),

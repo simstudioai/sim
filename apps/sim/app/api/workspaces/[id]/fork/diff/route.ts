@@ -154,7 +154,7 @@ export const GET = withRouteHandler(
             forkDependentValueKey(field.targetWorkflowId, field.targetBlockId, field.subBlockKey)
           ) ??
           readTargetDraftDependentValue(
-            targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId),
+            targetDraftByWorkflow.get(field.targetWorkflowId)?.get(field.targetBlockId)?.subBlocks,
             sourceBlocksByTarget.get(field.targetWorkflowId)?.get(field.targetBlockId),
             field.subBlockKey
           ),

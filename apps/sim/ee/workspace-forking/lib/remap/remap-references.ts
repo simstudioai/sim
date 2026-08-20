@@ -299,15 +299,36 @@ export function parseCustomBlockInputStorageKey(key: string): ParsedCustomBlockI
  * skipped, so re-pointing a block twice never carries the first target's values into the
  * second. Reserved wiring (`workflowId`/`inputMapping`) is preserved untouched: those are
  * computed value-fns the serializer recomputes and never carries forward.
+ *
+ * `targetCurrent` is the block the sync is about to overwrite. When it is ALREADY the mapped
+ * type — the normal state of every sync after the one that set the mapping — its own values
+ * seed the result and the configured ones are layered on top. That is what stops a re-sync
+ * wiping an input the modal cannot offer a control for: a `file[]` field is an upload on the
+ * canvas, so it is only ever set there, and rebuilding the block from the stored overrides
+ * alone would blank it every single time. It also means a field the user simply left alone in
+ * the modal keeps the target's value rather than being cleared; a field they explicitly
+ * emptied stores `''`, which is an override and still wins.
+ *
+ * The type equality check is the whole safety property. Under a DIFFERENT current type the
+ * target's values are keyed by another block's field ids, which is exactly the orphaning this
+ * function exists to prevent — so nothing is carried over.
  */
 export function replaceCustomBlockInputs(
   subBlocks: SubBlockRecord,
   values: ReadonlyMap<string, string> | undefined,
-  targetType: string
+  targetType: string,
+  targetCurrent?: { type: string; subBlocks: SubBlockRecord }
 ): SubBlockRecord {
   const next: SubBlockRecord = {}
   for (const [key, subBlock] of Object.entries(subBlocks)) {
     if (RESERVED_PARAMS.has(key)) next[key] = subBlock
+  }
+  if (targetCurrent?.type === targetType) {
+    for (const [key, subBlock] of Object.entries(targetCurrent.subBlocks)) {
+      // Reserved wiring is taken from the SOURCE block above: it is recomputed by the
+      // serializer, and the target's copy is stale the moment the mapping changes.
+      if (!RESERVED_PARAMS.has(key)) next[key] = subBlock
+    }
   }
   for (const [key, value] of values ?? []) {
     const parsed = parseCustomBlockInputStorageKey(key)
@@ -1608,6 +1629,48 @@ function applyNestedToolOverrides(
  * set a parent/credential field (bypassing mapping validation) or inject a bogus subblock.
  * Returns a new record only when something applied.
  */
+/** Sub-block types the fork sync modal renders as a free-text field rather than a picker. */
+export const TEXT_DEPENDENT_TYPES = new Set<string>(['short-input', 'long-input'])
+
+/**
+ * The dependents of a remapped parent that the sync modal can offer AND the sync can apply.
+ *
+ * ONE definition on purpose. The collector and the apply side each encoded this rule separately
+ * and drifted the moment text fields were added: they were collected, stored, and gated on by
+ * the Sync button, then dropped here because the allowlist still demanded a `selectorKey`. The
+ * field stayed wiped on every push and the typed value went nowhere.
+ *
+ * A text member of a canonical pair whose basic side is a selector is excluded: the pair is
+ * already represented by its selector member, and the manual member is verbatim by policy.
+ */
+export function reconfigurableDependentIds(
+  subBlocks: ReadonlyArray<{
+    id?: string
+    type?: string
+    dependsOn?: unknown
+    selectorKey?: string
+    canonicalParamId?: string
+  }>
+): Set<string> {
+  const canonicalWithSelector = new Set(
+    subBlocks
+      .filter((cfg) => cfg.canonicalParamId && cfg.selectorKey)
+      .map((cfg) => cfg.canonicalParamId)
+  )
+  const allowed = new Set<string>()
+  for (const cfg of subBlocks) {
+    if (!cfg.id || !cfg.dependsOn) continue
+    if (cfg.selectorKey) {
+      allowed.add(cfg.id)
+      continue
+    }
+    if (!TEXT_DEPENDENT_TYPES.has(cfg.type ?? '')) continue
+    if (cfg.canonicalParamId && canonicalWithSelector.has(cfg.canonicalParamId)) continue
+    allowed.add(cfg.id)
+  }
+  return allowed
+}
+
 export function applyDependentOverrides(
   subBlocks: SubBlockRecord,
   blockType: string,
@@ -1616,12 +1679,10 @@ export function applyDependentOverrides(
   const config = getBlock(blockType)
   if (!config || overrides.size === 0) return subBlocks
 
-  const allowedTopLevel = new Set<string>()
+  const allowedTopLevel = reconfigurableDependentIds(config.subBlocks)
   const toolInputIds = new Set<string>()
   for (const cfg of config.subBlocks) {
-    if (!cfg.id) continue
-    if (cfg.dependsOn && cfg.selectorKey) allowedTopLevel.add(cfg.id)
-    if (cfg.type === 'tool-input') toolInputIds.add(cfg.id)
+    if (cfg.id && cfg.type === 'tool-input') toolInputIds.add(cfg.id)
   }
 
   const nestedByTool = new Map<string, Array<{ index: number; paramId: string; value: string }>>()

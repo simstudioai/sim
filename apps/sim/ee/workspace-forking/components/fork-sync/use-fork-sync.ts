@@ -30,6 +30,7 @@ import {
   forkVisibleCopyables,
   isForkRequiredComplete,
 } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import { isForkSyncConfigurableField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import {
   type DependentReconfigState,
   dependentKey,
@@ -561,6 +562,9 @@ export function useForkSync(params: {
   // instead, so it's skipped here.
   const reconfigComplete = dependentReconfigs.every((field) => {
     if (!field.required) return true
+    // A field the modal renders no control for can never satisfy this gate — see
+    // `isForkSyncConfigurableField`.
+    if (!isForkSyncConfigurableField(field)) return true
     const parent = entryForDependent(field)
     if (!parent) return true
     const resolution = resolutionFor(parent)
@@ -574,6 +578,9 @@ export function useForkSync(params: {
   const reconfigPendingByKind = new Set<MappableMappingKind>()
   for (const field of dependentReconfigs) {
     if (!field.required) continue
+    // Mirrors the Sync gate above: a field it cannot block on must not make the kind's badge
+    // read "Needs setup" forever either.
+    if (!isForkSyncConfigurableField(field)) continue
     const parent = entryForDependent(field)
     if (!parent) continue
     const resolution = resolutionFor(parent)
