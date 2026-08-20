@@ -53,6 +53,7 @@ import {
   workflowIdParamsSchema,
 } from '@/lib/api/contracts/workflows'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
@@ -1292,6 +1293,40 @@ export const v2ListWorkflowRunsContract = defineRouteContract({
 })
 
 /**
+ * One file a run produced.
+ *
+ * The storage `key` is deliberately absent: a caller addresses a run file by
+ * `id` at `downloadPath`, and the key is re-derived server side from the run's
+ * recording on every request, so a request can never name bytes the run did not
+ * produce. No expiry is published either — the recording carries none, and a
+ * fabricated one would be worse than the honest advice that execution objects
+ * are not retained indefinitely.
+ */
+export const v2RunFileSchema = z
+  .object({
+    id: z.string().describe('Identifier to address this file by on the download endpoint.'),
+    name: z.string().describe('File name, including its extension.'),
+    size: z.number().int().nonnegative().describe('File size in bytes.'),
+    type: z.string().describe('MIME type recorded for the file.'),
+    downloadPath: z
+      .string()
+      .describe("Path to fetch this file's bytes from, relative to the API host."),
+    base64: z
+      .string()
+      .nullable()
+      .describe(
+        'Base64-encoded contents when `includeFileBase64` was requested and the file fits the inline ceiling, otherwise null.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'V2RunFile',
+    title: 'Workflow run file',
+    description: 'A file produced by a workflow run.',
+  })
+export type V2RunFile = z.output<typeof v2RunFileSchema>
+
+/**
  * The polled run resource. `queued` is backfilled from the async job
  * queue before the worker writes the durable log row — v1's jobs endpoint 404
  * window doesn't exist here. `error` is the same *shape* the execute response
@@ -1359,6 +1394,12 @@ export const v2WorkflowRunStatusSchema = z
       .describe(
         'Outputs of the blocks named by `selectedOutputs`, or null when none were requested. Gated by `selectedOutputs` alone — `includeOutput` governs `output` only.'
       ),
+    files: z
+      .array(v2RunFileSchema)
+      .nullable()
+      .describe(
+        'Files this run produced, or null when `includeOutput` is false. Matches the nullability of `output`.'
+      ),
   })
   .meta({
     id: 'WorkflowRunStatus',
@@ -1366,6 +1407,40 @@ export const v2WorkflowRunStatusSchema = z
     description: 'Detailed current state of a workflow run.',
   })
 export type V2WorkflowRunStatus = z.output<typeof v2WorkflowRunStatusSchema>
+
+export const v2DownloadRunFileParamsSchema = z
+  .object({
+    id: z.string().min(1, 'Invalid workflow ID').describe('Unique workflow identifier.'),
+    runId: v2WorkflowRunIdSchema.describe('Unique workflow run identifier.'),
+    fileId: z
+      .string()
+      .min(1, 'fileId cannot be empty')
+      .max(256, 'fileId is too long')
+      .describe('Identifier of a file the run produced, as reported by the run resource.'),
+  })
+  .meta({
+    id: 'DownloadRunFileParams',
+    title: 'Run file path parameters',
+    description: 'Workflow, run, and run-produced file selected by the request path.',
+  })
+export type V2DownloadRunFileParams = z.input<typeof v2DownloadRunFileParamsSchema>
+
+/**
+ * Downloads one file a run produced.
+ *
+ * The file is addressed by the id the run itself reported; a storage key is
+ * never accepted from the request, so this endpoint cannot be pointed at bytes
+ * the run did not produce.
+ */
+export const v2DownloadRunFileContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/runs/[runId]/files/[fileId]',
+  params: v2DownloadRunFileParamsSchema,
+  query: noInputSchema,
+  response: {
+    mode: 'binary',
+  },
+})
 
 export const v2GetWorkflowRunContract = defineRouteContract({
   method: 'GET',
@@ -1395,6 +1470,27 @@ export const v2GetWorkflowRunContract = defineRouteContract({
       selectedOutputs: workflowExecutionStatusQuerySchema.shape.selectedOutputs.describe(
         'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.'
       ),
+      /**
+       * Allowed here but not on the async execute request, whose rejection is
+       * correct: at submit time the run has not happened, so there is nothing to
+       * inline. Reading a finished run is the first moment the question means
+       * anything.
+       */
+      includeFileBase64: booleanQueryFlagSchema
+        .describe(
+          "Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead."
+        )
+        .optional()
+        .default(false),
+      base64MaxBytes: z.coerce
+        .number()
+        .int()
+        .min(1, 'base64MaxBytes must be at least 1')
+        .max(MAX_INLINE_MATERIALIZATION_BYTES)
+        .optional()
+        .describe(
+          'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.'
+        ),
     })
     .strict()
     .meta({

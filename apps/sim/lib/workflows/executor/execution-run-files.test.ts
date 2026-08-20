@@ -1,0 +1,135 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  downloadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  downloadFile: mocks.downloadFile,
+}))
+
+import {
+  describeWorkflowRunFiles,
+  workflowRunFileDownloadPath,
+} from '@/lib/workflows/executor/execution-run-files'
+import type { UserFile } from '@/executor/types'
+
+const WORKFLOW_ID = 'workflow-1'
+const RUN_ID = 'run-1'
+
+function runFile(overrides: Partial<UserFile> = {}): UserFile {
+  return {
+    id: 'file_report',
+    name: 'report.pdf',
+    url: '/api/files/serve/s3/execution%2Fws%2Fwf%2Frun%2Freport.pdf',
+    size: 3,
+    type: 'application/pdf',
+    key: 'execution/ws/wf/run/report.pdf',
+    ...overrides,
+  }
+}
+
+function filesMap(files: UserFile[]): Map<string, UserFile> {
+  return new Map(files.map((file) => [file.id, file]))
+}
+
+describe('describeWorkflowRunFiles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.downloadFile.mockResolvedValue(Buffer.from('pdf'))
+  })
+
+  it('describes files without their storage key', async () => {
+    const [descriptor] = await describeWorkflowRunFiles(filesMap([runFile()]), {
+      workflowId: WORKFLOW_ID,
+      runId: RUN_ID,
+      includeBase64: false,
+    })
+
+    expect(descriptor).toEqual({
+      id: 'file_report',
+      name: 'report.pdf',
+      size: 3,
+      type: 'application/pdf',
+      downloadPath: `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/file_report`,
+      base64: null,
+    })
+    expect(descriptor).not.toHaveProperty('key')
+  })
+
+  it('does not read storage when base64 was not requested', async () => {
+    await describeWorkflowRunFiles(filesMap([runFile()]), {
+      workflowId: WORKFLOW_ID,
+      runId: RUN_ID,
+      includeBase64: false,
+    })
+
+    expect(mocks.downloadFile).not.toHaveBeenCalled()
+  })
+
+  it('inlines bytes when requested', async () => {
+    const [descriptor] = await describeWorkflowRunFiles(filesMap([runFile()]), {
+      workflowId: WORKFLOW_ID,
+      runId: RUN_ID,
+      includeBase64: true,
+    })
+
+    expect(descriptor.base64).toBe(Buffer.from('pdf').toString('base64'))
+    expect(mocks.downloadFile).toHaveBeenCalledWith({
+      key: 'execution/ws/wf/run/report.pdf',
+      context: 'execution',
+      maxBytes: 16 * 1024 * 1024,
+    })
+  })
+
+  /**
+   * The 413 must name the download path, so a caller that hits the ceiling is
+   * told exactly how to get the bytes instead of being left stuck.
+   */
+  it('rejects a file above the inline ceiling and names its download path', async () => {
+    await expect(
+      describeWorkflowRunFiles(filesMap([runFile({ size: 17 * 1024 * 1024 })]), {
+        workflowId: WORKFLOW_ID,
+        runId: RUN_ID,
+        includeBase64: true,
+      })
+    ).rejects.toMatchObject({
+      code: 'payload_too_large',
+      message: expect.stringContaining(
+        `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/file_report`
+      ),
+    })
+    expect(mocks.downloadFile).not.toHaveBeenCalled()
+  })
+
+  it('clamps a caller ceiling above the server limit', async () => {
+    await expect(
+      describeWorkflowRunFiles(filesMap([runFile({ size: 17 * 1024 * 1024 })]), {
+        workflowId: WORKFLOW_ID,
+        runId: RUN_ID,
+        includeBase64: true,
+        base64MaxBytes: 500 * 1024 * 1024,
+      })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
+
+  it('honours a caller ceiling below the server limit', async () => {
+    await expect(
+      describeWorkflowRunFiles(filesMap([runFile({ size: 2048 })]), {
+        workflowId: WORKFLOW_ID,
+        runId: RUN_ID,
+        includeBase64: true,
+        base64MaxBytes: 1024,
+      })
+    ).rejects.toMatchObject({ code: 'payload_too_large' })
+  })
+
+  it('builds the download path from the run identifiers', () => {
+    expect(workflowRunFileDownloadPath('wf-9', 'run-9', 'file-9')).toBe(
+      '/api/v2/workflows/wf-9/runs/run-9/files/file-9'
+    )
+  })
+})

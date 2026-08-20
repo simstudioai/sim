@@ -20,6 +20,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2NonRootFolderPathInputSchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
@@ -34,6 +35,7 @@ import {
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 
 /**
  * v2 files contracts. v2 drops the v1 `{ success, data, limits }` envelope in
@@ -490,11 +492,78 @@ export const v2DeleteFileFolderDataSchema = z
     description: 'File-folder deletion acknowledgement and deletion counts.',
   })
 
+/**
+ * Extends the shared folder query with a lifecycle selector.
+ *
+ * Only workspace files have an archived folder set — tables, workflows, and
+ * knowledge folders do not — so `scope` is added here rather than to the shared
+ * schema, which would give three other surfaces a parameter they ignore.
+ */
+export const v2ListFileFoldersQuerySchema = v2ListFoldersQuerySchema.extend({
+  scope: v2FileScopeSchema
+    .default('active')
+    .describe(
+      'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.'
+    ),
+})
+export type V2ListFileFoldersQuery = z.output<typeof v2ListFileFoldersQuerySchema>
+
 export const v2ListFileFoldersContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/folders',
-  query: v2ListFoldersQuerySchema,
+  query: v2ListFileFoldersQuerySchema,
   response: { mode: 'json', schema: v2CursorListResponse(v2FolderSchema, { paged: false }) },
+})
+
+export const v2RestoreFileFolderBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived folder.'),
+    path: v2NonRootFolderPathInputSchema.describe(
+      'Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.'
+    ),
+  })
+  .strict()
+export type V2RestoreFileFolderBody = z.input<typeof v2RestoreFileFolderBodySchema>
+
+export const v2RestoreFileFolderDataSchema = z
+  .object({
+    folder: v2FolderSchema.describe('The restored folder.'),
+    restoredItems: z
+      .object({
+        files: z.number().int().nonnegative().describe('Files restored inside the folder tree.'),
+        folders: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Folders restored, including the one addressed.'),
+      })
+      .strict()
+      .describe('What the restore brought back.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileFolderRestore',
+    title: 'Folder restore result',
+    description: 'The restored folder and the counts of items it brought back.',
+  })
+export type V2FileFolderRestore = z.output<typeof v2RestoreFileFolderDataSchema>
+
+/**
+ * Restores a soft-deleted folder tree.
+ *
+ * `DELETE /api/v2/files/folders` archives recursively, so without this the
+ * archived children were visible through `GET /api/v2/files?scope=archived`
+ * but the folder structure itself was unrecoverable over the API.
+ */
+export const v2RestoreFileFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/folders/restore',
+  query: noInputSchema,
+  body: v2RestoreFileFolderBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2RestoreFileFolderDataSchema),
+  },
 })
 
 export const v2CreateFileFolderContract = defineRouteContract({
@@ -628,6 +697,20 @@ export const v2CreateFileUploadContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2CreateFileUploadDataSchema), status: 201 },
 })
 
+/**
+ * Reads an upload session's current state so a caller can resume or abandon a
+ * transfer it did not finish. Carries the same signed control token as the
+ * other control legs: a session read is re-authorized exactly like a mutation.
+ */
+export const v2GetFileUploadContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/uploads/[uploadId]',
+  params: v2FileUploadParamsSchema,
+  query: v2FileUploadWorkspaceQuerySchema,
+  headers: v2UploadTokenHeadersSchema,
+  response: { mode: 'json', schema: v2DataResponse(v2FileUploadSchema) },
+})
+
 export const v2AbortFileUploadContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/files/uploads/[uploadId]',
@@ -666,6 +749,74 @@ export const v2DownloadFileContract = defineRouteContract({
   },
 })
 
+export const v2ReadFileTextQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    maxBytes: z.coerce
+      .number()
+      .int()
+      .min(1, 'maxBytes must be at least 1')
+      .max(MAX_TEXT_EXTRACTION_BYTES)
+      .optional()
+      .describe(
+        'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.'
+      ),
+  })
+  .strict()
+export type V2ReadFileTextQuery = z.output<typeof v2ReadFileTextQuerySchema>
+
+export const v2FileTextSchema = z
+  .object({
+    fileId: workspaceFileIdSchema.describe('File the text was extracted from.'),
+    name: z.string().describe('File name, including its extension.'),
+    type: z.string().describe('Stored MIME type of the source file.'),
+    text: z.string().describe('Extracted text.'),
+    truncated: z
+      .boolean()
+      .describe('True when a parser limit stopped extraction before the input was exhausted.'),
+    degraded: z
+      .boolean()
+      .describe(
+        'True when text extraction did not fully succeed and `text` may be incomplete or synthesized from the raw bytes rather than read from the document. Never treat degraded text as authoritative content.'
+      ),
+    degradedReason: z
+      .string()
+      .nullable()
+      .describe('Why extraction degraded, or null when it did not.'),
+    charCount: z.number().int().nonnegative().describe('Length of `text` in characters.'),
+    byteCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Source bytes read from storage before extraction.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileText',
+    title: 'Extracted file text',
+    description: 'Text extracted from a workspace file, with extraction-quality flags.',
+  })
+export type V2FileText = z.output<typeof v2FileTextSchema>
+
+/**
+ * Extracts a file's text.
+ *
+ * `degraded` is a required, non-optional boolean rather than an optional flag:
+ * the legacy `doc` and `ppt` parsers return best-effort or placeholder content
+ * instead of throwing, and a client that never checks an omittable field would
+ * silently treat guessed text as extracted text.
+ */
+export const v2ReadFileTextContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/[fileId]/text',
+  params: v2FileParamsSchema,
+  query: v2ReadFileTextQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2FileTextSchema),
+  },
+})
+
 export const v2GetFileContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/files/[fileId]/metadata',
@@ -700,6 +851,101 @@ export const v2DeleteFileContract = defineRouteContract({
   },
 })
 
+export const v2ExtractFileBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archive.'),
+  })
+  .strict()
+export type V2ExtractFileBody = z.input<typeof v2ExtractFileBodySchema>
+
+/**
+ * Counts plus the destination path, deliberately not the extracted files.
+ *
+ * A large archive would otherwise materialize thousands of file objects into
+ * one response body — the same unbounded-materialization hazard the list
+ * endpoints exist to avoid. The caller pages
+ * `GET /api/v2/files?folderPath=...` instead.
+ */
+export const v2ExtractFileDataSchema = z
+  .object({
+    folderPath: v2FolderPathSchema.describe(
+      'Canonical path of the folder the archive was extracted into. May differ from the archive name when a sibling folder already claimed it.'
+    ),
+    extractedFileCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of files written into the destination folder.'),
+    skippedFileCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of archive entries skipped as unsafe, empty, or noise.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2FileExtraction',
+    title: 'Archive extraction result',
+    description: 'Outcome of unzipping a workspace archive.',
+  })
+export type V2FileExtraction = z.output<typeof v2ExtractFileDataSchema>
+
+export const v2ExtractFileContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/files/[fileId]/extract',
+  query: noInputSchema,
+  params: v2FileParamsSchema,
+  body: v2ExtractFileBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ExtractFileDataSchema),
+  },
+})
+
+export const v2PermanentlyDeleteFileQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the archived file.'),
+  })
+  .strict()
+export type V2PermanentlyDeleteFileQuery = z.output<typeof v2PermanentlyDeleteFileQuerySchema>
+
+export const v2PermanentlyDeleteFileDataSchema = z
+  .object({
+    id: workspaceFileIdSchema.describe('Identifier of the destroyed file.'),
+    deleted: z.literal(true).describe('Always true; the row no longer exists.'),
+    objectDeleted: z
+      .boolean()
+      .describe(
+        'Whether the stored bytes were removed along with the row. False means the object outlived its row and awaits the storage sweep; the file is gone either way and the request does not need retrying.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'V2FilePermanentDeletion',
+    title: 'Permanent file deletion result',
+    description: 'Outcome of irreversibly destroying an archived workspace file.',
+  })
+export type V2FilePermanentDeletion = z.output<typeof v2PermanentlyDeleteFileDataSchema>
+
+/**
+ * Irreversibly destroys an archived file's row and stored bytes.
+ *
+ * A distinct path rather than a flag on the ordinary delete: a query parameter
+ * that turns a recoverable archive into an irreversible destruction is the kind
+ * of thing a client sets by accident, and the two acts carry different minimum
+ * roles, which one route declaration cannot express.
+ */
+export const v2PermanentlyDeleteFileContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/files/[fileId]/permanent',
+  params: v2FileParamsSchema,
+  query: v2PermanentlyDeleteFileQuerySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2PermanentlyDeleteFileDataSchema),
+  },
+})
+
 export const v2RestoreFileContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/[fileId]/restore',
@@ -721,6 +967,52 @@ export const v2MoveFileItemsContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2MoveFileItemsResultSchema),
   },
+})
+
+/**
+ * Comma-separated query list, bounded so a request cannot ask the selection
+ * walk to expand an unbounded set before the zip's own file-count and byte
+ * ceilings apply.
+ *
+ * Comma-separated only: v2 rejects a query parameter sent more than once, so a
+ * repeated-parameter form would never reach this schema.
+ */
+const v2QuerySelectionListSchema = z
+  .string()
+  .optional()
+  .transform((value) =>
+    (value ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).max(1000, 'Too many entries selected'))
+
+export const v2BulkDownloadFilesQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace containing the selection.'),
+    fileIds: v2QuerySelectionListSchema.describe('File identifiers to include, comma-separated.'),
+    folderPaths: v2QuerySelectionListSchema.describe(
+      'Folder paths to include with all their descendants, comma-separated. A path that matches no folder is rejected rather than ignored.'
+    ),
+  })
+  .strict()
+export type V2BulkDownloadFilesQuery = z.output<typeof v2BulkDownloadFilesQuerySchema>
+
+/**
+ * Streams a selection of workspace files as one zip.
+ *
+ * Named `bulk-download` to match the existing `bulk-delete` sibling of the
+ * `[fileId]` segment. A static segment here permanently shadows a file whose id
+ * equals it, and `workspaceFileIdSchema` does accept `[A-Za-z0-9_-]+`; the
+ * hyphenated form is chosen because neither minted id shape — UUID v4 or
+ * `wf_<shortId>` — can ever produce it.
+ */
+export const v2BulkDownloadFilesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/files/bulk-download',
+  query: v2BulkDownloadFilesQuerySchema,
+  response: { mode: 'binary' },
 })
 
 export const v2BulkDeleteFilesContract = defineRouteContract({

@@ -505,6 +505,16 @@ export type BulkDeleteTablesResponse = {
   data: BulkDeleteTablesResponseRef0
 }
 
+/** `GET /api/v2/files/bulk-download` */
+export type BulkDownloadFilesQuery = {
+  workspaceId: string
+  fileIds?: string
+  folderPaths?: string
+}
+
+/** Non-JSON response (`binary`). */
+export type BulkDownloadFilesResponse = never
+
 /** `POST /api/v2/tables/bulk-move` */
 export type BulkMoveTablesQuery = Record<string, unknown>
 
@@ -2735,6 +2745,18 @@ export type DownloadFileQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileResponse = never
 
+/** `GET /api/v2/workflows/[id]/runs/[runId]/files/[fileId]` */
+export type DownloadRunFileParams = {
+  id: string
+  runId: string
+  fileId: string
+}
+
+export type DownloadRunFileQuery = Record<string, unknown>
+
+/** Non-JSON response (`binary`). */
+export type DownloadRunFileResponse = never
+
 /** `POST /api/v2/workflows/[id]/duplicate` */
 export type DuplicateWorkflowParams = {
   id: string
@@ -2852,6 +2874,27 @@ type ExportWorkflowResponseRef0 = {
 
 export type ExportWorkflowResponse = {
   data: ExportWorkflowResponseRef0
+}
+
+/** `POST /api/v2/files/[fileId]/extract` */
+export type ExtractFileParams = {
+  fileId: string
+}
+
+export type ExtractFileQuery = Record<string, unknown>
+
+export type ExtractFileBody = {
+  workspaceId: string
+}
+
+type ExtractFileResponseRef0 = {
+  folderPath: string
+  extractedFileCount: number
+  skippedFileCount: number
+}
+
+export type ExtractFileResponse = {
+  data: ExtractFileResponseRef0
 }
 
 /** `POST /api/v2/tables/[tableId]/rows/find` */
@@ -3298,6 +3341,55 @@ type GetFileShareResponseRef0 = {
 
 export type GetFileShareResponse = {
   data: GetFileShareResponseRef0 | null
+}
+
+/** `GET /api/v2/files/uploads/[uploadId]` */
+export type GetFileUploadParams = {
+  uploadId: string
+}
+
+export type GetFileUploadQuery = {
+  workspaceId: string
+}
+
+export type GetFileUploadHeaders = {
+  'upload-token': string
+}
+
+type GetFileUploadResponseRef0 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  key: string
+  folderPath: string
+  uploadedByEmail: string
+  uploadedAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+type GetFileUploadResponseRef1 = {
+  id: string
+  status:
+    | 'uploading'
+    | 'completing'
+    | 'finalizing'
+    | 'completed'
+    | 'failed'
+    | 'aborting'
+    | 'aborted'
+    | 'expired'
+  name: string
+  contentType: string
+  size: number
+  expiresAt: string
+  error: string | null
+  file: GetFileUploadResponseRef0 | null
+}
+
+export type GetFileUploadResponse = {
+  data: GetFileUploadResponseRef1
 }
 
 /** `GET /api/v2/knowledge/[id]` */
@@ -4057,6 +4149,8 @@ export type GetWorkflowRunParams = {
 export type GetWorkflowRunQuery = {
   includeOutput?: boolean
   selectedOutputs?: string
+  includeFileBase64?: boolean
+  base64MaxBytes?: number
 }
 
 type GetWorkflowRunResponseRef0 = {
@@ -4075,6 +4169,15 @@ type GetWorkflowRunResponseRef0 = {
 }
 
 type GetWorkflowRunResponseRef1 = {
+  id: string
+  name: string
+  size: number
+  type: string
+  downloadPath: string
+  base64: string | null
+}
+
+type GetWorkflowRunResponseRef2 = {
   runId: string
   workflowId: string
   status:
@@ -4106,10 +4209,11 @@ type GetWorkflowRunResponseRef1 = {
   error: GetWorkflowRunResponseRef0 | null
   output: unknown | null
   blockOutputs: Record<string, unknown> | null
+  files: Array<GetWorkflowRunResponseRef1> | null
 }
 
 export type GetWorkflowRunResponse = {
-  data: GetWorkflowRunResponseRef1
+  data: GetWorkflowRunResponseRef2
 }
 
 /** `GET /api/v2/workflows/[id]/state` */
@@ -4675,6 +4779,7 @@ export type ListFileFoldersQuery = {
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
   sortOrder?: 'asc' | 'desc'
+  scope?: 'active' | 'archived'
 }
 
 type ListFileFoldersResponseRef0 = {
@@ -5591,6 +5696,25 @@ export type MoveWorkflowsResponse = {
   data: MoveWorkflowsResponseRef0
 }
 
+/** `DELETE /api/v2/files/[fileId]/permanent` */
+export type PermanentlyDeleteFileParams = {
+  fileId: string
+}
+
+export type PermanentlyDeleteFileQuery = {
+  workspaceId: string
+}
+
+type PermanentlyDeleteFileResponseRef0 = {
+  id: string
+  deleted: true
+  objectDeleted: boolean
+}
+
+export type PermanentlyDeleteFileResponse = {
+  data: PermanentlyDeleteFileResponseRef0
+}
+
 /** `POST /api/v2/logs/query` */
 export type QueryLogsQuery = Record<string, unknown>
 
@@ -5880,6 +6004,32 @@ export type QueryRowsCountResponse = {
   data: QueryRowsCountResponseRef0
 }
 
+/** `GET /api/v2/files/[fileId]/text` */
+export type ReadFileTextParams = {
+  fileId: string
+}
+
+export type ReadFileTextQuery = {
+  workspaceId: string
+  maxBytes?: number
+}
+
+type ReadFileTextResponseRef0 = {
+  fileId: string
+  name: string
+  type: string
+  text: string
+  truncated: boolean
+  degraded: boolean
+  degradedReason: string | null
+  charCount: number
+  byteCount: number
+}
+
+export type ReadFileTextResponse = {
+  data: ReadFileTextResponseRef0
+}
+
 /** `PATCH /api/v2/files/folders` */
 export type RelocateFileFolderQuery = Record<string, unknown>
 
@@ -6140,6 +6290,36 @@ type RestoreFileResponseRef0 = {
 
 export type RestoreFileResponse = {
   data: RestoreFileResponseRef0
+}
+
+/** `POST /api/v2/files/folders/restore` */
+export type RestoreFileFolderQuery = Record<string, unknown>
+
+type RestoreFileFolderBodyRef0 = string
+
+export type RestoreFileFolderBody = {
+  workspaceId: string
+  path: RestoreFileFolderBodyRef0
+}
+
+type RestoreFileFolderResponseRef0 = {
+  name: string
+  path: string
+  parentPath: string
+  createdAt: string
+  updatedAt: string
+}
+
+type RestoreFileFolderResponseRef1 = {
+  folder: RestoreFileFolderResponseRef0
+  restoredItems: {
+    files: number
+    folders: number
+  }
+}
+
+export type RestoreFileFolderResponse = {
+  data: RestoreFileFolderResponseRef1
 }
 
 /** `POST /api/v2/knowledge/[id]/restore` */
@@ -7841,6 +8021,26 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  bulkDownloadFiles: {
+    method: 'GET',
+    path: '/api/v2/files/bulk-download',
+    pathParams: [] as const,
+    responseMode: 'binary',
+    summary: 'Bulk Download Files',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace containing the selection.',
+      },
+      fileIds: { kind: 'string', describe: 'File identifiers to include, comma-separated.' },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Folder paths to include with all their descendants, comma-separated. A path that matches no folder is rejected rather than ignored.',
+      },
+    },
+  },
   bulkMoveTables: {
     method: 'POST',
     path: '/api/v2/tables/bulk-move',
@@ -9067,6 +9267,18 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  downloadRunFile: {
+    method: 'GET',
+    path: '/api/v2/workflows/[id]/runs/[runId]/files/[fileId]',
+    pathParams: ['id', 'runId', 'fileId'] as const,
+    pathParamDocs: {
+      id: 'Unique workflow identifier.',
+      runId: 'Unique workflow run identifier.',
+      fileId: 'Identifier of a file the run produced, as reported by the run resource.',
+    },
+    responseMode: 'binary',
+    summary: 'Download Workflow Run File',
+  },
   duplicateWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[id]/duplicate',
@@ -9149,6 +9361,17 @@ export const V2_OPERATIONS = {
     pathParamDocs: { id: 'Unique workflow identifier.' },
     responseMode: 'json',
     summary: 'Export Workflow',
+  },
+  extractFile: {
+    method: 'POST',
+    path: '/api/v2/files/[fileId]/extract',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Extract File Archive',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
+    },
   },
   findTableRows: {
     method: 'POST',
@@ -9255,6 +9478,21 @@ export const V2_OPERATIONS = {
     summary: 'Get File Share',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+    },
+  },
+  getFileUpload: {
+    method: 'GET',
+    path: '/api/v2/files/uploads/[uploadId]',
+    pathParams: ['uploadId'] as const,
+    pathParamDocs: { uploadId: 'Upload session identifier.' },
+    responseMode: 'json',
+    summary: 'Get File Upload',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the upload session.',
+      },
     },
   },
   getKnowledgeBase: {
@@ -9565,6 +9803,15 @@ export const V2_OPERATIONS = {
         kind: 'string',
         describe:
           'Comma-separated block output references to include, as `blockId` or `blockId.path`. Block *names* are not resolved here — unlike the execute request, this resource reads a recorded run and matches ids only, so a name selects nothing and yields an empty `blockOutputs`.',
+      },
+      includeFileBase64: {
+        kind: 'boolean',
+        describe:
+          "Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead.",
+      },
+      base64MaxBytes: {
+        kind: 'integer',
+        describe: 'Per-file inline ceiling, lowering but never raising the server limit of 16 MiB.',
       },
     },
   },
@@ -10003,6 +10250,13 @@ export const V2_OPERATIONS = {
         values: ['asc', 'desc'] as const,
         default: 'asc',
         describe: 'Sort direction.',
+      },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both.',
       },
     },
   },
@@ -10985,6 +11239,21 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  permanentlyDeleteFile: {
+    method: 'DELETE',
+    path: '/api/v2/files/[fileId]/permanent',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Permanently Delete File',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the archived file.',
+      },
+    },
+  },
   queryLogs: {
     method: 'POST',
     path: '/api/v2/logs/query',
@@ -11124,6 +11393,22 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  readFileText: {
+    method: 'GET',
+    path: '/api/v2/files/[fileId]/text',
+    pathParams: ['fileId'] as const,
+    pathParamDocs: { fileId: 'File identifier.' },
+    responseMode: 'json',
+    summary: 'Read File Text',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
+      maxBytes: {
+        kind: 'integer',
+        describe:
+          'Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit.',
+      },
+    },
+  },
   relocateFileFolder: {
     method: 'PATCH',
     path: '/api/v2/files/folders',
@@ -11236,6 +11521,26 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace that owns the archived file.',
+      },
+    },
+  },
+  restoreFileFolder: {
+    method: 'POST',
+    path: '/api/v2/files/folders/restore',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Restore Folder',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the archived folder.',
+      },
+      path: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`.',
       },
     },
   },

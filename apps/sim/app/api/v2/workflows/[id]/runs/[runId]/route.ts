@@ -15,8 +15,13 @@ export const dynamic = 'force-dynamic'
  * for both sync and async runs. When no log row exists yet, the async job
  * queue is consulted (deterministic job id) so a freshly-queued run reports
  * `queued` instead of 404.
+ *
+ * `headSafe: false` because `includeFileBase64` makes this read pull bytes out
+ * of object storage. A bodiless `HEAD` loses nothing here — the whole point of
+ * the request is the body.
  */
 export const GET = defineV2JsonRoute({
+  headSafe: false,
   contract: v2GetWorkflowRunContract,
   auth: v2ApiKeyAuth,
   operation: workflowOperations.readRun,
@@ -27,6 +32,8 @@ export const GET = defineV2JsonRoute({
     runId: params.runId,
     includeOutput: query.includeOutput,
     selectedOutputs: query.selectedOutputs,
+    includeFileBase64: query.includeFileBase64,
+    base64MaxBytes: query.base64MaxBytes,
   }),
   useCase: readWorkflowRun,
   present: (status) => ({
@@ -43,6 +50,7 @@ export const GET = defineV2JsonRoute({
       error: status.error ? classifyExecutionError(new Error(status.error)) : null,
       output: status.finalOutput,
       blockOutputs: status.blockOutputs,
+      files: status.files,
     },
   }),
 })

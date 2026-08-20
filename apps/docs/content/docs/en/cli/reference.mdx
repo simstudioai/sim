@@ -681,6 +681,7 @@ Also available as `sim files folders ls`.
 | `--search <value>` | No | Case-insensitive substring match against the folder name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) returns live folders only; `archived` returns folders a recursive `DELETE` soft-deleted, which is how a caller finds a path to hand to `POST /api/v2/files/folders/restore`. Authorization is identical for both. Accepted values: `active`, `archived`. |
 
 </CommandTable>
 
@@ -730,6 +731,24 @@ sim files delete <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `-y, --yes` | Yes | Confirm this destructive operation. |
+
+</CommandTable>
+
+### sim files extract create
+
+Extract File Archive
+
+```bash
+sim files extract create <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
 
 </CommandTable>
 
@@ -810,6 +829,24 @@ sim files share set <fileId> [options]
 
 </CommandTable>
 
+### sim files uploads get
+
+Get File Upload
+
+```bash
+sim files uploads get <uploadId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `uploadId` | Yes | Upload session identifier. |
+
+</CommandTable>
+
 ### sim files list
 
 List Files
@@ -855,6 +892,52 @@ Also available as `sim files mv`.
 
 </CommandTable>
 
+### sim files permanent delete
+
+Permanently Delete File
+
+```bash
+sim files permanent delete <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+### sim files text list
+
+Read File Text
+
+```bash
+sim files text list <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+
+</CommandTable>
+
 ### sim files rename
 
 Rename a file
@@ -883,21 +966,21 @@ sim files rename <fileId> [options]
 
 </CommandTable>
 
-### sim files restore
+### sim files restore create
 
-Restore an archived file
+Restore Folder
 
 ```bash
-sim files restore <fileId>
+sim files restore create [options]
 ```
 
-**Arguments**
+**Options**
 
 <CommandTable>
 
-| Argument | Required | Description |
+| Option | Required | Description |
 | --- | --- | --- |
-| `fileId` | Yes | File identifier. |
+| `--path <value>` | Yes | Path of the archived folder to restore, as reported by `GET /api/v2/files/folders?scope=archived`. |
 
 </CommandTable>
 
@@ -4001,6 +4084,9 @@ sim workflows runs get <runId> [options]
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
 | `--select-output <value...>` | No | Include blockName.field values in JSON or YAML output (e.g. agent_1.content) (space-separated, or @path / @- with one value per line). |
+| `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
+| `--no-include-file-base64` | No | Send --include-file-base64 as false. |
+| `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
 
 </CommandTable>
 

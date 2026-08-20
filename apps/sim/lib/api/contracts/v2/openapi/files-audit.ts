@@ -1,8 +1,8 @@
-import { z } from 'zod'
 import { v2GetAuditLogContract, v2ListAuditLogsContract } from '@/lib/api/contracts/v2/audit-logs'
 import {
   v2AbortFileUploadContract,
   v2BulkDeleteFilesContract,
+  v2BulkDownloadFilesContract,
   v2CompleteFileUploadContract,
   v2CreateFileContract,
   v2CreateFileFolderContract,
@@ -11,14 +11,19 @@ import {
   v2DeleteFileContract,
   v2DeleteFileFolderContract,
   v2DownloadFileContract,
+  v2ExtractFileContract,
   v2GetFileContract,
   v2GetFileShareContract,
+  v2GetFileUploadContract,
   v2ListFileFoldersContract,
   v2ListFilesContract,
   v2MoveFileItemsContract,
+  v2PermanentlyDeleteFileContract,
+  v2ReadFileTextContract,
   v2RelocateFileFolderContract,
   v2RenameFileContract,
   v2RestoreFileContract,
+  v2RestoreFileFolderContract,
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
@@ -34,6 +39,7 @@ import {
   RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
+  V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -214,6 +220,42 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2GetFileUploadContract,
+    filesOperation({
+      operationId: 'getFileUpload',
+      summary: 'Get File Upload',
+      description: `Read an upload session's current state — whether it is still accepting bytes, has finalized into a file, or has failed. Use it to decide whether an interrupted transfer can be resumed or should be abandoned. Like every other upload control leg it requires the signed upload token, and is re-authorized against the workspace on each call. ${HEAD_MIRRORS_GET}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Current upload-session state.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetFileUploadContract.params,
+        'GetFileUploadParams',
+        'Get upload path parameters',
+        'Upload session selected for reading.'
+      ),
+      query: documentedSchema(
+        v2GetFileUploadContract.query,
+        'GetFileUploadQuery',
+        'Get upload query',
+        'Workspace scope for the upload session.'
+      ),
+      headers: documentedSchema(
+        v2GetFileUploadContract.headers,
+        'GetFileUploadHeaders',
+        'Get upload headers',
+        'Signed upload control token.'
+      ),
+      response: documentedSchema(
+        v2GetFileUploadContract.response.schema,
+        'FileUploadResponse',
+        'File upload response',
+        'Current upload-session state.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2AbortFileUploadContract,
     filesOperation({
       operationId: 'abortFileUpload',
@@ -330,6 +372,90 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2ReadFileTextContract,
+    filesOperation({
+      operationId: 'readFileText',
+      summary: 'Read File Text',
+      description: `Extract a file's text. Answers \`400\` for a type no parser supports, naming the raw-bytes download as the escape hatch, and \`413\` for a file above the extraction ceiling. **\`degraded: true\` means text extraction did not fully succeed and the returned text may be incomplete or synthesized from the file's raw bytes. Do not treat it as authoritative content.** The legacy \`.doc\` and \`.ppt\` parsers deliberately return best-effort content rather than failing, so this flag — not an error status — is how a partial extraction is reported. \`truncated\` separately reports that a parser limit stopped extraction early. ${HEAD_MIRRORS_GET}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'The extracted text and its extraction-quality flags.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ReadFileTextContract.params,
+        'ReadFileTextParams',
+        'Read file text path parameters',
+        'File selected for text extraction.'
+      ),
+      query: documentedSchema(
+        v2ReadFileTextContract.query,
+        'ReadFileTextQuery',
+        'Read file text query',
+        'Workspace scope and optional source-byte ceiling.'
+      ),
+      response: documentedSchema(
+        v2ReadFileTextContract.response.schema,
+        'FileTextResponse',
+        'File text response',
+        'Text extracted from a workspace file.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2BulkDownloadFilesContract,
+    filesOperation({
+      operationId: 'bulkDownloadFiles',
+      summary: 'Bulk Download Files',
+      description: `Stream a selection of workspace files as one zip. Select files by id and folders by path, each as one comma-separated parameter; a folder expands to all its descendants, and a path matching no folder is rejected rather than ignored. The selection is capped on input and again on the resolved file count and total bytes, so an over-broad selection answers \`400\` rather than streaming indefinitely. Downloading records an audit event, so it is not a safe read. ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      errors: RESOURCE_ERRORS,
+      success: {
+        description: 'The selected files as a zip archive.',
+        headers: ['Content-Type', 'Content-Disposition'],
+        contentTypes: ['application/zip'],
+      },
+    }),
+    {
+      query: documentedSchema(
+        v2BulkDownloadFilesContract.query,
+        'BulkDownloadFilesQuery',
+        'Bulk download files query',
+        'Workspace scope and the file and folder selection to archive.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2ExtractFileContract,
+    filesOperation({
+      operationId: 'extractFile',
+      summary: 'Extract File Archive',
+      description:
+        'Unzip a `.zip` archive into a new folder beside it and answer counts plus the destination path. The extracted files are deliberately not returned — a large archive would materialize thousands of objects into one response — so page `GET /api/v2/files?folderPath=...` for the contents. Extraction is slow: an archive near the size ceiling can run for minutes. Only one extraction of a given archive runs at a time; a concurrent attempt answers `409`. Archives past the size ceiling, and extractions that outrun their time budget, answer `413`.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: { description: 'Counts and destination folder for the extracted archive.' },
+    }),
+    {
+      params: documentedSchema(
+        v2ExtractFileContract.params,
+        'ExtractFileParams',
+        'Extract archive path parameters',
+        'Archive selected for extraction.'
+      ),
+      query: v2ExtractFileContract.query,
+      body: documentedSchema(
+        v2ExtractFileContract.body,
+        'ExtractFileBody',
+        'Extract archive body',
+        'Workspace scope for the archive.'
+      ),
+      response: documentedSchema(
+        v2ExtractFileContract.response.schema,
+        'FileExtractionResponse',
+        'Archive extraction response',
+        'Counts and destination folder for the extracted archive.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2DownloadFileContract,
     filesOperation({
       operationId: 'downloadFile',
@@ -423,6 +549,37 @@ const declaredRoutes = [
         'File response',
         'A single workspace file.',
         [{ data: FILE_EXAMPLE }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2PermanentlyDeleteFileContract,
+    filesOperation({
+      operationId: 'permanentlyDeleteFile',
+      summary: 'Permanently Delete File',
+      description:
+        "Irreversibly destroy an archived file's row and its stored bytes. `DELETE /api/v2/files/{fileId}` only archives — its bytes are never removed — so this is the second half of a deliberate two-step: a file that is not already archived answers `409` naming the archive step. There is no undo, and no restore path afterwards. Requires the `admin` role, which also places it out of reach of workspace API keys.",
+      errors: [...RESOURCE_CONFLICT_ERRORS],
+      success: { description: 'The file was destroyed.' },
+    }),
+    {
+      params: documentedSchema(
+        v2PermanentlyDeleteFileContract.params,
+        'PermanentlyDeleteFileParams',
+        'Permanent delete path parameters',
+        'Archived file selected for destruction.'
+      ),
+      query: documentedSchema(
+        v2PermanentlyDeleteFileContract.query,
+        'PermanentlyDeleteFileQuery',
+        'Permanent delete query',
+        'Workspace scope for the archived file.'
+      ),
+      response: documentedSchema(
+        v2PermanentlyDeleteFileContract.response.schema,
+        'FilePermanentDeletionResponse',
+        'Permanent file deletion response',
+        'Outcome of irreversibly destroying an archived workspace file.'
       ),
     }
   ),
@@ -733,7 +890,7 @@ const declaredRoutes = [
     filesOperation({
       operationId: 'listFilesFolders',
       summary: 'List Folders',
-      description: `List workspace file folders with optional parent-path filtering and sorting. ${FULL_SET_LIST}`,
+      description: `List workspace file folders with optional parent-path filtering and sorting. Pass \`scope=archived\` to list folders a recursive \`DELETE\` soft-deleted, which is how a caller finds a path to hand to \`POST /api/v2/files/folders/restore\`. ${FULL_SET_LIST}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Workspace file folders.' },
     }),
@@ -749,6 +906,32 @@ const declaredRoutes = [
         'FileFolderListResponse',
         'File folder list response',
         'Workspace file folders in the current page.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RestoreFileFolderContract,
+    filesOperation({
+      operationId: 'restoreFilesFolder',
+      summary: 'Restore Folder',
+      description:
+        'Restore a soft-deleted folder and everything archived with it. `DELETE /api/v2/files/folders` archives recursively, so this is what makes a recursive delete recoverable: without it the archived files stay visible through `GET /api/v2/files?scope=archived` but the folder structure cannot be rebuilt. Address the folder by the path reported by `GET /api/v2/files/folders?scope=archived`; a path that is not archived answers `404`.',
+      errors: [...RESOURCE_CONFLICT_ERRORS],
+      success: { description: 'The restored folder and what it brought back.' },
+    }),
+    {
+      query: v2RestoreFileFolderContract.query,
+      body: documentedSchema(
+        v2RestoreFileFolderContract.body,
+        'RestoreFileFolderRequest',
+        'Restore file folder request',
+        'Workspace scope and archived folder path.'
+      ),
+      response: documentedSchema(
+        v2RestoreFileFolderContract.response.schema,
+        'FileFolderRestoreResponse',
+        'Folder restore response',
+        'The restored folder and the counts of items it brought back.'
       ),
     }
   ),
@@ -873,34 +1056,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   ],
   security: V2_API_KEY_SECURITY,
   securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
-  headers: {
-    'Content-Type': {
-      schema: z.string().meta({
-        id: 'ContentTypeHeader',
-        title: 'Content type',
-        description:
-          'MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.',
-      }),
-    },
-    'Content-Disposition': {
-      schema: z.string().meta({
-        id: 'ContentDispositionHeader',
-        title: 'Content disposition',
-        description: 'Attachment disposition containing sanitized and RFC 5987 encoded filenames.',
-      }),
-    },
-    'Content-Length': {
-      schema: z
-        .string()
-        .regex(/^(0|[1-9]\d*)$/)
-        .meta({
-          id: 'ContentLengthHeader',
-          title: 'Content length',
-          description: 'File size in bytes.',
-        }),
-    },
-    ...V2_COMMON_HEADERS,
-  },
+  headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: withErrorExamples({
     Conflict: { message: 'File already exists' },

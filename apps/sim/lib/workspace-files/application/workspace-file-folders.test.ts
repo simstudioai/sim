@@ -236,6 +236,83 @@ describe('workspace file folder operations', () => {
     expect(mockNotify).not.toHaveBeenCalled()
   })
 
+  /**
+   * v2 addresses folders by path, and the folder being restored is archived, so
+   * the id is resolved from the archived set rather than by walking the live
+   * tree — which by definition would not contain it.
+   */
+  it('resolves an archived folder by path before restoring it', async () => {
+    mockList.mockResolvedValueOnce([
+      { id: 'folder-other', name: 'Archive', path: 'Marketing/Archive' },
+      { id: 'folder-target', name: 'Archive', path: 'Engineering/Archive' },
+    ])
+    mockRestore.mockResolvedValue({
+      folder: { id: 'folder-target', name: 'Archive', path: 'Engineering/Archive' },
+      restoredItems: { files: 3, folders: 1 },
+    })
+
+    await restoreWorkspaceFileFolderOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', path: '/Engineering/Archive' },
+    })
+
+    expect(mockList).toHaveBeenCalledWith('ws-1', { scope: 'archived' })
+    expect(mockRestore).toHaveBeenCalledWith('ws-1', 'folder-target')
+  })
+
+  it('does not restore a same-named archived folder under a different parent', async () => {
+    mockList.mockResolvedValueOnce([
+      { id: 'folder-other', name: 'Archive', path: 'Marketing/Archive' },
+    ])
+
+    await expect(
+      restoreWorkspaceFileFolderOperation.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'ws-1', path: '/Engineering/Archive' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mockRestore).not.toHaveBeenCalled()
+  })
+
+  it('rejects restoring the workspace root', async () => {
+    await expect(
+      restoreWorkspaceFileFolderOperation.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'ws-1', path: '/' },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mockList).not.toHaveBeenCalled()
+    expect(mockRestore).not.toHaveBeenCalled()
+  })
+
+  it('still restores by folder id for the internal surface', async () => {
+    mockRestore.mockResolvedValue({
+      folder: { id: 'folder-1', name: 'Archive', path: 'Engineering/Archive' },
+      restoredItems: { files: 1, folders: 1 },
+    })
+
+    await restoreWorkspaceFileFolderOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', folderId: 'folder-1' },
+    })
+
+    expect(mockList).not.toHaveBeenCalled()
+    expect(mockRestore).toHaveBeenCalledWith('ws-1', 'folder-1')
+  })
+
+  it('lists archived folders when the scope asks for them', async () => {
+    mockList.mockResolvedValueOnce([])
+
+    await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', scope: 'archived' },
+    })
+
+    expect(mockList).toHaveBeenCalledWith('ws-1', expect.objectContaining({ scope: 'archived' }))
+  })
+
   it('does not authorize a folder restore as though its ID were a delegated file scope', async () => {
     const principal = {
       kind: 'delegated' as const,

@@ -292,6 +292,19 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * Downloading one file a run produced. Separate from `readRun` because it
+   * hands out bytes and records a `FILE_DOWNLOADED` audit event, which reading
+   * the run resource does not; it keeps `readRun`'s policy because the resource
+   * being authorized is still the run — a run file is reachable only through
+   * the run that recorded it, never as a standalone workspace file.
+   */
+  downloadRunFile: defineWorkspaceOperation({
+    id: 'workflows.download_run_file',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   cancelRun: defineWorkspaceOperation({
     id: 'workflows.runs.cancel',
     minimumRole: 'write',

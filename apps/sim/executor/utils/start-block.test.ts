@@ -96,10 +96,11 @@ describe('start-block utilities', () => {
       {
         id: 'file-1',
         name: 'document.txt',
-        url: 'https://example.com/document.txt',
+        url: '/api/files/serve/s3/workspace%2Fworkspace-id%2Fdocument.txt?context=workspace',
         size: 42,
         type: 'text/plain',
-        key: 'file-key',
+        key: 'workspace/workspace-id/document.txt',
+        context: 'workspace',
       },
     ]
 
@@ -153,6 +154,99 @@ describe('start-block utilities', () => {
         context: 'execution',
       },
     ])
+  })
+
+  it.concurrent('drops caller-supplied storage keys that no internal URL backs', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'victim.pdf',
+            url: 'https://example.com/victim.pdf',
+            size: 1024,
+            type: 'application/pdf',
+            key: 'workspace/other-tenant-workspace/victim.pdf',
+            context: 'workspace',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toBeUndefined()
+  })
+
+  it.concurrent('derives the storage key from the internal URL, not the forged key', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'screenshot.png',
+            url: '/api/files/serve/s3/execution%2Fworkspace-id%2Fworkflow-id%2Fexecution-id%2Fscreenshot.png?context=execution',
+            size: 243289,
+            type: 'image/png',
+            key: 'workspace/other-tenant-workspace/victim.pdf',
+            context: 'workspace',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toEqual([
+      {
+        id: 'file_1',
+        name: 'screenshot.png',
+        url: '/api/files/serve/s3/execution%2Fworkspace-id%2Fworkflow-id%2Fexecution-id%2Fscreenshot.png?context=execution',
+        size: 243289,
+        type: 'image/png',
+        key: 'execution/workspace-id/workflow-id/execution-id/screenshot.png',
+        context: 'execution',
+      },
+    ])
+  })
+
+  it.concurrent('rejects a malformed internal URL rather than falling back to a forged key', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'victim.pdf',
+            url: '/api/files/serve/',
+            size: 1024,
+            type: 'application/pdf',
+            key: 'workspace/other-tenant-workspace/victim.pdf',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toBeUndefined()
   })
 
   it.concurrent('rejects inputFormat fields that collide with executor routing keys', () => {

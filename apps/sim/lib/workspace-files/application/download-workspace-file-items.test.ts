@@ -170,6 +170,63 @@ describe('downloadWorkspaceFileItems', () => {
     )
   })
 
+  /**
+   * v2 addresses folders by path. Resolution reuses the folder set the
+   * selection already loads, so it costs no extra query.
+   */
+  it('resolves folder paths to the same expansion as folder ids', async () => {
+    mockListFolders.mockResolvedValue([
+      { id: 'folder-1', name: 'Reports', path: 'Reports', parentId: null },
+      { id: 'folder-2', name: 'Drafts', path: 'Reports/Drafts', parentId: 'folder-1' },
+    ])
+    mockListFiles.mockResolvedValue([file('f1', 'report.txt', 'folder-2')])
+
+    const result = await downloadWorkspaceFileItems.execute({
+      principal,
+      input: { workspaceId: 'ws-1', fileIds: [], folderIds: [], folderPaths: ['/Reports'] },
+    })
+
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+    expect(mockListFolders).toHaveBeenCalledOnce()
+  })
+
+  it('resolves a nested folder path without matching a same-named sibling', async () => {
+    mockListFolders.mockResolvedValue([
+      { id: 'folder-1', name: 'Reports', path: 'Reports', parentId: null },
+      { id: 'folder-2', name: 'Drafts', path: 'Reports/Drafts', parentId: 'folder-1' },
+      { id: 'folder-3', name: 'Drafts', path: 'Drafts', parentId: null },
+    ])
+    mockListFiles.mockResolvedValue([
+      file('f1', 'nested.txt', 'folder-2'),
+      file('f2', 'root.txt', 'folder-3'),
+    ])
+
+    const result = await downloadWorkspaceFileItems.execute({
+      principal,
+      input: { workspaceId: 'ws-1', fileIds: [], folderIds: [], folderPaths: ['/Reports/Drafts'] },
+    })
+
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+  })
+
+  /**
+   * A misspelled folder must not silently yield a zip of whatever else the
+   * request happened to select.
+   */
+  it('rejects a folder path that matches nothing rather than ignoring it', async () => {
+    mockListFolders.mockResolvedValue([
+      { id: 'folder-1', name: 'Reports', path: 'Reports', parentId: null },
+    ])
+    mockListFiles.mockResolvedValue([file('f1', 'clip.mp4')])
+
+    await expect(
+      downloadWorkspaceFileItems.execute({
+        principal,
+        input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [], folderPaths: ['/Nope'] },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+  })
+
   it('returns typed validation and conflict failures without recording audit', async () => {
     await expect(
       downloadWorkspaceFileItems.execute({
