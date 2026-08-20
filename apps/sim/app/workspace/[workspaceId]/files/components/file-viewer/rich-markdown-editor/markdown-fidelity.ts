@@ -55,12 +55,12 @@ function unescapeIntrawordUnderscores(markdown: string): string {
   let fence: string | null = null
 
   for (let i = 0; i < lines.length; i++) {
-    const delimiter = lines[i].match(FENCE_DELIMITER)?.[1]
-
     if (fence) {
-      if (delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length) fence = null
+      if (closesFence(lines[i], fence)) fence = null
       continue
     }
+
+    const delimiter = lines[i].match(FENCE_DELIMITER)?.[1]
     if (delimiter) {
       fence = delimiter
       continue
@@ -167,6 +167,22 @@ export function normalizeLinkHref(href: string): string {
 const EMPTY_LIST_ITEM_LINE = /^([ \t]*)(?:[-*+]|\d+[.)])[ \t]*$/
 /** A fenced code-block delimiter (``` or ~~~), used to leave code interiors untouched. */
 const FENCE_DELIMITER = /^[ \t]*(`{3,}|~{3,})/
+/**
+ * A line carrying nothing but a delimiter run — the only thing that CLOSES a fence.
+ *
+ * An OPENING fence may be followed by an info string (` ```python `), so opening is matched with
+ * {@link FENCE_DELIMITER}; a closing one may be followed only by whitespace. Treating any
+ * delimiter-prefixed line as a close ends the block at an interior line like ` ```example ` inside
+ * a `````` ```` ``````-fence, and every cleanup below then processes the rest of the author's code
+ * as prose.
+ */
+const CLOSING_FENCE = /^[ \t]*(`{3,}|~{3,})[ \t]*$/
+
+/** Whether `line` closes a fence opened with `fence`: same character, and at least as long. */
+function closesFence(line: string, fence: string): boolean {
+  const delimiter = line.match(CLOSING_FENCE)?.[1]
+  return Boolean(delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length)
+}
 /** Leading indentation of a line, used to detect whether an empty list item has indented children. */
 const LEADING_INDENT = /^[ \t]*/
 
@@ -192,12 +208,12 @@ function stripEmptyListItemLines(markdown: string): string {
   let fence: string | null = null
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    const delimiter = line.match(FENCE_DELIMITER)?.[1]
     if (fence) {
       kept.push(line)
-      if (delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length) fence = null
+      if (closesFence(line, fence)) fence = null
       continue
     }
+    const delimiter = line.match(FENCE_DELIMITER)?.[1]
     if (delimiter) {
       fence = delimiter
       kept.push(line)

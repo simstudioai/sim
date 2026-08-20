@@ -98,6 +98,32 @@ describe('markdown-fidelity utils', () => {
     expect(postProcessSerializedMarkdown('> \\[!NOTE\\]\n> hi')).toBe('> [!NOTE]\n> hi')
   })
 
+  /*
+   * A closing fence carries nothing but its delimiter run; a line that merely STARTS with one is
+   * content. Matching the prefix alone ends the block at an interior line like ` ````example `,
+   * after which the rest of the author's code is cleaned up as prose and its backslashes vanish.
+   *
+   * Exercised directly rather than through `roundTrip` on purpose: the serializer always opens a
+   * block with one more delimiter than the longest run inside it, so its own output cannot reach
+   * this shape and a round-trip test of it would pass either way. Relying on that choice staying
+   * true is an unstated coupling — this keeps the guard honest on any input.
+   */
+  it('does not close a fence on a delimiter-prefixed content line', () => {
+    const input = '````\nx = a\\_b\n````example\ny = c\\_d\n````\n'
+    expect(postProcessSerializedMarkdown(input)).toBe(input)
+  })
+
+  it('does not close a tilde fence on a delimiter-prefixed content line', () => {
+    const input = '~~~~\n~~~~note\ny = c\\_d\n~~~~\n'
+    expect(postProcessSerializedMarkdown(input)).toBe(input)
+  })
+
+  it('still closes a fence on a bare delimiter run with trailing spaces', () => {
+    expect(postProcessSerializedMarkdown('````\nx = a\\_b\n````  \ny = c\\_d\n')).toBe(
+      '````\nx = a\\_b\n````  \ny = c_d\n'
+    )
+  })
+
   it('restores escaped callout markers in nested blockquotes', () => {
     expect(postProcessSerializedMarkdown('> > \\[!WARNING\\]\n> > hi')).toBe(
       '> > [!WARNING]\n> > hi'
