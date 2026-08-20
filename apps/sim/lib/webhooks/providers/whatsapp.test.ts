@@ -313,3 +313,14 @@ describe('WhatsApp webhook provider', () => {
     expect(input.mediaId).toBeUndefined()
   })
 })
+
+describe('whatsappHandler challenge methods', () => {
+  /**
+   * Meta sends the verification handshake as a GET, so WhatsApp is the one provider that must
+   * widen past the POST-only default in `handleProviderChallenges`. Losing this declaration
+   * would break verification silently, at setup time only.
+   */
+  it('declares GET so Meta can verify the URL', () => {
+    expect(whatsappHandler.challengeMethods).toEqual(['GET', 'POST'])
+  })
+})

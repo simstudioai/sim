@@ -479,15 +479,6 @@ async function formatTeamsGraphNotification(
 
 export const microsoftTeamsHandler: WebhookProviderHandler = {
   handleChallenge(_body: unknown, request: NextRequest, requestId: string, path: string) {
-    /**
-     * Microsoft Graph sends the subscription validation as a POST. Answering it for any method
-     * would let a `validationToken` query parameter on a GET, PUT, PATCH or DELETE delivery to
-     * another provider's path be echoed back instead of triggering that workflow.
-     */
-    if (request.method !== 'POST') {
-      return null
-    }
-
     const url = new URL(request.url)
     const validationToken = url.searchParams.get('validationToken')
     if (validationToken) {

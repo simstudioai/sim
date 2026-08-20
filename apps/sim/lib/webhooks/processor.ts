@@ -166,6 +166,8 @@ export async function parseWebhookBody(
 /** Providers that implement challenge/verification handling, checked before webhook lookup. */
 const CHALLENGE_PROVIDERS = ['monday', 'slack', 'microsoft-teams', 'whatsapp', 'zoom'] as const
 
+const DEFAULT_CHALLENGE_METHODS = ['POST'] as const
+
 export async function handleProviderChallenges(
   body: unknown,
   request: NextRequest,
@@ -175,11 +177,19 @@ export async function handleProviderChallenges(
 ): Promise<NextResponse | null> {
   for (const provider of CHALLENGE_PROVIDERS) {
     const handler = getProviderHandler(provider)
-    if (handler.handleChallenge) {
-      const response = await handler.handleChallenge(body, request, requestId, path, rawBody)
-      if (response) {
-        return response
-      }
+    if (!handler.handleChallenge) continue
+
+    /**
+     * Challenge handlers run before the webhook lookup and match on payload shape alone, so one
+     * that answers on a method its provider never uses will intercept another provider's
+     * delivery to the same path. `POST` is the default because every handshake but Meta's is one.
+     */
+    const allowedMethods = handler.challengeMethods ?? DEFAULT_CHALLENGE_METHODS
+    if (!allowedMethods.includes(request.method)) continue
+
+    const response = await handler.handleChallenge(body, request, requestId, path, rawBody)
+    if (response) {
+      return response
     }
   }
   return null

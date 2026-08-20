@@ -243,6 +243,12 @@ async function handleWhatsAppVerification(
 }
 
 export const whatsappHandler: WebhookProviderHandler = {
+  /**
+   * Meta sends the WhatsApp verification handshake as a `GET` with `hub.*` query parameters, so
+   * this is the one challenge handler that must answer outside `POST`.
+   */
+  challengeMethods: ['GET', 'POST'],
+
   verifyAuth({ request, rawBody, requestId, providerConfig }) {
     const appSecret = providerConfig.appSecret as string | undefined
     if (!appSecret) {

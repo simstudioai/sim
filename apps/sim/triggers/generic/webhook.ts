@@ -51,6 +51,24 @@ export const genericWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'acceptOtherMethods',
+      title: 'Accept Other HTTP Methods',
+      type: 'switch',
+      description:
+        'Also accept GET, PUT, PATCH and DELETE — no others — and expose the method under "method". Leave off unless you need it: a GET URL can be replayed by link prefetchers and scanners, and a request with no body cannot be deduplicated.',
+      defaultValue: false,
+      mode: 'trigger',
+    },
+    {
+      id: 'exposeRequestHeaders',
+      title: 'Expose Request Headers',
+      type: 'switch',
+      description:
+        'Make the request headers available under "headers". Headers that carry credentials are withheld. Leave off unless you need it: exposed headers are stored in execution logs and trace spans, where they outlive the request.',
+      defaultValue: false,
+      mode: 'trigger',
+    },
+    {
       id: 'idempotencyField',
       title: 'Deduplication Field (Optional)',
       type: 'short-input',
@@ -118,9 +136,9 @@ export const genericWebhookTrigger: TriggerConfig = {
       defaultValue: [
         'Copy the webhook URL and use it in your external service or API.',
         'Configure your service to send webhooks to this URL.',
-        'The webhook accepts GET, POST, PUT, PATCH and DELETE requests. Use GET to trigger the workflow from a plain URL, such as a link in an email.',
-        'Body fields are available in your workflow, and the request method, headers and query parameters are available under "method", "headers" and "query" (for example "headers.x-event-name", "query.id"). Headers that carry credentials are withheld.',
-        'If authentication is enabled, include the token in the Secret Header Name you configured, or in "Authorization: Bearer TOKEN" if you left it blank. Only the configured method is accepted.',
+        'The webhook accepts POST. Turn on "Accept Other HTTP Methods" to also accept GET, PUT, PATCH and DELETE — for example to trigger the workflow from a link in an email.',
+        'Body fields are available in your workflow, and URL query parameters under "query" (for example "query.id"). Turn on "Expose Request Headers" to also get "headers" (for example "headers.x-event-name"), and "Accept Other HTTP Methods" to also get "method".',
+        'Authentication is header-based, so it cannot be used with a plain link. If authentication is enabled, include the token in the Secret Header Name you configured, or in "Authorization: Bearer TOKEN" if you left it blank — only the configured one is accepted, not either.',
         'To deduplicate incoming events, set the Deduplication Field to the dot-notation path of a unique identifier in the payload (e.g. "event.id"). Duplicate values within 7 days will be skipped.',
         'Enable "Verify Test Events" only if the sending service needs a temporary 200 response while validating the webhook URL.',
       ]
@@ -136,19 +154,29 @@ export const genericWebhookTrigger: TriggerConfig = {
   /**
    * Body fields stay undeclared because a generic webhook receives whatever JSON the caller
    * sends. The request metadata below is known ahead of time, so it can be offered for reference.
+   *
+   * `method` and `headers` are conditioned on the switch that produces them, so the reference
+   * dropdown never offers a field the running webhook will not send. Both truthy forms are
+   * matched because a YAML- or Copilot-authored workflow can write the string rather than the
+   * boolean — the same tolerance `isProviderConfigFlagEnabled` applies at delivery time.
    */
   outputs: {
     method: {
       type: 'string',
-      description: 'HTTP method of the request (GET, POST, PUT, PATCH or DELETE)',
+      description:
+        'HTTP method of the request. Yields to a body field of the same name if the caller sends one.',
+      condition: { field: 'acceptOtherMethods', value: [true, 'true'] },
     },
     query: {
       type: 'object',
-      description: 'Query parameters from the request URL',
+      description:
+        'Query parameters from the request URL, when it has any. Yields to a body field of the same name if the caller sends one.',
     },
     headers: {
       type: 'object',
-      description: 'Request headers, excluding the ones that carry credentials',
+      description:
+        'Request headers, excluding the ones that carry credentials. Yields to a body field of the same name if the caller sends one.',
+      condition: { field: 'exposeRequestHeaders', value: [true, 'true'] },
     },
   },
 
