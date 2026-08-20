@@ -78,6 +78,7 @@ export const SUPPORTED_CODE_EXTENSIONS = [
   'prettierrc',
   'eslintrc',
   'mmd',
+  'chart',
 ] as const
 
 export type SupportedCodeExtension = (typeof SUPPORTED_CODE_EXTENSIONS)[number]

@@ -14,12 +14,13 @@ import {
 } from '@/lib/workspace-files/artifact-stylesheet'
 import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
+import { ChartPreview } from './chart-preview'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
 import { ZoomablePreview } from './zoomable-preview'
 
-type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
+type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | null
 
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   'text/markdown': 'markdown',
@@ -28,6 +29,7 @@ const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   'text/csv': 'csv',
   'image/svg+xml': 'svg',
   'text/x-mermaid': 'mermaid',
+  'text/x-sim-chart': 'chart',
 }
 
 const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
@@ -37,6 +39,7 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   csv: 'csv',
   svg: 'svg',
   mmd: 'mermaid',
+  chart: 'chart',
 }
 
 /** All extensions that have a rich preview renderer. */
@@ -90,6 +93,8 @@ export const PreviewPanel = memo(function PreviewPanel({
   if (previewType === 'svg') return <SvgPreview content={content} />
   if (previewType === 'mermaid')
     return <MermaidFilePreview content={content} isStreaming={isStreaming} />
+  if (previewType === 'chart')
+    return <ChartPreview content={content} workspaceId={workspaceId} isStreaming={isStreaming} />
 
   return null
 })

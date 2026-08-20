@@ -501,6 +501,47 @@ export function useFindTableRows({ workspaceId, tableId, q, filter, sort }: Find
   })
 }
 
+/**
+ * Bounded single-page row read for chart files (`.chart` previews): one fetch
+ * of up to `limit` rows with the spec's verbatim filter/sort. Charts accept a
+ * truncated page — they visualize a sample, not a drained table.
+ */
+export function useTableRowsSample({
+  workspaceId,
+  tableId,
+  filter,
+  sort,
+  limit,
+  enabled = true,
+}: {
+  workspaceId?: string
+  tableId?: string
+  /** Passed through verbatim from the chart document; the contract validates. */
+  filter?: unknown
+  sort?: unknown
+  limit: number
+  enabled?: boolean
+}) {
+  const paramsKey = JSON.stringify({ filter: filter ?? null, sort: sort ?? null, limit })
+  return useQuery({
+    // rq-lint-allow: tableId is globally unique; workspaceId is only the authz scope
+    queryKey: tableKeys.sample(tableId ?? '', paramsKey),
+    queryFn: ({ signal }) =>
+      fetchTableRows({
+        workspaceId: workspaceId as string,
+        tableId: tableId as string,
+        limit,
+        filter: (filter ?? null) as TablePredicate | null,
+        sort: (sort ?? null) as SortSpec | null,
+        includeTotal: false,
+        signal,
+      }),
+    enabled: Boolean(workspaceId && tableId) && enabled,
+    staleTime: TABLE_ROWS_STALE_TIME,
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function tableRowsInfiniteOptions({
   workspaceId,
   tableId,
