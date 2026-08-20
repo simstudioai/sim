@@ -9340,3 +9340,18 @@ export function ZohoDeskIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function PitchBookIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='-3.16 0 102 101.7'
+      fill='currentColor'
+      xmlns='http://www.w3.org/2000/svg'
+      aria-hidden='true'
+    >
+      <path d='M75.43,0C16.66,4.78-7.6,53.48,2.06,84.09c5.67-8.73,16.21-18.24,37.78-21.76-1.25-25.79,8.08-43.79,35.59-62.33Z' />
+      <path d='M45.3,66.03c-14.85,2.43-25.18,6.46-31.65,12.57.2,8.16,2.53,16.13,6.77,23.1,5.02-12.27,21.5-20.95,46.55-21.01-6.1-29.4,7.53-56.33,28.71-74.41-10.48,1.55-20.75,4.31-30.61,8.21-16.13,15.54-22.14,35.57-19.77,51.55Z' />
+    </svg>
+  )
+}
