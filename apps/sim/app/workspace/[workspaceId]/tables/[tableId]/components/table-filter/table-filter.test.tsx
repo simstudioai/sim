@@ -235,4 +235,59 @@ describe('TableFilter', () => {
       ],
     })
   })
+
+  it('preserves an OR boundary when its first rule is cleared', () => {
+    const onChange = vi.fn()
+    renderFilter(onChange, {
+      any: [
+        { all: [{ field: 'col-name', op: 'eq', value: 'Ada' }] },
+        {
+          all: [
+            { field: 'col-name', op: 'eq', value: 'Grace' },
+            { field: 'col-name', op: 'eq', value: 'Linus' },
+          ],
+        },
+      ],
+    })
+
+    const inputs = container.querySelectorAll<HTMLInputElement>(
+      'input[placeholder="Enter a value"]'
+    )
+    act(() => typeInto(inputs[1], ''))
+    act(() => inputs[1]?.dispatchEvent(new FocusEvent('focusout', { bubbles: true })))
+
+    expect(onChange).toHaveBeenCalledWith({
+      any: [
+        { all: [{ field: 'col-name', op: 'eq', value: 'Ada' }] },
+        { all: [{ field: 'col-name', op: 'eq', value: 'Linus' }] },
+      ],
+    })
+  })
+
+  it('preserves an OR boundary when its first rule is removed', () => {
+    const onChange = vi.fn()
+    renderFilter(onChange, {
+      any: [
+        { all: [{ field: 'col-name', op: 'eq', value: 'Ada' }] },
+        {
+          all: [
+            { field: 'col-name', op: 'eq', value: 'Grace' },
+            { field: 'col-name', op: 'eq', value: 'Linus' },
+          ],
+        },
+      ],
+    })
+
+    const removeButtons = container.querySelectorAll<HTMLButtonElement>(
+      'button[aria-label="Remove filter"]'
+    )
+    act(() => removeButtons[1]?.click())
+
+    expect(onChange).toHaveBeenCalledWith({
+      any: [
+        { all: [{ field: 'col-name', op: 'eq', value: 'Ada' }] },
+        { all: [{ field: 'col-name', op: 'eq', value: 'Linus' }] },
+      ],
+    })
+  })
 })

@@ -30,9 +30,12 @@ function selectFilterOperators(column: ColumnDefinition | undefined): Set<string
 
 function toAppliedPredicate(
   rules: FilterRule[],
-  columns: ColumnDefinition[]
+  columns: ColumnDefinition[],
+  preserveIncompleteBoundaries = false
 ): TablePredicate | null {
-  const validRules = rules.filter(isCompleteRule)
+  const validRules = preserveIncompleteBoundaries
+    ? rules.map((rule) => (isCompleteRule(rule) ? rule : { ...rule, column: '' }))
+    : rules.filter(isCompleteRule)
   return filterRulesToPredicate(validRules, columns)
 }
 
@@ -80,7 +83,7 @@ export function TableFilter({
       const deferredRule = nextRules.find((rule) => rule.id === deferIncompleteRuleId)
       if (deferredRule && !isCompleteRule(deferredRule)) return
 
-      const nextFilter = toAppliedPredicate(nextRules, columns)
+      const nextFilter = toAppliedPredicate(nextRules, columns, true)
       const signature = JSON.stringify(nextFilter)
       if (signature === lastAppliedFilterRef.current) return
       lastAppliedFilterRef.current = signature
@@ -121,7 +124,12 @@ export function TableFilter({
         return
       }
       applyRules((current) => {
+        const removedIndex = current.findIndex((rule) => rule.id === id)
+        const removedRule = current[removedIndex]
         const next = current.filter((rule) => rule.id !== id)
+        if (removedRule?.logicalOperator === 'or' && removedIndex < next.length) {
+          next[removedIndex] = { ...next[removedIndex], logicalOperator: 'or' }
+        }
         return next.length > 0 ? next : [createRule(columns)]
       })
     },
