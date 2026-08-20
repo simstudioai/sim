@@ -75,11 +75,28 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * Denied to workspace API keys, unlike its sibling writes.
+   *
+   * Applying an edit batch authorizes against three per-user policies — the EE
+   * permission config, block visibility, and credential reachability — and all
+   * three take a human subject. An actorless workspace key has none, and the
+   * two available substitutes both fail *open*: attributing to the workspace
+   * billing owner evaluates the batch as the least-restricted account in the
+   * workspace, and passing no user at all makes `getUserPermissionConfig`
+   * return `null`, which every caller reads as "unrestricted". Either way a
+   * workspace whose members are constrained by an allowlist would be edited as
+   * though it were not.
+   *
+   * Personal keys keep the capability, so headless editing is unaffected for a
+   * credential that names a human. Re-open this to workspace keys only once the
+   * three lookups can express a workspace-scoped policy that fails closed.
+   */
   applyOperations: defineWorkspaceOperation({
     id: 'workflows.operations.apply',
     minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+    workspaceApiKey: 'deny',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
   restore: defineWorkspaceOperation({
     id: 'workflows.restore',

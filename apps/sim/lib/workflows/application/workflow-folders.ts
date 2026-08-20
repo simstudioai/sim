@@ -107,6 +107,28 @@ export function workflowFolderPathForId(
   return path
 }
 
+/**
+ * The same projection for a workflow that may itself be archived.
+ *
+ * Archiving a folder cascades onto the workflows inside it but leaves their
+ * `folderId` pointing at the now-inactive row — which is exactly why restore has
+ * to null a dangling `folderId` before it re-reads. So on any read that can
+ * surface an archived workflow, an unresolvable folder is the expected state
+ * rather than the inconsistency {@link workflowFolderPathForId} treats it as,
+ * and one such row would otherwise throw a bare `Error` and 500 the whole page
+ * with no cursor position able to skip past it.
+ *
+ * The root is the honest answer: it is where restore would put the workflow if
+ * the caller restored it now.
+ */
+export function archivableWorkflowFolderPath(
+  index: WorkflowFolderIndex,
+  folderId: string | null | undefined
+): string {
+  if (!folderId) return ROOT_FOLDER_PATH
+  return index.pathById.get(folderId) ?? ROOT_FOLDER_PATH
+}
+
 export const listWorkflowFolders = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.listFolders,
   resolveContext: ({ input }: { input: ListWorkflowFoldersInput }) =>

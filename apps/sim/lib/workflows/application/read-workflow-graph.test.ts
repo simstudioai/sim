@@ -45,8 +45,13 @@ const context = {
 const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
 const input = { workflowId: 'workflow-1' }
 
-const VARIABLES = {
+/** The stored column shape, including the `workflowId` this surface withholds. */
+const STORED_VARIABLES = {
   'var-1': { id: 'var-1', workflowId: 'workflow-1', name: 'region', type: 'string', value: 'eu' },
+}
+/** What the read projects: canonical variables, no `workflowId`. */
+const PROJECTED_VARIABLES = {
+  'var-1': { id: 'var-1', name: 'region', type: 'string', value: 'eu' },
 }
 
 describe('readWorkflowGraph', () => {
@@ -55,7 +60,7 @@ describe('readWorkflowGraph', () => {
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.loadSnapshot.mockResolvedValue({
-      workflowRecord: { id: 'workflow-1', variables: VARIABLES },
+      workflowRecord: { id: 'workflow-1', variables: STORED_VARIABLES },
       normalizedData: { blocks: { 'block-1': { id: 'block-1' } }, edges: [] },
     })
   })
@@ -68,7 +73,27 @@ describe('readWorkflowGraph', () => {
       edges: [],
       loops: {},
       parallels: {},
-      variables: VARIABLES,
+      variables: PROJECTED_VARIABLES,
+    })
+  })
+
+  /**
+   * The column has carried a JSON string and a legacy array as well as the
+   * current record, and nothing on any write path bounds `type` to the enum the
+   * response publishes. Parsing is what stops a strict outbound schema from
+   * rejecting a workflow this endpoint exists to open.
+   */
+  it.each([
+    ['a JSON string', JSON.stringify(STORED_VARIABLES)],
+    ['a legacy array', Object.values(STORED_VARIABLES)],
+  ])('reads variables stored as %s', async (_shape, stored) => {
+    mocks.loadSnapshot.mockResolvedValue({
+      workflowRecord: { id: 'workflow-1', variables: stored },
+      normalizedData: { blocks: { 'block-1': { id: 'block-1' } }, edges: [] },
+    })
+
+    await expect(readWorkflowGraph.execute({ principal, input })).resolves.toMatchObject({
+      variables: PROJECTED_VARIABLES,
     })
   })
 

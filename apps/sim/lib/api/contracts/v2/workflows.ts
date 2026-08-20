@@ -2113,18 +2113,36 @@ function workflowParallelSchema(id: string) {
  * client's cross-workflow variables store, and on this surface the path already
  * names the workflow.
  */
-function workflowVariableSchema(id: string) {
+const WORKFLOW_VARIABLE_TYPES = ['string', 'number', 'boolean', 'object', 'array', 'plain'] as const
+
+/**
+ * `stored` relaxes exactly the assertions the column cannot support.
+ *
+ * A response schema is parsed on the way out, so every bound it declares is a
+ * claim about data already written — and nothing on any write path enforces
+ * these two. The realtime `variable.add` op accepts `type: z.any()`, the Copilot
+ * file materializer persists `variable.type || 'string'` for any string, and the
+ * variables parser stores `name` verbatim including `''`. Declaring the input
+ * bounds on the read would turn a workflow that exists into a 500 on the one
+ * endpoint that opens it.
+ *
+ * `input` keeps them: a write is the moment the bounds can still be honoured.
+ */
+function workflowVariableSchema(id: string, mode: 'input' | 'stored' = 'input') {
+  const name =
+    mode === 'input'
+      ? z.string().min(1, 'variable name cannot be empty').max(255, 'variable name is too long')
+      : z.string()
+  const type =
+    mode === 'input'
+      ? z.enum(WORKFLOW_VARIABLE_TYPES)
+      : z.enum(WORKFLOW_VARIABLE_TYPES).catch('string')
+
   return z
     .object({
       id: z.string().min(1, 'variable id cannot be empty').describe('Variable identifier.'),
-      name: z
-        .string()
-        .min(1, 'variable name cannot be empty')
-        .max(255, 'variable name is too long')
-        .describe('Variable name, referenced from block inputs.'),
-      type: z
-        .enum(['string', 'number', 'boolean', 'object', 'array', 'plain'])
-        .describe('Declared variable type.'),
+      name: name.describe('Variable name, referenced from block inputs.'),
+      type: type.describe('Declared variable type.'),
       value: z
         .unknown()
         .describe('Variable value; free-form and validated per `type` at use time.'),
@@ -2136,7 +2154,7 @@ export const v2WorkflowBlockSchema = workflowBlockSchema('WorkflowBlock')
 export const v2WorkflowEdgeSchema = workflowEdgeSchema('WorkflowEdge')
 const v2WorkflowLoopSchema = workflowLoopSchema('WorkflowLoop')
 const v2WorkflowParallelSchema = workflowParallelSchema('WorkflowParallel')
-export const v2WorkflowVariableSchema = workflowVariableSchema('WorkflowVariable')
+export const v2WorkflowVariableSchema = workflowVariableSchema('WorkflowVariable', 'stored')
 
 /**
  * The editable draft graph.

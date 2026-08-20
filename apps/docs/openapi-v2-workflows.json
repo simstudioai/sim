@@ -4643,14 +4643,13 @@
           },
           "name": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 255,
             "description": "Variable name, referenced from block inputs."
           },
           "type": {
+            "default": "string",
+            "description": "Declared variable type.",
             "type": "string",
-            "enum": ["string", "number", "boolean", "object", "array", "plain"],
-            "description": "Declared variable type."
+            "enum": ["string", "number", "boolean", "object", "array", "plain"]
           },
           "value": {
             "description": "Variable value; free-form and validated per `type` at use time."

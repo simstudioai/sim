@@ -6,6 +6,7 @@ import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/applica
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
+import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 
 export interface ReadWorkflowGraphInput {
   workflowId: string
@@ -44,7 +45,12 @@ export const readWorkflowGraph = defineAuthorizedWorkflowUseCase({
     if (!snapshot.workflowRecord || !snapshot.normalizedData) {
       throw new OrchestrationError('not_found', 'Workflow not found')
     }
-    const variables = snapshot.workflowRecord.variables
+    // The column has carried three shapes over time (JSON string, legacy array,
+    // current record) and nothing bounds what a write puts in `type`. Parsing it
+    // is what keeps a strict outbound response from rejecting a workflow it
+    // exists to open — the same rule `normalizeStoredBlockRetry` states for
+    // blocks. The export read already does this; this one did not.
+    const variables = parseWorkflowVariables(snapshot.workflowRecord.variables)
     return {
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
@@ -52,7 +58,7 @@ export const readWorkflowGraph = defineAuthorizedWorkflowUseCase({
       edges: (snapshot.normalizedData.edges ?? []) as WorkflowState['edges'],
       loops: snapshot.normalizedData.loops ?? {},
       parallels: snapshot.normalizedData.parallels ?? {},
-      variables: (variables as Record<string, Variable> | null) ?? {},
+      variables: variables ?? {},
     }
   },
 })

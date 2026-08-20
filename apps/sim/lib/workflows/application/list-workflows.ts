@@ -5,7 +5,10 @@ import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folder
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { workflowFolderPathForId } from '@/lib/workflows/application/workflow-folders'
+import {
+  archivableWorkflowFolderPath,
+  workflowFolderPathForId,
+} from '@/lib/workflows/application/workflow-folders'
 import {
   listWorkspaceWorkflows,
   type WorkflowSortBy,
@@ -68,7 +71,10 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
       workflows: page.data.map((workflow) => ({
         ...workflow,
         workspaceId: workflow.workspaceId ?? context.workspaceId,
-        folderPath: workflowFolderPathForId(folderIndex, workflow.folderId),
+        folderPath:
+          input.scope === 'archived'
+            ? archivableWorkflowFolderPath(folderIndex, workflow.folderId)
+            : workflowFolderPathForId(folderIndex, workflow.folderId),
       })),
       nextCursorKeys: page.nextCursorKeys,
       sortBy: input.sortBy,
