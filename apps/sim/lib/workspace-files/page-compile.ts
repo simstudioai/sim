@@ -140,37 +140,22 @@ function docTabBar(tabs: DocTab[]): string {
 }
 
 /**
- * The in-document tab switcher. Panels toggle by class; the shell's TOC is
- * built from every panel's headings, so each switch re-hides the rail links
- * that belong to inactive panels (the rAF wait covers the shell building
- * after this script runs).
+ * The in-document tab switcher: toggles panels and announces the change. The
+ * shell rebuilds its "On this page" rail from the newly active panel on the
+ * sim-tab-change event, so each tab reads as its own page.
  */
 const DOC_TABS_SCRIPT = `<script>
 (() => {
   const tabs = [...document.querySelectorAll('[data-doc-tabs] .page-tab')]
   const panels = [...document.querySelectorAll('[data-tab-panel]')]
   if (tabs.length === 0) return
-  const syncToc = () => {
-    for (const a of document.querySelectorAll('.rail[data-rail="toc"] a')) {
-      const id = (a.getAttribute('href') || '').slice(1)
-      const el = id ? document.getElementById(id) : null
-      const panel = el ? el.closest('[data-tab-panel]') : null
-      a.toggleAttribute('hidden', Boolean(panel && !panel.classList.contains('is-active')))
-    }
-  }
   const activate = (target) => {
     for (const t of tabs) t.classList.toggle('is-active', t.dataset.tabTarget === target)
     for (const p of panels) p.classList.toggle('is-active', p.id === target)
-    syncToc()
     window.scrollTo({ top: 0 })
+    document.dispatchEvent(new Event('sim-tab-change'))
   }
   for (const t of tabs) t.addEventListener('click', () => activate(t.dataset.tabTarget))
-  let tries = 0
-  const wait = () => {
-    if (document.querySelector('.rail[data-rail="toc"]') || tries++ > 40) return syncToc()
-    requestAnimationFrame(wait)
-  }
-  wait()
 })()
 </script>`
 

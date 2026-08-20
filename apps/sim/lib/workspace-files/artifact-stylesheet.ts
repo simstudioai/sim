@@ -645,14 +645,18 @@ export const SIM_ARTIFACT_SHELL = `<script>
     const page = document.querySelector('.page[data-layout="docs"]')
     if (!page || page.dataset.shell === 'ready') return
     const main = page.querySelector('main') || page
-    const headings = [...main.querySelectorAll('h2, h3')]
-    if (headings.length === 0) return
+    if (main.querySelectorAll('h2, h3').length === 0) return
     page.dataset.shell = 'ready'
+
+    // In a multi-tab document each tab is its own page: the TOC is built from
+    // the ACTIVE panel's headings only and rebuilt on every tab switch.
+    const tocScope = () => main.querySelector('[data-tab-panel].is-active') || main
+    let headings = []
+    let tocLinks = []
 
     const ICON_ATTRS = 'viewBox="-1 -2 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
     const slug = (text, i) =>
       (text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section') + '-' + i
-    headings.forEach((h, i) => { if (!h.id) h.id = slug(h.textContent || '', i) })
 
     // Right rail — the clerk TOC.
     const right = document.createElement('nav')
@@ -679,15 +683,6 @@ export const SIM_ARTIFACT_SHELL = `<script>
     const thumbPath = document.createElementNS(SVG_NS, 'path')
     thumb.appendChild(thumbPath)
     tocItems.append(track, thumb)
-    const tocLinks = []
-    for (const h of headings) {
-      const a = document.createElement('a')
-      a.href = '#' + h.id
-      a.textContent = h.textContent
-      a.dataset.depth = h.tagName === 'H2' ? '2' : '3'
-      tocItems.appendChild(a)
-      tocLinks.push(a)
-    }
     right.append(rightTitle, tocItems)
 
     // Top bar with the page title and the theme toggle.
@@ -872,7 +867,29 @@ export const SIM_ARTIFACT_SHELL = `<script>
     new ResizeObserver(refresh).observe(tocItems)
     document.addEventListener('scroll', spy, { passive: true })
     window.addEventListener('resize', refresh)
-    refresh()
+
+    // (Re)builds the TOC from the active scope — the whole page, or the
+    // active tab's panel. Each tab switch produces a fresh rail, so every
+    // tab reads as its own page.
+    let slugSeq = 0
+    const populateToc = () => {
+      headings = [...tocScope().querySelectorAll('h2, h3')]
+      headings.forEach((h) => { if (!h.id) h.id = slug(h.textContent || '', slugSeq++) })
+      for (const a of [...tocItems.querySelectorAll('a')]) a.remove()
+      tocLinks = []
+      for (const h of headings) {
+        const a = document.createElement('a')
+        a.href = '#' + h.id
+        a.textContent = h.textContent
+        a.dataset.depth = h.tagName === 'H2' ? '2' : '3'
+        tocItems.appendChild(a)
+        tocLinks.push(a)
+      }
+      right.style.display = headings.length === 0 ? 'none' : ''
+      refresh()
+    }
+    document.addEventListener('sim-tab-change', populateToc)
+    populateToc()
   }
 
   // In-page anchors must scroll, never navigate. Under the preview's
