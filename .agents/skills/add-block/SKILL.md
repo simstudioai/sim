@@ -1052,3 +1052,34 @@ After creating the block, you MUST validate it against every tool it references:
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
 5. **Verify `{Service}BlockMeta` is exported** with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 6. **If any tool outputs are still unknown**, explicitly tell the user instead of guessing block outputs
+
+## Option Lists: `selectorKey` or `options`, never a per-block fetcher
+
+A sub-block gets its choices from exactly one of two places. There is no third.
+
+**`selectorKey` — every remote list.** Register the list in `hooks/selectors/providers/<service>/selectors.ts`, add its key to `SelectorKey`, and point the sub-block at it. A selector is parameterized by an explicit `SelectorContext`, so the same definition serves the canvas, the workspace-fork sync modal, and anything added later.
+
+```ts
+{ id: 'triggerCredentials', type: 'oauth-input', canonicalParamId: 'oauthCredential', mode: 'trigger' },
+{ id: 'labelIds', type: 'dropdown', multiSelect: true,
+  selectorKey: 'gmail.labels', dependsOn: ['triggerCredentials'], mode: 'trigger' },
+{ id: 'manualLabelIds', type: 'short-input', mode: 'trigger-advanced' },
+```
+
+`canonicalParamId: 'oauthCredential'` on the credential sub-block is the line people forget. `buildSelectorContextFromBlock` keys the context on a sub-block's CANONICAL id, so without it `context.oauthCredential` is never set and the picker looks unfixable without reading the store. (A credential field is also recognised by its `oauth-input` TYPE as a fallback, so a block whose shipped param is already named something else does not have to rename it.)
+
+**`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
+
+```ts
+options: (params) => {
+  const model = params?.values.model
+  return typeof model === 'string' ? effortsFor(model) : DEFAULT_EFFORTS
+}
+```
+
+**Never fetch inside `options`, and never reach into the stores from a block definition.** A fetcher that resolves its credential with `readSubBlockValue(blockId, ...)` only works on the canvas — every surface that is not the editor gets an empty list. `fetchOptions`/`fetchOptionById` were removed for exactly this reason.
+
+Two rules the checks enforce:
+
+- **A secret never enters a selector's `getQueryKey`.** A query key identifies a resource; a credential authorizes access to it. A credential *id* is fine; a typed password is not (see `imap.mailboxes`).
+- **A sub-block that `dependsOn` a credential / knowledge-base / table selector must be reconfigurable at fork-sync time** — a `selectorKey`, a canonical pair whose basic member is a selector, or a `short-input`/`long-input`. `bun run check:fork-dependent-coverage` fails otherwise, because a fork sync clears those fields on every push and an unofferable one can never be set anywhere that sticks.

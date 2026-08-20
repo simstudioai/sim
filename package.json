@@ -25,6 +25,7 @@
     "check": "turbo run format:check",
     "check:boundaries": "bun run scripts/check-monorepo-boundaries.ts",
     "check:api-validation": "bun run scripts/check-api-validation-contracts.ts --check",
+    "check:fork-dependent-coverage": "bun run scripts/check-fork-dependent-coverage.ts",
     "generate:openapi": "bun run scripts/generate-openapi.ts",
     "check:openapi": "bun run scripts/check-openapi.ts",
     "generate:cli-api": "bun run scripts/generate-v2-cli-api.ts",

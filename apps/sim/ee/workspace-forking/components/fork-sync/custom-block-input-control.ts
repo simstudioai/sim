@@ -90,8 +90,24 @@ export const CUSTOM_BLOCK_UNSUPPORTED_HINT = 'Uploaded in the workflow — kept 
  * unconfigured required field relies on.
  */
 export function isForkSyncConfigurableField(
-  field: Pick<ForkDependentReconfig, 'parentKind' | 'fieldType'>
+  field: Pick<ForkDependentReconfig, 'parentKind' | 'fieldType' | 'selectorKey'>
 ): boolean {
-  if (field.parentKind !== 'custom-block') return true
-  return customBlockInputControl(field.fieldType) !== 'unsupported'
+  return forkDependentControl(field) !== 'unsupported'
+}
+
+/**
+ * The control the sync modal renders for one dependent field.
+ *
+ * `fieldType` means two different things depending on where the field came from, so the two
+ * are classified separately rather than by one lookup that happens to agree:
+ *  - a **custom-block input** declares a Start FIELD type (`string`, `boolean`, `file[]`),
+ *    which {@link customBlockInputControl} maps through the canvas's own mapping;
+ *  - every other no-selector dependent is a canvas SUB-BLOCK, whose own type says it.
+ */
+export function forkDependentControl(
+  field: Pick<ForkDependentReconfig, 'parentKind' | 'fieldType' | 'selectorKey'>
+): CustomBlockInputControl | 'selector' {
+  if (field.selectorKey) return 'selector'
+  if (field.parentKind === 'custom-block') return customBlockInputControl(field.fieldType)
+  return field.fieldType === 'long-input' ? 'textarea' : 'input'
 }

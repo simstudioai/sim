@@ -48,6 +48,12 @@ interface ReconfigItem {
  * intentionally excluded: their tool dependent has no `selectorKey` and a separate
  * (non-`useSelectorOptions`) stack, so it falls back to the needs-config surfacing.
  */
+/**
+ * Dependent sub-block types the modal renders as a free-text field rather than a picker.
+ * They carry no options to fetch, so they need no selector — just somewhere to type.
+ */
+const TEXT_DEPENDENT_TYPES = new Set<string>(['short-input', 'long-input'])
+
 const PARENT_ANCHORS: ReadonlyArray<{
   subBlockType: string
   parentKind: ForkDependentReconfig['parentKind']
@@ -130,6 +136,22 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   const canonicalIndex = buildCanonicalIndex(config.subBlocks)
   const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
   const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
+  // Text members of a canonical pair whose basic side IS a selector. The pair already
+  // represents the field: its selector member is offered, and the manual member is verbatim by
+  // policy (`clearDependentsOnRemap` never clears it), so offering it too would show the same
+  // concept twice and invite writing into the inactive half.
+  const canonicalWithSelector = new Set(
+    config.subBlocks
+      .filter((cfg) => cfg.canonicalParamId && cfg.selectorKey)
+      .map((cfg) => cfg.canonicalParamId)
+  )
+  const canonicalPairMembers = new Set(
+    config.subBlocks
+      .filter(
+        (cfg) => cfg.id && cfg.canonicalParamId && canonicalWithSelector.has(cfg.canonicalParamId)
+      )
+      .map((cfg) => cfg.id as string)
+  )
   // A field could hang off two anchors (or be reachable via two paths); emit it once.
   const seen = new Set<string>()
 
@@ -167,7 +189,19 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
 
       for (const clear of getTransitiveSubBlockDependents(config.subBlocks, [anchorCfg.id])) {
         const dependent = configById.get(clear.subBlockId)
-        if (!dependent?.id || !dependent.selectorKey) continue
+        // A dependent is offered when the modal can actually render a control for it: a
+        // registered selector, or a plain text field. Anything else is skipped and the
+        // fork-dependent-coverage check keeps that set empty — see
+        // `scripts/check-fork-dependent-coverage.ts`.
+        //
+        // Text fields matter as much as selectors here. `clearDependentsOnRemap` wipes every
+        // transitive dependent of a remapped parent on EVERY sync (a credential mapped across
+        // environments changes value each time), so a field the modal never offered was
+        // re-emptied on every push and could not be fixed by setting it in the target either.
+        if (!dependent?.id) continue
+        const isTextDependent =
+          TEXT_DEPENDENT_TYPES.has(dependent.type) && !canonicalPairMembers.has(dependent.id)
+        if (!dependent.selectorKey && !isTextDependent) continue
         // Skip fields gated off by their `condition` - a selector under a now-inactive
         // operation (e.g. a move-only label while the block reads) isn't in play. We do
         // NOT require a source value: an active selector the source left empty is still
@@ -233,7 +267,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           targetBlockId: resolveTargetBlockId(),
           blockName,
           subBlockKey: makeSubBlockKey(dependent.id),
-          selectorKey: dependent.selectorKey,
+          ...(dependent.selectorKey
+            ? { selectorKey: dependent.selectorKey }
+            : { fieldType: dependent.type }),
           title: makeTitle(dependent),
           ...(toolName ? { toolName } : {}),
           ...(dependencyScope ? { dependencyScope } : {}),

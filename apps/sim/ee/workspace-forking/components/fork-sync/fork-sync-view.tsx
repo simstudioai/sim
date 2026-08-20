@@ -36,7 +36,7 @@ import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-rec
 import {
   CUSTOM_BLOCK_UNSUPPORTED_HINT,
   customBlockBooleanOptions,
-  customBlockInputControl,
+  forkDependentControl,
 } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import { CustomBlockInputField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-field'
 import { DependentFieldSelector } from '@/ee/workspace-forking/components/fork-sync/dependent-field-selector'
@@ -221,15 +221,18 @@ function DependentSelector({
       : effectiveDependentValue(f, state, parentChanged)
   const baselineValueFor = (f: ForkDependentReconfig) => effectiveValueIn(f, {})
   const effectiveValue = (f: ForkDependentReconfig) => effectiveValueIn(f, reconfig)
-  if (isCustomBlockInput) {
-    // Not a selector: there is no parent resource to browse and no options to fetch, just the
-    // target block's own declared input. Renders a BARE control, like `DependentFieldSelector`
-    // does — the row wrapper above already draws the field's label and required marker, so a
-    // labelled `ChipModalField` printed the title twice.
+  // A dependent with no selector has no parent resource to browse and no options to fetch —
+  // just a value to type. That is every custom-block input, and also a plain text field under
+  // a remapped credential (a Jira issue type, a Notion block id), which the sync clears on
+  // every push and so must be re-settable here.
+  if (!field.selectorKey) {
+    // Renders a BARE control, like `DependentFieldSelector` does — the row wrapper above
+    // already draws the field's label and required marker, so a labelled `ChipModalField`
+    // printed the title twice.
     const setValue = (value: string) =>
       setReconfig((current) => ({ ...current, [dependentKey(field)]: value }))
     const value = effectiveValue(field)
-    switch (customBlockInputControl(field.fieldType)) {
+    switch (forkDependentControl(field)) {
       case 'switch':
         return (
           <ChipSwitch
