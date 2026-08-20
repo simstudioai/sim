@@ -175,6 +175,13 @@ describe('editor markdown round-trip', () => {
     'highlight nested in bold': '**bold ==mark== here**',
     'highlight in list': '- ==a== item',
     'highlight with interior equals': 'x ==a=b== y',
+    'intraword underscores': 'SB_ACTION_ROUTER_SECRET',
+    'env token with underscores': '{{TE_SERET}} and {{OPENAI_API_KEY}}',
+    'underscore emphasis': 'an _italic_ word',
+    'underscore bold': 'a __bold__ word',
+    'mixed underscores': '_em_ then SNAKE_CASE_NAME then _em again_',
+    'escaped underscore in code': '```py\nx = a\\_b\n```',
+    'escaped underscore in inline code': 'call `a\\_b` here',
   }
 
   for (const [name, input] of Object.entries(cases)) {
@@ -202,6 +209,32 @@ describe('editor markdown round-trip', () => {
 
   it('keeps GFM callout markers unescaped', () => {
     expect(roundTrip('> [!NOTE]\n> Heads up')).toContain('[!NOTE]')
+  })
+
+  /*
+   * The serializer escapes every underscore, but CommonMark's intraword rule means one flanked by
+   * letters or digits can neither open nor close emphasis. The escape is therefore invisible to a
+   * reader and load-bearing for nobody — while workflow search matches the STORED markdown, so a
+   * stray backslash made `SB_ACTION` unfindable in a note that plainly showed it.
+   */
+  it('writes an intraword underscore without a backslash', () => {
+    expect(roundTrip('SB_ACTION_ROUTER_SECRET')).toBe('SB_ACTION_ROUTER_SECRET')
+    expect(roundTrip('{{TE_SERET}}')).toBe('{{TE_SERET}}')
+  })
+
+  /* Emphasis itself normalises to asterisks, which is pre-existing and fine. What must survive
+     is the distinction: a literal underscore pair keeps its escape, so re-parsing cannot turn
+     the user's text into emphasis. */
+  it('still escapes an underscore that would open or close emphasis', () => {
+    expect(roundTrip('an _italic_ word')).toBe('an *italic* word')
+    expect(roundTrip('literal \\_not emphasis\\_ here')).toContain('\\_')
+  })
+
+  /* Code is emitted verbatim, so a backslash inside it is the author's own character and not an
+     escape to drop. Unescaping blind would silently rewrite people's code. */
+  it('leaves a backslash-underscore inside code alone', () => {
+    expect(roundTrip('```py\nx = a\\_b\n```')).toContain('a\\_b')
+    expect(roundTrip('call `a\\_b` here')).toContain('a\\_b')
   })
 
   it('preserves an image url (does not drop the src)', () => {

@@ -26,6 +26,11 @@ export {
 } from './note/note-colors'
 export { getNoteStringValue, isNoteContentEmpty } from './note/note-content'
 export {
+  countNoteSearchOccurrencesBefore,
+  type NoteSearchHighlight,
+  type NoteSearchRange,
+} from './note/note-search-highlight'
+export {
   type SubflowNodeData,
   SubflowNodeView,
   type SubflowNodeViewProps,

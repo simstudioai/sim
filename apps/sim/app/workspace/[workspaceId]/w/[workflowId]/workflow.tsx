@@ -145,7 +145,7 @@ import {
 } from '@/stores/execution'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { PendingConnect } from '@/stores/modals/search/types'
-import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
+import { usePanelEditorSearchStore, usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -4607,6 +4607,73 @@ const WorkflowContent = React.memo(
       window.addEventListener('keydown', handleArrowNavigation, true)
       return () => window.removeEventListener('keydown', handleArrowNavigation, true)
     }, [embedded, getNodes, blocks, focusBlockInView])
+
+    /**
+     * Brings a Note holding the current search match onto the canvas.
+     *
+     * Every other block answers a search through the editor panel, which scrolls
+     * the matching field into view for free. A Note renders nothing there — the
+     * card itself is the surface — so the camera has to do that job here, and
+     * the card has to be selected before it will hold a scroll position deep in
+     * its own body rather than snapping back to the top.
+     *
+     * Keyed on the match rather than the block, so cycling between two matches
+     * in one Note re-asserts a camera that is already where it needs to be
+     * (visually inert) instead of stranding the second match off-screen after
+     * the user has panned away. Matches on every other kind of block are marked
+     * handled and otherwise left alone — without that, walking away to a block
+     * match and back to a Note one would read as the same match twice and skip
+     * the camera the second time.
+     *
+     * Also covers a match on the Note's *name*, which the card cannot underline
+     * but which at least lands the user on the right card.
+     *
+     * Subscribed as two ids and NEVER as the target object. The search panel
+     * renders inside this component and re-publishes an equal target on most of
+     * its own renders (its hydration hooks hand back fresh arrays), so holding
+     * the object here re-renders the panel, whose effect re-publishes, which
+     * re-renders it again — an unbounded update loop the moment a search opens.
+     * Two string selectors are compared by value, so a re-publish of the same
+     * match is inert.
+     */
+    const searchMatchId = usePanelEditorSearchStore(
+      (state) => state.activeSearchTarget?.matchId ?? null
+    )
+    const searchMatchBlockId = usePanelEditorSearchStore(
+      (state) => state.activeSearchTarget?.blockId ?? null
+    )
+    const focusedSearchMatchIdRef = useRef<string | null>(null)
+    useEffect(() => {
+      if (embedded) return
+      if (!searchMatchId || !searchMatchBlockId) {
+        focusedSearchMatchIdRef.current = null
+        return
+      }
+      if (searchMatchId === focusedSearchMatchIdRef.current) return
+
+      if (blocks[searchMatchBlockId]?.type !== 'note') {
+        focusedSearchMatchIdRef.current = searchMatchId
+        return
+      }
+
+      /* Read from `displayNodes` rather than `getNodes()` so a match that
+         arrives before its node has mounted is retried on the commit that
+         mounts it, instead of being dropped. */
+      const node = displayNodes.find((candidate) => candidate.id === searchMatchBlockId)
+      if (!node) return
+
+      focusedSearchMatchIdRef.current = searchMatchId
+      setDisplayNodes((currentNodes) =>
+        resolveSelectionConflicts(
+          currentNodes.map((currentNode) => ({
+            ...currentNode,
+            selected: currentNode.id === node.id,
+          })),
+          blocks
+        )
+      )
+      focusBlockInView(node)
+    }, [blocks, displayNodes, embedded, focusBlockInView, searchMatchBlockId, searchMatchId])
 
     /** Handles edge selection with container context tracking and Shift-click multi-selection. */
     const onEdgeClick = useCallback(
