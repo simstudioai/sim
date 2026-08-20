@@ -1036,6 +1036,88 @@ describe('Webhook Trigger API Route', () => {
       expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
     })
 
+    it('continues past a missing credential to another valid legacy credential', async () => {
+      testData.webhooks.push(
+        {
+          id: 'missing-legacy-slack-webhook',
+          provider: 'slack',
+          path: 'shared-legacy-slack-path',
+          routingKey: 'missing-credential',
+          isActive: true,
+          providerConfig: {
+            triggerId: 'slack_webhook',
+            credentialId: 'missing-credential',
+            ingressMode: 'legacy_custom_bot',
+          },
+          workflowId: 'test-workflow-id',
+        },
+        {
+          id: 'valid-legacy-slack-webhook',
+          provider: 'slack',
+          path: 'shared-legacy-slack-path',
+          routingKey: 'valid-credential',
+          isActive: true,
+          providerConfig: {
+            triggerId: 'slack_webhook',
+            credentialId: 'valid-credential',
+            ingressMode: 'legacy_custom_bot',
+          },
+          workflowId: 'test-workflow-id',
+        }
+      )
+      verifySlackCustomBotCredentialRequestMock.mockImplementation(
+        async ({ credentialId }: { credentialId: string }) =>
+          credentialId === 'missing-credential' ? new NextResponse(null, { status: 404 }) : null
+      )
+
+      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
+        params: Promise.resolve({ path: 'shared-legacy-slack-path' }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(dispatchSlackCustomBotCredentialMock).toHaveBeenCalledOnce()
+      expect(dispatchSlackCustomBotCredentialMock).toHaveBeenCalledWith(
+        expect.objectContaining({ credentialId: 'valid-credential' })
+      )
+    })
+
+    it('continues to a direct webhook when every legacy credential is unavailable', async () => {
+      testData.webhooks.push(
+        {
+          id: 'missing-legacy-slack-webhook',
+          provider: 'slack',
+          path: 'shared-direct-path',
+          routingKey: 'missing-credential',
+          isActive: true,
+          providerConfig: {
+            triggerId: 'slack_webhook',
+            credentialId: 'missing-credential',
+            ingressMode: 'legacy_custom_bot',
+          },
+          workflowId: 'test-workflow-id',
+        },
+        {
+          id: 'direct-webhook',
+          provider: 'generic',
+          path: 'shared-direct-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+        }
+      )
+      verifySlackCustomBotCredentialRequestMock.mockResolvedValueOnce(
+        new NextResponse(null, { status: 404 })
+      )
+
+      const response = await POST(createMockRequest('POST', { type: 'event_callback' }), {
+        params: Promise.resolve({ path: 'shared-direct-path' }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(dispatchSlackCustomBotCredentialMock).not.toHaveBeenCalled()
+      expect(dispatchResolvedWebhookTargetMock).toHaveBeenCalledOnce()
+    })
+
     it('propagates a legacy fan-out failure when no target queues successfully', async () => {
       testData.webhooks.push({
         id: 'legacy-slack-webhook',

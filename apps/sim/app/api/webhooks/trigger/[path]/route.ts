@@ -228,7 +228,6 @@ async function handleWebhookDelivery(
       requestId,
     })
     if (authError) {
-      if (authError.status === 404) return authError
       firstLegacySlackAuthError ??= authError
       continue
     }
@@ -244,7 +243,11 @@ async function handleWebhookDelivery(
     legacySlackDispatchResults.push(...dispatchResults)
   }
 
-  if (legacySlackCredentialIds.size > 0 && !authenticatedLegacySlackAlias) {
+  if (
+    legacySlackCredentialIds.size > 0 &&
+    !authenticatedLegacySlackAlias &&
+    directWebhooksForPath.length === 0
+  ) {
     return (
       firstLegacySlackAuthError ??
       new NextResponse('Unauthorized - Invalid Slack signature', { status: 401 })
