@@ -44,20 +44,26 @@ const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => P
 let listedSpaces: Record<string, unknown>[] = [SPACE]
 /** `nextPageToken` returned by `spaces.list`; per-test overridable. */
 let listNextPageToken: string | undefined
+/** Messages returned by `spaces.messages.list`; per-test overridable. */
+let listedMessages: Record<string, unknown>[] = MESSAGES
+/** Space returned by `spaces.list` / `spaces.get`; per-test overridable. */
+let fetchedSpace: Record<string, unknown> = SPACE
 
 beforeEach(() => {
   requestedUrls.length = 0
   listedSpaces = [SPACE]
   listNextPageToken = undefined
+  listedMessages = MESSAGES
+  fetchedSpace = SPACE
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (input) => {
     const url = String(input)
     requestedUrls.push(url)
-    if (url.includes('/messages?')) return jsonResponse({ messages: MESSAGES })
+    if (url.includes('/messages?')) return jsonResponse({ messages: listedMessages })
     if (url.includes('/spaces?')) {
       return jsonResponse({ spaces: listedSpaces, nextPageToken: listNextPageToken })
     }
-    if (url.endsWith(`/${SPACE_NAME}`)) return jsonResponse(SPACE)
+    if (url.endsWith(`/${SPACE_NAME}`)) return jsonResponse(fetchedSpace)
     return jsonResponse({ error: { message: 'not found' } }, 404)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -204,10 +210,50 @@ describe('google-chat listing caps', () => {
   })
 })
 
+describe('google-chat empty windows', () => {
+  it('indexes a space whose only prose is its description when no message has text', async () => {
+    fetchedSpace = { ...SPACE, spaceDetails: { description: 'Release coordination' } }
+    listedSpaces = [fetchedSpace]
+    listedMessages = []
+
+    const doc = await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(doc).not.toBeNull()
+    expect(doc?.content).toContain('Release coordination')
+  })
+
+  it('indexes a space whose only prose is its guidelines when no message has text', async () => {
+    fetchedSpace = { ...SPACE, spaceDetails: { guidelines: 'Be excellent to each other' } }
+    listedSpaces = [fetchedSpace]
+    listedMessages = []
+
+    const doc = await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(doc?.content).toContain('Be excellent to each other')
+  })
+
+  it('returns a document rather than null when the window is empty, so a cleared space does not keep a stale transcript', async () => {
+    listedMessages = []
+    const doc = await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(doc).not.toBeNull()
+    expect(doc?.content).not.toContain('Shipping today')
+    expect(doc?.metadata?.messageCount).toBe(0)
+  })
+
+  it('omits the transcript header entirely when no message contributed text', async () => {
+    listedMessages = []
+    const doc = await googleChatConnector.getDocument('token', {}, SPACE_NAME)
+    expect(doc?.content).not.toContain('--- Messages ---')
+  })
+
+  it('still returns null when the space itself is gone', async () => {
+    const doc = await googleChatConnector.getDocument('token', {}, 'spaces/MISSING')
+    expect(doc).toBeNull()
+  })
+})
+
 describe('google-chat message window', () => {
   it('requests messages newest-first so the cap keeps the most recent conversation', async () => {
     await googleChatConnector.getDocument('token', {}, SPACE_NAME)
-    expect(messagesParams().get('orderBy')).toBe('DESC')
+    expect(messagesParams().get('orderBy')).toBe('createTime DESC')
   })
 
   it('renders the newest-first page back into chronological order', async () => {

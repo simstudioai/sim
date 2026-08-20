@@ -256,8 +256,12 @@ function rfc3339(date: Date): string {
 
 /**
  * Fetches the newest `maxMessages` messages of a space, optionally bounded by a
- * lookback window. Messages are requested newest-first (`orderBy=DESC`) so the
- * cap keeps the most recent conversation, then returned in chronological order.
+ * lookback window. Messages are requested newest-first so the cap keeps the most
+ * recent conversation, then returned in chronological order.
+ *
+ * `orderBy` takes a full ordering expression, not a bare direction: the reference
+ * documents the default as `createTime ASC` and lists ASC/DESC as the ordering
+ * *operations* usable within one. `createTime` is the only orderable field here.
  */
 async function fetchSpaceMessages(
   accessToken: string,
@@ -276,7 +280,7 @@ async function fetchSpaceMessages(
   while (collected.length < maxMessages) {
     const params = new URLSearchParams({
       pageSize: String(Math.min(MESSAGES_PAGE_SIZE, maxMessages - collected.length)),
-      orderBy: 'DESC',
+      orderBy: 'createTime DESC',
     })
     if (filter) params.set('filter', filter)
     if (pageToken) params.set('pageToken', pageToken)
@@ -326,14 +330,18 @@ function formatSpaceContent(space: Space, messages: ChatMessage[]): string {
   const guidelines = space.spaceDetails?.guidelines?.trim()
   if (guidelines) parts.push(`Guidelines: ${guidelines}`)
 
-  parts.push('')
-  parts.push('--- Messages ---')
-
+  const lines: string[] = []
   for (const message of messages) {
     const text = message.text?.trim() || message.fallbackText?.trim()
     if (!text) continue
     const timestamp = message.createTime ?? ''
-    parts.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)
+    lines.push(`[${timestamp}] ${senderLabel(message.sender)}: ${text}`)
+  }
+
+  if (lines.length > 0) {
+    parts.push('')
+    parts.push('--- Messages ---')
+    parts.push(...lines)
   }
 
   return parts.join('\n')
@@ -460,12 +468,15 @@ export const googleChatConnector: ConnectorConfig = {
     const lookbackDays = resolveLookbackDays(sourceConfig.lookbackDays)
     const messages = await fetchSpaceMessages(accessToken, spaceName, maxMessages, lookbackDays)
 
+    /**
+     * A space with no messages in the window is still a live space, so it is
+     * indexed rather than skipped. `null` is this connector's "document is gone"
+     * signal, and the engine treats it as last-known-good: returning it here would
+     * both drop spaces whose only prose is their description or guidelines, and
+     * leave a previously indexed transcript in place after the space was cleared
+     * or `lookbackDays` was tightened past every message.
+     */
     const messageCount = countIndexedMessages(messages)
-    if (messageCount === 0) {
-      logger.info('No indexable messages in Google Chat space', { externalId })
-      return null
-    }
-
     const stub = spaceToStub(space, maxMessages, lookbackDays, syncContext)
 
     return {
