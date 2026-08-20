@@ -215,34 +215,100 @@ Use your own API keys for supported providers instead of Sim's hosted keys to pa
 
 ### Supported Providers
 
-| Provider | Usage |
-|----------|-------|
-| OpenAI | Knowledge Base embeddings, Agent block |
-| Anthropic | Agent block |
-| Google | Agent block |
-| Mistral | Knowledge Base OCR, Agent block |
-| Fireworks | Agent block |
-| Firecrawl | Web scraping, crawling, search, and extraction |
-| Exa | AI-powered search and research |
-| Serper | Google search API |
-| Linkup | Web search and content retrieval |
-| Parallel AI | Web search, extraction, and deep research |
-| Perplexity | AI-powered chat and web search |
-| Jina AI | Web reading and search |
-| Google Cloud | Translate, Maps, PageSpeed, and Books APIs |
-| Brandfetch | Brand assets, logos, colors, and company info |
+The BYOK settings page groups providers the same way.
+
+<Tabs items={['Models', 'Search & web', 'Enrichment']}>
+  <Tab>
+    | Provider | Usage |
+    |----------|-------|
+    | OpenAI | LLM calls and Knowledge Base embeddings |
+    | Anthropic | LLM calls |
+    | Google | LLM calls |
+    | Mistral | LLM calls and Knowledge Base OCR |
+    | xAI | LLM calls |
+    | Kimi | LLM calls |
+    | Fireworks | LLM calls |
+    | Together AI | LLM calls |
+    | Baseten | LLM calls |
+    | Ollama Cloud | LLM calls |
+    | Fal.ai | Image and video generation |
+  </Tab>
+  <Tab>
+    | Provider | Usage |
+    |----------|-------|
+    | Firecrawl | Web scraping, crawling, search, and extraction |
+    | Exa | AI-powered search and research |
+    | Context.dev | Web scraping, crawling, search, and brand intelligence |
+    | Serper | Google search API |
+    | Linkup | Web search and content retrieval |
+    | Parallel AI | Web search, extraction, and deep research |
+    | Perplexity | AI-powered chat and web search |
+    | Jina AI | Web reading and search |
+    | Google Cloud | Translate, Maps, PageSpeed, and Books APIs |
+  </Tab>
+  <Tab>
+    | Provider | Usage |
+    |----------|-------|
+    | Brandfetch | Brand assets, logos, colors, and company info |
+    | Hunter | Email finder, verification, and domain search |
+    | People Data Labs | Person and company enrichment, search, and identity |
+    | Findymail | Email finder, verification, and phone lookup |
+    | Prospeo | Person and company enrichment and search |
+    | Wiza | Prospect search, individual reveal, and company enrichment |
+    | Datagma | Email, phone, person, and company enrichment |
+    | Dropcontact | GDPR-compliant contact enrichment and email finding |
+    | LeadMagic | Email finding, validation, and B2B profile enrichment |
+    | Icypeas | Email finding and verification |
+    | Enrow | Email finding and verification |
+    | ZeroBounce | Real-time email validation and deliverability checks |
+    | NeverBounce | Real-time email verification and list cleaning |
+    | MillionVerifier | Real-time email verification and deliverability checks |
+  </Tab>
+</Tabs>
+
+### Key scopes
+
+A key is stored at one of two scopes.
+
+| Scope | Applies to | Who can manage | Plan |
+|-------|------------|----------------|------|
+| **Workspace** | That workspace only | Workspace **admin** | Any plan on Sim Cloud |
+| **Organization** | Every current and future workspace in the organization | Organization **admin** or **owner** | Enterprise on Sim Cloud |
+
+Organization keys let you set a provider key once instead of repeating it in every workspace. A new workspace added to the organization picks them up automatically.
+
+### Which key a run uses
+
+Precedence is resolved **per provider**, not per workspace:
+
+1. The workspace's own key for that provider, if it has one
+2. Otherwise, the organization's key for that provider
+3. Otherwise, Sim's hosted key, with the multiplier applied
+
+So a workspace that stores its own OpenAI key still inherits the organization's Anthropic key. A workspace key always wins over the organization key for the same provider — adding one is how you override inheritance for a single workspace.
+
+The BYOK settings page tags every provider your workspace is inheriting, so you can see which keys come from the organization before you override them.
 
 ### Setup
 
 1. Navigate to **Settings** → **BYOK** in your workspace
-2. Click **Add Key** for your provider
-3. Enter your API key and save
+2. Choose **This workspace** or **Organization** (organization admins only)
+3. Click **Add Key** for your provider
+4. Enter your API key and save
+
+You can store several keys per provider per scope. Requests are distributed evenly across the keys in whichever scope is in effect.
 
 <Callout type="info">
-  BYOK keys are encrypted at rest. Only workspace admins can manage keys.
+  BYOK keys are encrypted at rest and are never returned to the browser in full — the settings page only ever shows a masked value.
 </Callout>
 
-When configured, workflows use your key instead of Sim's hosted keys. If removed, workflows automatically fall back to hosted keys with the multiplier.
+<Callout type="warn">
+  The Pi block's **Create PR**, **Update PR**, and **Plan** modes run the model client inside a sandbox, so the resolved key — including an inherited organization key — is exposed to that sandbox. To keep an organization key out of it, give the workspace its own key for that provider. Pi's optional web search never falls back to a stored key; it always requires an explicit key on the block.
+</Callout>
+
+Deleting a workspace key makes that workspace fall back to the organization key if one exists, and to Sim's hosted keys otherwise. Deleting an organization key makes every workspace that was inheriting it fall back the same way.
+
+If your organization's Enterprise plan lapses, organization keys stop applying and those workspaces fall back to Sim's hosted keys with the multiplier. The keys are retained, and organization admins can still delete them, but adding or updating them requires an active Enterprise plan.
 
 ## Voice Input
 
