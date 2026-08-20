@@ -55,10 +55,12 @@ function exposedHeaders(
  */
 function mergeRequestData(
   body: unknown,
-  requestData: Record<string, Record<string, string>>,
+  requestData: Record<string, string | Record<string, string>>,
   requestId: string
 ): unknown {
-  const entries = Object.entries(requestData).filter(([, value]) => Object.keys(value).length > 0)
+  const entries = Object.entries(requestData).filter(([, value]) =>
+    typeof value === 'string' ? value.length > 0 : Object.keys(value).length > 0
+  )
 
   if (entries.length === 0) {
     return body
@@ -88,7 +90,7 @@ function mergeRequestData(
 }
 
 export const genericHandler: WebhookProviderHandler = {
-  acceptsGetDelivery: true,
+  extraDeliveryMethods: ['GET', 'PUT', 'PATCH', 'DELETE'],
 
   verifyAuth({ request, requestId, providerConfig }: AuthContext) {
     if (providerConfig.requireAuth) {
@@ -161,13 +163,14 @@ export const genericHandler: WebhookProviderHandler = {
   },
 
   /**
-   * Expose query parameters and request headers under reserved `query` and `headers` keys
-   * alongside the body fields.
+   * Expose the request method, query parameters and headers under reserved `method`, `query` and
+   * `headers` keys alongside the body fields.
    */
   async formatInput({
     body,
     headers,
     query,
+    method,
     webhook,
     requestId,
   }: FormatInputContext): Promise<FormatInputResult> {
@@ -177,6 +180,7 @@ export const genericHandler: WebhookProviderHandler = {
       input: mergeRequestData(
         body,
         {
+          method,
           query,
           headers: exposedHeaders(headers, providerConfig.secretHeaderName as string | undefined),
         },

@@ -8,7 +8,7 @@ import type { FormatInputContext } from '@/lib/webhooks/providers/types'
 function context(
   body: unknown,
   query: Record<string, string>,
-  options: { headers?: Record<string, string>; secretHeaderName?: string } = {}
+  options: { headers?: Record<string, string>; secretHeaderName?: string; method?: string } = {}
 ): FormatInputContext {
   return {
     webhook: {
@@ -22,6 +22,7 @@ function context(
     body,
     headers: options.headers ?? {},
     query,
+    method: options.method ?? '',
     requestId: 'req-1',
   }
 }
@@ -123,7 +124,28 @@ describe('genericHandler.formatInput', () => {
 })
 
 describe('genericHandler delivery methods', () => {
-  it('opts into GET deliveries', () => {
-    expect(genericHandler.acceptsGetDelivery).toBe(true)
+  it('opts into GET, PUT, PATCH and DELETE deliveries', () => {
+    expect(genericHandler.extraDeliveryMethods).toEqual(['GET', 'PUT', 'PATCH', 'DELETE'])
+  })
+
+  it('exposes the request method under "method"', async () => {
+    const result = await genericHandler.formatInput?.(
+      context({ event: 'test' }, {}, { method: 'DELETE' })
+    )
+
+    expect(result?.input).toEqual({ event: 'test', method: 'DELETE' })
+  })
+
+  it('omits "method" for legacy queued jobs that carry none', async () => {
+    const result = await genericHandler.formatInput?.(context({ event: 'test' }, {}))
+
+    expect(result?.input).not.toHaveProperty('method')
+  })
+
+  it('keeps a body field named "method" instead of overwriting it', async () => {
+    const body = { method: 'user typed this' }
+    const result = await genericHandler.formatInput?.(context(body, {}, { method: 'PUT' }))
+
+    expect(result?.input).toEqual(body)
   })
 })

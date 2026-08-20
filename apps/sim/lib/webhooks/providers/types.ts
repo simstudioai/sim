@@ -35,6 +35,8 @@ export interface FormatInputContext {
   headers: Record<string, string>
   /** Request URL query parameters. Repeated keys collapse to the last value. */
   query: Record<string, string>
+  /** HTTP method of the delivering request. Empty on legacy queued jobs. */
+  method: string
   requestId: string
 }
 
@@ -102,12 +104,14 @@ export interface WebhookProviderHandler {
   ingressMode?: 'path' | 'provider'
 
   /**
-   * Accept `GET` deliveries in addition to `POST`. Use for providers whose events can originate
-   * from a plain URL fetch (an email link, a browser navigation) rather than a signed callback.
-   * `GET` deliveries carry no body, so such providers must be able to trigger on query parameters
-   * alone, and callers must tolerate the request being replayed by link prefetchers and scanners.
+   * Methods accepted in addition to `POST`. Use for providers whose events can originate from a
+   * plain HTTP call (an email link, a REST-style client) rather than a signed callback. Such a
+   * delivery may carry no body at all, so the provider must be able to trigger on the query
+   * parameters alone, and with `GET` the caller must tolerate the request being replayed by link
+   * prefetchers and scanners. Workflows tell the methods apart through the trigger input's
+   * `method` field.
    */
-  acceptsGetDelivery?: boolean
+  extraDeliveryMethods?: readonly string[]
 
   /**
    * Queue workflow execution through the configured durable backend instead of the low-latency

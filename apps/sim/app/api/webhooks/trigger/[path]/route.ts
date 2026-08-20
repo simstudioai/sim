@@ -58,7 +58,7 @@ export const GET = withRouteHandler(
   }
 )
 
-export const POST = withRouteHandler(
+const handleBodyDelivery = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ path: string }> }) => {
     const ticket = tryAdmit()
     if (!ticket) {
@@ -72,6 +72,16 @@ export const POST = withRouteHandler(
     }
   }
 )
+
+export const POST = handleBodyDelivery
+
+/**
+ * Methods a provider must opt into via `extraDeliveryMethods`. A delivery to a path whose
+ * triggers have not opted in gets a 405 from `handleWebhookDelivery`.
+ */
+export const PUT = handleBodyDelivery
+export const PATCH = handleBodyDelivery
+export const DELETE = handleBodyDelivery
 
 async function handleWebhookDelivery(
   request: NextRequest,

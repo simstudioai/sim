@@ -723,6 +723,7 @@ async function queueWebhookExecutionWithResult(
       provider: foundWebhook.provider,
       body,
       headers,
+      method: request.method,
       ...(Object.keys(query).length > 0 ? { query } : {}),
       path: options.path || foundWebhook.path || '',
       blockId: foundWebhook.blockId ?? undefined,

@@ -462,7 +462,7 @@ vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 
-import { GET, POST } from '@/app/api/webhooks/trigger/[path]/route'
+import { DELETE, GET, PATCH, POST, PUT } from '@/app/api/webhooks/trigger/[path]/route'
 
 describe('Webhook Trigger API Route', () => {
   beforeEach(() => {
@@ -725,6 +725,75 @@ describe('Webhook Trigger API Route', () => {
       )
 
       const response = await GET(req, { params: Promise.resolve({ path: 'post-only-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('PUT, PATCH and DELETE deliveries', () => {
+    const handlers = { PUT, PATCH, DELETE }
+
+    it.each(Object.keys(handlers) as Array<keyof typeof handlers>)(
+      'dispatches a %s delivery to a generic webhook',
+      async (method) => {
+        testData.webhooks.push({
+          id: 'generic-webhook-id',
+          provider: 'generic',
+          path: 'any-method-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+        })
+
+        const req = createMockRequest(
+          method,
+          { event: 'test' },
+          {},
+          'http://localhost:3000/api/webhooks/trigger/any-method-path?srcId=123'
+        )
+
+        const response = await handlers[method](req, {
+          params: Promise.resolve({ path: 'any-method-path' }),
+        })
+
+        expect(response.status).toBe(200)
+        expect(dispatchResolvedWebhookTargetMock).toHaveBeenCalledOnce()
+      }
+    )
+
+    it('rejects a PUT delivery to a provider that only accepts POST', async () => {
+      testData.webhooks.push({
+        id: 'stripe-webhook-id',
+        provider: 'stripe',
+        path: 'post-only-path',
+        isActive: true,
+        providerConfig: {},
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest(
+        'PUT',
+        { event: 'test' },
+        {},
+        'http://localhost:3000/api/webhooks/trigger/post-only-path'
+      )
+
+      const response = await PUT(req, { params: Promise.resolve({ path: 'post-only-path' }) })
+
+      expect(response.status).toBe(405)
+      expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()
+    })
+
+    it('returns 405 for a DELETE to an unknown path', async () => {
+      const req = createMockRequest(
+        'DELETE',
+        undefined,
+        {},
+        'http://localhost:3000/api/webhooks/trigger/unknown-path'
+      )
+
+      const response = await DELETE(req, { params: Promise.resolve({ path: 'unknown-path' }) })
 
       expect(response.status).toBe(405)
       expect(dispatchResolvedWebhookTargetMock).not.toHaveBeenCalled()

@@ -118,8 +118,8 @@ export const genericWebhookTrigger: TriggerConfig = {
       defaultValue: [
         'Copy the webhook URL and use it in your external service or API.',
         'Configure your service to send webhooks to this URL.',
-        'The webhook accepts GET and POST requests. Use GET to trigger the workflow from a plain URL, such as a link in an email.',
-        'Body fields are available in your workflow, and request headers and query parameters are available under "headers" and "query" (for example "headers.x-event-name", "query.id"). Headers that carry credentials are withheld.',
+        'The webhook accepts GET, POST, PUT, PATCH and DELETE requests. Use GET to trigger the workflow from a plain URL, such as a link in an email.',
+        'Body fields are available in your workflow, and the request method, headers and query parameters are available under "method", "headers" and "query" (for example "headers.x-event-name", "query.id"). Headers that carry credentials are withheld.',
         'If authentication is enabled, include the token in the Secret Header Name you configured, or in "Authorization: Bearer TOKEN" if you left it blank. Only the configured method is accepted.',
         'To deduplicate incoming events, set the Deduplication Field to the dot-notation path of a unique identifier in the payload (e.g. "event.id"). Duplicate values within 7 days will be skipped.',
         'Enable "Verify Test Events" only if the sending service needs a temporary 200 response while validating the webhook URL.',
