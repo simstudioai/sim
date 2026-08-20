@@ -13,6 +13,7 @@ import {
   createWorkspaceFileByPath,
   updateWorkspaceFileContentByPath,
 } from '@/lib/workspace-files/application/write-workspace-file-by-path'
+import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 
 const logger = createLogger('CreateFileServerTool')
 const CREATE_FILE_TOOL_ID = 'create_empty_file'
@@ -62,6 +63,11 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     // creation) — or when the first apply_file_edit finds actual page
     // source, which re-stamps the record from reality either way.
     const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
+    // A Sim page's stored name drops the .html the agent signals format with:
+    // the record type carries the format, every surface then shows the bare
+    // name with the plain file icon, and downloads re-append the extension.
+    const storedPath =
+      contentType === SIM_PAGE_CONTENT_TYPE ? outputPath.replace(/\.html?$/i, '') : outputPath
     assertServerToolNotAborted(context)
     const mode = outputFile?.mode ?? 'create'
     // An empty shell provably contains no secrets; recording that keeps the
@@ -71,7 +77,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     const createShell = () =>
       executeCopilotFileUseCase(context, createWorkspaceFileByPath, {
         workspaceId,
-        path: outputPath,
+        path: storedPath,
         mode: 'create',
         content: '',
         encoding: 'utf-8',
@@ -85,7 +91,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
         try {
           result = await executeCopilotFileUseCase(context, updateWorkspaceFileContentByPath, {
             workspaceId,
-            path: outputPath,
+            path: storedPath,
             mode,
             content: '',
             encoding: 'utf-8',

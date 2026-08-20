@@ -17,6 +17,12 @@ const EXTRACT_TIMEOUT_MS = 180_000
  * row adjacency and recomposites them into an RGBA PNG; masks are never
  * shipped as standalone assets.
  *
+ * Assets are shipped at presentation resolution: print-dpi originals are
+ * downscaled to a 2560px long edge (alpha preserved) and exotic formats
+ * (TIFF/JP2) are normalized to PNG/JPEG, so the extracted set stays inside
+ * the doc-compile staging budget and re-stages fast on every slide edit.
+ * Images already within range keep their original bytes.
+ *
  * Unlike OOXML there is no declared theme in a PDF, so the palette is
  * explicitly labeled inferred; fonts are names only (embedded font files are
  * subsetted and license-restricted).
@@ -166,6 +172,42 @@ for num, ref in alpha_of.items():
         files[num] = out
     except Exception:
         pass  # undecodable mask: the opaque base still beats losing the asset
+
+# Downscale print-resolution assets and normalize exotic formats. Embedded PDF
+# images are often 300-dpi originals several MB each, a slide never shows more
+# than ~2560px on the long edge, and every deck compile re-stages the whole
+# referenced set — so oversized extractions slow every edit and blow the byte
+# staging budget. Images already within range keep their original bytes.
+MAX_ASSET_EDGE = 2560
+shipped_dims = {}
+for num, path in list(files.items()):
+    try:
+        im = Image.open(path)
+        im.load()
+    except Exception:
+        continue  # undecodable (jbig2/ccitt params etc.): ship as-is
+    ext = path.rsplit(".", 1)[1].lower()
+    exotic = ext not in ("png", "jpg", "jpeg")
+    w, h = im.size
+    scale = MAX_ASSET_EDGE / float(max(w, h))
+    if scale >= 1 and not exotic:
+        continue
+    if scale < 1:
+        im = im.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+    has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+    try:
+        if ext in ("jpg", "jpeg") or (exotic and not has_alpha):
+            out = path.rsplit(".", 1)[0] + ".jpg"
+            im.convert("RGB").save(out, "JPEG", quality=85, optimize=True)
+        else:
+            out = path.rsplit(".", 1)[0] + ".png"
+            im.convert("RGBA" if has_alpha else "RGB").save(out, "PNG", optimize=True)
+    except Exception:
+        continue  # unencodable: keep the original bytes
+    if out != path:
+        os.remove(path)
+    files[num] = out
+    shipped_dims[num] = im.size
 
 def to_hex(color):
     if color is None:
@@ -350,10 +392,11 @@ for num, path in sorted(files.items()):
     ]
     with open(path, "rb") as f:
         data = base64.b64encode(f.read()).decode()
+    dims = shipped_dims.get(num)
     images.append({
         "name": "image%d.%s" % (num, ext),
-        "widthPx": row["width"],
-        "heightPx": row["height"],
+        "widthPx": dims[0] if dims else row["width"],
+        "heightPx": dims[1] if dims else row["height"],
         "placements": pls,
         "base64": data,
     })

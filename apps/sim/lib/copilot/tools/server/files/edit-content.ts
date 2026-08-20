@@ -94,7 +94,9 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       // the source format, so it is rejected with the steer back to source.
       // Patches are exempt: small in-place fixes on a legacy stored-compiled
       // page legitimately contain compiled fragments.
-      const isHtmlTarget = fileRecord.name.toLowerCase().endsWith('.html')
+      // Sim pages store an extensionless name; the record type marks them.
+      const isHtmlTarget =
+        fileRecord.name.toLowerCase().endsWith('.html') || fileRecord.type === SIM_PAGE_CONTENT_TYPE
       if (
         isHtmlTarget &&
         (operation === 'append' || operation === 'update') &&

@@ -301,6 +301,12 @@ export function getDocumentIcon(
     return ChartFileIcon
   }
 
+  // Sim pages present as plain documents, not as HTML artifacts — the .html
+  // is an implementation detail (legacy pages still carry the extension).
+  if (mimeType === 'text/x-sim-page') {
+    return DefaultFileIcon
+  }
+
   if (mimeType === 'text/html' || extension === 'html' || extension === 'htm') {
     return HtmlIcon
   }

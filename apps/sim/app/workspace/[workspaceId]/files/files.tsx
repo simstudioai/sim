@@ -208,6 +208,7 @@ const MIME_TYPE_LABELS: Record<string, string> = {
   'text/csv': 'CSV',
   'text/plain': 'Text',
   'text/html': 'HTML',
+  'text/x-sim-page': 'Page',
   'text/markdown': 'Markdown',
 }
 
