@@ -82,7 +82,13 @@ export const privateSecretProvenanceBundleSchema = z
           })
           .strict()
       )
-      .max(10_000)
+      /**
+       * Deliberately uncounted. One selection per cell a write vouches for, so a count cap here
+       * is a cap on how wide a write may be — a 25-column table crossed 10,000 at 401 rows. The
+       * sender that used to enforce the same number silently gave up and marked every row of the
+       * write `unknown`; rejecting the request instead would turn that into a failed write. The
+       * aggregate byte bound below and the route's body limit are the real bounds.
+       */
       .describe('Selections and their encrypted provenance.'),
   })
   .strict()

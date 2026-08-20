@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   decimal,
   doublePrecision,
   index,
@@ -683,6 +684,106 @@ export const workspaceEnvironment = pgTable(
   },
   (table) => ({
     workspaceUnique: uniqueIndex('workspace_environment_workspace_unique').on(table.workspaceId),
+  })
+)
+
+/** Which principal a run resolved a secret under, and which surface asked for it. */
+export const secretUsageScopeEnum = pgEnum('secret_usage_scope', ['workspace', 'personal'])
+export const secretUsageSourceEnum = pgEnum('secret_usage_source', ['workflow', 'copilot', 'mcp'])
+
+/**
+ * Per-day rollup of which secrets a run actually resolved.
+ *
+ * Execution logs cannot answer this. They persist the whole *available* encrypted
+ * environment rather than what a run referenced, they only evidence a secret where
+ * value-matching redaction happened to fire, and they expire under
+ * `DataRetentionSettings.logRetentionHours`. A secret's usage trail has to outlive its
+ * runs' logs, so it is written here instead of derived from them.
+ *
+ * Rows are a rollup rather than one per run: a workflow on a one-minute schedule
+ * touching three secrets would otherwise write thousands of rows a day, which is also
+ * why this is not `audit_log` — that table is a human-scale compliance surface and
+ * machine-scale rows would drown it.
+ *
+ * `secretScope` and `secretOwnerUserId` are part of the key because a workspace secret and a
+ * personal secret can share a name — as can two people's personal secrets — and none of them
+ * may merge. `lastTriggeredByUserId` is deliberately *not* in the key: a public endpoint
+ * called by many people would otherwise fragment one bucket per caller.
+ */
+export const secretUsage = pgTable(
+  'secret_usage',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Matches `credential.envKey`; the trail is keyed by name, not by credential row. */
+    secretName: text('secret_name').notNull(),
+    secretScope: secretUsageScopeEnum('secret_scope').notNull(),
+    /**
+     * Whose personal secret this was; empty for a workspace one, which the workspace owns.
+     *
+     * Two people can hold personal secrets under the same name, and a personal secret shared
+     * with the workspace resolves for callers who do not own it, so name and scope alone do
+     * not identify a secret. Without this column one person's trail would show another's runs.
+     * Not the same as `actorUserId`: a scheduled run resolves the workflow owner's personal
+     * slice under the workspace's execution actor.
+     */
+    secretOwnerUserId: text('secret_owner_user_id').notNull().default(''),
+    source: secretUsageSourceEnum('source').notNull(),
+    /**
+     * Empty for a Copilot or MCP resolution, which has no workflow.
+     *
+     * Empty string rather than null because both this and `actorUserId` sit inside the unique
+     * key below, and Postgres treats nulls as distinct — two Copilot rows would never collide,
+     * so the upsert would insert forever instead of incrementing. `NULLS NOT DISTINCT` fixes
+     * that but requires Postgres 15, and this is self-hosted software that must not raise its
+     * database floor for one table. A sentinel keeps the key null-free on every version.
+     *
+     * Deliberately not a foreign key, and neither is `actorUserId`. An `onDelete: 'set null'`
+     * would rewrite a key column, so two rows differing only by the deleted id would collide
+     * and an ordinary workflow or account deletion would fail on this constraint. They are
+     * historical facts in a usage ledger rather than live references, so they are stored as
+     * plain ids and joined leniently; a row outliving its workflow is the point of a trail.
+     */
+    workflowId: text('workflow_id').notNull().default(''),
+    /** Whose access authorized the resolution — the run's actor; empty when there is none. */
+    actorUserId: text('actor_user_id').notNull().default(''),
+    /** UTC day bucket. */
+    usageDate: date('usage_date').notNull(),
+    useCount: integer('use_count').notNull().default(0),
+    lastUsedAt: timestamp('last_used_at').notNull(),
+    /** Deep-links the most recent run in Logs, where the block and its code are visible. */
+    lastExecutionId: text('last_execution_id'),
+    /**
+     * The surface the most recent run came in through (`api`, `webhook`, `schedule`,
+     * `manual`, `chat`, `copilot`). There is deliberately no separate "triggered by" column:
+     * for every trigger kind the executor can name a caller, that caller *is* `actorUserId`,
+     * and for the rest (schedule, webhook, workspace key) no human triggered the run at all.
+     */
+    lastTrigger: text('last_trigger'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    /** Every column is non-null, so ordinary unique semantics make the upsert increment. */
+    bucketUnique: uniqueIndex('secret_usage_bucket_unique').on(
+      table.workspaceId,
+      table.secretName,
+      table.secretScope,
+      table.secretOwnerUserId,
+      table.source,
+      table.workflowId,
+      table.actorUserId,
+      table.usageDate
+    ),
+    secretRecentIdx: index('secret_usage_secret_recent_idx').on(
+      table.workspaceId,
+      table.secretName,
+      table.secretScope,
+      table.secretOwnerUserId,
+      table.lastUsedAt.desc()
+    ),
   })
 )
 
@@ -1671,6 +1772,12 @@ export const workspaceForkResourceTypeEnum = pgEnum('workspace_fork_resource_typ
   'mcp_server',
   /** Workflow-publishing MCP server identity (fork shell copy), for attachment sync. */
   'workflow_mcp_server',
+  /**
+   * Published custom block (deploy-as-block). Mapped, never copied: a custom block is
+   * org-scoped and binds a workflow in the PUBLISHER's workspace, so an environment fork
+   * repoints its placed blocks at the environment's own block rather than duplicating one.
+   */
+  'custom_block',
   'custom_tool',
   'skill',
 ])
@@ -3704,6 +3811,16 @@ export const usageLog = pgTable(
         table.userId,
         table.createdAt,
         table.billingPeriodEnd,
+        table.source,
+        table.cost
+      )
+      .where(sql`${table.billingEntityType} IS NOT NULL`),
+    billingEntityCreatedAtCostIdx: index('usage_log_billing_entity_created_at_cost_idx')
+      .on(
+        table.billingEntityType,
+        table.billingEntityId,
+        table.createdAt,
+        table.userId,
         table.source,
         table.cost
       )

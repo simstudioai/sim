@@ -33,7 +33,7 @@ function loadToolDescriptions(): Map<string, Map<string, string>> {
   const byType = new Map<string, Map<string, string>>()
   try {
     const catalog = JSON.parse(
-      readFileSync('apps/sim/lib/integrations/integrations.json', 'utf-8')
+      readFileSync('packages/deployment-config/src/integrations.json', 'utf-8')
     ) as {
       integrations: Array<{
         type: string

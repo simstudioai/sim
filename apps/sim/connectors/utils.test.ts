@@ -62,9 +62,13 @@ import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
+  extractConnectorText,
+  hasIndexablePayload,
   htmlToPlainText,
+  isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   takeIndexableWithinCap,
@@ -1363,5 +1367,149 @@ describe('htmlToPlainText entity decoding', () => {
 
   it('leaves an unknown named entity untouched', () => {
     expect(htmlToPlainText('<p>&copy; &notreal;</p>')).toBe('&copy; &notreal;')
+  })
+})
+
+describe('isIndexableConnectorFile', () => {
+  it('accepts the Office and PDF formats the knowledge base can parse', () => {
+    for (const name of [
+      'sop.pdf',
+      'sop.doc',
+      'sop.docx',
+      'sheet.xls',
+      'sheet.xlsx',
+      'deck.ppt',
+      'deck.pptx',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('still accepts the plain-text formats connectors already synced', () => {
+    for (const name of ['a.txt', 'a.md', 'a.html', 'a.htm', 'a.csv', 'a.log', 'a.tsv', 'a.rst']) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  /**
+   * A document library holds the whole family, not just the headline extension:
+   * macro-enabled and template variants are the same OOXML packages, `xlsb` is the
+   * binary workbook, and the OpenDocument trio covers LibreOffice/Google exports.
+   */
+  it('accepts macro-enabled, template, binary and OpenDocument variants', () => {
+    for (const name of [
+      'report.docm',
+      'letterhead.dotx',
+      'model.xlsm',
+      'model.xlsb',
+      'budget.xltx',
+      'deck.pptm',
+      'brand.potx',
+      'notes.odt',
+      'sheet.ods',
+      'slides.odp',
+    ]) {
+      expect(isIndexableConnectorFile(name)).toBe(true)
+    }
+  })
+
+  it('rejects formats with no text to extract', () => {
+    for (const name of ['logo.png', 'clip.mp4', 'archive.zip', 'binary.exe']) {
+      expect(isIndexableConnectorFile(name)).toBe(false)
+    }
+  })
+
+  /**
+   * No bundled library extracts RTF. `DocParser`'s plaintext branch would accept
+   * it and pass its control words through as prose, so it stays out of the set and
+   * is reported as an unsupported extension instead.
+   */
+  it('rejects rtf rather than indexing its control words as prose', () => {
+    expect(isIndexableConnectorFile('policy.rtf')).toBe(false)
+  })
+
+  it('rejects a name with no extension, and one ending in a bare dot', () => {
+    expect(isIndexableConnectorFile('README')).toBe(false)
+    expect(isIndexableConnectorFile('trailing.')).toBe(false)
+  })
+
+  it('ignores extension case', () => {
+    expect(isIndexableConnectorFile('SOP.DOCX')).toBe(true)
+  })
+})
+
+describe('extractConnectorText', () => {
+  it('decodes a text format as UTF-8', () => {
+    expect(extractConnectorText(Buffer.from('a,b'), 'data.csv')).toBe('a,b')
+  })
+
+  it('reduces HTML to plain text', () => {
+    expect(extractConnectorText(Buffer.from('<p>Hello&nbsp;world</p>'), 'page.htm')).toBe(
+      'Hello world'
+    )
+  })
+
+  it('leaves whitespace-only content alone for the caller to reject', () => {
+    expect(extractConnectorText(Buffer.from('   '), 'blank.txt')).toBe('   ')
+  })
+})
+
+describe('pipelineParsedMimeType', () => {
+  /**
+   * A format the shared parsers handle is delivered to them verbatim. Extracting
+   * it here would strand the document on a weaker parser — notably skipping the
+   * OCR the pipeline routes PDFs through — and discard the original bytes.
+   */
+  it.each([
+    ['Report.pdf', 'application/pdf'],
+    ['Deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    ['Book.xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+    ['Notes.odt', 'application/vnd.oasis.opendocument.text'],
+    ['Legacy.doc', 'application/msword'],
+  ])('hands %s to the pipeline as %s', (fileName, mimeType) => {
+    expect(pipelineParsedMimeType(fileName)).toBe(mimeType)
+  })
+
+  it('leaves text formats to the connector', () => {
+    for (const name of ['notes.txt', 'data.csv', 'page.htm', 'feed.xml', 'rows.tsv']) {
+      expect(pipelineParsedMimeType(name)).toBeUndefined()
+    }
+  })
+
+  /** Derived from the extension, so a mislabelled source cannot misroute a PDF. */
+  it('is case-insensitive and ignores unknown formats', () => {
+    expect(pipelineParsedMimeType('REPORT.PDF')).toBe('application/pdf')
+    expect(pipelineParsedMimeType('archive.zip')).toBeUndefined()
+    expect(pipelineParsedMimeType('README')).toBeUndefined()
+  })
+})
+
+describe('hasIndexablePayload', () => {
+  const bytes = (value: string) => ({
+    bytes: Buffer.from(value),
+    fileName: 'Report.pdf',
+    mimeType: 'application/pdf',
+  })
+
+  it('accepts a source file with bytes', () => {
+    expect(hasIndexablePayload({ content: '', sourceFile: bytes('%PDF') })).toBe(true)
+  })
+
+  it('accepts extracted text', () => {
+    expect(hasIndexablePayload({ content: 'notes' })).toBe(true)
+  })
+
+  /**
+   * Observed in production: a zero-byte PDF was stored and shipped to OCR, which
+   * answered `400 Bad Request` — an external call billed to discover the file was
+   * empty, reported as an API fault rather than as an empty file. Before source
+   * files existed this was dropped at the empty-content check.
+   */
+  it('rejects a zero-byte source file rather than sending it to OCR', () => {
+    expect(hasIndexablePayload({ content: '', sourceFile: bytes('') })).toBe(false)
+  })
+
+  it('rejects blank text', () => {
+    expect(hasIndexablePayload({ content: '   ' })).toBe(false)
   })
 })

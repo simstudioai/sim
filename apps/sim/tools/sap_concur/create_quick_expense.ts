@@ -12,7 +12,7 @@ export const createQuickExpenseTool: ToolConfig<CreateQuickExpenseParams, SapCon
     id: 'sap_concur_create_quick_expense',
     name: 'SAP Concur Create Quick Expense',
     description:
-      'Create a quick expense (POST /quickexpense/v4/users/{userId}/context/TRAVELER/quickexpenses).',
+      'Create a quick expense (POST /quickexpense/v4/users/{userId}/context/{contextType}/quickexpenses). TRAVELER is the only supported context type.',
     version: '1.0.0',
     params: {
       datacenter: {
@@ -74,7 +74,7 @@ export const createQuickExpenseTool: ToolConfig<CreateQuickExpenseParams, SapCon
         required: true,
         visibility: 'user-or-llm',
         description:
-          'Quick expense payload (expenseTypeId, transactionAmount, transactionDate, etc.)',
+          'Quick expense payload. Required: expenseTypeId, transactionAmount {currencyCode, value}, transactionDate (YYYY-MM-DD). Optional: comment, entryDetails, location {city, countryCode, countrySubDivisionCode, id, name}, paymentTypeId (CASHX | CPAID | PENDC), vendor.',
       },
     },
     request: {

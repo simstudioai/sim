@@ -1,14 +1,27 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const { mockLogger } = vi.hoisted(() => ({
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: () => mockLogger,
+}))
+
+import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import {
   createModelInputProvenanceRequestMetadata,
+  createPrivateSecretProvenanceRequestMetadata,
   inspectModelInputProjectionState,
   inspectModelInputProvenanceRequest,
+  isPrivateSecretProvenanceBundleV1,
   PRIVATE_MODEL_INPUT_PROVENANCE_HEADER,
   PRIVATE_MODEL_INPUT_STATE_HEADER,
   PROJECTED_MODEL_INPUT_PATHS_V1,
+  type PrivateSecretProvenanceSelection,
   projectModelSchemaAnnotations,
   projectResolvedModelInput,
   selectModelSchemaInputPaths,
@@ -300,5 +313,129 @@ describe('model input provenance transport', () => {
         isInternalRequest: false,
       })
     ).toEqual({ success: false, error: 'Invalid model input provenance', status: 400 })
+  })
+})
+
+/** One selection per populated cell, the shape `selectTableRowSecretProvenance` produces. */
+function cellSelections(rows: number, columns: number): PrivateSecretProvenanceSelection[] {
+  const selections: PrivateSecretProvenanceSelection[] = []
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      selections.push({
+        key: JSON.stringify([row, `column${column}`]),
+        inputPaths: [['rows', String(row), `column${column}`]],
+      })
+    }
+  }
+  return selections
+}
+
+describe('private secret provenance bundle', () => {
+  const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+  /**
+   * A 25-column table insert crossed the removed selection cap at 401 rows, and crossing it made
+   * the whole bundle incomplete — so every row of the write landed `unknown` in its durable
+   * sidecar. The count here is the production write that surfaced it.
+   *
+   * Every cell resolves a secret, which is also what guards the cost: answering each selection by
+   * rescanning the resolved paths is quadratic at this width and cannot finish inside the default
+   * timeout, so a reintroduced per-group scan fails here rather than in production.
+   */
+  it('vouches for a write far wider than the removed selection cap', () => {
+    const registry = new ResolvedSecretTraceRegistry([ENTRY], scope)
+    const selections = cellSelections(500, 25)
+    expect(selections).toHaveLength(12_500)
+    for (const selection of selections) {
+      registry.recordResolvedAtInputPath(ENTRY.name, ENTRY.plaintext, selection.inputPaths[0])
+    }
+
+    const metadata = createPrivateSecretProvenanceRequestMetadata(registry, selections)
+
+    expect(metadata?.provenance.complete).toBe(true)
+    expect(metadata?.provenance.selections).toHaveLength(12_500)
+    expect(isPrivateSecretProvenanceBundleV1(metadata?.provenance)).toBe(true)
+    expect(
+      metadata?.provenance.selections.every(
+        (selection) => selection.provenance.entries.length === 1
+      )
+    ).toBe(true)
+  })
+
+  it('still narrows a wide write to the one cell that carried a secret', () => {
+    const registry = new ResolvedSecretTraceRegistry([ENTRY], scope)
+    registry.recordResolvedAtInputPath(ENTRY.name, ENTRY.plaintext, ['rows', '7', 'column3'])
+
+    const metadata = createPrivateSecretProvenanceRequestMetadata(registry, cellSelections(500, 25))
+
+    expect(
+      metadata?.provenance.selections.filter((selection) => selection.provenance.entries.length > 0)
+    ).toEqual([
+      {
+        key: JSON.stringify([7, 'column3']),
+        provenance: expect.objectContaining({
+          complete: true,
+          entries: [{ name: ENTRY.name, encryptedValue: ENTRY.encryptedValue }],
+        }),
+      },
+    ])
+  })
+
+  it('fails the bundle and names the cause when an input path cannot be vouched for', async () => {
+    const registry = new ResolvedSecretTraceRegistry([ENTRY], scope)
+    registry.recordResolvedAtInputPath(ENTRY.name, ENTRY.plaintext, ['rows', '0', 'column0'])
+    await registry.importProvenanceForValueAtInputPath(
+      null,
+      ENTRY.plaintext,
+      ['rows', '1', 'column1'],
+      { trusted: false }
+    )
+    mockLogger.error.mockClear()
+
+    const metadata = createPrivateSecretProvenanceRequestMetadata(registry, cellSelections(3, 3))
+
+    expect(metadata?.provenance.complete).toBe(false)
+    expect(metadata?.provenance.selections).toEqual([])
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Private secret provenance bundle is incomplete',
+      expect.objectContaining({ failure: 'registry-incomplete', selectionCount: 9 })
+    )
+  })
+
+  it('rejects a duplicate selection key without consulting the registry', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+    const exportGroups = vi.spyOn(registry, 'exportCommittedProvenanceForInputPathGroups')
+
+    const metadata = createPrivateSecretProvenanceRequestMetadata(registry, [
+      { key: 'same', inputPaths: [['rows', '0', 'a']] },
+      { key: 'same', inputPaths: [['rows', '1', 'b']] },
+    ])
+
+    expect(metadata?.provenance.complete).toBe(false)
+    expect(exportGroups).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The sender, the runtime type guard, and the route contract each used to enforce their own
+ * selection count. Removing it from two of the three would have converted a silently
+ * under-recorded write into a rejected one — worse than the bug being fixed — so the agreement
+ * is pinned end to end at the width that surfaced it rather than layer by layer.
+ */
+describe('private secret provenance bundle crosses its own contract', () => {
+  it('accepts a bundle at the width that used to trip every layer', () => {
+    const registry = new ResolvedSecretTraceRegistry([ENTRY], {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+    const selections = cellSelections(500, 25)
+    for (const selection of selections) {
+      registry.recordResolvedAtInputPath(ENTRY.name, ENTRY.plaintext, selection.inputPaths[0])
+    }
+
+    const metadata = createPrivateSecretProvenanceRequestMetadata(registry, selections)
+
+    expect(metadata?.provenance.selections).toHaveLength(12_500)
+    expect(privateSecretProvenanceBundleSchema.safeParse(metadata?.provenance).success).toBe(true)
   })
 })

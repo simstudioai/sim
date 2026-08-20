@@ -3461,6 +3461,19 @@ type ListFilesQueryRef0 = string
 export type ListFilesQuery = {
   workspaceId: string
   folderPath?: ListFilesQueryRef0
+  recursive?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
   scope?: 'active' | 'archived'
   search?: string
   sortBy?: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
@@ -3794,6 +3807,7 @@ export type ListSecretsQuery = {
 type ListSecretsResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
+  description: string | null
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
@@ -4790,11 +4804,13 @@ export type SetSecretBody = {
   workspaceId: string
   scope: 'workspace' | 'personal'
   value: string
+  description?: string | null
 }
 
 type SetSecretResponseRef0 = {
   name: string
   scope: 'workspace' | 'personal'
+  description: string | null
   role: 'admin' | 'member'
   createdAt: string
   updatedAt: string
@@ -7489,7 +7505,26 @@ export const V2_OPERATIONS = {
       folderPath: {
         kind: 'string',
         describe:
-          'Restrict results to files directly inside this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+          'Restrict results to files inside this folder — its direct children, or its whole subtree when `recursive` is true. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.',
+      },
+      recursive: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Whether the folder filter includes files in subfolders. Defaults to true when a search is set, false otherwise, so listing a folder shows that folder while searching one looks through everything in it. Ignored when no folder filter is set, which already spans the workspace. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
       },
       scope: {
         kind: 'enum',
@@ -8534,6 +8569,11 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Write-only secret value. It is never returned.',
+      },
+      description: {
+        kind: 'string',
+        describe:
+          'What the secret is for, shown to teammates. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave an existing description untouched; send null or an empty string to clear one.',
       },
     },
   },

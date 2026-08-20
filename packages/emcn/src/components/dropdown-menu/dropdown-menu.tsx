@@ -110,6 +110,23 @@ function withEllipsizedLabel(children: React.ReactNode): React.ReactNode {
 }
 
 /**
+ * A menu is capped so a long data-driven list — every workflow, every folder —
+ * scrolls instead of running the height of the screen. The cap has to clear the
+ * tallest hand-authored action menu though, or an ordinary right-click menu
+ * scrolls for the sake of a few pixels: the knowledge-base row menu is 247px
+ * (7 rows x 28px + 3 separators x 13px + 12px padding), which the previous flat
+ * 240px clipped while the 221px Files row menu next to it did not. 420px clears
+ * every action menu in the app with room for a couple more rows.
+ *
+ * `min()` with Radix's measured space then keeps the menu inside the viewport
+ * when it opens near an edge. The popper var (rather than the
+ * `--radix-dropdown-menu-content-*` alias) because submenu content portals
+ * outside the root menu and only inherits the popper one; the fallback covers
+ * the case where collision detection is off and no space is measured at all.
+ */
+const MENU_MAX_HEIGHT_CLASS = 'max-h-[min(420px,var(--radix-popper-available-height,420px))]'
+
+/**
  * Surface corner, shared by the root menu and submenus — they previously
  * disagreed, at 12px and 8px.
  *
@@ -121,8 +138,7 @@ function withEllipsizedLabel(children: React.ReactNode): React.ReactNode {
  * object next to the surfaces it opens over, so match the convention rather than
  * making the two corners strictly concentric.
  */
-const CONTENT_BASE_CLASSES =
-  'z-[var(--z-popover)] max-h-[240px] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] ${MENU_MAX_HEIGHT_CLASS} min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm`
 
 /**
  * Menu root. Inside a `ModalContent` (Radix modal dialog) the menu is forced

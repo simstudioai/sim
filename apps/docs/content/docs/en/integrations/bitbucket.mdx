@@ -1,0 +1,1548 @@
+---
+title: Bitbucket
+description: Work with Bitbucket Cloud repositories, pull requests, and pipelines
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="bitbucket"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect Bitbucket Cloud to inspect repositories and source, collaborate on pull requests, and diagnose or control pipelines. This action integration uses OAuth and does not create webhooks or triggers.
+
+
+
+## Actions
+
+### Bitbucket List Workspaces
+
+List Bitbucket Cloud workspaces available to the authenticated account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sort` | string | No | Workspace sort field; Bitbucket currently supports slug |
+| `administrator` | boolean | No | Filter by whether the caller is a workspace administrator |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Workspace access records |
+|   ↳ `type` | string | Bitbucket workspace-access object type |
+|   ↳ `slug` | string | Workspace slug |
+|   ↳ `uuid` | string | Workspace UUID |
+|   ↳ `administrator` | boolean | Whether the caller administers the workspace |
+|   ↳ `selfUrl` | string | Workspace API URL |
+|   ↳ `avatarUrl` | string | Workspace avatar URL |
+
+### Bitbucket List Repositories
+
+List repositories in a Bitbucket Cloud workspace
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `role` | string | No | Caller role filter: admin, contributor, member, or owner |
+| `q` | string | No | Bitbucket filtering expression |
+| `sort` | string | No | Bitbucket sort expression |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Repositories |
+|   ↳ `type` | string | Bitbucket repository object type |
+|   ↳ `uuid` | string | Repository UUID |
+|   ↳ `slug` | string | Repository slug |
+|   ↳ `name` | string | Repository name |
+|   ↳ `fullName` | string | Workspace and repository full name |
+|   ↳ `description` | string | Repository description |
+|   ↳ `isPrivate` | boolean | Whether the repository is private |
+|   ↳ `scm` | string | Source control system |
+|   ↳ `language` | string | Primary repository language |
+|   ↳ `size` | number | Repository size in bytes |
+|   ↳ `createdOn` | string | Repository creation timestamp |
+|   ↳ `updatedOn` | string | Repository update timestamp |
+|   ↳ `mainBranch` | string | Main branch name |
+|   ↳ `owner` | object | Repository owner |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `project` | object | Containing Bitbucket project |
+|     ↳ `uuid` | string | Project UUID |
+|     ↳ `key` | string | Project key |
+|     ↳ `name` | string | Project name |
+|   ↳ `selfUrl` | string | Repository API URL |
+|   ↳ `htmlUrl` | string | Repository web URL |
+
+### Bitbucket Get Repository
+
+Get a Bitbucket Cloud repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `repository` | object | Repository details |
+|   ↳ `type` | string | Bitbucket repository object type |
+|   ↳ `uuid` | string | Repository UUID |
+|   ↳ `slug` | string | Repository slug |
+|   ↳ `name` | string | Repository name |
+|   ↳ `fullName` | string | Workspace and repository full name |
+|   ↳ `description` | string | Repository description |
+|   ↳ `isPrivate` | boolean | Whether the repository is private |
+|   ↳ `scm` | string | Source control system |
+|   ↳ `language` | string | Primary repository language |
+|   ↳ `size` | number | Repository size in bytes |
+|   ↳ `createdOn` | string | Repository creation timestamp |
+|   ↳ `updatedOn` | string | Repository update timestamp |
+|   ↳ `mainBranch` | string | Main branch name |
+|   ↳ `owner` | object | Repository owner |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `project` | object | Containing Bitbucket project |
+|     ↳ `uuid` | string | Project UUID |
+|     ↳ `key` | string | Project key |
+|     ↳ `name` | string | Project name |
+|   ↳ `selfUrl` | string | Repository API URL |
+|   ↳ `htmlUrl` | string | Repository web URL |
+
+### Bitbucket List Branches
+
+List branches in a Bitbucket Cloud repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `q` | string | No | Bitbucket branch filtering expression |
+| `sort` | string | No | Bitbucket branch sort expression |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Branches |
+|   ↳ `type` | string | Bitbucket branch object type |
+|   ↳ `name` | string | Branch name |
+|   ↳ `target` | object | Commit targeted by the branch |
+|     ↳ `type` | string | Bitbucket commit object type |
+|     ↳ `hash` | string | Commit hash |
+|     ↳ `date` | string | Commit timestamp |
+|     ↳ `message` | string | Full commit message |
+|     ↳ `summary` | string | Raw commit summary |
+|     ↳ `authorRaw` | string | Raw author value stored by Git |
+|     ↳ `author` | object | Matched Bitbucket account, when available |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `committerRaw` | string | Raw committer value stored by Git |
+|     ↳ `committer` | object | Matched Bitbucket committer account, when available |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `parents` | array | Parent commits |
+|       ↳ `hash` | string | Parent commit hash |
+|     ↳ `selfUrl` | string | Commit API URL |
+|     ↳ `htmlUrl` | string | Commit web URL |
+|   ↳ `mergeStrategies` | array | Merge strategies available for the branch |
+|   ↳ `defaultMergeStrategy` | string | Default merge strategy |
+|   ↳ `selfUrl` | string | Branch API URL |
+|   ↳ `htmlUrl` | string | Branch web URL |
+
+### Bitbucket Create Branch
+
+Create a branch at a commit hash or existing ref
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `name` | string | Yes | New branch name without refs/heads prefix |
+| `target` | string | Yes | Full commit hash or existing ref to target |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `branch` | object | Created branch |
+|   ↳ `type` | string | Bitbucket branch object type |
+|   ↳ `name` | string | Branch name |
+|   ↳ `target` | object | Commit targeted by the branch |
+|     ↳ `type` | string | Bitbucket commit object type |
+|     ↳ `hash` | string | Commit hash |
+|     ↳ `date` | string | Commit timestamp |
+|     ↳ `message` | string | Full commit message |
+|     ↳ `summary` | string | Raw commit summary |
+|     ↳ `authorRaw` | string | Raw author value stored by Git |
+|     ↳ `author` | object | Matched Bitbucket account, when available |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `committerRaw` | string | Raw committer value stored by Git |
+|     ↳ `committer` | object | Matched Bitbucket committer account, when available |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `parents` | array | Parent commits |
+|       ↳ `hash` | string | Parent commit hash |
+|     ↳ `selfUrl` | string | Commit API URL |
+|     ↳ `htmlUrl` | string | Commit web URL |
+|   ↳ `mergeStrategies` | array | Merge strategies available for the branch |
+|   ↳ `defaultMergeStrategy` | string | Default merge strategy |
+|   ↳ `selfUrl` | string | Branch API URL |
+|   ↳ `htmlUrl` | string | Branch web URL |
+
+### Bitbucket Delete Branch
+
+Delete a branch from a Bitbucket Cloud repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `name` | string | Yes | Branch name to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the branch was deleted |
+
+### Bitbucket List Commits
+
+List repository commits in reverse chronological order
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Commits |
+|   ↳ `type` | string | Bitbucket commit object type |
+|   ↳ `hash` | string | Commit hash |
+|   ↳ `date` | string | Commit timestamp |
+|   ↳ `message` | string | Full commit message |
+|   ↳ `summary` | string | Raw commit summary |
+|   ↳ `authorRaw` | string | Raw author value stored by Git |
+|   ↳ `author` | object | Matched Bitbucket account, when available |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `committerRaw` | string | Raw committer value stored by Git |
+|   ↳ `committer` | object | Matched Bitbucket committer account, when available |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `parents` | array | Parent commits |
+|     ↳ `hash` | string | Parent commit hash |
+|   ↳ `selfUrl` | string | Commit API URL |
+|   ↳ `htmlUrl` | string | Commit web URL |
+
+### Bitbucket Get Commit
+
+Get a repository commit by its full SHA-1
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `commit` | string | Yes | Full 40-character commit SHA-1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commit` | object | Commit details |
+|   ↳ `type` | string | Bitbucket commit object type |
+|   ↳ `hash` | string | Commit hash |
+|   ↳ `date` | string | Commit timestamp |
+|   ↳ `message` | string | Full commit message |
+|   ↳ `summary` | string | Raw commit summary |
+|   ↳ `authorRaw` | string | Raw author value stored by Git |
+|   ↳ `author` | object | Matched Bitbucket account, when available |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `committerRaw` | string | Raw committer value stored by Git |
+|   ↳ `committer` | object | Matched Bitbucket committer account, when available |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `parents` | array | Parent commits |
+|     ↳ `hash` | string | Parent commit hash |
+|   ↳ `selfUrl` | string | Commit API URL |
+|   ↳ `htmlUrl` | string | Commit web URL |
+
+### Bitbucket List Directory
+
+List one shallow repository directory at a full commit SHA-1
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `commit` | string | Yes | Full 40-character commit SHA-1 |
+| `path` | string | No | Repository-relative directory path; omit for the root |
+| `q` | string | No | Bitbucket tree-entry filtering expression |
+| `sort` | string | No | Bitbucket tree-entry sort expression |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Directory entries |
+|   ↳ `type` | string | Entry type, such as commit_file or commit_directory |
+|   ↳ `path` | string | Repository-relative path |
+|   ↳ `commitHash` | string | Resolved commit hash |
+|   ↳ `size` | number | File size in bytes when the entry is a file |
+|   ↳ `attributes` | array | File attributes when the entry is a file |
+|   ↳ `isBinary` | boolean | Whether file attributes include the binary marker |
+|   ↳ `selfUrl` | string | Source API URL |
+|   ↳ `metadataUrl` | string | Source metadata API URL |
+
+### Bitbucket Get File Metadata
+
+Inspect file size and attributes at a full repository commit SHA-1
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `commit` | string | Yes | Full 40-character commit SHA-1 |
+| `path` | string | Yes | Repository-relative file path |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | object | File metadata |
+|   ↳ `type` | string | Entry type \(commit_file\) |
+|   ↳ `path` | string | Repository-relative path |
+|   ↳ `commitHash` | string | Resolved commit hash |
+|   ↳ `escapedPath` | string | Escaped display path |
+|   ↳ `size` | number | File size in bytes |
+|   ↳ `attributes` | array | File attributes reported by Bitbucket |
+|   ↳ `isBinary` | boolean | Whether the documented attributes include the binary marker |
+
+### Bitbucket Get File
+
+Read bounded UTF-8 text from a file at a full repository commit SHA-1
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `commit` | string | Yes | Full 40-character commit SHA-1 |
+| `path` | string | Yes | Repository-relative file path |
+| `maxCharacters` | number | No | Maximum text characters to return \(1-500000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Bounded UTF-8 file text; null for binary content |
+| `binary` | boolean | Whether documented metadata identifies binary content; null when unknown |
+| `truncated` | boolean | Whether later content was omitted; null when binary size is unknown |
+| `returnedBytes` | number | Provider bytes read for the returned file |
+| `fullBytes` | number | Full file byte size when reported |
+| `contentType` | string | Response MIME type |
+
+### Bitbucket List Pull Requests
+
+List pull requests in a Bitbucket Cloud repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `state` | string | No | State filter: OPEN, MERGED, DECLINED, or SUPERSEDED |
+| `q` | string | No | Bitbucket pull request filtering expression |
+| `sort` | string | No | Bitbucket pull request sort expression |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Pull requests |
+|   ↳ `type` | string | Bitbucket pull request object type |
+|   ↳ `id` | number | Repository-scoped pull request ID |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `description` | string | Pull request description |
+|   ↳ `state` | string | Pull request state |
+|   ↳ `draft` | boolean | Whether the pull request is a draft |
+|   ↳ `queued` | boolean | Whether the pull request is queued |
+|   ↳ `author` | object | Pull request author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `closedBy` | object | Account that closed the pull request |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `source` | object | Source endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `destination` | object | Destination endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `mergeCommitHash` | string | Merge commit hash |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `taskCount` | number | Open task count |
+|   ↳ `closeSourceBranch` | boolean | Whether merging closes the source branch |
+|   ↳ `reason` | string | Reason the pull request was declined |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `reviewers` | array | Explicit reviewers |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `participants` | array | Pull request participants |
+|     ↳ `type` | string | Bitbucket participant object type |
+|     ↳ `user` | object | Participating account |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `role` | string | Participant role |
+|     ↳ `approved` | boolean | Whether the participant approved |
+|     ↳ `state` | string | Review state |
+|     ↳ `participatedOn` | string | Timestamp of the participant action |
+|   ↳ `selfUrl` | string | Pull request API URL |
+|   ↳ `htmlUrl` | string | Pull request web URL |
+
+### Bitbucket Get Pull Request
+
+Get a pull request by repository-scoped ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pullRequest` | object | Pull request details |
+|   ↳ `type` | string | Bitbucket pull request object type |
+|   ↳ `id` | number | Repository-scoped pull request ID |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `description` | string | Pull request description |
+|   ↳ `state` | string | Pull request state |
+|   ↳ `draft` | boolean | Whether the pull request is a draft |
+|   ↳ `queued` | boolean | Whether the pull request is queued |
+|   ↳ `author` | object | Pull request author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `closedBy` | object | Account that closed the pull request |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `source` | object | Source endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `destination` | object | Destination endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `mergeCommitHash` | string | Merge commit hash |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `taskCount` | number | Open task count |
+|   ↳ `closeSourceBranch` | boolean | Whether merging closes the source branch |
+|   ↳ `reason` | string | Reason the pull request was declined |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `reviewers` | array | Explicit reviewers |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `participants` | array | Pull request participants |
+|     ↳ `type` | string | Bitbucket participant object type |
+|     ↳ `user` | object | Participating account |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `role` | string | Participant role |
+|     ↳ `approved` | boolean | Whether the participant approved |
+|     ↳ `state` | string | Review state |
+|     ↳ `participatedOn` | string | Timestamp of the participant action |
+|   ↳ `selfUrl` | string | Pull request API URL |
+|   ↳ `htmlUrl` | string | Pull request web URL |
+
+### Bitbucket Create Pull Request
+
+Create a pull request between repository branches
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `title` | string | Yes | Pull request title |
+| `sourceBranch` | string | Yes | Source branch name |
+| `destinationBranch` | string | Yes | Destination branch name |
+| `description` | string | No | Pull request description |
+| `closeSourceBranch` | boolean | No | Close the source branch after merge |
+| `draft` | boolean | No | Create the pull request as a draft |
+| `reviewerUuids` | array | No | Bitbucket account UUIDs to add as reviewers |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pullRequest` | object | Created pull request |
+|   ↳ `type` | string | Bitbucket pull request object type |
+|   ↳ `id` | number | Repository-scoped pull request ID |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `description` | string | Pull request description |
+|   ↳ `state` | string | Pull request state |
+|   ↳ `draft` | boolean | Whether the pull request is a draft |
+|   ↳ `queued` | boolean | Whether the pull request is queued |
+|   ↳ `author` | object | Pull request author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `closedBy` | object | Account that closed the pull request |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `source` | object | Source endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `destination` | object | Destination endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `mergeCommitHash` | string | Merge commit hash |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `taskCount` | number | Open task count |
+|   ↳ `closeSourceBranch` | boolean | Whether merging closes the source branch |
+|   ↳ `reason` | string | Reason the pull request was declined |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `reviewers` | array | Explicit reviewers |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `participants` | array | Pull request participants |
+|     ↳ `type` | string | Bitbucket participant object type |
+|     ↳ `user` | object | Participating account |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `role` | string | Participant role |
+|     ↳ `approved` | boolean | Whether the participant approved |
+|     ↳ `state` | string | Review state |
+|     ↳ `participatedOn` | string | Timestamp of the participant action |
+|   ↳ `selfUrl` | string | Pull request API URL |
+|   ↳ `htmlUrl` | string | Pull request web URL |
+
+### Bitbucket Merge Pull Request
+
+Start an asynchronous pull request merge and return a task to poll when needed
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+| `mergeStrategy` | string | No | Merge strategy: merge_commit, squash, fast_forward, squash_fast_forward, rebase_fast_forward, or rebase_merge |
+| `message` | string | No | Merge commit message \(maximum 128 KiB encoded as UTF-8\) |
+| `closeSourceBranch` | boolean | No | Delete the source branch after merging |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Whether the merge completed or remains pending |
+| `taskId` | string | Async merge task ID |
+| `taskUrl` | string | Validated task polling URL |
+| `pullRequest` | object | Merged pull request when completed synchronously |
+|   ↳ `type` | string | Bitbucket pull request object type |
+|   ↳ `id` | number | Repository-scoped pull request ID |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `description` | string | Pull request description |
+|   ↳ `state` | string | Pull request state |
+|   ↳ `draft` | boolean | Whether the pull request is a draft |
+|   ↳ `queued` | boolean | Whether the pull request is queued |
+|   ↳ `author` | object | Pull request author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `closedBy` | object | Account that closed the pull request |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `source` | object | Source endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `destination` | object | Destination endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `mergeCommitHash` | string | Merge commit hash |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `taskCount` | number | Open task count |
+|   ↳ `closeSourceBranch` | boolean | Whether merging closes the source branch |
+|   ↳ `reason` | string | Reason the pull request was declined |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `reviewers` | array | Explicit reviewers |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `participants` | array | Pull request participants |
+|     ↳ `type` | string | Bitbucket participant object type |
+|     ↳ `user` | object | Participating account |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `role` | string | Participant role |
+|     ↳ `approved` | boolean | Whether the participant approved |
+|     ↳ `state` | string | Review state |
+|     ↳ `participatedOn` | string | Timestamp of the participant action |
+|   ↳ `selfUrl` | string | Pull request API URL |
+|   ↳ `htmlUrl` | string | Pull request web URL |
+
+### Bitbucket Get Merge Task Status
+
+Poll the status of an asynchronous pull request merge task
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+| `taskId` | string | Yes | Merge task ID returned by Bitbucket Merge Pull Request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `taskStatus` | string | PENDING or SUCCESS |
+| `selfUrl` | string | Merge task API URL |
+| `mergeResult` | object | Merged pull request when the task succeeds |
+|   ↳ `type` | string | Bitbucket pull request object type |
+|   ↳ `id` | number | Repository-scoped pull request ID |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `description` | string | Pull request description |
+|   ↳ `state` | string | Pull request state |
+|   ↳ `draft` | boolean | Whether the pull request is a draft |
+|   ↳ `queued` | boolean | Whether the pull request is queued |
+|   ↳ `author` | object | Pull request author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `closedBy` | object | Account that closed the pull request |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `source` | object | Source endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `destination` | object | Destination endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `mergeCommitHash` | string | Merge commit hash |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `taskCount` | number | Open task count |
+|   ↳ `closeSourceBranch` | boolean | Whether merging closes the source branch |
+|   ↳ `reason` | string | Reason the pull request was declined |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `reviewers` | array | Explicit reviewers |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `participants` | array | Pull request participants |
+|     ↳ `type` | string | Bitbucket participant object type |
+|     ↳ `user` | object | Participating account |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `role` | string | Participant role |
+|     ↳ `approved` | boolean | Whether the participant approved |
+|     ↳ `state` | string | Review state |
+|     ↳ `participatedOn` | string | Timestamp of the participant action |
+|   ↳ `selfUrl` | string | Pull request API URL |
+|   ↳ `htmlUrl` | string | Pull request web URL |
+
+### Bitbucket Decline Pull Request
+
+Decline an open pull request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pullRequest` | object | Declined pull request |
+|   ↳ `type` | string | Bitbucket pull request object type |
+|   ↳ `id` | number | Repository-scoped pull request ID |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `description` | string | Pull request description |
+|   ↳ `state` | string | Pull request state |
+|   ↳ `draft` | boolean | Whether the pull request is a draft |
+|   ↳ `queued` | boolean | Whether the pull request is queued |
+|   ↳ `author` | object | Pull request author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `closedBy` | object | Account that closed the pull request |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `source` | object | Source endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `destination` | object | Destination endpoint |
+|     ↳ `branchName` | string | Branch name |
+|     ↳ `commitHash` | string | Commit hash |
+|     ↳ `repositoryUuid` | string | Repository UUID |
+|     ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `mergeCommitHash` | string | Merge commit hash |
+|   ↳ `commentCount` | number | Comment count |
+|   ↳ `taskCount` | number | Open task count |
+|   ↳ `closeSourceBranch` | boolean | Whether merging closes the source branch |
+|   ↳ `reason` | string | Reason the pull request was declined |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `reviewers` | array | Explicit reviewers |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `participants` | array | Pull request participants |
+|     ↳ `type` | string | Bitbucket participant object type |
+|     ↳ `user` | object | Participating account |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `role` | string | Participant role |
+|     ↳ `approved` | boolean | Whether the participant approved |
+|     ↳ `state` | string | Review state |
+|     ↳ `participatedOn` | string | Timestamp of the participant action |
+|   ↳ `selfUrl` | string | Pull request API URL |
+|   ↳ `htmlUrl` | string | Pull request web URL |
+
+### Bitbucket Approve Pull Request
+
+Approve a pull request as the authenticated account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `participant` | object | Approval participant record |
+|   ↳ `type` | string | Bitbucket participant object type |
+|   ↳ `user` | object | Participating account |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `role` | string | Participant role |
+|   ↳ `approved` | boolean | Whether the participant approved |
+|   ↳ `state` | string | Review state |
+|   ↳ `participatedOn` | string | Timestamp of the participant action |
+
+### Bitbucket Request Pull Request Changes
+
+Request changes on a pull request as the authenticated account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `participant` | object | Change-request participant record |
+|   ↳ `type` | string | Bitbucket participant object type |
+|   ↳ `user` | object | Participating account |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `role` | string | Participant role |
+|   ↳ `approved` | boolean | Whether the participant approved |
+|   ↳ `state` | string | Review state |
+|   ↳ `participatedOn` | string | Timestamp of the participant action |
+
+### Bitbucket Get Pull Request Diff
+
+Read a bounded UTF-8 unified diff for one pull request file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+| `path` | string | Yes | Repository-relative file path to include in the diff |
+| `maxCharacters` | number | No | Maximum diff characters to return \(1-500000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `diff` | string | Bounded unified diff text decoded as UTF-8 |
+| `decodingLossy` | boolean | Whether invalid UTF-8 source bytes were replaced while decoding |
+| `truncated` | boolean | Whether later diff text was omitted |
+| `returnedBytes` | number | Provider bytes read for the returned diff |
+| `fullBytes` | number | Full diff byte size when reported |
+
+### Bitbucket Get Pull Request Diffstat
+
+List per-file change statistics for a pull request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Per-file diff statistics |
+|   ↳ `type` | string | Diffstat object type |
+|   ↳ `status` | string | File change status |
+|   ↳ `linesAdded` | number | Lines added |
+|   ↳ `linesRemoved` | number | Lines removed |
+|   ↳ `oldPath` | string | Old file path |
+|   ↳ `newPath` | string | New file path |
+|   ↳ `oldCommitHash` | string | Old file commit hash |
+|   ↳ `newCommitHash` | string | New file commit hash |
+
+### Bitbucket List Pull Request Comments
+
+List global, inline, and reply comments on a pull request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+| `q` | string | No | Bitbucket comment filtering expression |
+| `sort` | string | No | Bitbucket comment sort expression |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Pull request comments |
+|   ↳ `type` | string | Bitbucket comment object type |
+|   ↳ `id` | number | Comment ID |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `content` | string | Raw comment content |
+|   ↳ `user` | object | Comment author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `deleted` | boolean | Whether the comment was deleted |
+|   ↳ `parentId` | number | Parent comment ID |
+|   ↳ `inline` | object | Inline comment anchor |
+|     ↳ `path` | string | Anchored file path |
+|     ↳ `from` | number | Ending line in the old file |
+|     ↳ `to` | number | Ending line in the new file |
+|     ↳ `startFrom` | number | Starting line in the old file |
+|     ↳ `startTo` | number | Starting line in the new file |
+|   ↳ `pending` | boolean | Whether the comment is pending |
+|   ↳ `resolution` | object | Comment resolution details |
+|     ↳ `resolver` | object | Account that resolved the comment |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `resolvedOn` | string | Resolution timestamp |
+|   ↳ `selfUrl` | string | Comment API URL |
+|   ↳ `htmlUrl` | string | Comment web URL |
+
+### Bitbucket Create Pull Request Comment
+
+Create a global comment or reply on a pull request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+| `content` | string | Yes | Raw comment content |
+| `parentId` | number | No | Parent comment ID when creating a reply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | Created comment |
+|   ↳ `type` | string | Bitbucket comment object type |
+|   ↳ `id` | number | Comment ID |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `content` | string | Raw comment content |
+|   ↳ `user` | object | Comment author |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `deleted` | boolean | Whether the comment was deleted |
+|   ↳ `parentId` | number | Parent comment ID |
+|   ↳ `inline` | object | Inline comment anchor |
+|     ↳ `path` | string | Anchored file path |
+|     ↳ `from` | number | Ending line in the old file |
+|     ↳ `to` | number | Ending line in the new file |
+|     ↳ `startFrom` | number | Starting line in the old file |
+|     ↳ `startTo` | number | Starting line in the new file |
+|   ↳ `pending` | boolean | Whether the comment is pending |
+|   ↳ `resolution` | object | Comment resolution details |
+|     ↳ `resolver` | object | Account that resolved the comment |
+|       ↳ `type` | string | Bitbucket account object type |
+|       ↳ `uuid` | string | Bitbucket account UUID |
+|       ↳ `accountId` | string | Atlassian account ID |
+|       ↳ `displayName` | string | Account display name |
+|       ↳ `createdOn` | string | Account creation timestamp |
+|       ↳ `selfUrl` | string | Account API URL |
+|       ↳ `htmlUrl` | string | Account web URL |
+|       ↳ `avatarUrl` | string | Account avatar URL |
+|     ↳ `resolvedOn` | string | Resolution timestamp |
+|   ↳ `selfUrl` | string | Comment API URL |
+|   ↳ `htmlUrl` | string | Comment web URL |
+
+### Bitbucket List Pull Request Commit Statuses
+
+List commit statuses associated with a pull request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `prId` | number | Yes | Repository-scoped pull request ID |
+| `q` | string | No | Bitbucket commit status filtering expression |
+| `sort` | string | No | Bitbucket commit status sort expression |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Pull request commit statuses |
+|   ↳ `type` | string | Bitbucket commit-status object type |
+|   ↳ `key` | string | Vendor-unique status key |
+|   ↳ `refName` | string | Reference name at status creation time |
+|   ↳ `url` | string | External build URL |
+|   ↳ `state` | string | Commit status state |
+|   ↳ `name` | string | Build name |
+|   ↳ `description` | string | Build description |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `updatedOn` | string | Update timestamp |
+|   ↳ `selfUrl` | string | Status API URL |
+|   ↳ `commitUrl` | string | Commit API URL |
+
+### Bitbucket List Pipelines
+
+List pipelines for a Bitbucket Cloud repository
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `refType` | string | No | Reference type filter: BRANCH, TAG, or ANNOTATED_TAG |
+| `refName` | string | No | Reference name filter |
+| `commitHash` | string | No | Full 40-character target commit SHA-1 filter |
+| `selectorType` | string | No | Selector type filter: BRANCH, TAG, CUSTOM, PULLREQUESTS, or DEFAULT |
+| `selectorPattern` | string | No | Pipeline selector pattern filter |
+| `triggerType` | string | No | Trigger filter: PUSH, MANUAL, SCHEDULED, or PARENT_STEP |
+| `status` | string | No | Pipeline status filter |
+| `sort` | string | No | Bitbucket pipeline sort expression |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Pipelines |
+|   ↳ `type` | string | Bitbucket pipeline object type |
+|   ↳ `uuid` | string | Pipeline UUID |
+|   ↳ `buildNumber` | number | Pipeline build number |
+|   ↳ `creator` | object | Pipeline creator |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `target` | object | Pipeline target |
+|     ↳ `type` | string | Target object type |
+|     ↳ `refType` | string | Reference type |
+|     ↳ `refName` | string | Reference name |
+|     ↳ `commitHash` | string | Target commit hash |
+|     ↳ `selectorType` | string | Pipeline selector type |
+|     ↳ `selectorPattern` | string | Pipeline selector pattern |
+|   ↳ `triggerType` | string | Pipeline trigger object type |
+|   ↳ `state` | object | Pipeline state |
+|     ↳ `name` | string | State name |
+|     ↳ `stage` | string | In-progress stage name |
+|     ↳ `result` | string | Completed result name |
+|     ↳ `errorKey` | string | Completed-error key |
+|     ↳ `errorMessage` | string | Completed-error message |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `completedOn` | string | Completion timestamp |
+|   ↳ `buildSecondsUsed` | number | Build seconds used |
+|   ↳ `selfUrl` | string | Pipeline API URL |
+|   ↳ `stepsUrl` | string | Pipeline steps API URL |
+
+### Bitbucket Get Pipeline
+
+Get a pipeline by UUID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `pipelineUuid` | string | Yes | Pipeline UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipeline` | object | Pipeline details |
+|   ↳ `type` | string | Bitbucket pipeline object type |
+|   ↳ `uuid` | string | Pipeline UUID |
+|   ↳ `buildNumber` | number | Pipeline build number |
+|   ↳ `creator` | object | Pipeline creator |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `target` | object | Pipeline target |
+|     ↳ `type` | string | Target object type |
+|     ↳ `refType` | string | Reference type |
+|     ↳ `refName` | string | Reference name |
+|     ↳ `commitHash` | string | Target commit hash |
+|     ↳ `selectorType` | string | Pipeline selector type |
+|     ↳ `selectorPattern` | string | Pipeline selector pattern |
+|   ↳ `triggerType` | string | Pipeline trigger object type |
+|   ↳ `state` | object | Pipeline state |
+|     ↳ `name` | string | State name |
+|     ↳ `stage` | string | In-progress stage name |
+|     ↳ `result` | string | Completed result name |
+|     ↳ `errorKey` | string | Completed-error key |
+|     ↳ `errorMessage` | string | Completed-error message |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `completedOn` | string | Completion timestamp |
+|   ↳ `buildSecondsUsed` | number | Build seconds used |
+|   ↳ `selfUrl` | string | Pipeline API URL |
+|   ↳ `stepsUrl` | string | Pipeline steps API URL |
+
+### Bitbucket Trigger Pipeline
+
+Run the repository pipeline selected by a branch or ref target
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `refType` | string | Yes | Reference type: branch, tag, named_branch, or bookmark |
+| `refName` | string | Yes | Reference name |
+| `commitHash` | string | No | Full 40-character commit SHA-1 to run in the reference context |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipeline` | object | Triggered pipeline |
+|   ↳ `type` | string | Bitbucket pipeline object type |
+|   ↳ `uuid` | string | Pipeline UUID |
+|   ↳ `buildNumber` | number | Pipeline build number |
+|   ↳ `creator` | object | Pipeline creator |
+|     ↳ `type` | string | Bitbucket account object type |
+|     ↳ `uuid` | string | Bitbucket account UUID |
+|     ↳ `accountId` | string | Atlassian account ID |
+|     ↳ `displayName` | string | Account display name |
+|     ↳ `createdOn` | string | Account creation timestamp |
+|     ↳ `selfUrl` | string | Account API URL |
+|     ↳ `htmlUrl` | string | Account web URL |
+|     ↳ `avatarUrl` | string | Account avatar URL |
+|   ↳ `repositoryFullName` | string | Repository full name |
+|   ↳ `target` | object | Pipeline target |
+|     ↳ `type` | string | Target object type |
+|     ↳ `refType` | string | Reference type |
+|     ↳ `refName` | string | Reference name |
+|     ↳ `commitHash` | string | Target commit hash |
+|     ↳ `selectorType` | string | Pipeline selector type |
+|     ↳ `selectorPattern` | string | Pipeline selector pattern |
+|   ↳ `triggerType` | string | Pipeline trigger object type |
+|   ↳ `state` | object | Pipeline state |
+|     ↳ `name` | string | State name |
+|     ↳ `stage` | string | In-progress stage name |
+|     ↳ `result` | string | Completed result name |
+|     ↳ `errorKey` | string | Completed-error key |
+|     ↳ `errorMessage` | string | Completed-error message |
+|   ↳ `createdOn` | string | Creation timestamp |
+|   ↳ `completedOn` | string | Completion timestamp |
+|   ↳ `buildSecondsUsed` | number | Build seconds used |
+|   ↳ `selfUrl` | string | Pipeline API URL |
+|   ↳ `stepsUrl` | string | Pipeline steps API URL |
+
+### Bitbucket Stop Pipeline
+
+Stop a running pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `pipelineUuid` | string | Yes | Pipeline UUID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stopped` | boolean | Whether the stop request succeeded |
+
+### Bitbucket List Pipeline Steps
+
+List the steps in a pipeline
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `pipelineUuid` | string | Yes | Pipeline UUID |
+| `nextUrl` | string | No | Opaque next-page URL returned by a previous Bitbucket call |
+| `pageLen` | number | No | Results per page \(1-100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `page` | object | Pagination information |
+|   ↳ `size` | number | Total result count reported by Bitbucket |
+|   ↳ `page` | number | Current page number |
+|   ↳ `pageLen` | number | Number of results requested per page |
+|   ↳ `nextUrl` | string | Validated URL for the next page |
+|   ↳ `previousUrl` | string | Validated URL for the previous page |
+| `items` | array | Pipeline steps |
+|   ↳ `type` | string | Bitbucket pipeline-step object type |
+|   ↳ `uuid` | string | Pipeline step UUID |
+|   ↳ `startedOn` | string | Step start timestamp |
+|   ↳ `completedOn` | string | Step completion timestamp |
+|   ↳ `state` | object | Pipeline step state |
+|     ↳ `name` | string | State name |
+|     ↳ `result` | string | Completed result name |
+|     ↳ `errorKey` | string | Completed-error key |
+|     ↳ `errorMessage` | string | Completed-error message |
+|   ↳ `imageName` | string | Build container image name |
+|   ↳ `setupCommands` | array | Setup commands |
+|     ↳ `name` | string | Command name |
+|     ↳ `command` | string | Executable command |
+|   ↳ `scriptCommands` | array | Build script commands |
+|     ↳ `name` | string | Command name |
+|     ↳ `command` | string | Executable command |
+
+### Bitbucket Get Pipeline Step Log
+
+Read a bounded UTF-8 tail of a pipeline step log
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workspaceSlug` | string | Yes | Bitbucket workspace slug or UUID |
+| `repoSlug` | string | Yes | Bitbucket repository slug or UUID |
+| `pipelineUuid` | string | Yes | Pipeline UUID |
+| `stepUuid` | string | Yes | Pipeline step UUID |
+| `maxCharacters` | number | No | Maximum trailing log characters to return \(1-200000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `log` | string | Bounded trailing UTF-8 log text |
+| `truncated` | boolean | Whether earlier log output was omitted |
+| `totalBytes` | number | Full log byte size when reported |
+
+

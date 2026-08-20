@@ -39,7 +39,7 @@ interface EnvVarDropdownProps {
   /** Maximum height for the dropdown */
   maxHeight?: string
   /** Reference to the input element for caret positioning */
-  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement>
+  inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
 }
 
 /**

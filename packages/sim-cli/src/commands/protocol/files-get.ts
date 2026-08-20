@@ -7,10 +7,17 @@ import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
-import { resolvePath, SimApiError } from '../../http/client'
+import { isRequestTimeout, RAISE_TIMEOUT_HINT, resolvePath, SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
 
 function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
+  // A body torn down by the request's own bound is not a disk problem. Calling
+  // it "could not write" sent the reader to check permissions and free space
+  // for a timeout they can raise, and hid the one instruction that resolves it.
+  if (isRequestTimeout(error)) {
+    return new SimApiError(`Downloading ${path} timed out. ${RAISE_TIMEOUT_HINT}`, 0)
+  }
+
   const code = (error as NodeJS.ErrnoException).code
   if (code === 'EEXIST') {
     return new SimApiError(

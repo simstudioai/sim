@@ -1,9 +1,9 @@
 ---
 slug: secret-provenance
 title: 'Tracking Secrets Through an Agent Run'
-description: 'How Sim tracks the secrets an agent run actually uses, carries that provenance across tools and storage, and redacts values at every egress boundary.'
+description: 'How Sim tracks the secrets an agent run actually uses, carries that provenance across tools and storage, redacts values at every egress boundary, and records which run touched which credential.'
 date: 2026-08-08
-updated: 2026-08-12
+updated: 2026-08-18
 authors:
   - vik
 readingTime: 7
@@ -26,6 +26,8 @@ faq:
     a: "Across both. Durable content such as workspace files, table cells, knowledge documents, and agent memory carries encrypted provenance so a later run does not mistake secret-bearing data for clean data."
   - q: "Is the model treated as an internal component or an egress boundary?"
     a: "An egress boundary. Model-bound content leaves Sim's infrastructure, may be retained by the provider, and can be echoed in a later turn, so it is projected before the request is sent."
+  - q: "Can code inside a workflow defeat redaction and print a secret anyway?"
+    a: "Code that never emits the value can avoid a value matcher — printing a key one character at a time produces no output that matches it. Deciding this in general is undecidable, so Sim pairs redaction with attribution: every run records which secrets it resolved, under which identity, so misuse is visible even when the value never appears."
 ---
 
 Secrets usually do not leak when an application first reads them. They leak after they have been copied into an error, passed to another service, or written somewhere that outlives the request.
@@ -62,7 +64,9 @@ Results returning from tools and Function blocks are checked before they become 
 
 Storage is the boundary that is easiest to miss. Workspace files, table cells, knowledge documents, and agent memory can all survive the execution that created them. Without durable provenance, a secret written during one run would look like ordinary data when another run read it back. Sim stores an encrypted provenance record and version marker alongside that content, allowing a later read to distinguish data known to be clean from data whose history is unknown.
 
-When that history cannot be established, we do not treat `unknown` as `clean`. The payload is withheld, while safe parts of the record remain available: block identity, timing, status, and error type. A tool result can be kept out of model context without hiding the fact that the tool ran. The refusal also records where it happened and what made the registry incomplete, so failing closed does not mean debugging blind.
+When that history cannot be established, we do not treat `unknown` as `clean`. At a run's own boundaries the payload is withheld, while safe parts of the record remain available: block identity, timing, status, and error type. A tool result can be kept out of model context without hiding the fact that the tool ran. The refusal also records where it happened and what made the registry incomplete, so failing closed does not mean debugging blind.
+
+Stored data is different, because a record written months ago outlives the run that could explain it. Refusing to read it would strand a team on its own tables and memory to protect against a risk we cannot confirm is there. So for that content the read proceeds and the workspace gets an audit entry naming the surface and what could not be vouched for. The judgment is deliberate: withholding is right when a run is asking to send something out, and visibility is right when the alternative is a workspace that can no longer read what it stored.
 
 ## Exact Matching, With One Limit
 
@@ -83,6 +87,14 @@ Entropy does not answer this question. It measures variation within a string, no
 Eight characters is not a universal definition of a secret. It is the point at which literal replacement becomes useful for this system. API keys, bearer tokens, webhook signing secrets, database passwords, payment card numbers, and similar identifiers clear the floor. A genuinely short secret does not, and we document that limit rather than pretending a heuristic can remove it.
 
 There is another boundary to the guarantee: matching uses exact bytes. A hash, signature, or re-encoding derived from a secret no longer contains those bytes and will not be caught by the same matcher.
+
+## Recording What a Run Used
+
+Projection stops a value at a boundary. It cannot stop code that never produces the value: a few lines in a Function block can print a key one character at a time, and no output ever matches the secret it came from. That is not a gap in the matcher. Deciding whether arbitrary code will eventually reveal a value is undecidable in general, which is why [ShellCheck](https://www.shellcheck.net/wiki/SC2154) says the same about tracking indirect references.
+
+So the second posture is attribution rather than prevention. Every run records which configured secrets it actually resolved, under whose identity, and through which surface. Execution logs cannot answer that: they persist the environment a run *could* have read rather than the subset it referenced, and they expire on the workspace's retention window.
+
+Redaction keeps the value out of the record. The trail says whose hands it passed through.
 
 ## Taint Tracking in Reverse
 

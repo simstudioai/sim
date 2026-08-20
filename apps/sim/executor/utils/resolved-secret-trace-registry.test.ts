@@ -416,6 +416,72 @@ describe('ResolvedSecretTraceRegistry', () => {
     })
   })
 
+  it('narrows each grouped export to its own root', () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', plaintext: 'beta', encryptedValue: 'encrypted-second' },
+      ],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    registry.recordResolvedAtInputPath('SECOND', 'beta', ['rows', '1', 'b'])
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '2', 'c', 'nested'])
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '0', 'a']],
+      [['rows', '1', 'b']],
+      [['rows', '2', 'c']],
+      [['rows']],
+      [['rows', '3', 'untouched']],
+      [],
+      [
+        ['rows', '0', 'a'],
+        ['rows', '1', 'b'],
+      ],
+    ])
+
+    expect(exported.map((provenance) => provenance.entries)).toEqual([
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [{ name: 'SECOND', encryptedValue: 'encrypted-second' }],
+      [{ name: 'FIRST', encryptedValue: 'encrypted-first' }],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+      [],
+      [],
+      [
+        { name: 'FIRST', encryptedValue: 'encrypted-first' },
+        { name: 'SECOND', encryptedValue: 'encrypted-second' },
+      ],
+    ])
+    expect(exported.every((provenance) => provenance.complete)).toBe(true)
+  })
+
+  it('fails only the grouped exports an incomplete input path overlaps', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'FIRST', plaintext: 'alpha', encryptedValue: 'encrypted-first' }],
+      scope
+    )
+    registry.recordResolvedAtInputPath('FIRST', 'alpha', ['rows', '0', 'a'])
+    await registry.importProvenanceForValueAtInputPath(null, 'alpha', ['rows', '1', 'b'], {
+      trusted: false,
+    })
+
+    const exported = registry.exportCommittedProvenanceForInputPathGroups([
+      [['rows', '1', 'b']],
+      [['rows', '1']],
+      [['rows', '1', 'b', 'deeper']],
+      [['rows', '0', 'a']],
+    ])
+
+    expect(exported.map((provenance) => provenance.complete)).toEqual([false, false, false, true])
+    expect(exported[3].entries).toEqual([{ name: 'FIRST', encryptedValue: 'encrypted-first' }])
+  })
+
   it('fails closed when independent secret paths collapse into one transformed string', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'FIRST', plaintext: 'first', encryptedValue: 'encrypted-first' },
@@ -609,6 +675,98 @@ describe('ResolvedSecretTraceRegistry', () => {
       version: 1,
       complete: true,
       entries: [{ name: 'SHARED', encryptedValue: 'workspace-encrypted' }],
+    })
+  })
+
+  describe('getResolvedSecretUsage', () => {
+    it('reports only the secrets a run actually resolved, with their scope', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: { PERSONAL_KEY: 'personal-encrypted' },
+        workspaceEncrypted: { WORKSPACE_KEY: 'workspace-encrypted', UNUSED: 'unused-encrypted' },
+        personalDecrypted: { PERSONAL_KEY: 'personal-secret' },
+        workspaceDecrypted: { WORKSPACE_KEY: 'workspace-secret', UNUSED: 'unused-secret' },
+        personalOwners: { PERSONAL_KEY: 'owner-1' },
+      })
+
+      expect(registry.recordResolved('PERSONAL_KEY', 'personal-secret')).toBe(true)
+      expect(registry.recordResolved('WORKSPACE_KEY', 'workspace-secret')).toBe(true)
+
+      expect(registry.getResolvedSecretUsage()).toEqual([
+        { name: 'PERSONAL_KEY', scope: 'personal', ownerUserId: 'owner-1' },
+        { name: 'WORKSPACE_KEY', scope: 'workspace', ownerUserId: null },
+      ])
+    })
+
+    /**
+     * A personal secret shared into the workspace resolves for someone who does not own it.
+     * The trail is read per owner, so it has to be filed under the sharer or it would show up
+     * under the borrower's own same-named secret.
+     */
+    it('attributes a shared personal secret to its owner, not the resolving caller', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: { SHARED_KEY: 'personal-encrypted' },
+        workspaceEncrypted: {},
+        personalDecrypted: { SHARED_KEY: 'shared-secret' },
+        workspaceDecrypted: {},
+        personalOwners: { SHARED_KEY: 'sharer-1' },
+        scope: { userId: 'borrower-1', workspaceId: 'workspace-1' },
+      })
+
+      expect(registry.recordResolved('SHARED_KEY', 'shared-secret')).toBe(true)
+      expect(registry.getResolvedSecretUsage()).toEqual([
+        { name: 'SHARED_KEY', scope: 'personal', ownerUserId: 'sharer-1' },
+      ])
+    })
+
+    /**
+     * Recording an unattributed personal row would surface it under every other user's
+     * secret of the same name, so it is dropped instead.
+     */
+    it('drops a personal secret whose owner is unknown', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: { PERSONAL_KEY: 'personal-encrypted' },
+        workspaceEncrypted: {},
+        personalDecrypted: { PERSONAL_KEY: 'personal-secret' },
+        workspaceDecrypted: {},
+      })
+
+      expect(registry.recordResolved('PERSONAL_KEY', 'personal-secret')).toBe(true)
+      expect(registry.getResolvedSecretUsage()).toEqual([])
+    })
+
+    it('is empty when a configured secret was never resolved', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: {},
+        workspaceEncrypted: { API_KEY: 'workspace-encrypted' },
+        personalDecrypted: {},
+        workspaceDecrypted: { API_KEY: 'workspace-secret' },
+      })
+
+      expect(registry.getResolvedSecretUsage()).toEqual([])
+    })
+
+    /**
+     * An imported entry is a secret a sub-run or tool call already recorded against its own
+     * execution; counting it again here would double it.
+     */
+    it('omits entries adopted from imported provenance', async () => {
+      const registry = await createResolvedSecretTraceRegistry({
+        personalEncrypted: {},
+        workspaceEncrypted: {},
+        personalDecrypted: {},
+        workspaceDecrypted: {},
+      })
+
+      await registry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'CROSSED_KEY', encryptedValue: 'crossed-encrypted' }],
+        },
+        { trusted: true }
+      )
+
+      expect(registry.getResolvedSecretUsage()).toEqual([])
     })
   })
 
@@ -1506,8 +1664,6 @@ describe('incompleteness diagnostics', () => {
     'client-tool-execution-untrusted',
     'client-tool-content-unavailable',
     'knowledge-result-provenance-unavailable',
-    'knowledge-response-capacity-exceeded',
-    'memory-crossing-capacity-exceeded',
     'table-result-provenance-unavailable',
     'mounted-file-provenance-unavailable',
     'workspace-file-provenance-unknown',

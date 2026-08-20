@@ -10,7 +10,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description:
     'How Sim, the open-source AI workspace, collects, uses, and protects your data, including data obtained from Google APIs, and the controls you have over it.',
-  lastUpdated: 'October 11, 2025',
+  lastUpdated: 'August 18, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -213,6 +213,16 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: `You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent. However, if you do not accept cookies, you may not be able to use some portions of our Service.`,
+        },
+        {
+          kind: 'paragraph',
+          content: (
+            <>
+              Our <ProseLink href='/cookie-policy'>Cookie Policy</ProseLink> lists every cookie we
+              and our providers set, what each one does, how long it lasts, and how to change or
+              withdraw your choice.
+            </>
+          ),
         },
       ],
     },

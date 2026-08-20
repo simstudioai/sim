@@ -27,6 +27,8 @@ const POLICIES_DRIVE_ID = 'b!policies'
 interface GraphRoute {
   status?: number
   body?: unknown
+  /** Serve `body` as bytes, for the `/content` endpoint the downloader reads. */
+  raw?: boolean
 }
 
 /** Folder-shaped drive item for children listings. */
@@ -49,6 +51,9 @@ function mockGraph(routes: Record<string, GraphRoute>) {
       status,
       json: async () => route.body,
       text: async () => JSON.stringify(route.body ?? {}),
+      /** `readBodyWithLimit` falls back to this when there is no stream body. */
+      arrayBuffer: async () =>
+        Buffer.from(route.raw ? String(route.body ?? '') : JSON.stringify(route.body ?? {})),
     } as unknown as Response
   })
   return requested
@@ -411,6 +416,47 @@ describe('listDocuments', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
+  /**
+   * The reported failure: a document library of Office SOPs synced as
+   * "success, 0 documents" because the listing filter accepted only plain text,
+   * which is indistinguishable from a wrong folder path.
+   */
+  it('lists Office documents and PDFs alongside text files', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'Market Data SOP.docx'),
+        file('f2', 'Vendor Contract.pdf'),
+        file('f3', 'User List.xlsx'),
+        file('f4', 'Overview.pptx'),
+        file('f5', 'notes.txt'),
+      ])
+    )
+
+    const result = await list(undefined, listContext())
+
+    expect(result.documents.map((doc) => doc.title)).toEqual([
+      'Market Data SOP.docx',
+      'Vendor Contract.pdf',
+      'User List.xlsx',
+      'Overview.pptx',
+      'notes.txt',
+    ])
+  })
+
+  it('still excludes files with no extractable text', async () => {
+    mockGraph(
+      childrenRoute(DEFAULT_DRIVE_ID, null, [
+        file('f1', 'diagram.png'),
+        file('f2', 'recording.mp4'),
+        file('f3', 'notes.txt'),
+      ])
+    )
+
+    const result = await list(undefined, listContext())
+
+    expect(result.documents.map((doc) => doc.externalId)).toEqual(['f3'])
+  })
+
   it('builds a metadata-only contentHash that getDocument can reproduce', async () => {
     mockGraph(childrenRoute(DEFAULT_DRIVE_ID, null, [file('f1', 'a.txt')]))
 
@@ -418,6 +464,73 @@ describe('listDocuments', () => {
 
     expect(result.documents[0].contentHash).toBe('sharepoint:f1:2026-01-01T00:00:00Z')
     expect(result.documents[0].contentDeferred).toBe(true)
+  })
+})
+
+describe('getDocument content extraction', () => {
+  function itemRoute(itemId: string, name: string) {
+    return {
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/${itemId}?$select=${ITEM_SELECT}`]: {
+        body: file(itemId, name),
+      },
+    }
+  }
+
+  /** The content endpoint is fetched directly, not through the JSON `graphGet`. */
+  function contentRoute(itemId: string, body: string) {
+    return {
+      [`${GRAPH}/drives/${DEFAULT_DRIVE_ID}/items/${itemId}/content`]: { body, raw: true },
+    }
+  }
+
+  function get(externalId: string) {
+    return sharepointConnector.getDocument!(
+      'token',
+      { siteUrl: SITE_URL },
+      externalId,
+      listContext()
+    )
+  }
+
+  /**
+   * The connector hands an Office document over untouched so the shared pipeline
+   * parses it — the same path an upload of the same file takes, which is what
+   * routes PDFs through OCR.
+   */
+  it('delivers an Office document as its source file rather than extracting it', async () => {
+    mockGraph({ ...itemRoute('f1', 'SOP.docx'), ...contentRoute('f1', 'PK-docx-bytes') })
+
+    const doc = await get('f1')
+
+    expect(doc?.content).toBe('')
+    expect(doc?.sourceFile?.fileName).toBe('SOP.docx')
+    expect(doc?.sourceFile?.mimeType).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    expect(doc?.sourceFile?.bytes.toString()).toBe('PK-docx-bytes')
+    expect(doc?.mimeType).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    expect(doc?.contentDeferred).toBe(false)
+  })
+
+  it('declares a PDF as application/pdf so the pipeline can route it to OCR', async () => {
+    mockGraph({ ...itemRoute('f4', 'Contract.pdf'), ...contentRoute('f4', '%PDF-1.7 bytes') })
+
+    const doc = await get('f4')
+
+    expect(doc?.mimeType).toBe('application/pdf')
+    expect(doc?.sourceFile?.mimeType).toBe('application/pdf')
+  })
+
+  it('still extracts a text file itself, since there is nothing for a parser to do', async () => {
+    mockGraph({ ...itemRoute('f3', 'notes.txt'), ...contentRoute('f3', 'plain notes') })
+
+    const doc = await get('f3')
+
+    expect(doc?.content).toBe('plain notes')
+    expect(doc?.sourceFile).toBeUndefined()
+    expect(doc?.mimeType).toBe('text/plain')
   })
 })
 

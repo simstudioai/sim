@@ -29,10 +29,29 @@ export interface ExternalDocument {
   externalId: string
   /** Document title / filename */
   title: string
-  /** Extracted text content */
+  /** Extracted text content. Empty when {@link ExternalDocument.sourceFile} carries the document instead. */
   content: string
   /** MIME type of the content */
   mimeType: string
+  /**
+   * The source file itself, for connectors that hand over the original document
+   * rather than text they extracted from it.
+   *
+   * Preferred for any format the knowledge base can parse. Extracting inside a
+   * connector strands the document on a second, weaker parser: the shared
+   * pipeline routes PDFs to OCR (so scanned pages are readable at all) and owns
+   * every other format's parser, while a connector doing its own extraction
+   * stores plain text that no longer declares what it came from.
+   *
+   * Carried as one object so the bytes can never disagree with the name and type
+   * that describe them.
+   */
+  sourceFile?: {
+    bytes: Buffer
+    /** Name whose extension names the format, e.g. `Report.pdf`. */
+    fileName: string
+    mimeType: string
+  }
   /** Link back to the original document */
   sourceUrl?: string
   /** Hash of content for change detection (format varies by connector) */

@@ -1,5 +1,4 @@
 import { Library } from '@sim/emcn/icons'
-import { fetchWorkspaceWorkflowOptions } from '@/lib/workflows/subblocks/options'
 import type { BlockConfig } from '@/blocks/types'
 
 export const LogsBlock: BlockConfig = {
@@ -298,18 +297,29 @@ const TIME_RANGE_MS: Record<string, number> = {
   'past-30-days': 30 * 24 * 60 * 60 * 1000,
 }
 
-/** Normalizes multi-select arrays or comma strings into a comma-separated string. */
+/**
+ * Normalizes multi-select arrays or comma strings into a comma-separated string.
+ *
+ * Every entry is itself split on commas and trimmed: a single option id can hold
+ * several values (the merged trigger labels), and advanced-mode fields are typed
+ * by hand. The filters this feeds split on commas without trimming, so a stray
+ * space would silently match nothing.
+ */
 function joinIds(value: unknown): string | undefined {
-  if (Array.isArray(value)) {
-    const ids = value.filter((id): id is string => typeof id === 'string' && id.length > 0)
-    return ids.length > 0 ? ids.join(',') : undefined
-  }
-  if (typeof value === 'string' && value.trim().length > 0) return value.trim()
-  return undefined
+  const entries = Array.isArray(value) ? value : [value]
+  const ids = entries
+    .filter((entry): entry is string => typeof entry === 'string')
+    .flatMap((entry) => entry.split(','))
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0)
+  return ids.length > 0 ? ids.join(',') : undefined
 }
 
 /** Workflow filter, whichever mode the card is in. */
 const WORKFLOW_FIELD = ['workflowSelector', 'manualWorkflowIds'] as const
+
+/** Trigger filter, whichever mode the card is in. */
+const TRIGGER_FIELD = ['triggerSelector', 'manualTriggers'] as const
 
 export const LogsV2Block: BlockConfig = {
   type: 'logs_v2',
@@ -335,6 +345,7 @@ export const LogsV2Block: BlockConfig = {
           'Query workflow runs',
           { text: 'for', field: WORKFLOW_FIELD },
           { text: ', with status', field: 'level' },
+          { text: ', triggered by', field: TRIGGER_FIELD },
           { text: ', over', field: 'timeRange' },
         ],
         get_run_details: [{ text: 'Read the trace for run', field: 'runId', core: true }],
@@ -356,14 +367,13 @@ export const LogsV2Block: BlockConfig = {
       id: 'workflowSelector',
       title: 'Workflows',
       type: 'dropdown',
+      selectorKey: 'sim.workflows',
       multiSelect: true,
-      options: [],
       placeholder: 'All workflows',
       description: 'Only include runs of these workflows. Leave empty for all.',
       mode: 'basic',
       canonicalParamId: 'workflowIds',
       condition: { field: 'operation', value: 'query' },
-      fetchOptions: () => fetchWorkspaceWorkflowOptions(),
     },
     {
       id: 'manualWorkflowIds',
@@ -387,6 +397,27 @@ export const LogsV2Block: BlockConfig = {
         { label: 'Cancelled', id: 'cancelled' },
       ],
       placeholder: 'All statuses',
+      condition: { field: 'operation', value: 'query' },
+    },
+    {
+      id: 'triggerSelector',
+      title: 'Triggers',
+      type: 'dropdown',
+      selectorKey: 'workspace.triggerTypes',
+      multiSelect: true,
+      placeholder: 'All triggers',
+      description: 'Only include runs started this way. Leave empty for all.',
+      mode: 'basic',
+      canonicalParamId: 'triggers',
+      condition: { field: 'operation', value: 'query' },
+    },
+    {
+      id: 'manualTriggers',
+      title: 'Triggers',
+      type: 'short-input',
+      placeholder: 'Comma-separated trigger types (api, schedule, slack)',
+      mode: 'advanced',
+      canonicalParamId: 'triggers',
       condition: { field: 'operation', value: 'query' },
     },
     {
@@ -548,6 +579,7 @@ export const LogsV2Block: BlockConfig = {
         return {
           workflowIds: joinIds(params.workflowIds),
           level,
+          triggers: joinIds(params.triggers),
           startDate: params.startDate || presetStartDate,
           endDate: params.endDate || undefined,
           costOperator: costValue !== undefined ? params.costOperator || undefined : undefined,
@@ -566,6 +598,10 @@ export const LogsV2Block: BlockConfig = {
     operation: { type: 'string', description: 'Operation to perform' },
     workflowIds: { type: 'array', description: 'Workflow IDs to filter by (canonical param)' },
     level: { type: 'array', description: 'Statuses to include (empty for all)' },
+    triggers: {
+      type: 'string',
+      description: 'Comma-separated trigger types to include (canonical param, empty for all)',
+    },
     timeRange: { type: 'string', description: 'Preset time window' },
     startDate: { type: 'string', description: 'ISO 8601 lower bound (overrides Time Range)' },
     endDate: { type: 'string', description: 'ISO 8601 upper bound' },

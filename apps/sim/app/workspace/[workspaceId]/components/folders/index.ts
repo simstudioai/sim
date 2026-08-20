@@ -1,4 +1,6 @@
 export { readRowDragPayload, writeRowDragPayload } from './drag-payload'
+export type { BuildFlyoutEntriesParams, FlyoutEntry } from './flyout-entries'
+export { buildFlyoutEntries } from './flyout-entries'
 export type { BreadcrumbFolder, FolderBreadcrumbItemsOptions } from './folder-breadcrumbs'
 export { breadcrumbFolderChain, folderBreadcrumbItems } from './folder-breadcrumbs'
 export { FolderContextMenu } from './folder-context-menu'
@@ -7,6 +9,13 @@ export type { FolderRowOptions } from './folder-row'
 export { folderRow } from './folder-row'
 export type { FolderedRowKind, ParsedFolderedRowId } from './folder-row-id'
 export { folderRowId, parseFolderedRowId, splitFolderedRowIds } from './folder-row-id'
+export {
+  EMPTY_LOCATION_CELL,
+  FOLDER_LOCATION_COLUMN,
+  folderLocationLabel,
+  isSearchingResources,
+  scopeFolderedItems,
+} from './folder-search-scope'
 export type {
   FolderedHeaderResourceType,
   FolderedResourceHeaderMeta,

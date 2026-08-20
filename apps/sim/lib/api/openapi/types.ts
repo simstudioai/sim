@@ -50,6 +50,19 @@ export interface OpenApiErrorResponse {
   status: number
   description: string
   headers?: readonly string[]
+  /**
+   * The body this status is documented with, validated against the document's `errorSchema`
+   * at generation time.
+   *
+   * Required, because the alternative is what every status rendered before it existed: the
+   * error schema's single shared example, so the reference answered `400 BAD_REQUEST` under
+   * the `401`, `404`, and `500` tabs alike. A reference that confidently shows the wrong
+   * body is worse than one that shows none.
+   *
+   * The document's own layer assembles it — only that layer knows how its codes pair with
+   * statuses — and this generator checks it parses.
+   */
+  example: unknown
 }
 
 export interface OpenApiSuccessMetadata {

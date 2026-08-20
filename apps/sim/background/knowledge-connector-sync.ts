@@ -5,6 +5,7 @@ import {
   type ConnectorSyncPayload,
 } from '@/lib/knowledge/connectors/queue'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
+import { CONNECTOR_SYNC_MAX_DURATION_SECONDS } from '@/lib/knowledge/connectors/sync-limits'
 
 const logger = createLogger('TriggerKnowledgeConnectorSync')
 
@@ -39,7 +40,7 @@ export async function executeConnectorSyncJob(payload: unknown) {
 
 export const knowledgeConnectorSync = task({
   id: 'knowledge-connector-sync',
-  maxDuration: 1800,
+  maxDuration: CONNECTOR_SYNC_MAX_DURATION_SECONDS,
   machine: 'large-2x',
   retry: {
     maxAttempts: 3,

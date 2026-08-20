@@ -1,4 +1,4 @@
-import integrationsJson from '@/lib/integrations/integrations.json'
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
 import { createLandingOgImage } from '@/app/(landing)/og-utils'
 

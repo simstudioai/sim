@@ -202,6 +202,12 @@ import {
   grainWebhookTrigger,
 } from '@/triggers/grain'
 import {
+  granolaNoteAccessGrantedTrigger,
+  granolaNoteEditedTrigger,
+  granolaNoteGeneratedTrigger,
+  granolaWebhookTrigger,
+} from '@/triggers/granola'
+import {
   greenhouseCandidateHiredTrigger,
   greenhouseCandidateRejectedTrigger,
   greenhouseCandidateStageChangeTrigger,
@@ -266,6 +272,7 @@ import {
   jiraWorklogDeletedTrigger,
   jiraWorklogUpdatedTrigger,
 } from '@/triggers/jira'
+import { jotformWebhookTrigger } from '@/triggers/jotform'
 import {
   jsmRequestCommentedTrigger,
   jsmRequestCreatedTrigger,
@@ -624,6 +631,10 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   google_sheets_poller: googleSheetsPollingTrigger,
   gong_call_completed: gongCallCompletedTrigger,
   gong_webhook: gongWebhookTrigger,
+  granola_note_generated: granolaNoteGeneratedTrigger,
+  granola_note_edited: granolaNoteEditedTrigger,
+  granola_note_access_granted: granolaNoteAccessGrantedTrigger,
+  granola_webhook: granolaWebhookTrigger,
   grain_recording_added_v2: grainRecordingAddedV2Trigger,
   grain_recording_updated_v2: grainRecordingUpdatedV2Trigger,
   grain_recording_deleted_v2: grainRecordingDeletedV2Trigger,
@@ -661,6 +672,7 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   jira_sprint_closed: jiraSprintClosedTrigger,
   jira_project_created: jiraProjectCreatedTrigger,
   jira_version_released: jiraVersionReleasedTrigger,
+  jotform_webhook: jotformWebhookTrigger,
   jsm_request_created: jsmRequestCreatedTrigger,
   jsm_request_updated: jsmRequestUpdatedTrigger,
   jsm_request_commented: jsmRequestCommentedTrigger,

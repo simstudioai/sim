@@ -1,4 +1,4 @@
-import type { ElementType } from 'react'
+import type { ComponentType } from 'react'
 import { Database, File as FileIcon, Table as TableIcon } from '@sim/emcn/icons'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 import { folderListHref } from '@/app/workspace/[workspaceId]/components/folders/search-params'
@@ -17,7 +17,7 @@ export interface FolderedResourceHeaderMeta {
   /** Root crumb label, and the page title at the workspace root. */
   rootLabel: string
   /** Icon on the root crumb, which is also what opens the header's "Path" popover. */
-  rootIcon: ElementType
+  rootIcon: ComponentType<{ className?: string }>
   /** Path segment of the list page under `/workspace/[workspaceId]/`. */
   listSegment: string
 }

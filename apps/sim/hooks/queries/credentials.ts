@@ -8,10 +8,12 @@ import {
   createCredentialDraftContract,
   createWorkspaceCredentialContract,
   deleteWorkspaceCredentialContract,
+  getSecretUsageContract,
   getWorkspaceCredentialContract,
   listWorkspaceCredentialMembersContract,
   listWorkspaceCredentialsContract,
   removeWorkspaceCredentialMemberContract,
+  type SecretUsageScope,
   updateWorkspaceCredentialContract,
   upsertWorkspaceCredentialMemberContract,
   type WorkspaceCredential,
@@ -156,34 +158,52 @@ export function useUpdateWorkspaceCredential() {
       const previousLists = queryClient.getQueriesData<WorkspaceCredential[]>({
         queryKey: workspaceCredentialKeys.lists(),
       })
+      const previousDetail = queryClient.getQueryData<WorkspaceCredential | null>(
+        workspaceCredentialKeys.detail(variables.credentialId)
+      )
+
+      /** Applies the in-flight edit to one cached credential. */
+      const withEdit = (cred: WorkspaceCredential): WorkspaceCredential => ({
+        ...cred,
+        ...(variables.displayName !== undefined ? { displayName: variables.displayName } : {}),
+        ...(variables.description !== undefined
+          ? { description: variables.description ?? null }
+          : {}),
+      })
+
+      /*
+       * The detail cache is patched alongside the lists, not just cancelled: a
+       * detail-backed editor compares its drafts against this entry to decide
+       * whether it is dirty, so leaving it stale keeps the surface dirty after a
+       * successful save until the `onSettled` refetch lands — long enough for
+       * Discard to restore the pre-save value over the committed one.
+       */
+      queryClient.setQueryData<WorkspaceCredential | null>(
+        workspaceCredentialKeys.detail(variables.credentialId),
+        (old) => (old ? withEdit(old) : old)
+      )
 
       queryClient.setQueriesData<WorkspaceCredential[]>(
         { queryKey: workspaceCredentialKeys.lists() },
         (old) => {
           if (!old) return old
-          return old.map((cred) =>
-            cred.id === variables.credentialId
-              ? {
-                  ...cred,
-                  ...(variables.displayName !== undefined
-                    ? { displayName: variables.displayName }
-                    : {}),
-                  ...(variables.description !== undefined
-                    ? { description: variables.description ?? null }
-                    : {}),
-                }
-              : cred
-          )
+          return old.map((cred) => (cred.id === variables.credentialId ? withEdit(cred) : cred))
         }
       )
 
-      return { previousLists }
+      return { previousLists, previousDetail }
     },
-    onError: (_err, _variables, context) => {
+    onError: (_err, variables, context) => {
       if (context?.previousLists) {
         for (const [queryKey, data] of context.previousLists) {
           queryClient.setQueryData(queryKey, data)
         }
+      }
+      if (context?.previousDetail !== undefined) {
+        queryClient.setQueryData(
+          workspaceCredentialKeys.detail(variables.credentialId),
+          context.previousDetail
+        )
       }
     },
     onSettled: (_data, _error, variables) => {
@@ -283,5 +303,35 @@ export function useRemoveWorkspaceCredentialMember() {
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
     },
+  })
+}
+
+/**
+ * The trail is written by every run that resolves the secret, so it goes stale quickly. A
+ * short window keeps "last used" meaningful without refetching on every panel interaction.
+ */
+export const SECRET_USAGE_STALE_TIME = 30 * 1000
+
+interface SecretUsageParams {
+  workspaceId?: string
+  name?: string
+  scope?: SecretUsageScope
+}
+
+/** Reads one secret's usage trail. Only credential admins are authorized server-side. */
+export function useSecretUsage({ workspaceId, name, scope }: SecretUsageParams, enabled = true) {
+  return useQuery({
+    queryKey: workspaceCredentialKeys.usage(workspaceId, name, scope),
+    queryFn: ({ signal }) =>
+      requestJson(getSecretUsageContract, {
+        query: {
+          workspaceId: workspaceId as string,
+          name: name as string,
+          scope: scope as SecretUsageScope,
+        },
+        signal,
+      }),
+    enabled: Boolean(workspaceId && name && scope) && enabled,
+    staleTime: SECRET_USAGE_STALE_TIME,
   })
 }

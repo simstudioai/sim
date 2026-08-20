@@ -18,8 +18,7 @@ export const listExpenseReportsTool: ToolConfig<ListExpenseReportsParams, SapCon
         type: 'string',
         required: false,
         visibility: 'user-only',
-        description:
-          'Concur datacenter base URL (us, us2, eu, eu2, cn, emea — defaults to us.api.concursolutions.com)',
+        description: 'Concur datacenter base URL (defaults to us.api.concursolutions.com)',
       },
       grantType: {
         type: 'string',
@@ -139,13 +138,14 @@ export const listExpenseReportsTool: ToolConfig<ListExpenseReportsParams, SapCon
         type: 'number',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Number of records per page (default 25, max 100)',
+        description: 'Number of records per page (default 25)',
       },
       offset: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
-        description: 'Opaque cursor token returned by a prior call (NextPage).',
+        description:
+          'Pagination token. The previous response returns NextPage as a full URI — extract its `offset` query parameter and pass that value here, not the whole URI.',
       },
     },
     request: {
@@ -266,7 +266,8 @@ export const listExpenseReportsTool: ToolConfig<ListExpenseReportsParams, SapCon
           },
           NextPage: {
             type: 'string',
-            description: 'URI of the next page (use as offset cursor)',
+            description:
+              'Full URI of the next page — read its `offset` query parameter to page forward',
             optional: true,
           },
         },

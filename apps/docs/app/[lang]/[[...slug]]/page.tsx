@@ -1,4 +1,5 @@
 import type React from 'react'
+import { highlight } from 'fumadocs-core/highlight'
 import type { Root } from 'fumadocs-core/page-tree'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
@@ -17,6 +18,7 @@ import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
+import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
@@ -69,9 +71,31 @@ function stripLocalePrefix(url: string, lang: string): string {
   return url
 }
 
+/**
+ * Renders the API reference's request and response samples through the docs' own `CodeBlock`
+ * rather than fumadocs-openapi's built-in one, so those blocks get the emcn copy control
+ * instead of fumadocs' lucide clipboard. Mirrors the default renderer — same `highlight` call,
+ * same `Pre` component, same `my-0` — differing only in which shell wraps the result.
+ */
+async function ApiCodeBlock({ lang, code }: { lang: string; code: string }) {
+  return (
+    <CodeBlock className='my-0'>
+      {await highlight(code, { lang, ...simShikiOptions, components: { pre: Pre } })}
+    </CodeBlock>
+  )
+}
+
 const APIPage = createAPIPage(openapi, {
+  renderCodeBlock: (props) => <ApiCodeBlock {...props} />,
   playground: { enabled: false },
   generateCodeSamples: getAuthenticatedCodeSamples,
+  /**
+   * fumadocs-openapi highlights its request and response samples through its own Shiki
+   * instance, not the MDX pipeline, so it does not inherit `source.config.ts`. Left alone,
+   * every API reference page renders `github-light` / `github-dark` while the rest of the docs
+   * render the platform palette.
+   */
+  shikiOptions: simShikiOptions,
   client: {
     operation: { APIExampleSelector },
   },

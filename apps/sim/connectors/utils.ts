@@ -135,6 +135,143 @@ export function htmlToPlainText(html: string): string {
 }
 
 /**
+ * Extensions a file-based connector reads straight off the wire as UTF-8. These are
+ * the formats connectors have always accepted, and they deliberately keep bypassing
+ * the knowledge-base parsers: routing `.csv` through `CsvParser` or `.json` through
+ * the JSON parser would reformat content that is already indexed, changing what is
+ * embedded for every existing connector document on its next re-index.
+ */
+const CONNECTOR_TEXT_EXTENSIONS = [
+  'txt',
+  'md',
+  'html',
+  'htm',
+  'csv',
+  'json',
+  'jsonl',
+  'xml',
+  'yaml',
+  'yml',
+  'log',
+  'rst',
+  'tsv',
+] as const
+
+/**
+ * Binary document formats extracted through the shared knowledge-base file parsers.
+ * Listing them separately from {@link CONNECTOR_TEXT_EXTENSIONS} is what keeps this
+ * additive: a format that synced yesterday takes exactly the path it took yesterday.
+ *
+ * The set covers the variants a real document library actually holds, not just the
+ * headline extension of each family — macro-enabled (`docm`, `xlsm`, `pptm`) and
+ * template (`dotx`, `xltx`, `potx`) files are the same OOXML packages, the binary
+ * workbook (`xlsb`) and legacy BIFF workbook (`xls`) are read by SheetJS, and the
+ * OpenDocument trio covers LibreOffice and Google Docs exports.
+ *
+ * `rtf` is deliberately absent: no bundled library extracts it, and `DocParser`
+ * would pass its control words through as if they were prose. See
+ * {@link CONNECTOR_INDEXABLE_EXTENSIONS} for how an unsupported format surfaces.
+ *
+ * Mapping each to its MIME type rather than listing extensions alone lets the
+ * stored object declare what it is, which is what the pipeline's OCR routing
+ * reads. Derived from the extension rather than trusting the source's own
+ * declaration, so a provider that omits or mislabels it cannot strand a PDF on
+ * the non-OCR path.
+ */
+const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
+  ['pdf', 'application/pdf'],
+  ['doc', 'application/msword'],
+  ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ['docm', 'application/vnd.ms-word.document.macroEnabled.12'],
+  ['dotx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.template'],
+  ['xls', 'application/vnd.ms-excel'],
+  ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  ['xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+  ['xlsb', 'application/vnd.ms-excel.sheet.binary.macroEnabled.12'],
+  ['xltx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.template'],
+  ['ppt', 'application/vnd.ms-powerpoint'],
+  ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  ['pptm', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12'],
+  ['potx', 'application/vnd.openxmlformats-officedocument.presentationml.template'],
+  ['odt', 'application/vnd.oasis.opendocument.text'],
+  ['ods', 'application/vnd.oasis.opendocument.spreadsheet'],
+  ['odp', 'application/vnd.oasis.opendocument.presentation'],
+])
+
+/**
+ * Every extension a file-based connector will download and index.
+ *
+ * Previously each connector carried its own text-only whitelist, so an Office
+ * document in a synced folder was dropped during listing — no document, no failed
+ * row, no log line. A library of `.docx` SOPs therefore synced as "success, 0
+ * documents", which is indistinguishable from a wrong folder path.
+ */
+export const CONNECTOR_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set<string>([
+  ...CONNECTOR_TEXT_EXTENSIONS,
+  ...PIPELINE_PARSED_MIME_TYPES.keys(),
+])
+
+/** Extracts a lowercased, dotless extension from a file name. */
+export function connectorFileExtension(fileName: string): string | undefined {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex === -1 || dotIndex === fileName.length - 1) return undefined
+  return fileName.slice(dotIndex + 1).toLowerCase()
+}
+
+/**
+ * Reports whether a connector should download and index a file, based on its name.
+ */
+export function isIndexableConnectorFile(fileName: string): boolean {
+  const extension = connectorFileExtension(fileName)
+  return extension !== undefined && CONNECTOR_INDEXABLE_EXTENSIONS.has(extension)
+}
+
+/**
+ * Whether a document carries anything worth indexing.
+ *
+ * A source file has to have bytes. A zero-byte file is not payload: it produces an
+ * empty stored object, and for a PDF that reaches OCR as an empty request and comes
+ * back as an opaque `400 Bad Request` — billing an external call to learn the file
+ * was empty, and reporting it as an API fault rather than as what it is.
+ */
+export function hasIndexablePayload(
+  doc: Pick<ExternalDocument, 'content' | 'sourceFile'>
+): boolean {
+  if (doc.sourceFile) return doc.sourceFile.bytes.length > 0
+  return doc.content.trim().length > 0
+}
+
+/**
+ * MIME type to store a file under when the shared pipeline should parse it, or
+ * `undefined` when the connector should decode it as text itself.
+ *
+ * A format the knowledge base can parse is handed over untouched: the pipeline
+ * routes PDFs to OCR and owns every other parser, so extracting here would strand
+ * the document on a weaker one and discard the original.
+ */
+export function pipelineParsedMimeType(fileName: string): string | undefined {
+  const extension = connectorFileExtension(fileName)
+  return extension ? PIPELINE_PARSED_MIME_TYPES.get(extension) : undefined
+}
+
+/**
+ * Converts a downloaded file body to indexable text.
+ *
+ * Only for formats that are already text — anything the shared parsers handle is
+ * delivered to them verbatim instead, via {@link pipelineParsedMimeType}. HTML is
+ * additionally reduced to plain text; everything else is a UTF-8 decode.
+ */
+export function extractConnectorText(buffer: Buffer, fileName: string): string {
+  const extension = connectorFileExtension(fileName)
+
+  if (extension === 'html' || extension === 'htm') {
+    return htmlToPlainText(buffer.toString('utf8'))
+  }
+
+  return buffer.toString('utf8')
+}
+
+/**
  * Computes a SHA-256 hash of the given content string.
  * Used by connectors for change detection during sync.
  */

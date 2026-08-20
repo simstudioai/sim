@@ -1,11 +1,6 @@
 import { CodeIcon } from '@/components/icons'
 import { isSandboxesEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
-import {
-  fetchWorkspaceSandboxOption,
-  fetchWorkspaceSandboxOptions,
-  fetchWorkspaceSecretNameOptions,
-} from '@/lib/workflows/subblocks/options'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'
 
@@ -107,6 +102,7 @@ try {
       id: 'sandboxId',
       title: 'Sandbox',
       type: 'combobox',
+      selectorKey: 'workspace.sandboxes',
       mode: 'advanced',
       searchable: true,
       // Empty means the default image — the picker must never auto-select for us.
@@ -120,9 +116,6 @@ try {
       placeholder: 'Default image',
       description:
         'Sim sandbox dependencies, system packages, and managed CLIs available to this block. Shell can use Sim sandboxes from either language. Manage them in Settings > Sandboxes. Leaving this empty runs on the default image.',
-      options: [],
-      fetchOptions: (blockId) => fetchWorkspaceSandboxOptions(blockId),
-      fetchOptionById: (blockId, optionId) => fetchWorkspaceSandboxOption(blockId, optionId),
     },
     {
       id: 'secretScope',
@@ -143,6 +136,7 @@ try {
       id: 'mountedSecrets',
       title: 'Secrets',
       type: 'dropdown',
+      selectorKey: 'workspace.secretNames',
       context: 'tool-input',
       paramVisibility: 'user-only',
       multiSelect: true,
@@ -152,10 +146,8 @@ try {
        * so the picker must preserve the displayed casing.
        */
       preserveLabelCase: true,
-      options: [],
       condition: { field: 'secretScope', value: 'selected' },
       placeholder: 'Select secrets this tool can read',
-      fetchOptions: () => fetchWorkspaceSecretNameOptions(),
     },
   ],
   tools: {

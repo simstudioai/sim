@@ -18,6 +18,7 @@ import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
+import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
@@ -165,7 +166,12 @@ export const GET = withRouteHandler(
         return await handleLocalFilePublic(fullPath)
       }
 
-      const storageContext = inferContextFromKey(cloudKey)
+      // Which module owns the object decides which branch below may serve it, and that
+      // is the row's answer, not the prefix's — a `workspace/` key carries both Files
+      // module files and mothership chat attachments. Reading the prefix alone here is
+      // what sent every attachment into the workspace-file use case, which matches on
+      // `context = 'workspace'` and answered 404 for a file that was present.
+      const storageContext = await resolveStoredFileContext(cloudKey)
       const workspacePrincipal =
         storageContext === 'workspace'
           ? await internalWorkspaceFileServeAuth.authenticate(request, { path })
@@ -201,10 +207,10 @@ export const GET = withRouteHandler(
       if (!userId) throw new Error('Authenticated file serve request is missing a user ID')
 
       if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, options, request.signal)
+        return await handleCloudProxy(cloudKey, userId, options, request.signal, storageContext)
       }
 
-      return await handleLocalFile(cloudKey, userId, options, request.signal)
+      return await handleLocalFile(cloudKey, userId, options, request.signal, storageContext)
     } catch (error) {
       if (error instanceof InternalUnauthenticatedError) {
         logger.warn('Unauthorized file access attempt', { error: error.message })
@@ -285,19 +291,16 @@ async function handleLocalFile(
   filename: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  context: StorageContext
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
-    const contextParam: StorageContext | undefined = inferContextFromKey(filename) as
-      | StorageContext
-      | undefined
-
     const hasAccess = await verifyFileAccess(
       filename,
       userId,
       undefined, // customConfig
-      contextParam, // context
+      context,
       true // isLocal
     )
 
@@ -332,7 +335,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, contextParam),
+      cacheControl: resolveServeCacheControl(options.versioned, context),
     })
   } catch (error) {
     logServeFailure('Error reading local file:', error)
@@ -344,12 +347,12 @@ async function handleCloudProxy(
   cloudKey: string,
   userId: string,
   options: ServeOptions,
-  signal: AbortSignal | undefined
+  signal: AbortSignal | undefined,
+  context: StorageContext
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
-    const context = inferContextFromKey(cloudKey)
-    logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
+    logger.info(`Resolved context: ${context} for key: ${cloudKey}`)
 
     const hasAccess = await verifyFileAccess(
       cloudKey,

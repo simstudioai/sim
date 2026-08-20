@@ -11,8 +11,8 @@
  */
 
 import type { ComponentType } from 'react'
+import integrationsJson from '@sim/deployment-config/integrations.json'
 import { getServiceAccountConnectNoun } from '@/lib/credentials/service-account-provider-ids'
-import integrationsJson from '@/lib/integrations/integrations.json'
 import { CANONICAL_SERVICE_ACCOUNT_SLUGS } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'

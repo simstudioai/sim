@@ -61,7 +61,9 @@ import type {
 import {
   FILTER_SECTION_LABEL_CLASS,
   FloatingOverflowText,
+  isResourceListEmpty,
   Resource,
+  ResourceNotFound,
 } from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
@@ -69,6 +71,7 @@ import {
   folderedResourceListHref,
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { DocumentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
@@ -90,6 +93,7 @@ import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/compone
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/kb/use-knowledge'
 import {
@@ -411,6 +415,7 @@ export function KnowledgeBase({
   const {
     documents,
     pagination,
+    isLoading: isLoadingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
     hasProcessingDocuments,
@@ -1089,7 +1094,7 @@ export function KnowledgeBase({
                 {connector.status === 'syncing' ? (
                   <Loader className='size-[14px]' animate />
                 ) : (
-                  ConnectorIcon && <ConnectorIcon className='size-[14px]' />
+                  ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
                 )}
                 {connector.status !== 'active' && connector.status !== 'syncing' && (
                   <span
@@ -1144,6 +1149,25 @@ export function KnowledgeBase({
     ],
     [enabledFilter, tagFilterEntries]
   )
+
+  /**
+   * The zero-data graphic is for a base that holds no documents — not a search or a
+   * filter that matched nothing, and not a page past the last one. Counts on the
+   * server's `total` rather than the visible rows, because this list is paginated:
+   * an empty page 2 is a paging position, not an empty base.
+   *
+   * The remaining gates mirror the workspace resource pages — the list must have
+   * arrived, must not be serving the previous query key's rows, and must not have
+   * failed. This list has no folders, so the folder arguments are omitted.
+   */
+  const showEmptyState = isResourceListEmpty({
+    rowCount: pagination.total,
+    isLoading: isLoadingDocuments,
+    isPlaceholderData: isPlaceholderDocuments,
+    error: documentsError,
+    search: debouncedSearchQuery,
+    filterCount: filterTags.length,
+  })
 
   const selectableConfig: SelectableConfig = {
     selectedIds: selectedDocuments,
@@ -1236,15 +1260,11 @@ export function KnowledgeBase({
 
   if (error && !knowledgeBase) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <DatabaseX className='size-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[20px] text-[var(--text-secondary)]'>Knowledge base not found</h2>
-          <p className='text-[var(--text-muted)] text-small'>
-            This knowledge base may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceNotFound
+        icon={DatabaseX}
+        title='Knowledge base not found'
+        description='This knowledge base may have been deleted or moved'
+      />
     )
   }
 
@@ -1271,6 +1291,14 @@ export function KnowledgeBase({
         <Resource.Table
           columns={DOCUMENT_COLUMNS}
           rows={documentRows}
+          emptyState={
+            showEmptyState ? (
+              <DocumentsEmptyState
+                onAddDocuments={handleAddDocuments}
+                addDisabled={userPermissions.canEdit !== true}
+              />
+            ) : undefined
+          }
           selectable={selectableConfig}
           onRowClick={handleDocumentClick}
           onRowContextMenu={handleDocumentContextMenu}

@@ -297,10 +297,19 @@ function withTimeout<T>(
   ])
 }
 
+/**
+ * Limits for the in-process document path.
+ *
+ * Both values used to be derived from variables owned by other subsystems —
+ * documents-at-once from the task-queue depth, documents-per-batch from the
+ * chunks-per-embedding-request size — so tuning either of those silently moved
+ * this one too, by a factor set by the divisor rather than by intent. The
+ * divisors are gone and the previous effective values (4 and 10) are now the
+ * declared defaults.
+ */
 const PROCESSING_CONFIG = {
-  maxConcurrentDocuments:
-    Math.max(1, Math.floor(envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20) / 5)) || 4,
-  batchSize: Math.max(1, Math.floor(envNumber(env.KB_CONFIG_BATCH_SIZE, 20) / 2)) || 10,
+  maxConcurrentDocuments: envNumber(env.KB_CONFIG_DOCUMENT_CONCURRENCY, 4, { min: 1 }),
+  batchSize: envNumber(env.KB_CONFIG_DOCUMENT_BATCH_SIZE, 10, { min: 1 }),
   delayBetweenBatches: envNumber(env.KB_CONFIG_DELAY_BETWEEN_BATCHES, 100) * 2,
   delayBetweenDocuments: envNumber(env.KB_CONFIG_DELAY_BETWEEN_DOCUMENTS, 50) * 2,
 }
@@ -712,6 +721,7 @@ async function dispatchViaBatchTrigger(
 ): Promise<number> {
   let dispatched = 0
   const batchIds: string[] = []
+  const undispatched: DocumentProcessingPayload[] = []
   const region = await resolveTriggerRegion()
   for (let i = 0; i < jobPayloads.length; i += TRIGGER_BATCH_SIZE) {
     const chunk = jobPayloads.slice(i, i + TRIGGER_BATCH_SIZE)
@@ -738,11 +748,25 @@ async function dispatchViaBatchTrigger(
       logger.error(`[${requestId}] Failed to batchTrigger ${chunk.length} document jobs`, {
         error: getErrorMessage(error),
       })
+      undispatched.push(...chunk)
     }
   }
   if (batchIds.length > 0) {
     logger.info(`[${requestId}] Trigger.dev batches dispatched`, { batchIds })
   }
+
+  /**
+   * Only a total dispatch failure raises, so a chunk failing alone would leave its
+   * documents at `pending` with nothing recording why. Processing them here is
+   * slower than the queue but does not drop the work.
+   */
+  if (undispatched.length > 0) {
+    logger.warn(
+      `[${requestId}] Processing ${undispatched.length} documents in-process after failed enqueue`
+    )
+    dispatched += await dispatchInProcess(undispatched, requestId)
+  }
+
   return dispatched
 }
 

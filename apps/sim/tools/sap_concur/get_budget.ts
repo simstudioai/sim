@@ -59,7 +59,7 @@ export const getBudgetTool: ToolConfig<GetBudgetParams, SapConcurProxyResponse> 
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Budget item header ID (syncguid)',
+      description: "The budget item header's key field (uuid)",
     },
   },
   request: {

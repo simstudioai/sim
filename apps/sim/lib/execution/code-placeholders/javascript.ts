@@ -23,6 +23,132 @@ const SENTINEL_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ
 interface DecodedJavaScriptSyntax {
   identifierNames: string[]
   values: string[]
+  environmentReads: DirectEnvironmentRead[]
+  /** Offset of a `...rest` grab off the environment object, which takes every value at once. */
+  environmentRestReadOffset?: number
+}
+
+export interface DirectEnvironmentRead {
+  name: string
+  offset: number
+}
+
+/** The runtime identifier the sandbox prologue binds the environment to. */
+const ENVIRONMENT_VARIABLES_IDENTIFIER = 'environmentVariables'
+
+/**
+ * Names a statically visible read off the runtime environment object, covering
+ * `environmentVariables.NAME`, `environmentVariables['NAME']`, and their optional-chained
+ * forms. A computed subscript is deliberately not resolved — see
+ * {@link CodePlaceholderCompilationContext.recordDirectEnvironmentRead}.
+ */
+/** Parentheses group; they never change which object an expression evaluates to. */
+function unwrapParentheses(node: ts.Expression): ts.Expression {
+  let current = node
+  while (ts.isParenthesizedExpression(current)) current = current.expression
+  return current
+}
+
+/** Whether this expression is, after grouping, the bare runtime environment identifier. */
+function isEnvironmentReceiver(node: ts.Expression): boolean {
+  const unwrapped = unwrapParentheses(node)
+  return ts.isIdentifier(unwrapped) && unwrapped.text === ENVIRONMENT_VARIABLES_IDENTIFIER
+}
+
+function directEnvironmentRead(node: ts.Node): DirectEnvironmentRead | undefined {
+  if (ts.isPropertyAccessExpression(node)) {
+    if (!isEnvironmentReceiver(node.expression)) return undefined
+    return node.name.text ? { name: node.name.text, offset: node.getStart() } : undefined
+  }
+  if (ts.isElementAccessExpression(node)) {
+    if (!isEnvironmentReceiver(node.expression)) return undefined
+    const argument = node.argumentExpression
+    if (!ts.isStringLiteralLike(argument) || !argument.text) return undefined
+    return { name: argument.text, offset: node.getStart() }
+  }
+  return undefined
+}
+
+interface DestructuredEnvironmentReads {
+  reads: DirectEnvironmentRead[]
+  restOffset?: number
+}
+
+/**
+ * Names read off the environment object through destructuring, which the member-access walk
+ * cannot see: `const { API_KEY } = environmentVariables` contains no property- or
+ * element-access node, yet delivers the value by name exactly like a subscript.
+ *
+ * Covers the declaration form (renames, defaults, string-literal keys) and the assignment
+ * form `({ API_KEY } = environmentVariables)`. A `...rest` element is returned separately:
+ * it names no key but takes every value, so the caller reports every configured name — the
+ * alternative leaves `const { ...all } = environmentVariables; return all` entirely unmasked.
+ * A computed key (`{ [k]: v }`) stays unrecognized, the same runtime-name boundary as a
+ * computed subscript, and an initializer that is not the bare identifier (`other.env…`,
+ * `environmentVariables ?? {}`) is not attributed.
+ */
+function destructuredEnvironmentReads(node: ts.Node): DestructuredEnvironmentReads | undefined {
+  let pattern: ts.ObjectBindingPattern | ts.ObjectLiteralExpression | undefined
+  if (ts.isObjectBindingPattern(node)) {
+    /**
+     * One receiver rule wherever the pattern sits: a variable declaration, a parameter
+     * default (`function f({ KEY } = environmentVariables)`), or a binding element's own
+     * default all hang the initializer off the pattern's parent, so checking the parent's
+     * initializer covers every declaration position without per-kind cases.
+     */
+    const parent = node.parent
+    const initializer =
+      ts.isVariableDeclaration(parent) || ts.isParameter(parent) || ts.isBindingElement(parent)
+        ? parent.initializer
+        : undefined
+    if (initializer === undefined || !isEnvironmentReceiver(initializer)) return undefined
+    pattern = node
+  } else if (
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    isEnvironmentReceiver(node.right) &&
+    ts.isObjectLiteralExpression(node.left)
+  ) {
+    pattern = node.left
+  }
+  if (!pattern) return undefined
+
+  const result: DestructuredEnvironmentReads = { reads: [] }
+  const record = (name: ts.PropertyName | ts.Identifier, offset: number): void => {
+    /**
+     * A computed key holding a string literal — `{ ['API_KEY']: key }` — is the element-access
+     * rule in pattern position, so it resolves like a literal subscript; a computed key
+     * holding anything else stays the runtime-name boundary a computed subscript already has.
+     */
+    if (ts.isComputedPropertyName(name)) {
+      const key = unwrapParentheses(name.expression)
+      if (ts.isStringLiteralLike(key) && key.text) result.reads.push({ name: key.text, offset })
+      return
+    }
+    if (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) {
+      if (name.text) result.reads.push({ name: name.text, offset })
+    }
+  }
+  if (ts.isObjectBindingPattern(pattern)) {
+    for (const element of pattern.elements) {
+      if (element.dotDotDotToken) {
+        result.restOffset = element.getStart()
+        continue
+      }
+      record(element.propertyName ?? (element.name as ts.Identifier), element.getStart())
+    }
+  } else {
+    for (const property of pattern.properties) {
+      if (ts.isSpreadAssignment(property)) {
+        result.restOffset = property.getStart()
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        record(property.name, property.getStart())
+      } else if (ts.isPropertyAssignment(property)) {
+        record(property.name, property.getStart())
+      }
+    }
+  }
+  return result
 }
 
 interface AnnexBHtmlCommentRange {
@@ -41,6 +167,8 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
   )
   const identifierNames: string[] = []
   const values: string[] = []
+  const environmentReads: DirectEnvironmentRead[] = []
+  let environmentRestReadOffset: number | undefined
   const visit = (node: ts.Node): void => {
     const isTemplateToken =
       node.kind === ts.SyntaxKind.TemplateHead ||
@@ -53,10 +181,40 @@ function collectDecodedSyntax(code: string): DecodedJavaScriptSyntax {
       const rawText: unknown = Reflect.get(node, 'rawText')
       if (typeof rawText === 'string' && rawText) values.push(rawText)
     }
+    /** Kind-checked inline: this visitor runs for every node in the file, and a call per
+     *  node to re-test the same two kinds is measurable on a large source. */
+    if (
+      node.kind === ts.SyntaxKind.PropertyAccessExpression ||
+      node.kind === ts.SyntaxKind.ElementAccessExpression
+    ) {
+      const environmentRead = directEnvironmentRead(node)
+      if (environmentRead) environmentReads.push(environmentRead)
+    } else if (
+      node.kind === ts.SyntaxKind.ObjectBindingPattern ||
+      node.kind === ts.SyntaxKind.BinaryExpression
+    ) {
+      const destructured = destructuredEnvironmentReads(node)
+      if (destructured) {
+        environmentReads.push(...destructured.reads)
+        if (destructured.restOffset !== undefined) {
+          environmentRestReadOffset ??= destructured.restOffset
+        }
+      }
+    }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return { identifierNames, values }
+  /**
+   * A local binding that shadows the runtime environment name is deliberately NOT used to
+   * discard these reads.
+   *
+   * Doing so was file-wide, so a helper declaring its own `environmentVariables` silently
+   * dropped genuine reads of the mounted binding everywhere else in the source, and a dropped
+   * read never reaches the output matcher — leaving a real secret unmasked. Reporting a read
+   * off a shadowing local costs far less: the matcher is given that secret's exact value, the
+   * code never emits it, and nothing matches.
+   */
+  return { identifierNames, values, environmentReads, environmentRestReadOffset }
 }
 
 function collectForbiddenSentinels(
@@ -503,6 +661,20 @@ export async function compileJavaScriptPlaceholders(
     ...input,
     reservedNames: [...(input.reservedNames ?? []), ...decodedSyntax.identifierNames],
   })
+  /**
+   * Recorded before the no-placeholder early return below: code that only reads the
+   * environment directly has no `{{NAME}}` occurrence at all, and that is exactly the case
+   * this exists to cover.
+   */
+  for (const read of decodedSyntax.environmentReads) {
+    context.recordDirectEnvironmentRead(read.name, read.offset)
+  }
+  if (decodedSyntax.environmentRestReadOffset !== undefined) {
+    /** `...rest` delivers every configured value at once, so every configured name is a read. */
+    for (const name of Object.keys(input.environmentVariables ?? {})) {
+      context.recordDirectEnvironmentRead(name, decodedSyntax.environmentRestReadOffset)
+    }
+  }
   if (context.occurrences.length === 0) {
     const sourceFile = ts.createSourceFile(
       'user-code.js',

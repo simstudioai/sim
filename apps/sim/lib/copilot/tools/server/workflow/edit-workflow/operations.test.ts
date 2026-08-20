@@ -4,22 +4,23 @@
 import { describe, expect, it, vi } from 'vitest'
 import { applyOperationsToWorkflowState } from './engine'
 
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: () => [
-    {
+vi.mock('@/blocks/registry', () => {
+  const blocks: Record<string, any> = {
+    condition: {
       type: 'condition',
       name: 'Condition',
       subBlocks: [{ id: 'conditions', type: 'condition-input' }],
     },
-    {
+    agent: {
       type: 'agent',
       name: 'Agent',
       subBlocks: [
         { id: 'systemPrompt', type: 'long-input' },
         { id: 'model', type: 'combobox' },
+        { id: 'tools', type: 'tool-input' },
       ],
     },
-    {
+    function: {
       type: 'function',
       name: 'Function',
       subBlocks: [
@@ -27,34 +28,54 @@ vi.mock('@/blocks/registry', () => ({
         { id: 'language', type: 'dropdown' },
       ],
     },
-  ],
-  getBlock: (type: string) => {
-    const blocks: Record<string, any> = {
-      condition: {
-        type: 'condition',
-        name: 'Condition',
-        subBlocks: [{ id: 'conditions', type: 'condition-input' }],
-      },
-      agent: {
-        type: 'agent',
-        name: 'Agent',
-        subBlocks: [
-          { id: 'systemPrompt', type: 'long-input' },
-          { id: 'model', type: 'combobox' },
-        ],
-      },
-      function: {
-        type: 'function',
-        name: 'Function',
-        subBlocks: [
-          { id: 'code', type: 'code' },
-          { id: 'language', type: 'dropdown' },
-        ],
-      },
-    }
-    return blocks[type] || undefined
-  },
-}))
+    jira: {
+      type: 'jira',
+      name: 'Jira',
+      tools: { access: ['jira_get_issue'] },
+      subBlocks: [
+        { id: 'credential', type: 'oauth-input' },
+        {
+          id: 'projectId',
+          type: 'project-selector',
+          canonicalParamId: 'projectId',
+          mode: 'basic',
+          dependsOn: ['credential'],
+        },
+        {
+          id: 'manualProjectId',
+          type: 'short-input',
+          canonicalParamId: 'projectId',
+          mode: 'advanced',
+          dependsOn: ['credential'],
+        },
+        {
+          id: 'issueKey',
+          type: 'file-selector',
+          canonicalParamId: 'issueKey',
+          mode: 'basic',
+          dependsOn: ['projectId'],
+        },
+        {
+          id: 'manualIssueKey',
+          type: 'short-input',
+          canonicalParamId: 'issueKey',
+          mode: 'advanced',
+          dependsOn: ['projectId'],
+        },
+        {
+          id: 'transitionId',
+          type: 'short-input',
+          dependsOn: ['issueKey'],
+        },
+      ],
+    },
+  }
+
+  return {
+    getAllBlocks: () => Object.values(blocks),
+    getBlock: (type: string) => blocks[type],
+  }
+})
 
 vi.mock('@/lib/integrations/availability.server', () => ({
   isIntegrationDeploymentAvailableForVisibility: () => true,
@@ -188,6 +209,175 @@ function makeNestedLoopWorkflow() {
     parallels: {},
   }
 }
+
+function makeDependentWorkflow() {
+  return {
+    blocks: {
+      'jira-1': {
+        id: 'jira-1',
+        type: 'jira',
+        name: 'Jira 1',
+        position: { x: 0, y: 0 },
+        enabled: true,
+        subBlocks: {
+          credential: { id: 'credential', type: 'oauth-input', value: 'credential-old' },
+          projectId: { id: 'projectId', type: 'project-selector', value: 'PROJECT-OLD' },
+          manualProjectId: {
+            id: 'manualProjectId',
+            type: 'short-input',
+            value: '',
+          },
+          issueKey: { id: 'issueKey', type: 'file-selector', value: 'OLD-123' },
+          manualIssueKey: { id: 'manualIssueKey', type: 'short-input', value: '' },
+          transitionId: { id: 'transitionId', type: 'short-input', value: 'transition-old' },
+        },
+        outputs: {},
+        data: {
+          canonicalModes: {
+            projectId: 'basic',
+            issueKey: 'basic',
+          },
+        },
+      },
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+  }
+}
+
+describe('handleEditOperation dependent inputs', () => {
+  it('clears omitted descendants transitively when a parent changes', () => {
+    const { state } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
+      {
+        operation_type: 'edit',
+        block_id: 'jira-1',
+        params: { inputs: { projectId: 'PROJECT-NEW' } },
+      },
+    ])
+
+    expect(state.blocks['jira-1'].subBlocks.projectId.value).toBe('PROJECT-NEW')
+    expect(state.blocks['jira-1'].subBlocks.issueKey.value).toBe('')
+    expect(state.blocks['jira-1'].subBlocks.transitionId.value).toBe('')
+  })
+
+  it('preserves explicitly supplied descendants and clears only their omitted descendants', () => {
+    const { state } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
+      {
+        operation_type: 'edit',
+        block_id: 'jira-1',
+        params: {
+          inputs: {
+            projectId: 'PROJECT-NEW',
+            issueKey: 'NEW-456',
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks['jira-1'].subBlocks.projectId.value).toBe('PROJECT-NEW')
+    expect(state.blocks['jira-1'].subBlocks.issueKey.value).toBe('NEW-456')
+    expect(state.blocks['jira-1'].subBlocks.transitionId.value).toBe('')
+  })
+
+  it('does not clear descendants when the submitted parent is unchanged', () => {
+    const { state } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
+      {
+        operation_type: 'edit',
+        block_id: 'jira-1',
+        params: { inputs: { projectId: 'PROJECT-OLD' } },
+      },
+    ])
+
+    expect(state.blocks['jira-1'].subBlocks.issueKey.value).toBe('OLD-123')
+    expect(state.blocks['jira-1'].subBlocks.transitionId.value).toBe('transition-old')
+  })
+
+  it('uses canonical advanced inputs as dependency changes', () => {
+    const { state } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
+      {
+        operation_type: 'edit',
+        block_id: 'jira-1',
+        params: { inputs: { manualProjectId: 'PROJECT-MANUAL' } },
+      },
+    ])
+
+    expect(state.blocks['jira-1'].subBlocks.manualProjectId.value).toBe('PROJECT-MANUAL')
+    expect(state.blocks['jira-1'].data.canonicalModes.projectId).toBe('advanced')
+    expect(state.blocks['jira-1'].subBlocks.issueKey.value).toBe('')
+    expect(state.blocks['jira-1'].subBlocks.transitionId.value).toBe('')
+  })
+
+  it('clears active manual descendants when their authoring context changes', () => {
+    const workflow = makeDependentWorkflow()
+    const jira = workflow.blocks['jira-1']
+    jira.subBlocks.projectId.value = ''
+    jira.subBlocks.manualProjectId.value = 'PROJECT-MANUAL-OLD'
+    jira.subBlocks.issueKey.value = ''
+    jira.subBlocks.manualIssueKey.value = 'OLD-123'
+    jira.data.canonicalModes.projectId = 'advanced'
+    jira.data.canonicalModes.issueKey = 'advanced'
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'jira-1',
+        params: { inputs: { credential: 'credential-new' } },
+      },
+    ])
+
+    expect(state.blocks['jira-1'].subBlocks.manualProjectId.value).toBe('')
+    expect(state.blocks['jira-1'].subBlocks.manualIssueKey.value).toBe('')
+    expect(state.blocks['jira-1'].subBlocks.transitionId.value).toBe('')
+  })
+
+  it('replaces nested agent tool params instead of retaining omitted dependents', () => {
+    const workflow = {
+      blocks: {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Agent 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            tools: {
+              id: 'tools',
+              type: 'tool-input',
+              value: [
+                {
+                  type: 'jira',
+                  params: { projectId: 'PROJECT-OLD', issueKey: 'OLD-123' },
+                },
+              ],
+            },
+          },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [{ type: 'jira', params: { projectId: 'PROJECT-NEW' } }],
+          },
+        },
+      },
+    ])
+
+    expect(state.blocks['agent-1'].subBlocks.tools.value[0].params).toEqual({
+      projectId: 'PROJECT-NEW',
+    })
+  })
+})
 
 describe('handleEditOperation nestedNodes merge', () => {
   it('preserves existing child block IDs when editing a loop with nestedNodes', () => {

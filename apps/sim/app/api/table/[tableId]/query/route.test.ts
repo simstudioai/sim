@@ -5,10 +5,9 @@
  * (session auth included — the string grammar is name-keyed for every caller),
  * cursor validation, and the response envelope.
  */
-import { hybridAuthMockFns } from '@sim/testing'
+import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table/types'
 
 const { mockCheckAccess, mockQueryRows, mockGate } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
@@ -39,28 +38,6 @@ vi.mock('@/lib/table/rows/service', () => ({
 import { encodeCursor } from '@/lib/table/rows/cursor'
 import { POST } from '@/app/api/table/[tableId]/query/route'
 
-function buildTable(): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: {
-      columns: [
-        { id: 'col_aaa', name: 'name', type: 'string' },
-        { id: 'col_bbb', name: 'wins', type: 'number' },
-      ],
-    },
-    metadata: null,
-    rowCount: 0,
-    maxRows: 100,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-  }
-}
-
 function authAs(authType: 'session' | 'internal_jwt') {
   hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
     success: true,
@@ -90,7 +67,18 @@ const EMPTY_RESULT = {
 describe('POST /api/table/[tableId]/query', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
+    mockCheckAccess.mockResolvedValue({
+      ok: true,
+      table: createTableDefinition({
+        columns: [
+          { id: 'col_aaa', name: 'name', type: 'string' },
+          { id: 'col_bbb', name: 'wins', type: 'number' },
+        ],
+        maxRows: 100,
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01'),
+      }),
+    })
     mockQueryRows.mockResolvedValue(EMPTY_RESULT)
     mockGate.mockResolvedValue(null)
   })

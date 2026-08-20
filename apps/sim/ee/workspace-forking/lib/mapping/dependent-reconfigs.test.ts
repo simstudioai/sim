@@ -359,6 +359,72 @@ describe('collectForkDependentReconfigs', () => {
     expect(sheet?.context.spreadsheetId).toBe('ss-src')
   })
 
+  it('offers a plain text dependent of a remapped credential', () => {
+    // `clearDependentsOnRemap` wipes it on EVERY sync (a credential mapped across environments
+    // changes value each time), so a text field the modal never offered was re-emptied on every
+    // push with nowhere to set it that stuck.
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'credential', title: 'Credential', type: 'oauth-input' },
+        {
+          id: 'issueType',
+          title: 'Issue Type',
+          type: 'short-input',
+          dependsOn: ['credential'],
+        },
+      ])
+    )
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('jira', { credential: { value: 'cred-src' }, issueType: { value: 'Bug' } }),
+      ],
+    ])
+    const fields = collectForkDependentReconfigs([replaceItem], states, resolve)
+    expect(fields).toHaveLength(1)
+    expect(fields[0]).toMatchObject({ subBlockKey: 'issueType', fieldType: 'short-input' })
+    expect(fields[0].selectorKey).toBeUndefined()
+  })
+
+  it('does not offer the manual half of a selector-backed canonical pair', () => {
+    // The pair's selector member already represents the field, and the manual member is
+    // verbatim by policy — offering both shows one concept twice and invites writing into the
+    // inactive half.
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'credential', title: 'Credential', type: 'oauth-input' },
+        {
+          id: 'projectId',
+          title: 'Project',
+          type: 'project-selector',
+          canonicalParamId: 'projectId',
+          mode: 'basic',
+          selectorKey: 'jira.projects',
+          dependsOn: ['credential'],
+        },
+        {
+          id: 'manualProjectId',
+          title: 'Project ID',
+          type: 'short-input',
+          canonicalParamId: 'projectId',
+          mode: 'advanced',
+          dependsOn: ['credential'],
+        },
+      ])
+    )
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('jira', { credential: { value: 'cred-src' }, projectId: { value: 'PROJ' } }),
+      ],
+    ])
+    const keys = collectForkDependentReconfigs([replaceItem], states, resolve).map(
+      (field) => field.subBlockKey
+    )
+    expect(keys).toContain('projectId')
+    expect(keys).not.toContain('manualProjectId')
+  })
+
   it('uses the persisted canonical mode when building a dependent selector context', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
@@ -466,11 +532,101 @@ describe('collectForkDependentReconfigs', () => {
         selectorKey: 'gmail.labels',
         title: 'Label',
         toolName: 'Gmail 1',
+        dependencyScope: 'tools[0]',
         currentValue: 'INBOX',
         required: true,
         consumesContextKeys: [],
         context: {},
         sourceValue: 'INBOX',
+      },
+    ])
+  })
+
+  it('preserves dependency chains independently for duplicate nested tool instances', () => {
+    vi.mocked(getBlock).mockImplementation((type) => {
+      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
+      if (type === 'jira')
+        return blockWith([
+          {
+            id: 'credential',
+            title: 'Jira Account',
+            type: 'oauth-input',
+            canonicalParamId: 'oauthCredential',
+          },
+          {
+            id: 'projectId',
+            title: 'Project',
+            type: 'project-selector',
+            canonicalParamId: 'projectId',
+            selectorKey: 'jira.projects',
+            dependsOn: ['credential'],
+          },
+          {
+            id: 'issueKey',
+            title: 'Issue',
+            type: 'file-selector',
+            selectorKey: 'jira.issues',
+            dependsOn: ['credential', 'projectId'],
+            required: true,
+          },
+        ])
+      return undefined as unknown as BlockConfig
+    })
+    const states = new Map<string, WorkflowState>([
+      [
+        'wf-src',
+        sourceState('agent', {
+          tools: {
+            value: [
+              {
+                type: 'jira',
+                title: 'Jira',
+                params: { credential: 'cred-src', projectId: 'P1', issueKey: 'P1-1' },
+              },
+              {
+                type: 'jira',
+                title: 'Jira',
+                params: { credential: 'cred-src', projectId: 'P2', issueKey: 'P2-1' },
+              },
+            ],
+          },
+        }),
+      ],
+    ])
+
+    const result = collectForkDependentReconfigs([replaceItem], states, resolve)
+
+    expect(
+      result.map((entry) => ({
+        key: entry.subBlockKey,
+        scope: entry.dependencyScope,
+        provides: entry.providesContextKey,
+        consumes: entry.consumesContextKeys,
+      }))
+    ).toEqual([
+      {
+        key: 'tools[0].projectId',
+        scope: 'tools[0]',
+        provides: 'projectId',
+        consumes: [],
+      },
+      {
+        key: 'tools[0].issueKey',
+        scope: 'tools[0]',
+        provides: undefined,
+        consumes: ['projectId'],
+      },
+      {
+        key: 'tools[1].projectId',
+        scope: 'tools[1]',
+        provides: 'projectId',
+        consumes: [],
+      },
+      {
+        key: 'tools[1].issueKey',
+        scope: 'tools[1]',
+        provides: undefined,
+        consumes: ['projectId'],
       },
     ])
   })

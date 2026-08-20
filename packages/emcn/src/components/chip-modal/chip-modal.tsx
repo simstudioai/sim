@@ -1274,6 +1274,12 @@ export interface ChipConfirmAction {
   pendingLabel?: string
   /** Additional disable condition independent of `pending` (e.g. an unmet "type to confirm"). */
   disabled?: boolean
+  /**
+   * Explains why the confirm is unavailable — shown in a tooltip on hover/focus
+   * while `disabled` is true, so a blocked confirmation states its own remedy
+   * instead of looking inert. Ignored while the action is enabled or `pending`.
+   */
+  disabledTooltip?: string
 }
 
 /**
@@ -1402,6 +1408,34 @@ export interface ChipConfirmModalProps {
 }
 
 /**
+ * The confirm chip, wrapped in a tooltip only when it is disabled and the action
+ * explained why. A disabled `<button>` is not a hit-test target, so the wrapping
+ * span carries `pointer-events-none` off the chip for the tooltip to fire.
+ */
+function renderChipConfirmButton(confirm: ChipConfirmAction, confirmLabel: string) {
+  const disabled = Boolean(confirm.disabled || confirm.pending)
+  const chip = (
+    <Chip
+      variant={confirm.variant ?? 'destructive'}
+      onClick={confirm.onClick}
+      disabled={disabled}
+      className={cn(confirm.disabledTooltip && disabled && 'pointer-events-none')}
+    >
+      {confirmLabel}
+    </Chip>
+  )
+  if (!confirm.disabledTooltip || !disabled) return chip
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className='inline-flex'>{chip}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{confirm.disabledTooltip}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
+/**
  * Compact "are you sure?" confirmation dialog. Models the confirmation button
  * grammar directly — a named dismiss decision plus a (usually destructive)
  * confirm — instead of bending the form footer's structural Cancel to fit.
@@ -1466,13 +1500,7 @@ function ChipConfirmModal({
         <Chip onClick={dismiss} disabled={confirm.pending}>
           {dismissLabel}
         </Chip>
-        <Chip
-          variant={confirm.variant ?? 'destructive'}
-          onClick={confirm.onClick}
-          disabled={confirm.disabled || confirm.pending}
-        >
-          {confirmLabel}
-        </Chip>
+        {renderChipConfirmButton(confirm, confirmLabel)}
       </ChipModalFooterShell>
     </ChipModal>
   )

@@ -2,6 +2,9 @@
  * All auditable actions in the platform, grouped by resource type.
  */
 export const AuditAction = {
+  // Accounts
+  ACCOUNT_DELETED: 'account.deleted',
+
   // API Keys
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
@@ -64,6 +67,17 @@ export const AuditAction = {
   // Environment
   ENVIRONMENT_UPDATED: 'environment.updated',
   ENVIRONMENT_DELETED: 'environment.deleted',
+
+  /**
+   * Secret provenance
+   *
+   * Recorded when a run proceeded on data whose secret provenance nobody wrote down. The value
+   * crossing into a model could not be checked against the workspace's secrets, so a secret it
+   * carries would not have been redacted. Deliberately an audit entry rather than a refusal:
+   * blocking the run would strand the workspace on data it can no longer read, so the risk is
+   * surfaced to the people who own the secrets instead.
+   */
+  SECRET_PROVENANCE_UNRECORDED: 'secret_provenance.unrecorded',
 
   // Files
   FILE_UPLOADED: 'file.uploaded',
@@ -220,6 +234,7 @@ export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction]
  * All resource types that can appear in audit log entries.
  */
 export const AuditResourceType = {
+  ACCOUNT: 'account',
   API_KEY: 'api_key',
   BILLING: 'billing',
   BYOK_KEY: 'byok_key',
@@ -241,6 +256,8 @@ export const AuditResourceType = {
   PASSWORD: 'password',
   PERMISSION_GROUP: 'permission_group',
   SCHEDULE: 'schedule',
+  /** Not a stored resource: the workspace's secrets, as the thing put at risk. */
+  SECRET_PROVENANCE: 'secret_provenance',
   SKILL: 'skill',
   SUBSCRIPTION: 'subscription',
   TABLE: 'table',

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
+import type { V2ErrorCode } from '@/lib/api/contracts/v2/error-codes'
 import {
   V2_WORKFLOW_RUN_ID_HEADER,
   v2ResumeWorkflowContract,
@@ -19,7 +20,7 @@ import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
 import { ResumeWorkflowExecutionError } from '@/lib/workflows/executor/resume-execution'
-import { type V2ErrorCode, v2Data, v2Error } from '@/app/api/v2/lib/response'
+import { v2Data, v2Error } from '@/app/api/v2/lib/response'
 import { classifyExecutionError } from '@/executor/utils/errors'
 
 const logger = createLogger('V2WorkflowResumeAPI')

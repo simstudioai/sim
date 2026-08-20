@@ -244,6 +244,21 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'bitbucket-errors',
+    description:
+      'Bitbucket error envelope: {type:"error", error:{message, detail}}. `message` is the class of failure and `detail` names the offending branch, file, or property, which the bare message does not',
+    examples: ['Bitbucket Cloud REST API v2'],
+    extract: (errorInfo) => {
+      const error = errorInfo?.data?.error
+      if (!error || typeof error !== 'object') return undefined
+      const message = typeof error.message === 'string' ? error.message.trim() : ''
+      const detail = typeof error.detail === 'string' ? error.detail.trim() : ''
+      if (!message) return detail || undefined
+      if (!detail || detail === message) return message
+      return `${message}: ${detail}`
+    },
+  },
+  {
     id: 'dynatrace-errors',
     description:
       'Dynatrace ErrorEnvelope: {error: {code, message, constraintViolations[]}}. The violations name the offending selector or parameter, which the bare message does not',
@@ -296,6 +311,24 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       if (typeof detail !== 'string' || !detail.trim()) return undefined
       const attr = errorInfo?.data?.attr
       return typeof attr === 'string' && attr ? `${detail} (${attr})` : detail
+    },
+  },
+  {
+    id: 'crunchbase-errors',
+    description:
+      'Crunchbase Data API error envelope: a top-level JSON array of {status, code, message}. Nothing else in this registry reads a bare array, so without it a rejected key or malformed predicate reports only its HTTP status',
+    examples: ['Crunchbase'],
+    extract: (errorInfo) => {
+      const entries = Array.isArray(errorInfo?.data) ? errorInfo.data : undefined
+      if (!entries?.length) return undefined
+
+      const messages = entries
+        .map((entry: { message?: unknown }) =>
+          typeof entry?.message === 'string' ? entry.message.trim() : ''
+        )
+        .filter(Boolean)
+
+      return messages.length > 0 ? messages.join('; ') : undefined
     },
   },
   {
@@ -400,9 +433,11 @@ export const ErrorExtractorId = {
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
+  BITBUCKET_ERRORS: 'bitbucket-errors',
   DYNATRACE_ERRORS: 'dynatrace-errors',
   SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
+  CRUNCHBASE_ERRORS: 'crunchbase-errors',
   SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',

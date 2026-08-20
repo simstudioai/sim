@@ -62,7 +62,8 @@ describe('workspace events polling route (fire-and-forget)', () => {
     expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
       'workspace-events-no-activity-poll-lock',
       expect.any(String),
-      expect.any(Number)
+      expect.any(Number),
+      { reclaimOnFailure: true }
     )
 
     await flushMicrotasks()

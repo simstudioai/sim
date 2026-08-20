@@ -56,6 +56,7 @@ Sim lets teams create agents visually with the workflow builder, conversationall
 - [Docs](https://docs.sim.ai): Canonical documentation source
 - [Terms of Service](${baseUrl}/terms): Legal terms
 - [Privacy Policy](${baseUrl}/privacy): Data handling practices
+- [Cookie Policy](${baseUrl}/cookie-policy): Cookies Sim sets, why, and how to change your choice
 - [Sitemap](${baseUrl}/sitemap.xml): Public URL inventory
 `
 

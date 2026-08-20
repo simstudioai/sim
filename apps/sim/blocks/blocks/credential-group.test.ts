@@ -5,6 +5,8 @@ import { QueryClient } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SubBlockConfig } from '@/blocks/types'
 import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-queries'
+import { getSelectorDefinition } from '@/hooks/selectors/registry'
+import type { SelectorKey } from '@/hooks/selectors/types'
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -57,7 +59,8 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
 
 import { CredentialGroupBlock } from '@/blocks/blocks/credential-group'
 
-const WORKSPACE_LIST_KEY = credentialGroupKeys.list('workspace-1')
+const WORKSPACE_ID = 'workspace-1'
+const WORKSPACE_LIST_KEY = credentialGroupKeys.list(WORKSPACE_ID)
 
 const GROUPS = [
   {
@@ -94,10 +97,13 @@ describe('credential group dynamic option resolution', () => {
   })
 
   it('keeps the shared workspace credential-group list alive when one option resolution is cancelled', async () => {
-    const subBlock = getCredentialGroupSubBlock()
-    const fetchOptionById = subBlock.fetchOptionById
-    const fetchOptions = subBlock.fetchOptions
-    if (!fetchOptionById || !fetchOptions) throw new Error('credentialGroup resolvers are missing')
+    const definition = getSelectorDefinition(
+      getCredentialGroupSubBlock().selectorKey as SelectorKey
+    )
+    const context = { workspaceId: WORKSPACE_ID }
+    const fetchOptionById = (_b: string, id: string, signal?: AbortSignal) =>
+      definition.fetchById?.({ key: definition.key, context, detailId: id, signal })
+    const fetchOptions = () => definition.fetchList?.({ key: definition.key, context })
 
     const controller = new AbortController()
     const optionResolution = Promise.resolve(
@@ -106,7 +112,7 @@ describe('credential group dynamic option resolution', () => {
 
     await waitForRequestCount(1)
 
-    const sharedListConsumer = fetchOptions('block-1')
+    const sharedListConsumer = fetchOptions()
 
     controller.abort()
     await Promise.resolve()
@@ -122,9 +128,16 @@ describe('credential group dynamic option resolution', () => {
   })
 
   it('still cancels the underlying request when React Query cancels the shared list query', async () => {
-    const subBlock = getCredentialGroupSubBlock()
-    const fetchOptionById = subBlock.fetchOptionById
-    if (!fetchOptionById) throw new Error('credentialGroup fetchOptionById is missing')
+    const definition = getSelectorDefinition(
+      getCredentialGroupSubBlock().selectorKey as SelectorKey
+    )
+    const fetchOptionById = (_b: string, id: string, signal?: AbortSignal) =>
+      definition.fetchById?.({
+        key: definition.key,
+        context: { workspaceId: WORKSPACE_ID },
+        detailId: id,
+        signal,
+      })
 
     const controller = new AbortController()
     const optionResolution = Promise.resolve(

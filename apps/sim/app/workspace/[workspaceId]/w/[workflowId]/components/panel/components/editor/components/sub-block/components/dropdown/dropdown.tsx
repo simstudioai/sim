@@ -6,6 +6,7 @@ import {
   NO_DENIED_OPERATIONS,
   OPERATION_SUBBLOCK_ID,
 } from '@/lib/permission-groups/operation-access'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useFetchedOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
@@ -13,10 +14,15 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
+import type { SelectorKey } from '@/hooks/selectors/types'
 import { useOperationAccess } from '@/hooks/use-operation-access'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: DropdownOption[] = []
 
 /** Selected-value badges shown before folding the rest into a "+N" badge. */
 const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
@@ -39,8 +45,12 @@ type DropdownOption =
  * Props for the Dropdown component
  */
 interface DropdownProps {
-  /** Static options array or function that returns options */
-  options: DropdownOption[] | (() => DropdownOption[])
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: DropdownOption[] | ((params?: { values: Record<string, unknown> }) => DropdownOption[])
   /** Default value to select when no value is set */
   defaultValue?: string
   /** Unique identifier for the block */
@@ -59,13 +69,10 @@ interface DropdownProps {
   placeholder?: string
   /** Enable multi-select mode */
   multiSelect?: boolean
-  /** Async function to fetch options dynamically */
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  /** Async function to fetch a single option's label by ID (for hydration) */
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
+  /** Drop the hosting workflow from a `sim.workflows` list. */
+  selectorExcludeSelf?: boolean
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
   /** Enable search input in dropdown */
@@ -94,8 +101,8 @@ export const Dropdown = memo(function Dropdown({
   disabled,
   placeholder = 'Select an option...',
   multiSelect = false,
-  fetchOptions,
-  fetchOptionById,
+  selectorKey,
+  selectorExcludeSelf,
   dependsOn,
   searchable = false,
   preserveLabelCase = false,
@@ -136,21 +143,29 @@ export const Dropdown = memo(function Dropdown({
         : []
     : null
 
+  // Derived option lists read the block's own values (a model's valid reasoning efforts);
+  // `dependsOn` already re-renders this control when one of those siblings changes.
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockValues = useSubBlockStore((state) =>
+    activeWorkflowId ? state.workflowValues[activeWorkflowId]?.[blockId] : undefined
+  )
   const evaluatedOptions = useMemo(() => {
-    return typeof options === 'function' ? options() : options
-  }, [options])
+    if (typeof options === 'function') return options({ values: blockValues ?? {} })
+    return options ?? EMPTY_OPTIONS
+  }, [options, blockValues])
 
   const {
     fetchedOptions,
     isLoadingOptions,
     fetchError,
     hydratedOption,
+    isDynamic,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
     dependsOnFields,
-    fetchOptions,
-    fetchOptionById,
+    selectorKey,
+    selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
     valueToHydrate: singleValue,
@@ -175,9 +190,7 @@ export const Dropdown = memo(function Dropdown({
 
   const allOptions = useMemo(() => {
     let opts: DropdownOption[] =
-      fetchOptions && normalizedFetchedOptions.length > 0
-        ? normalizedFetchedOptions
-        : evaluatedOptions
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : evaluatedOptions
 
     if (hydratedOption) {
       const alreadyPresent = opts.some((o) =>
@@ -189,7 +202,7 @@ export const Dropdown = memo(function Dropdown({
     }
 
     return opts
-  }, [fetchOptions, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
+  }, [isDynamic, normalizedFetchedOptions, evaluatedOptions, hydratedOption])
 
   /**
    * Operation IDs whose resolved tool is denied by the caller's permission

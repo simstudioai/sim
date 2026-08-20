@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
   Check,
@@ -61,7 +61,12 @@ import type {
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useWorkspaceCredential } from '@/hooks/queries/credentials'
+import { BrandIcon } from '@/blocks/brand-icon'
+import {
+  useUpdateWorkspaceCredential,
+  useWorkspaceCredential,
+  useWorkspaceCredentials,
+} from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -137,6 +142,12 @@ export interface CredentialItemData {
   name?: string
   /** Where a secret_input value is persisted. Defaults to "workspace". */
   scope?: SecretInputScope
+  /**
+   * What the secret is for (secret_input, workspace scope only), written by the
+   * agent that asked for it. Never shown or editable in the card — it exists so
+   * the saved secret carries its purpose into workspace settings.
+   */
+  description?: string
   /**
    * Existing credential to reconnect in place (service_account only). Present =
    * rotate the secret on this credential; absent = create a new one.
@@ -1751,6 +1762,63 @@ interface CredentialControlProps {
   onConnected?: () => void
 }
 
+/**
+ * Attaches the agent-authored descriptions to workspace secrets once their values
+ * are saved, reusing the credential update endpoint the secrets settings page
+ * calls. It runs after the value write because that write is what mints the
+ * credential row a description hangs on, and it is best-effort: the value is the
+ * point of the card, so a failed note never fails the save. Personal rows are
+ * skipped — their credential rows are per-workspace mirrors of one user-global
+ * secret, so no single row can own a description.
+ */
+function useWorkspaceSecretDescriptions(items: CredentialItemData[]) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const describedByName = useMemo(() => {
+    const entries = new Map<string, string>()
+    for (const item of items) {
+      if (item.type !== 'secret_input' || item.scope === 'personal') continue
+      const name = item.name?.trim()
+      const description = item.description?.trim()
+      if (name && description) entries.set(name, description)
+    }
+    return entries
+  }, [items])
+
+  const credentialsQuery = useWorkspaceCredentials({
+    workspaceId,
+    type: 'env_workspace',
+    enabled: describedByName.size > 0,
+  })
+  const updateCredential = useUpdateWorkspaceCredential()
+  const refetchCredentials = credentialsQuery.refetch
+
+  return useCallback(
+    async (savedNames: string[]) => {
+      const pending = savedNames.filter((name) => describedByName.has(name))
+      if (pending.length === 0) return
+
+      try {
+        const { data } = await refetchCredentials()
+        const idByEnvKey = new Map((data ?? []).map((row) => [row.envKey, row.id]))
+        await Promise.all(
+          pending.map(async (name) => {
+            const credentialId = idByEnvKey.get(name)
+            if (!credentialId) return
+            await updateCredential.mutateAsync({
+              credentialId,
+              description: describedByName.get(name),
+            })
+          })
+        )
+      } catch {
+        // Swallowed deliberately: the secret is stored, and the card must not
+        // report failure over a missing note.
+      }
+    },
+    [describedByName, refetchCredentials, updateCredential.mutateAsync]
+  )
+}
+
 function SecretInputDisplay({ data, divided = false, onSaved }: CredentialControlProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const secretName = (data.name ?? '').trim()
@@ -1765,6 +1833,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
   const personalQuery = usePersonalEnvironment()
   const personalEnv = personalQuery.data
   const { canEdit } = useUserPermissionsContext()
+  const attachDescriptions = useWorkspaceSecretDescriptions(useMemo(() => [data], [data]))
 
   // Setting a workspace var needs write/admin (same gate as the secrets manager);
   // personal vars are the user's own, so any member may set them.
@@ -1790,6 +1859,7 @@ function SecretInputDisplay({ data, divided = false, onSaved }: CredentialContro
         await savePersonal.mutateAsync({ variables: merged })
       } else {
         await upsertWorkspace.mutateAsync({ workspaceId, variables: { [secretName]: value } })
+        await attachDescriptions([secretName])
       }
       setValue('')
       setSaved(true)
@@ -2091,7 +2161,7 @@ function ServiceAccountConnectDisplay({
           'hover-hover:bg-[var(--surface-5)]'
         )}
       >
-        {createElement(target.serviceIcon, { className: 'size-[16px] shrink-0' })}
+        <BrandIcon icon={target.serviceIcon} className='size-[16px] shrink-0' />
         <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
         {connected ? (
           <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -2188,7 +2258,7 @@ function CredentialLinkDisplay({
         'hover-hover:bg-[var(--surface-5)]'
       )}
     >
-      {createElement(Icon, { className: 'size-[16px] shrink-0' })}
+      <BrandIcon icon={Icon} className='size-[16px] shrink-0' />
       <span className='flex-1 text-[var(--text-body)] text-sm'>{displayLabel}</span>
       {connected ? (
         <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
@@ -2361,6 +2431,7 @@ function CredentialInputCard({
   const upsertWorkspace = useUpsertWorkspaceEnvironment()
   const savePersonal = useSavePersonalEnvironment()
   const personalQuery = usePersonalEnvironment()
+  const attachDescriptions = useWorkspaceSecretDescriptions(data)
   const [secretDrafts, setSecretDrafts] = useState<Record<number, string>>({})
   const [savedSecretRows, setSavedSecretRows] = useState<Set<number>>(() => new Set())
   const [connectedIntegrationRows, setConnectedIntegrationRows] = useState<Set<number>>(
@@ -2518,6 +2589,8 @@ function CredentialInputCard({
       toast.error(`Couldn't save secrets. Please try again.`)
       return false
     }
+
+    await attachDescriptions(Object.keys(workspaceVariables))
 
     const nextSavedSecretRows = new Set(savedSecretRows)
     for (const index of enteredSecretIndexes) nextSavedSecretRows.add(index)

@@ -680,8 +680,8 @@ function SubBlockComponent({
               previewValue={previewValue}
               disabled={isDisabled}
               multiSelect={config.multiSelect}
-              fetchOptions={config.fetchOptions}
-              fetchOptionById={config.fetchOptionById}
+              selectorKey={config.selectorKey}
+              selectorExcludeSelf={config.selectorExcludeSelf}
               dependsOn={config.dependsOn}
               searchable={config.searchable}
               preserveLabelCase={config.preserveLabelCase}
@@ -715,8 +715,8 @@ function SubBlockComponent({
               previewValue={previewValue as any}
               disabled={isDisabled}
               config={config}
-              fetchOptions={config.fetchOptions}
-              fetchOptionById={config.fetchOptionById}
+              selectorKey={config.selectorKey}
+              selectorExcludeSelf={config.selectorExcludeSelf}
               dependsOn={config.dependsOn}
             />
           </div>

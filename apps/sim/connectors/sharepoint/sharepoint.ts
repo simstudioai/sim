@@ -6,10 +6,14 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
-  htmlToPlainText,
+  connectorFileExtension,
+  extractConnectorText,
+  hasIndexablePayload,
+  isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
@@ -21,22 +25,10 @@ const logger = createLogger('SharePointConnector')
 const GRAPH_API_ORIGIN = 'https://graph.microsoft.com'
 const GRAPH_BASE = `${GRAPH_API_ORIGIN}/v1.0`
 
-const SUPPORTED_TEXT_EXTENSIONS = new Set([
-  '.txt',
-  '.md',
-  '.html',
-  '.htm',
-  '.csv',
-  '.json',
-  '.xml',
-  '.yaml',
-  '.yml',
-  '.log',
-  '.rst',
-  '.tsv',
-])
-
 const MAX_DOWNLOAD_SIZE = CONNECTOR_MAX_FILE_BYTES
+
+/** Distinct extensions named in the per-page skipped-file diagnostic. */
+const MAX_LOGGED_SKIPPED_EXTENSIONS = 10
 
 /**
  * The exact driveItem fields the stub is built from. Graph returns the full
@@ -93,15 +85,6 @@ interface ResolvedFolderTarget {
 }
 
 type RetryOptions = Parameters<typeof fetchWithRetry>[2]
-
-/**
- * Returns true when the file extension is in the supported text set.
- */
-function isSupportedTextFile(name: string): boolean {
-  const dotIndex = name.lastIndexOf('.')
-  if (dotIndex === -1) return false
-  return SUPPORTED_TEXT_EXTENSIONS.has(name.slice(dotIndex).toLowerCase())
-}
 
 /**
  * Asserts a request URL points at Microsoft Graph before it is followed with the
@@ -197,14 +180,14 @@ async function resolveSiteId(
 }
 
 /**
- * Downloads the text content of a drive item.
+ * Downloads the raw bytes of a drive item.
  */
 async function downloadFileContent(
   accessToken: string,
   driveId: string,
   itemId: string,
   fileName: string
-): Promise<string> {
+): Promise<Buffer> {
   const url = `${GRAPH_BASE}/drives/${driveId}/items/${encodeURIComponent(itemId)}/content`
 
   const response = await fetchWithRetry(url, {
@@ -224,23 +207,27 @@ async function downloadFileContent(
   if (!buffer) {
     throw new ConnectorFileTooLargeError(MAX_DOWNLOAD_SIZE)
   }
-  return buffer.toString('utf8')
+  return buffer
 }
 
 /**
- * Fetches file content, applying HTML-to-text conversion for .html files.
+ * Fetches a file and extracts its indexable text — a UTF-8 decode for text
+ * formats, and the shared knowledge-base parsers for Office documents and PDFs.
  */
-async function fetchFileContent(
+async function fetchFilePayload(
   accessToken: string,
   driveId: string,
   itemId: string,
   fileName: string
-): Promise<string> {
-  const raw = await downloadFileContent(accessToken, driveId, itemId, fileName)
-  if (fileName.toLowerCase().endsWith('.html') || fileName.toLowerCase().endsWith('.htm')) {
-    return htmlToPlainText(raw)
+): Promise<Pick<ExternalDocument, 'content' | 'sourceFile' | 'mimeType'>> {
+  const buffer = await downloadFileContent(accessToken, driveId, itemId, fileName)
+
+  const mimeType = pipelineParsedMimeType(fileName)
+  if (mimeType) {
+    return { content: '', mimeType, sourceFile: { bytes: buffer, fileName, mimeType } }
   }
-  return raw
+
+  return { content: extractConnectorText(buffer, fileName), mimeType: 'text/plain' }
 }
 
 /**
@@ -793,13 +780,37 @@ export const sharepointConnector: ConnectorConfig = {
       const subfolders: string[] = []
       const files: DriveItem[] = []
 
+      /**
+       * Extensions this connector cannot index, tallied per page. A folder of
+       * unsupported files otherwise syncs as "success, 0 documents", which reads
+       * exactly like a wrong folder path — the failure mode this log exists for.
+       * Unsupported files are counted rather than turned into `failed` document
+       * rows, so a library of images does not fill the knowledge base with noise.
+       */
+      const skippedExtensions = new Map<string, number>()
+
       for (const item of data.value) {
         if (item.folder) {
           subfolders.push(item.id)
-        } else if (item.file && isSupportedTextFile(item.name)) {
-          // Keep oversized files; they are surfaced as skipped (failed) docs below.
-          files.push(item)
+        } else if (item.file) {
+          if (isIndexableConnectorFile(item.name)) {
+            // Keep oversized files; they are surfaced as skipped (failed) docs below.
+            files.push(item)
+          } else {
+            const extension = connectorFileExtension(item.name) ?? '(none)'
+            skippedExtensions.set(extension, (skippedExtensions.get(extension) ?? 0) + 1)
+          }
         }
+      }
+
+      if (skippedExtensions.size > 0) {
+        let skippedCount = 0
+        for (const count of skippedExtensions.values()) skippedCount += count
+        logger.info('Skipped SharePoint files with unsupported extensions', {
+          folderId: state.currentFolder ?? 'root',
+          skippedCount,
+          extensions: Array.from(skippedExtensions.keys()).slice(0, MAX_LOGGED_SKIPPED_EXTENSIONS),
+        })
       }
 
       // Push subfolders onto the stack for depth-first traversal
@@ -915,16 +926,16 @@ export const sharepointConnector: ConnectorConfig = {
 
     const item = (await response.json()) as DriveItem
 
-    if (!item.file || !isSupportedTextFile(item.name)) {
+    if (!item.file || !isIndexableConnectorFile(item.name)) {
       return null
     }
 
     try {
-      const content = await fetchFileContent(accessToken, driveId, item.id, item.name)
-      if (!content.trim()) return null
+      const payload = await fetchFilePayload(accessToken, driveId, item.id, item.name)
+      if (!hasIndexablePayload(payload)) return null
 
       const stub = itemToStub(item, siteName ?? siteUrl)
-      return { ...stub, content, contentDeferred: false }
+      return { ...stub, ...payload, contentDeferred: false }
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
         logger.info('Skipping oversized SharePoint file', { fileId: item.id, name: item.name })

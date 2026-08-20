@@ -63,6 +63,8 @@ export const billingQuerySchema = z.object({
   context: z.enum(['user', 'organization']).optional().default('user'),
   id: z.string().min(1).optional(),
   includeOrg: booleanQueryParamSchema,
+  memberLimit: z.coerce.number().int().min(1).max(100).default(50),
+  memberOffset: z.coerce.number().int().min(0).default(0),
 })
 
 export const billingUsageDataSchema = z
@@ -157,6 +159,13 @@ export const organizationBillingDataSchema = z
     averageUsagePerMember: z.number(),
     billingPeriodStart: z.string().nullable(),
     billingPeriodEnd: z.string().nullable(),
+    membersTotal: z.number().int().min(0),
+    memberPagination: z.object({
+      total: z.number().int().min(0),
+      limit: z.number().int().min(1).max(100),
+      offset: z.number().int().min(0),
+      hasMore: z.boolean(),
+    }),
     members: z.array(organizationBillingMemberSchema),
     billingBlocked: z.boolean(),
     billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
@@ -193,6 +202,8 @@ export const usageQuerySchema = z.object({
   context: z.enum(['user', 'organization']).optional().default('user'),
   userId: z.string().optional(),
   organizationId: z.string().optional(),
+  memberLimit: z.coerce.number().int().min(1).max(100).default(50),
+  memberOffset: z.coerce.number().int().min(0).default(0),
 })
 
 export const updateUsageLimitBodySchema = z

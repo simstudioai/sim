@@ -196,7 +196,7 @@ function noteSummaryToStub(note: GranolaNoteSummary): ExternalDocument {
     title: note.title?.trim() || 'Untitled Note',
     content: '',
     contentDeferred: true,
-    mimeType: 'text/markdown',
+    mimeType: 'text/plain',
     contentHash: buildContentHash(note.id, note.updated_at),
     metadata: {
       title: note.title?.trim() || undefined,
@@ -274,7 +274,15 @@ export const granolaConnector: ConnectorConfig = {
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
 
-    const sourceHasMore = Boolean(data.hasMore) && Boolean(nextCursor)
+    /**
+     * Report Granola's own `hasMore` verbatim rather than ANDing the cursor into
+     * it. The sync engine treats `hasMore: true` with no cursor as a truncated
+     * listing and sets `listingTruncated`, which blocks deletion reconciliation
+     * outright. Collapsing that shape to `hasMore: false` here would hide the
+     * signal and present a partial page as the complete corpus, letting
+     * reconciliation hard-delete every note past it.
+     */
+    const sourceHasMore = Boolean(data.hasMore)
     const hitLimit = maxNotes > 0 && totalFetched >= maxNotes
 
     /**
@@ -337,7 +345,7 @@ export const granolaConnector: ConnectorConfig = {
         title: note.title?.trim() || 'Untitled Note',
         content,
         contentDeferred: false,
-        mimeType: 'text/markdown',
+        mimeType: 'text/plain',
         sourceUrl: note.web_url?.trim() || undefined,
         contentHash: buildContentHash(note.id, note.updated_at),
         metadata: {

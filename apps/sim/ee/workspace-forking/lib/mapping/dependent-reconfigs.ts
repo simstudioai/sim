@@ -1,12 +1,15 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
-import { getWorkflowSearchDependentClears } from '@/lib/workflows/search-replace/dependencies'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {
   buildSelectorContextFromBlock,
   SELECTOR_CONTEXT_FIELDS,
 } from '@/lib/workflows/subblocks/context'
+import {
+  getDependsOnFields,
+  getTransitiveSubBlockDependents,
+} from '@/lib/workflows/subblocks/dependencies'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
@@ -18,11 +21,11 @@ import {
 import { resolveToolParamRequired } from '@/lib/workflows/tool-input/param-visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
 import type { ForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
 import {
   createCanonicalModeGates,
+  reconfigurableDependentIds,
   scanWorkflowReferences,
 } from '@/ee/workspace-forking/lib/remap/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -80,12 +83,10 @@ interface EmitAnchoredParams {
   /** Nested `tool-input` tool display name; omitted for top-level block subblocks. */
   toolName?: string
   /**
-   * Emit `providesContextKey`/`consumesContextKeys` so the modal can chain in-block
-   * re-picks. Top-level chains; nested tool params don't (a tool's chain would need
-   * per-tool context scoping - out of scope - and the common nested case is a single
-   * credential-anchored field).
+   * Stable nested-tool instance boundary for dependency context and descendant invalidation.
+   * Omitted for top-level block subblocks, which share the block scope.
    */
-  chaining: boolean
+  dependencyScope?: string
   /**
    * Present ONLY for the nested `tool-input` pass: each param's resolved
    * {@link ParameterVisibility}, keyed by sub-block id and by canonical param id. Its presence
@@ -120,7 +121,7 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
     makeSubBlockKey,
     makeTitle,
     toolName,
-    chaining,
+    dependencyScope,
     paramVisibilityById,
     out,
   } = params
@@ -130,6 +131,9 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
   const canonicalIndex = buildCanonicalIndex(config.subBlocks)
   const gates = createCanonicalModeGates(config.subBlocks, values, canonicalModes)
   const configById = new Map(config.subBlocks.filter((cfg) => cfg.id).map((cfg) => [cfg.id, cfg]))
+  // Shared with `applyDependentOverrides`, so what the modal offers is exactly what the sync
+  // can write back — the two encoded this rule separately once and drifted.
+  const reconfigurableIds = reconfigurableDependentIds(config.subBlocks)
   // A field could hang off two anchors (or be reachable via two paths); emit it once.
   const seen = new Set<string>()
 
@@ -165,9 +169,18 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         if (typeof value === 'string' && value) context[key] = value
       }
 
-      for (const clear of getWorkflowSearchDependentClears(config.subBlocks, anchorCfg.id)) {
+      for (const clear of getTransitiveSubBlockDependents(config.subBlocks, [anchorCfg.id])) {
         const dependent = configById.get(clear.subBlockId)
-        if (!dependent?.id || !dependent.selectorKey) continue
+        // A dependent is offered when the modal can actually render a control for it: a
+        // registered selector, or a plain text field. Anything else is skipped and the
+        // fork-dependent-coverage check keeps that set empty — see
+        // `scripts/check-fork-dependent-coverage.ts`.
+        //
+        // Text fields matter as much as selectors here. `clearDependentsOnRemap` wipes every
+        // transitive dependent of a remapped parent on EVERY sync (a credential mapped across
+        // environments changes value each time), so a field the modal never offered was
+        // re-emptied on every push and could not be fixed by setting it in the target either.
+        if (!dependent?.id || !reconfigurableIds.has(dependent.id)) continue
         // Skip fields gated off by their `condition` - a selector under a now-inactive
         // operation (e.g. a move-only label while the block reads) isn't in play. We do
         // NOT require a source value: an active selector the source left empty is still
@@ -185,20 +198,17 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
         // is offered exactly once.
         if (seen.has(canonicalKey)) continue
         seen.add(canonicalKey)
-        const providesContextKey =
-          chaining && isSelectorContextKey(canonicalKey) ? canonicalKey : undefined
+        const providesContextKey = isSelectorContextKey(canonicalKey) ? canonicalKey : undefined
         // The SelectorContext keys this field needs from in-block siblings (e.g. a sheet
         // needs the spreadsheet), excluding the anchor key the modal already supplies, so
         // the modal can keep a child disabled until its re-picked parent is chosen.
-        const consumesContextKeys = chaining
-          ? [
-              ...new Set(
-                getDependsOnFields(dependent.dependsOn)
-                  .map((parent) => canonicalIndex.canonicalIdBySubBlockId[parent] ?? parent)
-                  .filter((key) => key !== anchor.parentContextKey && isSelectorContextKey(key))
-              ),
-            ]
-          : []
+        const consumesContextKeys = [
+          ...new Set(
+            getDependsOnFields(dependent.dependsOn)
+              .map((parent) => canonicalIndex.canonicalIdBySubBlockId[parent] ?? parent)
+              .filter((key) => key !== anchor.parentContextKey && isSelectorContextKey(key))
+          ),
+        ]
         // Carry the selector's static `mimeType` filter (Drive/Sheets pickers) so the
         // modal selector loads the same filtered list the editor would, not all files.
         const dependentContext =
@@ -236,9 +246,12 @@ function emitAnchoredDependents(params: EmitAnchoredParams): void {
           targetBlockId: resolveTargetBlockId(),
           blockName,
           subBlockKey: makeSubBlockKey(dependent.id),
-          selectorKey: dependent.selectorKey,
+          ...(dependent.selectorKey
+            ? { selectorKey: dependent.selectorKey }
+            : { fieldType: dependent.type }),
           title: makeTitle(dependent),
           ...(toolName ? { toolName } : {}),
+          ...(dependencyScope ? { dependencyScope } : {}),
           // Source value, so the always-on listing pre-fills a stable parent's selector.
           // The diff route overlays the stored/target-draft value onto `currentValue`;
           // `sourceValue` stays the raw source reference (the copy-resolved parent's seed).
@@ -317,7 +330,6 @@ export function collectForkDependentReconfigs(
         resolveTargetBlockId: resolveBlockId,
         makeSubBlockKey: (id) => id,
         makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
-        chaining: true,
         out,
       })
 
@@ -387,7 +399,7 @@ export function collectForkDependentReconfigs(
             makeSubBlockKey: (id) => `${toolInputKey}[${toolIndex}].${id}`,
             makeTitle: (dependent) => dependent.title ?? dependent.id ?? '',
             toolName: toolLabel,
-            chaining: false,
+            dependencyScope: `${toolInputKey}[${toolIndex}]`,
             paramVisibilityById,
             out,
           })

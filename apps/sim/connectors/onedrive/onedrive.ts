@@ -6,10 +6,14 @@ import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/
 import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
-  htmlToPlainText,
+  connectorFileExtension,
+  extractConnectorText,
+  hasIndexablePayload,
+  isIndexableConnectorFile,
   isSkippedDocument,
   markSkipped,
   parseTagDate,
+  pipelineParsedMimeType,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
@@ -18,22 +22,10 @@ import {
 
 const logger = createLogger('OneDriveConnector')
 
-const SUPPORTED_EXTENSIONS = new Set([
-  '.txt',
-  '.md',
-  '.html',
-  '.htm',
-  '.csv',
-  '.json',
-  '.xml',
-  '.yaml',
-  '.yml',
-  '.log',
-  '.rst',
-  '.tsv',
-])
-
 const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
+
+/** Distinct extensions named in the per-page skipped-file diagnostic. */
+const MAX_LOGGED_SKIPPED_EXTENSIONS = 10
 
 const GRAPH_API_ORIGIN = 'https://graph.microsoft.com'
 const GRAPH_BASE_URL = `${GRAPH_API_ORIGIN}/v1.0`
@@ -85,19 +77,9 @@ interface OneDriveListResponse {
 }
 
 /**
- * Checks whether a file has a supported text extension.
+ * Downloads the raw bytes of a OneDrive file.
  */
-function isSupportedTextFile(name: string): boolean {
-  const dotIndex = name.lastIndexOf('.')
-  if (dotIndex === -1) return false
-  const ext = name.slice(dotIndex).toLowerCase()
-  return SUPPORTED_EXTENSIONS.has(ext)
-}
-
-/**
- * Downloads the raw content of a OneDrive file.
- */
-async function downloadFileContent(accessToken: string, fileId: string): Promise<string> {
+async function downloadFileContent(accessToken: string, fileId: string): Promise<Buffer> {
   const url = `${GRAPH_BASE_URL}/me/drive/items/${encodeURIComponent(fileId)}/content`
 
   const response = await fetchWithRetry(url, {
@@ -114,25 +96,26 @@ async function downloadFileContent(accessToken: string, fileId: string): Promise
   if (!buffer) {
     throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
   }
-  return buffer.toString('utf8')
+  return buffer
 }
 
 /**
- * Fetches file content, converting HTML to plain text when applicable.
+ * Fetches a file and extracts its indexable text — a UTF-8 decode for text
+ * formats, and the shared knowledge-base parsers for Office documents and PDFs.
  */
-async function fetchFileContent(
+async function fetchFilePayload(
   accessToken: string,
   fileId: string,
   fileName: string
-): Promise<string> {
-  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
-  const raw = await downloadFileContent(accessToken, fileId)
+): Promise<Pick<ExternalDocument, 'content' | 'sourceFile' | 'mimeType'>> {
+  const buffer = await downloadFileContent(accessToken, fileId)
 
-  if (ext === '.html' || ext === '.htm') {
-    return htmlToPlainText(raw)
+  const mimeType = pipelineParsedMimeType(fileName)
+  if (mimeType) {
+    return { content: '', mimeType, sourceFile: { bytes: buffer, fileName, mimeType } }
   }
 
-  return raw
+  return { content: extractConnectorText(buffer, fileName), mimeType: 'text/plain' }
 }
 
 /**
@@ -282,13 +265,37 @@ export const onedriveConnector: ConnectorConfig = {
       const items = data.value || []
 
       const files: OneDriveItem[] = []
+      /**
+       * Extensions this connector cannot index, tallied per page. A folder of
+       * unsupported files otherwise syncs as "success, 0 documents", which reads
+       * exactly like a wrong folder path — the failure mode this log exists for.
+       * Unsupported files are counted rather than turned into `failed` document
+       * rows, so a drive full of images does not fill the knowledge base with noise.
+       */
+      const skippedExtensions = new Map<string, number>()
+
       for (const item of items) {
         if (item.folder) {
           state.folderStack.push(item.id)
-        } else if (item.file && isSupportedTextFile(item.name)) {
-          // Keep oversized files; they are surfaced as skipped (failed) docs below.
-          files.push(item)
+        } else if (item.file) {
+          if (isIndexableConnectorFile(item.name)) {
+            // Keep oversized files; they are surfaced as skipped (failed) docs below.
+            files.push(item)
+          } else {
+            const extension = connectorFileExtension(item.name) ?? '(none)'
+            skippedExtensions.set(extension, (skippedExtensions.get(extension) ?? 0) + 1)
+          }
         }
+      }
+
+      if (skippedExtensions.size > 0) {
+        let skippedCount = 0
+        for (const count of skippedExtensions.values()) skippedCount += count
+        logger.info('Skipped OneDrive files with unsupported extensions', {
+          folderId: state.currentFolder ?? 'root',
+          skippedCount,
+          extensions: Array.from(skippedExtensions.keys()).slice(0, MAX_LOGGED_SKIPPED_EXTENSIONS),
+        })
       }
 
       const stubs = files.map((item) =>
@@ -373,14 +380,14 @@ export const onedriveConnector: ConnectorConfig = {
 
     const item = (await response.json()) as OneDriveItem
 
-    if (!item.file || !isSupportedTextFile(item.name)) return null
+    if (!item.file || !isIndexableConnectorFile(item.name)) return null
 
     try {
-      const content = await fetchFileContent(accessToken, item.id, item.name)
-      if (!content.trim()) return null
+      const payload = await fetchFilePayload(accessToken, item.id, item.name)
+      if (!hasIndexablePayload(payload)) return null
 
       const stub = fileToStub(item)
-      return { ...stub, content, contentDeferred: false }
+      return { ...stub, ...payload, contentDeferred: false }
     } catch (error) {
       if (error instanceof ConnectorFileTooLargeError) {
         logger.info('Skipping oversized OneDrive file', { fileId: item.id, name: item.name })

@@ -26,17 +26,19 @@ describe('JotformBlock', () => {
     )
   })
 
+  /* Trigger-mode subBlocks are supplied by the trigger config and carry their own
+     state, so neither the input declarations nor the tool-mode id space covers them. */
+  const toolSubBlocks = JotformBlock.subBlocks.filter((subBlock) => subBlock.mode !== 'trigger')
+
   it('declares an input for every subblock', () => {
     const inputIds = new Set(Object.keys(JotformBlock.inputs))
-    const missing = JotformBlock.subBlocks
-      .map((subBlock) => subBlock.id)
-      .filter((id) => !inputIds.has(id))
+    const missing = toolSubBlocks.map((subBlock) => subBlock.id).filter((id) => !inputIds.has(id))
 
     expect(missing).toEqual([])
   })
 
   it('gives every subblock a unique id', () => {
-    const ids = JotformBlock.subBlocks.map((subBlock) => subBlock.id)
+    const ids = toolSubBlocks.map((subBlock) => subBlock.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
 

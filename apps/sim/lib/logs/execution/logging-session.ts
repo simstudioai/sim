@@ -41,6 +41,7 @@ import type {
   TraceSpan,
   WorkflowState,
 } from '@/lib/logs/types'
+import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
@@ -208,6 +209,8 @@ export class LoggingSession {
   private correlation?: NonNullable<ExecutionTrigger['data']>['correlation']
   private trustedExecutionCorrelation?: NonNullable<ExecutionTrigger['data']>['correlation']
   private actorUserId: string | null = null
+  /** Held directly rather than read off `environment`, which a caller may never build. */
+  private workspaceId?: string
   private billingAttribution?: BillingAttributionSnapshot
   private isResume = false
   private completed = false
@@ -632,6 +635,34 @@ export class LoggingSession {
     }
   }
 
+  /**
+   * Writes the run's secret-usage trail.
+   *
+   * Here rather than at resolution time because this is the one funnel every terminal path
+   * reaches, and because a per-resolution write would put a database round trip in the
+   * executor's hot path. A paused run is skipped: its registry is persisted with the
+   * resumable snapshot, and the resume's own terminal completion records the usage, so
+   * counting here as well would double every human-in-the-loop run.
+   *
+   * A hard worker kill records nothing. That is the same gap the execution log row itself
+   * has — it stays `running` — and it is not worth a hot-path write to close.
+   */
+  private recordResolvedSecretUsage(finalizationPath: ExecutionFinalizationPath): void {
+    if (finalizationPath === 'paused') return
+
+    if (!this.workspaceId) return
+
+    const usage = this.resolvedSecretTraceRegistry?.getResolvedSecretUsage() ?? []
+    recordSecretUsage(usage, {
+      workspaceId: this.workspaceId,
+      source: 'workflow',
+      actorUserId: this.actorUserId,
+      workflowId: this.workflowId,
+      executionId: this.executionId,
+      trigger: this.triggerType,
+    })
+  }
+
   private async completeExecutionWithFinalization(params: {
     endedAt: string
     totalDurationMs: number
@@ -689,6 +720,7 @@ export class LoggingSession {
       billingAttribution: this.billingAttribution,
     })
     this.persistedCompletionStatus = completedLog.persistedStatus
+    this.recordResolvedSecretUsage(params.finalizationPath)
 
     /**
      * Pause persistence releases only after the resumable snapshot is durable.
@@ -775,6 +807,7 @@ export class LoggingSession {
       workflowState,
     } = params
     this.actorUserId = billingAttribution?.actorUserId ?? actorUserId ?? userId ?? null
+    this.workspaceId = workspaceId
     this.billingAttribution = billingAttribution
     if (!this.resolvedSecretTraceRegistry) {
       const scopeUserId = userId ?? this.actorUserId
@@ -1359,6 +1392,22 @@ export class LoggingSession {
       throw error
     })
     return this.completionPromise
+  }
+
+  /**
+   * A secret-safe copy of `traceSpans`, projected against THIS session's registry.
+   *
+   * Exists for one case: a custom block handing its child's spans to an already-authorized
+   * live viewer. Those spans must be projected against the CHILD's registry — the invoking
+   * run's session knows nothing about the publisher's secrets, so projecting them there
+   * would leave a source-owner credential unmasked in the consumer's stream. Unlike the
+   * completion path this does no persistence prep; it is display-only.
+   *
+   * Fails closed via {@link projectTraceSpansForSecrets}: an incomplete registry yields
+   * structure with no content rather than unprojected values.
+   */
+  async projectTraceSpansForLiveDisplay(traceSpans: TraceSpan[]): Promise<TraceSpan[]> {
+    return this.projectRawTraceSpans(traceSpans)
   }
 
   async safeComplete(params: SessionCompleteParams = {}): Promise<void> {

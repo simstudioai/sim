@@ -86,6 +86,7 @@ filter matching more rows than that silently affects only the first 100. Pass
 | --- | --- |
 | `0` | Success |
 | `1` | Anything else — API error, bad configuration, invalid arguments, or a missing `--yes` |
+| `2` | `sim whoami` only: the check could not be made at all |
 
 Errors print one line to stderr, prefixed `Error:`, plus the API's error code and
 validation details when it supplies them. Failures are safe to branch on:
@@ -99,6 +100,20 @@ fi
 
 An unexpected error prints a stack trace — that is a bug in the CLI, so please
 [open an issue](https://github.com/simstudioai/sim/issues).
+
+`sim whoami` splits its failure in two because the fixes differ: `1` means the
+credentials are wrong and a fresh `sim login` is the answer, while `2` means the
+CLI never got a verdict — no workspace to check against, or an endpoint that did
+not answer — and logging in again would not help.
+
+```bash
+sim whoami > /dev/null
+case $? in
+  0) ;;                                  # ready
+  1) echo "run: sim login" >&2; exit 1 ;;
+  2) echo "endpoint unreachable, retrying later" >&2; exit 75 ;;
+esac
+```
 
 ## Selecting workflow output
 

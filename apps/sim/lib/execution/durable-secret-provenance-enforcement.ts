@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 
@@ -90,6 +91,11 @@ export interface UnrecordedDurableProvenanceReport {
   /** How many records in this one read were unrecorded, when the caller reads a page at a time. */
   affectedCount?: number
   workspaceId?: string
+  /**
+   * Whose access authorized the read. Null where the surface cannot name one — an audit row with
+   * no actor still carries the workspace, surface, and cause, which is what the trail is for.
+   */
+  actorUserId?: string | null
 }
 
 /**
@@ -108,6 +114,34 @@ export function reportUnrecordedDurableProvenance(report: UnrecordedDurableProve
     enforced: false,
     ...(report.affectedCount !== undefined ? { affectedCount: report.affectedCount } : {}),
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
+  })
+
+  /**
+   * The log line is for us; this is for the people who own the secrets.
+   *
+   * Recorded here rather than where provenance was lost, because losing it costs nothing on its
+   * own — a write nobody could vouch for is just data at rest. The exposure is this moment: a
+   * value crossing into a run that will project it to a model with no way to recognise a secret
+   * inside it and redact it. That is what a reader needs told, and it is why the entry names the
+   * surface and the count rather than a secret, which is precisely what was not recorded.
+   *
+   * Fire-and-forget by construction — `recordAudit` never throws — so the trail can never be the
+   * reason a run fails. Skipped without a workspace: the entry would name no one it concerns.
+   */
+  if (!report.workspaceId) return
+  recordAudit({
+    workspaceId: report.workspaceId,
+    actorId: report.actorUserId ?? null,
+    action: AuditAction.SECRET_PROVENANCE_UNRECORDED,
+    resourceType: AuditResourceType.SECRET_PROVENANCE,
+    resourceId: report.surface,
+    description:
+      'A run read data whose secret provenance was never recorded, so any secret it carries could not be redacted before reaching a model.',
+    metadata: {
+      surface: report.surface,
+      cause: report.cause,
+      ...(report.affectedCount !== undefined ? { affectedCount: report.affectedCount } : {}),
+    },
   })
 }
 

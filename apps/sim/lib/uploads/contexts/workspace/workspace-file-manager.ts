@@ -14,7 +14,7 @@ import {
   getPostgresErrorCode,
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import type { ListSortOrder } from '@/lib/api/list-query'
@@ -57,6 +57,10 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenancePolicy,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  enqueueWorkspaceFileStorageCleanup,
+  processWorkspaceFileStorageCleanupNow,
+} from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   deleteFile,
@@ -390,6 +394,7 @@ export async function uploadWorkspaceFile(
     folderPath?: string
     exactName?: boolean
     secretProvenance?: WorkspaceFileSecretProvenance
+    notifyWorkspaceChange?: boolean
   }
 ): Promise<UploadedWorkspaceFileRecord> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
@@ -512,9 +517,9 @@ export async function uploadWorkspaceFile(
         `Successfully uploaded workspace file: ${uniqueName} with key: ${uploadResult.key}`
       )
 
-      // Fan out the live-tree signal for this server-buffered path. Upload-session
-      // finalization sends its own notification after registering metadata.
-      await notifyWorkspaceFilesChanged(workspaceId)
+      if (options?.notifyWorkspaceChange !== false) {
+        await notifyWorkspaceFilesChanged(workspaceId)
+      }
 
       return mapUploadedWorkspaceFileRecord(finalized.inserted, workspaceId, folderPath)
     } catch (error) {
@@ -1247,7 +1252,14 @@ export interface QueryWorkspaceFilesOptions {
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
   /** `undefined` lists every folder, `null` lists only root files. */
-  folderId?: string | null
+  /**
+   * The folder to match: one id, `null` for the workspace root, or several ids for a folder
+   * and its descendants. Omit to match every folder.
+   *
+   * An empty array matches nothing — the honest answer for an empty set of folders, and the
+   * shape Drizzle already emits (`false`) for an empty `IN`.
+   */
+  folderId?: string | null | readonly string[]
   /** Case-insensitive substring match on the file name. */
   search?: string
   sortBy: V2FileSortBy
@@ -1261,6 +1273,16 @@ export interface QueryWorkspaceFilesResult {
   files: WorkspaceFileRecord[]
   /** Keyset values to resume from, or `null` when this page is the last one. */
   nextKeys: CursorKey[] | null
+}
+
+/** The folder predicate for {@link QueryWorkspaceFilesOptions.folderId}'s three shapes. */
+function workspaceFileFolderCondition(
+  folderId: string | null | readonly string[] | undefined
+): SQL | undefined {
+  if (folderId === undefined) return undefined
+  if (folderId === null) return isNull(workspaceFiles.folderId)
+  if (Array.isArray(folderId)) return inArray(workspaceFiles.folderId, folderId)
+  return eq(workspaceFiles.folderId, folderId as string)
 }
 
 /**
@@ -1292,11 +1314,7 @@ export async function queryWorkspaceFiles(
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
-    folderId === undefined
-      ? undefined
-      : folderId === null
-        ? isNull(workspaceFiles.folderId)
-        : eq(workspaceFiles.folderId, folderId),
+    workspaceFileFolderCondition(folderId),
     searchFilter(workspaceFiles.originalName, search),
     resumeAfter,
   ]
@@ -2046,6 +2064,87 @@ export async function deleteWorkspaceFile(workspaceId: string, fileId: string): 
     logger.error(`Failed to delete workspace file ${fileId}:`, error)
     throw error
   }
+}
+
+/**
+ * Permanently removes a file created by an in-flight archive extraction only while
+ * its name, folder, and update timestamp still match the creation result. The matching
+ * metadata deletion, accounting update, and durable storage-cleanup event commit together. This
+ * is rollback-only: ordinary user deletion remains recoverable through
+ * {@link deleteWorkspaceFile}.
+ */
+export async function purgeCreatedWorkspaceFile(params: {
+  workspaceId: string
+  fileId: string
+  key: string
+  expectedName: string
+  expectedFolderId: string | null
+  expectedUpdatedAt: Date
+}): Promise<boolean> {
+  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
+  const expectedFolder =
+    params.expectedFolderId === null
+      ? isNull(workspaceFiles.folderId)
+      : eq(workspaceFiles.folderId, params.expectedFolderId)
+  /** The full creation identity. Shared so the lock and the delete can never diverge. */
+  const matchesCreatedFile = and(
+    eq(workspaceFiles.id, params.fileId),
+    eq(workspaceFiles.workspaceId, params.workspaceId),
+    eq(workspaceFiles.key, params.key),
+    eq(workspaceFiles.originalName, params.expectedName),
+    expectedFolder,
+    eq(workspaceFiles.updatedAt, params.expectedUpdatedAt),
+    eq(workspaceFiles.context, 'workspace'),
+    isNull(workspaceFiles.deletedAt)
+  )
+  const cleanupEventId = await db.transaction(async (tx) => {
+    const [lockedFile] = await tx
+      .select({
+        id: workspaceFiles.id,
+        key: workspaceFiles.key,
+        size: workspaceFiles.size,
+        sizeBytes: workspaceFiles.sizeBytes,
+      })
+      .from(workspaceFiles)
+      .where(matchesCreatedFile)
+      .for('update')
+      .limit(1)
+    if (!lockedFile) return null
+
+    const [deleted] = await tx
+      .delete(workspaceFiles)
+      .where(matchesCreatedFile)
+      .returning({ id: workspaceFiles.id })
+    if (!deleted) throw new Error('Locked archive-created file could not be deleted')
+
+    await decrementStorageUsageForBillingContextInTx(
+      tx,
+      storageBillingContext,
+      workspaceFileSize(lockedFile)
+    )
+    return enqueueWorkspaceFileStorageCleanup(tx, { key: lockedFile.key })
+  })
+  if (!cleanupEventId) return false
+
+  try {
+    const result = await processWorkspaceFileStorageCleanupNow(cleanupEventId)
+    if (result !== 'completed') {
+      logger.warn('Archive rollback storage cleanup deferred to outbox retry', {
+        workspaceId: params.workspaceId,
+        fileId: params.fileId,
+        cleanupEventId,
+        result,
+      })
+    }
+  } catch (error) {
+    logger.warn('Archive rollback storage cleanup deferred after inline processing error', {
+      workspaceId: params.workspaceId,
+      fileId: params.fileId,
+      cleanupEventId,
+      error: getErrorMessage(error),
+    })
+  }
+  return true
 }
 
 /**
