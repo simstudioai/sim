@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import {
   Chip,
-  ChipDropdown,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -80,6 +79,17 @@ export function CredentialGroupAccess({ workspaceId, groupId }: CredentialGroupA
       : subjectType === 'access_control_group'
         ? applicablePermissionGroups.map((group) => ({ value: group.id, label: group.name }))
         : [...WORKSPACE_ROLE_OPTIONS]
+  const targetOptionsPending =
+    subjectType === 'workflow'
+      ? workflows.isPending
+      : subjectType === 'access_control_group'
+        ? permissionConfig.isPending || permissionGroups.isPending
+        : false
+  const targetPlaceholder = targetOptionsPending
+    ? `Loading ${subjectType === 'workflow' ? 'workflows' : 'access control groups'}...`
+    : targetOptions.length === 0
+      ? `No ${subjectType === 'workflow' ? 'workflows' : 'access control groups'} available`
+      : 'Select one'
 
   const labelForSubject = (subject: ResourcePolicySubject): string => {
     switch (subject.type) {
@@ -229,31 +239,29 @@ export function CredentialGroupAccess({ workspaceId, groupId }: CredentialGroupA
       >
         <ChipModalHeader onClose={() => setShowAdd(false)}>Add access</ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='custom' title='Subject type'>
-            <ChipDropdown
-              value={subjectType}
-              onChange={(value) => {
-                setSubjectType(value as ManagedSubjectType)
-                setTargetId('')
-                setModalError(null)
-              }}
-              options={[...SUBJECT_TYPE_OPTIONS]}
-            />
-          </ChipModalField>
           <ChipModalField
-            type='custom'
+            type='dropdown'
+            title='Subject type'
+            value={subjectType}
+            onChange={(value) => {
+              setSubjectType(value as ManagedSubjectType)
+              setTargetId('')
+              setModalError(null)
+            }}
+            options={SUBJECT_TYPE_OPTIONS}
+          />
+          <ChipModalField
+            type='dropdown'
             title={subjectType === 'workspace_role' ? 'Minimum role' : 'Subject'}
-          >
-            <ChipDropdown
-              value={targetId}
-              onChange={(value) => {
-                setTargetId(value)
-                setModalError(null)
-              }}
-              options={targetOptions}
-              placeholder='Select one'
-            />
-          </ChipModalField>
+            value={targetId}
+            onChange={(value) => {
+              setTargetId(value)
+              setModalError(null)
+            }}
+            options={targetOptions}
+            placeholder={targetPlaceholder}
+            disabled={targetOptionsPending || targetOptions.length === 0}
+          />
           <ChipModalError>{modalError}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter
