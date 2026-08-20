@@ -60,7 +60,7 @@ function unescapeIntrawordUnderscores(markdown: string): string {
       continue
     }
 
-    const delimiter = lines[i].match(FENCE_DELIMITER)?.[1]
+    const delimiter = opensFence(lines[i])
     if (delimiter) {
       fence = delimiter
       continue
@@ -177,10 +177,26 @@ const FENCE_DELIMITER = /^[ \t]*(`{3,}|~{3,})/
  * as prose.
  */
 const CLOSING_FENCE = /^[ \t]*(`{3,}|~{3,})[ \t]*$/
+/**
+ * Leading blockquote markers, which every line of a fence inside a quote or a `[!NOTE]` callout
+ * carries. The serializer writes those (` > ```js `), so a walk that only recognises a bare fence
+ * never enters code state there and rewrites the block's interior as prose.
+ */
+const BLOCKQUOTE_PREFIX = /^[ \t]*(?:>[ \t]?)*/
+
+/** The line with any blockquote markers removed, so a quoted fence reads like a bare one. */
+function unquote(line: string): string {
+  return line.replace(BLOCKQUOTE_PREFIX, '')
+}
+
+/** The delimiter run that OPENS a fence on this line, quoted or not, or undefined. */
+function opensFence(line: string): string | undefined {
+  return unquote(line).match(FENCE_DELIMITER)?.[1]
+}
 
 /** Whether `line` closes a fence opened with `fence`: same character, and at least as long. */
 function closesFence(line: string, fence: string): boolean {
-  const delimiter = line.match(CLOSING_FENCE)?.[1]
+  const delimiter = unquote(line).match(CLOSING_FENCE)?.[1]
   return Boolean(delimiter && delimiter[0] === fence[0] && delimiter.length >= fence.length)
 }
 /** Leading indentation of a line, used to detect whether an empty list item has indented children. */
@@ -213,7 +229,7 @@ function stripEmptyListItemLines(markdown: string): string {
       if (closesFence(line, fence)) fence = null
       continue
     }
-    const delimiter = line.match(FENCE_DELIMITER)?.[1]
+    const delimiter = opensFence(line)
     if (delimiter) {
       fence = delimiter
       kept.push(line)

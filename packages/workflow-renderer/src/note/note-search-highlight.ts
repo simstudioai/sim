@@ -42,40 +42,6 @@ export interface NoteSearchRange {
 export const NOTE_SEARCH_MARK_INDEX_PROPERTY = 'dataNoteSearchIndex'
 
 /**
- * Elements that do not interrupt a run of text. Text either side of one reads
- * as a single phrase, so the scan below joins across them — the same thing the
- * browser's own find does in `a<strong>b</strong>c`.
- *
- * An allowlist rather than a block-level denylist: raw HTML can put any tag in
- * this tree, and treating something unrecognised as a break can only ever miss
- * a match, while treating it as inline could invent one that is not on screen.
- */
-const INLINE_TAG_NAMES: ReadonlySet<string> = new Set([
-  'a',
-  'abbr',
-  'b',
-  'br',
-  'cite',
-  'code',
-  'del',
-  'em',
-  'i',
-  'ins',
-  'kbd',
-  'mark',
-  'q',
-  's',
-  'samp',
-  'small',
-  'span',
-  'strong',
-  'sub',
-  'sup',
-  'u',
-  'var',
-])
-
-/**
  * Visits every occurrence of `query` in `text`, case-insensitively and without
  * overlaps.
  *
@@ -187,13 +153,21 @@ function collectTextRuns(node: Root | Element, builder: RunBuilder): void {
       continue
     }
 
-    /* An inline element continues the run — the builder state is shared, so
-       descending is all it takes. Anything else breaks it either side. */
-    if (INLINE_TAG_NAMES.has(child.tagName)) {
-      collectTextRuns(child, builder)
-      continue
-    }
-
+    /*
+     * Every other element ends the run, `<strong>` and `<a>` included.
+     *
+     * `<br>` is the one boundary that stands for a character the source really
+     * has. Every other inline element stands for syntax the render DROPS —
+     * `**`, `_`, a backtick, a link's `](url)` — so joining across one invents
+     * an adjacency that exists on screen but not in the markdown the indexer
+     * scans. That is not merely a spurious extra mark: `occurrenceIndex` counts
+     * source occurrences, so a fabricated hit appearing earlier in the document
+     * steals the current ordinal and paints the wrong one.
+     *
+     * Nothing real is lost. A match spanning `a**b**c` would have to contain
+     * the asterisks to exist in the source at all, and a match wholly inside
+     * the element is still found — the element simply starts its own run.
+     */
     endRun(builder)
     collectTextRuns(child, builder)
     endRun(builder)

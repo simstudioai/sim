@@ -279,6 +279,21 @@ describe('editor markdown round-trip', () => {
     expect(roundTrip('call ``a\\_b`c`` here')).toContain('a\\_b')
   })
 
+  /* Unlike the fence-length cases, this one is reachable: the serializer really does write a
+     quoted fence as ` > ```js `, so a walk that only recognises a bare fence never enters code
+     state and rewrites the block's interior as prose. */
+  it('leaves code alone inside a blockquoted fence', () => {
+    expect(roundTrip('> ```js\n> x = a\\_b\n> ```')).toContain('a\\_b')
+  })
+
+  it('leaves code alone inside a callout fence', () => {
+    expect(roundTrip('> [!NOTE]\n> ```js\n> x = a\\_b\n> ```')).toContain('a\\_b')
+  })
+
+  it('still unescapes prose inside a blockquote', () => {
+    expect(roundTrip('> SB_ACTION_ROUTER_SECRET')).toContain('SB_ACTION_ROUTER_SECRET')
+  })
+
   it('preserves an image url (does not drop the src)', () => {
     const out = roundTrip('![alt](https://example.com/i.png)')
     expect(out).toContain('![alt](https://example.com/i.png)')
