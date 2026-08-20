@@ -1,6 +1,8 @@
 import type { CrunchbaseProperties } from '@/tools/crunchbase/types'
 import {
   assertCollection,
+  assertSingleCursor,
+  CARD_LIMIT_MAX,
   CRUNCHBASE_API_BASE,
   CRUNCHBASE_CARD_COLLECTIONS,
   clampLimit,
@@ -8,7 +10,6 @@ import {
   crunchbaseHeaders,
   parseIdListParam,
   readJson,
-  SEARCH_LIMIT_MAX,
 } from '@/tools/crunchbase/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -31,6 +32,20 @@ interface CrunchbaseGetEntityCardResponse extends ToolResponse {
     properties: CrunchbaseProperties
     nextAfterId: string | null
   }
+}
+
+/**
+ * Guarantees the page carries the field its cursor is read from.
+ *
+ * `nextAfterId` comes off the last item's `uuid` / `identifier.uuid`, so a caller
+ * narrowing `card_field_ids` to, say, `["announced_on"]` would get a full page
+ * and a null cursor — and a paging loop would stop after the first page with
+ * rows still unread.
+ */
+function withCursorField(cardFieldIds: string[] | undefined): string[] | undefined {
+  if (!cardFieldIds?.length) return cardFieldIds
+  if (cardFieldIds.includes('identifier') || cardFieldIds.includes('uuid')) return cardFieldIds
+  return [...cardFieldIds, 'identifier']
 }
 
 export const crunchbaseGetEntityCardTool: ToolConfig<
@@ -76,7 +91,7 @@ export const crunchbaseGetEntityCardTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Fields to return on each card item, e.g. ["identifier","announced_on","money_raised"]',
+        'Fields to return on each card item, e.g. ["identifier","announced_on","money_raised"]. The identifier is always requested alongside these, because the next-page cursor is read from it.',
     },
     cardOrder: {
       type: 'string',
@@ -88,7 +103,7 @@ export const crunchbaseGetEntityCardTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Card items to return per page',
+      description: 'Card items to return per page, 1-100',
     },
     afterId: {
       type: 'string',
@@ -116,11 +131,13 @@ export const crunchbaseGetEntityCardTool: ToolConfig<
       const cardId = params.cardId?.trim()
       if (!cardId) throw new Error('Crunchbase "cardId" is required')
 
+      assertSingleCursor(params.afterId, params.beforeId)
+
       const search = new URLSearchParams()
-      const cardFieldIds = parseIdListParam(params.cardFieldIds, 'cardFieldIds')
+      const cardFieldIds = withCursorField(parseIdListParam(params.cardFieldIds, 'cardFieldIds'))
       if (cardFieldIds?.length) search.set('card_field_ids', cardFieldIds.join(','))
       if (params.cardOrder) search.set('order', params.cardOrder)
-      const limit = clampLimit(params.limit, SEARCH_LIMIT_MAX)
+      const limit = clampLimit(params.limit, CARD_LIMIT_MAX)
       if (limit !== undefined) search.set('limit', String(limit))
       if (params.afterId) search.set('after_id', params.afterId)
       if (params.beforeId) search.set('before_id', params.beforeId)
@@ -144,11 +161,11 @@ export const crunchbaseGetEntityCardTool: ToolConfig<
        requested card id rather than at the top level — keyed by the same trimmed
        id the URL used, or a pasted " founders " would read back as empty. */
     const card = data.cards?.[params?.cardId?.trim() ?? '']
-    const items = Array.isArray(card)
-      ? (card as CrunchbaseProperties[])
-      : card && typeof card === 'object'
-        ? [card as CrunchbaseProperties]
-        : []
+
+    /* Every card this endpoint serves is typed as an array of entities. Wrapping
+       a non-array as a single item would invent a one-row page out of a shape we
+       do not understand, so an unexpected value reports as empty instead. */
+    const items = Array.isArray(card) ? (card as CrunchbaseProperties[]) : []
     /* A card item carries its uuid at the top level only when `card_field_ids`
        asked for it; otherwise the identifier object is the one place it lives. */
     const last = items[items.length - 1]

@@ -303,7 +303,7 @@ export const CrunchbaseBlock: BlockConfig<CrunchbaseResponse> = {
       title: 'Limit',
       type: 'short-input',
       mode: 'advanced',
-      placeholder: 'Search: 1-1000 (default 100). Autocomplete: 1-25 (default 10)',
+      placeholder: 'Search: 1-1000 (default 100). Card: 1-100. Autocomplete: 1-25 (default 10)',
       condition: { field: 'operation', value: LIMITED_OPERATIONS },
     },
     {

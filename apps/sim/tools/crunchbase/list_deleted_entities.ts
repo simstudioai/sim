@@ -3,6 +3,7 @@ import {
   appendCsvParam,
   assertCollection,
   assertCollections,
+  assertSingleCursor,
   CRUNCHBASE_API_BASE,
   CRUNCHBASE_DELETED_COLLECTIONS,
   clampLimit,
@@ -97,6 +98,8 @@ export const crunchbaseListDeletedEntitiesTool: ToolConfig<
 
   request: {
     url: (params) => {
+      assertSingleCursor(params.afterId, params.beforeId)
+
       const search = new URLSearchParams()
       const scoped = params.collection?.trim()
 

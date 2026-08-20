@@ -292,6 +292,28 @@ export function parseIdListParam(value: unknown, paramName: string): string[] | 
   return parsed?.map((entry) => String(entry))
 }
 
+/**
+ * `limit` bound for a single card page.
+ *
+ * A card returns at most 100 items, and the Limit subblock is shared with Search
+ * (max 1000), so a value carried over from a search would otherwise go out on
+ * the wire and be rejected.
+ */
+export const CARD_LIMIT_MAX = 100
+
+/**
+ * Rejects the cursor pair Crunchbase documents as mutually exclusive.
+ *
+ * `after_id` "may not be provided simultaneously with before_id" on every paged
+ * endpoint, and the block shares one After ID / Before ID pair across searches,
+ * card pages, and the deleted feed — so a leftover value really can arrive here.
+ */
+export function assertSingleCursor(afterId?: string, beforeId?: string): void {
+  if (afterId && beforeId) {
+    throw new Error('Crunchbase accepts either "afterId" or "beforeId", not both')
+  }
+}
+
 /** Coerces a numeric param and clamps it into the endpoint's documented range. */
 export function clampLimit(value: unknown, max: number, fallback?: number): number | undefined {
   if (value === undefined || value === null || value === '') return fallback
@@ -457,9 +479,7 @@ export function buildSearchBody(
   const order = normalizeOrder(params.order)
   const limit = clampLimit(params.limit, SEARCH_LIMIT_MAX, SEARCH_LIMIT_DEFAULT)
 
-  if (params.afterId && params.beforeId) {
-    throw new Error('Crunchbase accepts either "afterId" or "beforeId", not both')
-  }
+  assertSingleCursor(params.afterId, params.beforeId)
 
   const resolvedFieldIds = fieldIds?.length ? fieldIds : [...(defaultFieldIds ?? [])]
   if (resolvedFieldIds.length === 0) {

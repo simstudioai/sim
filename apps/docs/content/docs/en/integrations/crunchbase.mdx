@@ -293,9 +293,9 @@ Page through one related-entity card of a Crunchbase entity — an investor's in
 | `collection` | string | Yes | Collection the entity belongs to. One of: acquisitions, addresses, categories, category_groups, degrees, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, market_insights, micro_categories, organizations, ownerships, people. |
 | `entityId` | string | Yes | Entity permalink or UUID |
 | `cardId` | string | Yes | Card to page through, e.g. "participated_investments" on a person, "founders" on an organization, or "investors" on a funding round. Valid ids differ per collection. |
-| `cardFieldIds` | json | No | Fields to return on each card item, e.g. \["identifier","announced_on","money_raised"\] |
+| `cardFieldIds` | json | No | Fields to return on each card item, e.g. \["identifier","announced_on","money_raised"\]. The identifier is always requested alongside these, because the next-page cursor is read from it. |
 | `cardOrder` | string | No | Sort expression for the card, e.g. "funding_round_money_raised desc" |
-| `limit` | number | No | Card items to return per page |
+| `limit` | number | No | Card items to return per page, 1-100 |
 | `afterId` | string | No | UUID of the last card item on the current page, to fetch the next page |
 | `beforeId` | string | No | UUID of the first card item on the current page, to fetch the previous page |
 

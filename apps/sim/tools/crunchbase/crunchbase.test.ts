@@ -137,6 +137,56 @@ describe('crunchbase request building', () => {
     expect(url).toContain('after_id=cursor-1')
   })
 
+  it('caps a card page at the documented 100-item maximum', () => {
+    const url = buildUrl(crunchbaseGetEntityCardTool, {
+      apiKey: 'k',
+      collection: 'organizations',
+      entityId: 'sequoia-capital',
+      cardId: 'participated_investments',
+      limit: 1000,
+    })
+    /* Substring-matching "limit=100" would also pass on "limit=1000" — the exact
+       parameter value is the only assertion that can actually fail here. */
+    expect(new URL(url).searchParams.get('limit')).toBe('100')
+  })
+
+  it('keeps the cursor field when cardFieldIds would have dropped it', () => {
+    const narrowed = buildUrl(crunchbaseGetEntityCardTool, {
+      apiKey: 'k',
+      collection: 'organizations',
+      entityId: 'sequoia-capital',
+      cardId: 'participated_investments',
+      cardFieldIds: '["announced_on"]',
+    })
+    expect(narrowed).toContain('card_field_ids=announced_on%2Cidentifier')
+
+    const alreadyPresent = buildUrl(crunchbaseGetEntityCardTool, {
+      apiKey: 'k',
+      collection: 'organizations',
+      entityId: 'sequoia-capital',
+      cardId: 'participated_investments',
+      cardFieldIds: '["uuid","announced_on"]',
+    })
+    expect(alreadyPresent).toContain('card_field_ids=uuid%2Cannounced_on')
+  })
+
+  it('rejects both cursors on every paged endpoint, not just search', () => {
+    expect(() =>
+      buildUrl(crunchbaseGetEntityCardTool, {
+        apiKey: 'k',
+        collection: 'organizations',
+        entityId: 'sequoia-capital',
+        cardId: 'founders',
+        afterId: 'a',
+        beforeId: 'b',
+      })
+    ).toThrow(/either "afterId" or "beforeId"/)
+
+    expect(() =>
+      buildUrl(crunchbaseListDeletedEntitiesTool, { apiKey: 'k', afterId: 'a', beforeId: 'b' })
+    ).toThrow(/either "afterId" or "beforeId"/)
+  })
+
   it('scopes the deleted feed by path when one collection is chosen', () => {
     expect(
       buildUrl(crunchbaseListDeletedEntitiesTool, { apiKey: 'k', collection: 'organizations' })
@@ -266,6 +316,21 @@ describe('crunchbase response mapping', () => {
 
     expect(result.output.items).toHaveLength(1)
     expect(result.output.nextAfterId).toBe('p1')
+  })
+
+  it('reports an undocumented card shape as empty rather than inventing a row', async () => {
+    const result = await crunchbaseGetEntityCardTool.transformResponse!(
+      jsonResponse({ cards: { founders: { items: [{ uuid: 'p1' }], paging: {} } } }),
+      {
+        apiKey: 'k',
+        collection: 'organizations',
+        entityId: 'tesla-motors',
+        cardId: 'founders',
+      } as never
+    )
+
+    expect(result.output.items).toEqual([])
+    expect(result.output.nextAfterId).toBeNull()
   })
 
   it('passes the fields-metadata CSV through verbatim', async () => {
