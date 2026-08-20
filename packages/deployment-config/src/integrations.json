@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-19",
+  "updatedAt": "2026-08-20",
   "integrations": [
     {
       "type": "onepassword",
@@ -3150,6 +3150,125 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"]
+    },
+    {
+      "type": "cbinsights",
+      "slug": "cb-insights",
+      "name": "CB Insights",
+      "description": "Research private markets — firmographics, funding, and predictive scores",
+      "longDescription": "Integrates the CB Insights API v2 into the workflow. Resolve companies to CB Insights IDs for free, search firmographics across markets and geographies, pull funding rounds, cap tables, investments, and exits, map business relationships, read leadership and board history, and retrieve the proprietary Mosaic Score, Commercial Maturity, and Exit Probability outlooks. Generate AI Scouting Reports, or ask ChatCBI directly. Which datasets answer depends on your CB Insights license.",
+      "bgColor": "#003366",
+      "iconName": "CbInsightsIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/cbinsights",
+      "operations": [
+        {
+          "name": "Look Up Organizations",
+          "description": "Resolve company names or websites to CB Insights organization IDs. This endpoint never charges credits, so use it to match your own records before spending credits on the data endpoints."
+        },
+        {
+          "name": "Search Firmographics",
+          "description": "Search profiles of private companies, public companies, and investors by market, industry, geography, headcount, funding, and valuation. Each field is ANDed together; values within a field are ORed."
+        },
+        {
+          "name": "Get Organization Fundings",
+          "description": "Retrieve the funding rounds one organization has received, its cap table history, and AI-generated insights extracting the key themes of each deal."
+        },
+        {
+          "name": "Get Organization Investments",
+          "description": "Retrieve the rounds in which one organization invested in another, with AI-generated insights extracting the key themes of each deal."
+        },
+        {
+          "name": "Get Organization Portfolio Exits",
+          "description": "Retrieve exit rounds for companies this organization invested in before the exit, with AI-generated insights on each deal."
+        },
+        {
+          "name": "Get Organization Business Relationships",
+          "description": "Retrieve one organization's partnerships, client/vendor relationships, and licensing activity, with AI-generated insights on each."
+        },
+        {
+          "name": "Get Organization Management and Board",
+          "description": "Retrieve an organization's leadership team and board members with their education, work history, and board seats, plus the Management factor of its Mosaic Score."
+        },
+        {
+          "name": "Get Organization Outlook",
+          "description": "Retrieve an organization's current Mosaic Score, Commercial Maturity level, and two-year IPO and M&A exit probabilities, with the signals driving each."
+        },
+        {
+          "name": "Get Organization Funding Window",
+          "description": "Retrieve the estimated window in which an organization is likely to raise its next round, with the cohort it was compared against."
+        },
+        {
+          "name": "Get Organization Revenue",
+          "description": "Retrieve reported and estimated revenue by calendar year for one organization, with the sources behind each figure."
+        },
+        {
+          "name": "Get Mosaic History",
+          "description": "Retrieve an organization's historical Mosaic Scores — overall plus the management, market, momentum, and money factors — so a trend can be read rather than a single snapshot."
+        },
+        {
+          "name": "Get Commercial Maturity History",
+          "description": "Retrieve an organization's historical Commercial Maturity levels, tracking how its ability to compete for customers or serve as a partner has moved over time."
+        },
+        {
+          "name": "Get Exit Probability History",
+          "description": "Retrieve an organization's historical two-year IPO and M&A exit probabilities, each alongside the mean for comparable companies."
+        },
+        {
+          "name": "Get Strategy Map",
+          "description": "Retrieve the companies related to an organization, grouped into industry categories, with the relationships, investments, and acquisitions that connect them."
+        },
+        {
+          "name": "Get Scouting Report",
+          "description": "Generate an AI-written Scouting Report on a private company covering its business model, market position, strengths, and opportunities. Only active companies are eligible, and generation can take several minutes."
+        },
+        {
+          "name": "List Fundings",
+          "description": "Retrieve funding rounds and cap table history for up to 100 organizations at once, with AI-generated insights extracting the key themes of each deal."
+        },
+        {
+          "name": "List Investments",
+          "description": "Retrieve the rounds up to 100 organizations participated in as investors, with AI-generated insights extracting the key themes of each deal."
+        },
+        {
+          "name": "List Portfolio Exits",
+          "description": "Retrieve exit rounds for companies up to 100 organizations invested in before the exit, with AI-generated insights on each deal."
+        },
+        {
+          "name": "List Business Relationships",
+          "description": "Retrieve partnerships, client/vendor relationships, and licensing activity for up to 100 organizations at once, with AI-generated insights on each."
+        },
+        {
+          "name": "List Management and Board",
+          "description": "Retrieve leadership teams, board members, and the Management factor of the Mosaic Score for up to 100 organizations at once."
+        },
+        {
+          "name": "List Outlook",
+          "description": "Retrieve Mosaic Score, Commercial Maturity, and Exit Probability for up to 100 organizations at once."
+        },
+        {
+          "name": "List Funding Windows",
+          "description": "Retrieve the estimated next-round funding window for up to 100 organizations at once, with the cohort each was compared against."
+        },
+        {
+          "name": "List Revenue",
+          "description": "Retrieve reported and estimated revenue by calendar year for up to 100 organizations at once."
+        },
+        {
+          "name": "Ask ChatCBI",
+          "description": "Ask ChatCBI a question in natural language and get an answer grounded in CB Insights data, with its sources and suggested follow-ups. Uses generative AI and can be wrong — verify anything that matters."
+        },
+        {
+          "name": "Retrieve Context",
+          "description": "Retrieve the raw structured CB Insights data relevant to a question, for feeding your own model rather than reading a written answer. Uses generative AI and can be wrong — verify anything that matters."
+        }
+      ],
+      "operationCount": 25,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "data-analytics"]
     },
     {
       "type": "managed_agent",

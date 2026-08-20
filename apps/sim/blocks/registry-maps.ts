@@ -31,6 +31,7 @@ import { BrowserUseBlock, BrowserUseBlockMeta } from '@/blocks/blocks/browser_us
 import { BufferBlock, BufferBlockMeta } from '@/blocks/blocks/buffer'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
 import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
+import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
 import { CirclebackBlock, CirclebackBlockMeta } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
@@ -393,6 +394,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   buffer: BufferBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
+  cbinsights: CbInsightsBlock,
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
   clay: ClayBlock,
@@ -736,6 +738,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   buffer: BufferBlockMeta,
   calcom: CalComBlockMeta,
   calendly: CalendlyBlockMeta,
+  cbinsights: CbInsightsBlockMeta,
   circleback: CirclebackBlockMeta,
   clay: ClayBlockMeta,
   clerk: ClerkBlockMeta,
