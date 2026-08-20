@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import {
   extractWorkspaceIdFromStorageKey,
+  inferContextFromKey,
   isInternalFileUrl,
   parseInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils'
@@ -335,25 +336,57 @@ function getRawInputCandidate(workflowInput: unknown): unknown {
 }
 
 /**
+ * The storage key for a Start file, when the caller can prove the execution's
+ * workspace owns it.
+ *
+ * Checks the supplied key first and the key parsed out of an internal URL
+ * second; both are caller-authored, so both are held to the same ownership test
+ * and neither is preferred for being "more official".
+ */
+function resolveOwnedStartFileKey(suppliedKey: unknown, url: string, workspaceId: string): string {
+  if (typeof suppliedKey === 'string' && suppliedKey) {
+    if (extractWorkspaceIdFromStorageKey(suppliedKey) === workspaceId) {
+      return suppliedKey
+    }
+    return ''
+  }
+
+  if (!url || !isInternalFileUrl(url)) {
+    return ''
+  }
+
+  try {
+    const parsed = parseInternalFileUrl(url)
+    return extractWorkspaceIdFromStorageKey(parsed.key) === workspaceId ? parsed.key : ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * Normalizes one caller-supplied file object into the executor's canonical
  * {@link UserFile}, or returns `null` when the shape is not usable.
  *
- * Nothing in the caller's payload is trusted to name storage bytes. A supplied
- * `key` or `context` is discarded, and the key parsed out of the file's internal
- * `/api/files/serve/...` URL is not trusted either: that URL is the same request
- * body, and {@link isInternalFileUrl} deliberately matches the path prefix on any
- * host, so a caller can author any key it likes there.
+ * A storage key names a specific tenant's bytes, so the test is ownership, not
+ * provenance: a key is accepted when its own layout names the workspace this
+ * execution runs in — `workspace/{workspaceId}/…` or
+ * `execution/{workspaceId}/…` — and rejected otherwise. That holds whether the
+ * key arrives directly or is parsed out of the file's URL, so neither source has
+ * to be trusted: {@link isInternalFileUrl} matches the path prefix on any host,
+ * and a caller can author either field.
  *
- * The key is therefore accepted only when its own layout names the workspace this
- * execution runs in — `workspace/{workspaceId}/…` or `execution/{workspaceId}/…`.
+ * Both sources have to be honoured. The server-side uploader for run inputs
+ * hands back a *presigned cloud* URL whenever object storage is configured
+ * (`generatePresignedDownloadUrl`), whose path is the bucket key rather than
+ * `/api/files/serve/...` — so a URL-only rule silently drops every chat
+ * attachment, API `files[]` payload and webhook file field on any deployment
+ * that is not using local storage, while passing locally and in tests.
+ *
  * Key layouts that name no workspace (`kb/`, `chat/`, `copilot/`, the
  * world-readable prefixes) prove no ownership and are rejected, as is every file
- * when the execution carries no workspace at all. A storage key names a specific
- * tenant's bytes, so honoring a cross-tenant one here would make this normalizer
- * an attacker-authorable source of storage addresses. Byte-reading consumers
- * re-authorize downstream, but accepting an unowned key here would leave that
- * safety entirely to them, where a future consumer can omit it with no
- * compile-time signal.
+ * when the execution carries no workspace at all. `context` is derived from the
+ * accepted key rather than read from the payload or the URL's `?context=`, so it
+ * cannot label owned bytes with a bucket they do not live in.
  */
 function normalizeStartFile(file: unknown, workspaceId: string | undefined): UserFile | null {
   if (!isRecordLike(file) || !workspaceId) {
@@ -367,17 +400,11 @@ function normalizeStartFile(file: unknown, workspaceId: string | undefined): Use
   const size = typeof file.size === 'number' ? file.size : Number.NaN
   const type = typeof file.type === 'string' ? file.type : ''
 
-  let key = ''
+  const key = resolveOwnedStartFileKey(file.key, url, workspaceId)
   let context: string | undefined
-
-  if (url && isInternalFileUrl(url)) {
+  if (key) {
     try {
-      const parsed = parseInternalFileUrl(url)
-      if (extractWorkspaceIdFromStorageKey(parsed.key) !== workspaceId) {
-        return null
-      }
-      key = parsed.key
-      context = parsed.context
+      context = inferContextFromKey(key)
     } catch {
       return null
     }

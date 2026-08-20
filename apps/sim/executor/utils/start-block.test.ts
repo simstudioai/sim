@@ -165,7 +165,7 @@ describe('start-block utilities', () => {
     ])
   })
 
-  it.concurrent('drops caller-supplied storage keys that no internal URL backs', () => {
+  it.concurrent('drops a storage key naming another workspace, whatever URL carries it', () => {
     const block = createBlock('start_trigger', 'start')
     const resolution = {
       blockId: 'start',
@@ -194,7 +194,90 @@ describe('start-block utilities', () => {
     expect(output.files).toBeUndefined()
   })
 
-  it.concurrent('derives the storage key from an internal URL this workspace owns', () => {
+  /**
+   * The server-side uploader for run inputs returns a *presigned cloud* URL
+   * whenever object storage is configured, whose path is the bucket key rather
+   * than `/api/files/serve/...`. A URL-only ownership rule therefore drops every
+   * chat attachment, API `files[]` payload and webhook file field on any
+   * deployment not using local storage — silently, because normalization is
+   * all-or-nothing — while passing locally and under vitest, where the uploader
+   * falls back to an internal URL.
+   */
+  it.concurrent('keeps an owned execution file carried by a presigned cloud URL', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+    const key = `execution/${WORKSPACE_ID}/wf_1/exec_1/report.pdf`
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'report.pdf',
+            url: `https://bucket.s3.us-east-1.amazonaws.com/${key}?X-Amz-Signature=abc`,
+            size: 2048,
+            type: 'application/pdf',
+            key,
+            context: 'execution',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toEqual([
+      expect.objectContaining({ id: 'file_1', key, context: 'execution' }),
+    ])
+  })
+
+  /**
+   * `context` selects the bucket a byte read targets, so it is derived from the
+   * accepted key rather than read from the payload or the URL's `?context=`.
+   * Otherwise an owned key could be labelled with a world-readable context.
+   */
+  it.concurrent('derives context from the key, ignoring a caller-supplied one', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+    const key = `execution/${WORKSPACE_ID}/wf_1/exec_1/report.pdf`
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'report.pdf',
+            url: `/api/files/serve/${encodeURIComponent(key)}?context=profile-pictures`,
+            size: 2048,
+            type: 'application/pdf',
+            key,
+            context: 'profile-pictures',
+          },
+        ],
+      },
+    })
+
+    expect(output.files).toEqual([expect.objectContaining({ context: 'execution' })])
+  })
+
+  /**
+   * A payload whose `key` and `url` disagree is refused rather than resolved in
+   * the caller's favour. Both fields are caller-authored, so picking the one
+   * that happens to pass would make a forged key free to send alongside a real
+   * URL; a genuine uploader always writes the two consistently, so nothing
+   * legitimate is refused.
+   */
+  it.concurrent('drops a file whose supplied key contradicts its internal URL', () => {
     const block = createBlock('start_trigger', 'start')
     const resolution = {
       blockId: 'start',
@@ -220,16 +303,35 @@ describe('start-block utilities', () => {
       },
     })
 
-    expect(output.files).toEqual([
-      {
-        id: 'file_1',
-        name: 'screenshot.png',
-        url: EXECUTION_FILE_URL,
-        size: 243289,
-        type: 'image/png',
-        key: EXECUTION_FILE_KEY,
-        context: 'execution',
+    expect(output.files).toBeUndefined()
+  })
+
+  it.concurrent('derives the storage key from an internal URL when none is supplied', () => {
+    const block = createBlock('start_trigger', 'start')
+    const resolution = {
+      blockId: 'start',
+      block,
+      path: StartBlockPath.UNIFIED,
+    } as const
+
+    const output = buildStartBlockOutput({
+      resolution,
+      workspaceId: WORKSPACE_ID,
+      workflowInput: {
+        files: [
+          {
+            id: 'file_1',
+            name: 'screenshot.png',
+            url: EXECUTION_FILE_URL,
+            size: 243289,
+            type: 'image/png',
+          },
+        ],
       },
+    })
+
+    expect(output.files).toEqual([
+      expect.objectContaining({ id: 'file_1', name: 'screenshot.png', context: 'execution' }),
     ])
   })
 
