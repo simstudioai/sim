@@ -372,6 +372,22 @@ describe('bitbucket maxItems cap', () => {
     expect(syncContext.listingCapped).toBeUndefined()
   })
 
+  it('flags the listing capped when the code walk ends on the cap and the pull request phase never runs', async () => {
+    mockApi([[/\/src\//, () => jsonResponse({ values: [fileEntry('a.md'), fileEntry('b.md')] })]])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await bitbucketConnector.listDocuments(
+      ACCESS_TOKEN,
+      { ...CONFIG, contentTypes: 'all', maxItems: '2' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(2)
+    expect(result.hasMore).toBe(false)
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
   it('flags the listing capped when the cap lands on a page boundary with more to come', async () => {
     mockApi([
       [

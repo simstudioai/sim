@@ -715,19 +715,24 @@ function pendingDirectories(syncContext: Record<string, unknown> | undefined): s
  * syncContext and flagging `listingCapped` when the cap truncates the listing.
  * Skipped (oversized) documents ride along without consuming the cap.
  *
- * `sourceHasMore` is whether Bitbucket still had content beyond this page — a
- * `next` link, or directories still queued on the frontier. It is required because
- * `takeIndexableWithinCap` reports `capReached` as soon as the running total
- * *equals* maxItems, which is also true of a listing that ended at exactly that
- * count. Setting `listingCapped` there would suppress deletion reconciliation for
- * a listing that was in fact complete, leaving upstream-deleted files indexed
- * indefinitely, so the flag is set only when the cap actually withheld something.
+ * `moreToEnumerate` is whether anything the connector was configured to list
+ * remains unlisted beyond this page: a `next` link, directories still queued on
+ * the frontier, or a later phase that the cap is about to stop us reaching.
+ *
+ * It is required because `takeIndexableWithinCap` reports `capReached` as soon as
+ * the running total *equals* maxItems, which is also true of a listing that ended
+ * at exactly that count. Setting `listingCapped` unconditionally there suppresses
+ * deletion reconciliation for a complete listing; not setting it when a later
+ * phase is skipped is worse still, because the engine would treat the run as a
+ * complete enumeration and hard-delete that phase's previously indexed documents.
+ * `maxItems` is shared across phases, so the code walk ending exactly on the cap
+ * is precisely when the pull-request phase never runs.
  */
 function applyMaxItemsCap(
   documents: ExternalDocument[],
   maxItems: number,
   syncContext: Record<string, unknown> | undefined,
-  sourceHasMore: boolean
+  moreToEnumerate: boolean
 ): { documents: ExternalDocument[]; capped: boolean } {
   if (maxItems <= 0) return { documents, capped: false }
   const alreadyIndexed = (syncContext?.totalDocsFetched as number) ?? 0
@@ -743,7 +748,7 @@ function applyMaxItemsCap(
   )
   if (syncContext) {
     syncContext.totalDocsFetched = alreadyIndexed + indexableCount
-    const withheld = taken.length < documents.length || sourceHasMore
+    const withheld = taken.length < documents.length || moreToEnumerate
     if (capReached && withheld) syncContext.listingCapped = true
   }
   return { documents: taken, capped: capReached }
@@ -933,7 +938,7 @@ export const bitbucketConnector: ConnectorConfig = {
         documents,
         maxItems,
         syncContext,
-        Boolean(page.next) || frontier.length > 0
+        Boolean(page.next) || frontier.length > 0 || Boolean(nextPhase('code', choice))
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
