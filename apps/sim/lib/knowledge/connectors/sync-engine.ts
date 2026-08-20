@@ -18,6 +18,10 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import {
+  connectorFailureBackoffMinutes,
+  MAX_CONSECUTIVE_FAILURES,
+} from '@/lib/knowledge/connectors/sync-limits'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { hardDeleteDocuments, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
@@ -90,7 +94,6 @@ const QUEUED_DISPATCH_GRACE_MINUTES = Math.ceil(
     QUEUE_CONTENTION_FACTOR
 )
 const RETRY_WINDOW_DAYS = 7
-const MAX_CONSECUTIVE_FAILURES = 10
 
 /** The processing state the stuck-document sweep decides on, one row at a time. */
 export interface StuckDocumentSweepCandidate {
@@ -472,6 +475,28 @@ const SUSPECT_COLLAPSE_MIN_OWNED_DOCS = 50
  */
 const SUSPECT_COLLAPSE_MAX_RATIO = 0.1
 
+/**
+ * How many listed documents count toward the suspect-listing ratio.
+ *
+ * `seenExternalIds` is populated before the classification loop short-circuits
+ * user-excluded documents, so it counts them; the owned-document denominator
+ * does not, because excluded rows are filtered out of the live read. Comparing
+ * the two directly inflates the ratio and silently weakens the collapse guard —
+ * with 1,000 owned / 200 excluded, a source returning 90 documents stopped
+ * tripping `collapsed` entirely. Subtracting the excluded documents that were
+ * listed puts both sides back on the same population.
+ */
+export function countNonExcludedListed(
+  seenExternalIds: ReadonlySet<string>,
+  excludedExternalIds: ReadonlySet<unknown>
+): number {
+  let excludedAndListed = 0
+  for (const externalId of seenExternalIds) {
+    if (excludedExternalIds.has(externalId)) excludedAndListed++
+  }
+  return seenExternalIds.size - excludedAndListed
+}
+
 /** Why a listing is considered untrustworthy evidence of deletion. */
 export type SuspectListingReason = 'empty' | 'collapsed'
 
@@ -521,8 +546,10 @@ export function classifySuspectListing(
  * consecutive sync, so a single transient upstream fault can never remove
  * documents — not even reversibly, since a soft delete hides them from search
  * immediately. A genuinely emptied source keeps reconciling: its second sync
- * corroborates the first, tombstones everything, and the third sync completes
- * the existing two-strike purge.
+ * corroborates the first and tombstones everything, and a later sync — once the
+ * tombstoned set is again absent — completes the two-strike purge, subject to
+ * {@link capReconciliationDeletions}, which holds a pass whose deletion count
+ * exceeds the per-sync blast-radius cap.
  *
  * A forced `fullSync` overrides the guard, matching its existing meaning
  * elsewhere here — an explicit human request to reconcile against this listing
@@ -542,6 +569,109 @@ export function evaluateListingSafety(
     previous?.trustworthy && classifySuspectListing(previous.listedCount, previous.ownedCount)
   )
   return { reason, blocked: !corroborated, corroborated }
+}
+
+/**
+ * The document count to attribute to the previous sync when reconstructing its
+ * listing.
+ *
+ * `lastSyncDocCount` counts only *visible* documents, so after a pass that
+ * tombstoned a corpus it collapses toward 0 — and an owned count of 0 can never
+ * be classified as suspect, so corroboration silently became impossible and the
+ * two-strike purge jammed shut. Taking the larger of the recorded count and what
+ * the connector owns right now (tombstones included) restores the intent: the
+ * previous run is judged against a corpus at least as large as the one still
+ * present.
+ */
+export function resolvePreviousOwnedCount(
+  lastSyncDocCount: number | null | undefined,
+  ownedDocCount: number
+): number {
+  return Math.max(lastSyncDocCount ?? 0, ownedDocCount)
+}
+
+/**
+ * Fraction of a connector's owned documents that a single reconciliation pass
+ * may remove before the pass is held.
+ *
+ * {@link SUSPECT_COLLAPSE_MAX_RATIO} only questions a listing that returns under
+ * 10% of the corpus, which leaves every partial-outage shape between 10% and
+ * 100% completely unguarded: a source that serves half its documents produces a
+ * listing that looks perfectly healthy to every shape guard, tombstones the
+ * missing half, and hard-deletes it on the next pass. 25% sits well above
+ * ordinary housekeeping (a quarter of a corpus removed between two syncs is
+ * already extraordinary) and well below the outage shapes seen in the wild.
+ */
+const RECONCILIATION_DELETE_MAX_RATIO = 0.25
+
+/**
+ * Deletions always permitted regardless of ratio.
+ *
+ * The ratio is meaningless on a small corpus for the same reason
+ * {@link SUSPECT_COLLAPSE_MIN_OWNED_DOCS} exists — removing 20 of 40 documents
+ * is ordinary editing — and a floor below the collapse guard's own 50-document
+ * threshold keeps the cap from being the binding constraint on corpora that
+ * guard was written to ignore.
+ */
+const RECONCILIATION_DELETE_MIN_ABSOLUTE = 25
+
+/** Per-connector tuning for the reconciliation blast-radius cap. */
+export interface ReconciliationDeleteCapOverride {
+  maxRatio?: number
+  minAbsolute?: number
+}
+
+/**
+ * Maximum number of documents one reconciliation pass may remove.
+ */
+export function resolveReconciliationDeleteCap(
+  ownedDocCount: number,
+  override?: ReconciliationDeleteCapOverride
+): number {
+  const maxRatio = override?.maxRatio ?? RECONCILIATION_DELETE_MAX_RATIO
+  const minAbsolute = override?.minAbsolute ?? RECONCILIATION_DELETE_MIN_ABSOLUTE
+  return Math.max(minAbsolute, Math.floor(Math.max(ownedDocCount, 0) * maxRatio))
+}
+
+/**
+ * Caps the blast radius of one reconciliation pass.
+ *
+ * The shape guards above all reason about listings that look *broken*. Two
+ * confirmed data-loss paths produce listings that look perfectly healthy and so
+ * pass every one of them: a partial outage returning half a corpus (above the
+ * 10% collapse threshold), and a change to a connector's externalId derivation,
+ * which yields a complete, correct listing of entirely new keys — under which
+ * every stored document is "absent" and every listed one is new.
+ *
+ * The hold is deliberately all-or-nothing rather than a truncation to the cap:
+ * deleting up to the cap still destroys data, and leaves the knowledge base in a
+ * state no operator asked for and no later sync can reason about. Holding
+ * everything keeps the corpus intact and self-heals as soon as the source does.
+ *
+ * `fullSync` bypasses the cap, matching its meaning everywhere else here — an
+ * explicit human request to reconcile against this listing right now, which is
+ * the documented escape hatch for a genuine mass deletion.
+ */
+export function capReconciliationDeletions(
+  softDeleteIds: string[],
+  hardDeleteIds: string[],
+  ownedDocCount: number,
+  fullSync: boolean | undefined,
+  override?: ReconciliationDeleteCapOverride
+): {
+  softDeleteIds: string[]
+  hardDeleteIds: string[]
+  held: boolean
+  requested: number
+  cap: number
+} {
+  const requested = new Set([...softDeleteIds, ...hardDeleteIds]).size
+  const cap = resolveReconciliationDeleteCap(ownedDocCount, override)
+
+  if (fullSync || requested <= cap) {
+    return { softDeleteIds, hardDeleteIds, held: false, requested, cap }
+  }
+  return { softDeleteIds: [], hardDeleteIds: [], held: true, requested, cap }
 }
 
 /**
@@ -618,8 +748,14 @@ export function shouldRunIncrementalSync(
   )
 }
 
-/** A stored document's identity, as read back for reconciliation. */
-type ReconciliationDoc = { id: string; externalId: string | null }
+/**
+ * A stored document's identity, as read back for reconciliation.
+ *
+ * `userExcluded` is optional because only the tombstoned read projects it — the
+ * live read filters excluded rows out in SQL, so an absent flag there means
+ * "not excluded" and the deletion guards below read the same either way.
+ */
+type ReconciliationDoc = { id: string; externalId: string | null; userExcluded?: boolean }
 
 /**
  * Partitions a connector's stored documents against the current listing into
@@ -642,6 +778,15 @@ type ReconciliationDoc = { id: string; externalId: string | null }
  *
  * A forced `fullSync` is an explicit request to reconcile right now: it skips
  * the grace period and purges everything absent in one pass.
+ *
+ * A `userExcluded` document is never deletion-eligible — the user asked to keep
+ * the row — but it stays fully resurrection-eligible. The distinction matters:
+ * `userExcluded` and `enabled` gate visibility on their own in every retrieval
+ * path, so resurrecting one never re-indexes it; it only clears `deletedAt`.
+ * Withholding resurrection instead would strand the row permanently, since the
+ * connector-document listing and the restore mutation both require
+ * `deletedAt IS NULL` — leaving it invisible, unrestorable, and (by this very
+ * guard) undeletable.
  */
 export function partitionSyncReconciliation(
   existingDocs: ReconciliationDoc[],
@@ -657,10 +802,10 @@ export function partitionSyncReconciliation(
     )
     .map((d) => d.id)
   const liveMissingIds = existingDocs
-    .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
+    .filter((d) => d.externalId && !d.userExcluded && !seenExternalIds.has(d.externalId))
     .map((d) => d.id)
   const tombstonedStillMissingIds = tombstonedDocs
-    .filter((d) => d.externalId && !seenExternalIds.has(d.externalId))
+    .filter((d) => d.externalId && !d.userExcluded && !seenExternalIds.has(d.externalId))
     .map((d) => d.id)
 
   if (fullSync) {
@@ -866,7 +1011,9 @@ export async function executeSync(
 
   if (lockResult.length === 0) {
     logger.info('Sync already in progress, skipping', { connectorId })
-    return result
+    // Reported as an error so the task wrapper's `success: !result.error` does not
+    // present a skipped run as a successful zero-document sync.
+    return { ...result, error: 'sync_in_progress' }
   }
 
   const syncLogId = generateId()
@@ -877,8 +1024,6 @@ export async function executeSync(
     status: 'started',
     startedAt: syncStartedAt,
   })
-
-  let syncExitedCleanly = false
 
   try {
     /**
@@ -1037,6 +1182,10 @@ export async function executeSync(
         .where(
           and(
             eq(document.connectorId, connectorId),
+            // A user's explicit "keep but don't index" choice must never make a
+            // document eligible for reconciliation deletion: it is deliberately
+            // never refreshed, so its absence from a listing says nothing.
+            eq(document.userExcluded, false),
             isNull(document.archivedAt),
             isNull(document.deletedAt)
           )
@@ -1052,6 +1201,9 @@ export async function executeSync(
           externalId: document.externalId,
           contentHash: document.contentHash,
           deletedAt: document.deletedAt,
+          // Gates hard deletion in partitionSyncReconciliation without gating
+          // resurrection — see that function's contract.
+          userExcluded: document.userExcluded,
         })
         .from(document)
         .where(
@@ -1353,15 +1505,20 @@ export async function executeSync(
      * healthy syncs pay nothing and no existing gate is loosened.
      */
     const ownedDocCount = existingDocs.length + tombstonedDocs.length
-    if (reconcileDeletionsAllowed && classifySuspectListing(seenExternalIds.size, ownedDocCount)) {
+    /**
+     * Counted over the same population as `ownedDocCount`: excluded documents
+     * are absent from the live read, so they must not inflate the numerator.
+     */
+    const listedDocCount = countNonExcludedListed(seenExternalIds, excludedExternalIds)
+    if (reconcileDeletionsAllowed && classifySuspectListing(listedDocCount, ownedDocCount)) {
       const previousObservation = await loadPreviousListingObservation(
         connectorId,
         syncLogId,
-        connector.lastSyncDocCount ?? ownedDocCount,
+        resolvePreviousOwnedCount(connector.lastSyncDocCount, ownedDocCount),
         !connectorConfig.supportsIncrementalSync || connector.syncMode === 'full'
       )
       const listingSafety = evaluateListingSafety(
-        seenExternalIds.size,
+        listedDocCount,
         ownedDocCount,
         previousObservation,
         options?.fullSync
@@ -1370,7 +1527,8 @@ export async function executeSync(
         connectorId,
         connectorType: connector.connectorType,
         reason: listingSafety.reason,
-        listedDocs: seenExternalIds.size,
+        listedDocs: listedDocCount,
+        listedDocsIncludingExcluded: seenExternalIds.size,
         ownedDocs: ownedDocCount,
         liveDocs: existingDocs.length,
         tombstonedDocs: tombstonedDocs.length,
@@ -1384,8 +1542,32 @@ export async function executeSync(
       }
     }
 
-    const gatedSoftDeleteIds = reconcileDeletionsAllowed ? softDeleteIds : []
-    const gatedHardDeleteIds = reconcileDeletionsAllowed ? hardDeleteIds : []
+    /**
+     * Last word after every shape guard: even a listing that looks entirely
+     * healthy may not remove an implausible share of the corpus in one pass.
+     * Applied here so it covers both the soft-delete UPDATE and the
+     * `hardDeleteDocuments` call below.
+     */
+    const capped = capReconciliationDeletions(
+      reconcileDeletionsAllowed ? softDeleteIds : [],
+      reconcileDeletionsAllowed ? hardDeleteIds : [],
+      ownedDocCount,
+      options?.fullSync
+    )
+    if (capped.held) {
+      logger.error('Reconciliation deletions held — exceeds per-sync blast-radius cap', {
+        connectorId,
+        connectorType: connector.connectorType,
+        requested: capped.requested,
+        cap: capped.cap,
+        ownedDocCount,
+        listedCount: listedDocCount,
+        syncRunId: syncContext.syncRunId,
+      })
+    }
+
+    const gatedSoftDeleteIds = capped.softDeleteIds
+    const gatedHardDeleteIds = capped.hardDeleteIds
 
     const candidateIds = [
       ...new Set([...resurrectIds, ...gatedSoftDeleteIds, ...gatedHardDeleteIds]),
@@ -1643,7 +1825,6 @@ export async function executeSync(
       )
 
     logger.info('Sync completed', { connectorId, ...result })
-    syncExitedCleanly = true
     return result
   } catch (error) {
     if (error instanceof ConnectorDeletedException) {
@@ -1672,7 +1853,6 @@ export async function executeSync(
       }
 
       result.error = 'Connector deleted during sync'
-      syncExitedCleanly = true
       return result
     }
 
@@ -1685,7 +1865,7 @@ export async function executeSync(
       const now = new Date()
       const failures = (connector.consecutiveFailures ?? 0) + 1
       const disabled = failures >= MAX_CONSECUTIVE_FAILURES
-      const backoffMinutes = Math.min(failures * 30, 1440)
+      const backoffMinutes = connectorFailureBackoffMinutes(failures)
       const nextSync = disabled ? null : new Date(now.getTime() + backoffMinutes * 60 * 1000)
 
       if (disabled) {
@@ -1699,7 +1879,6 @@ export async function executeSync(
         .update(knowledgeConnector)
         .set({
           status: disabled ? 'disabled' : 'error',
-          lastSyncAt: now,
           lastSyncError: disabled
             ? 'Connector disabled after repeated sync failures. Please reconnect.'
             : errorMessage,
@@ -1722,27 +1901,7 @@ export async function executeSync(
     }
 
     result.error = errorMessage
-    syncExitedCleanly = true
     return result
-  } finally {
-    if (!syncExitedCleanly) {
-      try {
-        await db
-          .update(knowledgeConnector)
-          .set({
-            status: 'error',
-            lastSyncError: 'Sync terminated unexpectedly',
-            updatedAt: new Date(),
-          })
-          .where(eq(knowledgeConnector.id, connectorId))
-        logger.warn('Reset stale syncing status in finally block', { connectorId })
-      } catch (finallyError) {
-        logger.warn('Failed to reset syncing status in finally block', {
-          connectorId,
-          error: toError(finallyError).message,
-        })
-      }
-    }
   }
 }
 

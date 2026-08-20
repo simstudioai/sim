@@ -888,3 +888,262 @@ describe('isStuckDocumentSweepEligible', () => {
     ).toBe(false)
   })
 })
+
+describe('resolveReconciliationDeleteCap', () => {
+  it('scales with the owned corpus above the absolute floor', async () => {
+    const { resolveReconciliationDeleteCap } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(resolveReconciliationDeleteCap(1000)).toBe(250)
+    expect(resolveReconciliationDeleteCap(400)).toBe(100)
+    expect(resolveReconciliationDeleteCap(401)).toBe(100)
+  })
+
+  it('never drops below the absolute floor on a small corpus', async () => {
+    const { resolveReconciliationDeleteCap } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(resolveReconciliationDeleteCap(0)).toBe(25)
+    expect(resolveReconciliationDeleteCap(4)).toBe(25)
+    expect(resolveReconciliationDeleteCap(40)).toBe(25)
+    expect(resolveReconciliationDeleteCap(100)).toBe(25)
+  })
+
+  it('honours an override that raises or lowers the cap', async () => {
+    const { resolveReconciliationDeleteCap } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    expect(resolveReconciliationDeleteCap(1000, { maxRatio: 0.9 })).toBe(900)
+    expect(resolveReconciliationDeleteCap(1000, { maxRatio: 0.01, minAbsolute: 0 })).toBe(10)
+    expect(resolveReconciliationDeleteCap(10, { minAbsolute: 1, maxRatio: 0.25 })).toBe(2)
+  })
+})
+
+describe('capReconciliationDeletions', () => {
+  const ids = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, i) => `${prefix}-${i}`)
+
+  it('passes a request exactly at the cap through untouched', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const soft = ids('soft', 250)
+    const result = capReconciliationDeletions(soft, [], 1000, false)
+
+    expect(result.held).toBe(false)
+    expect(result.cap).toBe(250)
+    expect(result.requested).toBe(250)
+    expect(result.softDeleteIds).toEqual(soft)
+  })
+
+  it('holds a request one document over the cap', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = capReconciliationDeletions(ids('soft', 251), [], 1000, false)
+
+    expect(result.held).toBe(true)
+    expect(result.requested).toBe(251)
+  })
+
+  it('returns empty arrays — not the inputs — when held', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = capReconciliationDeletions(ids('soft', 300), ids('hard', 300), 1000, false)
+
+    expect(result.held).toBe(true)
+    expect(result.softDeleteIds).toEqual([])
+    expect(result.hardDeleteIds).toEqual([])
+  })
+
+  it('counts the union of soft and hard deletions against one cap', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const overlapping = ids('doc', 200)
+    // Same ids on both lists must count once, not twice.
+    expect(capReconciliationDeletions(overlapping, overlapping, 1000, false).held).toBe(false)
+    expect(capReconciliationDeletions(ids('a', 200), ids('b', 200), 1000, false).held).toBe(true)
+  })
+
+  it('is bypassed by a forced fullSync', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const hard = ids('hard', 1000)
+    const result = capReconciliationDeletions([], hard, 1000, true)
+
+    expect(result.held).toBe(false)
+    expect(result.hardDeleteIds).toEqual(hard)
+  })
+
+  it('applies the small-corpus floor rather than the ratio', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(capReconciliationDeletions(ids('soft', 25), [], 8, false).held).toBe(false)
+    expect(capReconciliationDeletions(ids('soft', 26), [], 8, false).held).toBe(true)
+  })
+
+  it('honours an override that raises or lowers the cap', async () => {
+    const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(capReconciliationDeletions(ids('s', 400), [], 1000, false, { maxRatio: 0.5 }).held).toBe(
+      false
+    )
+    expect(
+      capReconciliationDeletions(ids('s', 30), [], 1000, false, {
+        maxRatio: 0.01,
+        minAbsolute: 5,
+      }).held
+    ).toBe(true)
+  })
+
+  describe('confirmed data-loss shapes', () => {
+    it('holds a partial outage that returns half a 1000-document corpus', async () => {
+      const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+      const result = capReconciliationDeletions(ids('missing', 500), [], 1000, false)
+
+      expect(result.held).toBe(true)
+      expect(result.softDeleteIds).toEqual([])
+      expect(result.hardDeleteIds).toEqual([])
+    })
+
+    it('holds an externalId derivation change that orphans the whole corpus', async () => {
+      const { capReconciliationDeletions } = await import('@/lib/knowledge/connectors/sync-engine')
+
+      const result = capReconciliationDeletions(ids('old-key', 1000), [], 1000, false)
+
+      expect(result.held).toBe(true)
+      expect(result.softDeleteIds).toEqual([])
+      expect(result.hardDeleteIds).toEqual([])
+    })
+  })
+})
+
+describe('resolvePreviousOwnedCount', () => {
+  it('falls back to the current owned count when the recorded count collapsed', async () => {
+    const { resolvePreviousOwnedCount } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    // lastSyncDocCount excludes tombstones, so a soft-delete pass drives it to 0.
+    expect(resolvePreviousOwnedCount(0, 500)).toBe(500)
+    expect(resolvePreviousOwnedCount(null, 500)).toBe(500)
+    expect(resolvePreviousOwnedCount(undefined, 500)).toBe(500)
+  })
+
+  it('keeps the recorded count when it is the larger observation', async () => {
+    const { resolvePreviousOwnedCount } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(resolvePreviousOwnedCount(800, 500)).toBe(800)
+    expect(resolvePreviousOwnedCount(500, 500)).toBe(500)
+  })
+})
+
+describe('partitionSyncReconciliation — user-excluded documents', () => {
+  const doc = (id: string) => ({ id, externalId: id })
+  const excluded = (id: string) => ({ id, externalId: id, userExcluded: true })
+  const noFailures = new Set<string>()
+
+  it('never hard-deletes an excluded document that is already pending removal', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [],
+      [excluded('kept'), doc('gone')],
+      new Set(),
+      noFailures,
+      undefined
+    )
+
+    expect(result.hardDeleteIds).toEqual(['gone'])
+    expect(result.hardDeleteIds).not.toContain('kept')
+  })
+
+  it('still resurrects an excluded pending-removal document that reappears', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    /**
+     * The assertion that rejects the select-level filter. Dropping excluded rows
+     * from the tombstoned read would strand this document permanently: the
+     * connector-document listing and the restore mutation both require
+     * `deletedAt IS NULL`, so resurrection is its only route back.
+     */
+    const result = partitionSyncReconciliation(
+      [],
+      [excluded('kept')],
+      new Set(['kept']),
+      noFailures,
+      undefined
+    )
+
+    expect(result.resurrectIds).toEqual(['kept'])
+    expect(result.hardDeleteIds).toEqual([])
+  })
+
+  it('never soft-deletes an excluded live document absent from the listing', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [excluded('kept'), doc('gone')],
+      [],
+      new Set(),
+      noFailures,
+      undefined
+    )
+
+    expect(result.softDeleteIds).toEqual(['gone'])
+  })
+
+  it('exempts excluded documents from a forced fullSync purge too', async () => {
+    const { partitionSyncReconciliation } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    const result = partitionSyncReconciliation(
+      [excluded('kept-live'), doc('gone-live')],
+      [excluded('kept-tombstoned'), doc('gone-tombstoned')],
+      new Set(),
+      noFailures,
+      true
+    )
+
+    expect(result.hardDeleteIds).toEqual(['gone-live', 'gone-tombstoned'])
+  })
+})
+
+describe('countNonExcludedListed', () => {
+  it('subtracts the excluded documents that appeared in the listing', async () => {
+    const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(countNonExcludedListed(new Set(['a', 'b', 'c']), new Set(['b']))).toBe(2)
+    expect(countNonExcludedListed(new Set(['a', 'b']), new Set(['a', 'b']))).toBe(0)
+  })
+
+  it('ignores excluded documents that were not listed', async () => {
+    const { countNonExcludedListed } = await import('@/lib/knowledge/connectors/sync-engine')
+
+    expect(countNonExcludedListed(new Set(['a']), new Set(['x', 'y', 'z']))).toBe(1)
+    expect(countNonExcludedListed(new Set(), new Set(['x']))).toBe(0)
+  })
+
+  it('keeps the suspect-listing ratio on one population', async () => {
+    const { classifySuspectListing, countNonExcludedListed } = await import(
+      '@/lib/knowledge/connectors/sync-engine'
+    )
+
+    /**
+     * The shape the asymmetry hid: a connector owning 1,000 documents of which
+     * 200 are user-excluded, whose source returns 90 — 20 of them excluded.
+     * The denominator counts only the 800 non-excluded owned documents, so
+     * comparing the raw listed count (90) against it misses the collapse,
+     * while the symmetric count (70) catches it.
+     */
+    const ownedDocCount = 800
+    const listed = new Set(Array.from({ length: 90 }, (_, i) => `ext-${i}`))
+    const excludedExternalIds = new Set(Array.from({ length: 20 }, (_, i) => `ext-${i}`))
+
+    const listedDocCount = countNonExcludedListed(listed, excludedExternalIds)
+
+    expect(listedDocCount).toBe(70)
+    expect(classifySuspectListing(listedDocCount, ownedDocCount)).toBe('collapsed')
+    // The asymmetric numerator this replaced sees a healthy listing.
+    expect(classifySuspectListing(listed.size, ownedDocCount)).toBeNull()
+  })
+})
