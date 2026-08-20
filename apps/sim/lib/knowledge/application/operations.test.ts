@@ -104,10 +104,14 @@ describe('knowledge operation registry', () => {
       knowledgeOperations.updateTag,
       knowledgeOperations.deleteTag,
       knowledgeOperations.readTagUsage,
+      knowledgeOperations.listConnectors,
+      knowledgeOperations.readConnector,
       knowledgeOperations.createConnector,
       knowledgeOperations.updateConnector,
       knowledgeOperations.deleteConnector,
       knowledgeOperations.syncConnector,
+      knowledgeOperations.listConnectorDocuments,
+      knowledgeOperations.updateConnectorDocuments,
     ]
     for (const operation of operations) {
       expect(operation.workspaceApiKey).toBe('deny')

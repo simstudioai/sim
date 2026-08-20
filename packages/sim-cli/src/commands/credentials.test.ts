@@ -137,9 +137,11 @@ describe('credential connection commands', () => {
         type: 'service_account',
         providerId: 'zoom-service-account',
         displayName: 'Production Zoom',
-        clientId: 'client',
-        clientSecret: 'secret',
-        orgId: 'account',
+        credentials: JSON.stringify({
+          clientId: 'client',
+          clientSecret: 'secret',
+          orgId: 'account',
+        }),
       },
     })
   })

@@ -139,6 +139,15 @@ export const CLI_CONTRACT: CliContract = {
       selectAll: { boolean: true, describe: 'Apply to every document in the knowledge base' },
     },
   },
+  listKnowledgeConnectorDocuments: {
+    command: 'knowledge connectors documents list',
+  },
+  updateKnowledgeConnectorDocuments: {
+    command: 'knowledge connectors documents update',
+    flags: {
+      documentIds: { name: 'document', list: true },
+    },
+  },
   // `DELETE /workflows/[id]/deploy` is an undeploy, not a delete.
   undeployWorkflow: {
     command: 'workflows undeploy',

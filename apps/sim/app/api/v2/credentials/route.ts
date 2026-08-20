@@ -72,7 +72,14 @@ export const POST = defineV2JsonRoute({
   operation: credentialOperations.createServiceAccount,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: credentialWorkspaceErrorPolicy,
-  mapInput: ({ body }) => body,
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    providerId: body.providerId,
+    displayName: body.displayName,
+    description: body.description,
+    id: body.id,
+    ...body.credentials,
+  }),
   useCase: createServiceAccountCredentialUseCase,
   present: ({ credential, hasServiceAccountKey, role }) => ({
     data: toV2Credential({ ...credential, hasServiceAccountKey, role }),
