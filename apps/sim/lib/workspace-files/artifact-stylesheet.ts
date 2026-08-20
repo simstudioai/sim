@@ -434,6 +434,8 @@ figcaption { font-size: 0.875em; line-height: 1.4285714; color: var(--text-prima
   border-bottom: 1px solid var(--border);
 }
 .art-bar-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-right: auto; }
+/* With a chrome tab row directly beneath, the row's hairline is the divider. */
+.art-bar--tabs { border-bottom-color: transparent; }
 
 /* Multi-page set tabs — the docs' top tab row: muted labels, the current
    page in primary with a 2px underline riding the row's hairline. The row
@@ -823,7 +825,12 @@ export const SIM_ARTIFACT_SHELL = `<script>
     // the top bar (the docs' own placement), not inside the content column
     // above the h1.
     const pageTabs = page.querySelector('.page-tabs')
-    if (pageTabs) page.insertBefore(pageTabs, cols)
+    if (pageTabs) {
+      page.insertBefore(pageTabs, cols)
+      // One divider, not two: the tab row's own bottom hairline is the
+      // chrome's edge, so the bar sheds its border.
+      bar.classList.add('art-bar--tabs')
+    }
 
     // Clerk track geometry (fumadocs clerk.js): one path threading every item,
     // vertical through each and a cubic easing across depth changes.
