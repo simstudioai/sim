@@ -236,9 +236,21 @@ const entryKey = (entry: ForkMappingEntry) => forkRefKey(entry)
  * the dependents). Pure over (entry, in-session targets) so the inline render, the Sync
  * gate, and the payload build share one predicate instead of drifting copies.
  */
-function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string, string>): boolean {
+export function shouldReconfigureEntry(
+  entry: ForkMappingEntry,
+  targets: Record<string, string>
+): boolean {
   const next = targets[entryKey(entry)] ?? entry.targetId ?? ''
   if (next === '') return false
+  // A custom block pointed at a DIFFERENT block needs its inputs configured for as long as
+  // that mapping stands, not only in the session where it was picked. Every other kind can
+  // fall through to the in-session test because an unchanged mapping leaves its stored
+  // dependent values valid — a Gmail label picked under the same credential still resolves.
+  // A custom block has no such continuity: its sub-blocks are keyed by the SOURCE block's
+  // Start field ids, so under a different target they describe fields that do not exist and
+  // nothing carries over. Treating it as settled once saved is what left the fields hidden
+  // behind "no changes required" on every sync after the first.
+  if (entry.kind === 'custom-block') return next !== entry.sourceId
   return entry.suggested || next !== (entry.targetId ?? '')
 }
 

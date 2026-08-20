@@ -49,6 +49,7 @@ import {
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
 import {
   type ForkSyncController,
+  shouldReconfigureEntry,
   useForkSync,
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 
@@ -554,5 +555,73 @@ describe('useForkSync post-sync reset', () => {
     expect(get().targetFor(CREDENTIAL_ENTRY)).toBe('cred-newer')
     expect(get().reconfig[dependentKey(PARENT_FIELD)]).toBe('sheet-newer')
     expect(get().dirty).toBe(true)
+  })
+})
+
+describe('shouldReconfigureEntry', () => {
+  const entry = (overrides: Partial<ForkMappingEntry> = {}): ForkMappingEntry =>
+    ({
+      kind: 'credential',
+      sourceId: 'cred-src',
+      targetId: 'cred-tgt',
+      suggested: false,
+      ...overrides,
+    }) as ForkMappingEntry
+
+  it('is false for a settled non-custom-block mapping', () => {
+    // An unchanged credential mapping leaves its stored dependent picks valid, so its fields
+    // stay out of the way until something actually changes.
+    expect(shouldReconfigureEntry(entry(), {})).toBe(false)
+  })
+
+  it('is true for a custom block mapped to a DIFFERENT block, even once saved', () => {
+    // The regression: `parentChanged` drove the reconfigure UI off "was this edited in this
+    // session", so a saved mapping read as settled and the modal showed "no changes required"
+    // with no inputs. A custom block pointed elsewhere has sub-blocks keyed by the SOURCE
+    // block's field ids — they describe nothing on the target and nothing carries over — so it
+    // needs configuring for as long as the mapping stands, not just the session it was made in.
+    const saved = entry({
+      kind: 'custom-block',
+      sourceId: 'custom_block_prod01',
+      targetId: 'custom_block_uat0001',
+    })
+
+    expect(shouldReconfigureEntry(saved, {})).toBe(true)
+  })
+
+  it('is false for a custom block mapped to itself', () => {
+    // "Keep the same block across environments": the type never changes, so the source's own
+    // field ids still describe it and its values carry across untouched.
+    const identity = entry({
+      kind: 'custom-block',
+      sourceId: 'custom_block_prod01',
+      targetId: 'custom_block_prod01',
+    })
+
+    expect(shouldReconfigureEntry(identity, {})).toBe(false)
+  })
+
+  it('follows an in-session custom-block re-pick rather than the saved target', () => {
+    const saved = entry({
+      kind: 'custom-block',
+      sourceId: 'custom_block_prod01',
+      targetId: 'custom_block_uat0001',
+    })
+    const key = `${saved.kind}:${saved.sourceId}`
+
+    // Re-pointed back at itself in-session: nothing to configure.
+    expect(shouldReconfigureEntry(saved, { [key]: 'custom_block_prod01' })).toBe(false)
+    // Re-pointed at a third block: configure against that one.
+    expect(shouldReconfigureEntry(saved, { [key]: 'custom_block_sbx0001' })).toBe(true)
+  })
+
+  it('is false for an unmapped custom block, which the promote blocks instead', () => {
+    const unmapped = entry({
+      kind: 'custom-block',
+      sourceId: 'custom_block_prod01',
+      targetId: null,
+    })
+
+    expect(shouldReconfigureEntry(unmapped, {})).toBe(false)
   })
 })
