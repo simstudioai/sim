@@ -95,7 +95,7 @@ describe('workflow MCP deployment application commands', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     }))
-    mocks.permission.mockResolvedValue('write')
+    mocks.permission.mockResolvedValue('admin')
     mocks.updateServer.mockResolvedValue({
       success: true,
       server: { ...server, name: 'Renamed MCP' },
@@ -130,6 +130,26 @@ describe('workflow MCP deployment application commands', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.updateServer).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The body carries `isPublic`, and a public server answers
+   * `/api/mcp/serve/{serverId}` with no Sim credential — so a `write` member
+   * could otherwise remove authentication from every workflow it publishes.
+   */
+  it('refuses a write-role member, because the update can publish the server', async () => {
+    queueTableRows(schemaMock.workflowMcpServer, [server])
+    mocks.permission.mockResolvedValueOnce('write')
+
+    await expect(
+      updateWorkflowMcpDeploymentServer.execute({
+        principal,
+        input: { serverId: server.id, isPublic: true },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.updateServer).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
   })
 
   it('owns mutation attribution and semantic audit', async () => {

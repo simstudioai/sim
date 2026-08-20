@@ -36,6 +36,7 @@ const auth = {
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
+  keyExpiresAt: new Date('2027-01-01T00:00:00.000Z'),
 }
 
 function request(query = ''): NextRequest {
@@ -119,13 +120,23 @@ describe('GET /api/v2/meta', () => {
     expect(mocks.read).not.toHaveBeenCalled()
   })
 
-  it('calls the application operation with the authenticated principal', async () => {
+  /**
+   * The rollout subject and the key's expiry both come from the row
+   * `authenticateV2ApiKey` already read and validated. Passing them as input is
+   * what keeps the application layer out of the `api_key` table and off a
+   * second billing-owner lookup.
+   */
+  it('passes the credential facts the authenticator resolved, not a re-read', async () => {
     const authenticated = request()
     await GET(authenticated)
 
     expect(mocks.read).toHaveBeenCalledWith({
       principal: auth.principal,
-      input: {},
+      input: {
+        rolloutUserId: 'user-1',
+        keyType: 'personal',
+        expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+      },
       request: authenticated,
     })
   })

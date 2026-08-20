@@ -4,6 +4,7 @@ import {
   internalOrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { getValidationErrorMessage, validationErrorResponse } from '@/lib/api/server/validation'
+import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -15,14 +16,25 @@ export const credentialValidationParseOptions = {
     validationErrorResponse(error, getValidationErrorMessage(error)),
 } as const
 
+/**
+ * A provider that could not be reached while a secret was verified is `503 +
+ * Retry-After`, matching `statusForCredentialOrchestrationError` and the v2
+ * surface. All three used to disagree — 502 here, 502 there, 503 on v2 — which
+ * left the same failure looking like three different things depending on which
+ * surface the caller used, and only one of them said when to come back.
+ */
 export const internalCredentialErrorPolicy = extendInternalErrorPolicy(
   internalOrchestrationErrorPolicy,
   (error) => {
     if (!(error instanceof CredentialProviderOperationError)) return null
-    return internalErrorResponse(error.providerUnavailable ? 502 : 400, {
-      error: error.message,
-      code: error.providerErrorCode,
-    })
+    if (!error.providerUnavailable) {
+      return internalErrorResponse(400, { error: error.message, code: error.providerErrorCode })
+    }
+    return internalErrorResponse(
+      503,
+      { error: error.message, code: error.providerErrorCode },
+      { 'Retry-After': ADMISSION_RETRY_AFTER_SECONDS.toString() }
+    )
   }
 )
 

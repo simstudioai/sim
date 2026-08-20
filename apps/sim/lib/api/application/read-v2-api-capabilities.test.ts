@@ -5,19 +5,13 @@ import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getApiKeyExpiry: vi.fn(),
   isFeatureEnabled: vi.fn(),
-  resolveWorkspaceBillingPayer: vi.fn(),
 }))
 
-vi.mock('@/lib/api-key/service', () => ({ getApiKeyExpiry: mocks.getApiKeyExpiry }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mocks.isFeatureEnabled }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveWorkspaceBillingPayer: mocks.resolveWorkspaceBillingPayer,
-}))
 
+import { v2MetaOperations } from '@/lib/api/application/operations'
 import { readV2ApiCapabilities } from '@/lib/api/application/read-v2-api-capabilities'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const personalKey: Principal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
 const workspaceKey: Principal = {
@@ -29,15 +23,18 @@ const workspaceKey: Principal = {
 describe('readV2ApiCapabilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getApiKeyExpiry.mockResolvedValue(null)
     mocks.isFeatureEnabled.mockResolvedValue(true)
-    mocks.resolveWorkspaceBillingPayer.mockResolvedValue({ billedAccountUserId: 'owner-1' })
   })
 
-  it('resolves a personal key against its own user', async () => {
-    mocks.getApiKeyExpiry.mockResolvedValue(new Date('2027-01-01T00:00:00.000Z'))
-
-    const result = await readV2ApiCapabilities.execute({ principal: personalKey, input: {} })
+  it('reports the cohort of the rollout subject the authenticator resolved', async () => {
+    const result = await readV2ApiCapabilities.execute({
+      principal: personalKey,
+      input: {
+        rolloutUserId: 'user-1',
+        keyType: 'personal',
+        expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+      },
+    })
 
     expect(result).toEqual({
       v2Enabled: true,
@@ -45,39 +42,54 @@ describe('readV2ApiCapabilities', () => {
       expiresAt: new Date('2027-01-01T00:00:00.000Z'),
     })
     expect(mocks.isFeatureEnabled).toHaveBeenCalledWith('v2-api', { userId: 'user-1' })
-    expect(mocks.getApiKeyExpiry).toHaveBeenCalledWith('key-1')
-    expect(mocks.resolveWorkspaceBillingPayer).not.toHaveBeenCalled()
   })
 
   /**
    * The gate keys a workspace key on the workspace's billing owner as
-   * rollout-only context. Reporting anything else here would answer a different
-   * question than the one every other v2 route is being refused on.
+   * rollout-only context, and the authenticator has already resolved it —
+   * re-deriving it here would be the application layer reading billing to
+   * answer a question authentication already answered.
    */
-  it('resolves a workspace key against the same billing owner the gate uses', async () => {
+  it('reports a workspace key against the billing owner the authenticator carried', async () => {
     mocks.isFeatureEnabled.mockResolvedValue(false)
 
-    const result = await readV2ApiCapabilities.execute({ principal: workspaceKey, input: {} })
+    const result = await readV2ApiCapabilities.execute({
+      principal: workspaceKey,
+      input: { rolloutUserId: 'owner-1', keyType: 'workspace', expiresAt: null },
+    })
 
     expect(result).toEqual({ v2Enabled: false, keyType: 'workspace', expiresAt: null })
-    expect(mocks.resolveWorkspaceBillingPayer).toHaveBeenCalledWith('workspace-1')
     expect(mocks.isFeatureEnabled).toHaveBeenCalledWith('v2-api', { userId: 'owner-1' })
   })
 
-  it('propagates a missing billing owner as a server fault, never as a false cohort answer', async () => {
-    mocks.resolveWorkspaceBillingPayer.mockResolvedValue(null)
-
-    await expect(
-      readV2ApiCapabilities.execute({ principal: workspaceKey, input: {} })
-    ).rejects.toThrow('Workspace workspace-1 is missing its billing owner')
-  })
-
-  it('refuses a principal that is not an API key', async () => {
+  /**
+   * `v2ApiKeyAuth` can only ever build an API-key principal, so this branch is
+   * a wiring bug rather than a refusal a caller can provoke. It must not render
+   * as a `403`: the operation publishes none, and a codeless one would name no
+   * remedy from `FORBIDDEN_DETAIL_CODES`.
+   */
+  it('treats an impossible principal kind as an invariant failure, not a forbidden', async () => {
     const session: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
 
-    await expect(
-      readV2ApiCapabilities.execute({ principal: session, input: {} })
-    ).rejects.toBeInstanceOf(OrchestrationError)
-    expect(mocks.getApiKeyExpiry).not.toHaveBeenCalled()
+    const error = await readV2ApiCapabilities
+      .execute({
+        principal: session,
+        input: { rolloutUserId: 'user-1', keyType: 'personal', expiresAt: null },
+      })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toContain('meta.capabilities.read')
+    expect(error).not.toHaveProperty('code', 'forbidden')
+    expect(mocks.isFeatureEnabled).not.toHaveBeenCalled()
+  })
+
+  it('declares its principal policy as frozen data rather than leaving it implicit', () => {
+    expect(v2MetaOperations.read).toMatchObject({
+      id: 'meta.capabilities.read',
+      principalKinds: ['personal_api_key', 'workspace_api_key'],
+    })
+    expect(Object.isFrozen(v2MetaOperations.read)).toBe(true)
+    expect(Object.isFrozen(v2MetaOperations.read.principalKinds)).toBe(true)
   })
 })
