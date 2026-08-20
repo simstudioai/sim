@@ -1579,10 +1579,13 @@ async function processScheduleItem(
         error,
         { acceptance, jobId: scheduleJobId }
       )
-      if (acceptance !== 'rejected') {
-        carrierObservedOrLookupUncertain = true
-        return
-      }
+      /**
+       * The queue may have accepted the job before the response was lost, and
+       * the job id is deterministic, so retrying could double-dispatch the
+       * occurrence. Leave the claim in place and let the next tick reconcile
+       * against whatever carrier actually exists.
+       */
+      if (acceptance !== 'rejected') return
       await handleClaimedScheduleSetupFailure(
         schedule,
         requestId,

@@ -140,25 +140,18 @@ describe('stale execution cleanup deadline grace', () => {
         totalDurationMs: { toSQL: () => { sql: string; params: unknown[] } }
         executionData: { toSQL: () => { sql: string; params: unknown[] } }
       }
-      const errorExpression = update.executionData.toSQL()
-      const staleDurationExpression = errorExpression.params.find(
-        (value): value is { toSQL: () => { sql: string; params: unknown[] } } =>
-          typeof value === 'object' &&
-          value !== null &&
-          'toSQL' in value &&
-          value.toSQL().sql.includes('EXTRACT(EPOCH')
-      )
       const totalDurationLeaves = flattenSqlParams(update.totalDurationMs.toSQL())
+      const renderedError = renderSql(update.executionData)
+      const errorLeaves = collectSqlParams(update.executionData)
 
-      expect(errorExpression.sql).toContain('CASE')
-      expect(errorExpression.sql).toContain('IS NOT NULL')
-      expect(errorExpression.params).toContain(workflowExecutionLogs.executionDeadlineAt)
-      expect(errorExpression.params).toContain('Execution timed out')
-      expect(errorExpression.params).toContain(
-        'Execution terminated: worker timeout or crash after '
-      )
-      expect(staleDurationExpression?.toSQL().sql).toContain('ROUND')
-      expect(staleDurationExpression?.toSQL().params).toContain(workflowExecutionLogs.startedAt)
+      expect(renderedError).toContain('CASE')
+      expect(renderedError).toContain('IS NOT NULL')
+      expect(renderedError).toContain('ROUND')
+      expect(renderedError).toContain('EXTRACT(EPOCH')
+      expect(errorLeaves).toContain(workflowExecutionLogs.executionDeadlineAt)
+      expect(errorLeaves).toContain('Execution timed out')
+      expect(errorLeaves).toContain('Execution terminated: worker timeout or crash after ')
+      expect(errorLeaves).toContain(workflowExecutionLogs.startedAt)
       expect(totalDurationLeaves).toContain(2_147_483_647)
       expect(totalDurationLeaves).toContain(workflowExecutionLogs.startedAt)
       expect(totalDurationLeaves).toContainEqual(new Date('2026-08-03T12:10:00.000Z'))

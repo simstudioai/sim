@@ -178,6 +178,21 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         EXTRACT(EPOCH FROM (${cleanupTimestamp} - ${workflowExecutionLogs.startedAt})) / 60
       )::integer`
       const totalDurationMs = elapsedDurationMsSql(now)
+      const staleDurationError = sql`${'Execution terminated: worker timeout or crash after '}::text
+        || ${staleDurationMinutes}::text
+        || ' minutes'`
+      /**
+       * A `redacting` row is never swept by the deadline rule, so the deadline
+       * message cannot apply to it.
+       */
+      const staleExecutionError = (status: StaleSweepableExecutionStatus) =>
+        status === 'redacting'
+          ? staleDurationError
+          : sql`CASE
+              WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
+                THEN ${EXECUTION_DEADLINE_ERROR}::text
+              ELSE ${staleDurationError}
+            END`
       /**
        * Swept one status at a time so each pass stays on its own partial index;
        * `status IN (...)` would match neither. The row budget is shared across
@@ -212,29 +227,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 endedAt: now,
                 executionDeadlineAt: null,
                 totalDurationMs,
-                executionData:
-                  executionStatus === 'redacting'
-                    ? sql`jsonb_set(
+                executionData: sql`jsonb_set(
                   COALESCE(execution_data, '{}'::jsonb),
                   ARRAY['error'],
-                  to_jsonb(
-                    ${'Execution terminated: worker timeout or crash after '}::text
-                      || ${staleDurationMinutes}::text
-                      || ' minutes'
-                  )
-                )`
-                    : sql`jsonb_set(
-                  COALESCE(execution_data, '{}'::jsonb),
-                  ARRAY['error'],
-                  to_jsonb(
-                    CASE
-                      WHEN ${workflowExecutionLogs.executionDeadlineAt} IS NOT NULL
-                        THEN ${EXECUTION_DEADLINE_ERROR}::text
-                      ELSE ${'Execution terminated: worker timeout or crash after '}::text
-                        || ${staleDurationMinutes}::text
-                        || ' minutes'
-                    END
-                  )
+                  to_jsonb(${staleExecutionError(executionStatus)})
                 )`,
               })
               .where(

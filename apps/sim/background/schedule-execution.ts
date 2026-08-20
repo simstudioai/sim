@@ -158,6 +158,23 @@ export function classifyScheduleExecutionResult(
 }
 
 /** Advances cadence after user cancellation without mutating the failure counter. */
+/**
+ * Successful-run accounting: stamps `lastRanAt`, clears the claim, advances to
+ * `nextRunAt`, and resets the consecutive-failure and infra-retry counters. The
+ * sibling of {@link buildScheduleCancellationUpdate} and
+ * {@link buildScheduleFailureUpdate}.
+ */
+export function buildScheduleSuccessUpdate(now: Date, nextRunAt: Date): WorkflowScheduleUpdate {
+  return {
+    lastRanAt: now,
+    updatedAt: now,
+    nextRunAt,
+    failedCount: 0,
+    lastQueuedAt: null,
+    ...resetScheduleInfraRetryCount(),
+  }
+}
+
 export function buildScheduleCancellationUpdate(
   now: Date,
   nextRunAt: Date
@@ -283,14 +300,7 @@ export async function applyScheduleSuccessUpdate(params: {
 
   const outcome = await applyScheduleUpdate(
     scheduleId,
-    {
-      lastRanAt: now,
-      updatedAt: now,
-      nextRunAt,
-      failedCount: 0,
-      lastQueuedAt: null,
-      ...resetScheduleInfraRetryCount(),
-    },
+    buildScheduleSuccessUpdate(now, nextRunAt),
     requestId,
     context,
     { expectedLastQueuedAt, executor }
@@ -1142,14 +1152,10 @@ export async function executeScheduleJob(
 
             const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
 
-            await applyScheduleSuccessUpdate({
-              scheduleId: payload.scheduleId,
-              now,
-              nextRunAt,
-              expectedLastQueuedAt: claimedAt,
-              requestId,
-              context: `Error updating schedule ${payload.scheduleId} after success`,
-            })
+            await updateClaimedSchedule(
+              buildScheduleSuccessUpdate(now, nextRunAt),
+              `Error updating schedule ${payload.scheduleId} after success`
+            )
             return
           }
 
@@ -1157,14 +1163,10 @@ export async function executeScheduleJob(
             logger.info(`[${requestId}] Workflow ${payload.workflowId} execution was cancelled`)
 
             const nextRunAt = calculateNextRunTime(payload, executionResult.blocks)
-            await applyScheduleCancellationUpdate({
-              scheduleId: payload.scheduleId,
-              now,
-              nextRunAt,
-              expectedLastQueuedAt: claimedAt,
-              requestId,
-              context: `Error updating schedule ${payload.scheduleId} after cancellation`,
-            })
+            await updateClaimedSchedule(
+              buildScheduleCancellationUpdate(now, nextRunAt),
+              `Error updating schedule ${payload.scheduleId} after cancellation`
+            )
             return
           }
 

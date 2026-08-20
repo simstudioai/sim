@@ -24,9 +24,6 @@ export const SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY = 'scheduleRecoveryIrre
  */
 export const SCHEDULE_CARRIER_IRRECOVERABLE_RETENTION_HOURS = 30 * 24
 
-/** Superseded reconciliation key stripped on every metadata merge. */
-const LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY = 'scheduleRecoveryBlocked'
-
 /**
  * `COALESCE(metadata ->> '<key>', 'false')`, with the key spelled as a SQL
  * *literal* rather than a bind parameter.
@@ -62,7 +59,7 @@ export function carrierNotIrrecoverableSql(metadata: Column): SQL {
 
 /**
  * Builds the jsonb merge that stamps reconciliation bookkeeping onto a carrier
- * while preserving every other metadata key and dropping the legacy one.
+ * while preserving every other metadata key it already carries.
  */
 export function buildCarrierReconciledMetadata(
   metadata: Column,
@@ -75,5 +72,5 @@ export function buildCarrierReconciledMetadata(
     patch[SCHEDULE_CARRIER_IRRECOVERABLE_METADATA_KEY] = true
   }
 
-  return sql`(COALESCE(${metadata}, '{}'::jsonb) - ${LEGACY_SCHEDULE_CARRIER_RECOVERY_BLOCKED_METADATA_KEY}) || ${JSON.stringify(patch)}::jsonb`
+  return sql`COALESCE(${metadata}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`
 }
