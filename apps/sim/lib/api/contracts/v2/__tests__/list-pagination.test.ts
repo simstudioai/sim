@@ -90,6 +90,10 @@ const PAGED_LISTS = [
  * - A knowledge base has a fixed number of tag slots, so its tag vocabulary
  *   cannot grow past them.
  * - A table's saved views and its dispatchable groups are capped per table.
+ * - A table's ACTIVE run dispatches are capped by the dispatcher itself: it
+ *   keeps at most a handful in flight per table and cancels the rest, so the
+ *   set cannot grow with a workspace's size. Settled dispatches are read by id,
+ *   never listed.
  */
 const FULL_SET_LISTS = [
   'GET /api/v2/connector-types',
@@ -99,6 +103,7 @@ const FULL_SET_LISTS = [
   'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',
   'GET /api/v2/mcp-servers/[id]/tools',
+  'GET /api/v2/tables/[tableId]/dispatches',
   'GET /api/v2/tables/[tableId]/groups',
   'GET /api/v2/tables/[tableId]/views',
   'GET /api/v2/tables/folders',
@@ -188,7 +193,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/mcp-servers': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/secrets': ['workspaceId', 'scope', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/skills': ['workspaceId', 'search', 'sortBy', 'sortOrder'],
-  'GET /api/v2/tables': ['workspaceId', 'folderPath', 'search', 'sortBy', 'sortOrder'],
+  'GET /api/v2/tables': ['workspaceId', 'scope', 'folderPath', 'search', 'sortBy', 'sortOrder'],
   'GET /api/v2/tables/[tableId]/rows': [],
   'POST /api/v2/tables/[tableId]/query': ['predicate', 'sort'],
   'GET /api/v2/tools': [
@@ -261,10 +266,12 @@ const UNBOUND_PARAMS: Record<string, Record<string, string>> = {
   'GET /api/v2/tables/[tableId]/rows': {
     workspaceId:
       'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+    includeRunState: 'Response shaping only; the row set and its order are unchanged.',
   },
   'POST /api/v2/tables/[tableId]/query': {
     workspaceId:
       'Asserted scope, not a filter: the sequence is one table, named by the path. A mismatched workspace is refused by authorization before paging.',
+    includeRunState: 'Response shaping only; the row set and its order are unchanged.',
   },
 }
 

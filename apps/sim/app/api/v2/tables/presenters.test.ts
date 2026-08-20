@@ -6,10 +6,12 @@ import { describe, expect, it } from 'vitest'
 import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
 import {
   presentV2CreateTableImport,
+  presentV2TableDispatch,
   presentV2TableExport,
   presentV2TableImport,
   presentV2WorkflowGroup,
 } from '@/app/api/v2/tables/presenters'
+import { toApiRow } from '@/app/api/v2/tables/utils'
 
 const createdAt = new Date('2026-08-01T00:00:00.000Z')
 const importRecord = {
@@ -136,5 +138,122 @@ describe('presentV2WorkflowGroup', () => {
     } as unknown as WorkflowGroup
 
     expect(presentV2WorkflowGroup(legacy, schema).outputs[0].columnName).toBe('score')
+  })
+})
+
+describe('presentV2TableDispatch', () => {
+  const stored = {
+    id: 'dispatch-1',
+    tableId: 'table-1',
+    workspaceId: 'workspace-1',
+    requestId: 'request-1',
+    mode: 'incomplete' as const,
+    scope: { groupIds: ['group-1'], rowIds: ['row-1'], filter: { all: [] } },
+    status: 'complete' as const,
+    cursor: 512,
+    limit: { type: 'rows' as const, max: 50 },
+    processedCount: 12,
+    isManualRun: true,
+    triggeredByUserId: 'user-1',
+    requestedAt: new Date('2026-01-01T00:00:00.000Z'),
+    completedAt: new Date('2026-01-01T00:05:00.000Z'),
+    cancelledAt: null,
+  }
+
+  it('serializes lifecycle timestamps and keeps a terminal status readable', () => {
+    const presented = presentV2TableDispatch(stored)
+
+    expect(presented.status).toBe('complete')
+    expect(presented.requestedAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(presented.completedAt).toBe('2026-01-01T00:05:00.000Z')
+    expect(presented.cancelledAt).toBeNull()
+  })
+
+  /**
+   * A field named `cursor` on a v2 resource reads as a pagination token, and the
+   * scheduler's internal identities have no public meaning.
+   */
+  it('withholds the scheduler cursor and internal identities', () => {
+    const presented = presentV2TableDispatch(stored)
+
+    expect(presented).not.toHaveProperty('cursor')
+    expect(presented).not.toHaveProperty('requestId')
+    expect(presented).not.toHaveProperty('triggeredByUserId')
+  })
+
+  /** The stored scope also carries a compiled filter, which is not public. */
+  it('publishes only the addressable half of the run scope', () => {
+    expect(presentV2TableDispatch(stored).scope).toEqual({
+      groupIds: ['group-1'],
+      rowIds: ['row-1'],
+    })
+  })
+})
+
+describe('toApiRow run state', () => {
+  const row = {
+    id: 'row-1',
+    data: { 'col-1': 'Ada' },
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+  }
+  const identity = (data: Record<string, unknown>) => data
+
+  it('omits run state entirely when the read did not ask for it', () => {
+    expect(toApiRow(row, identity)).not.toHaveProperty('runState')
+  })
+
+  /**
+   * `jobId` is the async scheduler's identity and addresses nothing public;
+   * `enrichmentDetails` has its own sub-resource and is never hydrated here.
+   */
+  it('drops the scheduler job id and the deep cascade payload', () => {
+    const presented = toApiRow(row, identity, {
+      'group-1': {
+        status: 'completed',
+        executionId: 'execution-1',
+        jobId: 'job-1',
+        workflowId: 'workflow-1',
+        error: null,
+        enrichmentDetails: null,
+      },
+    })
+
+    expect(presented.runState?.['group-1']).toEqual({
+      status: 'completed',
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      error: null,
+      runningBlockIds: [],
+      blockErrors: {},
+      cancelledAt: null,
+    })
+  })
+
+  it('carries the fields a caller polls a failed cell for', () => {
+    const presented = toApiRow(row, identity, {
+      'group-1': {
+        status: 'error',
+        executionId: 'execution-1',
+        jobId: null,
+        workflowId: 'workflow-1',
+        error: 'boom',
+        runningBlockIds: ['block-1'],
+        blockErrors: { 'block-1': 'boom' },
+        cancelledAt: '2026-01-03T00:00:00.000Z',
+      },
+    })
+
+    expect(presented.runState?.['group-1']).toMatchObject({
+      status: 'error',
+      error: 'boom',
+      runningBlockIds: ['block-1'],
+      blockErrors: { 'block-1': 'boom' },
+      cancelledAt: '2026-01-03T00:00:00.000Z',
+    })
+  })
+
+  it('presents a row that has never run as an empty map, not an absent one', () => {
+    expect(toApiRow(row, identity, {}).runState).toEqual({})
   })
 })

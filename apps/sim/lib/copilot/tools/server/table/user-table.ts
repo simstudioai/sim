@@ -26,7 +26,6 @@ import {
   updateTableColumnUseCase,
 } from '@/lib/table/application/columns'
 import {
-  copilotBatchUpdateRows,
   copilotDeleteRowsByFilter,
   copilotUpdateRowsByFilter,
 } from '@/lib/table/application/copilot-bulk-rows'
@@ -35,6 +34,7 @@ import {
   deleteTableGroupUseCase,
 } from '@/lib/table/application/groups'
 import {
+  batchUpdateTableRows,
   createTableRows,
   deleteTableRow,
   deleteTableRows,
@@ -662,11 +662,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const result = await executeCopilotTableUseCase(
             context,
-            copilotBatchUpdateRows,
+            batchUpdateTableRows,
             {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               updates: updates as Array<{ rowId: string; data: RowData }>,
+              strictWrite: false,
+              dataKeying: 'names' as const,
             },
             { tableId: args.tableId }
           )

@@ -229,6 +229,67 @@ sim tables groups update <tableId> [options]
 
 </CommandTable>
 
+## Batch update rows
+
+```bash
+sim tables batch-update create <tableId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--updates <json\|@file>` | Yes | One merge patch per row. Each row identifier may appear at most once. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Bulk delete tables and folders
+
+```bash
+sim tables bulk-delete create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--table-ids <json\|@file>` | No | Tables to archive, by identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--folder-paths <json\|@file>` | No | Table folders to delete, by canonical path. Each cascades to everything inside it. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+## Bulk move tables and folders
+
+```bash
+sim tables bulk-move create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--table-ids <json\|@file>` | No | Tables to move, by identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--folder-paths <json\|@file>` | No | Table folders to re-parent, by canonical path. (JSON, or @path / @- to read a file or stdin). |
+| `--target-folder-path <json\|@file>` | Yes | Destination folder path. `null` and `/` both mean the workspace root. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ## Cancel table export
 
 ```bash
@@ -580,7 +641,7 @@ sim tables rows find <tableId> [options]
 ## Get row
 
 ```bash
-sim tables rows get <tableId> <rowId>
+sim tables rows get <tableId> <rowId> [options]
 ```
 
 **Arguments**
@@ -591,6 +652,17 @@ sim tables rows get <tableId> <rowId>
 | --- | --- | --- |
 | `tableId` | Yes | Unique table identifier. |
 | `rowId` | Yes | Unique table row identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-run-state` | No | Include per-workflow-group run state on the returned row. Off by default. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
 
 </CommandTable>
 
@@ -617,6 +689,8 @@ sim tables rows list <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
 
 </CommandTable>
 
@@ -645,6 +719,8 @@ sim tables rows query <tableId> [options]
 | `--filter <json\|@file>` | No | Predicate: &#123;"all":[&#123;"field":"status","op":"eq","value":"active"&#125;]&#125;; groups use all/any. Operators: eq, ne, gt, gte, lt, lte, in, nin, contains, ncontains, startsWith, endsWith, like, ilike, nlike, nilike, isEmpty, isNotEmpty, isNull, isNotNull (JSON, or @path / @- to read a file or stdin). |
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--include-run-state` | No | Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. |
+| `--no-include-run-state` | No | Send --include-run-state as false. |
 
 </CommandTable>
 
@@ -892,10 +968,60 @@ sim tables delete <tableId> [options]
 
 </CommandTable>
 
+## Get enrichment run detail
+
+```bash
+sim tables enrichment get <tableId> <rowId> <groupId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+| `rowId` | Yes | Unique table row identifier. |
+| `groupId` | Yes | Workflow or enrichment group to run. |
+
+</CommandTable>
+
 ## Get table
 
 ```bash
 sim tables get <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
+
+</CommandTable>
+
+## Get run dispatch
+
+```bash
+sim tables dispatches get <dispatchId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `dispatchId` | Yes | Unique table run-dispatch identifier. |
+
+</CommandTable>
+
+## List active run dispatches
+
+```bash
+sim tables dispatches list <tableId>
 ```
 
 **Arguments**
@@ -920,11 +1046,28 @@ sim tables list [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/&#123;tableId&#125;/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+
+</CommandTable>
+
+## Restore table
+
+```bash
+sim tables restore create <tableId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `tableId` | Yes | Unique table identifier. |
 
 </CommandTable>
 

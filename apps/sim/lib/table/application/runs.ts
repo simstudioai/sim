@@ -5,16 +5,27 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_TABLE_PLAN_LIMITS,
   getRowById,
+  getTableById,
   requireTableRowIds,
   TABLE_LIMITS,
   type TableDefinition,
   type TablePredicate,
 } from '@/lib/table'
+import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
-import { resolveActiveTableContext } from '@/lib/table/application/context'
+import {
+  resolveActiveTableContext,
+  resolveTableWorkspaceContext,
+} from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import { tablePredicateNamesToFilter } from '@/lib/table/application/rows'
-import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
+import {
+  type DispatchLimit,
+  type DispatchMode,
+  type DispatchRow,
+  listActiveDispatches,
+  readDispatch,
+} from '@/lib/table/dispatcher'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 
@@ -206,5 +217,73 @@ export const cancelTableRuns = defineAuthorizedTableUseCase({
   },
   afterSuccess: ({ context, result }) => {
     if (result.cancelled > 0) signalTableRowsChanged(context.tableId)
+  },
+})
+
+export interface ReadTableDispatchInput {
+  dispatchId: string
+  workspaceId: string
+}
+
+export interface TableDispatchResult {
+  dispatch: DispatchRow
+}
+
+interface TableDispatchContext extends TableAuthorizationContext {
+  dispatch: DispatchRow
+}
+
+/**
+ * Loads one dispatch and derives its canonical table and workspace from the
+ * stored row, then asserts the caller's workspace against them.
+ *
+ * The dispatch id is the only thing the caller holds, so the canonical scope
+ * has to come from the dispatch itself — the asserted workspace is compared to
+ * it, never substituted for it. A mismatch, a dispatch whose table was deleted,
+ * and a dispatch that never existed all report the same not-found, so the id
+ * space leaks nothing across tenants.
+ */
+async function resolveTableDispatchContext(
+  input: ReadTableDispatchInput
+): Promise<TableDispatchContext> {
+  const dispatch = await readDispatch(input.dispatchId)
+  if (!dispatch || dispatch.workspaceId !== input.workspaceId) {
+    throw new OrchestrationError('not_found', 'Table run dispatch not found')
+  }
+  const table = await getTableById(dispatch.tableId)
+  if (!table || table.workspaceId !== dispatch.workspaceId) {
+    throw new OrchestrationError('not_found', 'Table run dispatch not found')
+  }
+  return { ...(await resolveTableWorkspaceContext(dispatch.workspaceId)), dispatch }
+}
+
+/** Polls one run dispatch in any of its four states, including the terminal two. */
+export const readTableDispatch = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRun,
+  resolveContext: ({ input }: { input: ReadTableDispatchInput }) =>
+    resolveTableDispatchContext(input),
+  async execute({ context }): Promise<TableDispatchResult> {
+    return { dispatch: context.dispatch }
+  },
+})
+
+export interface ListTableDispatchesInput extends TableRunInput {
+  assertedWorkspaceId: string
+}
+
+export interface ListTableDispatchesResult extends TableRunResult {
+  dispatches: DispatchRow[]
+}
+
+/**
+ * The dispatches still in flight on one table. Bounded by the dispatcher rather
+ * than by a page size, which is why the surface publishes it unpaged.
+ */
+export const listTableDispatches = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRun,
+  resolveContext: ({ input }: { input: ListTableDispatchesInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ context }): Promise<ListTableDispatchesResult> {
+    return { table: context.table, dispatches: await listActiveDispatches(context.tableId) }
   },
 })

@@ -14,6 +14,10 @@ const {
   mockRunWorkflowColumn,
   mockSignalRowsChanged,
   mockTranslatePredicate,
+  mockGetTableById,
+  mockReadDispatch,
+  mockListActiveDispatches,
+  mockResolveWorkspaceContext,
 } = vi.hoisted(() => ({
   mockCancelRuns: vi.fn(),
   mockGetRowById: vi.fn(),
@@ -23,6 +27,10 @@ const {
   mockRunWorkflowColumn: vi.fn(),
   mockSignalRowsChanged: vi.fn(),
   mockTranslatePredicate: vi.fn(),
+  mockGetTableById: vi.fn(),
+  mockReadDispatch: vi.fn(),
+  mockListActiveDispatches: vi.fn(),
+  mockResolveWorkspaceContext: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -38,12 +46,19 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/table', () => ({
   DEFAULT_TABLE_PLAN_LIMITS: { enterprise: { maxRowsPerTable: 2 } },
   getRowById: mockGetRowById,
+  getTableById: mockGetTableById,
   requireTableRowIds: mockRequireTableRowIds,
   TABLE_LIMITS: { MAX_COLUMNS_PER_TABLE: 2 },
 }))
 
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mockResolveContext,
+  resolveTableWorkspaceContext: mockResolveWorkspaceContext,
+}))
+
+vi.mock('@/lib/table/dispatcher', () => ({
+  listActiveDispatches: mockListActiveDispatches,
+  readDispatch: mockReadDispatch,
 }))
 
 vi.mock('@/lib/table/application/rows', () => ({
@@ -59,7 +74,12 @@ vi.mock('@/lib/table/workflow-columns', () => ({
   runWorkflowColumn: mockRunWorkflowColumn,
 }))
 
-import { cancelTableRuns, startTableRun } from '@/lib/table/application/runs'
+import {
+  cancelTableRuns,
+  listTableDispatches,
+  readTableDispatch,
+  startTableRun,
+} from '@/lib/table/application/runs'
 
 const TABLE: TableDefinition = {
   id: 'table-1',
@@ -268,5 +288,112 @@ describe('table run application use cases', () => {
       })
     ).rejects.toThrow('database unavailable')
     expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The dispatch resource `POST /columns/run` hands back an id for.
+ *
+ * The regression these guard is the published status set: the first-party
+ * active-dispatch schema knows only `pending` and `dispatching`, so a resource
+ * read built on it would turn polling a finished run — the exact thing a poller
+ * is waiting for — into a 500.
+ */
+describe('table run dispatch reads', () => {
+  const DISPATCH = {
+    id: 'dispatch-1',
+    tableId: TABLE.id,
+    workspaceId: TABLE.workspaceId,
+    requestId: 'request-1',
+    mode: 'all' as const,
+    scope: { groupIds: ['group-1'] },
+    status: 'dispatching' as const,
+    cursor: 0,
+    limit: null,
+    processedCount: 0,
+    isManualRun: true,
+    triggeredByUserId: 'user-1',
+    requestedAt: new Date('2026-01-01'),
+    completedAt: null,
+    cancelledAt: null,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveWorkspaceContext.mockResolvedValue({
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockGetTableById.mockResolvedValue(TABLE)
+    mockReadDispatch.mockResolvedValue(DISPATCH)
+    mockListActiveDispatches.mockResolvedValue([DISPATCH])
+  })
+
+  it.each(['pending', 'dispatching', 'complete', 'cancelled'] as const)(
+    'reads a %s dispatch',
+    async (status) => {
+      mockReadDispatch.mockResolvedValue({ ...DISPATCH, status })
+
+      const result = await readTableDispatch.execute({
+        principal: PRINCIPAL,
+        input: { dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+      })
+
+      expect(result.dispatch.status).toBe(status)
+    }
+  )
+
+  it('conceals a dispatch in another workspace as not found', async () => {
+    mockReadDispatch.mockResolvedValue({ ...DISPATCH, workspaceId: 'workspace-other' })
+
+    await expect(
+      readTableDispatch.execute({
+        principal: PRINCIPAL,
+        input: { dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('conceals a dispatch whose table is gone as not found', async () => {
+    mockGetTableById.mockResolvedValue(null)
+
+    await expect(
+      readTableDispatch.execute({
+        principal: PRINCIPAL,
+        input: { dispatchId: DISPATCH.id, workspaceId: TABLE.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('reports a dispatch id that never existed as not found', async () => {
+    mockReadDispatch.mockResolvedValue(null)
+
+    await expect(
+      readTableDispatch.execute({
+        principal: PRINCIPAL,
+        input: { dispatchId: 'nope', workspaceId: TABLE.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('lists the active dispatches for the canonical table', async () => {
+    const result = await listTableDispatches.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, assertedWorkspaceId: TABLE.workspaceId },
+    })
+
+    expect(mockListActiveDispatches).toHaveBeenCalledWith(TABLE.id)
+    expect(result.dispatches).toEqual([DISPATCH])
   })
 })

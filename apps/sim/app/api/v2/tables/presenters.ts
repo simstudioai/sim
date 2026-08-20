@@ -1,4 +1,6 @@
+import type { V2TableRunDispatch } from '@/lib/api/contracts/v2/tables'
 import { buildNameById, remapGroupColumnRefs } from '@/lib/table/column-keys'
+import type { DispatchRow } from '@/lib/table/dispatcher'
 import { type TableExportRecord, toV2TableExport } from '@/lib/table/orchestration/export-resource'
 import {
   type CreateTableImportResult,
@@ -35,4 +37,34 @@ export function presentV2TableExport(record: TableExportRecord, queued = false) 
  */
 export function presentV2WorkflowGroup(group: WorkflowGroup, schema: TableSchema): WorkflowGroup {
   return remapGroupColumnRefs(group, buildNameById(schema))
+}
+
+/**
+ * Projects one stored dispatch onto the public resource.
+ *
+ * The stored `cursor` (highest row position already enqueued), `requestId`, and
+ * `triggeredByUserId` stay internal: the first is a scheduler position that a
+ * field of that name on a v2 resource would be mistaken for a pagination token,
+ * and the other two name internal identities. Every published status is
+ * reachable, including the two terminal ones — this resource exists to be
+ * polled until a run settles.
+ */
+export function presentV2TableDispatch(dispatch: DispatchRow): V2TableRunDispatch {
+  return {
+    id: dispatch.id,
+    tableId: dispatch.tableId,
+    workspaceId: dispatch.workspaceId,
+    status: dispatch.status,
+    mode: dispatch.mode,
+    scope: {
+      groupIds: dispatch.scope.groupIds,
+      ...(dispatch.scope.rowIds ? { rowIds: dispatch.scope.rowIds } : {}),
+    },
+    limit: dispatch.limit,
+    processedCount: dispatch.processedCount,
+    isManualRun: dispatch.isManualRun,
+    requestedAt: dispatch.requestedAt.toISOString(),
+    completedAt: dispatch.completedAt?.toISOString() ?? null,
+    cancelledAt: dispatch.cancelledAt?.toISOString() ?? null,
+  }
 }

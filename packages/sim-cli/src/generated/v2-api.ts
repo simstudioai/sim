@@ -390,6 +390,32 @@ export type ApplyWorkflowVariablesResponse = {
   data: ApplyWorkflowVariablesResponseRef0
 }
 
+/** `POST /api/v2/tables/[tableId]/rows/batch-update` */
+export type BatchUpdateTableRowsParams = {
+  tableId: string
+}
+
+export type BatchUpdateTableRowsQuery = Record<string, unknown>
+
+type BatchUpdateTableRowsBodyRef0 = Record<string, unknown>
+
+export type BatchUpdateTableRowsBody = {
+  workspaceId: string
+  updates: Array<{
+    rowId: string
+    data: BatchUpdateTableRowsBodyRef0
+  }>
+}
+
+type BatchUpdateTableRowsResponseRef0 = {
+  updatedCount: number
+  updatedRowIds: Array<string>
+}
+
+export type BatchUpdateTableRowsResponse = {
+  data: BatchUpdateTableRowsResponseRef0
+}
+
 /** `POST /api/v2/files/bulk-delete` */
 export type BulkDeleteFilesQuery = Record<string, unknown>
 
@@ -406,6 +432,87 @@ type BulkDeleteFilesResponseRef0 = {
 
 export type BulkDeleteFilesResponse = {
   data: BulkDeleteFilesResponseRef0
+}
+
+/** `POST /api/v2/tables/bulk-delete` */
+export type BulkDeleteTablesQuery = Record<string, unknown>
+
+type BulkDeleteTablesBodyRef0 = string
+
+export type BulkDeleteTablesBody = {
+  workspaceId: string
+  tableIds?: Array<string>
+  folderPaths?: Array<BulkDeleteTablesBodyRef0>
+}
+
+type BulkDeleteTablesResponseRef0 = {
+  deleted: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  skipped: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  notFound: Array<{
+    kind: 'table' | 'folder'
+    id: string
+  }>
+  failed: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+    reason: string
+  }>
+  deletedItems: {
+    tables: number
+    folders: number
+  }
+}
+
+export type BulkDeleteTablesResponse = {
+  data: BulkDeleteTablesResponseRef0
+}
+
+/** `POST /api/v2/tables/bulk-move` */
+export type BulkMoveTablesQuery = Record<string, unknown>
+
+type BulkMoveTablesBodyRef0 = string
+
+export type BulkMoveTablesBody = {
+  workspaceId: string
+  tableIds?: Array<string>
+  folderPaths?: Array<BulkMoveTablesBodyRef0>
+  targetFolderPath: BulkMoveTablesBodyRef0 | null
+}
+
+type BulkMoveTablesResponseRef0 = {
+  moved: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  skipped: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+  }>
+  notFound: Array<{
+    kind: 'table' | 'folder'
+    id: string
+  }>
+  failed: Array<{
+    kind: 'table' | 'folder'
+    id: string
+    name: string
+    reason: string
+  }>
+}
+
+export type BulkMoveTablesResponse = {
+  data: BulkMoveTablesResponseRef0
 }
 
 /** `PATCH /api/v2/knowledge/[id]/documents` */
@@ -1616,28 +1723,39 @@ export type CreateTableRowsBody =
     }
 
 type CreateTableRowsResponseRef0 = {
-  data: CreateTableRowsResponseRef2
+  data: CreateTableRowsResponseRef3
 }
 
 type CreateTableRowsResponseRef1 = Record<string, unknown>
 
 type CreateTableRowsResponseRef2 = {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  cancelledAt: string | null
+}
+
+type CreateTableRowsResponseRef3 = {
   id: string
   data: CreateTableRowsResponseRef1
+  runState?: Record<string, CreateTableRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
-type CreateTableRowsResponseRef3 = {
-  data: CreateTableRowsResponseRef4
+type CreateTableRowsResponseRef4 = {
+  data: CreateTableRowsResponseRef5
 }
 
-type CreateTableRowsResponseRef4 = {
-  rows: Array<CreateTableRowsResponseRef2>
+type CreateTableRowsResponseRef5 = {
+  rows: Array<CreateTableRowsResponseRef3>
   insertedCount: number
 }
 
-export type CreateTableRowsResponse = CreateTableRowsResponseRef0 | CreateTableRowsResponseRef3
+export type CreateTableRowsResponse = CreateTableRowsResponseRef0 | CreateTableRowsResponseRef4
 
 /** `POST /api/v2/tables/[tableId]/views` */
 export type CreateTableViewParams = {
@@ -3178,6 +3296,41 @@ export type GetMcpServerResponse = {
   data: GetMcpServerResponseRef0
 }
 
+/** `GET /api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]` */
+export type GetRowEnrichmentParams = {
+  tableId: string
+  rowId: string
+  groupId: string
+}
+
+export type GetRowEnrichmentQuery = {
+  workspaceId: string
+}
+
+type GetRowEnrichmentResponseRef0 = {
+  startedAt: string
+  completedAt: string
+  durationMs: number
+  totalCost: number
+  matchedProvider: string | null
+  aborted: boolean
+  providers: Array<GetRowEnrichmentResponseRef1>
+}
+
+type GetRowEnrichmentResponseRef1 = {
+  id: string
+  label: string
+  toolId: string
+  status: 'matched' | 'no_match' | 'skipped' | 'error' | 'not_run'
+  cost: number
+  durationMs: number
+  error: string | null
+}
+
+export type GetRowEnrichmentResponse = {
+  data: GetRowEnrichmentResponseRef0 | null
+}
+
 /** `GET /api/v2/skills/[id]` */
 export type GetSkillParams = {
   id: string
@@ -3255,6 +3408,40 @@ type GetTableResponseRef1 = {
 
 export type GetTableResponse = {
   data: GetTableResponseRef1
+}
+
+/** `GET /api/v2/tables/dispatches/[dispatchId]` */
+export type GetTableDispatchParams = {
+  dispatchId: string
+}
+
+export type GetTableDispatchQuery = {
+  workspaceId: string
+}
+
+type GetTableDispatchResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'cancelled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  cancelledAt: string | null
+}
+
+export type GetTableDispatchResponse = {
+  data: GetTableDispatchResponseRef0
 }
 
 /** `GET /api/v2/tables/exports/[exportId]` */
@@ -3346,19 +3533,31 @@ export type GetTableRowParams = {
 
 export type GetTableRowQuery = {
   workspaceId: string
+  includeRunState?: boolean
 }
 
 type GetTableRowResponseRef0 = Record<string, unknown>
 
 type GetTableRowResponseRef1 = {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  cancelledAt: string | null
+}
+
+type GetTableRowResponseRef2 = {
   id: string
   data: GetTableRowResponseRef0
+  runState?: Record<string, GetTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
 export type GetTableRowResponse = {
-  data: GetTableRowResponseRef1
+  data: GetTableRowResponseRef2
 }
 
 /** `GET /api/v2/tables/[tableId]/views/[viewId]` */
@@ -4522,6 +4721,41 @@ export type ListSkillsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/tables/[tableId]/dispatches` */
+export type ListTableDispatchesParams = {
+  tableId: string
+}
+
+export type ListTableDispatchesQuery = {
+  workspaceId: string
+}
+
+type ListTableDispatchesResponseRef0 = {
+  id: string
+  tableId: string
+  workspaceId: string
+  status: 'pending' | 'dispatching' | 'complete' | 'cancelled'
+  mode: 'all' | 'incomplete' | 'new'
+  scope: {
+    groupIds: Array<string>
+    rowIds?: Array<string>
+  }
+  limit: {
+    type: 'rows'
+    max: number
+  } | null
+  processedCount: number
+  isManualRun: boolean
+  requestedAt: string
+  completedAt: string | null
+  cancelledAt: string | null
+}
+
+export type ListTableDispatchesResponse = {
+  data: Array<ListTableDispatchesResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/tables/folders` */
 type ListTableFoldersQueryRef0 = string
 
@@ -4555,16 +4789,28 @@ export type ListTableRowsQuery = {
   workspaceId: string
   limit?: number
   cursor?: string
+  includeRunState?: boolean
 }
 
 type ListTableRowsResponseRef0 = {
   id: string
   data: ListTableRowsResponseRef1
+  runState?: Record<string, ListTableRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
 type ListTableRowsResponseRef1 = Record<string, unknown>
+
+type ListTableRowsResponseRef2 = {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  cancelledAt: string | null
+}
 
 export type ListTableRowsResponse = {
   data: Array<ListTableRowsResponseRef0>
@@ -4576,6 +4822,7 @@ type ListTablesQueryRef0 = string
 
 export type ListTablesQuery = {
   workspaceId: string
+  scope?: 'active' | 'archived'
   folderPath?: ListTablesQueryRef0
   search?: string
   sortBy?: 'name' | 'createdAt' | 'updatedAt'
@@ -4998,16 +5245,28 @@ export type QueryRowsBody = {
   }>
   limit?: number
   cursor?: string
+  includeRunState?: boolean
 }
 
 type QueryRowsResponseRef0 = {
   id: string
   data: QueryRowsResponseRef1
+  runState?: Record<string, QueryRowsResponseRef2>
   createdAt: string
   updatedAt: string
 }
 
 type QueryRowsResponseRef1 = Record<string, unknown>
+
+type QueryRowsResponseRef2 = {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  cancelledAt: string | null
+}
 
 export type QueryRowsResponse = {
   data: Array<QueryRowsResponseRef0>
@@ -5356,6 +5615,64 @@ type RestoreFileResponseRef0 = {
 
 export type RestoreFileResponse = {
   data: RestoreFileResponseRef0
+}
+
+/** `POST /api/v2/tables/[tableId]/restore` */
+export type RestoreTableParams = {
+  tableId: string
+}
+
+export type RestoreTableQuery = Record<string, unknown>
+
+export type RestoreTableBody = {
+  workspaceId: string
+}
+
+type RestoreTableResponseRef0 = {
+  id: string | null
+  type: 'import' | 'delete' | 'export' | 'backfill' | 'update' | null
+  status: 'running' | 'ready' | 'failed' | 'canceled'
+  rowsProcessed: number
+  error: string | null
+}
+
+type RestoreTableResponseRef1 = {
+  id: string
+  name: string
+  description: string | null
+  ownerEmail: string
+  schema: {
+    columns: Array<{
+      id?: string
+      name: string
+      type: 'string' | 'number' | 'currency' | 'boolean' | 'date' | 'json' | 'select'
+      required: boolean
+      unique: boolean
+      workflowGroupId?: string
+      options?: Array<{
+        id: string
+        name: string
+      }>
+      multiple?: boolean
+      currencyCode?: string
+    }>
+  }
+  rowCount: number
+  maxRows: number
+  folderPath: string
+  locks: {
+    schemaLocked: boolean
+    insertLocked: boolean
+    updateLocked: boolean
+    deleteLocked: boolean
+  }
+  job: RestoreTableResponseRef0 | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type RestoreTableResponse = {
+  data: RestoreTableResponseRef1
 }
 
 /** `POST /api/v2/workflows/[id]/restore` */
@@ -6242,14 +6559,25 @@ export type UpdateTableRowBody = {
 type UpdateTableRowResponseRef0 = Record<string, unknown>
 
 type UpdateTableRowResponseRef1 = {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  cancelledAt: string | null
+}
+
+type UpdateTableRowResponseRef2 = {
   id: string
   data: UpdateTableRowResponseRef0
+  runState?: Record<string, UpdateTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
 export type UpdateTableRowResponse = {
-  data: UpdateTableRowResponseRef1
+  data: UpdateTableRowResponseRef2
 }
 
 /** `PATCH /api/v2/tables/[tableId]/views/[viewId]` */
@@ -6597,19 +6925,30 @@ export type UpsertTableRowBody = {
 type UpsertTableRowResponseRef0 = Record<string, unknown>
 
 type UpsertTableRowResponseRef1 = {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'error' | 'cancelled'
+  executionId: string | null
+  workflowId: string
+  error: string | null
+  runningBlockIds: Array<string>
+  blockErrors: Record<string, string>
+  cancelledAt: string | null
+}
+
+type UpsertTableRowResponseRef2 = {
   id: string
   data: UpsertTableRowResponseRef0
+  runState?: Record<string, UpsertTableRowResponseRef1>
   createdAt: string
   updatedAt: string
 }
 
-type UpsertTableRowResponseRef2 = {
-  row: UpsertTableRowResponseRef1
+type UpsertTableRowResponseRef3 = {
+  row: UpsertTableRowResponseRef2
   operation: 'insert' | 'update'
 }
 
 export type UpsertTableRowResponse = {
-  data: UpsertTableRowResponseRef2
+  data: UpsertTableRowResponseRef3
 }
 
 /**
@@ -6740,6 +7079,22 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  batchUpdateTableRows: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/rows/batch-update',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Batch Update Rows',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      updates: {
+        kind: 'array',
+        required: true,
+        describe: 'One merge patch per row. Each row identifier may appear at most once.',
+      },
+    },
+  },
   bulkDeleteFiles: {
     method: 'POST',
     path: '/api/v2/files/bulk-delete',
@@ -6749,6 +7104,47 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
       fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
+    },
+  },
+  bulkDeleteTables: {
+    method: 'POST',
+    path: '/api/v2/tables/bulk-delete',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Bulk Delete Tables and Folders',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns every selected item.',
+      },
+      tableIds: { kind: 'array', default: [], describe: 'Tables to archive, by identifier.' },
+      folderPaths: {
+        kind: 'array',
+        describe:
+          'Table folders to delete, by canonical path. Each cascades to everything inside it.',
+      },
+    },
+  },
+  bulkMoveTables: {
+    method: 'POST',
+    path: '/api/v2/tables/bulk-move',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Bulk Move Tables and Folders',
+    body: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns every selected item.',
+      },
+      tableIds: { kind: 'array', default: [], describe: 'Tables to move, by identifier.' },
+      folderPaths: { kind: 'array', describe: 'Table folders to re-parent, by canonical path.' },
+      targetFolderPath: {
+        kind: 'unknown',
+        required: true,
+        describe: 'Destination folder path. `null` and `/` both mean the workspace root.',
+      },
     },
   },
   bulkUpdateKnowledgeDocuments: {
@@ -8034,6 +8430,21 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  getRowEnrichment: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/rows/[rowId]/enrichment/[groupId]',
+    pathParams: ['tableId', 'rowId', 'groupId'] as const,
+    pathParamDocs: {
+      tableId: 'Unique table identifier.',
+      rowId: 'Unique table row identifier.',
+      groupId: 'Workflow or enrichment group to run.',
+    },
+    responseMode: 'json',
+    summary: 'Get Enrichment Run Detail',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
   getSkill: {
     method: 'GET',
     path: '/api/v2/skills/[id]',
@@ -8056,6 +8467,21 @@ export const V2_OPERATIONS = {
     summary: 'Get Table',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
+  getTableDispatch: {
+    method: 'GET',
+    path: '/api/v2/tables/dispatches/[dispatchId]',
+    pathParams: ['dispatchId'] as const,
+    pathParamDocs: { dispatchId: 'Unique table run-dispatch identifier.' },
+    responseMode: 'json',
+    summary: 'Get Run Dispatch',
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace that owns the transfer resource.',
+      },
     },
   },
   getTableExport: {
@@ -8097,6 +8523,10 @@ export const V2_OPERATIONS = {
     summary: 'Get Row',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+      includeRunState: {
+        kind: 'boolean',
+        describe: 'Include per-workflow-group run state on the returned row. Off by default.',
+      },
     },
   },
   getTableView: {
@@ -9040,6 +9470,17 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listTableDispatches: {
+    method: 'GET',
+    path: '/api/v2/tables/[tableId]/dispatches',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'List Active Run Dispatches',
+    query: {
+      workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
+    },
+  },
   listTableFolders: {
     method: 'GET',
     path: '/api/v2/tables/folders',
@@ -9095,6 +9536,11 @@ export const V2_OPERATIONS = {
         describe:
           'Opaque cursor from the previous page. Send it back with the same sort and filters; only `limit` may change. Change anything else and pagination must restart without a cursor.',
       },
+      includeRunState: {
+        kind: 'boolean',
+        describe:
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.',
+      },
     },
   },
   listTables: {
@@ -9108,6 +9554,13 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Workspace whose tables should be listed.',
+      },
+      scope: {
+        kind: 'enum',
+        values: ['active', 'archived'] as const,
+        default: 'active',
+        describe:
+          'Which lifecycle set to list: `active` (default) for live tables, `archived` for tables a `DELETE` archived and `POST /tables/{tableId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.',
       },
       folderPath: {
         kind: 'string',
@@ -9456,6 +9909,12 @@ export const V2_OPERATIONS = {
         describe: 'Maximum rows to return; zero requests an unbounded result.',
       },
       cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
+      includeRunState: {
+        kind: 'boolean',
+        default: false,
+        describe:
+          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked.',
+      },
     },
   },
   queryRowsCount: {
@@ -9587,6 +10046,17 @@ export const V2_OPERATIONS = {
         required: true,
         describe: 'Workspace that owns the archived file.',
       },
+    },
+  },
+  restoreTable: {
+    method: 'POST',
+    path: '/api/v2/tables/[tableId]/restore',
+    pathParams: ['tableId'] as const,
+    pathParamDocs: { tableId: 'Unique table identifier.' },
+    responseMode: 'json',
+    summary: 'Restore Table',
+    body: {
+      workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
   },
   restoreWorkflow: {

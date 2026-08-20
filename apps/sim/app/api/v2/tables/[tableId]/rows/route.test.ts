@@ -40,6 +40,7 @@ vi.mock('@/lib/table/application/rows', () => ({
 
 import { v2ListTableRowsContract } from '@/lib/api/contracts/v2/tables'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encodeScopedCursor } from '@/app/api/v2/lib/response'
 import { DELETE, GET, PATCH, POST } from '@/app/api/v2/tables/[tableId]/rows/route'
 
@@ -134,10 +135,76 @@ describe('/api/v2/tables/[tableId]/rows', () => {
         assertedWorkspaceId: WORKSPACE_ID,
         limit: 25,
         cursor: 'native-row-cursor',
+        includeRunState: false,
       },
       request: req,
     })
     expect((await response.json()).nextCursor).toBe(rowCursor('table-1', 'next-native-cursor'))
+  })
+
+  /**
+   * Run state is opt-in, and the default page must stay byte-identical to what
+   * shipped — the strip was original design, and only its rationale for lumping
+   * `executions` in with `position`/`orderKey` was wrong.
+   */
+  it('omits run state from a page that did not request it', async () => {
+    mocks.listRows.mockResolvedValue({
+      table: TABLE,
+      rows: [{ ...ROW, executions: { 'group-1': { status: 'error' } } }],
+      nextCursor: null,
+    })
+
+    const response = await GET(request('GET', undefined, `?workspaceId=${WORKSPACE_ID}`), CONTEXT)
+
+    expect((await response.json()).data[0]).not.toHaveProperty('runState')
+  })
+
+  it('attaches run state to every row of a page that asked for it', async () => {
+    mocks.listRows.mockResolvedValue({
+      table: TABLE,
+      rows: [
+        {
+          ...ROW,
+          executions: {
+            'group-1': {
+              status: 'error',
+              executionId: 'execution-1',
+              jobId: 'job-1',
+              workflowId: 'workflow-1',
+              error: 'boom',
+            },
+          },
+        },
+      ],
+      nextCursor: null,
+    })
+
+    const response = await GET(
+      request('GET', undefined, `?workspaceId=${WORKSPACE_ID}&includeRunState=true`),
+      CONTEXT
+    )
+
+    expect(mocks.listRows).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ includeRunState: true }) })
+    )
+    expect((await response.json()).data[0].runState['group-1']).toMatchObject({
+      status: 'error',
+      error: 'boom',
+    })
+  })
+
+  it('answers 413 when a requested page of run state outgrows the ceiling', async () => {
+    mocks.listRows.mockRejectedValueOnce(
+      new OrchestrationError('payload_too_large', 'Run state for this page exceeds the limit')
+    )
+
+    const response = await GET(
+      request('GET', undefined, `?workspaceId=${WORKSPACE_ID}&includeRunState=true`),
+      CONTEXT
+    )
+
+    expect(response.status).toBe(413)
+    expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
   })
 
   /**

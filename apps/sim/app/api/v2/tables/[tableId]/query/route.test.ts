@@ -123,6 +123,7 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
         cursor: undefined,
         limit: 100,
         includeTotal: false,
+        includeRunState: false,
       },
       request: invocation.request,
     })

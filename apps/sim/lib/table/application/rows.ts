@@ -17,6 +17,7 @@ import type {
   Filter,
   ReplaceRowsResult,
   RowData,
+  RowExecutions,
   Sort,
   SortSpec,
   TableDefinition,
@@ -26,6 +27,7 @@ import type {
 } from '@/lib/table'
 import {
   batchInsertRows,
+  batchUpdateRows,
   deleteRow,
   deleteRowsByFilter,
   deleteRowsByIds,
@@ -57,6 +59,7 @@ import { buildColumnNameById, buildIdByName, unknownColumnNames } from '@/lib/ta
 import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
+import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -65,7 +68,7 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { assertCursorQueryBinding, decodeCursor } from '@/lib/table/rows/cursor'
-import { loadEnrichmentDetail } from '@/lib/table/rows/executions'
+import { loadEnrichmentDetail, loadExecutionsForRow } from '@/lib/table/rows/executions'
 import {
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
@@ -88,10 +91,51 @@ export class TableRowsValidationError extends OrchestrationError {
   }
 }
 
+/**
+ * Refusal for a read whose opt-in run-state sidecar cannot be materialized
+ * within {@link TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES}.
+ *
+ * `payload_too_large` rather than a truncated success: the question run state
+ * answers is "which of my rows errored", and a silently short answer to that is
+ * wrong rather than merely incomplete.
+ */
+export class TableRunStateCollectionLimitExceededError extends OrchestrationError {
+  constructor() {
+    super(
+      'payload_too_large',
+      `Run state for this page exceeds the ${TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES} byte limit; request a smaller limit or read the rows without includeRunState`
+    )
+    this.name = 'TableRunStateCollectionLimitExceededError'
+  }
+}
+
+/** Bounds the run-state sidecar a read is about to hand back. */
+function requireBoundedRunState(entries: Iterable<RowExecutions>): void {
+  let bytes = 0
+  for (const entry of entries) {
+    bytes += Buffer.byteLength(JSON.stringify(entry), 'utf8')
+    if (bytes > TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES) {
+      throw new TableRunStateCollectionLimitExceededError()
+    }
+  }
+}
+
 interface TableScopedInput {
   tableId: string
   assertedWorkspaceId?: string
   requestId?: string
+}
+
+/**
+ * Opt-in on every read that returns whole rows.
+ *
+ * The projection stays byte-identical by default: the sidecar is a second query
+ * and its `blockErrors` are unbounded, so a shipped caller must never start
+ * paying for it. See {@link requireBoundedRunState} for the ceiling when a
+ * caller does opt in.
+ */
+interface RunStateReadInput {
+  includeRunState?: boolean
 }
 
 /**
@@ -362,7 +406,7 @@ function rethrowQueryValidation(error: unknown): never {
   throw error
 }
 
-export interface ListTableRowsInput extends TableScopedInput {
+export interface ListTableRowsInput extends TableScopedInput, RunStateReadInput {
   limit: number
   cursor?: string
 }
@@ -387,10 +431,13 @@ export const listTableRows = defineAuthorizedTableUseCase({
           after: cursor?.after,
           offset: cursor?.offset,
           includeTotal: false,
-          withExecutions: false,
+          withExecutions: input.includeRunState ?? false,
         },
         requestId(input)
       )
+      if (input.includeRunState) {
+        requireBoundedRunState(result.rows.map((row) => row.executions))
+      }
       return {
         table: context.table,
         rows: result.rows,
@@ -402,7 +449,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
   },
 })
 
-export interface QueryTableRowsInput extends TableScopedInput {
+export interface QueryTableRowsInput extends TableScopedInput, RunStateReadInput {
   predicate?: TablePredicate
   sort?: SortSpec
   limit?: number
@@ -451,10 +498,13 @@ export const queryTableRows = defineAuthorizedTableUseCase({
           after: cursor?.after,
           offset: cursor?.offset,
           includeTotal: input.includeTotal ?? false,
-          withExecutions: false,
+          withExecutions: input.includeRunState ?? false,
         },
         requestId(input)
       )
+      if (input.includeRunState) {
+        requireBoundedRunState(result.rows.map((row) => row.executions))
+      }
       return {
         table: context.table,
         ...result,
@@ -511,14 +561,16 @@ export const findTableRows = defineAuthorizedTableUseCase({
   },
 })
 
-export interface ReadTableRowInput extends TableScopedInput {
+export interface ReadTableRowInput extends TableScopedInput, RunStateReadInput {
   rowId: string
   includePersistedSecretProvenance?: boolean
 }
 
 export interface ReadTableRowResult extends TableResult {
-  /** Without the executions sidecar — no read surface puts it on the wire. */
+  /** The stored row without its sidecars; run state travels separately below. */
   row: TableRowSummary
+  /** Per-group run state, present only when the read asked for it. */
+  runState?: RowExecutions
   secretProvenance?: TableRowsProvenance
 }
 
@@ -528,9 +580,12 @@ export const readTableRow = defineAuthorizedTableUseCase({
   async execute({ principal, input, context }): Promise<ReadTableRowResult> {
     const row = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
     if (!row) throw new OrchestrationError('not_found', 'Row not found')
+    const runState = input.includeRunState ? await loadExecutionsForRow(db, input.rowId) : undefined
+    if (runState) requireBoundedRunState([runState])
     return {
       table: context.table,
       row,
+      ...(runState ? { runState } : {}),
       secretProvenance: await loadAuthorizedRowsProvenance(
         principal,
         context.workspaceId,
@@ -1033,6 +1088,87 @@ export const updateTableRows = defineAuthorizedTableUseCase({
     }
   },
   afterSuccess: ({ context, result }) => {
+    if (result.affectedCount > 0) signalTableRowsChanged(context.tableId)
+  },
+})
+
+export interface BatchUpdateTableRowsInput extends TableScopedInput {
+  /** See {@link rowWriteOptions}. Required so a new write surface must choose. */
+  strictWrite: boolean
+  /** See {@link TableRowDataKeying}. Required so a new write surface must choose. */
+  dataKeying: TableRowDataKeying
+  /** One merge patch per row. A row identifier may appear at most once. */
+  updates: readonly { rowId: string; data: RowData }[]
+}
+
+export interface BatchUpdateTableRowsResult extends TableResult, BulkOperationResult {}
+
+/**
+ * Heterogeneous batch row update: a distinct merge patch per row, committed as
+ * one authorized operation.
+ *
+ * The sibling {@link updateTableRows} applies ONE patch to every row a
+ * predicate matches, so N different writes are N requests through it. This is
+ * the surface-neutral home of the behavior Copilot's batch tool and the public
+ * `POST /rows/batch-update` both need: identical business semantics, so one
+ * semantic operation ({@link tableOperations.updateRows}) and one use case.
+ *
+ * Membership is atomic. `batchUpdateRows` refuses the whole batch when a
+ * `rowId` names no row in the table, which reaches the wire as a `400` listing
+ * the missing ids — a caller that sent explicit identifiers is better served by
+ * a refusal it can retry than by a partial commit it has to reconcile.
+ */
+export const batchUpdateTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.updateRows,
+  resolveContext: ({ input }: { input: BatchUpdateTableRowsInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<BatchUpdateTableRowsResult> {
+    if (input.updates.length < 1 || input.updates.length > CSV_MAX_BATCH_SIZE) {
+      throw new OrchestrationError(
+        'validation',
+        `Batch update count must be between 1 and ${CSV_MAX_BATCH_SIZE}`
+      )
+    }
+    const storageData = rowsToStorage(
+      input.updates.map((update) => update.data),
+      context.table,
+      input.dataKeying,
+      input.strictWrite
+    )
+    const updates = input.updates.map((update, index) => ({
+      rowId: update.rowId,
+      data: storageData[index],
+    }))
+    const result = await batchUpdateRows(
+      {
+        tableId: context.tableId,
+        updates,
+        workspaceId: context.workspaceId,
+        actorUserId: actorUserId(principal, context.billedAccountUserId),
+        secretProvenanceByRowId: Object.fromEntries(
+          updates.map((update) => [
+            update.rowId,
+            createExactEmptyTableRowSecretProvenance(update.data),
+          ])
+        ),
+      },
+      context.table,
+      requestId(input)
+    )
+    return { table: context.table, ...result }
+  },
+  projectAudit({ context, result }) {
+    if (result.affectedCount === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: context.tableId,
+      resourceName: context.table.name,
+      description: `Updated ${result.affectedCount} row(s) in table "${context.table.name}"`,
+      metadata: { op: 'batch_update', rowsUpdated: result.affectedCount },
+    }
+  },
+  afterSuccess({ context, result }) {
     if (result.affectedCount > 0) signalTableRowsChanged(context.tableId)
   },
 })

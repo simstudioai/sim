@@ -18,9 +18,10 @@ export const POST = defineInternalJsonRoute({
   errorPolicy: internalTableErrorPolicies.bulk,
   mapInput: ({ body }) => ({
     assertedWorkspaceId: body.workspaceId,
+    folderKeying: 'ids' as const,
     tableIds: body.tableIds,
-    folderIds: body.folderIds,
-    targetFolderId: body.targetFolderId,
+    folders: body.folderIds,
+    targetFolder: body.targetFolderId,
   }),
   useCase: bulkMoveTables,
   present: ({ moved, skipped, notFound, failed }) => ({
