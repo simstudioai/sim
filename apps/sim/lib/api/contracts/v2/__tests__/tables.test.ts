@@ -12,7 +12,11 @@ import * as tableContracts from '@/lib/api/contracts/v2/tables'
 import {
   V2_TABLE_IMPORT_OPTIONS_MAX_BYTES,
   v2AddWorkflowGroupBodySchema,
+  v2ApiRowSchema,
   v2ApiTableSchema,
+  v2BatchUpdateRowsBodySchema,
+  v2BulkDeleteTablesBodySchema,
+  v2BulkMoveTablesBodySchema,
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
@@ -21,15 +25,20 @@ import {
   v2CsvImportMappingSchema,
   v2FindRowsBodySchema,
   v2FindRowsDataSchema,
+  v2GetTableDispatchContract,
   v2GetTableImportContract,
+  v2GetTableRowQuerySchema,
+  v2ListTablesQuerySchema,
   v2QueryRowsBodySchema,
+  v2RestoreTableContract,
   v2TableImportStatusSchema,
+  v2TableRowsQuerySchema,
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
   v2UpdateWorkflowGroupBodySchema,
 } from '@/lib/api/contracts/v2/tables'
 import { getValidationErrorMessage } from '@/lib/api/server/validation'
-import { MAX_RUN_TARGET_ROW_IDS, TABLE_LIMITS } from '@/lib/table/constants'
+import { MAX_RUN_TARGET_ROW_IDS, MAX_TABLE_BATCH_ITEMS, TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -504,5 +513,194 @@ describe('v2 table request bounds', () => {
     expect(published).toContain('`*` is the only wildcard')
     expect(published).toContain('single-select accepts `eq`, `ne`, `in`, `nin`')
     expect(published).toContain('isEmpty')
+  })
+})
+
+describe('v2 table run dispatch contract', () => {
+  const DISPATCH = {
+    id: 'dispatch-1',
+    tableId: 'table-1',
+    workspaceId: WORKSPACE_ID,
+    status: 'dispatching',
+    mode: 'all',
+    scope: { groupIds: ['group-1'] },
+    limit: null,
+    processedCount: 0,
+    isManualRun: true,
+    requestedAt: '2026-01-01T00:00:00.000Z',
+    completedAt: null,
+    cancelledAt: null,
+  }
+
+  /**
+   * The whole point of declaring this enum rather than reusing the first-party
+   * active-dispatch one: v2 response schemas are parsed on the way out, so a
+   * status set that stopped at the in-flight states would make polling a run to
+   * completion — the only reason to poll — a 500.
+   */
+  it.each(['pending', 'dispatching', 'complete', 'cancelled'] as const)(
+    'publishes %s as a readable dispatch status',
+    (status) => {
+      expect(
+        v2GetTableDispatchContract.response.schema.safeParse({
+          data: { ...DISPATCH, status },
+        }).success
+      ).toBe(true)
+    }
+  )
+
+  it('rejects a status outside the column domain', () => {
+    expect(
+      v2GetTableDispatchContract.response.schema.safeParse({
+        data: { ...DISPATCH, status: 'finished' },
+      }).success
+    ).toBe(false)
+  })
+
+  it('does not publish the scheduler cursor, which a caller would read as a page token', () => {
+    const parsed = v2GetTableDispatchContract.response.schema.parse({
+      data: { ...DISPATCH, cursor: 42 },
+    })
+    expect(parsed.data).not.toHaveProperty('cursor')
+  })
+})
+
+describe('v2 opt-in row run state', () => {
+  it('omits runState from a row by default', () => {
+    const parsed = v2ApiRowSchema.parse({
+      id: 'row-1',
+      data: { name: 'Ada' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    expect(parsed).not.toHaveProperty('runState')
+  })
+
+  it('defaults includeRunState off on every read that accepts it', () => {
+    expect(v2TableRowsQuerySchema.parse({ workspaceId: WORKSPACE_ID }).includeRunState).toBe(false)
+    expect(v2QueryRowsBodySchema.parse({ workspaceId: WORKSPACE_ID }).includeRunState).toBe(false)
+    expect(v2GetTableRowQuerySchema.parse({ workspaceId: WORKSPACE_ID }).includeRunState).toBe(
+      false
+    )
+  })
+
+  it('coerces the querystring spelling of the flag rather than demanding an enum', () => {
+    expect(
+      v2TableRowsQuerySchema.parse({ workspaceId: WORKSPACE_ID, includeRunState: '1' })
+        .includeRunState
+    ).toBe(true)
+  })
+
+  it('carries every published run-state field, including a terminal cancellation', () => {
+    const parsed = v2ApiRowSchema.parse({
+      id: 'row-1',
+      data: {},
+      runState: {
+        'group-1': {
+          status: 'cancelled',
+          executionId: null,
+          workflowId: 'workflow-1',
+          error: null,
+          runningBlockIds: [],
+          blockErrors: {},
+          cancelledAt: '2026-01-02T00:00:00.000Z',
+        },
+      },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    expect(parsed.runState?.['group-1'].status).toBe('cancelled')
+  })
+})
+
+describe('v2 batch row update contract', () => {
+  it('refuses an empty batch with a message naming the field', () => {
+    const parsed = v2BatchUpdateRowsBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      updates: [],
+    })
+    expect(parsed.success).toBe(false)
+    expect(getValidationErrorMessage(parsed.error!, '')).toContain(
+      'updates must contain at least one row'
+    )
+  })
+
+  it('refuses a batch past the bulk ceiling', () => {
+    expect(
+      v2BatchUpdateRowsBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        updates: Array.from(
+          { length: TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1 },
+          (_unused, index) => ({ rowId: `row-${index}`, data: {} })
+        ),
+      }).success
+    ).toBe(false)
+  })
+
+  /**
+   * Two patches for one row have no defined precedence, and the primitive
+   * applies them in array order — so the caller's second patch silently wins.
+   */
+  it('refuses a batch naming the same row twice', () => {
+    const parsed = v2BatchUpdateRowsBodySchema.safeParse({
+      workspaceId: WORKSPACE_ID,
+      updates: [
+        { rowId: 'row-1', data: { name: 'Ada' } },
+        { rowId: 'row-1', data: { name: 'Grace' } },
+      ],
+    })
+    expect(parsed.success).toBe(false)
+    expect(getValidationErrorMessage(parsed.error!, '')).toContain('Duplicate rowId')
+  })
+})
+
+describe('v2 table archive lifecycle', () => {
+  it('lists active tables unless the caller asks otherwise', () => {
+    expect(v2ListTablesQuerySchema.parse({ workspaceId: WORKSPACE_ID }).scope).toBe('active')
+  })
+
+  it('accepts the archived scope and rejects anything else', () => {
+    expect(
+      v2ListTablesQuerySchema.parse({ workspaceId: WORKSPACE_ID, scope: 'archived' }).scope
+    ).toBe('archived')
+    expect(
+      v2ListTablesQuerySchema.safeParse({ workspaceId: WORKSPACE_ID, scope: 'all' }).success
+    ).toBe(false)
+  })
+
+  it('scopes restore to the workspace that owns the archived table', () => {
+    expect(v2RestoreTableContract.body?.safeParse({}).success).toBe(false)
+    expect(v2RestoreTableContract.body?.safeParse({ workspaceId: WORKSPACE_ID }).success).toBe(true)
+  })
+})
+
+describe('v2 bulk table selection contracts', () => {
+  it('requires at least one table or folder path', () => {
+    const parsed = v2BulkDeleteTablesBodySchema.safeParse({ workspaceId: WORKSPACE_ID })
+    expect(parsed.success).toBe(false)
+    expect(getValidationErrorMessage(parsed.error!, '')).toContain(
+      'At least one table or folder path must be selected'
+    )
+  })
+
+  it('bounds the combined selection', () => {
+    expect(
+      v2BulkMoveTablesBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        tableIds: Array.from({ length: MAX_TABLE_BATCH_ITEMS }, (_unused, i) => `table-${i}`),
+        folderPaths: ['/Sales'],
+        targetFolderPath: '/',
+      }).success
+    ).toBe(false)
+  })
+
+  it('accepts a workspace-root destination as null', () => {
+    expect(
+      v2BulkMoveTablesBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        tableIds: ['table-1'],
+        targetFolderPath: null,
+      }).success
+    ).toBe(true)
   })
 })

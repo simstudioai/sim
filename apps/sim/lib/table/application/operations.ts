@@ -89,6 +89,7 @@ export const tableOperations = {
   create: writeOperation('tables.create'),
   update: writeOperation('tables.update'),
   delete: writeOperation('tables.delete'),
+  restore: writeOperation('tables.restore'),
   bulkMove: writeOperation('tables.bulk_move'),
   bulkDelete: writeOperation('tables.bulk_delete'),
   renameByVfsPath: defineWorkspaceOperation({
@@ -131,6 +132,8 @@ export const tableOperations = {
   updateGroup: toolWriteOperation('tables.groups.update'),
   deleteGroup: toolWriteOperation('tables.groups.delete'),
   startRun: writeOperation('tables.runs.start'),
+  /** Reading the state of a run — including one you started — is a read. */
+  readRun: readOperation('tables.runs.read'),
   cancelRuns: writeOperation('tables.runs.cancel'),
   createImport: internalExecutorWriteOperation('tables.imports.create'),
   createFromWorkspaceFile: delegatedWriteOperation('tables.imports.create_from_workspace_file'),

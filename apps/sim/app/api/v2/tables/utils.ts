@@ -1,8 +1,8 @@
-import type { V2ApiTable } from '@/lib/api/contracts/v2/tables'
+import type { V2ApiTable, V2RowRunState } from '@/lib/api/contracts/v2/tables'
 import type { RowData, TableDefinition, TableSchema } from '@/lib/table'
 import { getMaxRowsPerTable } from '@/lib/table/billing'
 import { buildColumnNameById, remapViewConfigColumnRefs } from '@/lib/table/column-keys'
-import type { ColumnDefinition } from '@/lib/table/types'
+import type { ColumnDefinition, RowExecutions } from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
 import { normalizeColumn } from '@/lib/table/wire'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
@@ -167,15 +167,54 @@ interface ApiRowInput {
 }
 
 /**
- * Normalized public row shape: `{ id, data, createdAt, updatedAt }`, no storage
- * internals (`position`/`orderKey`/`executions`). Callers pass a
- * `namedRowMapper(schema.columns)` so `data` is keyed by column NAME and select
- * cells surface their option NAME rather than the stored option id.
+ * Projects the stored per-`(row, group)` execution sidecar onto the public
+ * `runState` map.
+ *
+ * `jobId` is dropped — it is the async scheduler's own identity and addresses
+ * nothing a caller can reach — and so is `enrichmentDetails`, which is never
+ * hydrated on this path and has its own sub-resource. The two optional storage
+ * fields are defaulted so the published schema can declare them required, which
+ * is what lets a client read `blockErrors` without a presence check.
  */
-export function toApiRow(row: ApiRowInput, toNamedRow: (data: RowData) => RowData) {
+function toApiRunState(executions: RowExecutions): Record<string, V2RowRunState> {
+  const runState: Record<string, V2RowRunState> = {}
+  for (const [groupId, execution] of Object.entries(executions)) {
+    runState[groupId] = {
+      status: execution.status,
+      executionId: execution.executionId,
+      workflowId: execution.workflowId,
+      error: execution.error,
+      runningBlockIds: execution.runningBlockIds ?? [],
+      blockErrors: execution.blockErrors ?? {},
+      cancelledAt: execution.cancelledAt ?? null,
+    }
+  }
+  return runState
+}
+
+/**
+ * Normalized public row shape: `{ id, data, createdAt, updatedAt }`, plus
+ * `runState` when — and only when — the caller opted in.
+ *
+ * Storage internals stay off the wire: `position` and `orderKey` are a
+ * fractional index that is nullable mid-backfill and that a caller cannot mint.
+ * The per-cell execution sidecar is NOT one of them — it holds run outcomes of
+ * runs this same API starts, which is why it is reachable through
+ * `includeRunState` rather than stripped. Do not "restore" the strip.
+ *
+ * Callers pass a `namedRowMapper(schema.columns)` so `data` is keyed by column
+ * NAME and select cells surface their option NAME rather than the stored option
+ * id.
+ */
+export function toApiRow(
+  row: ApiRowInput,
+  toNamedRow: (data: RowData) => RowData,
+  runState?: RowExecutions
+) {
   return {
     id: row.id,
     data: toNamedRow(row.data),
+    ...(runState ? { runState: toApiRunState(runState) } : {}),
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   }

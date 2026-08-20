@@ -92,3 +92,27 @@ export async function resolveActiveTableInWorkspace(
   const table = await requireTable(tableId, workspaceContext.workspaceId)
   return { ...workspaceContext, tableId: table.id, table }
 }
+
+/**
+ * Loads the canonical context an archived-table use case authorizes against.
+ *
+ * Restore is the one table operation whose subject is deliberately NOT active,
+ * so it cannot go through {@link resolveActiveTableContext} — that resolver's
+ * `getTableById` skips archived rows and would report every restorable table as
+ * missing. The asserted-workspace comparison and its not-found concealment are
+ * identical.
+ */
+export async function resolveArchivedTableContext(input: {
+  tableId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveTableContext> {
+  const table = await getTableById(input.tableId, { includeArchived: true })
+  if (
+    !table ||
+    (input.assertedWorkspaceId !== undefined && table.workspaceId !== input.assertedWorkspaceId)
+  ) {
+    throw new OrchestrationError('not_found', 'Table not found')
+  }
+  const workspaceContext = await resolveTableWorkspaceContext(table.workspaceId)
+  return { ...workspaceContext, tableId: table.id, table }
+}

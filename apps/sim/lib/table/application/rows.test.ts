@@ -28,6 +28,9 @@ const {
   mockUpdateRowsByFilter,
   mockValidateRowData,
   mockValidateBatchRows,
+  mockBatchUpdateRows,
+  mockGetRowSummaryById,
+  mockLoadExecutionsForRow,
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
@@ -51,6 +54,9 @@ const {
   mockUpdateRowsByFilter: vi.fn(),
   mockValidateRowData: vi.fn(),
   mockValidateBatchRows: vi.fn(),
+  mockBatchUpdateRows: vi.fn(),
+  mockGetRowSummaryById: vi.fn(),
+  mockLoadExecutionsForRow: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -74,13 +80,16 @@ vi.mock('@/lib/table', () => ({
     MAX_BATCH_INSERT_SIZE: 1000,
     MAX_BULK_OPERATION_SIZE: 1000,
     MAX_QUERY_LIMIT: 1000,
+    MAX_ROW_RUN_STATE_BYTES: 256,
   },
   batchInsertRows: mockBatchInsertRows,
+  batchUpdateRows: mockBatchUpdateRows,
   deleteRow: vi.fn(),
   deleteRowsByFilter: vi.fn(),
   deleteRowsByIds: mockDeleteRowsByIds,
   findRowMatches: vi.fn(),
   getRowById: vi.fn(),
+  getRowSummaryById: mockGetRowSummaryById,
   insertRow: mockInsertRow,
   queryRows: mockQueryRows,
   replaceTableRows: mockReplaceRowsPrimitive,
@@ -137,20 +146,32 @@ vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mockResolveContext,
 }))
 
+vi.mock('@/lib/table/import', () => ({
+  CSV_MAX_BATCH_SIZE: 5000,
+}))
+
+vi.mock('@/lib/table/rows/executions', () => ({
+  loadEnrichmentDetail: vi.fn(),
+  loadExecutionsForRow: mockLoadExecutionsForRow,
+}))
+
 vi.mock('@/lib/table/events', () => ({
   signalTableRowsChanged: mockSignalRowsChanged,
   signalTableRowsChangedByActor: mockSignalRowsChangedByActor,
 }))
 
 import {
+  batchUpdateTableRows,
   createTableRows,
   deleteTableRows,
   listTableRows,
   ProjectedWireRowsValidationError,
   queryTableRows,
+  readTableRow,
   replaceProjectedWireRows,
   replaceTableRows,
   TableRowsValidationError,
+  TableRunStateCollectionLimitExceededError,
   tablePredicateNamesToFilter,
   updateTableRow,
   updateTableRows,
@@ -1284,5 +1305,265 @@ describe('row data keying', () => {
         },
       })
     ).rejects.toThrow(/Row 2: Unknown columns: zzz, qqq/)
+  })
+})
+
+/**
+ * Per-cell run state is opt-in. These pin both halves of that: the default read
+ * is byte-identical to what shipped, and the flag changes only the projection —
+ * never which rows come back or in what order.
+ */
+describe('opt-in per-cell run state', () => {
+  const RUN_STATE = {
+    'group-1': {
+      status: 'error' as const,
+      executionId: 'execution-1',
+      jobId: 'job-1',
+      workflowId: 'workflow-1',
+      error: 'boom',
+    },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(contextFor())
+    mockQueryRows.mockResolvedValue({
+      rows: [{ id: 'row-1', data: {}, executions: {} }],
+      rowCount: 1,
+      totalCount: null,
+      nextCursor: null,
+    })
+  })
+
+  it('does not read the sidecar for a list that did not ask for it', async () => {
+    await listTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25 },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ withExecutions: false }),
+      expect.any(String)
+    )
+  })
+
+  it('reads the sidecar for a list that asked for it', async () => {
+    await listTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ withExecutions: true }),
+      expect.any(String)
+    )
+  })
+
+  it('carries the flag through the predicate query the same way', async () => {
+    await queryTableRows.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+    })
+
+    expect(mockQueryRows).toHaveBeenCalledWith(
+      TABLE,
+      expect.objectContaining({ withExecutions: true }),
+      expect.any(String)
+    )
+  })
+
+  it('leaves the single-row read without run state by default', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+
+    const result = await readTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1' },
+    })
+
+    expect(mockLoadExecutionsForRow).not.toHaveBeenCalled()
+    expect(result.runState).toBeUndefined()
+  })
+
+  it('attaches run state to the single-row read on request', async () => {
+    mockGetRowSummaryById.mockResolvedValue({ id: 'row-1', data: {} })
+    mockLoadExecutionsForRow.mockResolvedValue(RUN_STATE)
+
+    const result = await readTableRow.execute({
+      principal: PRINCIPAL,
+      input: { tableId: TABLE.id, rowId: 'row-1', includeRunState: true },
+    })
+
+    expect(result.runState).toEqual(RUN_STATE)
+  })
+
+  /**
+   * `blockErrors` is unbounded jsonb, so a full page of rows carrying one has no
+   * ceiling of its own. Refuse rather than truncate: a short answer to "which of
+   * my rows errored" is wrong, not merely incomplete.
+   */
+  it('refuses a page whose run state outgrows the response budget', async () => {
+    mockQueryRows.mockResolvedValue({
+      rows: Array.from({ length: 10 }, (_, index) => ({
+        id: `row-${index}`,
+        data: {},
+        executions: { 'group-1': { ...RUN_STATE['group-1'], error: 'e'.repeat(200) } },
+      })),
+      rowCount: 10,
+      totalCount: null,
+      nextCursor: null,
+    })
+
+    await expect(
+      listTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 10, includeRunState: true },
+      })
+    ).rejects.toBeInstanceOf(TableRunStateCollectionLimitExceededError)
+  })
+
+  it('does not apply the budget to a read that did not ask for run state', async () => {
+    mockQueryRows.mockResolvedValue({
+      rows: Array.from({ length: 10 }, (_, index) => ({
+        id: `row-${index}`,
+        data: {},
+        executions: { 'group-1': { ...RUN_STATE['group-1'], error: 'e'.repeat(200) } },
+      })),
+      rowCount: 10,
+      totalCount: null,
+      nextCursor: null,
+    })
+
+    await expect(
+      listTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 10 },
+      })
+    ).resolves.toBeDefined()
+  })
+})
+
+/**
+ * The heterogeneous batch update, which Copilot's batch tool and the public
+ * `POST /rows/batch-update` now share.
+ */
+describe('batchUpdateTableRows application use case', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(contextFor())
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 2, affectedRowIds: ['row-1', 'row-2'] })
+  })
+
+  it('translates every name-keyed patch to storage ids under canonical scope', async () => {
+    const result = await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        assertedWorkspaceId: TABLE.workspaceId,
+        strictWrite: true,
+        dataKeying: 'names',
+        updates: [
+          { rowId: 'row-1', data: { name: 'Ada' } },
+          { rowId: 'row-2', data: { name: 'Grace' } },
+        ],
+      },
+    })
+
+    expect(mockBatchUpdateRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: TABLE.id,
+        workspaceId: TABLE.workspaceId,
+        actorUserId: 'user-1',
+        updates: [
+          { rowId: 'row-1', data: { 'column-name': 'Ada' } },
+          { rowId: 'row-2', data: { 'column-name': 'Grace' } },
+        ],
+      }),
+      TABLE,
+      expect.any(String)
+    )
+    expect(result.affectedCount).toBe(2)
+  })
+
+  it('refuses a strict patch naming a column the table does not have', async () => {
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          strictWrite: true,
+          dataKeying: 'names',
+          updates: [{ rowId: 'row-1', data: { nope: 1 } }],
+        },
+      })
+    ).rejects.toBeInstanceOf(TableRowsValidationError)
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  it('drops the same key for a first-party caller instead of refusing', async () => {
+    await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        strictWrite: false,
+        dataKeying: 'names',
+        updates: [{ rowId: 'row-1', data: { nope: 1 } }],
+      },
+    })
+
+    expect(mockBatchUpdateRows).toHaveBeenCalledWith(
+      expect.objectContaining({ updates: [{ rowId: 'row-1', data: {} }] }),
+      TABLE,
+      expect.any(String)
+    )
+  })
+
+  it('rejects an empty batch before touching storage', async () => {
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, strictWrite: true, dataKeying: 'names', updates: [] },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mockBatchUpdateRows).not.toHaveBeenCalled()
+  })
+
+  it('audits and signals only the authoritative affected count', async () => {
+    mockBatchUpdateRows.mockResolvedValue({ affectedCount: 0, affectedRowIds: [] })
+
+    await batchUpdateTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        strictWrite: true,
+        dataKeying: 'names',
+        updates: [{ rowId: 'row-1', data: { name: 'Ada' } }],
+      },
+    })
+
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('propagates the missing-row refusal without audit or shared effects', async () => {
+    const failure = Object.assign(new Error('Rows not found: row-9'), { code: 'validation' })
+    mockBatchUpdateRows.mockRejectedValueOnce(failure)
+
+    await expect(
+      batchUpdateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          strictWrite: true,
+          dataKeying: 'names',
+          updates: [{ rowId: 'row-9', data: { name: 'Ada' } }],
+        },
+      })
+    ).rejects.toBe(failure)
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
   })
 })

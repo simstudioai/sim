@@ -85,6 +85,10 @@ export interface DispatchRow {
   /** User who triggered the run (for usage attribution); null for auto-fire. */
   triggeredByUserId: string | null
   requestedAt: Date
+  /** Set when the dispatch reached `complete`; null while it is still active. */
+  completedAt: Date | null
+  /** Set when the dispatch was cancelled; null otherwise. */
+  cancelledAt: Date | null
 }
 
 async function deleteExecutionRows(trx: DbTransaction, filters: SQL[]): Promise<number> {
@@ -332,6 +336,8 @@ export async function listActiveDispatches(tableId: string): Promise<DispatchRow
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
   }))
 }
 
@@ -356,6 +362,8 @@ export async function readDispatch(dispatchId: string): Promise<DispatchRow | nu
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
   }
 }
 
@@ -835,6 +843,8 @@ export async function markActiveDispatchesCancelled(
     isManualRun: row.isManualRun,
     triggeredByUserId: row.triggeredByUserId,
     requestedAt: row.requestedAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
   }))
   await Promise.all(
     dispatches.map((d) =>
