@@ -234,7 +234,13 @@ const declaredRoutes = [
       summary: 'Get Workflow State',
       description:
         'Get the editable draft graph of a workflow: blocks, edges, the loop and parallel containers derived from them, and variables. This is the pollable read — it records no audit event, and `HEAD` mirrors `GET`. The payload is **unsanitized**: it carries workspace-scoped `credentialId`, `knowledgeBaseId`, and `tableId` values verbatim, so it is not portable to another workspace. Use `GET /workflows/{id}/export` for a portable, sanitized copy — and note that export is not a read-modify-write source, because sanitizing it drops every credential binding. Unknown members are stripped, so what this returns is exactly the set of keys `PUT /workflows/{id}/state` accepts.',
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      /**
+       * No `413`: unlike the workflow reads beside it this one resolves no
+       * folder path, so it never materializes the workspace's folder tree, and
+       * a documented status the operation cannot emit is worse than none. The
+       * graph itself is bounded on the write side.
+       */
+      errors: RESOURCE_ERRORS,
       success: jsonSuccess('The workflow draft graph.'),
     }),
     {
