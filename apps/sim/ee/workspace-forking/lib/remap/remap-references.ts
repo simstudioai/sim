@@ -1629,6 +1629,48 @@ function applyNestedToolOverrides(
  * set a parent/credential field (bypassing mapping validation) or inject a bogus subblock.
  * Returns a new record only when something applied.
  */
+/** Sub-block types the fork sync modal renders as a free-text field rather than a picker. */
+export const TEXT_DEPENDENT_TYPES = new Set<string>(['short-input', 'long-input'])
+
+/**
+ * The dependents of a remapped parent that the sync modal can offer AND the sync can apply.
+ *
+ * ONE definition on purpose. The collector and the apply side each encoded this rule separately
+ * and drifted the moment text fields were added: they were collected, stored, and gated on by
+ * the Sync button, then dropped here because the allowlist still demanded a `selectorKey`. The
+ * field stayed wiped on every push and the typed value went nowhere.
+ *
+ * A text member of a canonical pair whose basic side is a selector is excluded: the pair is
+ * already represented by its selector member, and the manual member is verbatim by policy.
+ */
+export function reconfigurableDependentIds(
+  subBlocks: ReadonlyArray<{
+    id?: string
+    type?: string
+    dependsOn?: unknown
+    selectorKey?: string
+    canonicalParamId?: string
+  }>
+): Set<string> {
+  const canonicalWithSelector = new Set(
+    subBlocks
+      .filter((cfg) => cfg.canonicalParamId && cfg.selectorKey)
+      .map((cfg) => cfg.canonicalParamId)
+  )
+  const allowed = new Set<string>()
+  for (const cfg of subBlocks) {
+    if (!cfg.id || !cfg.dependsOn) continue
+    if (cfg.selectorKey) {
+      allowed.add(cfg.id)
+      continue
+    }
+    if (!TEXT_DEPENDENT_TYPES.has(cfg.type ?? '')) continue
+    if (cfg.canonicalParamId && canonicalWithSelector.has(cfg.canonicalParamId)) continue
+    allowed.add(cfg.id)
+  }
+  return allowed
+}
+
 export function applyDependentOverrides(
   subBlocks: SubBlockRecord,
   blockType: string,
@@ -1637,12 +1679,10 @@ export function applyDependentOverrides(
   const config = getBlock(blockType)
   if (!config || overrides.size === 0) return subBlocks
 
-  const allowedTopLevel = new Set<string>()
+  const allowedTopLevel = reconfigurableDependentIds(config.subBlocks)
   const toolInputIds = new Set<string>()
   for (const cfg of config.subBlocks) {
-    if (!cfg.id) continue
-    if (cfg.dependsOn && cfg.selectorKey) allowedTopLevel.add(cfg.id)
-    if (cfg.type === 'tool-input') toolInputIds.add(cfg.id)
+    if (cfg.id && cfg.type === 'tool-input') toolInputIds.add(cfg.id)
   }
 
   const nestedByTool = new Map<string, Array<{ index: number; paramId: string; value: string }>>()

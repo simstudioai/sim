@@ -1,10 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 import {
+  applyDependentOverrides,
   customBlockInputStorageKey,
   type ForkReferenceResolver,
+  reconfigurableDependentIds,
   remapForkBlockType,
   replaceCustomBlockInputs,
   scanWorkflowReferences,
@@ -193,5 +196,79 @@ describe('replaceCustomBlockInputs target carry-over', () => {
     const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK)
     expect(result.invoice).toBeUndefined()
     expect(result.workflowId).toEqual({ value: 'wf-prod' })
+  })
+})
+
+describe('reconfigurableDependentIds', () => {
+  const SUBS = [
+    { id: 'credential', type: 'oauth-input' },
+    { id: 'issueType', type: 'short-input', dependsOn: ['credential'] },
+    { id: 'notes', type: 'long-input', dependsOn: ['credential'] },
+    {
+      id: 'labelId',
+      type: 'file-selector',
+      dependsOn: ['credential'],
+      selectorKey: 'gmail.labels',
+    },
+    {
+      id: 'projectId',
+      type: 'project-selector',
+      dependsOn: ['credential'],
+      selectorKey: 'jira.projects',
+      canonicalParamId: 'projectId',
+    },
+    {
+      id: 'manualProjectId',
+      type: 'short-input',
+      dependsOn: ['credential'],
+      canonicalParamId: 'projectId',
+    },
+    { id: 'watchColumns', type: 'dropdown', dependsOn: ['credential'] },
+    { id: 'standalone', type: 'short-input' },
+  ]
+
+  it('offers selector-backed and plain text dependents', () => {
+    const allowed = reconfigurableDependentIds(SUBS)
+    expect([...allowed].sort()).toEqual(['issueType', 'labelId', 'notes', 'projectId'])
+  })
+
+  it('excludes the manual half of a selector-backed canonical pair', () => {
+    expect(reconfigurableDependentIds(SUBS).has('manualProjectId')).toBe(false)
+  })
+
+  it('excludes a dependent the modal can render no control for', () => {
+    // A `dropdown` with no selector has options to fetch and no way to fetch them here.
+    expect(reconfigurableDependentIds(SUBS).has('watchColumns')).toBe(false)
+  })
+
+  it('excludes a field that depends on nothing', () => {
+    expect(reconfigurableDependentIds(SUBS).has('standalone')).toBe(false)
+  })
+
+  it('is the SAME set the sync actually writes back', () => {
+    // The collector offers these and `applyDependentOverrides` writes them. Encoding the rule
+    // twice is what let text dependents be collected, stored, gated on — then silently dropped
+    // on apply, leaving the field wiped on every push with nowhere for the value to go.
+    vi.mocked(getBlock).mockReturnValue({ type: 'jira', subBlocks: SUBS } as never)
+    const applied = applyDependentOverrides(
+      {
+        issueType: { value: 'old' },
+        labelId: { value: 'old' },
+        manualProjectId: { value: 'keep-me' },
+        watchColumns: { value: 'keep-me' },
+      },
+      'jira',
+      new Map([
+        ['issueType', 'Bug'],
+        ['labelId', 'LABEL_1'],
+        ['manualProjectId', 'hacked'],
+        ['watchColumns', 'hacked'],
+      ])
+    )
+    expect(applied.issueType).toEqual({ value: 'Bug' })
+    expect(applied.labelId).toEqual({ value: 'LABEL_1' })
+    // Not offered, so not writable — an override naming one must not slip through.
+    expect(applied.manualProjectId).toEqual({ value: 'keep-me' })
+    expect(applied.watchColumns).toEqual({ value: 'keep-me' })
   })
 })
