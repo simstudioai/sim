@@ -2000,6 +2000,12 @@ import {
 } from '@/tools/greptile'
 import { guardrailsValidateTool } from '@/tools/guardrails'
 import {
+  harmonicBatchGetPeopleTool,
+  harmonicGetPeopleSavedSearchResultsTool,
+  harmonicListPeopleSavedSearchesTool,
+  harmonicSearchPeopleScoutTool,
+} from '@/tools/harmonic'
+import {
   hexCancelRunTool,
   hexCreateCollectionTool,
   hexCreateGroupTool,
@@ -5856,6 +5862,10 @@ export const tools: Record<string, ToolConfig> = {
   granola_update_webhook_endpoint: granolaUpdateWebhookEndpointTool,
   granola_delete_webhook_endpoint: granolaDeleteWebhookEndpointTool,
   guardrails_validate: guardrailsValidateTool,
+  harmonic_batch_get_people: harmonicBatchGetPeopleTool,
+  harmonic_get_people_saved_search_results: harmonicGetPeopleSavedSearchResultsTool,
+  harmonic_list_people_saved_searches: harmonicListPeopleSavedSearchesTool,
+  harmonic_search_people_scout: harmonicSearchPeopleScoutTool,
   hex_cancel_run: hexCancelRunTool,
   hex_create_collection: hexCreateCollectionTool,
   hex_create_group: hexCreateGroupTool,

@@ -10153,6 +10153,41 @@
       "tags": ["version-control", "knowledge-base"]
     },
     {
+      "type": "harmonic",
+      "slug": "harmonic",
+      "name": "Harmonic",
+      "description": "Search and enrich private-market contacts",
+      "longDescription": "Use Harmonic Scout to find people with natural-language criteria, retrieve team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.",
+      "bgColor": "#FFFFFF",
+      "iconName": "HarmonicIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/harmonic",
+      "operations": [
+        {
+          "name": "Search People with Scout",
+          "description": "Ask Harmonic Scout to find people using natural language and return a stable, workflow-ready contacts table."
+        },
+        {
+          "name": "List People Saved Searches",
+          "description": "List the team-shared Harmonic saved searches that target people. Use a returned ID or URN to fetch results."
+        },
+        {
+          "name": "Get People Saved Search Results",
+          "description": "Get one page of a Harmonic people saved search. Full records become contacts; URN-only rows are exposed for Batch Get People."
+        },
+        {
+          "name": "Batch Get People",
+          "description": "Fetch full Harmonic person profiles for up to 500 combined numeric IDs and person URNs."
+        }
+      ],
+      "operationCount": 4,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "automation", "agentic"]
+    },
+    {
       "type": "hex",
       "slug": "hex",
       "name": "Hex",
