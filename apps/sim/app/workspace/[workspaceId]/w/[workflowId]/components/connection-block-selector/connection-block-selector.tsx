@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Button, cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
@@ -47,6 +55,7 @@ const SELECTOR_ACTION_MENU_RIGHT_INSET = 24
 const SELECTOR_ACTION_MENU_AMPLITUDE = 7
 const RECENT_SELECTION_LIMIT = 3
 const RECENT_SELECTION_STORAGE_PREFIX = 'sim:connection-block-selector:recent'
+const BROWSE_PREFETCH_MARGIN_PX = 640
 const POPULAR_BLOCK_TYPES = [
   'agent',
   'function',
@@ -138,6 +147,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
   const posthog = usePostHog()
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const browseSentinelRef = useRef<HTMLDivElement>(null)
   const [search, setSearch] = useState('')
   const [selectedValue, setSelectedValue] = useState('')
   const [recentSelections, setRecentSelections] = useState<RecentSelection[]>([])
@@ -268,6 +278,36 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
     [browseBlocks, browseLimit, browseTools]
   )
   const hasMoreBrowseResults = browseLimit < browseBlocks.length + browseTools.length
+
+  /**
+   * Keep the initial commit bounded, then extend the catalog before the user
+   * reaches its end. Rendering every cmdk item up front caused the original
+   * frame spike, while a manual pagination control exposed that constraint in
+   * the UI. Prefetching near the viewport preserves continuous scrolling and
+   * cmdk's native keyboard navigation without mounting the whole catalog.
+   */
+  useEffect(() => {
+    const list = listRef.current
+    const sentinel = browseSentinelRef.current
+    if (isSearching || !hasMoreBrowseResults || !list || !sentinel) return
+
+    const browseResultCount = browseBlocks.length + browseTools.length
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        startTransition(() => {
+          setBrowseLimit((current) => Math.min(current + MAX_RESULTS_PER_GROUP, browseResultCount))
+        })
+      },
+      {
+        root: list,
+        rootMargin: `0px 0px ${BROWSE_PREFETCH_MARGIN_PX}px 0px`,
+      }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [browseBlocks.length, browseTools.length, hasMoreBrowseResults, isSearching])
 
   const dispatchSelection = useCallback(
     (type: string, resultType: 'block' | 'tool' | 'tool_operation', presetOperation?: string) => {
@@ -494,15 +534,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
                 />
                 <ToolsGroup items={visibleBrowseTools} onSelect={handleToolSelect} />
                 {hasMoreBrowseResults && (
-                  <div className='px-2 py-1.5'>
-                    <Button
-                      variant='ghost'
-                      className='nodrag nopan h-8 w-full text-[var(--text-secondary)]'
-                      onClick={() => setBrowseLimit((current) => current + MAX_RESULTS_PER_GROUP)}
-                    >
-                      Show more
-                    </Button>
-                  </div>
+                  <div ref={browseSentinelRef} aria-hidden='true' className='h-px' />
                 )}
               </>
             )}
