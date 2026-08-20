@@ -6,10 +6,16 @@ const EXTRACT_TIMEOUT_MS = 180_000
 /**
  * PDF asset extraction runs in the doc sandbox — the same vetted image that
  * compiles and renders documents — because the PDF toolchain lives there:
- * poppler's `pdfimages` dumps every embedded image in its native format
- * (masks filtered out via `pdfimages -list`), pdfplumber supplies each
- * image's placement rects in page points plus the document's font names, and
- * pdftoppm+Pillow sample a dominant-color palette from rendered pages.
+ * poppler's `pdfimages` dumps every embedded image in its native format,
+ * pdfplumber supplies each image's placement rects in page points plus the
+ * document's font families, and pdftoppm+Pillow sample a dominant-color
+ * palette from rendered pages.
+ *
+ * A transparent image in a PDF is stored as an opaque base image plus a
+ * separate alpha mask (`/SMask`), so the base alone carries a baked-in solid
+ * background. The script pairs each mask with its base via `pdfimages -list`
+ * row adjacency and recomposites them into an RGBA PNG; masks are never
+ * shipped as standalone assets.
  *
  * Unlike OOXML there is no declared theme in a PDF, so the palette is
  * explicitly labeled inferred; fonts are names only (embedded font files are
@@ -26,6 +32,7 @@ export interface PdfImagePlacement {
 
 export interface ExtractedPdfTheme {
   format: 'pdf'
+  /** Font family names used in the document (style suffixes split off). */
   fonts: string[]
   pageSize?: { widthPt: number; heightPt: number }
   pageCount: number
@@ -46,9 +53,12 @@ export interface PdfTextBlock {
   yPt: number
   wPt: number
   hPt: number
+  /** Font family name, with the PostScript style suffix split off. */
   font: string
   sizePt: number
   colorHex: string | null
+  bold?: boolean
+  italic?: boolean
 }
 
 export interface PdfFilledRect {
@@ -65,12 +75,22 @@ export interface PdfOverlay {
   coverage: number
 }
 
+/** An extracted asset's placement on a page, by its written filename. */
+export interface PdfPlacedImage {
+  name: string
+  xPt: number
+  yPt: number
+  wPt: number
+  hPt: number
+}
+
 /** One page's rebuild recipe: what sits where, in which font and color. */
 export interface PdfPageLayout {
   page: number
   texts: PdfTextBlock[]
   rects: PdfFilledRect[]
   overlays: PdfOverlay[]
+  images: PdfPlacedImage[]
 }
 
 export interface ExtractedPdfAssets {
@@ -95,6 +115,8 @@ subprocess.run(["pdfimages", "-all", inp, outdir + "/asset"],
 listing = subprocess.run(["pdfimages", "-list", inp],
                          check=True, timeout=60, capture_output=True, text=True).stdout
 rows = {}
+alpha_of = {}
+prev_image = None
 for line in listing.splitlines()[2:]:
     parts = line.split()
     if len(parts) < 5:
@@ -105,15 +127,45 @@ for line in listing.splitlines()[2:]:
         continue
     if typ == "image":
         rows[num] = {"page": page, "width": w, "height": h}
+        prev_image = num
+    elif typ in ("smask", "mask") and prev_image is not None:
+        # poppler lists an image's alpha mask on the row directly after it.
+        # An smask's luminance IS the alpha; an explicit /Mask paints only
+        # where the sample is 0, hence the inversion downstream.
+        alpha_of[prev_image] = {"num": num, "invert": typ == "mask"}
+        prev_image = None
+    else:
+        prev_image = None
 
-files = {}
+paths = {}
 for path in sorted(glob.glob(outdir + "/asset-*")):
     m = re.search(r"asset-(\\d+)\\.(\\w+)$", path)
-    if not m:
+    if m:
+        paths[int(m.group(1))] = path
+files = {num: path for num, path in paths.items() if num in rows}
+
+# A transparent source image arrives as an opaque base plus a separate mask;
+# shipping the base alone would bake in a solid background. Recomposite the
+# pair into an RGBA PNG (the mask may be stored at a different resolution).
+for num, ref in alpha_of.items():
+    base_path, mask_path = files.get(num), paths.get(ref["num"])
+    if not base_path or not mask_path:
         continue
-    num = int(m.group(1))
-    if num in rows:
-        files[num] = path
+    try:
+        base = Image.open(base_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")
+        if ref["invert"]:
+            mask = Image.eval(mask, lambda v: 255 - v)
+        if mask.size != base.size:
+            mask = mask.resize(base.size, Image.BILINEAR)
+        base.putalpha(mask)
+        out = base_path.rsplit(".", 1)[0] + ".png"
+        base.save(out, "PNG")
+        if out != base_path:
+            os.remove(base_path)
+        files[num] = out
+    except Exception:
+        pass  # undecodable mask: the opaque base still beats losing the asset
 
 def to_hex(color):
     if color is None:
@@ -134,6 +186,27 @@ def to_hex(color):
     f = lambda v: max(0, min(255, int(round(v * 255))))
     return "%02X%02X%02X" % (f(r), f(g), f(b))
 
+STYLE_TOKENS = {"bold", "black", "heavy", "light", "medium", "thin", "italic",
+                "oblique", "semibold", "demibold", "extrabold", "ultrabold",
+                "semi", "demi", "extra", "ultra", "condensed", "cond"}
+
+def parse_font_name(name):
+    # PostScript names pack family and style together ("Arial-BoldMT",
+    # "MyriadPro-Semibold"). Split them so the rebuild can set a real family
+    # plus bold/italic flags instead of asking PowerPoint for a face that
+    # does not exist (which silently falls back to a regular weight).
+    base = re.sub(r"^[A-Z]{6}\\+", "", name or "")
+    parts = re.split(r"[-,_]", base, maxsplit=1)
+    probe = parts[1] if len(parts) > 1 else base
+    bold = re.search(r"(?i)bold|black|heavy|demi", probe) is not None
+    italic = re.search(r"(?i)italic|oblique", probe) is not None
+    family = re.sub(r"(?:PS|MT|PSMT)$", "", parts[0])
+    family = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", family)
+    words = family.split()
+    while len(words) > 1 and words[-1].lower() in STYLE_TOKENS:
+        words.pop()
+    return " ".join(words), bold, italic
+
 fonts = set()
 placements = []
 page_size = None
@@ -148,7 +221,9 @@ with pdfplumber.open(inp) as pdf:
         for ch in page.chars[:8000]:
             name = ch.get("fontname") or ""
             if name:
-                fonts.add(re.sub(r"^[A-Z]{6}\\+", "", name))
+                family = parse_font_name(name)[0]
+                if family:
+                    fonts.add(family)
             char_color[(round(ch["x0"], 1), round(ch["top"], 1))] = ch.get("non_stroking_color")
         page_images = []
         for im in page.images:
@@ -187,16 +262,22 @@ with pdfplumber.open(inp) as pdf:
             for run in runs:
                 first = run[0]
                 color = to_hex(char_color.get((round(first["x0"], 1), round(first["top"], 1))))
-                texts.append({
+                family, bold, italic = parse_font_name(first.get("fontname") or "")
+                entry = {
                     "text": " ".join(w["text"] for w in run)[:400],
                     "xPt": round(float(first["x0"]), 2),
                     "yPt": round(float(first["top"]), 2),
                     "wPt": round(float(max(w["x1"] for w in run) - first["x0"]), 2),
                     "hPt": round(float(max(w["bottom"] for w in run) - first["top"]), 2),
-                    "font": re.sub(r"^[A-Z]{6}\\+", "", first.get("fontname") or ""),
+                    "font": family,
                     "sizePt": round(float(first.get("size") or 0), 1),
                     "colorHex": color,
-                })
+                }
+                if bold:
+                    entry["bold"] = True
+                if italic:
+                    entry["italic"] = True
+                texts.append(entry)
         texts = texts[:80]
 
         # Filled rects: backgrounds and the scrims decks lay over photos.
@@ -301,7 +382,7 @@ interface SandboxPdfResult {
   pageCount?: number
   inferredPalette?: string[]
   images?: SandboxPdfImage[]
-  layout?: PdfPageLayout[]
+  layout?: Array<Omit<PdfPageLayout, 'images'>>
 }
 
 export async function extractPdfAssets(binary: Buffer): Promise<ExtractedPdfAssets> {
@@ -332,12 +413,22 @@ export async function extractPdfAssets(binary: Buffer): Promise<ExtractedPdfAsse
       ])
     ),
   }
+  // The sandbox reports placements per asset (asset → pages); the rebuild
+  // recipe reads per page, so join each asset's rects onto its page entries.
+  const layout = (payload.layout ?? []).map((page) => ({
+    ...page,
+    images: images.flatMap((image) =>
+      image.placements
+        .filter((placement) => placement.page === page.page)
+        .map(({ xPt, yPt, wPt, hPt }) => ({ name: image.name, xPt, yPt, wPt, hPt }))
+    ),
+  }))
   return {
     theme,
     media: images.map((image) => ({
       name: image.name,
       bytes: Buffer.from(image.base64, 'base64'),
     })),
-    layout: payload.layout ?? [],
+    layout,
   }
 }

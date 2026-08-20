@@ -48,7 +48,10 @@ type ExtractDocAssetsResult = z.infer<typeof ExtractDocAssetsResultSchema>
 /**
  * Materializes a reference document's design into workspace files with a
  * fixed, predictable structure: `<destination>/theme.json` (color scheme,
- * fonts, slide size) plus one file per embedded image, original bytes.
+ * fonts, slide size), `<destination>/layout.json` (the slide/page-by-page
+ * text and asset layout, pptx and pdf), plus one file per embedded image —
+ * original bytes for OOXML media; for PDF, an image stored as base +
+ * separate alpha mask is recombined into a transparent PNG.
  * Re-running against the same destination overwrites the previous set
  * instead of duplicating it. The source document is never modified.
  */
@@ -139,9 +142,11 @@ export const extractDocAssetsServerTool: BaseServerTool<
       )
       written.push({ fileId: themeFile.id, fileName: themeFile.name, vfsPath: themeFile.vfsPath })
 
-      // PDF: the page-by-page rebuild recipe — text blocks with font/size/
-      // color and position, filled rects, and rect-over-image overlays.
-      if ('layout' in extracted && extracted.layout.length > 0) {
+      // The slide/page-by-page rebuild recipe — text blocks with their frame,
+      // font, size, and color, plus each slide's asset placements by extracted
+      // filename (pdf pages also carry filled rects and overlay scrims).
+      let wroteLayout = false
+      if (extracted.layout.length > 0) {
         const layoutFile = await writeAsset(
           'layout.json',
           Buffer.from(JSON.stringify(extracted.layout, null, 2), 'utf8'),
@@ -152,6 +157,7 @@ export const extractDocAssetsServerTool: BaseServerTool<
           fileName: layoutFile.name,
           vfsPath: layoutFile.vfsPath,
         })
+        wroteLayout = true
       }
 
       for (const media of extracted.media) {
@@ -184,9 +190,13 @@ export const extractDocAssetsServerTool: BaseServerTool<
       )
         .filter(Boolean)
         .join(', ')
+      const unit = extracted.theme.format === 'pdf' ? 'page' : 'slide'
+      const layoutNote = wroteLayout
+        ? `, plus layout.json (${unit}-by-${unit} text and asset layout)`
+        : ''
       return {
         success: true,
-        message: `Extracted ${extracted.media.length} asset file(s) and theme.json (${themeSummary || 'no theme data found'}) from "${sourceName}" into ${destination}/`,
+        message: `Extracted ${extracted.media.length} asset file(s) and theme.json (${themeSummary || 'no theme data found'})${layoutNote} from "${sourceName}" into ${destination}/`,
         themePath: written[0]?.vfsPath,
         theme: extracted.theme,
         files: written,

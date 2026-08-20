@@ -79,6 +79,70 @@ describe('extractDocAssets', () => {
     expect(media.map((m) => m.name)).toEqual(['image1.png'])
   })
 
+  it('extracts slide text/image layout, inheriting placeholder frames from the slide layout', async () => {
+    const relNs = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    const zip = new JSZip()
+    zip.file('ppt/theme/theme1.xml', THEME_XML)
+    zip.file('ppt/media/image1.png', PNG_BYTES)
+    zip.file(
+      'ppt/slides/slide1.xml',
+      `<p:sld xmlns:p="p" xmlns:a="a" xmlns:r="r"><p:cSld><p:spTree>
+<p:sp><p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr/>
+<p:txBody><a:p><a:r><a:rPr lang="en-US" sz="3600" b="1"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:latin typeface="+mj-lt"/></a:rPr><a:t>Q3 &amp; Q4 Results</a:t></a:r></a:p></p:txBody></p:sp>
+<p:sp><p:spPr><a:xfrm><a:off x="914400" y="1828800"/><a:ext cx="4572000" cy="914400"/></a:xfrm></p:spPr>
+<p:txBody><a:p><a:r><a:rPr sz="1400"><a:solidFill><a:srgbClr val="112233"/></a:solidFill><a:latin typeface="Georgia"/></a:rPr><a:t>First line</a:t></a:r></a:p><a:p><a:r><a:t>Second line</a:t></a:r></a:p></p:txBody></p:sp>
+<p:grpSp><p:sp><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm></p:spPr><p:txBody><a:p><a:r><a:t>grouped</a:t></a:r></a:p></p:txBody></p:sp></p:grpSp>
+<p:pic><p:blipFill><a:blip r:embed="rId2"/></p:blipFill><p:spPr><a:xfrm><a:off x="1828800" y="914400"/><a:ext cx="1828800" cy="1828800"/></a:xfrm></p:spPr></p:pic>
+</p:spTree></p:cSld></p:sld>`
+    )
+    zip.file(
+      'ppt/slides/_rels/slide1.xml.rels',
+      `<Relationships><Relationship Id="rId1" Type="${relNs}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="${relNs}/image" Target="../media/image1.png"/></Relationships>`
+    )
+    zip.file(
+      'ppt/slideLayouts/slideLayout1.xml',
+      `<p:sldLayout xmlns:p="p" xmlns:a="a"><p:cSld><p:spTree>
+<p:sp><p:nvSpPr><p:nvPr><p:ph type="ctrTitle"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="914400" y="457200"/><a:ext cx="10972800" cy="1143000"/></a:xfrm></p:spPr><p:txBody><a:p><a:r><a:t>Click to edit</a:t></a:r></a:p></p:txBody></p:sp>
+</p:spTree></p:cSld></p:sldLayout>`
+    )
+    const { theme, layout } = await extractDocAssets(
+      await zip.generateAsync({ type: 'nodebuffer' }),
+      'pptx'
+    )
+    expect(layout).toHaveLength(1)
+    const slide = layout[0]
+    expect(slide.slide).toBe(1)
+    expect(slide.images).toEqual([{ name: 'image1.png', xIn: 2, yIn: 1, wIn: 2, hIn: 2 }])
+    expect(theme.images?.['image1.png']?.placements).toEqual([
+      { slide: 1, xIn: 2, yIn: 1, wIn: 2, hIn: 2 },
+    ])
+    expect(slide.texts).toHaveLength(2)
+    expect(slide.texts[0]).toMatchObject({
+      text: 'Q3 & Q4 Results',
+      xIn: 1,
+      yIn: 0.5,
+      wIn: 12,
+      hIn: 1.25,
+      font: 'major',
+      sizePt: 36,
+      bold: true,
+      schemeColor: 'accent1',
+    })
+    expect(slide.texts[0].colorHex).toBeUndefined()
+    expect(slide.texts[1]).toMatchObject({
+      text: 'First line\nSecond line',
+      xIn: 1,
+      yIn: 2,
+      wIn: 5,
+      hIn: 1,
+      font: 'Georgia',
+      sizePt: 14,
+      colorHex: '112233',
+    })
+    expect(slide.texts[1].bold).toBeUndefined()
+    expect(slide.texts.some((t) => t.text.includes('grouped'))).toBe(false)
+  })
+
   it('tolerates a package with no theme or media', async () => {
     const zip = new JSZip()
     zip.file('ppt/slides/slide1.xml', '<p:sld/>')
