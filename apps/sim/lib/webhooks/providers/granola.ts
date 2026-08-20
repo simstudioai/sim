@@ -131,68 +131,39 @@ async function deleteGranolaEndpoint(apiKey: string, endpointId: string): Promis
 }
 
 /**
- * Find endpoints Granola is delivering to `url`.
- *
- * Used only to recover an endpoint whose id we never learned. Endpoints whose
- * `url` was redacted to its origin are skipped: the comparison would match any
- * endpoint sharing that origin, and deleting one of those could take down an
- * unrelated workflow's trigger.
- */
-async function findGranolaEndpointIdsByUrl(apiKey: string, url: string): Promise<string[]> {
-  const response = await fetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-  })
-
-  if (!response.ok) return []
-
-  const body = (await response.json().catch(() => ({}))) as {
-    webhook_endpoints?: { id?: string; url?: string; url_redacted?: boolean }[]
-  }
-
-  return (body.webhook_endpoints ?? [])
-    .filter(
-      (endpoint) =>
-        endpoint.url_redacted !== true && endpoint.url === url && typeof endpoint.id === 'string'
-    )
-    .map((endpoint) => endpoint.id as string)
-}
-
-/**
  * Remove an endpoint Granola created for a registration that then failed.
  *
  * The registration service only rolls external state back when
  * `createSubscription` *returns*; a handler that throws is assumed to have left
- * nothing behind (`registration-service.ts` guards its rollback on
+ * nothing behind (`prepareStableWebhookCandidate` guards its rollback on
  * `preparedProviderConfig`). So anything already created here has to be undone
- * here, or the endpoint stays live with no external id recorded — delivering to
- * a path whose signature can never be verified, and duplicating on every retry.
+ * here, or the endpoint stays live with no external id recorded and keeps
+ * delivering to a callback whose signature can never be verified.
+ *
+ * Deliberately keyed on the id Granola returned, and nothing else. A redeploy
+ * reuses the live registration's `path`, so the candidate and the currently
+ * serving endpoint share a callback URL — recovering "our" endpoint by matching
+ * that URL would delete the live deployment's endpoint and silently kill a
+ * working trigger. When Granola's response carries no id there is no way to
+ * tell the two apart, so the endpoint is left in place: a leaked endpoint
+ * produces unverifiable deliveries that Granola eventually disables, which is
+ * far less harmful than taking down live traffic.
  *
  * Best effort by design: it never throws, because the caller is already
  * throwing the failure that matters.
  */
 async function cleanupOrphanedGranolaEndpoint(params: {
   apiKey: string
-  endpointId: string | undefined
-  notificationUrl: string
+  endpointId: string
   requestId: string
 }): Promise<void> {
-  const { apiKey, endpointId, notificationUrl, requestId } = params
+  const { apiKey, endpointId, requestId } = params
   try {
-    const endpointIds = endpointId
-      ? [endpointId]
-      : await findGranolaEndpointIdsByUrl(apiKey, notificationUrl)
-
-    for (const id of endpointIds) {
-      await deleteGranolaEndpoint(apiKey, id)
-      logger.info(`[${requestId}] Removed orphaned Granola webhook endpoint ${id}`)
-    }
+    await deleteGranolaEndpoint(apiKey, endpointId)
+    logger.info(`[${requestId}] Removed orphaned Granola webhook endpoint ${endpointId}`)
   } catch (error) {
     logger.error(
-      `[${requestId}] Failed to remove an orphaned Granola webhook endpoint; it may still be active`,
+      `[${requestId}] Failed to remove orphaned Granola webhook endpoint ${endpointId}; it may still be active`,
       error
     )
   }
@@ -303,9 +274,8 @@ export const granolaHandler: WebhookProviderHandler = {
     const folderIds = parseList(providerConfig.folderIds)
     const events = [...(GRANOLA_TRIGGER_TO_EVENT_TYPES[triggerId ?? ''] ?? [])]
 
-    const notificationUrl = getNotificationUrl(webhook)
     const requestBody: Record<string, unknown> = {
-      url: notificationUrl,
+      url: getNotificationUrl(webhook),
       scopes: scopes.length > 0 ? scopes : DEFAULT_GRANOLA_SCOPES,
     }
     if (events.length > 0) requestBody.events = events
@@ -319,27 +289,14 @@ export const granolaHandler: WebhookProviderHandler = {
       webhookId: webhook.id,
     })
 
-    let response: Response
-    try {
-      response = await fetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
-    } catch (error) {
-      /* The request may have reached Granola and created an endpoint before the
-         connection failed, so look one up by URL rather than assume it did not. */
-      await cleanupOrphanedGranolaEndpoint({
-        apiKey,
-        endpointId: undefined,
-        notificationUrl,
-        requestId,
-      })
-      throw error
-    }
+    const response = await fetch(GRANOLA_WEBHOOK_ENDPOINTS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
 
     /* Granola rejected the request outright, so no endpoint exists to clean up. */
     if (!response.ok) {
@@ -360,12 +317,9 @@ export const granolaHandler: WebhookProviderHandler = {
       logger.error(
         `[${requestId}] Granola webhook endpoint response missing id or signing secret for webhook ${webhook.id}.`
       )
-      await cleanupOrphanedGranolaEndpoint({
-        apiKey,
-        endpointId: created.id,
-        notificationUrl,
-        requestId,
-      })
+      if (created.id) {
+        await cleanupOrphanedGranolaEndpoint({ apiKey, endpointId: created.id, requestId })
+      }
       throw new Error(
         'Granola created the webhook endpoint but did not return an ID and signing secret, so deliveries could not be verified.'
       )

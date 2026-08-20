@@ -1,7 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
 import { granolaHandler } from '@/lib/webhooks/providers/granola'
 
 const SECRET_BYTES = Buffer.from('granola-test-secret-key-padding!!!!!')
@@ -314,29 +313,19 @@ describe('Granola webhook provider', () => {
       expect(url).toBe('https://public-api.granola.ai/v1/webhook-endpoints/whe_orphan')
     })
 
-    it('recovers the endpoint by URL when the response body is unusable', async () => {
+    it('leaves the endpoint alone when the response carries no id', async () => {
+      /**
+       * A redeploy reuses the live registration's path, so the candidate and the currently
+       * serving endpoint share a callback URL. Recovering by URL would delete the live
+       * deployment's endpoint and kill a working trigger, so with no id there is nothing safe
+       * to do — leaking beats taking down live traffic. This asserts no lookup or delete is
+       * attempted, guarding against reintroducing URL matching.
+       */
       fetchMock.mockResolvedValueOnce({
         ok: true,
         status: 201,
-        json: async () => {
-          throw new Error('invalid json')
-        },
+        json: async () => ({}),
       })
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          webhook_endpoints: [
-            { id: 'whe_other', url: 'https://other.test/hook', url_redacted: false },
-            {
-              id: 'whe_mine',
-              url: getNotificationUrl({ path: 'p9' }),
-              url_redacted: false,
-            },
-          ],
-        }),
-      })
-      fetchMock.mockResolvedValueOnce({ ok: true, status: 200 })
 
       await expect(
         granolaHandler.createSubscription!({
@@ -345,41 +334,7 @@ describe('Granola webhook provider', () => {
         } as never)
       ).rejects.toThrow()
 
-      const deleteCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
-      expect(deleteCall?.[0]).toContain('whe_mine')
-      expect(deleteCall?.[0]).not.toContain('whe_other')
-    })
-
-    it('never deletes an endpoint whose URL was redacted to its origin', async () => {
-      /* A redacted url is only an origin, so matching on it could delete another workflow's
-         endpoint that happens to share the host. */
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => ({}),
-      })
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          webhook_endpoints: [
-            {
-              id: 'whe_redacted',
-              url: getNotificationUrl({ path: 'p10' }),
-              url_redacted: true,
-            },
-          ],
-        }),
-      })
-
-      await expect(
-        granolaHandler.createSubscription!({
-          webhook: { id: 'wh_10', path: 'p10', providerConfig: { apiKey: 'grn_key' } },
-          requestId: 'granola-orphan3',
-        } as never)
-      ).rejects.toThrow()
-
-      expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it('does not attempt cleanup when Granola rejected the request outright', async () => {
