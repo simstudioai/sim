@@ -357,6 +357,44 @@ describe('bitbucket maxItems cap', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
+  it('leaves the listing reconcilable when a complete listing ends exactly on the cap', async () => {
+    mockApi([[/\/src\//, () => jsonResponse({ values: [fileEntry('a.md'), fileEntry('b.md')] })]])
+
+    const syncContext: Record<string, unknown> = {}
+    const result = await bitbucketConnector.listDocuments(
+      ACCESS_TOKEN,
+      { ...CONFIG, maxItems: '2' },
+      undefined,
+      syncContext
+    )
+
+    expect(result.documents).toHaveLength(2)
+    expect(syncContext.listingCapped).toBeUndefined()
+  })
+
+  it('flags the listing capped when the cap lands on a page boundary with more to come', async () => {
+    mockApi([
+      [
+        /\/src\//,
+        () =>
+          jsonResponse({
+            values: [fileEntry('a.md'), fileEntry('b.md')],
+            next: 'https://api.bitbucket.org/2.0/repositories/acme/widgets/src/abc/?page=2',
+          }),
+      ],
+    ])
+
+    const syncContext: Record<string, unknown> = {}
+    await bitbucketConnector.listDocuments(
+      ACCESS_TOKEN,
+      { ...CONFIG, maxItems: '2' },
+      undefined,
+      syncContext
+    )
+
+    expect(syncContext.listingCapped).toBe(true)
+  })
+
   it('leaves the listing reconcilable when no cap is configured', async () => {
     mockApi([[/\/src\//, () => jsonResponse({ values: [fileEntry('a.md'), fileEntry('b.md')] })]])
 

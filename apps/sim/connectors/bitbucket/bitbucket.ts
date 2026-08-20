@@ -714,11 +714,20 @@ function pendingDirectories(syncContext: Record<string, unknown> | undefined): s
  * Applies the optional maxItems cap to a page, tracking the running total in
  * syncContext and flagging `listingCapped` when the cap truncates the listing.
  * Skipped (oversized) documents ride along without consuming the cap.
+ *
+ * `sourceHasMore` is whether Bitbucket still had content beyond this page — a
+ * `next` link, or directories still queued on the frontier. It is required because
+ * `takeIndexableWithinCap` reports `capReached` as soon as the running total
+ * *equals* maxItems, which is also true of a listing that ended at exactly that
+ * count. Setting `listingCapped` there would suppress deletion reconciliation for
+ * a listing that was in fact complete, leaving upstream-deleted files indexed
+ * indefinitely, so the flag is set only when the cap actually withheld something.
  */
 function applyMaxItemsCap(
   documents: ExternalDocument[],
   maxItems: number,
-  syncContext: Record<string, unknown> | undefined
+  syncContext: Record<string, unknown> | undefined,
+  sourceHasMore: boolean
 ): { documents: ExternalDocument[]; capped: boolean } {
   if (maxItems <= 0) return { documents, capped: false }
   const alreadyIndexed = (syncContext?.totalDocsFetched as number) ?? 0
@@ -734,7 +743,8 @@ function applyMaxItemsCap(
   )
   if (syncContext) {
     syncContext.totalDocsFetched = alreadyIndexed + indexableCount
-    if (capReached) syncContext.listingCapped = true
+    const withheld = taken.length < documents.length || sourceHasMore
+    if (capReached && withheld) syncContext.listingCapped = true
   }
   return { documents: taken, capped: capReached }
 }
@@ -922,7 +932,8 @@ export const bitbucketConnector: ConnectorConfig = {
       const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
         documents,
         maxItems,
-        syncContext
+        syncContext,
+        Boolean(page.next) || frontier.length > 0
       )
       if (hitLimit) return { documents: capped, hasMore: false }
 
@@ -990,7 +1001,8 @@ export const bitbucketConnector: ConnectorConfig = {
     const { documents: capped, capped: hitLimit } = applyMaxItemsCap(
       documents,
       maxItems,
-      syncContext
+      syncContext,
+      Boolean(page.next)
     )
     if (hitLimit) return { documents: capped, hasMore: false }
 
