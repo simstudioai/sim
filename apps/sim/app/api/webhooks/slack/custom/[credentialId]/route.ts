@@ -67,7 +67,22 @@ async function handleSlackCustomBotWebhook(
     return authError
   }
 
-  await dispatchSlackCustomBotCredential({ credentialId, body, request, requestId, receivedAt })
+  const dispatchResults = await dispatchSlackCustomBotCredential({
+    credentialId,
+    body,
+    request,
+    requestId,
+    receivedAt,
+  })
+  const acknowledged = dispatchResults.some(
+    (result) => result.outcome !== 'failed' && result.reason !== 'block-missing'
+  )
+  if (!acknowledged) {
+    const failure = dispatchResults.find(
+      (result) => result.outcome === 'failed' || result.reason === 'block-missing'
+    )
+    if (failure) return failure.response
+  }
 
   return new NextResponse(null, { status: 200 })
 }

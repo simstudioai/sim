@@ -296,6 +296,39 @@ describe('planLegacySlackTriggerLink', () => {
 })
 
 describe('resolveSlackSourceSecrets', () => {
+  it('marks a trigger without a bot token as unresolved', () => {
+    expect(
+      resolveSlackSourceSecrets(
+        source({
+          sourceId: 'workflow-1:block-1:trigger',
+          kind: 'trigger',
+          rawBotToken: undefined,
+          rawSigningSecret: 'signing-secret',
+        }),
+        environmentLookup()
+      )
+    ).toEqual({
+      status: 'unresolved',
+      reason: 'Source workflow-1:block-1:trigger has no bot token',
+    })
+  })
+
+  it('marks a trigger without a signing secret as unresolved', () => {
+    expect(
+      resolveSlackSourceSecrets(
+        source({
+          sourceId: 'workflow-1:block-1:trigger',
+          kind: 'trigger',
+          rawSigningSecret: undefined,
+        }),
+        environmentLookup()
+      )
+    ).toEqual({
+      status: 'unresolved',
+      reason: 'Trigger source workflow-1:block-1:trigger has no signing secret',
+    })
+  })
+
   it('marks a missing environment variable as an unresolved source', () => {
     expect(
       resolveSlackSourceSecrets(source({ rawBotToken: '{{SLACK_BOT_TOKEN}}' }), environmentLookup())
