@@ -256,7 +256,7 @@ vi.mock('@/tools/utils', () => ({
   getTool: mockGetTool,
 }))
 
-vi.mock('@/lib/copilot/validation/selector-validator', () => ({
+vi.mock('@/lib/workflows/editing/selector-validator', () => ({
   validateSelectorIds: mockValidateSelectorIds,
 }))
 

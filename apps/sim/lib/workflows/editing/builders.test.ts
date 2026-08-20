@@ -7,7 +7,7 @@ import {
   createBlockFromParams,
   filterDisallowedTools,
   normalizeSubblockValue,
-} from '@/lib/copilot/tools/server/workflow/edit-workflow/builders'
+} from '@/lib/workflows/editing/builders'
 
 const { mockIsIntegrationDeploymentAvailable } = vi.hoisted(() => ({
   mockIsIntegrationDeploymentAvailable: vi.fn(() => true),

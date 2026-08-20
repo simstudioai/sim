@@ -84,5 +84,7 @@ export const DELETE = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params }) => ({ workflowId: params.id }),
   useCase: deleteWorkflow,
-  present: ({ workflowId }) => ({ data: { id: workflowId, deleted: true as const } }),
+  present: ({ workflowId }) => ({
+    data: { id: workflowId, deleted: true as const, archived: true as const },
+  }),
 })

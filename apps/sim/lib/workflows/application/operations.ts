@@ -69,6 +69,24 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  replaceState: defineWorkspaceOperation({
+    id: 'workflows.state.replace',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  applyOperations: defineWorkspaceOperation({
+    id: 'workflows.operations.apply',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  restore: defineWorkspaceOperation({
+    id: 'workflows.restore',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   updatePolicy: defineWorkspaceOperation({
     id: 'workflows.policy.update',
     minimumRole: 'admin',
@@ -78,8 +96,8 @@ export const workflowOperations = {
   applyVariableOperations: defineWorkspaceOperation({
     id: 'workflows.variables.apply_operations',
     minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   setBlockEnabled: defineWorkspaceOperation({
     id: 'workflows.blocks.set_enabled',
@@ -90,8 +108,8 @@ export const workflowOperations = {
   moveBulk: defineWorkspaceOperation({
     id: 'workflows.bulk.move',
     minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   createVfsFolders: defineWorkspaceOperation({
     id: 'workflows.vfs.folders.create',

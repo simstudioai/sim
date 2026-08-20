@@ -15,6 +15,7 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
+import { resolveWorkflowFolderPath } from '@/lib/workflows/application/workflow-folders'
 import { updateWorkflowRecord } from '@/lib/workflows/orchestration'
 
 const MAX_BULK_WORKFLOW_MOVES = 100
@@ -22,7 +23,10 @@ const MAX_BULK_WORKFLOW_MOVES = 100
 export interface MoveWorkflowsBulkInput {
   workspaceId: string
   workflowIds: string[]
-  folderId: string | null
+  /** Canonical destination folder. Mutually exclusive with `folderPath`. */
+  folderId?: string | null
+  /** Destination folder by path, resolved against the workspace's folder tree. */
+  folderPath?: string
 }
 
 interface MovedWorkflow {
@@ -68,7 +72,14 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: MoveWorkflowsBulkInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<MoveWorkflowsBulkResult> {
+    if (input.folderPath !== undefined && input.folderId !== undefined) {
+      throw new OrchestrationError('validation', 'Provide either folderPath or folderId, not both')
+    }
     const workflowIds = normalizeWorkflowIds(input.workflowIds)
+    const folderId =
+      input.folderPath === undefined
+        ? (input.folderId ?? null)
+        : (await resolveWorkflowFolderPath(context.workspaceId, input.folderPath)).folderId
     const rows = await db
       .select({
         id: workflow.id,
@@ -99,7 +110,7 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
       }
 
       try {
-        await requireMutable(workflowId, input.folderId)
+        await requireMutable(workflowId, folderId)
         const changed = await db.transaction(async (tx) => {
           const [current] = await tx
             .select({
@@ -125,7 +136,7 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
             workspaceId: context.workspaceId,
             currentName: current.name,
             currentFolderId: current.folderId,
-            folderId: input.folderId,
+            folderId,
             tx,
           })
           requireWorkflowTransition(transition, 'Failed to move workflow')
@@ -144,7 +155,7 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
       }
     }
 
-    return { moved, failed, folderId: input.folderId, changes }
+    return { moved, failed, folderId, changes }
   },
   projectAudit: ({ result }) =>
     result.changes.map((change) => ({

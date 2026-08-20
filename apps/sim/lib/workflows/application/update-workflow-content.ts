@@ -3,18 +3,23 @@ import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
+import { principalAuditSource } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
+import {
+  type BlockEnablementRefusal,
+  decideBlockEnablement,
+} from '@/lib/workflows/editing/block-enablement'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
@@ -23,20 +28,19 @@ import {
 const logger = createLogger('UpdateWorkflowContent')
 const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
 
+/** How each protection refusal is classified when a single block toggle is the whole request. */
+const BLOCK_ENABLEMENT_REFUSAL_CODES: Record<
+  BlockEnablementRefusal['reason'],
+  'not_found' | 'locked' | 'validation'
+> = {
+  not_found: 'not_found',
+  locked: 'locked',
+  disabled_ancestor: 'validation',
+}
+
 interface WorkflowContentInput {
   workflowId: string
   assertedWorkspaceId?: string
-}
-
-async function requireMutableWorkflow(workflowId: string): Promise<void> {
-  try {
-    await assertWorkflowMutable(workflowId)
-  } catch (error) {
-    if (error instanceof WorkflowLockedError) {
-      throw new OrchestrationError('locked', error.message)
-    }
-    throw error
-  }
 }
 
 function resolveWorkflowContentContext<I extends WorkflowContentInput>({
@@ -203,7 +207,7 @@ export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({
       return { updated: Object.keys(transformed.variables).length, changed: true }
     })
   },
-  projectAudit: ({ input, context, result }) =>
+  projectAudit: ({ principal, input, context, result }) =>
     result.changed
       ? {
           action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
@@ -211,58 +215,15 @@ export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({
           resourceId: context.workflowId,
           resourceName: context.workflow.name,
           description: 'Updated workflow variables',
-          metadata: { operationCount: input.operations.length, source: 'copilot' },
+          metadata: {
+            operationCount: input.operations.length,
+            source: principalAuditSource(principal),
+          },
         }
       : [],
   afterSuccess: ({ context, result }) =>
     result.changed ? notifyWorkflowUpdated(context.workflowId) : undefined,
 })
-
-function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const block = blocksById[blockId]
-  if (!block) return false
-  if (block.locked) return true
-
-  const visited = new Set<string>()
-  let parentId = block.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    if (blocksById[parentId]?.locked) return true
-    parentId = blocksById[parentId]?.data?.parentId
-  }
-  return false
-}
-
-function hasDisabledAncestor(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const visited = new Set<string>()
-  let parentId = blocksById[blockId]?.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    const parent = blocksById[parentId]
-    if (!parent) return false
-    if (parent.enabled === false) return true
-    parentId = parent.data?.parentId
-  }
-  return false
-}
-
-function findDescendants(containerId: string, blocksById: Record<string, BlockState>): string[] {
-  const descendants: string[] = []
-  const stack = [containerId]
-  const visited = new Set<string>()
-  while (stack.length > 0) {
-    const current = stack.pop()!
-    if (visited.has(current)) continue
-    visited.add(current)
-    for (const [blockId, block] of Object.entries(blocksById)) {
-      if (block.data?.parentId === current) {
-        descendants.push(blockId)
-        stack.push(blockId)
-      }
-    }
-  }
-  return descendants
-}
 
 export interface SetWorkflowBlockEnabledInput extends WorkflowContentInput {
   blockId: string
@@ -303,50 +264,27 @@ export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
         parallels: normalized.parallels || {},
         lastSaved: Date.now(),
       }
-      const targetBlock = currentState.blocks[input.blockId]
-      if (!targetBlock) {
+      const decision = decideBlockEnablement(currentState.blocks, input.blockId, input.enabled)
+      if (decision.outcome === 'refused') {
         throw new OrchestrationError(
-          'not_found',
-          `Block ${input.blockId} not found in workflow ${context.workflowId}`
+          BLOCK_ENABLEMENT_REFUSAL_CODES[decision.refusal.reason],
+          decision.refusal.reason === 'not_found'
+            ? `Block ${input.blockId} not found in workflow ${context.workflowId}`
+            : decision.refusal.message
         )
       }
-      if (isBlockProtected(input.blockId, currentState.blocks)) {
-        throw new OrchestrationError(
-          'locked',
-          `Block ${input.blockId} is locked or inside a locked container and cannot be updated`
-        )
-      }
-      if (input.enabled && hasDisabledAncestor(input.blockId, currentState.blocks)) {
-        throw new OrchestrationError(
-          'validation',
-          `Cannot enable block ${input.blockId} while one of its parent containers is disabled. Enable the parent first.`
-        )
-      }
-
-      const affectedBlockIds = new Set<string>([input.blockId])
-      if (targetBlock.type === 'loop' || targetBlock.type === 'parallel') {
-        for (const descendantId of findDescendants(input.blockId, currentState.blocks)) {
-          if (!isBlockProtected(descendantId, currentState.blocks)) {
-            affectedBlockIds.add(descendantId)
-          }
-        }
-      }
-      if (targetBlock.enabled === input.enabled) {
+      if (decision.outcome === 'unchanged') {
         return {
           changed: false,
           workflowName: active.name,
-          affectedBlockIds: [input.blockId],
+          affectedBlockIds: decision.affectedBlockIds,
           state: currentState,
         }
       }
 
-      const nextBlocks = { ...currentState.blocks }
-      for (const blockId of affectedBlockIds) {
-        nextBlocks[blockId] = { ...nextBlocks[blockId], enabled: input.enabled }
-      }
       const nextState: WorkflowState = {
         ...currentState,
-        blocks: nextBlocks,
+        blocks: decision.blocks,
         lastSaved: Date.now(),
       }
       const saveResult = await saveWorkflowToNormalizedTables(context.workflowId, nextState, tx)
@@ -368,12 +306,12 @@ export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
       return {
         changed: true,
         workflowName: active.name,
-        affectedBlockIds: [...affectedBlockIds],
+        affectedBlockIds: decision.affectedBlockIds,
         state: nextState,
       }
     })
   },
-  projectAudit: ({ input, context, result }) =>
+  projectAudit: ({ principal, input, context, result }) =>
     result.changed
       ? {
           action: AuditAction.WORKFLOW_UPDATED,
@@ -386,7 +324,7 @@ export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
             blockId: input.blockId,
             enabled: input.enabled,
             affectedBlockIds: result.affectedBlockIds,
-            source: 'copilot',
+            source: principalAuditSource(principal),
           },
         }
       : [],

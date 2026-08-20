@@ -29,27 +29,36 @@ export interface ValidationError {
 }
 
 /**
+ * Every reason the engine can decline one operation.
+ *
+ * An array rather than a bare union so the public contract can publish the set
+ * with `z.enum(...)` and a new reason cannot reach the wire undocumented.
+ */
+export const WORKFLOW_SKIPPED_ITEM_TYPES = [
+  'block_not_found',
+  'invalid_block_type',
+  'block_not_allowed',
+  'block_locked',
+  'tool_not_allowed',
+  'invalid_edge_target',
+  'invalid_edge_source',
+  'invalid_edge_scope',
+  'invalid_source_handle',
+  'invalid_target_handle',
+  'invalid_subblock_field',
+  'missing_required_params',
+  'invalid_subflow_parent',
+  'nested_subflow_not_allowed',
+  'duplicate_block_name',
+  'reserved_block_name',
+  'duplicate_trigger',
+  'duplicate_single_instance_block',
+] as const
+
+/**
  * Types of items that can be skipped during operation application
  */
-export type SkippedItemType =
-  | 'block_not_found'
-  | 'invalid_block_type'
-  | 'block_not_allowed'
-  | 'block_locked'
-  | 'tool_not_allowed'
-  | 'invalid_edge_target'
-  | 'invalid_edge_source'
-  | 'invalid_edge_scope'
-  | 'invalid_source_handle'
-  | 'invalid_target_handle'
-  | 'invalid_subblock_field'
-  | 'missing_required_params'
-  | 'invalid_subflow_parent'
-  | 'nested_subflow_not_allowed'
-  | 'duplicate_block_name'
-  | 'reserved_block_name'
-  | 'duplicate_trigger'
-  | 'duplicate_single_instance_block'
+export type SkippedItemType = (typeof WORKFLOW_SKIPPED_ITEM_TYPES)[number]
 
 /**
  * Represents an item that was skipped during operation application

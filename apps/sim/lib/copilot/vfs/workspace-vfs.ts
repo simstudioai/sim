@@ -40,11 +40,6 @@ import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/do
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
 import { isRenderableDocExt, renderDocToGrid } from '@/lib/copilot/tools/server/files/doc-render'
-import {
-  collectWorkflowFieldIssues,
-  lintEditedWorkflowState,
-} from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
-import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import {
   type FileReadResult,
@@ -134,6 +129,8 @@ import { isImageFileType, resolveEffectiveMimeType } from '@/lib/uploads/utils/f
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import { collectWorkflowFieldIssues, lintEditedWorkflowState } from '@/lib/workflows/editing/lint'
+import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/workflows/editing/validation'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'

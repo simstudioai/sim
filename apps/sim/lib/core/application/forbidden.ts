@@ -52,6 +52,8 @@ export const FORBIDDEN_DETAIL_CODES = [
   'CREDENTIAL_ADMIN_ACCESS_REQUIRED',
   /** The MCP server URL is outside the allowed domains or resolves internally. */
   'MCP_SERVER_URL_NOT_ALLOWED',
+  /** The workspace's plan does not include a capability the request depends on. */
+  'WORKSPACE_PLAN_CAPABILITY_REQUIRED',
 ] as const
 
 export type ForbiddenDetailCode = (typeof FORBIDDEN_DETAIL_CODES)[number]
@@ -89,6 +91,8 @@ export const FORBIDDEN_DETAIL_CODE_DESCRIPTIONS: Record<ForbiddenDetailCode, str
     'The caller can reach the workspace but cannot administer this credential.',
   MCP_SERVER_URL_NOT_ALLOWED:
     'The supplied MCP server URL is outside the allowed domains or resolves to an internal address.',
+  WORKSPACE_PLAN_CAPABILITY_REQUIRED:
+    "The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.",
 }
 
 /**

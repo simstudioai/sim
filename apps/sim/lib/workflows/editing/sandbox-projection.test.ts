@@ -1,7 +1,7 @@
 /** @vitest-environment node */
 
 import { describe, expect, it } from 'vitest'
-import { operationsReferenceSimSandbox } from '@/lib/copilot/sim-sandbox-projection'
+import { operationsReferenceSimSandbox } from '@/lib/workflows/editing/sandbox-projection'
 
 describe('operationsReferenceSimSandbox', () => {
   it('detects add and edit inputs that set or clear sandboxId', () => {

@@ -19,12 +19,14 @@ export const revalidate = 0
 function workflowCursorFilters(query: {
   workspaceId: string
   folderPath?: string
+  scope: 'active' | 'archived'
   deployedOnly: boolean
   search?: string
 }) {
   return cursorScopeKey(cursorRoute(v2ListWorkflowsContract), {
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
+    scope: query.scope,
     deployedOnly: query.deployedOnly,
     search: query.search,
   })
@@ -39,6 +41,7 @@ export const GET = defineV2JsonRoute({
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
     folderPath: query.folderPath,
+    scope: query.scope,
     deployedOnly: query.deployedOnly,
     search: query.search,
     sortBy: query.sortBy,
@@ -85,8 +88,13 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ body }) => body,
   useCase: createWorkflow,
-  present: ({ workflow, folderPath }) => ({
+  present: ({ workflow, folderPath, normalizedState }) => ({
     data: {
+      blocks: Object.values(normalizedState.blocks).map((block) => ({
+        id: block.id,
+        type: block.type,
+        name: block.name,
+      })),
       id: workflow.id,
       name: workflow.name,
       description: workflow.description ?? null,

@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/server/routes'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/apply-workflow-operations'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
@@ -29,6 +30,25 @@ export const v2WorkflowErrorPolicies = {
   } satisfies V2ErrorPolicy,
   concealWorkflowAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Workflow not found',
+  }),
+  /**
+   * Conceals cross-tenant reads exactly as
+   * {@link v2WorkflowErrorPolicies.concealWorkflowAuthorization} does, and adds
+   * the one refusal an edit batch has structured detail for: an `atomic` batch
+   * that could not be applied whole answers `409` carrying the declined
+   * operations, so a pipeline can act on them without a second request.
+   */
+  concealWorkflowGraphAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Workflow not found',
+    render(error) {
+      if (error instanceof WorkflowOperationsNotAppliedError) {
+        return v2ErrorForOrchestration(error.code, error.message, {
+          code: 'OPERATIONS_NOT_APPLIED',
+          skipped: error.skipped,
+        })
+      }
+      return v2CaughtOrchestrationError(error)
+    },
   }),
   concealRunAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Run not found',

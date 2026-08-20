@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
-import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
+import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,

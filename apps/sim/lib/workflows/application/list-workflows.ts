@@ -17,6 +17,7 @@ const logger = createLogger('ListWorkflows')
 export interface ListWorkflowsInput {
   workspaceId: string
   folderPath?: string
+  scope: 'active' | 'archived'
   deployedOnly: boolean
   search?: string
   sortBy: WorkflowSortBy
@@ -49,6 +50,7 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
     const page = await listWorkspaceWorkflows({
       workspaceId: context.workspaceId,
       folderId: folderFilter.kind === 'folder' ? folderFilter.folderId : undefined,
+      scope: input.scope,
       deployedOnly: input.deployedOnly,
       search: input.search,
       sortBy: input.sortBy,

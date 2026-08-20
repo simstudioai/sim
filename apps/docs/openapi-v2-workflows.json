@@ -40,7 +40,7 @@
       "get": {
         "operationId": "listWorkflows",
         "summary": "List Workflows",
-        "description": "List workflows in a workspace with folder and deployment filters, search, sorting, and opaque cursor pagination. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "List workflows in a workspace with lifecycle scope, folder and deployment filters, search, sorting, and opaque cursor pagination. `scope` defaults to `active`; pass `archived` to list workflows a `DELETE` archived. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -53,6 +53,18 @@
               "minLength": 1,
               "maxLength": 128,
               "description": "Workspace whose workflows should be listed."
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+            "schema": {
+              "default": "active",
+              "description": "Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.",
+              "type": "string",
+              "enum": ["active", "archived"]
             }
           },
           {
@@ -187,7 +199,7 @@
       "post": {
         "operationId": "createWorkflowV2",
         "summary": "Create Workflow",
-        "description": "Create a workflow in a workspace root or canonical workflow folder. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Create a workflow in a workspace root or canonical workflow folder. The response carries the blocks the platform seeded the workflow with, so the start block's id is available without a second request — attach edges to it directly. A workspace folder tree over 10,000 folders is a `413`.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -218,6 +230,561 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/state": {
+      "get": {
+        "operationId": "getWorkflowState",
+        "summary": "Get Workflow State",
+        "description": "Get the editable draft graph of a workflow: blocks, edges, the loop and parallel containers derived from them, and variables. This is the pollable read — it records no audit event, and `HEAD` mirrors `GET`. The payload is **unsanitized**: it carries workspace-scoped `credentialId`, `knowledgeBaseId`, and `tableId` values verbatim, so it is not portable to another workspace. Use `GET /workflows/{id}/export` for a portable, sanitized copy — and note that export is not a read-modify-write source, because sanitizing it drops every credential binding. Unknown members are stripped, so what this returns is exactly the set of keys `PUT /workflows/{id}/state` accepts.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow draft graph.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceWorkflowState",
+        "summary": "Replace Workflow State",
+        "description": "Replace a workflow’s editable draft graph wholesale. `loops` and `parallels` are accepted but ignored — both are recomputed from `blocks`. Omitting `variables` leaves the stored variables untouched.\n\nLast write wins: concurrent writers are serialized by a row lock, so each lands a complete self-consistent graph and the later one replaces the earlier entirely. There is no partially-written state and no conflict detection.\n\nThis does not change what the deployed endpoint serves. Deployments are immutable versioned snapshots, and no schedule or webhook registration is touched. The only visible consequence is that `needsRedeployment` becomes true; `POST /workflows/{id}/deploy` publishes the draft.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "A complete replacement draft graph for a workflow.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceWorkflowStateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The draft graph was replaced.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplaceWorkflowStateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/operations": {
+      "post": {
+        "operationId": "applyWorkflowOperations",
+        "summary": "Apply Workflow Operations",
+        "description": "Apply a batch of semantic edits — add, edit, delete, and subflow membership changes — to a workflow graph, plus an optional set of block enable/disable changes.\n\nBest-effort per operation, atomic per write. The engine applies what it can to an in-memory graph and reports the rest in `skipped`, each with a machine-readable `type`; exactly one write of the fully-resolved graph then happens, so there is never a partially-applied graph. `deferred` is **not** a failure list: a forward-referencing edge is wired automatically once its target block exists, in this batch or a later one, so re-issuing a deferred edge is wrong.\n\nSet `atomic` to fail closed: any genuine skipped item then aborts before the write and answers `409` with `error.details.code: \"OPERATIONS_NOT_APPLIED\"` and the same `skipped` array, having persisted nothing.\n\nAs with `PUT /workflows/{id}/state`, this changes only the draft; deploy to publish it.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "A batch of semantic edits against a workflow graph.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyWorkflowOperationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The batch was applied.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyWorkflowOperationsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/variables": {
+      "patch": {
+        "operationId": "applyWorkflowVariables",
+        "summary": "Update Workflow Variables",
+        "description": "Add, edit, and delete a workflow’s variables. Operations are matched by variable `name` and applied in order; a batch that changes nothing answers `200` with `changed: false`. Values are coerced to the declared `type`, and a value that cannot be coerced is stored as supplied. Read the current set from `variables` on `GET /workflows/{id}`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Additions, edits, and deletions against a workflow’s variables.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyWorkflowVariablesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The variable set after the batch.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyWorkflowVariablesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/duplicate": {
+      "post": {
+        "operationId": "duplicateWorkflow",
+        "summary": "Duplicate Workflow",
+        "description": "Copy a workflow, including its blocks, edges, subflows, and variables, into the same workspace. Omitting `name` reuses the source name; a collision inside the destination folder is deduplicated rather than refused. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Optional name and destination folder for the copy.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created copy.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{id}/restore": {
+      "post": {
+        "operationId": "restoreWorkflow",
+        "summary": "Restore Workflow",
+        "description": "Bring an archived workflow back, along with the schedules, webhooks, MCP tools, and chats that were archived with it. A workflow that is not archived answers `409`. A workflow whose folder was archived is restored to the workspace root. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The restored workflow.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "423": {
+            "$ref": "#/components/responses/Locked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/move": {
+      "post": {
+        "operationId": "moveWorkflows",
+        "summary": "Move Workflows",
+        "description": "Relocate up to 100 workflows into one folder. Explicitly best-effort: each workflow moves in its own transaction, and one that is absent from the workspace, archived, or locked lands in `failed` while the rest still move. Duplicate ids are collapsed. A workspace folder tree over 10,000 folders is a `413`.",
+        "tags": ["Workflows"],
+        "requestBody": {
+          "required": true,
+          "description": "Workflows to relocate and the folder to relocate them into.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveWorkflowsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Which workflows moved and which did not.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveWorkflowsResponse"
                 }
               }
             }
@@ -410,7 +977,7 @@
       "delete": {
         "operationId": "deleteWorkflowV2",
         "summary": "Delete Workflow",
-        "description": "Permanently delete a workflow and its associated mutable state.",
+        "description": "Archive a workflow. Despite the verb, this is not an erasure: the workflow, and the schedules, webhooks, MCP tools, and chats attached to it, are stamped archived and stop running, and `POST /workflows/{id}/restore` brings all of them back. An archived workflow disappears from the default list and is reachable with `scope=archived`. The `deleted` field is retained for shipped clients; `archived` states what actually happened.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -428,7 +995,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The workflow was deleted.",
+            "description": "The workflow was archived.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -2376,7 +2943,7 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address."
+                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy."
               }
             },
             "required": ["code", "message"],
@@ -2547,18 +3114,144 @@
           }
         ]
       },
+      "SeededWorkflowBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Block identifier."
+          },
+          "type": {
+            "type": "string",
+            "description": "Registered block type."
+          },
+          "name": {
+            "type": "string",
+            "description": "Block display name."
+          }
+        },
+        "required": ["id", "type", "name"],
+        "additionalProperties": false,
+        "title": "Seeded workflow block",
+        "description": "A block the platform placed in a newly created workflow."
+      },
+      "CreateWorkflowResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "name": {
+            "type": "string",
+            "description": "Workflow name.",
+            "examples": ["Customer support triage"]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow description, or null when none is set."
+          },
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical containing-folder path; `/` is the workspace root.",
+            "maxLength": 4096,
+            "examples": ["/Operations"]
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Workspace that owns the workflow."
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether the workflow has an active deployment."
+          },
+          "deployedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 activation timestamp, or null when not deployed.",
+            "format": "date-time"
+          },
+          "runCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Runs that finished successfully. Failed, cancelled, and paused runs are not counted, and the counter is never reduced when a run ages out of log retention — so it does not match the size of `GET /api/v2/workflows/{id}/runs`, in either direction."
+          },
+          "lastRunAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was created.",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the workflow was last updated.",
+            "format": "date-time"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeededWorkflowBlock"
+            },
+            "description": "Blocks seeded into the new workflow. Contains the start block; attach edges to its `id`."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "folderPath",
+          "workspaceId",
+          "isDeployed",
+          "deployedAt",
+          "runCount",
+          "lastRunAt",
+          "createdAt",
+          "updatedAt",
+          "blocks"
+        ],
+        "additionalProperties": false,
+        "title": "Create workflow result",
+        "description": "The created workflow and the blocks it was seeded with."
+      },
       "CreateWorkflowResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/WorkflowListItem"
+            "$ref": "#/components/schemas/CreateWorkflowResult"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
         "title": "Create workflow response",
-        "description": "The created workflow summary.",
+        "description": "The created workflow and the blocks it was seeded with.",
         "examples": [
           {
             "data": {
@@ -2567,12 +3260,19 @@
               "description": "Routes incoming support requests to the right team.",
               "folderPath": "/Operations",
               "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-              "isDeployed": true,
-              "deployedAt": "2026-06-12T10:30:00.000Z",
-              "runCount": 42,
-              "lastRunAt": "2026-08-09T18:04:11.000Z",
+              "isDeployed": false,
+              "deployedAt": null,
+              "runCount": 0,
+              "lastRunAt": null,
               "createdAt": "2026-05-01T09:00:00.000Z",
-              "updatedAt": "2026-08-09T18:04:11.000Z"
+              "updatedAt": "2026-08-09T18:04:11.000Z",
+              "blocks": [
+                {
+                  "id": "start-1",
+                  "type": "starter",
+                  "name": "Start"
+                }
+              ]
             }
           }
         ]
@@ -2612,6 +3312,1771 @@
         "additionalProperties": false,
         "title": "Create workflow request",
         "description": "Name, description, workspace, and optional folder for a new workflow."
+      },
+      "WorkflowBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Block identifier, unique within the workflow."
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Registered block type."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Block display name; must be unique within the workflow."
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "Canvas x coordinate."
+              },
+              "y": {
+                "type": "number",
+                "description": "Canvas y coordinate."
+              }
+            },
+            "required": ["x", "y"],
+            "additionalProperties": false,
+            "description": "Canvas coordinates of a block."
+          },
+          "subBlocks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Sub-block identifier."
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Sub-block input type."
+                },
+                "value": {
+                  "description": "Configured value; shape depends on the sub-block type."
+                }
+              },
+              "required": ["id", "type", "value"],
+              "additionalProperties": false,
+              "description": "One configurable input on a block."
+            },
+            "description": "Configured inputs keyed by sub-block id."
+          },
+          "outputs": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Declared shape of one output; depends on the block type."
+            },
+            "description": "Declared output shape keyed by output name."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the block runs."
+          },
+          "horizontalHandles": {
+            "description": "Whether edge handles render horizontally.",
+            "type": "boolean"
+          },
+          "height": {
+            "description": "Rendered block height.",
+            "type": "number"
+          },
+          "advancedMode": {
+            "description": "Whether the block is edited in advanced mode.",
+            "type": "boolean"
+          },
+          "errorEnabled": {
+            "description": "Whether the block exposes an error branch.",
+            "type": "boolean"
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether the block retries on failure."
+              },
+              "maxTries": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 5,
+                "description": "Total attempts, including the first."
+              },
+              "waitBetweenTriesMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000,
+                "description": "Delay between attempts, in milliseconds."
+              }
+            },
+            "required": ["enabled", "maxTries", "waitBetweenTriesMs"],
+            "additionalProperties": false,
+            "description": "Per-block retry configuration."
+          },
+          "triggerMode": {
+            "description": "Whether the block acts as the workflow trigger.",
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "parentId": {
+                "description": "Identifier of the containing loop or parallel.",
+                "type": "string"
+              },
+              "extent": {
+                "description": "Constrains the block to its parent bounds.",
+                "type": "string",
+                "const": "parent"
+              },
+              "width": {
+                "description": "Rendered container width.",
+                "type": "number"
+              },
+              "height": {
+                "description": "Rendered container height.",
+                "type": "number"
+              },
+              "collection": {
+                "description": "Items a forEach loop or collection parallel iterates."
+              },
+              "count": {
+                "description": "Iteration count for a `for` loop or count parallel.",
+                "type": "number"
+              },
+              "loopType": {
+                "description": "Loop container kind.",
+                "type": "string",
+                "enum": ["for", "forEach", "while", "doWhile"]
+              },
+              "whileCondition": {
+                "description": "Condition expression for a `while` loop.",
+                "type": "string"
+              },
+              "doWhileCondition": {
+                "description": "Condition expression for a `doWhile` loop.",
+                "type": "string"
+              },
+              "parallelType": {
+                "description": "Parallel container kind.",
+                "type": "string",
+                "enum": ["collection", "count"]
+              },
+              "batchSize": {
+                "description": "Maximum concurrent branches of a parallel.",
+                "type": "number"
+              },
+              "type": {
+                "description": "Container subtype.",
+                "type": "string"
+              },
+              "canonicalModes": {
+                "description": "Per-field editing mode, keyed by canonical parameter id.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": ["basic", "advanced"]
+                }
+              }
+            },
+            "additionalProperties": false,
+            "description": "Container and layout metadata carried by a block."
+          },
+          "locked": {
+            "description": "Whether the block is locked against edits.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "type", "name", "position", "subBlocks", "outputs", "enabled"],
+        "additionalProperties": false,
+        "title": "Workflow block",
+        "description": "One node of a workflow graph and its configuration."
+      },
+      "WorkflowEdge": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Edge identifier, unique within the workflow."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Source block id."
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target block id."
+          },
+          "sourceHandle": {
+            "description": "Source port, or null for the block default.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetHandle": {
+            "description": "Target port, or null for the block default.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "description": "Edge renderer type.",
+            "type": "string"
+          }
+        },
+        "required": ["id", "source", "target"],
+        "additionalProperties": false,
+        "title": "Workflow edge",
+        "description": "A directed connection between two blocks."
+      },
+      "WorkflowLoop": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Loop container identifier; equal to the loop block id."
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Block ids inside the loop."
+          },
+          "iterations": {
+            "type": "number",
+            "description": "Resolved iteration count."
+          },
+          "loopType": {
+            "type": "string",
+            "enum": ["for", "forEach", "while", "doWhile"],
+            "description": "Loop kind."
+          },
+          "forEachItems": {
+            "description": "Items a forEach loop iterates, or the expression producing them.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "description": "One item the loop iterates."
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "One item the loop iterates."
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "whileCondition": {
+            "description": "Condition expression for a `while` loop.",
+            "type": "string"
+          },
+          "doWhileCondition": {
+            "description": "Condition expression for a `doWhile` loop.",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Whether the loop runs.",
+            "type": "boolean"
+          },
+          "locked": {
+            "description": "Whether the loop is locked against edits.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "nodes", "iterations", "loopType"],
+        "additionalProperties": false,
+        "title": "Workflow loop",
+        "description": "A loop container derived from the workflow blocks."
+      },
+      "WorkflowParallel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Parallel container identifier; equal to the parallel block id."
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Block ids inside the parallel."
+          },
+          "distribution": {
+            "description": "Items distributed across branches, or the expression producing them.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "description": "One item distributed to a branch."
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "One item distributed to a branch."
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "count": {
+            "description": "Fixed branch count.",
+            "type": "number"
+          },
+          "parallelType": {
+            "description": "Parallel kind.",
+            "type": "string",
+            "enum": ["count", "collection"]
+          },
+          "batchSize": {
+            "description": "Maximum concurrent branches.",
+            "type": "number"
+          },
+          "enabled": {
+            "description": "Whether the parallel runs.",
+            "type": "boolean"
+          },
+          "locked": {
+            "description": "Whether the parallel is locked against edits.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "nodes"],
+        "additionalProperties": false,
+        "title": "Workflow parallel",
+        "description": "A parallel container derived from the workflow blocks."
+      },
+      "WorkflowVariable": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Variable identifier."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Variable name, referenced from block inputs."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "object", "array", "plain"],
+            "description": "Declared variable type."
+          },
+          "value": {
+            "description": "Variable value; free-form and validated per `type` at use time."
+          }
+        },
+        "required": ["id", "name", "type", "value"],
+        "additionalProperties": false,
+        "title": "Workflow variable",
+        "description": "A workflow-scoped variable."
+      },
+      "WorkflowGraph": {
+        "type": "object",
+        "properties": {
+          "blocks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowBlock"
+            },
+            "description": "Blocks keyed by block id."
+          },
+          "edges": {
+            "maxItems": 10000,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowEdge"
+            },
+            "description": "Directed connections between blocks."
+          },
+          "loops": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowLoop"
+            },
+            "description": "Loop containers keyed by container id; always present, `{}` when there are none."
+          },
+          "parallels": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowParallel"
+            },
+            "description": "Parallel containers keyed by container id; always present, `{}` when there are none."
+          },
+          "variables": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowVariable"
+            },
+            "description": "Workflow variables keyed by variable id; always present, `{}` when there are none."
+          }
+        },
+        "required": ["blocks", "edges", "loops", "parallels", "variables"],
+        "additionalProperties": false,
+        "title": "Workflow graph",
+        "description": "The editable draft graph of a workflow: blocks, edges, derived loop and parallel containers, and variables."
+      },
+      "WorkflowStateResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowGraph"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow state response",
+        "description": "The editable draft graph of a workflow.",
+        "examples": [
+          {
+            "data": {
+              "blocks": {},
+              "edges": [],
+              "loops": {},
+              "parallels": {},
+              "variables": {}
+            }
+          }
+        ]
+      },
+      "ReplaceWorkflowStateResult": {
+        "title": "Replace workflow state result",
+        "description": "Outcome of replacing a workflow draft graph.",
+        "$ref": "#/components/schemas/WorkflowGraphWriteResult"
+      },
+      "WorkflowGraphWriteResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the workflow whose draft graph was written."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence. Empty when there was nothing to report."
+          },
+          "needsRedeployment": {
+            "type": "boolean",
+            "description": "Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it."
+          }
+        },
+        "required": ["id", "warnings", "needsRedeployment"],
+        "additionalProperties": false,
+        "title": "Workflow graph write result",
+        "description": "Outcome of a write against a workflow draft graph."
+      },
+      "ReplaceWorkflowStateResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Identifier of the workflow whose draft graph was written."
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence. Empty when there was nothing to report."
+              },
+              "needsRedeployment": {
+                "type": "boolean",
+                "description": "Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it."
+              }
+            },
+            "required": ["id", "warnings", "needsRedeployment"],
+            "additionalProperties": false,
+            "description": "Response data.",
+            "$ref": "#/components/schemas/ReplaceWorkflowStateResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Replace workflow state response",
+        "description": "Outcome of replacing a workflow draft graph.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "warnings": [],
+              "needsRedeployment": true
+            }
+          }
+        ]
+      },
+      "WorkflowBlockInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Block identifier, unique within the workflow."
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Registered block type."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Block display name; must be unique within the workflow."
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "Canvas x coordinate."
+              },
+              "y": {
+                "type": "number",
+                "description": "Canvas y coordinate."
+              }
+            },
+            "required": ["x", "y"],
+            "description": "Canvas coordinates of a block."
+          },
+          "subBlocks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Sub-block identifier."
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Sub-block input type."
+                },
+                "value": {
+                  "description": "Configured value; shape depends on the sub-block type."
+                }
+              },
+              "required": ["id", "type", "value"],
+              "description": "One configurable input on a block."
+            },
+            "description": "Configured inputs keyed by sub-block id."
+          },
+          "outputs": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "Declared shape of one output; depends on the block type."
+            },
+            "description": "Declared output shape keyed by output name."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the block runs."
+          },
+          "horizontalHandles": {
+            "description": "Whether edge handles render horizontally.",
+            "type": "boolean"
+          },
+          "height": {
+            "description": "Rendered block height.",
+            "type": "number"
+          },
+          "advancedMode": {
+            "description": "Whether the block is edited in advanced mode.",
+            "type": "boolean"
+          },
+          "errorEnabled": {
+            "description": "Whether the block exposes an error branch.",
+            "type": "boolean"
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Whether the block retries on failure."
+              },
+              "maxTries": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 5,
+                "description": "Total attempts, including the first."
+              },
+              "waitBetweenTriesMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000,
+                "description": "Delay between attempts, in milliseconds."
+              }
+            },
+            "required": ["enabled", "maxTries", "waitBetweenTriesMs"],
+            "description": "Per-block retry configuration."
+          },
+          "triggerMode": {
+            "description": "Whether the block acts as the workflow trigger.",
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "parentId": {
+                "description": "Identifier of the containing loop or parallel.",
+                "type": "string"
+              },
+              "extent": {
+                "description": "Constrains the block to its parent bounds.",
+                "type": "string",
+                "const": "parent"
+              },
+              "width": {
+                "description": "Rendered container width.",
+                "type": "number"
+              },
+              "height": {
+                "description": "Rendered container height.",
+                "type": "number"
+              },
+              "collection": {
+                "description": "Items a forEach loop or collection parallel iterates."
+              },
+              "count": {
+                "description": "Iteration count for a `for` loop or count parallel.",
+                "type": "number"
+              },
+              "loopType": {
+                "description": "Loop container kind.",
+                "type": "string",
+                "enum": ["for", "forEach", "while", "doWhile"]
+              },
+              "whileCondition": {
+                "description": "Condition expression for a `while` loop.",
+                "type": "string"
+              },
+              "doWhileCondition": {
+                "description": "Condition expression for a `doWhile` loop.",
+                "type": "string"
+              },
+              "parallelType": {
+                "description": "Parallel container kind.",
+                "type": "string",
+                "enum": ["collection", "count"]
+              },
+              "batchSize": {
+                "description": "Maximum concurrent branches of a parallel.",
+                "type": "number"
+              },
+              "type": {
+                "description": "Container subtype.",
+                "type": "string"
+              },
+              "canonicalModes": {
+                "description": "Per-field editing mode, keyed by canonical parameter id.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "enum": ["basic", "advanced"]
+                }
+              }
+            },
+            "description": "Container and layout metadata carried by a block."
+          },
+          "locked": {
+            "description": "Whether the block is locked against edits.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "type", "name", "position", "subBlocks", "outputs", "enabled"],
+        "title": "Workflow block",
+        "description": "One node of a workflow graph and its configuration."
+      },
+      "WorkflowEdgeInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Edge identifier, unique within the workflow."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Source block id."
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target block id."
+          },
+          "sourceHandle": {
+            "description": "Source port, or null for the block default.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetHandle": {
+            "description": "Target port, or null for the block default.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "description": "Edge renderer type.",
+            "type": "string"
+          }
+        },
+        "required": ["id", "source", "target"],
+        "title": "Workflow edge",
+        "description": "A directed connection between two blocks."
+      },
+      "WorkflowLoopInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Loop container identifier; equal to the loop block id."
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Block ids inside the loop."
+          },
+          "iterations": {
+            "type": "number",
+            "description": "Resolved iteration count."
+          },
+          "loopType": {
+            "type": "string",
+            "enum": ["for", "forEach", "while", "doWhile"],
+            "description": "Loop kind."
+          },
+          "forEachItems": {
+            "description": "Items a forEach loop iterates, or the expression producing them.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "description": "One item the loop iterates."
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "One item the loop iterates."
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "whileCondition": {
+            "description": "Condition expression for a `while` loop.",
+            "type": "string"
+          },
+          "doWhileCondition": {
+            "description": "Condition expression for a `doWhile` loop.",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Whether the loop runs.",
+            "type": "boolean"
+          },
+          "locked": {
+            "description": "Whether the loop is locked against edits.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "nodes", "iterations", "loopType"],
+        "title": "Workflow loop",
+        "description": "A loop container derived from the workflow blocks."
+      },
+      "WorkflowParallelInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Parallel container identifier; equal to the parallel block id."
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Block ids inside the parallel."
+          },
+          "distribution": {
+            "description": "Items distributed across branches, or the expression producing them.",
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "description": "One item distributed to a branch."
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "One item distributed to a branch."
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "count": {
+            "description": "Fixed branch count.",
+            "type": "number"
+          },
+          "parallelType": {
+            "description": "Parallel kind.",
+            "type": "string",
+            "enum": ["count", "collection"]
+          },
+          "batchSize": {
+            "description": "Maximum concurrent branches.",
+            "type": "number"
+          },
+          "enabled": {
+            "description": "Whether the parallel runs.",
+            "type": "boolean"
+          },
+          "locked": {
+            "description": "Whether the parallel is locked against edits.",
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "nodes"],
+        "title": "Workflow parallel",
+        "description": "A parallel container derived from the workflow blocks."
+      },
+      "WorkflowVariableInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Variable identifier."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Variable name, referenced from block inputs."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "object", "array", "plain"],
+            "description": "Declared variable type."
+          },
+          "value": {
+            "description": "Variable value; free-form and validated per `type` at use time."
+          }
+        },
+        "required": ["id", "name", "type", "value"],
+        "title": "Workflow variable",
+        "description": "A workflow-scoped variable."
+      },
+      "ReplaceWorkflowStateRequest": {
+        "type": "object",
+        "properties": {
+          "blocks": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowBlockInput"
+            },
+            "description": "Blocks keyed by block id."
+          },
+          "edges": {
+            "maxItems": 10000,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowEdgeInput"
+            },
+            "description": "Directed connections between blocks."
+          },
+          "loops": {
+            "description": "Ignored on write: loop containers are recomputed from `blocks`.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowLoopInput"
+            }
+          },
+          "parallels": {
+            "description": "Ignored on write: parallel containers are recomputed from `blocks`.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowParallelInput"
+            }
+          },
+          "variables": {
+            "description": "Replacement variable set. Omit to leave the stored variables untouched.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorkflowVariableInput"
+            }
+          }
+        },
+        "required": ["blocks", "edges"],
+        "additionalProperties": false,
+        "title": "Replace workflow state request",
+        "description": "A complete replacement draft graph for a workflow.",
+        "examples": [
+          {
+            "blocks": {},
+            "edges": []
+          }
+        ]
+      },
+      "WorkflowSkippedItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "block_not_found",
+              "invalid_block_type",
+              "block_not_allowed",
+              "block_locked",
+              "tool_not_allowed",
+              "invalid_edge_target",
+              "invalid_edge_source",
+              "invalid_edge_scope",
+              "invalid_source_handle",
+              "invalid_target_handle",
+              "invalid_subblock_field",
+              "missing_required_params",
+              "invalid_subflow_parent",
+              "nested_subflow_not_allowed",
+              "duplicate_block_name",
+              "reserved_block_name",
+              "duplicate_trigger",
+              "duplicate_single_instance_block"
+            ],
+            "description": "Machine-readable reason the engine declined an operation."
+          },
+          "operationType": {
+            "type": "string",
+            "description": "The `operation_type` that was declined."
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Block the declined operation targeted."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation."
+          },
+          "details": {
+            "description": "Additional context for the reason; keys depend on `type`.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "description": "One piece of engine-supplied context for the reason."
+            }
+          }
+        },
+        "required": ["type", "operationType", "blockId", "reason"],
+        "additionalProperties": false,
+        "title": "Workflow skipped item",
+        "description": "One operation the edit engine did not apply."
+      },
+      "WorkflowInputValidationError": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "string",
+            "description": "Block whose input was rejected."
+          },
+          "blockType": {
+            "type": "string",
+            "description": "Type of the block whose input was rejected."
+          },
+          "field": {
+            "type": "string",
+            "description": "Sub-block field that was rejected."
+          },
+          "error": {
+            "type": "string",
+            "description": "Why the value was rejected."
+          }
+        },
+        "required": ["blockId", "blockType", "field", "error"],
+        "additionalProperties": false,
+        "title": "Workflow input validation error",
+        "description": "One block input that was dropped rather than persisted."
+      },
+      "WorkflowLintReport": {
+        "type": "object",
+        "properties": {
+          "unresolvedReferences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block holding the reference."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Type of the block holding the reference."
+                },
+                "field": {
+                  "type": "string",
+                  "description": "Sub-block field holding the reference."
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Why the reference does not resolve."
+                }
+              },
+              "required": ["blockId", "blockType", "field", "reason"],
+              "additionalProperties": false
+            },
+            "description": "Credential, resource, tool, and skill references that do not resolve."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Advisory notes about the report itself."
+          }
+        },
+        "required": ["unresolvedReferences", "notes"],
+        "additionalProperties": false,
+        "title": "Workflow lint report",
+        "description": "Advisory findings about the saved graph. Findings never block the write; they tell a caller what will misbehave at run time."
+      },
+      "ApplyWorkflowOperationsResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the workflow whose draft graph was written."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal notes about blocks and edges that were normalized or dropped before persistence. Empty when there was nothing to report."
+          },
+          "needsRedeployment": {
+            "type": "boolean",
+            "description": "Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it."
+          },
+          "applied": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Operations the engine applied."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowSkippedItem"
+            },
+            "description": "Operations the engine declined. Empty when everything applied."
+          },
+          "deferred": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowSkippedItem"
+            },
+            "description": "Forward-referencing edges the engine recorded rather than applied. These are NOT failures: the engine wires each one as soon as its target block exists, in this batch or a later one. Do not re-issue them."
+          },
+          "inputValidationErrors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowInputValidationError"
+            },
+            "description": "Block inputs that were dropped. The rest of the operation still applied."
+          },
+          "lint": {
+            "$ref": "#/components/schemas/WorkflowLintReport"
+          }
+        },
+        "required": [
+          "id",
+          "warnings",
+          "needsRedeployment",
+          "applied",
+          "skipped",
+          "deferred",
+          "inputValidationErrors",
+          "lint"
+        ],
+        "additionalProperties": false,
+        "title": "Apply workflow operations result",
+        "description": "Outcome of a batch of semantic edits against a workflow graph."
+      },
+      "ApplyWorkflowOperationsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/ApplyWorkflowOperationsResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Apply workflow operations response",
+        "description": "Outcome of a batch of semantic edits.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "applied": 1,
+              "skipped": [],
+              "deferred": [],
+              "inputValidationErrors": [],
+              "lint": {
+                "unresolvedReferences": [],
+                "notes": []
+              },
+              "warnings": [],
+              "needsRedeployment": true
+            }
+          }
+        ]
+      },
+      "WorkflowEditOperation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "operation_type": {
+                "type": "string",
+                "const": "add",
+                "description": "Create a new block."
+              },
+              "block_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Block the operation targets. For `add`, the id the new block will be given."
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Registered block type."
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Block display name."
+                  }
+                },
+                "required": ["type", "name"],
+                "additionalProperties": {
+                  "description": "One block-specific input or connection descriptor."
+                },
+                "description": "Block type and name, plus any block-specific inputs and connections."
+              }
+            },
+            "required": ["operation_type", "block_id", "params"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operation_type": {
+                "type": "string",
+                "const": "edit",
+                "description": "Change an existing block: its inputs, name, or connections."
+              },
+              "block_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Block the operation targets. For `add`, the id the new block will be given."
+              },
+              "params": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "description": "One operation parameter; its shape depends on the target block type."
+                },
+                "description": "Operation parameters; the accepted keys depend on the target block type."
+              }
+            },
+            "required": ["operation_type", "block_id", "params"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operation_type": {
+                "type": "string",
+                "const": "delete",
+                "description": "Remove a block and every edge touching it."
+              },
+              "block_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Block the operation targets. For `add`, the id the new block will be given."
+              }
+            },
+            "required": ["operation_type", "block_id"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operation_type": {
+                "type": "string",
+                "const": "insert_into_subflow",
+                "description": "Create a block inside a loop or parallel container."
+              },
+              "block_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Block the operation targets. For `add`, the id the new block will be given."
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "subflowId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Loop or parallel container to insert the block into."
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Registered block type."
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Block display name."
+                  }
+                },
+                "required": ["subflowId", "type", "name"],
+                "additionalProperties": {
+                  "description": "One block-specific input or connection descriptor."
+                },
+                "description": "Container, block type and name, plus any block-specific inputs and connections."
+              }
+            },
+            "required": ["operation_type", "block_id", "params"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operation_type": {
+                "type": "string",
+                "const": "extract_from_subflow",
+                "description": "Move a block out of its loop or parallel container."
+              },
+              "block_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Block the operation targets. For `add`, the id the new block will be given."
+              },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "subflowId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Loop or parallel container the block moves into or out of."
+                  }
+                },
+                "required": ["subflowId"],
+                "additionalProperties": {
+                  "description": "One block-specific input."
+                },
+                "description": "Container identifier, plus any block-specific inputs."
+              }
+            },
+            "required": ["operation_type", "block_id", "params"],
+            "additionalProperties": false
+          }
+        ],
+        "title": "Workflow edit operation",
+        "description": "One semantic edit against a workflow graph."
+      },
+      "ApplyWorkflowOperationsRequest": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowEditOperation"
+            },
+            "description": "Edits to apply, in a single batch."
+          },
+          "atomic": {
+            "default": false,
+            "description": "Fail the whole batch when any operation is declined. The default applies what it can and reports the rest in `skipped`; `true` writes nothing and answers `409` instead.",
+            "type": "boolean"
+          },
+          "layout": {
+            "default": "targeted",
+            "description": "Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied.",
+            "type": "string",
+            "enum": ["targeted", "none"]
+          },
+          "setBlockEnabled": {
+            "description": "Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined.",
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "block_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Block the operation targets. For `add`, the id the new block will be given."
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether the block should run."
+                }
+              },
+              "required": ["block_id", "enabled"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["operations"],
+        "additionalProperties": false,
+        "title": "Apply workflow operations request",
+        "description": "A batch of semantic edits against a workflow graph.",
+        "examples": [
+          {
+            "operations": [
+              {
+                "operation_type": "add",
+                "block_id": "agent-1",
+                "params": {
+                  "type": "agent",
+                  "name": "Triage"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "ApplyWorkflowVariablesResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the workflow whose variables were updated."
+          },
+          "variableCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Variables the workflow now holds."
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "Whether anything actually changed. A no-op batch answers `200` with `false`."
+          }
+        },
+        "required": ["id", "variableCount", "changed"],
+        "additionalProperties": false,
+        "title": "Apply workflow variables result",
+        "description": "Outcome of a workflow variable update."
+      },
+      "ApplyWorkflowVariablesResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/ApplyWorkflowVariablesResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Apply workflow variables response",
+        "description": "Outcome of a workflow variable update.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "variableCount": 3,
+              "changed": true
+            }
+          }
+        ]
+      },
+      "ApplyWorkflowVariablesRequest": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "operation": {
+                      "type": "string",
+                      "const": "add",
+                      "description": "Create a variable with this name."
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Variable name."
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["string", "number", "boolean", "object", "array", "plain"],
+                      "description": "Declared variable type."
+                    },
+                    "value": {
+                      "description": "Variable value, coerced to `type`."
+                    }
+                  },
+                  "required": ["operation", "name", "type", "value"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "operation": {
+                      "type": "string",
+                      "const": "edit",
+                      "description": "Replace the value, and optionally the type, of an existing variable."
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Name of the variable to update."
+                    },
+                    "type": {
+                      "description": "Replacement type; the stored type is kept when omitted.",
+                      "type": "string",
+                      "enum": ["string", "number", "boolean", "object", "array", "plain"]
+                    },
+                    "value": {
+                      "description": "Replacement value, coerced to the effective type."
+                    }
+                  },
+                  "required": ["operation", "name", "value"],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "operation": {
+                      "type": "string",
+                      "const": "delete",
+                      "description": "Remove the variable with this name."
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 255,
+                      "description": "Name of the variable to remove."
+                    }
+                  },
+                  "required": ["operation", "name"],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "One variable change."
+            },
+            "description": "Variable changes to apply, in order."
+          }
+        },
+        "required": ["operations"],
+        "additionalProperties": false,
+        "title": "Apply workflow variables request",
+        "description": "Additions, edits, and deletions against a workflow’s variables."
+      },
+      "DuplicateWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowListItem"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Duplicate workflow response",
+        "description": "The created copy.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "name": "Customer support triage (copy)",
+              "description": "Routes incoming support requests to the right team.",
+              "folderPath": "/Operations",
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "isDeployed": false,
+              "deployedAt": null,
+              "runCount": 0,
+              "lastRunAt": null,
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-08-09T18:04:11.000Z"
+            }
+          }
+        ]
+      },
+      "DuplicateWorkflowRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "Name for the copy. Defaults to the source name, deduplicated within the folder.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "folderPath": {
+            "description": "Destination folder path. Defaults to the source workflow's folder.",
+            "$ref": "#/components/schemas/FolderPathInput"
+          }
+        },
+        "additionalProperties": false,
+        "title": "Duplicate workflow request",
+        "description": "Optional name and destination folder for the copy."
+      },
+      "RestoreWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowListItem"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Restore workflow response",
+        "description": "The restored workflow.",
+        "examples": [
+          {
+            "data": {
+              "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "name": "Customer support triage",
+              "description": "Routes incoming support requests to the right team.",
+              "folderPath": "/Operations",
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "isDeployed": true,
+              "deployedAt": "2026-06-12T10:30:00.000Z",
+              "runCount": 42,
+              "lastRunAt": "2026-08-09T18:04:11.000Z",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-08-09T18:04:11.000Z"
+            }
+          }
+        ]
+      },
+      "MoveWorkflowsResult": {
+        "type": "object",
+        "properties": {
+          "moved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Workflows that were relocated."
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Workflows that were not relocated — absent from the workspace, archived, or locked. Best-effort by design: the rest of the batch still moved."
+          },
+          "folderPath": {
+            "type": "string",
+            "title": "Folder path",
+            "description": "Canonical destination folder path.",
+            "maxLength": 4096
+          }
+        },
+        "required": ["moved", "failed", "folderPath"],
+        "additionalProperties": false,
+        "title": "Move workflows result",
+        "description": "Which workflows moved and which did not."
+      },
+      "MoveWorkflowsResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/MoveWorkflowsResult"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Move workflows response",
+        "description": "Which workflows moved and which did not.",
+        "examples": [
+          {
+            "data": {
+              "moved": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"],
+              "failed": [],
+              "folderPath": "/Operations"
+            }
+          }
+        ]
+      },
+      "MoveWorkflowsRequest": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Workspace holding every workflow in the batch."
+          },
+          "workflowIds": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workflows to move. Duplicates are collapsed."
+          },
+          "folderPath": {
+            "description": "Destination folder path; `/` moves the workflows to the workspace root.",
+            "$ref": "#/components/schemas/FolderPathInput"
+          }
+        },
+        "required": ["workspaceId", "workflowIds", "folderPath"],
+        "additionalProperties": false,
+        "title": "Move workflows request",
+        "description": "Workflows to relocate and the folder to relocate them into."
       },
       "WorkflowInputField": {
         "type": "object",
@@ -2847,18 +5312,23 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Identifier of the deleted workflow."
+            "description": "Identifier of the archived workflow."
           },
           "deleted": {
             "type": "boolean",
             "const": true,
-            "description": "Confirms that the workflow was deleted."
+            "description": "Confirms that the workflow is no longer live."
+          },
+          "archived": {
+            "type": "boolean",
+            "const": true,
+            "description": "The workflow was archived, not erased. Its schedules, webhooks, MCP tools, and chats were archived with it, and `POST /workflows/{id}/restore` brings all of them back."
           }
         },
-        "required": ["id", "deleted"],
+        "required": ["id", "deleted", "archived"],
         "additionalProperties": false,
         "title": "Delete workflow result",
-        "description": "Confirmation that a workflow was deleted."
+        "description": "Confirmation that a workflow was archived."
       },
       "DeleteWorkflowResponse": {
         "type": "object",
@@ -2871,12 +5341,13 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Delete workflow response",
-        "description": "Confirmation that the workflow was deleted.",
+        "description": "Confirmation that the workflow was archived.",
         "examples": [
           {
             "data": {
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-              "deleted": true
+              "deleted": true,
+              "archived": true
             }
           }
         ]

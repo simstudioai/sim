@@ -1839,8 +1839,6 @@
 
     "@sim/security": ["@sim/security@workspace:packages/security"],
 
-    "sim-setup": ["sim-setup@workspace:packages/sim-setup"],
-
     "@sim/terminal-protocol": ["@sim/terminal-protocol@workspace:packages/terminal-protocol"],
 
     "@sim/testing": ["@sim/testing@workspace:packages/testing"],
@@ -4238,6 +4236,8 @@
     "signal-exit": ["signal-exit@3.0.7", "", {}, "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="],
 
     "sim": ["sim@workspace:packages/sim-cli"],
+
+    "sim-setup": ["sim-setup@workspace:packages/sim-setup"],
 
     "simple-update-notifier": ["simple-update-notifier@2.0.0", "", { "dependencies": { "semver": "^7.5.3" } }, "sha512-a2B9Y0KlNXl9u/vsW6sTIu9vGEpfKu2wRV6l1H3XEas/0gUIzGzBoP/IouTcUQbm9JWZLH3COxyn03TYlFax6w=="],
 

@@ -1,3 +1,9 @@
+import {
+  BLOCK_RETRY_MAX_TRIES,
+  BLOCK_RETRY_MAX_WAIT_MS,
+  BLOCK_RETRY_MIN_TRIES,
+  BLOCK_RETRY_MIN_WAIT_MS,
+} from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
   activeDeploymentSummarySchema,
@@ -48,6 +54,7 @@ import {
 } from '@/lib/api/contracts/workflows'
 import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
+import { WORKFLOW_SKIPPED_ITEM_TYPES } from '@/lib/workflows/editing/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
@@ -129,9 +136,24 @@ export type V2WorkflowSortBy = (typeof v2WorkflowSortFields)[number]
  * sort convention. The keyset behind the cursor follows `sortBy`, so the cursor
  * carries the sort it was minted under and is rejected once that changes.
  */
+/**
+ * Listing scopes. Two-valued on purpose, diverging from the three-valued
+ * internal `workflowScopeSchema`: `all` drops the `archived_at` predicate
+ * entirely, so it can use neither of the workflow table's two partial indexes
+ * and degrades to a full workspace scan. Mirrors `v2FileScopeSchema`.
+ */
+export const v2WorkflowScopeSchema = z.enum(['active', 'archived'])
+
+export type V2WorkflowScope = z.output<typeof v2WorkflowScopeSchema>
+
 export const v2ListWorkflowsQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace whose workflows should be listed.'),
+    scope: v2WorkflowScopeSchema
+      .default('active')
+      .describe(
+        'Which lifecycle set to list: `active` (default) for live workflows, `archived` for workflows a `DELETE` archived. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+      ),
     folderPath: v2FolderPathInputSchema
       .optional()
       .describe(`Restrict results to workflows in this folder path. ${V2_FOLDER_FILTER_MISS}`),
@@ -472,15 +494,59 @@ export type V2UpdateWorkflowBody = z.input<typeof v2UpdateWorkflowBodySchema>
 
 export const v2DeleteWorkflowDataSchema = z
   .object({
-    id: z.string().describe('Identifier of the deleted workflow.'),
-    deleted: z.literal(true).describe('Confirms that the workflow was deleted.'),
+    id: z.string().describe('Identifier of the archived workflow.'),
+    /**
+     * Retained for shipped clients. `DELETE` has always archived rather than
+     * erased; renaming it would break them, so `archived` states the semantics
+     * alongside it.
+     */
+    deleted: z.literal(true).describe('Confirms that the workflow is no longer live.'),
+    archived: z
+      .literal(true)
+      .describe(
+        'The workflow was archived, not erased. Its schedules, webhooks, MCP tools, and chats were archived with it, and `POST /workflows/{id}/restore` brings all of them back.'
+      ),
   })
   .meta({
     id: 'DeleteWorkflowResult',
     title: 'Delete workflow result',
-    description: 'Confirmation that a workflow was deleted.',
+    description: 'Confirmation that a workflow was archived.',
   })
 export type V2DeleteWorkflowData = z.output<typeof v2DeleteWorkflowDataSchema>
+
+const v2SeededBlockSchema = z
+  .object({
+    id: z.string().describe('Block identifier.'),
+    type: z.string().describe('Registered block type.'),
+    name: z.string().describe('Block display name.'),
+  })
+  .strict()
+  .meta({
+    id: 'SeededWorkflowBlock',
+    title: 'Seeded workflow block',
+    description: 'A block the platform placed in a newly created workflow.',
+  })
+
+/**
+ * Create result. Carries the seeded blocks — deliberately a summary rather than
+ * the whole graph, which would reintroduce the unbounded response
+ * `GET /workflows/{id}/state` exists to keep off the common path.
+ */
+export const v2CreateWorkflowDataSchema = v2WorkflowListItemSchema
+  .extend({
+    blocks: z
+      .array(v2SeededBlockSchema)
+      .describe(
+        'Blocks seeded into the new workflow. Contains the start block; attach edges to its `id`.'
+      ),
+  })
+  .meta({
+    id: 'CreateWorkflowResult',
+    title: 'Create workflow result',
+    description: 'The created workflow and the blocks it was seeded with.',
+  })
+
+export type V2CreateWorkflowData = z.output<typeof v2CreateWorkflowDataSchema>
 
 export const v2CreateWorkflowContract = defineRouteContract({
   method: 'POST',
@@ -489,7 +555,7 @@ export const v2CreateWorkflowContract = defineRouteContract({
   body: v2CreateWorkflowBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2WorkflowListItemSchema),
+    schema: v2DataResponse(v2CreateWorkflowDataSchema),
     status: 201,
   },
 })
@@ -1529,5 +1595,859 @@ export const v2ImportWorkflowContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2ImportWorkflowDataSchema),
     status: 201,
+  },
+})
+
+/**
+ * Ceilings on a graph a caller may push. Neither the internal `workflowStateSchema`
+ * nor the normalized tables bound these, so without them a single request can
+ * ask the persistence layer to write an unbounded number of rows. Both sit an
+ * order of magnitude above the largest workflow observed in production.
+ */
+export const MAX_WORKFLOW_GRAPH_BLOCKS = 2000
+export const MAX_WORKFLOW_GRAPH_EDGES = 10_000
+/** Ceiling on one `POST /operations` batch. */
+export const MAX_WORKFLOW_EDIT_OPERATIONS = 200
+/** Ceiling on one `PATCH /variables` batch; mirrors the application use case's own cap. */
+export const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
+/** Ceiling on one bulk move; mirrors the application use case's own cap. */
+export const MAX_WORKFLOW_BULK_MOVES = 100
+
+const v2WorkflowBlockPositionSchema = z
+  .object({
+    x: z.number().describe('Canvas x coordinate.'),
+    y: z.number().describe('Canvas y coordinate.'),
+  })
+  .describe('Canvas coordinates of a block.')
+
+const v2WorkflowBlockDataSchema = z
+  .object({
+    parentId: z.string().optional().describe('Identifier of the containing loop or parallel.'),
+    extent: z.literal('parent').optional().describe('Constrains the block to its parent bounds.'),
+    width: z.number().optional().describe('Rendered container width.'),
+    height: z.number().optional().describe('Rendered container height.'),
+    collection: z
+      .unknown()
+      .optional()
+      .describe('Items a forEach loop or collection parallel iterates.'),
+    count: z.number().optional().describe('Iteration count for a `for` loop or count parallel.'),
+    loopType: z
+      .enum(['for', 'forEach', 'while', 'doWhile'])
+      .optional()
+      .describe('Loop container kind.'),
+    whileCondition: z.string().optional().describe('Condition expression for a `while` loop.'),
+    doWhileCondition: z.string().optional().describe('Condition expression for a `doWhile` loop.'),
+    parallelType: z.enum(['collection', 'count']).optional().describe('Parallel container kind.'),
+    batchSize: z.number().optional().describe('Maximum concurrent branches of a parallel.'),
+    type: z.string().optional().describe('Container subtype.'),
+    canonicalModes: z
+      .record(z.string(), z.enum(['basic', 'advanced']))
+      .optional()
+      .describe('Per-field editing mode, keyed by canonical parameter id.'),
+  })
+  .describe('Container and layout metadata carried by a block.')
+
+const v2WorkflowSubBlockSchema = z
+  .object({
+    id: z.string().min(1, 'subBlock id cannot be empty').describe('Sub-block identifier.'),
+    type: z.string().min(1, 'subBlock type cannot be empty').describe('Sub-block input type.'),
+    value: z.unknown().describe('Configured value; shape depends on the sub-block type.'),
+  })
+  .describe('One configurable input on a block.')
+
+const v2WorkflowBlockRetrySchema = z
+  .object({
+    enabled: z.boolean().describe('Whether the block retries on failure.'),
+    maxTries: z
+      .number()
+      .int()
+      .min(BLOCK_RETRY_MIN_TRIES, `maxTries must be at least ${BLOCK_RETRY_MIN_TRIES}`)
+      .max(BLOCK_RETRY_MAX_TRIES, `maxTries cannot exceed ${BLOCK_RETRY_MAX_TRIES}`)
+      .describe('Total attempts, including the first.'),
+    waitBetweenTriesMs: z
+      .number()
+      .int()
+      .min(BLOCK_RETRY_MIN_WAIT_MS, 'waitBetweenTriesMs cannot be negative')
+      .max(BLOCK_RETRY_MAX_WAIT_MS, `waitBetweenTriesMs cannot exceed ${BLOCK_RETRY_MAX_WAIT_MS}ms`)
+      .describe('Delay between attempts, in milliseconds.'),
+  })
+  .describe('Per-block retry configuration.')
+
+function workflowBlockSchema(id: string) {
+  return z
+    .object({
+      id: z
+        .string()
+        .min(1, 'block id cannot be empty')
+        .describe('Block identifier, unique within the workflow.'),
+      type: z.string().min(1, 'block type cannot be empty').describe('Registered block type.'),
+      name: z
+        .string()
+        .min(1, 'block name cannot be empty')
+        .max(255, 'block name is too long')
+        .describe('Block display name; must be unique within the workflow.'),
+      position: v2WorkflowBlockPositionSchema,
+      subBlocks: z
+        .record(z.string(), v2WorkflowSubBlockSchema)
+        .describe('Configured inputs keyed by sub-block id.'),
+      outputs: z
+        .record(
+          z.string(),
+          z.unknown().describe('Declared shape of one output; depends on the block type.')
+        )
+        .describe('Declared output shape keyed by output name.'),
+      enabled: z.boolean().describe('Whether the block runs.'),
+      horizontalHandles: z
+        .boolean()
+        .optional()
+        .describe('Whether edge handles render horizontally.'),
+      height: z.number().optional().describe('Rendered block height.'),
+      advancedMode: z
+        .boolean()
+        .optional()
+        .describe('Whether the block is edited in advanced mode.'),
+      errorEnabled: z.boolean().optional().describe('Whether the block exposes an error branch.'),
+      retry: v2WorkflowBlockRetrySchema.optional(),
+      triggerMode: z
+        .boolean()
+        .optional()
+        .describe('Whether the block acts as the workflow trigger.'),
+      data: v2WorkflowBlockDataSchema.optional(),
+      locked: z.boolean().optional().describe('Whether the block is locked against edits.'),
+    })
+    .meta({
+      id,
+      title: 'Workflow block',
+      description: 'One node of a workflow graph and its configuration.',
+    })
+}
+
+function workflowEdgeSchema(id: string) {
+  return z
+    .object({
+      id: z
+        .string()
+        .min(1, 'edge id cannot be empty')
+        .describe('Edge identifier, unique within the workflow.'),
+      source: z.string().min(1, 'edge source cannot be empty').describe('Source block id.'),
+      target: z.string().min(1, 'edge target cannot be empty').describe('Target block id.'),
+      sourceHandle: z.string().nullish().describe('Source port, or null for the block default.'),
+      targetHandle: z.string().nullish().describe('Target port, or null for the block default.'),
+      type: z.string().optional().describe('Edge renderer type.'),
+    })
+    .meta({ id, title: 'Workflow edge', description: 'A directed connection between two blocks.' })
+}
+
+function workflowLoopSchema(id: string) {
+  return z
+    .object({
+      id: z.string().describe('Loop container identifier; equal to the loop block id.'),
+      nodes: z.array(z.string()).describe('Block ids inside the loop.'),
+      iterations: z.number().describe('Resolved iteration count.'),
+      loopType: z.enum(['for', 'forEach', 'while', 'doWhile']).describe('Loop kind.'),
+      forEachItems: z
+        .union([
+          z.array(z.unknown().describe('One item the loop iterates.')),
+          z.record(z.string(), z.unknown().describe('One item the loop iterates.')),
+          z.string(),
+        ])
+        .optional()
+        .describe('Items a forEach loop iterates, or the expression producing them.'),
+      whileCondition: z.string().optional().describe('Condition expression for a `while` loop.'),
+      doWhileCondition: z
+        .string()
+        .optional()
+        .describe('Condition expression for a `doWhile` loop.'),
+      enabled: z.boolean().optional().describe('Whether the loop runs.'),
+      locked: z.boolean().optional().describe('Whether the loop is locked against edits.'),
+    })
+    .meta({
+      id,
+      title: 'Workflow loop',
+      description: 'A loop container derived from the workflow blocks.',
+    })
+}
+
+function workflowParallelSchema(id: string) {
+  return z
+    .object({
+      id: z.string().describe('Parallel container identifier; equal to the parallel block id.'),
+      nodes: z.array(z.string()).describe('Block ids inside the parallel.'),
+      distribution: z
+        .union([
+          z.array(z.unknown().describe('One item distributed to a branch.')),
+          z.record(z.string(), z.unknown().describe('One item distributed to a branch.')),
+          z.string(),
+        ])
+        .optional()
+        .describe('Items distributed across branches, or the expression producing them.'),
+      count: z.number().optional().describe('Fixed branch count.'),
+      parallelType: z.enum(['count', 'collection']).optional().describe('Parallel kind.'),
+      batchSize: z.number().optional().describe('Maximum concurrent branches.'),
+      enabled: z.boolean().optional().describe('Whether the parallel runs.'),
+      locked: z.boolean().optional().describe('Whether the parallel is locked against edits.'),
+    })
+    .meta({
+      id,
+      title: 'Workflow parallel',
+      description: 'A parallel container derived from the workflow blocks.',
+    })
+}
+
+/**
+ * A workflow variable on the graph surface.
+ *
+ * Deliberately carries no `workflowId`: the internal read stamps one for the
+ * client's cross-workflow variables store, and on this surface the path already
+ * names the workflow.
+ */
+function workflowVariableSchema(id: string) {
+  return z
+    .object({
+      id: z.string().min(1, 'variable id cannot be empty').describe('Variable identifier.'),
+      name: z
+        .string()
+        .min(1, 'variable name cannot be empty')
+        .max(255, 'variable name is too long')
+        .describe('Variable name, referenced from block inputs.'),
+      type: z
+        .enum(['string', 'number', 'boolean', 'object', 'array', 'plain'])
+        .describe('Declared variable type.'),
+      value: z
+        .unknown()
+        .describe('Variable value; free-form and validated per `type` at use time.'),
+    })
+    .meta({ id, title: 'Workflow variable', description: 'A workflow-scoped variable.' })
+}
+
+export const v2WorkflowBlockSchema = workflowBlockSchema('WorkflowBlock')
+export const v2WorkflowEdgeSchema = workflowEdgeSchema('WorkflowEdge')
+const v2WorkflowLoopSchema = workflowLoopSchema('WorkflowLoop')
+const v2WorkflowParallelSchema = workflowParallelSchema('WorkflowParallel')
+export const v2WorkflowVariableSchema = workflowVariableSchema('WorkflowVariable')
+
+/**
+ * The editable draft graph.
+ *
+ * A v2-local re-declaration rather than a reuse of the internal
+ * `workflowStateSchema`: that one carries write-only legacy keys (`lastSaved`,
+ * `isDeployed`, `deployedAt`, `metadata`) and bounds nothing.
+ *
+ * The graph elements above are deliberately **not** `.strict()`, unlike the
+ * request bodies that carry them. They are both a response schema and a stored
+ * shape, and a v2 response schema is `.parse`d on the way out — so a strict
+ * element would turn any block, edge, or variable carrying a key this surface
+ * has not published yet into a `500` on a plain read. Stripping instead makes
+ * the read the canonical projection, which is also what makes a read-modify-write
+ * round trip closed: what a caller reads back is exactly the set of keys it may
+ * send.
+ */
+export const v2WorkflowGraphSchema = z
+  .object({
+    blocks: z
+      .record(z.string(), v2WorkflowBlockSchema)
+      .describe('Blocks keyed by block id.')
+      .refine(
+        (blocks) => Object.keys(blocks).length <= MAX_WORKFLOW_GRAPH_BLOCKS,
+        `blocks cannot exceed ${MAX_WORKFLOW_GRAPH_BLOCKS} entries`
+      ),
+    edges: z
+      .array(v2WorkflowEdgeSchema)
+      .max(MAX_WORKFLOW_GRAPH_EDGES, `edges cannot exceed ${MAX_WORKFLOW_GRAPH_EDGES} entries`)
+      .describe('Directed connections between blocks.'),
+    loops: z
+      .record(z.string(), v2WorkflowLoopSchema)
+      .describe('Loop containers keyed by container id; always present, `{}` when there are none.'),
+    parallels: z
+      .record(z.string(), v2WorkflowParallelSchema)
+      .describe(
+        'Parallel containers keyed by container id; always present, `{}` when there are none.'
+      ),
+    variables: z
+      .record(z.string(), v2WorkflowVariableSchema)
+      .describe(
+        'Workflow variables keyed by variable id; always present, `{}` when there are none.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'WorkflowGraph',
+    title: 'Workflow graph',
+    description:
+      'The editable draft graph of a workflow: blocks, edges, derived loop and parallel containers, and variables.',
+  })
+
+export type V2WorkflowGraph = z.output<typeof v2WorkflowGraphSchema>
+
+/**
+ * Write-side graph elements.
+ *
+ * Structurally identical to the read schemas and deliberately so — what a caller
+ * reads back is exactly what it may send. They are built separately only to
+ * carry distinct OpenAPI component ids: a request body is generated in `input`
+ * mode and a response in `output` mode, and the two spellings of the same object
+ * genuinely differ, because an output object cannot carry unknown members having
+ * just had them stripped.
+ */
+const v2WorkflowBlockInputSchema = workflowBlockSchema('WorkflowBlockInput')
+const v2WorkflowEdgeInputSchema = workflowEdgeSchema('WorkflowEdgeInput')
+const v2WorkflowLoopInputSchema = workflowLoopSchema('WorkflowLoopInput')
+const v2WorkflowParallelInputSchema = workflowParallelSchema('WorkflowParallelInput')
+const v2WorkflowVariableInputSchema = workflowVariableSchema('WorkflowVariableInput')
+
+/**
+ * Replace body. `loops` and `parallels` are accepted but ignored — both are
+ * derived from the blocks on write, so declaring them optional keeps a
+ * read-modify-write round trip working without promising they are honoured.
+ */
+export const v2ReplaceWorkflowStateBodySchema = z
+  .object({
+    blocks: z
+      .record(z.string(), v2WorkflowBlockInputSchema)
+      .describe('Blocks keyed by block id.')
+      .refine(
+        (blocks) => Object.keys(blocks).length <= MAX_WORKFLOW_GRAPH_BLOCKS,
+        `blocks cannot exceed ${MAX_WORKFLOW_GRAPH_BLOCKS} entries`
+      ),
+    edges: z
+      .array(v2WorkflowEdgeInputSchema)
+      .max(MAX_WORKFLOW_GRAPH_EDGES, `edges cannot exceed ${MAX_WORKFLOW_GRAPH_EDGES} entries`)
+      .describe('Directed connections between blocks.'),
+    loops: z
+      .record(z.string(), v2WorkflowLoopInputSchema)
+      .optional()
+      .describe('Ignored on write: loop containers are recomputed from `blocks`.'),
+    parallels: z
+      .record(z.string(), v2WorkflowParallelInputSchema)
+      .optional()
+      .describe('Ignored on write: parallel containers are recomputed from `blocks`.'),
+    variables: z
+      .record(z.string(), v2WorkflowVariableInputSchema)
+      .optional()
+      .describe('Replacement variable set. Omit to leave the stored variables untouched.'),
+  })
+  .strict()
+  .meta({
+    id: 'ReplaceWorkflowStateRequest',
+    title: 'Replace workflow state request',
+    description: 'A complete replacement draft graph for a workflow.',
+    examples: [{ blocks: {}, edges: [] }],
+  })
+
+export type V2ReplaceWorkflowStateBody = z.input<typeof v2ReplaceWorkflowStateBodySchema>
+
+const v2WorkflowGraphWriteResultSchema = z
+  .object({
+    id: z.string().describe('Identifier of the workflow whose draft graph was written.'),
+    warnings: z
+      .array(z.string())
+      .describe(
+        'Non-fatal notes about blocks and edges that were normalized or dropped before persistence. Empty when there was nothing to report.'
+      ),
+    needsRedeployment: z
+      .boolean()
+      .describe(
+        'Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it.'
+      ),
+  })
+  .meta({
+    id: 'WorkflowGraphWriteResult',
+    title: 'Workflow graph write result',
+    description: 'Outcome of a write against a workflow draft graph.',
+  })
+
+export const v2ReplaceWorkflowStateDataSchema = v2WorkflowGraphWriteResultSchema.meta({
+  id: 'ReplaceWorkflowStateResult',
+  title: 'Replace workflow state result',
+  description: 'Outcome of replacing a workflow draft graph.',
+})
+export type V2ReplaceWorkflowStateData = z.output<typeof v2ReplaceWorkflowStateDataSchema>
+
+export const v2GetWorkflowStateContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[id]/state',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowGraphSchema),
+  },
+})
+
+export const v2ReplaceWorkflowStateContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/v2/workflows/[id]/state',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  body: v2ReplaceWorkflowStateBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ReplaceWorkflowStateDataSchema),
+  },
+})
+
+/**
+ * Every reason the edit engine can decline one operation. Derived from the
+ * engine's own union, so a new skip reason fails to compile until it is
+ * published here.
+ */
+export const v2WorkflowSkippedItemTypeSchema = z
+  .enum(WORKFLOW_SKIPPED_ITEM_TYPES)
+  .describe('Machine-readable reason the engine declined an operation.')
+
+const v2WorkflowSkippedItemSchema = z
+  .object({
+    type: v2WorkflowSkippedItemTypeSchema,
+    operationType: z.string().describe('The `operation_type` that was declined.'),
+    blockId: z.string().describe('Block the declined operation targeted.'),
+    reason: z.string().describe('Human-readable explanation.'),
+    /** Engine-supplied context; its keys vary by `type`. */
+    details: z
+      .record(
+        z.string(),
+        z.unknown().describe('One piece of engine-supplied context for the reason.')
+      )
+      .optional()
+      .describe('Additional context for the reason; keys depend on `type`.'),
+  })
+  .meta({
+    id: 'WorkflowSkippedItem',
+    title: 'Workflow skipped item',
+    description: 'One operation the edit engine did not apply.',
+  })
+
+export type V2WorkflowSkippedItem = z.output<typeof v2WorkflowSkippedItemSchema>
+
+const v2WorkflowOperationParamsSchema = z
+  .record(
+    z.string(),
+    z.unknown().describe('One operation parameter; its shape depends on the target block type.')
+  )
+  .describe('Operation parameters; the accepted keys depend on the target block type.')
+
+const v2AddWorkflowBlockParamsSchema = z
+  .object({
+    type: z
+      .string()
+      .min(1, 'params.type is required to add a block')
+      .describe('Registered block type.'),
+    name: z
+      .string()
+      .min(1, 'params.name is required to add a block')
+      .describe('Block display name.'),
+  })
+  .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
+  .describe('Block type and name, plus any block-specific inputs and connections.')
+
+const v2SubflowMembershipParamsSchema = z
+  .object({
+    subflowId: z
+      .string()
+      .min(1, 'params.subflowId is required')
+      .describe('Loop or parallel container the block moves into or out of.'),
+  })
+  .catchall(z.unknown().describe('One block-specific input.'))
+  .describe('Container identifier, plus any block-specific inputs.')
+
+const v2InsertIntoSubflowParamsSchema = z
+  .object({
+    subflowId: z
+      .string()
+      .min(1, 'params.subflowId is required')
+      .describe('Loop or parallel container to insert the block into.'),
+    type: z
+      .string()
+      .min(1, 'params.type is required to insert a block')
+      .describe('Registered block type.'),
+    name: z
+      .string()
+      .min(1, 'params.name is required to insert a block')
+      .describe('Block display name.'),
+  })
+  .catchall(z.unknown().describe('One block-specific input or connection descriptor.'))
+  .describe('Container, block type and name, plus any block-specific inputs and connections.')
+
+const v2WorkflowOperationBlockIdSchema = z
+  .string()
+  .min(1, 'block_id cannot be empty')
+  .describe('Block the operation targets. For `add`, the id the new block will be given.')
+
+/**
+ * One semantic edit. A discriminated union on `operation_type` so a client gets
+ * exhaustive narrowing and each variant declares the parameters it actually
+ * requires — `add` and `insert_into_subflow` cannot omit the block type and
+ * name, and `delete` accepts no parameters at all.
+ */
+export const v2WorkflowOperationSchema = z
+  .discriminatedUnion('operation_type', [
+    z
+      .object({
+        operation_type: z.literal('add').describe('Create a new block.'),
+        block_id: v2WorkflowOperationBlockIdSchema,
+        params: v2AddWorkflowBlockParamsSchema,
+      })
+      .strict(),
+    z
+      .object({
+        operation_type: z
+          .literal('edit')
+          .describe('Change an existing block: its inputs, name, or connections.'),
+        block_id: v2WorkflowOperationBlockIdSchema,
+        params: v2WorkflowOperationParamsSchema,
+      })
+      .strict(),
+    z
+      .object({
+        operation_type: z.literal('delete').describe('Remove a block and every edge touching it.'),
+        block_id: v2WorkflowOperationBlockIdSchema,
+      })
+      .strict(),
+    z
+      .object({
+        operation_type: z
+          .literal('insert_into_subflow')
+          .describe('Create a block inside a loop or parallel container.'),
+        block_id: v2WorkflowOperationBlockIdSchema,
+        params: v2InsertIntoSubflowParamsSchema,
+      })
+      .strict(),
+    z
+      .object({
+        operation_type: z
+          .literal('extract_from_subflow')
+          .describe('Move a block out of its loop or parallel container.'),
+        block_id: v2WorkflowOperationBlockIdSchema,
+        params: v2SubflowMembershipParamsSchema,
+      })
+      .strict(),
+  ])
+  .meta({
+    id: 'WorkflowEditOperation',
+    title: 'Workflow edit operation',
+    description: 'One semantic edit against a workflow graph.',
+  })
+
+export type V2WorkflowOperation = z.input<typeof v2WorkflowOperationSchema>
+
+export const v2ApplyWorkflowOperationsBodySchema = z
+  .object({
+    operations: z
+      .array(v2WorkflowOperationSchema)
+      .min(1, 'operations cannot be empty')
+      .max(
+        MAX_WORKFLOW_EDIT_OPERATIONS,
+        `operations cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries`
+      )
+      .describe('Edits to apply, in a single batch.'),
+    atomic: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        'Fail the whole batch when any operation is declined. The default applies what it can and reports the rest in `skipped`; `true` writes nothing and answers `409` instead.'
+      ),
+    layout: z
+      .enum(['targeted', 'none'])
+      .optional()
+      .default('targeted')
+      .describe(
+        'Whether to reposition blocks the batch touched. `targeted` (default) nudges only the affected subgraph; `none` leaves every position exactly as supplied.'
+      ),
+    setBlockEnabled: z
+      .array(
+        z
+          .object({
+            block_id: v2WorkflowOperationBlockIdSchema,
+            enabled: z.boolean().describe('Whether the block should run.'),
+          })
+          .strict()
+      )
+      .max(
+        MAX_WORKFLOW_EDIT_OPERATIONS,
+        `setBlockEnabled cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries`
+      )
+      .optional()
+      .describe(
+        'Blocks to enable or disable, applied after `operations`. Disabling a loop or parallel cascades to its unlocked descendants; enabling a block whose container is disabled is declined.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'ApplyWorkflowOperationsRequest',
+    title: 'Apply workflow operations request',
+    description: 'A batch of semantic edits against a workflow graph.',
+    examples: [
+      {
+        operations: [
+          { operation_type: 'add', block_id: 'agent-1', params: { type: 'agent', name: 'Triage' } },
+        ],
+      },
+    ],
+  })
+
+export type V2ApplyWorkflowOperationsBody = z.input<typeof v2ApplyWorkflowOperationsBodySchema>
+
+const v2WorkflowInputValidationErrorSchema = z
+  .object({
+    blockId: z.string().describe('Block whose input was rejected.'),
+    blockType: z.string().describe('Type of the block whose input was rejected.'),
+    field: z.string().describe('Sub-block field that was rejected.'),
+    error: z.string().describe('Why the value was rejected.'),
+  })
+  .meta({
+    id: 'WorkflowInputValidationError',
+    title: 'Workflow input validation error',
+    description: 'One block input that was dropped rather than persisted.',
+  })
+
+const v2WorkflowLintSchema = z
+  .object({
+    unresolvedReferences: z
+      .array(
+        z.object({
+          blockId: z.string().describe('Block holding the reference.'),
+          blockType: z.string().nullable().describe('Type of the block holding the reference.'),
+          field: z.string().describe('Sub-block field holding the reference.'),
+          reason: z.string().describe('Why the reference does not resolve.'),
+        })
+      )
+      .describe('Credential, resource, tool, and skill references that do not resolve.'),
+    notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
+  })
+  .meta({
+    id: 'WorkflowLintReport',
+    title: 'Workflow lint report',
+    description:
+      'Advisory findings about the saved graph. Findings never block the write; they tell a caller what will misbehave at run time.',
+  })
+
+export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSchema
+  .extend({
+    applied: z.number().int().nonnegative().describe('Operations the engine applied.'),
+    skipped: z
+      .array(v2WorkflowSkippedItemSchema)
+      .describe('Operations the engine declined. Empty when everything applied.'),
+    deferred: z
+      .array(v2WorkflowSkippedItemSchema)
+      .describe(
+        'Forward-referencing edges the engine recorded rather than applied. These are NOT failures: the engine wires each one as soon as its target block exists, in this batch or a later one. Do not re-issue them.'
+      ),
+    inputValidationErrors: z
+      .array(v2WorkflowInputValidationErrorSchema)
+      .describe('Block inputs that were dropped. The rest of the operation still applied.'),
+    lint: v2WorkflowLintSchema,
+  })
+  .meta({
+    id: 'ApplyWorkflowOperationsResult',
+    title: 'Apply workflow operations result',
+    description: 'Outcome of a batch of semantic edits against a workflow graph.',
+  })
+
+export type V2ApplyWorkflowOperationsData = z.output<typeof v2ApplyWorkflowOperationsDataSchema>
+
+export const v2ApplyWorkflowOperationsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/operations',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  body: v2ApplyWorkflowOperationsBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ApplyWorkflowOperationsDataSchema),
+  },
+})
+
+export const v2ApplyWorkflowVariablesBodySchema = z
+  .object({
+    operations: z
+      .array(
+        z
+          .discriminatedUnion('operation', [
+            z
+              .object({
+                operation: z.literal('add').describe('Create a variable with this name.'),
+                name: z
+                  .string()
+                  .min(1, 'name cannot be empty')
+                  .max(255, 'name is too long')
+                  .describe('Variable name.'),
+                type: v2WorkflowVariableInputSchema.shape.type.describe('Declared variable type.'),
+                value: z.unknown().describe('Variable value, coerced to `type`.'),
+              })
+              .strict(),
+            z
+              .object({
+                operation: z
+                  .literal('edit')
+                  .describe('Replace the value, and optionally the type, of an existing variable.'),
+                name: z
+                  .string()
+                  .min(1, 'name cannot be empty')
+                  .max(255, 'name is too long')
+                  .describe('Name of the variable to update.'),
+                type: v2WorkflowVariableInputSchema.shape.type
+                  .optional()
+                  .describe('Replacement type; the stored type is kept when omitted.'),
+                value: z.unknown().describe('Replacement value, coerced to the effective type.'),
+              })
+              .strict(),
+            z
+              .object({
+                operation: z.literal('delete').describe('Remove the variable with this name.'),
+                name: z
+                  .string()
+                  .min(1, 'name cannot be empty')
+                  .max(255, 'name is too long')
+                  .describe('Name of the variable to remove.'),
+              })
+              .strict(),
+          ])
+          .describe('One variable change.')
+      )
+      .min(1, 'operations cannot be empty')
+      .max(
+        MAX_WORKFLOW_VARIABLE_OPERATIONS,
+        `operations cannot exceed ${MAX_WORKFLOW_VARIABLE_OPERATIONS} entries`
+      )
+      .describe('Variable changes to apply, in order.'),
+  })
+  .strict()
+  .meta({
+    id: 'ApplyWorkflowVariablesRequest',
+    title: 'Apply workflow variables request',
+    description: 'Additions, edits, and deletions against a workflow’s variables.',
+  })
+
+export type V2ApplyWorkflowVariablesBody = z.input<typeof v2ApplyWorkflowVariablesBodySchema>
+
+export const v2ApplyWorkflowVariablesDataSchema = z
+  .object({
+    id: z.string().describe('Identifier of the workflow whose variables were updated.'),
+    variableCount: z.number().int().nonnegative().describe('Variables the workflow now holds.'),
+    changed: z
+      .boolean()
+      .describe('Whether anything actually changed. A no-op batch answers `200` with `false`.'),
+  })
+  .meta({
+    id: 'ApplyWorkflowVariablesResult',
+    title: 'Apply workflow variables result',
+    description: 'Outcome of a workflow variable update.',
+  })
+
+export type V2ApplyWorkflowVariablesData = z.output<typeof v2ApplyWorkflowVariablesDataSchema>
+
+export const v2ApplyWorkflowVariablesContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workflows/[id]/variables',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  body: v2ApplyWorkflowVariablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2ApplyWorkflowVariablesDataSchema),
+  },
+})
+
+export const v2DuplicateWorkflowBodySchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name cannot be empty')
+      .max(255, 'name is too long')
+      .optional()
+      .describe('Name for the copy. Defaults to the source name, deduplicated within the folder.'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe("Destination folder path. Defaults to the source workflow's folder."),
+  })
+  .strict()
+  .meta({
+    id: 'DuplicateWorkflowRequest',
+    title: 'Duplicate workflow request',
+    description: 'Optional name and destination folder for the copy.',
+    examples: [{ name: 'Customer support triage (copy)', folderPath: '/Operations' }],
+  })
+
+export type V2DuplicateWorkflowBody = z.input<typeof v2DuplicateWorkflowBodySchema>
+
+export const v2DuplicateWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/duplicate',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  body: v2DuplicateWorkflowBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowListItemSchema),
+    status: 201,
+  },
+})
+
+export const v2RestoreWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/[id]/restore',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowListItemSchema),
+  },
+})
+
+export const v2MoveWorkflowsBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace holding every workflow in the batch.'),
+    workflowIds: z
+      .array(z.string().min(1, 'workflowIds entries cannot be empty'))
+      .min(1, 'workflowIds cannot be empty')
+      .max(MAX_WORKFLOW_BULK_MOVES, `workflowIds cannot exceed ${MAX_WORKFLOW_BULK_MOVES} entries`)
+      .describe('Workflows to move. Duplicates are collapsed.'),
+    folderPath: v2FolderPathInputSchema.describe(
+      'Destination folder path; `/` moves the workflows to the workspace root.'
+    ),
+  })
+  .strict()
+  .meta({
+    id: 'MoveWorkflowsRequest',
+    title: 'Move workflows request',
+    description: 'Workflows to relocate and the folder to relocate them into.',
+    examples: [
+      {
+        workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
+        workflowIds: ['3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'],
+        folderPath: '/Operations',
+      },
+    ],
+  })
+
+export type V2MoveWorkflowsBody = z.input<typeof v2MoveWorkflowsBodySchema>
+
+export const v2MoveWorkflowsDataSchema = z
+  .object({
+    moved: z.array(z.string()).describe('Workflows that were relocated.'),
+    failed: z
+      .array(z.string())
+      .describe(
+        'Workflows that were not relocated — absent from the workspace, archived, or locked. Best-effort by design: the rest of the batch still moved.'
+      ),
+    folderPath: v2FolderPathSchema.describe('Canonical destination folder path.'),
+  })
+  .meta({
+    id: 'MoveWorkflowsResult',
+    title: 'Move workflows result',
+    description: 'Which workflows moved and which did not.',
+  })
+
+export type V2MoveWorkflowsData = z.output<typeof v2MoveWorkflowsDataSchema>
+
+export const v2MoveWorkflowsContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/workflows/move',
+  query: noInputSchema,
+  body: v2MoveWorkflowsBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2MoveWorkflowsDataSchema),
   },
 })

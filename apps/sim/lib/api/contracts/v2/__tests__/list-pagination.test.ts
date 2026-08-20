@@ -176,6 +176,7 @@ const CURSOR_BINDINGS: Record<string, readonly string[]> = {
   'GET /api/v2/workflows': [
     'workspaceId',
     'folderPath',
+    'scope',
     'deployedOnly',
     'search',
     'sortBy',
