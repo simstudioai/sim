@@ -772,17 +772,26 @@ export function Table({
   )
 
   /**
-   * Drops a sort whose column was deleted from both the URL and its persisted
-   * view. `queryOptions` feeds the query that produces `columns`, so clearing the
-   * source of truth avoids a dependency cycle and prevents the dead sort from
-   * returning on reload.
+   * Drops a sort whose column was deleted from the URL and, only when the saved
+   * view names that same field, from persistence. A stale deep-link can name a
+   * missing field while the view still owns a different valid sort, which must
+   * not be erased.
    */
   useEffect(() => {
     if (!sortColumn || columns.length === 0) return
     if (liveColumnIds.has(sortColumn)) return
     setTableParams({ sort: null, dir: null })
-    persistActiveViewConfig({ sort: null })
-  }, [sortColumn, columns.length, liveColumnIds, setTableParams, persistActiveViewConfig])
+    if (activeViewConfig?.sort?.[0]?.field === sortColumn) {
+      persistActiveViewConfig({ sort: null })
+    }
+  }, [
+    sortColumn,
+    columns.length,
+    liveColumnIds,
+    activeViewConfig?.sort,
+    setTableParams,
+    persistActiveViewConfig,
+  ])
 
   /** Column order/width/pinning auto-saves into the active view as the user drags.
    *  Sent as a `configPatch` so the server merges it — two overlapping layout writes must
