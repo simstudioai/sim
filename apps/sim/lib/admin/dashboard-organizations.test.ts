@@ -177,6 +177,86 @@ describe('listDashboardOrganizations', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(6)
     expect(dbChainMockFns.selectDistinctOn).toHaveBeenCalledTimes(1)
   })
+
+  it('preserves the frozen baseline for an Enterprise subscription using its Stripe period', async () => {
+    queueTableRows(organization, [{ total: 1 }])
+    queueTableRows(organization, [
+      { id: 'org-1', name: 'One', orgUsageLimit: '100', creditBalance: '0' },
+    ])
+    queueTableRows(member, [
+      {
+        organizationId: 'org-1',
+        memberCount: 1,
+        ownerId: 'owner-1',
+        ownerName: 'Owner',
+        ownerEmail: 'owner@example.com',
+      },
+    ])
+    queueTableRows(permissions, [])
+    queueTableRows(subscription, [
+      {
+        id: 'sub-1',
+        referenceId: 'org-1',
+        plan: 'enterprise',
+        status: 'active',
+        billingInterval: 'month',
+        periodStart: new Date('2026-08-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        metadata: { invoiceAmountCents: 10_000, seats: 1 },
+      },
+    ])
+    queueTableRows(usageLog, [{ organizationId: 'org-1', cost: '2.5', workflowRuns: 3 }])
+    queueTableRows(member, [{ organizationId: 'org-1', cost: '1.5' }])
+
+    const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
+
+    expect(result.data[0]).toMatchObject({
+      reportingPeriod: { source: 'stripe' },
+      usage: { usedDollars: 4, workflowRuns: 3 },
+    })
+  })
+
+  it('does not inject the frozen Stripe-period baseline into a custom reporting period', async () => {
+    queueTableRows(organization, [{ total: 1 }])
+    queueTableRows(organization, [
+      { id: 'org-1', name: 'One', orgUsageLimit: '100', creditBalance: '0' },
+    ])
+    queueTableRows(member, [
+      {
+        organizationId: 'org-1',
+        memberCount: 1,
+        ownerId: 'owner-1',
+        ownerName: 'Owner',
+        ownerEmail: 'owner@example.com',
+      },
+    ])
+    queueTableRows(permissions, [])
+    queueTableRows(subscription, [
+      {
+        id: 'sub-1',
+        referenceId: 'org-1',
+        plan: 'enterprise',
+        status: 'active',
+        billingInterval: 'year',
+        periodStart: new Date('2026-08-01T00:00:00.000Z'),
+        periodEnd: new Date('2026-09-01T00:00:00.000Z'),
+        metadata: {
+          invoiceAmountCents: 10_000,
+          seats: 1,
+          reportingPeriodAnchorDate: '2026-01-01',
+        },
+      },
+    ])
+    queueTableRows(usageLog, [{ organizationId: 'org-1', cost: '2.5', workflowRuns: 3 }])
+    queueTableRows(member, [{ organizationId: 'org-1', cost: '1.5' }])
+
+    const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
+
+    expect(result.data[0]).toMatchObject({
+      reportingPeriod: { source: 'reporting', anchorDate: '2026-01-01', interval: 'year' },
+      usage: { usedDollars: 2.5, workflowRuns: 3 },
+    })
+  })
 })
 
 describe('getDashboardOrganization', () => {

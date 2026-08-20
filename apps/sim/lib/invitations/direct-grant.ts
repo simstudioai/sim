@@ -1,4 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   invitation,
@@ -8,6 +8,7 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, sql } from 'drizzle-orm'
@@ -16,6 +17,7 @@ import {
   acquireOrganizationUserMutationLocks,
   getUserOrganization,
 } from '@/lib/billing/organizations/membership'
+import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import type { DbOrTx } from '@/lib/db/types'
@@ -31,8 +33,19 @@ import {
 
 const logger = createLogger('InvitationDirectGrant')
 
+export const DIRECT_GRANT_EMAIL_EVENT_TYPE = 'invitation.send-workspace-added'
+
+export interface DirectGrantEmailPayload {
+  email: string
+  inviterName: string
+  workspaceId: string
+  workspaceName: string
+  sourceOperationId?: string
+}
+
 export type DirectGrantOutcome =
   | { outcome: 'added'; permission: PermissionType }
+  | { outcome: 'updated'; permission: PermissionType; previousPermission: PermissionType }
   | { outcome: 'unchanged'; permission: PermissionType }
 
 export class DirectGrantContextChangedError extends Error {
@@ -62,9 +75,17 @@ export interface GrantWorkspaceAccessDirectlyInput {
   actorId: string
   actorName: string
   actorEmail?: string | null
+  /** Audit attribution may differ from the authorized product actor for admin tooling. */
+  auditActor?: { id: string | null; name: string; email: string | null }
   request?: NextRequest
   /** Send the lightweight "you've been added" email. Defaults to true. */
   notify?: boolean
+  /** Ordinary invites preserve access; provisioning may explicitly ensure the requested minimum. */
+  existingPermissionPolicy?: 'preserve' | 'ensure-at-least'
+  /** Correlates durable notification delivery with a parent Admin operation. */
+  sourceOperationId?: string
+  /** Makes the semantic audit recoverable when the caller itself is durable. */
+  auditOperationId?: string
 }
 
 async function getPendingWorkspaceInvitationIds(
@@ -89,9 +110,9 @@ async function getPendingWorkspaceInvitationIds(
 /**
  * Grants a user workspace access immediately, without an invitation or
  * acceptance step. Intended for users who already belong to the workspace's
- * organization and are not yet members of the workspace. Idempotent: when a
- * permission already exists it is left untouched (no-op) — invites never modify
- * or upgrade an existing member's permission.
+ * organization and are not yet members of the workspace. Idempotent by default:
+ * existing permissions are preserved. Trusted provisioning/Admin operations may
+ * explicitly ensure a minimum permission without ever downgrading stronger access.
  */
 export async function grantWorkspaceAccessDirectly(
   input: GrantWorkspaceAccessDirectlyInput
@@ -190,9 +211,22 @@ export async function grantWorkspaceAccessDirectly(
 
         let outcome: DirectGrantOutcome
         if (existing) {
-          outcome = {
-            outcome: 'unchanged',
-            permission: existing.permissionType as PermissionType,
+          const existingPermission = existing.permissionType as PermissionType
+          if (
+            input.existingPermissionPolicy === 'ensure-at-least' &&
+            !permissionSatisfies(existingPermission, input.permission)
+          ) {
+            await tx
+              .update(permissions)
+              .set({ permissionType: input.permission, updatedAt: new Date() })
+              .where(eq(permissions.id, existing.id))
+            outcome = {
+              outcome: 'updated',
+              permission: input.permission,
+              previousPermission: existingPermission,
+            }
+          } else {
+            outcome = { outcome: 'unchanged', permission: existingPermission }
           }
         } else {
           const inserted = await tx
@@ -224,6 +258,16 @@ export async function grantWorkspaceAccessDirectly(
           }
         }
 
+        if (outcome.outcome === 'added' && (input.notify ?? true)) {
+          await enqueueOutboxEvent(tx, DIRECT_GRANT_EMAIL_EVENT_TYPE, {
+            email: normalizedEmail,
+            inviterName: input.actorName,
+            workspaceId: input.workspaceId,
+            workspaceName: input.workspaceName,
+            ...(input.sourceOperationId ? { sourceOperationId: input.sourceOperationId } : {}),
+          })
+        }
+
         return outcome
       })
       break
@@ -241,35 +285,39 @@ export async function grantWorkspaceAccessDirectly(
   }
   if (result.outcome === 'unchanged') return result
 
-  try {
-    const [wsEnvRow] = await db
-      .select({ variables: workspaceEnvironment.variables })
-      .from(workspaceEnvironment)
-      .where(eq(workspaceEnvironment.workspaceId, input.workspaceId))
-      .limit(1)
-    const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
-    if (wsEnvKeys.length > 0) {
-      await syncWorkspaceEnvCredentials({
+  if (result.outcome === 'added') {
+    try {
+      const [wsEnvRow] = await db
+        .select({ variables: workspaceEnvironment.variables })
+        .from(workspaceEnvironment)
+        .where(eq(workspaceEnvironment.workspaceId, input.workspaceId))
+        .limit(1)
+      const wsEnvKeys = Object.keys((wsEnvRow?.variables as Record<string, string>) || {})
+      if (wsEnvKeys.length > 0) {
+        await syncWorkspaceEnvCredentials({
+          workspaceId: input.workspaceId,
+          envKeys: wsEnvKeys,
+          actingUserId: input.userId,
+        })
+      }
+    } catch (error) {
+      logger.error('Failed to sync workspace env credentials after direct grant', {
         workspaceId: input.workspaceId,
-        envKeys: wsEnvKeys,
-        actingUserId: input.userId,
+        userId: input.userId,
+        error,
       })
     }
-  } catch (error) {
-    logger.error('Failed to sync workspace env credentials after direct grant', {
-      workspaceId: input.workspaceId,
-      userId: input.userId,
-      error,
-    })
   }
 
   try {
-    PlatformEvents.workspaceMemberAdded({
-      workspaceId: input.workspaceId,
-      addedBy: input.actorId,
-      addedUserId: input.userId,
-      role: input.permission,
-    })
+    if (result.outcome === 'added') {
+      PlatformEvents.workspaceMemberAdded({
+        workspaceId: input.workspaceId,
+        addedBy: input.actorId,
+        addedUserId: input.userId,
+        role: input.permission,
+      })
+    }
   } catch {
     /**
      * Telemetry must not fail the grant.
@@ -278,26 +326,30 @@ export async function grantWorkspaceAccessDirectly(
 
   captureServerEvent(
     input.actorId,
-    'workspace_member_added',
+    result.outcome === 'updated' ? 'workspace_member_role_changed' : 'workspace_member_added',
     {
       workspace_id: input.workspaceId,
-      member_role: input.permission,
+      ...(result.outcome === 'updated'
+        ? { new_role: result.permission }
+        : { member_role: input.permission }),
     },
-    {
-      groups: { workspace: input.workspaceId },
-    }
+    { groups: { workspace: input.workspaceId } }
   )
 
-  recordAudit({
+  const audit = {
     workspaceId: input.workspaceId,
-    actorId: input.actorId,
-    actorName: input.actorName,
-    actorEmail: input.actorEmail,
-    action: AuditAction.MEMBER_ADDED,
+    actorId: input.auditActor ? input.auditActor.id : input.actorId,
+    actorName: input.auditActor ? input.auditActor.name : input.actorName,
+    actorEmail: input.auditActor ? input.auditActor.email : input.actorEmail,
+    action:
+      result.outcome === 'updated' ? AuditAction.MEMBER_ROLE_CHANGED : AuditAction.MEMBER_ADDED,
     resourceType: AuditResourceType.WORKSPACE,
     resourceId: input.workspaceId,
     resourceName: normalizedEmail,
-    description: `Added existing organization member ${normalizedEmail} as ${input.permission}`,
+    description:
+      result.outcome === 'updated'
+        ? `Changed ${normalizedEmail} from ${result.previousPermission} to ${result.permission}`
+        : `Added existing organization member ${normalizedEmail} as ${input.permission}`,
     metadata: {
       targetEmail: normalizedEmail,
       targetRole: input.permission,
@@ -306,24 +358,31 @@ export async function grantWorkspaceAccessDirectly(
       addedUserId: input.userId,
     },
     request: input.request,
-  })
-
-  if (input.notify ?? true) {
-    try {
-      await sendWorkspaceAddedEmail({
-        email: normalizedEmail,
-        inviterName: input.actorName,
-        workspaceId: input.workspaceId,
-        workspaceName: input.workspaceName,
-      })
-    } catch (error) {
-      logger.error('Failed to send workspace added email', {
-        workspaceId: input.workspaceId,
-        email: normalizedEmail,
-        error,
-      })
-    }
+  } as const
+  if (input.auditOperationId) {
+    await recordAuditOnce(
+      `${input.auditOperationId}:workspace-access:${input.workspaceId}:${input.userId}`,
+      audit
+    )
+  } else {
+    recordAudit(audit)
   }
 
   return result
 }
+
+const sendDirectGrantEmail: OutboxHandler<DirectGrantEmailPayload> = async (payload) => {
+  const result = await sendWorkspaceAddedEmail({
+    email: payload.email,
+    inviterName: payload.inviterName,
+    workspaceId: payload.workspaceId,
+    workspaceName: payload.workspaceName,
+  })
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to send workspace-added email')
+  }
+}
+
+export const directGrantOutboxHandlers = {
+  [DIRECT_GRANT_EMAIL_EVENT_TYPE]: sendDirectGrantEmail,
+} as const

@@ -19,6 +19,7 @@ vi.unmock('drizzle-orm')
 
 const {
   recordAudit,
+  recordAuditOnce,
   enqueueOrReschedulePendingOutboxEvent,
   invalidateWorkspaceTableLimitsCache,
   changeWorkspaceStoragePayerInTx,
@@ -28,6 +29,7 @@ const {
   sendInvitationEmail,
 } = vi.hoisted(() => ({
   recordAudit: vi.fn(),
+  recordAuditOnce: vi.fn(),
   enqueueOrReschedulePendingOutboxEvent: vi.fn(),
   invalidateWorkspaceTableLimitsCache: vi.fn(),
   changeWorkspaceStoragePayerInTx: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock('@sim/audit', () => ({
   AuditAction: { WORKSPACE_UPDATED: 'workspace.updated', INVITATION_UPDATED: 'invitation.updated' },
   AuditResourceType: { WORKSPACE: 'workspace' },
   recordAudit,
+  recordAuditOnce,
 }))
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
@@ -368,6 +371,26 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+  })
+
+  it('repairs the idempotent move audit when a committed move is retried after response loss', async () => {
+    queueMoveSelects(movedWorkspace)
+
+    await moveWorkspaceToOrganization({
+      workspaceId: movedWorkspace.id,
+      destinationOrganizationId: destination.id,
+      adminEmail: 'admin@sim.ai',
+      auditOperationId: 'operation-1',
+    })
+
+    expect(recordAuditOnce).toHaveBeenCalledWith(
+      `operation-1:workspace-move:${movedWorkspace.id}`,
+      expect.objectContaining({
+        action: 'workspace.updated',
+        metadata: expect.objectContaining({ recoveredAfterResponseLoss: true }),
+      })
+    )
+    expect(recordAudit).not.toHaveBeenCalled()
   })
 
   it('takes shared advisory locks before the workspace row lock and payer mutation', async () => {

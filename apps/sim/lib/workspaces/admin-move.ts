@@ -1,10 +1,11 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
   invitation,
   invitationWorkspaceGrant,
   member,
   organization,
+  outboxEvent,
   permissions,
   subscription,
   user,
@@ -44,6 +45,7 @@ import {
 import {
   enqueueOrReschedulePendingOutboxEvent,
   type OutboxHandler,
+  patchOutboxEventPayload,
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { getInvitationById, isInvitationExpired } from '@/lib/invitations/core'
@@ -116,6 +118,21 @@ export interface WorkspaceMovePreflight {
   warning: string | null
 }
 
+export interface WorkspaceMoveOperationView extends WorkspaceMovePreflight {
+  operationId: string
+  followUpJobs: {
+    selected: number
+    completed: number
+    pending: number
+    failedCount: number
+    failed: Array<{
+      eventId: string
+      invitationId: string
+      error: string | null
+    }>
+  }
+}
+
 interface InvitationMigrationEvent {
   invitationId: string
   outcome: 'migrated' | 'split' | 'merged'
@@ -165,12 +182,11 @@ function isConcurrentPendingInvitationInsert(error: unknown): boolean {
 }
 
 /** Returns movable personal/grandfathered workspaces by case-insensitive name or exact UUID. */
-export async function searchWorkspaceMoveCandidates(
-  search: string,
-  limit = 20
-): Promise<WorkspaceMoveCandidate[]> {
+export async function searchWorkspaceMoveCandidates(search: string, limit = 20, offset = 0) {
   const query = search.trim()
-  if (!query) return []
+  if (!query) {
+    return { data: [], pagination: { total: 0, limit, offset, hasMore: false } }
+  }
 
   const rows = await db
     .select({
@@ -183,6 +199,7 @@ export async function searchWorkspaceMoveCandidates(
       organizationId: workspace.organizationId,
       billedAccountUserId: workspace.billedAccountUserId,
       archivedAt: workspace.archivedAt,
+      total: sql<number>`count(*) over()`.mapWith(Number),
     })
     .from(workspace)
     .innerJoin(user, eq(user.id, workspace.ownerId))
@@ -195,8 +212,22 @@ export async function searchWorkspaceMoveCandidates(
     )
     .orderBy(asc(workspace.name))
     .limit(Math.min(Math.max(limit, 1), 50))
+    .offset(Math.max(offset, 0))
 
-  return rows.map(({ archivedAt, ...row }) => ({ ...row, archived: archivedAt !== null }))
+  const boundedLimit = Math.min(Math.max(limit, 1), 50)
+  const total = rows[0]?.total ?? 0
+  return {
+    data: rows.map(({ archivedAt, total: _total, ...row }) => ({
+      ...row,
+      archived: archivedAt !== null,
+    })),
+    pagination: {
+      total,
+      limit: boundedLimit,
+      offset: Math.max(offset, 0),
+      hasMore: Math.max(offset, 0) + rows.length < total,
+    },
+  }
 }
 
 /** Builds the human-reviewable summary shown before a workspace move. */
@@ -302,6 +333,10 @@ export async function moveWorkspaceToOrganization(params: {
   workspaceId: string
   destinationOrganizationId: string
   adminEmail: string
+  auditActor?: { id: string | null; name: string; email: string | null }
+  /** Makes the move audit recoverable if the DB commit succeeds before the caller gets a response. */
+  auditOperationId?: string
+  operationCorrelationId?: string
   /** Reject a stale batch selection instead of moving a newly owned workspace. */
   expectedOwnerId?: string
 }): Promise<WorkspaceMovePreflight> {
@@ -387,15 +422,25 @@ export async function moveWorkspaceToOrganization(params: {
           now,
         })
         for (const invitationId of migration.invitationsToEmail) {
-          await enqueueOrReschedulePendingOutboxEvent(
+          const invitationEmailEventId = await enqueueOrReschedulePendingOutboxEvent(
             tx,
             MIGRATED_INVITATION_EMAIL_EVENT_TYPE,
-            { invitationId },
+            {
+              invitationId,
+              ...(params.operationCorrelationId
+                ? { sourceOperationId: params.operationCorrelationId }
+                : {}),
+            },
             {
               availableAt: new Date(now.getTime() + MIGRATED_INVITATION_EMAIL_SETTLE_MS),
               coalesceOn: { payloadKey: 'invitationId', payloadValue: invitationId },
             }
           )
+          if (params.operationCorrelationId) {
+            await patchOutboxEventPayload(tx, invitationEmailEventId, {
+              sourceOperationId: params.operationCorrelationId,
+            })
+          }
         }
 
         await changeWorkspaceStoragePayerInTx(tx, {
@@ -464,6 +509,15 @@ export async function moveWorkspaceToOrganization(params: {
   }
 
   if (!result.performedMove) {
+    if (params.auditOperationId) {
+      await recordWorkspaceMoveAudit({
+        params,
+        previousBillingOwnerId: null,
+        newBillingOwnerId: result.destinationOwnerId,
+        organizationAssignedAt: null,
+        recovered: true,
+      })
+    }
     logger.info('Workspace was already in destination organization', {
       workspaceId: params.workspaceId,
       destinationOrganizationId: params.destinationOrganizationId,
@@ -473,29 +527,20 @@ export async function moveWorkspaceToOrganization(params: {
 
   invalidateWorkspaceTableLimitsCache(params.workspaceId)
 
-  recordAudit({
-    workspaceId: params.workspaceId,
-    actorId: null,
-    actorName: 'Admin Panel',
-    actorEmail: params.adminEmail,
-    action: AuditAction.WORKSPACE_UPDATED,
-    resourceType: AuditResourceType.WORKSPACE,
-    resourceId: params.workspaceId,
-    description: 'Moved workspace into an organization',
-    metadata: {
-      destinationOrganizationId: params.destinationOrganizationId,
-      previousBillingOwnerId: result.previousBillingOwnerId,
-      newBillingOwnerId: result.destinationOwnerId,
-      organizationAssignedAt: result.organizationAssignedAt?.toISOString(),
-    },
+  await recordWorkspaceMoveAudit({
+    params,
+    previousBillingOwnerId: result.previousBillingOwnerId,
+    newBillingOwnerId: result.destinationOwnerId,
+    organizationAssignedAt: result.organizationAssignedAt,
+    recovered: false,
   })
 
   for (const event of result.invitationEvents) {
     recordAudit({
       workspaceId: params.workspaceId,
-      actorId: null,
-      actorName: 'Admin Panel',
-      actorEmail: params.adminEmail,
+      actorId: params.auditActor ? params.auditActor.id : null,
+      actorName: params.auditActor?.name ?? 'Admin Panel',
+      actorEmail: params.auditActor?.email ?? params.adminEmail,
       action: AuditAction.INVITATION_UPDATED,
       resourceType: AuditResourceType.WORKSPACE,
       resourceId: event.invitationId,
@@ -515,6 +560,225 @@ export async function moveWorkspaceToOrganization(params: {
   })
 
   return result.summary
+}
+
+async function recordWorkspaceMoveAudit({
+  params,
+  previousBillingOwnerId,
+  newBillingOwnerId,
+  organizationAssignedAt,
+  recovered,
+}: {
+  params: {
+    workspaceId: string
+    destinationOrganizationId: string
+    adminEmail: string
+    auditActor?: { id: string | null; name: string; email: string | null }
+    auditOperationId?: string
+  }
+  previousBillingOwnerId: string | null
+  newBillingOwnerId: string
+  organizationAssignedAt: Date | null
+  recovered: boolean
+}): Promise<void> {
+  const audit = {
+    workspaceId: params.workspaceId,
+    actorId: params.auditActor ? params.auditActor.id : null,
+    actorName: params.auditActor?.name ?? 'Admin Panel',
+    actorEmail: params.auditActor?.email ?? params.adminEmail,
+    action: AuditAction.WORKSPACE_UPDATED,
+    resourceType: AuditResourceType.WORKSPACE,
+    resourceId: params.workspaceId,
+    description: 'Moved workspace into an organization',
+    metadata: {
+      destinationOrganizationId: params.destinationOrganizationId,
+      previousBillingOwnerId,
+      newBillingOwnerId,
+      organizationAssignedAt: organizationAssignedAt?.toISOString() ?? null,
+      recoveredAfterResponseLoss: recovered,
+    },
+  } as const
+  if (params.auditOperationId) {
+    await recordAuditOnce(`${params.auditOperationId}:workspace-move:${params.workspaceId}`, audit)
+  } else {
+    recordAudit(audit)
+  }
+}
+
+async function getWorkspaceMoveFollowUpJobs(
+  operationId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceMoveOperationView['followUpJobs']> {
+  const operationIdExpression = sql<string>`${outboxEvent.payload} ->> 'sourceOperationId'`
+  const [progress] = await executor
+    .select({
+      selected: count(),
+      completed: sql<number>`count(*) filter (where ${outboxEvent.status} = 'completed')`.mapWith(
+        Number
+      ),
+      failed: sql<number>`count(*) filter (where ${outboxEvent.status} = 'dead_letter')`.mapWith(
+        Number
+      ),
+    })
+    .from(outboxEvent)
+    .where(
+      and(
+        eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
+        eq(operationIdExpression, operationId)
+      )
+    )
+  const selected = progress?.selected ?? 0
+  const completed = progress?.completed ?? 0
+  const failedCount = progress?.failed ?? 0
+  const failedRows =
+    failedCount > 0
+      ? await executor
+          .select({
+            eventId: outboxEvent.id,
+            invitationId: sql<string | null>`${outboxEvent.payload} ->> 'invitationId'`,
+            error: outboxEvent.lastError,
+          })
+          .from(outboxEvent)
+          .where(
+            and(
+              eq(outboxEvent.eventType, MIGRATED_INVITATION_EMAIL_EVENT_TYPE),
+              eq(outboxEvent.status, 'dead_letter'),
+              eq(operationIdExpression, operationId)
+            )
+          )
+          .orderBy(outboxEvent.createdAt, outboxEvent.id)
+          .limit(100)
+      : []
+  return {
+    selected,
+    completed,
+    pending: Math.max(0, selected - completed - failedCount),
+    failedCount,
+    failed: failedRows.flatMap((row) =>
+      row.invitationId
+        ? [
+            {
+              eventId: row.eventId,
+              invitationId: row.invitationId,
+              error: row.error,
+            },
+          ]
+        : []
+    ),
+  }
+}
+
+export async function toWorkspaceMoveOperationView(
+  summary: WorkspaceMovePreflight,
+  operationId: string
+): Promise<WorkspaceMoveOperationView> {
+  return {
+    ...summary,
+    operationId,
+    followUpJobs: await getWorkspaceMoveFollowUpJobs(operationId),
+  }
+}
+
+export async function getWorkspaceMoveOperation(
+  workspaceId: string,
+  destinationOrganizationId: string,
+  expectedOwnerId: string | undefined,
+  operationId: string
+): Promise<WorkspaceMoveOperationView> {
+  const [workspaceRow] = await searchWorkspaceById(workspaceId)
+  if (!workspaceRow) throw new WorkspaceMoveError('Workspace not found', 'workspace-not-found')
+  if (
+    workspaceRow.organizationId !== destinationOrganizationId ||
+    workspaceRow.workspaceMode !== WORKSPACE_MODE.ORGANIZATION ||
+    (expectedOwnerId && workspaceRow.ownerId !== expectedOwnerId)
+  ) {
+    throw new WorkspaceMoveError(
+      'Workspace move has not been applied with these confirmed parameters',
+      'workspace-owner-changed'
+    )
+  }
+  const destination = await getDestinationOrganization(destinationOrganizationId)
+  if (!destination) {
+    throw new WorkspaceMoveError('Destination organization not found', 'organization-not-found')
+  }
+  return toWorkspaceMoveOperationView(
+    await getMovedWorkspaceSummary(db, workspaceId, destination),
+    operationId
+  )
+}
+
+export async function retryWorkspaceMoveFollowUpJob(params: {
+  workspaceId: string
+  destinationOrganizationId: string
+  expectedOwnerId?: string
+  operationId: string
+  jobEventId: string
+  actor: { id: string | null; name: string; email: string | null }
+}): Promise<WorkspaceMoveOperationView> {
+  await getWorkspaceMoveOperation(
+    params.workspaceId,
+    params.destinationOrganizationId,
+    params.expectedOwnerId,
+    params.operationId
+  )
+  const retried = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, params.destinationOrganizationId)
+    const [job] = await tx
+      .select({
+        status: outboxEvent.status,
+        eventType: outboxEvent.eventType,
+        payload: outboxEvent.payload,
+      })
+      .from(outboxEvent)
+      .where(eq(outboxEvent.id, params.jobEventId))
+      .for('update')
+      .limit(1)
+    if (
+      !job ||
+      job.eventType !== MIGRATED_INVITATION_EMAIL_EVENT_TYPE ||
+      !job.payload ||
+      typeof job.payload !== 'object' ||
+      (job.payload as Record<string, unknown>).sourceOperationId !== params.operationId
+    ) {
+      throw new Error('Workspace-move follow-up job not found')
+    }
+    if (job.status !== 'dead_letter') return false
+    await tx
+      .update(outboxEvent)
+      .set({
+        status: 'pending',
+        attempts: 0,
+        lastError: null,
+        availableAt: new Date(),
+        lockedAt: null,
+        processedAt: null,
+      })
+      .where(eq(outboxEvent.id, params.jobEventId))
+    return true
+  })
+  if (retried) {
+    await recordAuditOnce(`${params.operationId}:follow-up-retry:${params.jobEventId}`, {
+      actorId: params.actor.id,
+      actorName: params.actor.name,
+      actorEmail: params.actor.email,
+      action: AuditAction.INVITATION_UPDATED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: params.workspaceId,
+      workspaceId: params.workspaceId,
+      description: 'Admin retried a migrated invitation email after a workspace move',
+      metadata: {
+        destinationOrganizationId: params.destinationOrganizationId,
+        operationId: params.operationId,
+        jobEventId: params.jobEventId,
+      },
+    })
+  }
+  return getWorkspaceMoveOperation(
+    params.workspaceId,
+    params.destinationOrganizationId,
+    params.expectedOwnerId,
+    params.operationId
+  )
 }
 
 async function searchWorkspaceById(workspaceId: string): Promise<WorkspaceMoveCandidate[]> {
@@ -1093,7 +1357,10 @@ async function mergeGrant(
   })
 }
 
-const sendMigratedInvitationLink: OutboxHandler<{ invitationId: string }> = async (payload) => {
+const sendMigratedInvitationLink: OutboxHandler<{
+  invitationId: string
+  sourceOperationId?: string
+}> = async (payload) => {
   const migrated = await getInvitationById(payload.invitationId)
   if (!migrated || migrated.status !== 'pending' || isInvitationExpired(migrated)) return
   const result = await sendInvitationEmail({

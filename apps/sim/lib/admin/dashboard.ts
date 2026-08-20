@@ -12,7 +12,6 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
-import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import {
@@ -37,14 +36,12 @@ import {
 } from '@/lib/admin/organization-economics'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
-import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   type ResolvedUsagePeriod,
   resolveEnterpriseReportingPeriod,
-  resolveSubscriptionUsagePeriod,
+  resolveSubscriptionUsagePeriodOrDefault,
 } from '@/lib/billing/core/reporting-period'
-import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { creditsToDollars, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE,
@@ -63,11 +60,9 @@ import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/bill
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   acquireOrganizationMutationLock,
-  ensureUserInOrganizationTx,
   getOrganizationTransferCredentialDependencies,
   removeUserFromOrganization,
   transferOrganizationOwnership,
-  transferUserBetweenOrganizations,
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import {
@@ -81,7 +76,6 @@ import { env } from '@/lib/core/config/env'
 import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transaction'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
-import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
@@ -181,6 +175,7 @@ interface DashboardOrganizationSummaryInput {
   provisioning: EnterpriseProvisioningView | null
   owner: { id: string; name: string; email: string } | null
   usageDollars: number
+  workflowRuns: number
   usagePeriod: ResolvedUsagePeriod
 }
 
@@ -192,19 +187,14 @@ interface DashboardOrganizationUsageContext {
 interface DashboardOrganizationUsage {
   total: number
   byUser: Map<string, number>
+  workflowRuns: number
+  workflowRunsByUser: Map<string, number>
 }
 
 function resolveDashboardUsagePeriod(
   latestSubscription: typeof subscription.$inferSelect | null
 ): ResolvedUsagePeriod {
-  return (
-    resolveSubscriptionUsagePeriod(latestSubscription) ?? {
-      ...defaultBillingPeriod(),
-      source: 'default' as const,
-      anchorDate: null,
-      interval: null,
-    }
-  )
+  return resolveSubscriptionUsagePeriodOrDefault(latestSubscription ?? {})
 }
 
 async function getDashboardOrganizationUsage(
@@ -213,7 +203,12 @@ async function getDashboardOrganizationUsage(
 ): Promise<Map<string, DashboardOrganizationUsage>> {
   const result = new Map<string, DashboardOrganizationUsage>()
   for (const context of contexts) {
-    result.set(context.organizationId, { total: 0, byUser: new Map() })
+    result.set(context.organizationId, {
+      total: 0,
+      byUser: new Map(),
+      workflowRuns: 0,
+      workflowRunsByUser: new Map(),
+    })
   }
   if (contexts.length === 0) return result
 
@@ -242,6 +237,10 @@ async function getDashboardOrganizationUsage(
       .select({
         organizationId: usageLog.billingEntityId,
         cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+        workflowRuns:
+          sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
+            Number
+          ),
       })
       .from(usageLog)
       .where(ledgerPeriodWhere)
@@ -249,7 +248,10 @@ async function getDashboardOrganizationUsage(
     for (const row of ledgerTotals) {
       if (!row.organizationId) continue
       const usage = result.get(row.organizationId)
-      if (usage) usage.total += Number(row.cost)
+      if (usage) {
+        usage.total += Number(row.cost)
+        usage.workflowRuns += row.workflowRuns
+      }
     }
 
     const legacyOrganizationIds = contexts
@@ -278,6 +280,10 @@ async function getDashboardOrganizationUsage(
       organizationId: usageLog.billingEntityId,
       userId: usageLog.userId,
       cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+      workflowRuns:
+        sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
+          Number
+        ),
     })
     .from(usageLog)
     .where(
@@ -294,6 +300,11 @@ async function getDashboardOrganizationUsage(
     const amount = Number(row.cost)
     usage.total += amount
     usage.byUser.set(row.userId, (usage.byUser.get(row.userId) ?? 0) + amount)
+    usage.workflowRuns += row.workflowRuns
+    usage.workflowRunsByUser.set(
+      row.userId,
+      (usage.workflowRunsByUser.get(row.userId) ?? 0) + row.workflowRuns
+    )
   }
 
   const legacyOrganizationIds = contexts
@@ -334,7 +345,7 @@ const historicalUsageWorkspace = alias(workspace, 'historical_usage_workspace')
 async function getHistoricalActorUsage(
   organizationId: string,
   period: ResolvedUsagePeriod
-): Promise<{ usedDollars: number; actorCount: number }> {
+): Promise<{ usedDollars: number; usedCredits: number; workflowRuns: number; actorCount: number }> {
   const currentMember = db
     .select({ value: sql`1` })
     .from(historicalUsageMember)
@@ -363,6 +374,10 @@ async function getHistoricalActorUsage(
   const [row] = await db
     .select({
       usedDollars: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+      workflowRuns:
+        sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
+          Number
+        ),
       actorCount: countDistinct(usageLog.userId),
     })
     .from(usageLog)
@@ -380,8 +395,11 @@ async function getHistoricalActorUsage(
         notExists(currentCollaborator)
       )
     )
+  const usedDollars = Number(row?.usedDollars ?? 0)
   return {
-    usedDollars: Number(row?.usedDollars ?? 0),
+    usedDollars,
+    usedCredits: dollarsToCredits(usedDollars),
+    workflowRuns: row?.workflowRuns ?? 0,
     actorCount: row?.actorCount ?? 0,
   }
 }
@@ -402,6 +420,7 @@ function buildDashboardOrganizationSummary({
   provisioning,
   owner,
   usageDollars,
+  workflowRuns,
   usagePeriod,
 }: DashboardOrganizationSummaryInput) {
   const metadata = metadataRecord(latestSubscription?.metadata)
@@ -467,7 +486,13 @@ function buildDashboardOrganizationSummary({
       currentEnd: reportingPeriod.end.toISOString(),
       source: reportingPeriod.source,
     },
-    usage: { usedDollars: Math.max(0, usageDollars), limitDollars: usageLimitDollars },
+    usage: {
+      usedDollars: Math.max(0, usageDollars),
+      limitDollars: usageLimitDollars,
+      usedCredits: dollarsToCredits(Math.max(0, usageDollars)),
+      limitCredits: dollarsToCredits(usageLimitDollars),
+      workflowRuns,
+    },
     provisioning: provisioning ? toDashboardProvisioning(provisioning) : null,
     subscription: latestSubscription,
   }
@@ -600,6 +625,10 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
           .select({
             userId: usageLog.billingEntityId,
             cost: sql<string>`coalesce(sum(${usageLog.cost}), 0)`,
+            workflowRuns:
+              sql<number>`count(distinct ${usageLog.executionId}) filter (where ${usageLog.source} = 'workflow')`.mapWith(
+                Number
+              ),
           })
           .from(usageLog)
           .where(
@@ -622,7 +651,9 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
           .groupBy(usageLog.billingEntityId)
   const personalUsage = new Map(
     personalLedgerRows.flatMap((row) =>
-      row.userId ? ([[row.userId, Number(row.cost)]] as const) : []
+      row.userId
+        ? ([[row.userId, { dollars: Number(row.cost), workflowRuns: row.workflowRuns }]] as const)
+        : []
     )
   )
   const legacyPersonalIds = personalUserIds.filter(
@@ -634,23 +665,37 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
       .from(userStats)
       .where(inArray(userStats.userId, legacyPersonalIds))
     for (const row of baselineRows) {
-      personalUsage.set(row.userId, (personalUsage.get(row.userId) ?? 0) + Number(row.cost ?? 0))
+      const current = personalUsage.get(row.userId) ?? { dollars: 0, workflowRuns: 0 }
+      personalUsage.set(row.userId, {
+        ...current,
+        dollars: current.dollars + Number(row.cost ?? 0),
+      })
     }
   }
 
   return {
-    data: rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      email: row.email,
-      activeOrganization:
-        row.organizationId && row.organizationName
-          ? { id: row.organizationId, name: row.organizationName }
-          : null,
-      usageDollars: row.organizationId
-        ? (organizationUsage.get(row.organizationId)?.byUser.get(row.id) ?? 0)
-        : (personalUsage.get(row.id) ?? 0),
-    })),
+    data: rows.map((row) => {
+      const organization = row.organizationId
+        ? organizationUsage.get(row.organizationId)
+        : undefined
+      const usageDollars = row.organizationId
+        ? (organization?.byUser.get(row.id) ?? 0)
+        : (personalUsage.get(row.id)?.dollars ?? 0)
+      return {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        activeOrganization:
+          row.organizationId && row.organizationName
+            ? { id: row.organizationId, name: row.organizationName }
+            : null,
+        usageDollars,
+        usageCredits: dollarsToCredits(usageDollars),
+        workflowRuns: row.organizationId
+          ? (organization?.workflowRunsByUser.get(row.id) ?? 0)
+          : (personalUsage.get(row.id)?.workflowRuns ?? 0),
+      }
+    }),
     pagination: {
       total: totalRow[0]?.total ?? 0,
       limit,
@@ -708,6 +753,7 @@ async function getDashboardOrganizationSummary(organizationId: string) {
       provisioning: provisionings.get(organizationId) ?? null,
       owner: owner ?? null,
       usageDollars: usage.get(organizationId)?.total ?? 0,
+      workflowRuns: usage.get(organizationId)?.workflowRuns ?? 0,
       usagePeriod: period,
     }),
     usagePeriod: period,
@@ -828,6 +874,7 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
       provisioning: provisionings.get(org.id) ?? null,
       owner,
       usageDollars: usageByOrganization.get(org.id)?.total ?? 0,
+      workflowRuns: usageByOrganization.get(org.id)?.workflowRuns ?? 0,
       usagePeriod: usagePeriodsByOrganization.get(org.id)!,
     })
     return summary
@@ -944,7 +991,9 @@ export async function getDashboardOrganization(
     getHistoricalActorUsage(organizationId, usagePeriod),
   ])
   const limits = new Map(limitRows.map((row) => [row.userId, Number(row.limit)]))
-  const usageByUser = usageByOrganization.get(organizationId)?.byUser ?? new Map<string, number>()
+  const organizationUsage = usageByOrganization.get(organizationId)
+  const usageByUser = organizationUsage?.byUser ?? new Map<string, number>()
+  const workflowRunsByUser = organizationUsage?.workflowRunsByUser ?? new Map<string, number>()
   const workspaceTotal = workspaceCountRows[0]?.value ?? 0
   return {
     ...base,
@@ -957,12 +1006,16 @@ export async function getDashboardOrganization(
       ...row,
       usageLimitDollars: limits.get(row.userId) ?? null,
       usageDollars: usageByUser.get(row.userId) ?? 0,
+      usageCredits: dollarsToCredits(usageByUser.get(row.userId) ?? 0),
+      workflowRuns: workflowRunsByUser.get(row.userId) ?? 0,
     })),
     externalCollaborators: externalRows.map((row) => ({
       ...row,
       workspaceCount: row.workspaceCount,
       usageLimitDollars: limits.get(row.userId) ?? null,
       usageDollars: usageByUser.get(row.userId) ?? 0,
+      usageCredits: dollarsToCredits(usageByUser.get(row.userId) ?? 0),
+      workflowRuns: workflowRunsByUser.get(row.userId) ?? 0,
     })),
     workspaces: workspaceRows,
     memberPagination: {
@@ -990,12 +1043,55 @@ export async function getDashboardOrganization(
           id: subscriptionRow.id,
           plan: subscriptionRow.plan,
           status: subscriptionRow.status,
+          cancelAtPeriodEnd: subscriptionRow.cancelAtPeriodEnd,
           periodStart: subscriptionRow.periodStart?.toISOString() ?? null,
           periodEnd: subscriptionRow.periodEnd?.toISOString() ?? null,
           stripeSubscriptionId: subscriptionRow.stripeSubscriptionId,
           invoiceAmountUsd: base.invoiceAmountUsd,
         }
       : null,
+  }
+}
+
+export async function renameDashboardOrganization(
+  organizationId: string,
+  name: string,
+  actor: AdminMutationActor
+) {
+  const normalizedName = name.trim()
+  if (!normalizedName || normalizedName.length > 120) {
+    throw new Error('Organization name must be between 1 and 120 characters')
+  }
+  const previousName = await db.transaction(async (tx) => {
+    await acquireOrganizationMutationLock(tx, organizationId)
+    const [row] = await tx
+      .select({ name: organization.name })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .for('update')
+      .limit(1)
+    if (!row) throw new Error('Organization not found')
+    if (row.name !== normalizedName) {
+      await tx
+        .update(organization)
+        .set({ name: normalizedName, updatedAt: new Date() })
+        .where(eq(organization.id, organizationId))
+    }
+    return row.name
+  })
+
+  if (previousName !== normalizedName) {
+    recordAudit({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: AuditAction.ORGANIZATION_UPDATED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      resourceName: normalizedName,
+      description: `Admin renamed organization from ${previousName} to ${normalizedName}`,
+      metadata: { previousName, name: normalizedName },
+    })
   }
 }
 
@@ -1097,6 +1193,7 @@ export async function previewDashboardEnterpriseBillingTerms(
     includeUserBreakdown: false,
   })
   const usedDollars = usage.get(organizationId)?.total ?? 0
+  const workflowRuns = usage.get(organizationId)?.workflowRuns ?? 0
   const limitDollars = Number(org.orgUsageLimit ?? 0)
   return {
     reportingPeriod: {
@@ -1106,7 +1203,13 @@ export async function previewDashboardEnterpriseBillingTerms(
       currentEnd: reportingPeriod.end.toISOString(),
       source: reportingPeriod.source,
     },
-    usage: { usedDollars, limitDollars },
+    usage: {
+      usedDollars,
+      limitDollars,
+      usedCredits: dollarsToCredits(usedDollars),
+      limitCredits: dollarsToCredits(limitDollars),
+      workflowRuns,
+    },
     exceedsLimit: usedDollars > limitDollars,
   }
 }
@@ -1637,170 +1740,6 @@ export async function getDashboardMemberTransferPreflight(
     canAdd: reason === null,
     reason,
   }
-}
-
-export async function addDashboardOrganizationMember(
-  organizationId: string,
-  values: {
-    userId: string
-    role: 'admin' | 'member'
-    usageLimitDollars?: number | null
-    personalWorkspaceIds?: string[]
-  },
-  actor: AdminMutationActor
-) {
-  const selectedWorkspaceIds = [...new Set(values.personalWorkspaceIds ?? [])]
-  if (selectedWorkspaceIds.length > 0) {
-    const selectable = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(
-        and(
-          ownedAttachableWorkspacesWhere({ userId: values.userId, includeArchived: true }),
-          inArray(workspace.id, selectedWorkspaceIds)
-        )
-      )
-    if (selectable.length !== selectedWorkspaceIds.length) {
-      throw new Error('One or more selected personal workspaces can no longer be moved')
-    }
-  }
-
-  const [existingMembership] = await db
-    .select({ id: member.id, organizationId: member.organizationId })
-    .from(member)
-    .where(eq(member.userId, values.userId))
-    .limit(1)
-
-  let memberId: string
-  let transferredFromOrganizationId: string | null = null
-  if (existingMembership && existingMembership.organizationId !== organizationId) {
-    const transferred = await transferUserBetweenOrganizations({
-      userId: values.userId,
-      sourceOrganizationId: existingMembership.organizationId,
-      destinationOrganizationId: organizationId,
-      role: values.role,
-      usageLimitDollars: values.usageLimitDollars,
-      setBy: actor.id ?? undefined,
-    })
-    if (!transferred.success || !transferred.memberId) {
-      throw new Error(transferred.error ?? 'Failed to transfer organization member')
-    }
-    memberId = transferred.memberId
-    transferredFromOrganizationId = existingMembership.organizationId
-  } else {
-    memberId = await db.transaction(async (tx) => {
-      await acquireOrganizationMutationLock(tx, organizationId)
-      const [organizationSubscription] = await tx
-        .select({ plan: subscription.plan })
-        .from(subscription)
-        .where(
-          and(
-            eq(subscription.referenceId, organizationId),
-            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-          )
-        )
-        .orderBy(desc(subscription.periodStart))
-        .limit(1)
-      const membershipResult = await ensureUserInOrganizationTx(tx, {
-        userId: values.userId,
-        organizationId,
-        role: values.role,
-        skipSeatValidation: organizationSubscription?.plan.startsWith('team') ?? false,
-      })
-      if (
-        !membershipResult.success ||
-        !membershipResult.memberId ||
-        membershipResult.alreadyMember
-      ) {
-        throw new Error(
-          membershipResult.alreadyMember
-            ? 'User is already a member'
-            : (membershipResult.error ?? 'Failed to add member')
-        )
-      }
-      if (values.usageLimitDollars !== undefined) {
-        await setOrgMemberUsageLimit(
-          organizationId,
-          values.userId,
-          values.usageLimitDollars,
-          actor.id ?? undefined,
-          tx
-        )
-      }
-      return membershipResult.memberId
-    })
-  }
-
-  for (const targetOrganizationId of [transferredFromOrganizationId, organizationId]) {
-    if (!targetOrganizationId) continue
-    try {
-      await reconcileOrganizationSeats({
-        organizationId: targetOrganizationId,
-        reason:
-          targetOrganizationId === organizationId
-            ? 'admin-member-added'
-            : 'admin-member-transferred-out',
-        actorId: actor.id ?? undefined,
-      })
-    } catch {
-      // Membership is canonical; Team seat reconciliation is retry-safe.
-    }
-  }
-  try {
-    await syncUsageLimitsFromSubscription(values.userId)
-  } catch {
-    // Membership remains canonical; the next billing reconciliation self-heals the derived limit.
-  }
-
-  const workspaceMoves: Array<{ workspaceId: string; success: boolean; error?: string }> = []
-  for (const workspaceId of selectedWorkspaceIds) {
-    try {
-      await moveWorkspaceToOrganization({
-        workspaceId,
-        destinationOrganizationId: organizationId,
-        adminEmail: actor.email ?? 'admin-api',
-        expectedOwnerId: values.userId,
-      })
-      workspaceMoves.push({ workspaceId, success: true })
-    } catch (error) {
-      workspaceMoves.push({
-        workspaceId,
-        success: false,
-        error: getErrorMessage(error, 'Workspace move failed'),
-      })
-    }
-  }
-
-  if (transferredFromOrganizationId) {
-    recordAudit({
-      actorId: actor.id,
-      actorName: actor.name,
-      actorEmail: actor.email,
-      action: AuditAction.ORG_MEMBER_REMOVED,
-      resourceType: AuditResourceType.ORGANIZATION,
-      resourceId: transferredFromOrganizationId,
-      description: 'Admin transferred organization member out',
-      metadata: { targetUserId: values.userId, destinationOrganizationId: organizationId },
-    })
-  }
-  recordAudit({
-    actorId: actor.id,
-    actorName: actor.name,
-    actorEmail: actor.email,
-    action: AuditAction.ORG_MEMBER_ADDED,
-    resourceType: AuditResourceType.ORGANIZATION,
-    resourceId: organizationId,
-    description: transferredFromOrganizationId
-      ? `Admin transferred organization member as ${values.role}`
-      : `Admin added organization member as ${values.role}`,
-    metadata: {
-      targetUserId: values.userId,
-      memberId,
-      transferredFromOrganizationId,
-      workspaceMoves,
-    },
-  })
-  return { memberId, transferredFromOrganizationId, workspaceMoves }
 }
 
 export async function updateDashboardOrganizationMember(

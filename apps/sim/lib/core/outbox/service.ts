@@ -112,6 +112,8 @@ export type OutboxHandler<T = unknown> = (
 export type OutboxHandlerRegistry = Record<string, OutboxHandler>
 
 export interface EnqueueOptions {
+  /** Caller-owned idempotency key. Defaults to a generated UUID. */
+  id?: string
   /** Total attempts before the event moves to `dead_letter`. Default 10. */
   maxAttempts?: number
   /** Earliest time a worker may pick up this event. Default now. */
@@ -160,7 +162,7 @@ export async function enqueueOutboxEvent<T>(
   payload: T,
   options: EnqueueOptions = {}
 ): Promise<string> {
-  const id = generateId()
+  const id = options.id ?? generateId()
   await executor.insert(outboxEvent).values({
     id,
     eventType,

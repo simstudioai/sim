@@ -183,6 +183,7 @@ export const auditMock = {
     CHARGE_DISPUTE_CLOSED: 'charge.dispute_closed',
     SUBSCRIPTION_CREATED: 'subscription.created',
     SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
+    SUBSCRIPTION_REFUNDED: 'subscription.refunded',
     SUBSCRIPTION_TRANSFERRED: 'subscription.transferred',
     ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned',
     CREDENTIAL_ACCESSED: 'credential.accessed',

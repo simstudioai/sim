@@ -1,7 +1,7 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import { type InvitationMembershipIntent, member, permissions, user } from '@sim/db/schema'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { isOrgAdminRole, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
@@ -25,6 +25,7 @@ import {
   cancelPendingInvitation,
   createPendingInvitation,
   findPendingGrantWorkspaceIds,
+  findPendingOrganizationInvitation,
   revertPendingInvitationGrants,
   sendInvitationEmail,
 } from '@/lib/invitations/send'
@@ -64,6 +65,8 @@ export interface WorkspaceInvitationContext {
   targets: WorkspaceInvitationTarget[]
   /** The organization all targets belong to, or null for a personal workspace. */
   organizationId: string | null
+  /** The platform admin to attribute audit entries to; inviter still authorizes product access. */
+  auditActor?: { id: string | null; name: string; email: string | null }
 }
 
 export interface WorkspaceInvitationResult {
@@ -103,6 +106,81 @@ export class WorkspaceInvitationError extends Error {
   }
 }
 
+async function ensureExistingMemberOrganizationRole({
+  context,
+  organizationId,
+  memberId,
+  userId,
+  currentRole,
+  requestedRole,
+  email,
+  request,
+}: {
+  context: WorkspaceInvitationContext
+  organizationId: string
+  memberId: string
+  userId: string
+  currentRole: string
+  requestedRole: 'admin' | 'member'
+  email: string
+  request?: NextRequest
+}): Promise<{ role: string; updated: boolean }> {
+  if (requestedRole !== 'admin' || isOrgAdminRole(currentRole)) {
+    return { role: currentRole, updated: false }
+  }
+
+  const updated = await db.transaction(async (tx) => {
+    await acquireOrganizationUserMutationLocks(tx, {
+      userId,
+      organizationIds: [organizationId],
+    })
+    const [actorMembership] = await tx
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, context.inviterId)))
+      .for('update')
+      .limit(1)
+    const [targetMembership] = await tx
+      .select({ role: member.role })
+      .from(member)
+      .where(
+        and(
+          eq(member.id, memberId),
+          eq(member.organizationId, organizationId),
+          eq(member.userId, userId)
+        )
+      )
+      .for('update')
+      .limit(1)
+    if (!actorMembership || !isOrgAdminRole(actorMembership.role) || !targetMembership) {
+      throw new WorkspaceInvitationError({
+        message: 'Organization membership changed. Refresh and try again.',
+        status: 409,
+        email,
+      })
+    }
+    if (isOrgAdminRole(targetMembership.role)) return false
+    await tx.update(member).set({ role: 'admin' }).where(eq(member.id, memberId))
+    return true
+  })
+
+  if (updated) {
+    recordAudit({
+      actorId: context.auditActor ? context.auditActor.id : context.inviterId,
+      actorName: context.auditActor ? context.auditActor.name : context.inviterName,
+      actorEmail: context.auditActor ? context.auditActor.email : context.inviterEmail,
+      action: AuditAction.ORG_MEMBER_ROLE_CHANGED,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      resourceName: email,
+      description: `Promoted ${email} to organization admin during invitation reconciliation`,
+      metadata: { targetUserId: userId, memberId, previousRole: currentRole, newRole: 'admin' },
+      request,
+    })
+  }
+  return { role: 'admin', updated }
+}
+
 /**
  * Authorizes the inviter on every target workspace and resolves the shared
  * organization scope. Mixing scopes is rejected: one invitation carries one
@@ -113,11 +191,13 @@ export async function prepareWorkspaceInvitationContext({
   inviterId,
   inviterName,
   inviterEmail,
+  auditActor,
 }: {
   workspaceIds: string[]
   inviterId: string
   inviterName: string
   inviterEmail?: string | null
+  auditActor?: { id: string | null; name: string; email: string | null }
 }): Promise<WorkspaceInvitationContext> {
   const uniqueWorkspaceIds = [...new Set(workspaceIds)]
   if (uniqueWorkspaceIds.length === 0) {
@@ -167,7 +247,7 @@ export async function prepareWorkspaceInvitationContext({
     })
   }
 
-  return { inviterId, inviterName, inviterEmail, targets, organizationId }
+  return { inviterId, inviterName, inviterEmail, targets, organizationId, auditActor }
 }
 
 /**
@@ -345,6 +425,10 @@ export async function createWorkspaceInvitation({
   email,
   permission = 'read',
   membership = 'member',
+  rejectCrossOrganization = false,
+  existingAccessPolicy = 'preserve',
+  sourceOperationId,
+  auditOperationId,
   request,
 }: {
   context: WorkspaceInvitationContext
@@ -357,7 +441,15 @@ export async function createWorkspaceInvitation({
    * a different organization — Sim accounts belong to at most one.
    */
   membership?: InvitationMembership
-  request: NextRequest
+  /** Admin flows use this to avoid silently changing an internal invite into external access. */
+  rejectCrossOrganization?: boolean
+  /** Provisioning may explicitly ensure requested minimum role/access; ordinary invites preserve it. */
+  existingAccessPolicy?: 'preserve' | 'ensure-at-least'
+  /** Correlates durable direct-grant notification delivery with a parent operation. */
+  sourceOperationId?: string
+  /** Makes invitation/direct-grant audits idempotent for durable callers. */
+  auditOperationId?: string
+  request?: NextRequest
 }): Promise<WorkspaceInvitationResult> {
   const validPermissions: PermissionType[] = ['admin', 'write', 'read']
   if (!validPermissions.includes(permission as PermissionType)) {
@@ -379,11 +471,32 @@ export async function createWorkspaceInvitation({
     .then((rows) => rows[0])
 
   const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
+  let existingOrganizationRole = existingMembership?.role
+  let organizationRoleUpdated = false
+  if (
+    existingAccessPolicy === 'ensure-at-least' &&
+    existingUser &&
+    organizationId &&
+    existingMembership?.organizationId === organizationId
+  ) {
+    const ensuredRole = await ensureExistingMemberOrganizationRole({
+      context,
+      organizationId,
+      memberId: existingMembership.memberId,
+      userId: existingUser.id,
+      currentRole: existingMembership.role,
+      requestedRole: membership === 'admin' ? 'admin' : 'member',
+      email: normalizedEmail,
+      request,
+    })
+    existingOrganizationRole = ensuredRole.role
+    organizationRoleUpdated = ensuredRole.updated
+  }
 
   let pendingTargets = context.targets
   if (existingUser) {
     const accessibleRows = await db
-      .select({ workspaceId: permissions.entityId })
+      .select({ workspaceId: permissions.entityId, permission: permissions.permissionType })
       .from(permissions)
       .where(
         and(
@@ -392,17 +505,41 @@ export async function createWorkspaceInvitation({
           inArray(permissions.entityId, allWorkspaceIds)
         )
       )
-    const accessibleWorkspaceIds = new Set(accessibleRows.map((row) => row.workspaceId))
+    const accessibleWorkspaceIds = new Set(
+      accessibleRows
+        .filter(
+          (row) =>
+            existingAccessPolicy === 'preserve' ||
+            isOrgAdminRole(existingOrganizationRole) ||
+            permissionSatisfies(row.permission, invitationPermission)
+        )
+        .map((row) => row.workspaceId)
+    )
 
     /**
-     * Invites never change an existing member's permission — role changes go
-     * through the members list — so workspaces they already hold are dropped
-     * rather than failing the whole invitation.
+     * Ordinary invites preserve existing permissions, while trusted durable
+     * provisioning/Admin operations may explicitly ensure the requested minimum.
+     * Stronger access is always preserved.
      */
     pendingTargets = context.targets.filter(
       (target) => !accessibleWorkspaceIds.has(target.workspaceId)
     )
     if (pendingTargets.length === 0) {
+      if (
+        existingAccessPolicy === 'ensure-at-least' &&
+        organizationId &&
+        existingMembership?.organizationId === organizationId
+      ) {
+        return {
+          id: existingUser.id,
+          email: normalizedEmail,
+          workspaceIds: [],
+          permission: invitationPermission,
+          membershipIntent: 'internal',
+          instantAdd: true,
+          outcome: organizationRoleUpdated ? 'updated' : 'unchanged',
+        }
+      }
       throw new WorkspaceInvitationError({
         message: `${normalizedEmail} already has access to ${
           context.targets.length === 1 ? 'this workspace' : 'every selected workspace'
@@ -417,7 +554,7 @@ export async function createWorkspaceInvitation({
      * with no invitation or acceptance step.
      */
     if (organizationId && existingMembership?.organizationId === organizationId) {
-      let outcome: DirectGrantOutcome['outcome'] = 'unchanged'
+      let outcome: DirectGrantOutcome['outcome'] = organizationRoleUpdated ? 'updated' : 'unchanged'
       for (const target of pendingTargets) {
         let directGrant: DirectGrantOutcome
         try {
@@ -431,7 +568,11 @@ export async function createWorkspaceInvitation({
             actorId: context.inviterId,
             actorName: context.inviterName,
             actorEmail: context.inviterEmail,
+            auditActor: context.auditActor,
             request,
+            existingPermissionPolicy: existingAccessPolicy,
+            sourceOperationId,
+            auditOperationId,
           })
         } catch (error) {
           if (error instanceof DirectGrantContextChangedError) {
@@ -445,6 +586,7 @@ export async function createWorkspaceInvitation({
           throw error
         }
         if (directGrant.outcome === 'added') outcome = 'added'
+        else if (directGrant.outcome === 'updated' && outcome === 'unchanged') outcome = 'updated'
       }
 
       return {
@@ -466,6 +608,13 @@ export async function createWorkspaceInvitation({
   const forcedExternal = Boolean(
     organizationId && existingMembership && existingMembership.organizationId !== organizationId
   )
+  if (forcedExternal && rejectCrossOrganization) {
+    throw new WorkspaceInvitationError({
+      message: `${normalizedEmail} already belongs to another organization and cannot be invited as an internal member`,
+      status: 409,
+      email: normalizedEmail,
+    })
+  }
 
   let membershipIntent: InvitationMembershipIntent = 'internal'
   if (forcedExternal) {
@@ -510,18 +659,6 @@ export async function createWorkspaceInvitation({
     membershipIntent === 'internal' && membership === 'admin' ? 'admin' : 'member'
 
   /**
-   * Only internal invitees take a seat, and only Enterprise reserves one at
-   * invite time (`requiresSeat`) — Team seats are provisioned on acceptance.
-   */
-  if (
-    membershipIntent === 'internal' &&
-    organizationId &&
-    context.targets[0].invitePolicy.requiresSeat
-  ) {
-    await assertSeatAvailable(organizationId, normalizedEmail)
-  }
-
-  /**
    * Workspaces already covered by a pending invitation are dropped so the
    * remaining ones still go out; re-inviting to only those is the duplicate.
    */
@@ -542,6 +679,23 @@ export async function createWorkspaceInvitation({
     })
   }
   const newWorkspaceIds = newTargets.map((target) => target.workspaceId)
+
+  /**
+   * Only a new internal Enterprise invitation reserves a new seat. Extending
+   * the one already pending for this organization/email reuses its reservation,
+   * including when the plan is currently at capacity.
+   */
+  const existingPendingInvitation = organizationId
+    ? await findPendingOrganizationInvitation(db, organizationId, normalizedEmail)
+    : null
+  if (
+    membershipIntent === 'internal' &&
+    organizationId &&
+    context.targets[0].invitePolicy.requiresSeat &&
+    !existingPendingInvitation
+  ) {
+    await assertSeatAvailable(organizationId, normalizedEmail)
+  }
 
   let invitationRecord: Awaited<ReturnType<typeof createPendingInvitation>>
   try {
@@ -630,17 +784,26 @@ export async function createWorkspaceInvitation({
   })
 
   if (!emailResult.success) {
+    let reverted: boolean
     if (invitationRecord.created) {
-      await cancelPendingInvitation(invitationRecord.invitationId, {
+      reverted = await cancelPendingInvitation(invitationRecord.invitationId, {
         expectedUpdatedAt: invitationRecord.mutationUpdatedAt,
         expectedOrganizationId: invitationRecord.mutationOrganizationId,
       })
     } else {
-      await revertPendingInvitationGrants({
+      reverted = await revertPendingInvitationGrants({
         invitationId: invitationRecord.invitationId,
         workspaceIds: invitationRecord.addedWorkspaceIds,
         expectedUpdatedAt: invitationRecord.mutationUpdatedAt,
         expectedOrganizationId: invitationRecord.mutationOrganizationId,
+      })
+    }
+    if (!reverted) {
+      throw new WorkspaceInvitationError({
+        message:
+          'The email failed after the invitation changed concurrently. Retry to reconcile and deliver the current invitation.',
+        status: 409,
+        email: normalizedEmail,
       })
     }
     throw new WorkspaceInvitationError({
@@ -651,11 +814,11 @@ export async function createWorkspaceInvitation({
   }
 
   for (const target of newTargets) {
-    recordAudit({
+    const audit = {
       workspaceId: target.workspaceId,
-      actorId: context.inviterId,
-      actorName: context.inviterName,
-      actorEmail: context.inviterEmail,
+      actorId: context.auditActor ? context.auditActor.id : context.inviterId,
+      actorName: context.auditActor ? context.auditActor.name : context.inviterName,
+      actorEmail: context.auditActor ? context.auditActor.email : context.inviterEmail,
       action: AuditAction.MEMBER_INVITED,
       resourceType: AuditResourceType.WORKSPACE,
       resourceId: target.workspaceId,
@@ -670,7 +833,12 @@ export async function createWorkspaceInvitation({
         invitationId: invitationRecord.invitationId,
       },
       request,
-    })
+    } as const
+    if (auditOperationId) {
+      await recordAuditOnce(`${auditOperationId}:workspace-invitation:${target.workspaceId}`, audit)
+    } else {
+      recordAudit(audit)
+    }
   }
 
   return {

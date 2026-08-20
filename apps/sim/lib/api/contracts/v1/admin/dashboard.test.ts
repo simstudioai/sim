@@ -75,7 +75,13 @@ describe('admin dashboard credit grant contract', () => {
           currentEnd: '2026-09-01T00:00:00.000Z',
           source: 'default',
         },
-        usage: { usedDollars: 0.001, limitDollars: 0.001 },
+        usage: {
+          usedDollars: 0.001,
+          limitDollars: 0.001,
+          usedCredits: 0,
+          limitCredits: 0,
+          workflowRuns: 0,
+        },
         provisioning: null,
       }).success
     ).toBe(true)
